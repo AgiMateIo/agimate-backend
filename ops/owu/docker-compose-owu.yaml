@@ -17,3 +17,7 @@ services:
 
 volumes:
   open-webui: {}
+
+networks:
+  agimate_network:
+    driver: bridge
