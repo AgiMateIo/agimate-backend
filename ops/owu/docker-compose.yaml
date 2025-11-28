@@ -19,5 +19,5 @@ volumes:
   open-webui: {}
 
 networks:
-  agimate_network:
+  swag_network:
     driver: bridge
