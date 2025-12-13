@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - include:
+      file: initial/initial.xml
+      relativeToChangelogFile: true
+  - includeAll:
+      path: updates
+      relativeToChangelogFile: true

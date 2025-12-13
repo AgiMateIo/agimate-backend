@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-users-table" author="agimate">
+        <createTable tableName="users">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="email" type="TEXT">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="first_name" type="TEXT"/>
+            <column name="last_name" type="TEXT"/>
+            <column name="display_name" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <createIndex tableName="users" indexName="idx_users_email">
+            <column name="email"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create-user-oauth-accounts-table" author="agimate">
+        <createTable tableName="user_oauth_accounts">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="oauth_provider" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="oauth_user_id" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="access_token" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="refresh_token" type="TEXT"/>
+            <column name="expires_at" type="TIMESTAMP"/>
+            <column name="scopes" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="user_oauth_accounts"
+                baseColumnNames="user_id"
+                constraintName="fk_user_oauth_accounts_user_id"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <createIndex tableName="user_oauth_accounts" indexName="idx_oauth_accounts_user_id">
+            <column name="user_id"/>
+        </createIndex>
+
+        <createIndex tableName="user_oauth_accounts" indexName="idx_oauth_accounts_provider_user">
+            <column name="oauth_provider"/>
+            <column name="oauth_user_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
