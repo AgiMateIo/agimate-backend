@@ -44,8 +44,6 @@ public class BaseErrorHandlerControllerAdvice {
 
     private static final String AUTH_PRIVATE_KEY_HEADER_NAME = "X-Auth-Key";
 
-    protected final MessageSource messageSource;
-
     @ExceptionHandler({UnauthorizedStatusException.class})
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ErrorResponse unauthorised(UnauthorizedStatusException ex, HttpServletRequest request, HttpServletResponse response) {
@@ -71,6 +69,7 @@ public class BaseErrorHandlerControllerAdvice {
     @ExceptionHandler(value = {TooManyRequestsStatusException.class})
     @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
     public ErrorResponse tooManyRequests(TooManyRequestsStatusException ex, HttpServletRequest request) {
+        log.warn("Too many requests");
         return new ErrorResponse(ex.getMessage());
     }
 
@@ -79,13 +78,6 @@ public class BaseErrorHandlerControllerAdvice {
     public ErrorResponse notFound(RuntimeException ex, HttpServletRequest request) {
         log.info("Not found on {} {}: cause: {}", request.getMethod(), request.getRequestURL(), ex.getMessage());
         return new ErrorResponse(ex.getMessage());
-    }
-
-    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
-    public ErrorResponse methodNotSupported(HttpRequestMethodNotSupportedException ex, HttpServletRequest request, HttpServletResponse response) {
-        log.info("Not allowed on {} {}: cause: {}", request.getMethod(), request.getRequestURL(), ex.getMessage());
-        return new ErrorResponse("method not supported");
     }
 
 
@@ -98,6 +90,24 @@ public class BaseErrorHandlerControllerAdvice {
             invalidFields.put("field", ex.getField());
         }
         return new ErrorResponse(ex.getMessage(), invalidFields);
+    }
+
+
+    @ExceptionHandler(value = {ResponseStatusException.class})
+    public ResponseEntity<ErrorResponse> responseStatusException(ResponseStatusException ex, HttpServletRequest request, HttpServletResponse response) {
+        log.warn("{} on {} {}: cause: {}", ex.getStatusCode(), request.getMethod(), request.getRequestURL(), ex.getMessage());
+        var status = HttpStatus.valueOf(ex.getStatusCode().value());
+        var message = Objects.requireNonNullElse(ex.getReason(), ex.getMessage());
+        return new ResponseEntity<>(new ErrorResponse(message), status);
+    }
+
+
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public ErrorResponse methodNotSupported(HttpRequestMethodNotSupportedException ex, HttpServletRequest request, HttpServletResponse response) {
+        log.info("Not allowed on {} {}: cause: {}", request.getMethod(), request.getRequestURL(), ex.getMessage());
+        return new ErrorResponse("method not supported");
     }
 
     @ExceptionHandler({BindException.class})
@@ -234,14 +244,6 @@ public class BaseErrorHandlerControllerAdvice {
             errors.put(property, violation.getMessage());
         }
         return new ErrorResponse("Bad request", errors);
-    }
-
-    @ExceptionHandler(value = {ResponseStatusException.class})
-    public ResponseEntity<ErrorResponse> responseStatusException(ResponseStatusException ex, HttpServletRequest request, HttpServletResponse response) {
-        log.warn("{} on {} {}: cause: {}", ex.getStatusCode(), request.getMethod(), request.getRequestURL(), ex.getMessage());
-        var status = HttpStatus.valueOf(ex.getStatusCode().value());
-        var message = Objects.requireNonNullElse(ex.getReason(), ex.getMessage());
-        return new ResponseEntity<>(new ErrorResponse(message), status);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)

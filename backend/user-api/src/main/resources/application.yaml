@@ -49,6 +49,19 @@ spring:
       ddl-auto: none
     show-sql: false
     open-in-view: false
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope: openid, profile, email
+            redirect-uri: "{baseUrl}/oauth2/callback/{registrationId}"
+            client-name: Google
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
 
 micrometer:
   observations:
@@ -61,6 +74,11 @@ logging:
     org.springframework.boot.web.embedded.tomcat.TomcatWebServer: debug # to write opened port
     ru.agimate: debug
 
+
+jwt:
+  secret: ${JWT_SECRET:***REMOVED***}
+  expiration:
+    ms: 86400000  # 24 hours
 
 springdoc:
   swagger-ui:
