@@ -5,5 +5,14 @@ public enum OAuthProviderType {
     YANDEX,
     GITHUB,
     FACEBOOK,
-    TWITTER
+    TWITTER;
+
+    public static OAuthProviderType fromString(String provider) {
+        for (OAuthProviderType type : OAuthProviderType.values()) {
+            if (type.name().equalsIgnoreCase(provider)) {
+                return type;
+            }
+        }
+        throw new IllegalArgumentException("No OAuth provider found for: " + provider);
+    }
 }

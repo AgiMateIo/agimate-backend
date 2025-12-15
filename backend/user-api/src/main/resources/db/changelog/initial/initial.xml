@@ -35,24 +35,20 @@
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
-                <constraints nullable="false" unique="true"/>
-            </column>
             <column name="user_id" type="BIGINT">
                 <constraints nullable="false"/>
             </column>
             <column name="oauth_provider" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="oauth_user_id" type="TEXT">
+            <column name="provider_user_id" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="access_token" type="TEXT">
-                <constraints nullable="false"/>
+            <column name="email" type="TEXT">
+                <constraints nullable="false" unique="true"/>
             </column>
-            <column name="refresh_token" type="TEXT"/>
-            <column name="expires_at" type="TIMESTAMP"/>
-            <column name="scopes" type="TEXT"/>
+            <column name="first_name" type="TEXT"/>
+            <column name="last_name" type="TEXT"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
@@ -73,7 +69,7 @@
 
         <createIndex tableName="user_oauth_accounts" indexName="idx_oauth_accounts_provider_user">
             <column name="oauth_provider"/>
-            <column name="oauth_user_id"/>
+            <column name="provider_user_id"/>
         </createIndex>
     </changeSet>
 

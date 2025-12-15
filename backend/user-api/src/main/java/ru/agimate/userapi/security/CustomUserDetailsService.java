@@ -30,4 +30,10 @@ public class CustomUserDetailsService implements UserDetailsService {
 
         return UserPrincipal.create(user);
     }
+
+    @Transactional
+    public ru.agimate.userapi.database.entities.User getUserById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + id));
+    }
 }

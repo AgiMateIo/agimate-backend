@@ -57,11 +57,8 @@ spring:
             client-id: ${GOOGLE_CLIENT_ID:}
             client-secret: ${GOOGLE_CLIENT_SECRET:}
             scope: openid, profile, email
-            redirect-uri: "{baseUrl}/oauth2/callback/{registrationId}"
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             client-name: Google
-        provider:
-          google:
-            issuer-uri: https://accounts.google.com
 
 micrometer:
   observations:
@@ -79,6 +76,9 @@ jwt:
   secret: ${JWT_SECRET:***REMOVED***}
   expiration:
     ms: 86400000  # 24 hours
+  refresh:
+    expiration:
+      ms: 604800000  # 7 days
 
 springdoc:
   swagger-ui:

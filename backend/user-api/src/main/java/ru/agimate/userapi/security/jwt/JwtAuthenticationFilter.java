@@ -1,4 +1,4 @@
-package ru.agimate.userapi.security;
+package ru.agimate.userapi.security.jwt;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -13,7 +13,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
-import ru.agimate.userapi.security.auth.JwtAuthenticationToken;
 
 import java.io.IOException;
 
@@ -78,9 +77,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        // Don't filter the login endpoint
-        return request.getServletPath().equals("/auth/login") ||
-               request.getServletPath().equals("/oauth2/authorization/google") ||
-               request.getServletPath().equals("/");
+        // Don't filter the login endpoint and OAuth2 endpoints
+        String servletPath = request.getServletPath();
+        return servletPath.equals("/auth/login") ||
+               servletPath.startsWith("/oauth2/") ||
+               servletPath.equals("/error");
     }
 }

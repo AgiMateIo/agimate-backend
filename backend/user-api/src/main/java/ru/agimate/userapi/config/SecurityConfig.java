@@ -1,6 +1,7 @@
 package ru.agimate.userapi.config;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -13,6 +14,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -23,7 +26,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.userapi.security.CustomUserDetailsService;
-import ru.agimate.userapi.security.JwtAuthenticationFilter;
+import ru.agimate.userapi.security.jwt.JwtAuthenticationFilter;
+import ru.agimate.userapi.security.oauth2.OAuth2FailureHandler;
+import ru.agimate.userapi.security.oauth2.OAuth2SuccessHandler;
 
 import java.util.List;
 
@@ -37,6 +42,11 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 public class SecurityConfig {
 
     private final CustomUserDetailsService userDetailsService;
+    private final OAuth2SuccessHandler oAuth2SuccessHandler;
+    private final OAuth2FailureHandler oAuth2FailureHandler;
+
+    @Value("${app.oauth.frontend-redirect-url:http://localhost:3000/oauth2/callback}")
+    private String frontendRedirectUrl;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -98,12 +108,16 @@ public class SecurityConfig {
                                 .accessDeniedHandler(accessDeniedHandler()) // For authorization failures
                 )
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/").permitAll()
+                        .requestMatchers("/", "/oauth2/**", "/error").permitAll()
                         .requestMatchers("/user/**").authenticated()
                         .anyRequest().authenticated()
                 )
                 .userDetailsService(userDetailsService)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .oauth2Login(oauth2 -> oauth2
+                        .successHandler(oAuth2SuccessHandler)
+                        .failureHandler(oAuth2FailureHandler)
+                )
+                .addFilterBefore(jwtAuthenticationFilter, OAuth2LoginAuthenticationFilter.class);
 
         return http.build();
     }

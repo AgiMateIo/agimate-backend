@@ -1,4 +1,4 @@
-package ru.agimate.userapi.security;
+package ru.agimate.userapi.security.jwt;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

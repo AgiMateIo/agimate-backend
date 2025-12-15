@@ -1,4 +1,4 @@
-package ru.agimate.userapi.security.auth;
+package ru.agimate.userapi.security.jwt;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
