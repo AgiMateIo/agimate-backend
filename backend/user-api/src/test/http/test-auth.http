@@ -9,13 +9,13 @@ GET http://localhost:8080/user-api/oauth2/authorization/google
 
 ###
 GET http://localhost:8080/user-api/user/me
-Authorization: Bearer ***REMOVED***
+Authorization: Bearer ***REMOVED***"
 
 
 ### 123
-GET http://localhost:8080/user-api/auth/refresh
+POST  http://localhost:8080/user-api/oauth2/refresh
 Content-Type: application/json
 
 {
-    "refresh_token": "f315dedd-7958-4355-9e06-8c77de5bff27"
+    "refreshToken": "7ed25ce0-c4c3-43fa-b19e-5f0366b230e1"
 }

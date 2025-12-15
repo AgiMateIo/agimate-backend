@@ -52,8 +52,10 @@ public class OAuthController {
         // Generate new access token
         String newAccessToken = jwtUtils.generateToken(userPrincipal);
 
-        // Create new refresh token (invalidate the old one)
-        refreshTokenService.deleteRefreshToken(request.refreshToken());
+        // Mark the old refresh token as used to prevent reuse
+        refreshTokenService.markTokenAsUsed(request.refreshToken());
+
+        // Create new refresh token
         String newRefreshToken = refreshTokenService.createRefreshToken(userPrincipal);
 
         AuthResponse authResponse = AuthResponse.builder()
