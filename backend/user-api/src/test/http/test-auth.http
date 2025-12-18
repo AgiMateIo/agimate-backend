@@ -7,15 +7,19 @@ GET http://localhost:8080/user-api/user/me
 GET http://localhost:8080/user-api/oauth2/authorization/google
 
 
-###
+### get me with jwt
 GET http://localhost:8080/user-api/user/me
-Authorization: Bearer ***REMOVED***"
+Authorization: Bearer ***REMOVED***
 
 
-### 123
+### Refresh token (now uses cookie)
+# Note: This request expects the refresh token to be sent as an httpOnly cookie named 'refreshToken'
+# with path '/refresh'. To test this, you would need to first authenticate successfully to get the cookie.
 POST  http://localhost:8080/user-api/oauth2/refresh
 Content-Type: application/json
+Cookie: refreshToken=***REMOVED***; Expires=Mon, 22 Dec 2025 19:13:08 GMT; Max-Age=604800; Path=/; HttpOnly; Expires=Mon, 22 Dec 2025 19:10:06 GMT; Max-Age=604800; Path=/; HttpOnly
 
 {
-    "refreshToken": "7ed25ce0-c4c3-43fa-b19e-5f0366b230e1"
+  "jwtId": "0dafb724-b27d-48d9-b69d-43c74de54d1c"
 }
+

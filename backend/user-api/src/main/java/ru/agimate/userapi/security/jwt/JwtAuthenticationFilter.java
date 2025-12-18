@@ -8,11 +8,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import ru.agimate.userapi.security.CustomUserDetailsService;
 
 import java.io.IOException;
 
@@ -22,7 +21,7 @@ import java.io.IOException;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
-    private final UserDetailsService userDetailsService;
+    private final CustomUserDetailsService customUserDetailsService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -32,22 +31,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // Extract JWT from request header
         String jwt = parseJwt(request);
 
-        if (jwt != null && jwtUtils.validateToken(jwt, getDummyUserDetails(jwt))) {
-            String username = jwtUtils.extractUsername(jwt);
-
-            // Load user details from database
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-
-            // Check if token is still valid with actual user details
-            if (jwtUtils.validateToken(jwt, userDetails)) {
-                JwtAuthenticationToken authToken =
-                    new JwtAuthenticationToken(
-                        userDetails,
-                        userDetails.getAuthorities()
-                    );
-
-                SecurityContextHolder.getContext().setAuthentication(authToken);
-            }
+        if (jwt != null) {
+            jwtUtils.extractClaimsFromValidAccessToken(jwt)
+                    .flatMap(w -> customUserDetailsService.findByPubId(w.claims().getSubject()))
+                    .ifPresent(userDetails -> {
+                        SecurityContextHolder.getContext().setAuthentication(
+                                new JwtAuthenticationToken(
+                                        userDetails,
+                                        userDetails.getAuthorities()
+                                )
+                        );
+                    });
         }
 
         filterChain.doFilter(request, response);
@@ -63,24 +57,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
-    // Helper method to get dummy user details for initial validation
-    private UserDetails getDummyUserDetails(String jwt) {
-        // This creates a basic user detail for initial token validation
-        // Actual authorities will be loaded from the database after validation
-        String username = jwtUtils.extractUsername(jwt);
-        return org.springframework.security.core.userdetails.User
-            .withUsername(username)
-            .password("") // Empty password for token-based auth
-            .authorities("ROLE_USER") // Default authority for validation
-            .build();
-    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         // Don't filter the login endpoint and OAuth2 endpoints
         String servletPath = request.getServletPath();
         return servletPath.equals("/auth/login") ||
-               servletPath.startsWith("/oauth2/") ||
-               servletPath.equals("/error");
+                servletPath.startsWith("/oauth2/") ||
+                servletPath.equals("/error");
     }
 }

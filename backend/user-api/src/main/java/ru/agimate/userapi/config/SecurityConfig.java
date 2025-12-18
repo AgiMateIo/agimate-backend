@@ -1,7 +1,6 @@
 package ru.agimate.userapi.config;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -14,22 +13,21 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import ru.agimate.common.util.JsonUtils;
 import ru.agimate.common.rest.ErrorResponse;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.userapi.security.CustomUserDetailsService;
 import ru.agimate.userapi.security.jwt.JwtAuthenticationFilter;
 import ru.agimate.userapi.security.oauth2.OAuth2FailureHandler;
 import ru.agimate.userapi.security.oauth2.OAuth2SuccessHandler;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.springframework.http.HttpStatus.FORBIDDEN;
@@ -44,9 +42,6 @@ public class SecurityConfig {
     private final CustomUserDetailsService userDetailsService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final OAuth2FailureHandler oAuth2FailureHandler;
-
-    @Value("${app.oauth.frontend-redirect-url:http://localhost:3000/oauth2/callback}")
-    private String frontendRedirectUrl;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -75,7 +70,8 @@ public class SecurityConfig {
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) -> {
             response.setStatus(UNAUTHORIZED.value());
-            response.setContentType("application/json;charset=UTF-8");
+            response.setContentType("application/json");
+            response.setCharacterEncoding(StandardCharsets.UTF_8);
 
             // Write JSON response
             var writer = response.getWriter();
@@ -88,7 +84,8 @@ public class SecurityConfig {
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, accessDeniedException) -> {
             response.setStatus(FORBIDDEN.value());
-            response.setContentType("application/json;charset=UTF-8");
+            response.setContentType("application/json");
+            response.setCharacterEncoding(StandardCharsets.UTF_8);
 
             // Write JSON response
             var writer = response.getWriter();
@@ -109,6 +106,7 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/", "/oauth2/**", "/error").permitAll()
+                        .requestMatchers("/docs/**").permitAll()
                         .requestMatchers("/user/**").authenticated()
                         .anyRequest().authenticated()
                 )

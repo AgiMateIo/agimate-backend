@@ -74,11 +74,12 @@ logging:
 
 jwt:
   secret: ${JWT_SECRET:***REMOVED***}
-  expiration:
-    ms: 86400000  # 24 hours
-  refresh:
-    expiration:
-      ms: 604800000  # 7 days
+  accessExpiration: 86400 # 24 hours
+  refreshExpiration: 604800 # 7 days
+
+app:
+  oauth:
+    cookie-secure: false  # Set to true in production with HTTPS
 
 springdoc:
   swagger-ui:

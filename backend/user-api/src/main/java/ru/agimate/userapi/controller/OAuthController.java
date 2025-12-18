@@ -1,19 +1,27 @@
 package ru.agimate.userapi.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
-import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.userapi.controller.dto.request.auth.RefreshTokenRequest;
+import ru.agimate.common.rest.error.ForbiddenStatusException;
+import ru.agimate.common.rest.error.UnauthorizedStatusException;
+import ru.agimate.userapi.controller.dto.request.auth.LogoutRequest;
+import ru.agimate.userapi.controller.dto.request.auth.RefreshRequest;
 import ru.agimate.userapi.controller.dto.response.auth.AuthResponse;
 import ru.agimate.userapi.security.CustomUserDetailsService;
-import ru.agimate.userapi.security.UserPrincipal;
 import ru.agimate.userapi.security.jwt.JwtUtils;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/oauth2")
@@ -23,47 +31,80 @@ public class OAuthController {
 
     private final JwtUtils jwtUtils;
     private final RefreshTokenService refreshTokenService;
-    private final CustomUserDetailsService userDetailsService;
+    private final CustomUserDetailsService customUserDetailsService;
+
 
     @Operation(
             summary = "Refresh authentication tokens",
-            description = "Takes a valid refresh token and returns new access and refresh tokens",
-            requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Refresh token required to get new access and refresh tokens",
-                    required = true,
-                    content = @io.swagger.v3.oas.annotations.media.Content(
+            description = "Takes a valid refresh token from cookie and returns new access token",
+            responses = @ApiResponse(
+                    description = "New access token",
+                    content = @Content(
                             mediaType = "application/json",
-                            schema = @io.swagger.v3.oas.annotations.media.Schema(implementation = RefreshTokenRequest.class)
+                            schema = @Schema(implementation = AuthResponse.class)
                     )
             )
     )
     @PostMapping("/refresh")
-    public ResponseEntity<SuccessResponse<AuthResponse>> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
-        // Verify the refresh token
-        var refreshToken = refreshTokenService.verifyRefreshToken(request.refreshToken());
+    public ResponseEntity<SuccessResponse<AuthResponse>> refreshToken(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @RequestBody
+            RefreshRequest refreshRequest
+    ) {
+        String refreshTokenValue = refreshTokenService.getRefreshTokenFromCookie(request);
 
-        if (refreshToken == null) {
-            throw new BadRequestStatusException("Invalid or expired refresh token");
+        if (refreshTokenValue == null || refreshTokenValue.isEmpty()) {
+            throw new UnauthorizedStatusException("Refresh token not found");
         }
 
-        // Find the user associated with this refresh token
-        UserPrincipal userPrincipal = (UserPrincipal) userDetailsService.loadUserById(refreshToken.getUserId());
+        refreshTokenService.isAlreadyUsed(refreshRequest.refreshTokenId());
 
-        // Generate new access token
-        String newAccessToken = jwtUtils.generateToken(userPrincipal);
+        var wrappedJwtOptional = jwtUtils.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
+        if (wrappedJwtOptional.isEmpty()) {
+            refreshTokenService.deleteRefreshTokenCookie(response);
+            throw new ForbiddenStatusException("Invalid or expired refresh token");
+        }
 
-        // Mark the old refresh token as used to prevent reuse
-        refreshTokenService.markTokenAsUsed(request.refreshToken());
+        UserDetails userDetails = customUserDetailsService.getByPubId(wrappedJwtOptional.get().claims().getSubject());
 
-        // Create new refresh token
-        String newRefreshToken = refreshTokenService.createRefreshToken(userPrincipal);
+        String newAccessToken = jwtUtils.generateAccessToken(userDetails);
+        String newRefreshTokenId = UUID.randomUUID().toString();
+        String newRefreshToken = jwtUtils.generateRefreshToken(userDetails, newRefreshTokenId);
 
-        AuthResponse authResponse = AuthResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
-                .build();
+        refreshTokenService.markTokenAsUsed(refreshTokenValue);
+
+        refreshTokenService.setHttpOnlyRefreshTokenCookie(response, newRefreshToken);
+
+        AuthResponse authResponse = new AuthResponse(newAccessToken, newRefreshTokenId);
 
         return ResponseEntity.ok(SuccessResponse.ok(authResponse));
+    }
+
+    @Operation(summary = "Logout")
+    @PostMapping("/logout")
+    public ResponseEntity<SuccessResponse<String>> logout(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @RequestBody
+            LogoutRequest refreshRequest
+    ) {
+        String refreshTokenValue = refreshTokenService.getRefreshTokenFromCookie(request);
+
+        if (refreshTokenValue == null || refreshTokenValue.isEmpty()) {
+            throw new UnauthorizedStatusException("Refresh token not found");
+        }
+
+        var wrappedJwtOptional = jwtUtils.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
+        if (wrappedJwtOptional.isEmpty()) {
+            refreshTokenService.deleteRefreshTokenCookie(response);
+            throw new ForbiddenStatusException("Invalid or expired refresh token");
+        }
+
+        refreshTokenService.markTokenAsUsed(refreshTokenValue);
+        refreshTokenService.deleteRefreshTokenCookie(response);
+
+        return ResponseEntity.ok(SuccessResponse.ok("success"));
     }
 
     @GetMapping("/error")
@@ -71,4 +112,6 @@ public class OAuthController {
         log.error("OAuth2 authentication error: {}", error);
         return ResponseEntity.badRequest().body("OAuth2 authentication failed: " + error);
     }
+
+
 }
