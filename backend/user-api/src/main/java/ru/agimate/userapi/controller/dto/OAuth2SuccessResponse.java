@@ -1,43 +1,46 @@
 package ru.agimate.userapi.controller.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.time.LocalDateTime;
+/**
+ * OAuth2 Success Response DTO
+ */
+@Schema(description = "OAuth2 Success Response DTO")
+public record OAuth2SuccessResponse(
+        @Schema(description = "JWT access token", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
+        @JsonProperty("access_token")
+        String accessToken,
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
-public class OAuth2SuccessResponse {
+        @Schema(description = "Refresh token identifier", example = "550e8400-e29b-41d4-a716-446655440000")
+        @JsonProperty("refresh_token_id")
+        String refreshTokenId,
 
-    @JsonProperty("access_token")
-    private String accessToken;
+        @Schema(description = "Token type", example = "Bearer")
+        @JsonProperty("token_type")
+        String tokenType,
 
-    @JsonProperty("refresh_token_id")
-    private String refreshTokenId;
+        @Schema(description = "Token expiration time in seconds", example = "3600")
+        @JsonProperty("expires_in")
+        Long expiresIn,
 
-    @JsonProperty("token_type")
-    private String tokenType;
+        @Schema(description = "User public ID", example = "550e8400-e29b-41d4-a716-446655440000")
+        @JsonProperty("user_id")
+        String userId,
 
-    @JsonProperty("expires_in")
-    private Long expiresIn;
+        @Schema(description = "User email", example = "user@example.com")
+        @JsonProperty("email")
+        String email,
 
-    @JsonProperty("user_id")
-    private String userId;
+        @Schema(description = "User first name", example = "John")
+        @JsonProperty("first_name")
+        String firstName,
 
-    @JsonProperty("email")
-    private String email;
+        @Schema(description = "User last name", example = "Doe")
+        @JsonProperty("last_name")
+        String lastName,
 
-    @JsonProperty("first_name")
-    private String firstName;
-
-    @JsonProperty("last_name")
-    private String lastName;
-
-    @JsonProperty("display_name")
-    private String displayName;
-}
+        @Schema(description = "User display name", example = "johndoe")
+        @JsonProperty("display_name")
+        String displayName
+) {}
