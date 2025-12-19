@@ -28,6 +28,10 @@ dependencies {
     compileOnly("org.springframework.boot:spring-boot-starter-web")
     compileOnly("org.springframework.boot:spring-boot-starter-validation")
     compileOnly("org.springframework.boot:spring-boot-starter-data-jpa")
+    compileOnly("org.springframework.boot:spring-boot-starter-security")
+    compileOnly("io.jsonwebtoken:jjwt-api:0.12.6")
+    compileOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    compileOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
     compileOnly("org.springdoc:springdoc-openapi-starter-webmvc-ui")
 

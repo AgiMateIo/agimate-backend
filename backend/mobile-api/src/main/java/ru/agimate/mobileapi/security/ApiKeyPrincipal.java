@@ -1,10 +1,12 @@
 package ru.agimate.mobileapi.security;
 
 import java.security.Principal;
+import java.util.UUID;
 
 public record ApiKeyPrincipal(
         String name,
-        String apiKey
+        UUID connectionKeyPubId,
+        UUID userPubId
 ) implements Principal {
 
     @Override

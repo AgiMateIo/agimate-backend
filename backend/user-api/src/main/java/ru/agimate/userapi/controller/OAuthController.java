@@ -17,8 +17,8 @@ import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.userapi.controller.dto.request.auth.LogoutRequest;
 import ru.agimate.userapi.controller.dto.request.auth.RefreshRequest;
 import ru.agimate.userapi.controller.dto.response.auth.AuthResponse;
+import ru.agimate.common.security.jwt.JwtUtils;
 import ru.agimate.userapi.security.CustomUserDetailsService;
-import ru.agimate.userapi.security.jwt.JwtUtils;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
 
 import java.util.UUID;

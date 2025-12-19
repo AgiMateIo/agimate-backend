@@ -42,7 +42,8 @@ spring:
       max-lifetime: 240000  # 4min
       keepalive-time: 30000 # 30sec
   liquibase:
-    enabled: false
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
   jpa:
     hibernate:
       ddl-auto: validate
@@ -74,3 +75,14 @@ springdoc:
     path: "/docs/api"
     enabled: false
   paths-to-exclude: "/favicon.ico"
+
+jwt:
+  secret: ${JWT_SECRET:***REMOVED***}
+  accessExpiration: 86400
+  refreshExpiration: 604800
+
+mobile-api:
+  security:
+    api-keys:
+      - name: "mobile-device-1"
+        key: ${MOBILE_API_KEY_1:dev-api-key-1}

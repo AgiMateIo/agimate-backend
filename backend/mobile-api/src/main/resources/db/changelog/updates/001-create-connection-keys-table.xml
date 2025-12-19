@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-connection-keys-table" author="agimate">
+        <createTable tableName="connection_keys">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="key_hash" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="key_prefix" type="VARCHAR(8)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="requests_per_hour" type="INTEGER"/>
+            <column name="last_used_at" type="TIMESTAMP"/>
+            <column name="usage_count" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP"/>
+            <column name="ip_whitelist" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <!-- Index for looking up keys by user -->
+        <createIndex tableName="connection_keys" indexName="idx_connection_keys_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+
+        <!-- Index for authentication lookup by prefix -->
+        <createIndex tableName="connection_keys" indexName="idx_connection_keys_prefix_active">
+            <column name="key_prefix"/>
+            <column name="enabled"/>
+            <column name="deleted_at"/>
+        </createIndex>
+
+        <!-- Foreign key to users table (references pub_id) -->
+        <addForeignKeyConstraint
+                baseTableName="connection_keys"
+                baseColumnNames="user_pub_id"
+                constraintName="fk_connection_keys_user_pub_id"
+                referencedTableName="users"
+                referencedColumnNames="pub_id"
+                onDelete="CASCADE"/>
+
+        <rollback>
+            <dropTable tableName="connection_keys"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

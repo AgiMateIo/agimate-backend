@@ -11,6 +11,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import ru.agimate.common.security.jwt.JwtAuthenticationToken;
+import ru.agimate.common.security.jwt.JwtUtils;
 import ru.agimate.userapi.security.CustomUserDetailsService;
 
 import java.io.IOException;

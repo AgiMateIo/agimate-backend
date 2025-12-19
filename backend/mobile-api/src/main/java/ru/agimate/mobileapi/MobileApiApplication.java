@@ -10,10 +10,14 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @EnableCaching
 @EnableConfigurationProperties
-@ConfigurationPropertiesScan
+@ConfigurationPropertiesScan(basePackages = {
+        "ru.agimate.mobileapi",
+        "ru.agimate.common.security.jwt"
+})
 @SpringBootApplication(
         scanBasePackages = {
-                "ru.agimate.mobileapi"
+                "ru.agimate.mobileapi",
+                "ru.agimate.common"
         }
 )
 @EntityScan

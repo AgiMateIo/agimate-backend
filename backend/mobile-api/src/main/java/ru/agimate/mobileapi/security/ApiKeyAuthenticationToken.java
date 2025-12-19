@@ -24,7 +24,7 @@ public class ApiKeyAuthenticationToken implements Authentication {
 
     @Override
     public Object getCredentials() {
-        return principal.apiKey();
+        return principal.connectionKeyPubId();
     }
 
     @Override
