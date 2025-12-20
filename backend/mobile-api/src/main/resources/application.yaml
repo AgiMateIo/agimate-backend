@@ -10,11 +10,11 @@ server:
       enabled: true
   max-http-request-header-size: 60KB
   servlet:
-    context-path: "/user-api/"
+    context-path: "/mobile-api/"
 
 spring:
   application:
-    name: "user-api"
+    name: "mobile-api"
   profiles:
     active: "local"
   main:
@@ -32,7 +32,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: "jdbc:postgresql://localhost:5432/am_core_db?reWriteBatchedInserts=true"
+    url: "jdbc:postgresql://localhost:5432/am_mobile_db?reWriteBatchedInserts=true"
     username: "user"
     password: "password"
     hikari:
@@ -60,6 +60,7 @@ logging:
     root: warn
     org.springframework.boot.web.embedded.tomcat.TomcatWebServer: debug # to write opened port
     ru.agimate: debug
+    liquibase: debug
 
 
 springdoc:
