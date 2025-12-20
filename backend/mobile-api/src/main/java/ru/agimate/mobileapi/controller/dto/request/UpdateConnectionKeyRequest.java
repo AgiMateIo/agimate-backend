@@ -3,8 +3,6 @@ package ru.agimate.mobileapi.controller.dto.request;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 
-import java.time.LocalDateTime;
-
 @Schema(description = "Request to update a connection key")
 public record UpdateConnectionKeyRequest(
         @Size(min = 1, max = 100)
@@ -16,14 +14,5 @@ public record UpdateConnectionKeyRequest(
         String description,
 
         @Schema(description = "Enable or disable the key")
-        Boolean enabled,
-
-        @Schema(description = "Rate limit: requests per hour")
-        Integer requestsPerHour,
-
-        @Schema(description = "Optional expiration date")
-        LocalDateTime expiresAt,
-
-        @Schema(description = "Comma-separated IP whitelist")
-        String ipWhitelist
+        Boolean enabled
 ) {}

@@ -32,7 +32,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: "jdbc:postgresql://localhost:5432/am_core_db?reWriteBatchedInserts=true"
+    url: "jdbc:postgresql://localhost:5432/am_user_db?reWriteBatchedInserts=true"
     username: "user"
     password: "password"
     hikari:

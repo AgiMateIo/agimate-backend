@@ -51,10 +51,7 @@ public class UserController {
         ConnectionKeyCreateResult result = connectionKeyService.createKey(
                 userPubId,
                 request.name(),
-                request.description(),
-                request.requestsPerHour(),
-                request.expiresAt(),
-                request.ipWhitelist()
+                request.description()
         );
         return SuccessResponse.ok(ConnectionKeyCreatedResponse.from(
                 result.connectionKey(),
@@ -87,10 +84,7 @@ public class UserController {
                 userPubId,
                 request.name(),
                 request.description(),
-                request.enabled(),
-                request.requestsPerHour(),
-                request.expiresAt(),
-                request.ipWhitelist()
+                request.enabled()
         );
         return SuccessResponse.ok(ConnectionKeyResponse.from(updated));
     }

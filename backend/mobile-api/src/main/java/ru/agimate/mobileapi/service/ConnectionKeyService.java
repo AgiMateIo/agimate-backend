@@ -2,7 +2,6 @@ package ru.agimate.mobileapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ConflictStatusException;
@@ -10,10 +9,11 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.mobileapi.database.entities.ConnectionKey;
 import ru.agimate.mobileapi.database.repositories.ConnectionKeyRepository;
 import ru.agimate.mobileapi.service.dto.ConnectionKeyCreateResult;
+import ru.agimate.mobileapi.util.ApiKeyUtils;
+import ru.agimate.mobileapi.util.GeneratedApiKey;
+import ru.agimate.mobileapi.util.ParsedApiKey;
 
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,18 +24,12 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class ConnectionKeyService {
 
-    private static final String KEY_PREFIX = "agm_";
-    private static final int KEY_LENGTH = 32;
     private static final int MAX_KEYS_PER_USER = 10;
 
     private final ConnectionKeyRepository connectionKeyRepository;
-    private final BCryptPasswordEncoder passwordEncoder;
-    private final SecureRandom secureRandom = new SecureRandom();
 
     @Transactional
-    public ConnectionKeyCreateResult createKey(UUID userPubId, String name, String description,
-                                               Integer requestsPerHour, LocalDateTime expiresAt,
-                                               String ipWhitelist) {
+    public ConnectionKeyCreateResult createKey(UUID userPubId, String name, String description) {
         long existingCount = connectionKeyRepository.countByUserPubIdNotDeleted(userPubId);
         if (existingCount >= MAX_KEYS_PER_USER) {
             throw new ConflictStatusException("Maximum number of API keys reached: " + MAX_KEYS_PER_USER);
@@ -45,85 +39,59 @@ public class ConnectionKeyService {
             throw new ConflictStatusException("A key with this name already exists");
         }
 
-        String plaintextKey = generateSecureKey();
-        String keyHash = passwordEncoder.encode(plaintextKey);
-        String keyPrefix = plaintextKey.substring(0, 8);
+        GeneratedApiKey generatedKey = ApiKeyUtils.generate("mob");
 
         ConnectionKey connectionKey = ConnectionKey.builder()
                 .userPubId(userPubId)
                 .name(name)
                 .description(description)
-                .keyHash(keyHash)
-                .keyPrefix(keyPrefix)
+                .keyHash(generatedKey.secretHash())
+                .keyId(generatedKey.keyId())
                 .enabled(true)
-                .requestsPerHour(requestsPerHour)
-                .expiresAt(expiresAt)
-                .ipWhitelist(ipWhitelist)
-                .usageCount(0L)
                 .build();
 
         ConnectionKey saved = connectionKeyRepository.save(connectionKey);
         log.info("Created new connection key for user {}: {}", userPubId, saved.getPubId());
 
-        return new ConnectionKeyCreateResult(saved, plaintextKey);
-    }
-
-    private String generateSecureKey() {
-        byte[] randomBytes = new byte[KEY_LENGTH];
-        secureRandom.nextBytes(randomBytes);
-        String encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
-        return KEY_PREFIX + encoded;
+        return new ConnectionKeyCreateResult(saved, generatedKey.fullKey());
     }
 
     public Optional<ConnectionKey> validateKey(String apiKey) {
-        if (apiKey == null || !apiKey.startsWith(KEY_PREFIX) || apiKey.length() < 12) {
+        if (apiKey == null || apiKey.isBlank()) {
             return Optional.empty();
         }
 
-        String prefix = apiKey.substring(0, 8);
-        LocalDateTime now = LocalDateTime.now();
-
-        List<ConnectionKey> candidates = connectionKeyRepository.findActiveKeysByPrefix(prefix, now);
-
-        for (ConnectionKey candidate : candidates) {
-            if (passwordEncoder.matches(apiKey, candidate.getKeyHash())) {
-                return Optional.of(candidate);
-            }
+        ParsedApiKey parsed;
+        try {
+            parsed = ApiKeyUtils.parse(apiKey);
+        } catch (IllegalArgumentException e) {
+            log.debug("Invalid API key format: {}", e.getMessage());
+            return Optional.empty();
         }
 
-        return Optional.empty();
+        if (!ApiKeyUtils.verifyChecksum(parsed)) {
+            log.debug("API key checksum verification failed");
+            return Optional.empty();
+        }
+
+        Optional<ConnectionKey> keyOpt = connectionKeyRepository.findActiveKeyByKeyId(parsed.keyId());
+
+        if (keyOpt.isEmpty()) {
+            return Optional.empty();
+        }
+
+        ConnectionKey key = keyOpt.get();
+        if (!ApiKeyUtils.verifySecret(parsed.secret(), key.getKeyHash())) {
+            log.debug("API key secret verification failed");
+            return Optional.empty();
+        }
+
+        return Optional.of(key);
     }
 
     @Transactional
     public Optional<ConnectionKey> validateKeyAndRecordUsage(String apiKey, String clientIp) {
-        Optional<ConnectionKey> keyOpt = validateKey(apiKey);
-
-        if (keyOpt.isPresent()) {
-            ConnectionKey key = keyOpt.get();
-
-            if (key.getIpWhitelist() != null && !key.getIpWhitelist().isBlank()) {
-                if (!isIpAllowed(clientIp, key.getIpWhitelist())) {
-                    log.warn("API key {} used from non-whitelisted IP: {}", key.getPubId(), clientIp);
-                    return Optional.empty();
-                }
-            }
-
-            connectionKeyRepository.incrementUsage(key.getId(), LocalDateTime.now());
-            return keyOpt;
-        }
-
-        return Optional.empty();
-    }
-
-    private boolean isIpAllowed(String clientIp, String ipWhitelist) {
-        if (clientIp == null) return false;
-        String[] allowed = ipWhitelist.split(",");
-        for (String ip : allowed) {
-            if (ip.trim().equals(clientIp)) {
-                return true;
-            }
-        }
-        return false;
+        return validateKey(apiKey);
     }
 
     public List<ConnectionKey> getKeysForUser(UUID userPubId) {
@@ -136,9 +104,7 @@ public class ConnectionKeyService {
     }
 
     @Transactional
-    public ConnectionKey updateKey(UUID pubId, UUID userPubId, String name, String description,
-                                   Boolean enabled, Integer requestsPerHour,
-                                   LocalDateTime expiresAt, String ipWhitelist) {
+    public ConnectionKey updateKey(UUID pubId, UUID userPubId, String name, String description, Boolean enabled) {
         ConnectionKey key = connectionKeyRepository.findByPubIdNotDeleted(pubId)
                 .filter(k -> k.getUserPubId().equals(userPubId))
                 .orElseThrow(() -> new NotFoundStatusException("Connection key not found"));
@@ -146,9 +112,6 @@ public class ConnectionKeyService {
         if (name != null) key.setName(name);
         if (description != null) key.setDescription(description);
         if (enabled != null) key.setEnabled(enabled);
-        if (requestsPerHour != null) key.setRequestsPerHour(requestsPerHour);
-        if (expiresAt != null) key.setExpiresAt(expiresAt);
-        if (ipWhitelist != null) key.setIpWhitelist(ipWhitelist);
 
         return connectionKeyRepository.save(key);
     }
@@ -171,13 +134,6 @@ public class ConnectionKeyService {
 
         connectionKeyRepository.softDelete(oldKey.getId(), LocalDateTime.now());
 
-        return createKey(
-                userPubId,
-                oldKey.getName(),
-                oldKey.getDescription(),
-                oldKey.getRequestsPerHour(),
-                oldKey.getExpiresAt(),
-                oldKey.getIpWhitelist()
-        );
+        return createKey(userPubId, oldKey.getName(), oldKey.getDescription());
     }
 }

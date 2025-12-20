@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -73,13 +74,13 @@ public final class ApiKeyUtils {
         }
 
         // 1. Generate keyId = timestamp(4) + random(5) → base64url → 12 chars
-        byte[] keyIdBytes = new byte[KEYID_BYTES];
-        int timestamp = (int) (System.currentTimeMillis() / 1000);
-        ByteBuffer.wrap(keyIdBytes).putInt(timestamp);
-        byte[] randomPart = new byte[RANDOM_KEYID_BYTES];
-        SECURE_RANDOM.nextBytes(randomPart);
-        System.arraycopy(randomPart, 0, keyIdBytes, TIMESTAMP_BYTES, RANDOM_KEYID_BYTES);
-        String keyId = Base64.getUrlEncoder().withoutPadding().encodeToString(keyIdBytes);
+        byte[] randomKeyIdPart = new byte[RANDOM_KEYID_BYTES];
+        SECURE_RANDOM.nextBytes(randomKeyIdPart);
+
+        ByteBuffer keyIdBuffer = ByteBuffer.allocate(KEYID_BYTES);
+        keyIdBuffer.putInt((int) Instant.now().getEpochSecond());
+        keyIdBuffer.put(randomKeyIdPart);
+        String keyId = Base64.getUrlEncoder().withoutPadding().encodeToString(keyIdBuffer.array());
 
         // 2. Generate secret = random(32)
         byte[] secret = new byte[SECRET_BYTES];
@@ -89,10 +90,10 @@ public final class ApiKeyUtils {
         byte[] checksum = calculateChecksum(PREFIX, type, keyId, secret);
 
         // 4. Build payload = base64url(secret || checksum) → 48 chars
-        byte[] payloadBytes = new byte[PAYLOAD_BYTES];
-        System.arraycopy(secret, 0, payloadBytes, 0, SECRET_BYTES);
-        System.arraycopy(checksum, 0, payloadBytes, SECRET_BYTES, CHECKSUM_BYTES);
-        String payload = Base64.getUrlEncoder().withoutPadding().encodeToString(payloadBytes);
+        ByteBuffer payloadBuffer = ByteBuffer.allocate(PAYLOAD_BYTES);
+        payloadBuffer.put(secret);
+        payloadBuffer.put(checksum);
+        String payload = Base64.getUrlEncoder().withoutPadding().encodeToString(payloadBuffer.array());
 
         // 5. Build full key without separators (positional format)
         String fullKey = PREFIX + type + keyId + payload;

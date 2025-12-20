@@ -6,10 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
-
-import java.time.LocalDateTime;
+import ru.agimate.common.persistence.BaseEntity;
 
 @Entity
 @Table(name = "user_oauth_accounts")
@@ -18,7 +15,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserOAuthAccount {
+public class UserOAuthAccount extends BaseEntity {
 
     // Custom constructor for tests
     public UserOAuthAccount(User user, OAuthProviderType oauthProvider, String providerUserId) {
@@ -50,13 +47,5 @@ public class UserOAuthAccount {
 
     @Column(name = "last_name", columnDefinition = "TEXT")
     private String lastName;
-
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
 
 }

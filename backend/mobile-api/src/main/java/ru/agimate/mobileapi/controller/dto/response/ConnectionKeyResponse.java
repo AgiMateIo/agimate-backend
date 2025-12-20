@@ -18,45 +18,24 @@ public record ConnectionKeyResponse(
         @Schema(description = "Key description")
         String description,
 
-        @Schema(description = "Key prefix for identification", example = "agm_xxxx")
-        String keyPrefix,
+        @Schema(description = "Masked key ID for identification", example = "amobZ3h5****")
+        String maskedKeyId,
 
         @Schema(description = "Whether the key is enabled")
         boolean enabled,
-
-        @Schema(description = "Requests per hour limit (null = unlimited)")
-        Integer requestsPerHour,
-
-        @Schema(description = "Last time the key was used")
-        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-        LocalDateTime lastUsedAt,
-
-        @Schema(description = "Total number of times the key has been used")
-        Long usageCount,
-
-        @Schema(description = "Key expiration date (null = never expires)")
-        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-        LocalDateTime expiresAt,
-
-        @Schema(description = "IP whitelist")
-        String ipWhitelist,
 
         @Schema(description = "Creation timestamp")
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
         LocalDateTime createdAt
 ) {
     public static ConnectionKeyResponse from(ConnectionKey key) {
+        String maskedKeyId = "amob" + key.getKeyId().substring(0, 4) + "****";
         return new ConnectionKeyResponse(
                 key.getPubId(),
                 key.getName(),
                 key.getDescription(),
-                key.getKeyPrefix() + "****",
+                maskedKeyId,
                 key.getEnabled(),
-                key.getRequestsPerHour(),
-                key.getLastUsedAt(),
-                key.getUsageCount(),
-                key.getExpiresAt(),
-                key.getIpWhitelist(),
                 key.getCreatedAt()
         );
     }

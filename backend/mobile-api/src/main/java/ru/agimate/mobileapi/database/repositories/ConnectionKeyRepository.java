@@ -23,16 +23,11 @@ public interface ConnectionKeyRepository extends JpaRepository<ConnectionKey, Lo
     @Query("SELECT ck FROM ConnectionKey ck WHERE ck.userPubId = :userPubId AND ck.deletedAt IS NULL ORDER BY ck.createdAt DESC")
     List<ConnectionKey> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
 
-    @Query("SELECT ck FROM ConnectionKey ck WHERE ck.keyPrefix = :prefix AND ck.deletedAt IS NULL " +
-           "AND ck.enabled = true AND (ck.expiresAt IS NULL OR ck.expiresAt > :now)")
-    List<ConnectionKey> findActiveKeysByPrefix(@Param("prefix") String prefix, @Param("now") LocalDateTime now);
+    @Query("SELECT ck FROM ConnectionKey ck WHERE ck.keyId = :keyId AND ck.deletedAt IS NULL AND ck.enabled = true")
+    Optional<ConnectionKey> findActiveKeyByKeyId(@Param("keyId") String keyId);
 
     @Query("SELECT COUNT(ck) FROM ConnectionKey ck WHERE ck.userPubId = :userPubId AND ck.deletedAt IS NULL")
     long countByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
-
-    @Modifying
-    @Query("UPDATE ConnectionKey ck SET ck.usageCount = ck.usageCount + 1, ck.lastUsedAt = :now WHERE ck.id = :id")
-    void incrementUsage(@Param("id") Long id, @Param("now") LocalDateTime now);
 
     @Modifying
     @Query("UPDATE ConnectionKey ck SET ck.deletedAt = :now WHERE ck.id = :id")

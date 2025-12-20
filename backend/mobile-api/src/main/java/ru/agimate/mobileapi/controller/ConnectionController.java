@@ -18,13 +18,13 @@ public class ConnectionController {
 
     @Operation(summary = "Returns tasks for mobile device")
     @GetMapping("/tasks")
-    public SuccessResponse<List<String>> connections() {
+    public SuccessResponse<List<String>> tasks() {
         return SuccessResponse.ok(List.of("one", "two"));
     }
 
     @Operation(summary = "Handle trigger from device")
     @PostMapping("/trigger")
-    public SuccessResponse<String> addConnection(
+    public SuccessResponse<String> trigger(
             @RequestBody
             TriggerRequest triggerRequest
     ) {
