@@ -12,6 +12,10 @@ server:
   servlet:
     context-path: "/user-api/"
 
+management:
+  server:
+    port: 8088
+
 spring:
   application:
     name: "user-api"

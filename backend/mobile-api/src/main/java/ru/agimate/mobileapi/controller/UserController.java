@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.mobileapi.controller.dto.request.CreateConnectionKeyRequest;
 import ru.agimate.mobileapi.controller.dto.request.UpdateConnectionKeyRequest;
 import ru.agimate.mobileapi.controller.dto.response.ConnectionKeyCreatedResponse;
@@ -67,7 +68,7 @@ public class UserController {
     ) {
         UUID userPubId = UUID.fromString(principal.getPubId());
         ConnectionKey key = connectionKeyService.getKeyByPubId(connectionId, userPubId)
-                .orElseThrow(() -> new ru.agimate.common.rest.error.NotFoundStatusException("Connection key not found"));
+                .orElseThrow(() -> new NotFoundStatusException("Connection key not found"));
         return SuccessResponse.ok(ConnectionKeyResponse.from(key));
     }
 

@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8180
   error:
     whitelabel:
       enabled: false
@@ -11,6 +11,10 @@ server:
   max-http-request-header-size: 60KB
   servlet:
     context-path: "/mobile-api/"
+
+management:
+  server:
+    port: 8188
 
 spring:
   application:
@@ -60,8 +64,6 @@ logging:
     root: warn
     org.springframework.boot.web.embedded.tomcat.TomcatWebServer: debug # to write opened port
     ru.agimate: debug
-    liquibase: debug
-
 
 springdoc:
   swagger-ui:
