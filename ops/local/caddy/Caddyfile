@@ -1,0 +1,13 @@
+http://www.agimate.lc:8000 {
+	reverse_proxy localhost:3000
+}
+
+http://api.agimate.lc:8000 {
+	handle /user-api/* {
+		reverse_proxy localhost:8080
+	}
+
+	handle /mobile-api/* {
+		reverse_proxy localhost:8180
+	}
+}
