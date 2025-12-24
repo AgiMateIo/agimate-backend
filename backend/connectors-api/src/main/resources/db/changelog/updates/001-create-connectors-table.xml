@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="001-create-connectors-table" author="agimate">
+        <createTable tableName="connectors">
+            <column name="id" type="BIGSERIAL">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="code" type="TEXT">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="base_url" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="icon_url" type="TEXT"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <createIndex tableName="connectors" indexName="idx_connectors_code">
+            <column name="code"/>
+        </createIndex>
+
+        <createIndex tableName="connectors" indexName="idx_connectors_enabled">
+            <column name="enabled"/>
+        </createIndex>
+
+        <!-- Insert default connectors -->
+        <insert tableName="connectors">
+            <column name="pub_id" valueComputed="gen_random_uuid()"/>
+            <column name="code" value="ozon"/>
+            <column name="name" value="Ozon"/>
+            <column name="description" value="Маркетплейс Ozon - интеграция с Seller API"/>
+            <column name="base_url" value="https://api-seller.ozon.ru"/>
+            <column name="enabled" valueBoolean="true"/>
+        </insert>
+
+        <insert tableName="connectors">
+            <column name="pub_id" valueComputed="gen_random_uuid()"/>
+            <column name="code" value="wildberries"/>
+            <column name="name" value="Wildberries"/>
+            <column name="description" value="Маркетплейс Wildberries - интеграция с API поставщиков"/>
+            <column name="base_url" value="https://suppliers-api.wildberries.ru"/>
+            <column name="enabled" valueBoolean="true"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

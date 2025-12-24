@@ -1,0 +1,63 @@
+server:
+  port: 8280
+  error:
+    whitelabel:
+      enabled: false
+    path: "/error"
+  shutdown: graceful
+  servlet:
+    context-path: "/connectors-api/"
+
+management:
+  server:
+    port: 8288
+
+spring:
+  application:
+    name: "connectors-api"
+  profiles:
+    active: "local"
+  main:
+    banner-mode: off
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: "jdbc:postgresql://localhost:5432/am_connectors_db?reWriteBatchedInserts=true"
+    username: "user"
+    password: "password"
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+
+connectors:
+  encryption:
+    key: ${CONNECTORS_ENCRYPTION_KEY:***REMOVED***}
+
+springdoc:
+  swagger-ui:
+    path: "/docs/ui"
+    enabled: false
+  api-docs:
+    path: "/docs/api"
+    enabled: false
+
+logging:
+  level:
+    root: warn
+    ru.agimate: info
