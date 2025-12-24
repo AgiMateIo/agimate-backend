@@ -12,7 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
-import ru.agimate.mobileapi.service.ConnectionKeyService;
+import ru.agimate.mobileapi.service.DeviceAuthKeyService;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,7 +25,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private static final String API_KEY_HEADER = "X-Api-Key";
     private static final String X_FORWARDED_FOR = "X-Forwarded-For";
 
-    private final ConnectionKeyService connectionKeyService;
+    private final DeviceAuthKeyService deviceAuthKeyService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -37,21 +37,21 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(apiKey)) {
             String clientIp = getClientIp(request);
 
-            connectionKeyService.validateKeyAndRecordUsage(apiKey, clientIp)
-                    .ifPresent(connectionKey -> {
+            deviceAuthKeyService.validateKeyAndRecordUsage(apiKey, clientIp)
+                    .ifPresent(deviceAuthKey -> {
                         var authorities = List.of(new SimpleGrantedAuthority("ROLE_DEVICE"));
                         var principal = new ApiKeyPrincipal(
-                                connectionKey.getName(),
-                                connectionKey.getPubId(),
-                                connectionKey.getUserPubId()
+                                deviceAuthKey.getName(),
+                                deviceAuthKey.getPubId(),
+                                deviceAuthKey.getUserPubId()
                         );
 
                         SecurityContextHolder.getContext().setAuthentication(
                                 new ApiKeyAuthenticationToken(principal, authorities)
                         );
 
-                        log.debug("API key authenticated for connection: {} (user: {})",
-                                connectionKey.getName(), connectionKey.getUserPubId());
+                        log.debug("API key authenticated for device: {} (user: {})",
+                                deviceAuthKey.getName(), deviceAuthKey.getUserPubId());
                     });
         }
 

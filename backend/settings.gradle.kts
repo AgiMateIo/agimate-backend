@@ -3,7 +3,8 @@ rootProject.name = "agimate-backend"
 // Services
 include(
     "user-api",
-    "mobile-api"
+    "mobile-api",
+    "connectors-api"
 )
 
 // libs

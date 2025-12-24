@@ -1,10 +1,9 @@
 package ru.agimate.mobileapi.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
-import jakarta.websocket.server.PathParam;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.mobileapi.controller.dto.request.AddConnectionRequest;
 import ru.agimate.mobileapi.controller.dto.request.TriggerRequest;
 
 import java.util.List;
@@ -12,6 +11,7 @@ import java.util.List;
 /**
  * This Controller is used to handle requests from mobile devices
  */
+@Slf4j
 @RestController
 @RequestMapping("/connection")
 public class ConnectionController {
@@ -29,6 +29,8 @@ public class ConnectionController {
             TriggerRequest triggerRequest
     ) {
         // TODO: implement later
+        // ***REMOVED***
+        log.info("Trigger - {} {}", triggerRequest.name(), triggerRequest.data().toString());
         return SuccessResponse.ok(triggerRequest.name());
     }
 
