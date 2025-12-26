@@ -3,7 +3,7 @@ package ru.agimate.userapi.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.userapi.database.entities.User;
+import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.repositories.UserRepository;
 
 import java.util.Optional;
@@ -16,22 +16,22 @@ public class UserService {
 
     private final UserRepository userRepository;
 
-    public Optional<User> findByEmail(String email) {
+    public Optional<UserEntity> findByEmail(String email) {
         return userRepository.findByEmail(email);
     }
 
-    public Optional<User> findByPubId(UUID pubId) {
+    public Optional<UserEntity> findByPubId(UUID pubId) {
         return userRepository.findByPubId(pubId);
     }
 
     @Transactional
-    public User createUser(String email, String firstName, String lastName, String displayName) {
-        User user = new User(email, firstName, lastName, displayName);
-        return userRepository.save(user);
+    public UserEntity createUser(String email, String firstName, String lastName, String displayName) {
+        UserEntity userEntity = new UserEntity(email, firstName, lastName, displayName);
+        return userRepository.save(userEntity);
     }
 
     @Transactional
-    public User updateUser(User user) {
-        return userRepository.save(user);
+    public UserEntity updateUser(UserEntity userEntity) {
+        return userRepository.save(userEntity);
     }
 }

@@ -25,6 +25,12 @@ public interface CredentialRepository extends JpaRepository<Credential, Long> {
     @Query("SELECT c FROM Credential c WHERE c.connector.code = :connectorCode AND c.deletedAt IS NULL ORDER BY c.createdAt DESC")
     List<Credential> findByConnectorCodeNotDeleted(@Param("connectorCode") String connectorCode);
 
+    @Query("SELECT c FROM Credential c WHERE c.connector.code = :connectorCode AND c.userPubId = :userPubId AND c.deletedAt IS NULL ORDER BY c.createdAt DESC")
+    List<Credential> findByConnectorCodeAndUserPubIdNotDeleted(@Param("connectorCode") String connectorCode, @Param("userPubId") UUID userPubId);
+
+    @Query("SELECT c FROM Credential c WHERE c.pubId = :pubId AND c.userPubId = :userPubId AND c.deletedAt IS NULL")
+    Optional<Credential> findByPubIdAndUserPubIdNotDeleted(@Param("pubId") UUID pubId, @Param("userPubId") UUID userPubId);
+
     @Query("SELECT COUNT(c) FROM Credential c WHERE c.connector.code = :connectorCode AND c.deletedAt IS NULL")
     long countByConnectorCodeNotDeleted(@Param("connectorCode") String connectorCode);
 
@@ -51,4 +57,20 @@ public interface CredentialRepository extends JpaRepository<Credential, Long> {
         ORDER BY con.name
     """)
     List<CredentialsSummaryProjection> findCredentialsSummary();
+
+    @Query("""
+        SELECT
+            con.code as connectorCode,
+            con.name as connectorName,
+            COUNT(cr.id) as credentialCount,
+            MAX(cr.createdAt) as lastAddedAt,
+            MAX(cr.lastUsedAt) as lastUsedAt
+        FROM Connector con
+        LEFT JOIN Credential cr ON cr.connector = con AND cr.deletedAt IS NULL AND cr.userPubId = :userPubId
+        WHERE con.enabled = true
+        GROUP BY con.id, con.code, con.name
+        HAVING COUNT(cr.id) > 0
+        ORDER BY con.name
+    """)
+    List<CredentialsSummaryProjection> findCredentialsSummaryByUser(@Param("userPubId") UUID userPubId);
 }

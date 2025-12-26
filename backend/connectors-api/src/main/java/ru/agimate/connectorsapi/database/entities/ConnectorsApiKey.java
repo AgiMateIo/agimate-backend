@@ -1,4 +1,4 @@
-package ru.agimate.mobileapi.database.entities;
+package ru.agimate.connectorsapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -9,13 +9,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "device_auth_keys")
+@Table(name = "connectors_api_keys")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DeviceAuthKey extends BaseEntity {
+public class ConnectorsApiKey extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

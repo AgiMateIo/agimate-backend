@@ -13,8 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.userapi.controller.dto.response.UserResponse;
-import ru.agimate.userapi.database.entities.User;
-import ru.agimate.userapi.security.UserPrincipal;
+import ru.agimate.userapi.database.entities.UserEntity;
+import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.userapi.service.UserService;
 
 import java.util.Optional;
@@ -35,18 +35,18 @@ public class UserController {
             @Parameter(description = "Public ID of the user", required = true)
             @PathVariable("pub_id") UUID pubId) {
 
-        Optional<User> userOpt = userService.findByPubId(pubId);
+        Optional<UserEntity> userOpt = userService.findByPubId(pubId);
 
         if (userOpt.isPresent()) {
-            User user = userOpt.get();
+            UserEntity userEntity = userOpt.get();
             UserResponse userResponse = new UserResponse(
-                    user.getPubId(),
-                    user.getEmail(),
-                    user.getFirstName(),
-                    user.getLastName(),
-                    user.getDisplayName(),
-                    user.getCreatedAt(),
-                    user.getUpdatedAt()
+                    userEntity.getPubId(),
+                    userEntity.getEmail(),
+                    userEntity.getFirstName(),
+                    userEntity.getLastName(),
+                    userEntity.getDisplayName(),
+                    userEntity.getCreatedAt(),
+                    userEntity.getUpdatedAt()
             );
 
             return ResponseEntity.ok(SuccessResponse.ok(userResponse));
@@ -62,22 +62,22 @@ public class UserController {
         if (authentication != null && authentication.isAuthenticated()) {
             Object principal = authentication.getPrincipal();
 
-            if (principal instanceof UserPrincipal) {
-                UserPrincipal userPrincipal = (UserPrincipal) principal;
+            if (principal instanceof AgimateUserPrincipal) {
+                AgimateUserPrincipal agimateUserPrincipal = (AgimateUserPrincipal) principal;
 
                 // Find the user by their pubId to get the full user object
-                Optional<User> userOpt = userService.findByPubId(userPrincipal.getPubId());
+                Optional<UserEntity> userOpt = userService.findByPubId(UUID.fromString(agimateUserPrincipal.pubId()));
 
                 if (userOpt.isPresent()) {
-                    User user = userOpt.get();
+                    UserEntity userEntity = userOpt.get();
                     UserResponse userResponse = new UserResponse(
-                            user.getPubId(),
-                            user.getEmail(),
-                            user.getFirstName(),
-                            user.getLastName(),
-                            user.getDisplayName(),
-                            user.getCreatedAt(),
-                            user.getUpdatedAt()
+                            userEntity.getPubId(),
+                            userEntity.getEmail(),
+                            userEntity.getFirstName(),
+                            userEntity.getLastName(),
+                            userEntity.getDisplayName(),
+                            userEntity.getCreatedAt(),
+                            userEntity.getUpdatedAt()
                     );
 
                     return ResponseEntity.ok(SuccessResponse.ok(userResponse));

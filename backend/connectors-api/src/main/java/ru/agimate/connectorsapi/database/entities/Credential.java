@@ -30,6 +30,9 @@ public class Credential extends BaseEntity {
     @JoinColumn(name = "connector_id", nullable = false)
     private Connector connector;
 
+    @Column(name = "user_pub_id")
+    private UUID userPubId;
+
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
 

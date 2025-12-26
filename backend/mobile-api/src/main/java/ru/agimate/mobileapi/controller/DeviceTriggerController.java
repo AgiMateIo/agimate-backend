@@ -13,17 +13,13 @@ import java.util.List;
  */
 @Slf4j
 @RestController
-@RequestMapping("/connection")
-public class ConnectionController {
+@RequestMapping(DeviceTriggerController.PATH)
+public class DeviceTriggerController {
 
-    @Operation(summary = "Returns tasks for mobile device")
-    @GetMapping("/tasks")
-    public SuccessResponse<List<String>> tasks() {
-        return SuccessResponse.ok(List.of("one", "two"));
-    }
+    public static final String PATH = "/device/trigger";
 
     @Operation(summary = "Handle trigger from device")
-    @PostMapping("/trigger")
+    @PostMapping("/new")
     public SuccessResponse<String> trigger(
             @RequestBody
             TriggerRequest triggerRequest

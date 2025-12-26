@@ -5,13 +5,13 @@ import org.springframework.security.core.GrantedAuthority;
 
 import java.util.Collection;
 
-public class ApiKeyAuthenticationToken implements Authentication {
+public class DeviceAuthenticationToken implements Authentication {
 
-    private final ApiKeyPrincipal principal;
+    private final DevicePrincipal principal;
     private final Collection<? extends GrantedAuthority> authorities;
     private boolean authenticated = true;
 
-    public ApiKeyAuthenticationToken(ApiKeyPrincipal principal,
+    public DeviceAuthenticationToken(DevicePrincipal principal,
                                      Collection<? extends GrantedAuthority> authorities) {
         this.principal = principal;
         this.authorities = authorities;

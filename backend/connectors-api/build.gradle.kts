@@ -27,6 +27,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-security")
+
 
     // HTTP Client for external API calls
     implementation("com.squareup.okhttp3:okhttp")
@@ -37,6 +39,11 @@ dependencies {
 
     // SpringDoc for OpenAPI
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui")
+
+    // JWT Dependencies
+    implementation("io.jsonwebtoken:jjwt-api")
+    implementation("io.jsonwebtoken:jjwt-impl")
+    implementation("io.jsonwebtoken:jjwt-jackson")
 
     // Additional Dependencies
     implementation("org.jetbrains:annotations")

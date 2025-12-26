@@ -14,7 +14,7 @@ import java.util.UUID;
 @Table(name = "users")
 @Getter
 @Setter
-public class User extends BaseEntity {
+public class UserEntity extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
@@ -36,13 +36,13 @@ public class User extends BaseEntity {
     private String displayName;
 
     // Bi-directional relationship with OAuth accounts
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "userEntity", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<UserOAuthAccount> oauthAccounts = new ArrayList<>();
     
     // Constructors
-    public User() {}
+    public UserEntity() {}
     
-    public User(String email, String firstName, String lastName, String displayName) {
+    public UserEntity(String email, String firstName, String lastName, String displayName) {
         this.email = email;
         this.firstName = firstName;
         this.lastName = lastName;

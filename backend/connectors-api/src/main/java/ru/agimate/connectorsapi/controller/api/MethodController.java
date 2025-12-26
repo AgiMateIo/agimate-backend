@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller;
+package ru.agimate.connectorsapi.controller.api;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,10 +15,12 @@ import ru.agimate.connectorsapi.controller.dto.response.MethodResponse;
 import java.util.List;
 
 @RestController
-@RequestMapping("/methods")
+@RequestMapping(MethodController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Methods", description = "Connector methods")
 public class MethodController {
+
+    public static final String PATH = "/methods";
 
     private final ConnectorRegistry connectorRegistry;
 

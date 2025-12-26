@@ -11,6 +11,13 @@ server:
 management:
   server:
     port: 8288
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,metrics,prometheus"
+  endpoint:
+    health:
+      show-details: always
 
 spring:
   application:
@@ -48,6 +55,11 @@ spring:
 connectors:
   encryption:
     key: ${CONNECTORS_ENCRYPTION_KEY:***REMOVED***}
+
+jwt:
+  secret: ${JWT_SECRET:***REMOVED***}
+  accessExpiration: 86400 # 24 hours
+  refreshExpiration: 604800 # 7 days
 
 springdoc:
   swagger-ui:

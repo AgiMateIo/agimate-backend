@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller;
+package ru.agimate.connectorsapi.controller.api;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,10 +11,12 @@ import ru.agimate.connectorsapi.controller.dto.response.CallResultResponse;
 import ru.agimate.connectorsapi.service.CallService;
 
 @RestController
-@RequestMapping("/call")
+@RequestMapping(CallController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Call", description = "Execute connector methods")
 public class CallController {
+
+    public static final String PATH = "/call";
 
     private final CallService callService;
 

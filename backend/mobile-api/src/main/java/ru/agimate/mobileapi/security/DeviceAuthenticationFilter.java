@@ -20,9 +20,9 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
+public class DeviceAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String API_KEY_HEADER = "X-Api-Key";
+    private static final String DEVICE_AUTH_KEY_HEADER = "X-Device-Auth-Key";
     private static final String X_FORWARDED_FOR = "X-Forwarded-For";
 
     private final DeviceAuthKeyService deviceAuthKeyService;
@@ -32,7 +32,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        String apiKey = request.getHeader(API_KEY_HEADER);
+        String apiKey = request.getHeader(DEVICE_AUTH_KEY_HEADER);
 
         if (StringUtils.hasText(apiKey)) {
             String clientIp = getClientIp(request);
@@ -40,14 +40,14 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
             deviceAuthKeyService.validateKeyAndRecordUsage(apiKey, clientIp)
                     .ifPresent(deviceAuthKey -> {
                         var authorities = List.of(new SimpleGrantedAuthority("ROLE_DEVICE"));
-                        var principal = new ApiKeyPrincipal(
+                        var principal = new DevicePrincipal(
                                 deviceAuthKey.getName(),
                                 deviceAuthKey.getPubId(),
                                 deviceAuthKey.getUserPubId()
                         );
 
                         SecurityContextHolder.getContext().setAuthentication(
-                                new ApiKeyAuthenticationToken(principal, authorities)
+                                new DeviceAuthenticationToken(principal, authorities)
                         );
 
                         log.debug("API key authenticated for device: {} (user: {})",

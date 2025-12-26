@@ -14,6 +14,7 @@ import ru.agimate.connectorsapi.controller.dto.request.CallMethodRequest;
 import ru.agimate.connectorsapi.controller.dto.response.CallResultResponse;
 import ru.agimate.connectorsapi.database.entities.Credential;
 import ru.agimate.connectorsapi.database.repositories.CredentialRepository;
+import ru.agimate.common.security.SecurityUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -51,9 +52,12 @@ public class CallService {
             String methodName,
             CallMethodRequest request
     ) {
-        // Get credential
-        Credential credential = credentialRepository.findByPubIdNotDeleted(request.credentialId())
-                .orElseThrow(() -> new NotFoundStatusException("Credential not found"));
+        // Get user from API key
+        var apiKeyUserPubId = SecurityUtils.getApiKeyUserPubId();
+
+        // Get credential with ownership check
+        Credential credential = credentialRepository.findByPubIdAndUserPubIdNotDeleted(request.credentialId(), apiKeyUserPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Credential not found or access denied"));
 
         if (!credential.getConnector().getCode().equalsIgnoreCase(connectorCode)) {
             throw new BadRequestStatusException("Credential does not belong to connector: " + connectorCode);

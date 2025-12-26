@@ -17,12 +17,6 @@ import ru.agimate.common.persistence.BaseEntity;
 @AllArgsConstructor
 public class UserOAuthAccount extends BaseEntity {
 
-    // Custom constructor for tests
-    public UserOAuthAccount(User user, OAuthProviderType oauthProvider, String providerUserId) {
-        this.user = user;
-        this.oauthProvider = oauthProvider;
-        this.providerUserId = providerUserId;
-    }
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
@@ -30,7 +24,7 @@ public class UserOAuthAccount extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private UserEntity userEntity;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "oauth_provider", nullable = false, columnDefinition = "TEXT")

@@ -30,7 +30,7 @@
         </createIndex>
     </changeSet>
 
-    <changeSet id="create-user-oauth-accounts-table" author="agimate">
+    <changeSet id="create-userEntity-oauth-accounts-table" author="agimate">
         <createTable tableName="user_oauth_accounts">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>

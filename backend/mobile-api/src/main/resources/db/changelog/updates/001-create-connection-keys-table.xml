@@ -5,8 +5,8 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <changeSet id="create-connection-keys-table" author="agimate">
-        <createTable tableName="connection_keys">
+    <changeSet id="create-device-auth-keys-table" author="agimate">
+        <createTable tableName="device_auth_keys">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
@@ -36,13 +36,13 @@
             <column name="updated_at" type="TIMESTAMP"/>
         </createTable>
 
-        <!-- Index for looking up keys by user -->
-        <createIndex tableName="connection_keys" indexName="idx_connection_keys_user_pub_id">
+        <!-- Index for looking up keys by userEntity -->
+        <createIndex tableName="device_auth_keys" indexName="idx_device_auth_keys_user_pub_id">
             <column name="user_pub_id"/>
         </createIndex>
 
         <!-- Index for authentication lookup by key ID -->
-        <createIndex tableName="connection_keys" indexName="idx_connection_keys_key_id_active">
+        <createIndex tableName="device_auth_keys" indexName="idx_device_auth_keys_key_id_active">
             <column name="key_id"/>
             <column name="enabled"/>
             <column name="deleted_at"/>
@@ -52,7 +52,7 @@
              Referential integrity must be maintained at the application level. -->
 
         <rollback>
-            <dropTable tableName="connection_keys"/>
+            <dropTable tableName="device_auth_keys"/>
         </rollback>
     </changeSet>
 

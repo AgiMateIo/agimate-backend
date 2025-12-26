@@ -1,4 +1,4 @@
-package ru.agimate.mobileapi.config;
+package ru.agimate.connectorsapi.config;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -20,11 +20,13 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.mobileapi.controller.DeviceActionController;
-import ru.agimate.mobileapi.controller.DeviceTriggerController;
-import ru.agimate.mobileapi.controller.ManageDevicesController;
-import ru.agimate.mobileapi.security.DeviceAuthenticationFilter;
-import ru.agimate.mobileapi.security.JwtAuthenticationFilter;
+import ru.agimate.connectorsapi.controller.api.CallController;
+import ru.agimate.connectorsapi.controller.api.MethodController;
+import ru.agimate.connectorsapi.controller.manage.ConnectorController;
+import ru.agimate.connectorsapi.controller.manage.ConnectorsApiKeyController;
+import ru.agimate.connectorsapi.controller.manage.CredentialController;
+import ru.agimate.connectorsapi.security.ApiKeyAuthenticationFilter;
+import ru.agimate.connectorsapi.security.JwtAuthenticationFilter;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -39,7 +41,7 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final DeviceAuthenticationFilter deviceAuthenticationFilter;
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -56,7 +58,7 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService userDetailsService() {
-        // Empty UserDetailsService - we use JWT and device auth keys
+        // Empty UserDetailsService - we use JWT and API keys
         return new InMemoryUserDetailsManager();
     }
 
@@ -90,12 +92,16 @@ public class SecurityConfig {
 
     /**
      * JWT-protected endpoints SecurityFilterChain for dashboard/management operations.
-     * Handles /manage/devices/** with JWT authentication.
+     * Handles /connectors/**, /credentials/**, /auth-keys/** with JWT authentication.
      */
     @Bean
     @Order(1)
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher(ManageDevicesController.PATH + "/**");
+        http.securityMatcher(
+                ConnectorController.PATH + "/**",
+                CredentialController.PATH + "/**",
+                ConnectorsApiKeyController.PATH + "/**"
+        );
 
         applyCommonSecurityConfig(http);
 
@@ -107,22 +113,22 @@ public class SecurityConfig {
     }
 
     /**
-     * Device auth key-protected endpoints SecurityFilterChain for mobile device operations.
-     * Handles /device/** with device auth key authentication.
+     * API key-protected endpoints SecurityFilterChain for connector method calls.
+     * Handles /call/**, /methods/** with API key authentication.
      */
     @Bean
     @Order(2)
-    public SecurityFilterChain deviceAuthKeySecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain apiKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                DeviceActionController.PATH + "/**",
-                DeviceTriggerController.PATH + "/**"
+                CallController.PATH + "/**",
+                MethodController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);
 
         http.authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
                 .userDetailsService(userDetailsService())
-                .addFilterBefore(deviceAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

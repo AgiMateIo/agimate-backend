@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                            http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="001-initial-schema" author="agimate">
+        <comment>Initial schema for connectors-api service</comment>
+
+        <!-- Create connectors table -->
+        <createTable tableName="connectors">
+            <column name="id" type="BIGSERIAL">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="code" type="TEXT">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="base_url" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="icon_url" type="TEXT"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="connectors" indexName="idx_connectors_code">
+            <column name="code"/>
+        </createIndex>
+
+        <createIndex tableName="connectors" indexName="idx_connectors_enabled">
+            <column name="enabled"/>
+        </createIndex>
+
+        <!-- Insert default connectors -->
+        <insert tableName="connectors">
+            <column name="pub_id" valueComputed="gen_random_uuid()"/>
+            <column name="code" value="ozon"/>
+            <column name="name" value="Ozon"/>
+            <column name="description" value="Маркетплейс Ozon - интеграция с Seller API"/>
+            <column name="base_url" value="https://api-seller.ozon.ru"/>
+            <column name="enabled" valueBoolean="true"/>
+        </insert>
+
+        <insert tableName="connectors">
+            <column name="pub_id" valueComputed="gen_random_uuid()"/>
+            <column name="code" value="wildberries"/>
+            <column name="name" value="Wildberries"/>
+            <column name="description" value="Маркетплейс Wildberries - интеграция с API поставщиков"/>
+            <column name="base_url" value="https://suppliers-api.wildberries.ru"/>
+            <column name="enabled" valueBoolean="true"/>
+        </insert>
+
+        <!-- Create credentials table with user_pub_id included from the start -->
+        <createTable tableName="credentials">
+            <column name="id" type="BIGSERIAL">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="connector_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_credentials_connector"
+                             references="connectors(id)"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="encrypted_data" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="encryption_iv" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_pub_id" type="UUID"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_used_at" type="TIMESTAMP"/>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="credentials" indexName="idx_credentials_connector_id">
+            <column name="connector_id"/>
+        </createIndex>
+
+        <createIndex tableName="credentials" indexName="idx_credentials_enabled_deleted">
+            <column name="enabled"/>
+            <column name="deleted_at"/>
+        </createIndex>
+
+        <createIndex tableName="credentials" indexName="idx_credentials_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="credentials" indexName="idx_credentials_user_connector">
+            <column name="user_pub_id"/>
+            <column name="connector_id"/>
+            <column name="deleted_at"/>
+        </createIndex>
+
+        <!-- Create connectors_api_keys table -->
+        <createTable tableName="connectors_api_keys">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="key_hash" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="key_id" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="connectors_api_keys" indexName="idx_connectors_api_keys_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="connectors_api_keys" indexName="idx_connectors_api_keys_key_id_active">
+            <column name="key_id"/>
+            <column name="enabled"/>
+            <column name="deleted_at"/>
+        </createIndex>
+
+        <rollback>
+            <dropTable tableName="connectors_api_keys"/>
+            <dropTable tableName="credentials"/>
+            <dropTable tableName="connectors"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

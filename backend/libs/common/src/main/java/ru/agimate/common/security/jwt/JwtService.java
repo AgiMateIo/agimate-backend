@@ -14,34 +14,35 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
-public class JwtUtils {
+public class JwtService {
 
     private final JwtProperties jwtProperties;
 
     private static final String CLAIM_TYPE = "t";
-    private static final String CLAIM_JWT_ID = "jti";
     private static final String CLAIM_TYPE_REFRESH = "r";
     private static final String CLAIM_TYPE_ACCESS = "a";
 
-    public String generateAccessToken(UserDetails userDetails) {
+    private static final String CLAIM_JWT_ID = "jti";
+
+    public String generateAccessToken(AgimateUserPrincipal agimateUserPrincipal) {
         Map<String, Object> claims = new HashMap<>();
-        List<String> roles = userDetails.getAuthorities().stream()
+        List<String> roles = agimateUserPrincipal.authorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.toList());
 
         claims.put(CLAIM_TYPE, CLAIM_TYPE_ACCESS);
         claims.put("roles", roles);
 
-        return createToken(userDetails.getUsername(), claims);
+        return createToken(agimateUserPrincipal.getName(), claims);
     }
 
-    public String generateRefreshToken(UserDetails userDetails, String jwtId) {
+    public String generateRefreshToken(AgimateUserPrincipal agimateUserPrincipal, String jwtId) {
         Map<String, Object> claims = new HashMap<>();
 
         claims.put(CLAIM_TYPE, CLAIM_TYPE_REFRESH);
         claims.put(CLAIM_JWT_ID, jwtId);
 
-        return createToken(userDetails.getUsername(), claims);
+        return createToken(agimateUserPrincipal.getName(), claims);
     }
 
     private String createToken(String subject, Map<String, Object> claims) {

@@ -9,17 +9,19 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
+import ru.agimate.common.security.jwt.AgimateUserPrincipal;
+import ru.agimate.common.security.jwt.JwtService;
 import ru.agimate.userapi.controller.dto.request.auth.LogoutRequest;
 import ru.agimate.userapi.controller.dto.request.auth.RefreshRequest;
 import ru.agimate.userapi.controller.dto.response.auth.AuthResponse;
-import ru.agimate.common.security.jwt.JwtUtils;
-import ru.agimate.userapi.security.CustomUserDetailsService;
+import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
+import ru.agimate.userapi.service.UserService;
 
 import java.util.UUID;
 
@@ -29,10 +31,9 @@ import java.util.UUID;
 @Slf4j
 public class OAuthController {
 
-    private final JwtUtils jwtUtils;
+    private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
-    private final CustomUserDetailsService customUserDetailsService;
-
+    private final UserService userService;
 
     @Operation(
             summary = "Refresh authentication tokens",
@@ -60,17 +61,21 @@ public class OAuthController {
 
         refreshTokenService.isAlreadyUsed(refreshRequest.refreshTokenId());
 
-        var wrappedJwtOptional = jwtUtils.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
+        var wrappedJwtOptional = jwtService.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
         if (wrappedJwtOptional.isEmpty()) {
             refreshTokenService.deleteRefreshTokenCookie(response);
             throw new ForbiddenStatusException("Invalid or expired refresh token");
         }
 
-        UserDetails userDetails = customUserDetailsService.getByPubId(wrappedJwtOptional.get().claims().getSubject());
 
-        String newAccessToken = jwtUtils.generateAccessToken(userDetails);
+        var subject = wrappedJwtOptional.get().claims().getSubject();
+        UserEntity userEntity = userService.findByPubId(UUID.fromString(subject))
+                .orElseThrow(() -> new BadRequestStatusException("User doesn't exist"));
+
+        var agimateUserPrincipal = new AgimateUserPrincipal(userEntity.getPubId().toString());
+        String newAccessToken = jwtService.generateAccessToken(agimateUserPrincipal);
         String newRefreshTokenId = UUID.randomUUID().toString();
-        String newRefreshToken = jwtUtils.generateRefreshToken(userDetails, newRefreshTokenId);
+        String newRefreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, newRefreshTokenId);
 
         refreshTokenService.markTokenAsUsed(refreshTokenValue);
 
@@ -95,7 +100,7 @@ public class OAuthController {
             throw new UnauthorizedStatusException("Refresh token not found");
         }
 
-        var wrappedJwtOptional = jwtUtils.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
+        var wrappedJwtOptional = jwtService.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
         if (wrappedJwtOptional.isEmpty()) {
             refreshTokenService.deleteRefreshTokenCookie(response);
             throw new ForbiddenStatusException("Invalid or expired refresh token");

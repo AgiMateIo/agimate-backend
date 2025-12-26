@@ -33,8 +33,8 @@ public class CredentialService {
     private final ConnectorRegistry connectorRegistry;
     private final CredentialEncryptionService encryptionService;
 
-    public List<ConnectorSummaryResponse> getCredentialsSummary() {
-        return credentialRepository.findCredentialsSummary().stream()
+    public List<ConnectorSummaryResponse> getCredentialsSummary(UUID userPubId) {
+        return credentialRepository.findCredentialsSummaryByUser(userPubId).stream()
                 .map(p -> new ConnectorSummaryResponse(
                         p.getConnectorCode(),
                         p.getConnectorName(),
@@ -45,21 +45,21 @@ public class CredentialService {
                 .toList();
     }
 
-    public List<CredentialResponse> getCredentials(String connectorCode) {
-        return credentialRepository.findByConnectorCodeNotDeleted(connectorCode.toLowerCase())
+    public List<CredentialResponse> getCredentials(String connectorCode, UUID userPubId) {
+        return credentialRepository.findByConnectorCodeAndUserPubIdNotDeleted(connectorCode.toLowerCase(), userPubId)
                 .stream()
                 .map(CredentialResponse::from)
                 .toList();
     }
 
-    public CredentialResponse getCredential(String connectorCode, UUID credentialId) {
-        Credential credential = findCredentialByPubId(credentialId);
+    public CredentialResponse getCredential(String connectorCode, UUID credentialId, UUID userPubId) {
+        Credential credential = findCredentialByPubIdAndUser(credentialId, userPubId);
         validateConnectorMatch(credential, connectorCode);
         return CredentialResponse.from(credential);
     }
 
     @Transactional
-    public CredentialResponse createCredential(String connectorCode, CreateCredentialRequest request) {
+    public CredentialResponse createCredential(String connectorCode, CreateCredentialRequest request, UUID userPubId) {
         Connector connector = connectorRepository.findByCode(connectorCode.toLowerCase())
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
@@ -79,6 +79,7 @@ public class CredentialService {
 
         Credential credential = Credential.builder()
                 .connector(connector)
+                .userPubId(userPubId)
                 .name(request.name())
                 .description(request.description())
                 .encryptedData(encrypted.ciphertext())
@@ -86,14 +87,14 @@ public class CredentialService {
                 .build();
 
         Credential saved = credentialRepository.save(credential);
-        log.info("Created credential {} for connector {}", saved.getPubId(), connectorCode);
+        log.info("Created credential {} for connector {} (user: {})", saved.getPubId(), connectorCode, userPubId);
 
         return CredentialResponse.from(saved);
     }
 
     @Transactional
-    public CredentialResponse updateCredential(String connectorCode, UUID credentialId, UpdateCredentialRequest request) {
-        Credential credential = findCredentialByPubId(credentialId);
+    public CredentialResponse updateCredential(String connectorCode, UUID credentialId, UpdateCredentialRequest request, UUID userPubId) {
+        Credential credential = findCredentialByPubIdAndUser(credentialId, userPubId);
         validateConnectorMatch(credential, connectorCode);
 
         if (request.name() != null) {
@@ -119,8 +120,8 @@ public class CredentialService {
     }
 
     @Transactional
-    public void deleteCredential(String connectorCode, UUID credentialId) {
-        Credential credential = findCredentialByPubId(credentialId);
+    public void deleteCredential(String connectorCode, UUID credentialId, UUID userPubId) {
+        Credential credential = findCredentialByPubIdAndUser(credentialId, userPubId);
         validateConnectorMatch(credential, connectorCode);
 
         credentialRepository.softDelete(credential.getId(), LocalDateTime.now());
@@ -143,6 +144,11 @@ public class CredentialService {
 
     private Credential findCredentialByPubId(UUID pubId) {
         return credentialRepository.findByPubIdNotDeleted(pubId)
+                .orElseThrow(() -> new NotFoundStatusException("Credential not found"));
+    }
+
+    private Credential findCredentialByPubIdAndUser(UUID pubId, UUID userPubId) {
+        return credentialRepository.findByPubIdAndUserPubIdNotDeleted(pubId, userPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Credential not found"));
     }
 

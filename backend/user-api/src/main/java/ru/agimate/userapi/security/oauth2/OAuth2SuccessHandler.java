@@ -12,13 +12,13 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.ErrorResponse;
-import ru.agimate.common.security.jwt.JwtUtils;
+import ru.agimate.common.security.jwt.JwtService;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.userapi.database.entities.OAuthProviderType;
-import ru.agimate.userapi.database.entities.User;
+import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.entities.UserOAuthAccount;
 import ru.agimate.userapi.database.repositories.UserOAuthAccountRepository;
-import ru.agimate.userapi.security.UserPrincipal;
+import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
 import ru.agimate.userapi.service.UserService;
 
@@ -32,7 +32,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-    private final JwtUtils jwtUtils;
+    private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final UserOAuthAccountRepository userOAuthAccountRepository;
     private final UserService userService;
@@ -62,13 +62,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String registrationId = getRegistrationId(authentication);
 
-        User user = createOrGetUserFromOAuth(oAuth2User, registrationId);
+        UserEntity userEntity = createOrGetUserFromOAuth(oAuth2User, registrationId);
 
         // Generate JWT tokens
-        UserPrincipal userPrincipal = UserPrincipal.create(user);
+        AgimateUserPrincipal agimateUserPrincipal = new AgimateUserPrincipal(userEntity.getPubId().toString());
 
         String refreshTokenId = UUID.randomUUID().toString();
-        String refreshToken = jwtUtils.generateRefreshToken(userPrincipal, refreshTokenId);
+        String refreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, refreshTokenId);
         log.info("created a new JWT token: {}", refreshTokenId);
         log.info("created a new JWT token: {}", refreshToken);
 
@@ -108,7 +108,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         return "google";
     }
 
-    public User createOrGetUserFromOAuth(OAuth2User oAuth2User, String registrationId) {
+    public UserEntity createOrGetUserFromOAuth(OAuth2User oAuth2User, String registrationId) {
         Map<String, Object> attributes = oAuth2User.getAttributes();
 
         String providerUserId = attributes.get("sub").toString(); // Google uses "sub", GitHub uses "id", etc.
@@ -119,7 +119,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 .findByOauthProviderAndProviderUserIdWithUser(providerType, providerUserId);
 
         if (existingAccount.isPresent()) {
-            return existingAccount.get().getUser();
+            return existingAccount.get().getUserEntity();
         }
 
         String email = attributes.get("email").toString();
@@ -127,11 +127,11 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         String lastName = attributes.get("family_name") != null ? attributes.get("family_name").toString() : null;
         String displayName = attributes.get("name") != null ? attributes.get("name").toString() : email;
 
-        User user = userService.findByEmail(email)
+        UserEntity userEntity = userService.findByEmail(email)
                 .orElseGet(() -> userService.createUser(email, firstName, lastName, displayName));
 
         UserOAuthAccount oAuthAccount = UserOAuthAccount.builder()
-                .user(user)
+                .userEntity(userEntity)
                 .firstName(firstName)
                 .lastName(lastName)
                 .email(email)
@@ -141,6 +141,6 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         userOAuthAccountRepository.save(oAuthAccount);
 
-        return user;
+        return userEntity;
     }
 }

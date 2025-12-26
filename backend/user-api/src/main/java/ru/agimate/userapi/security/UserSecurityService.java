@@ -3,7 +3,7 @@ package ru.agimate.userapi.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
-import ru.agimate.userapi.database.entities.User;
+import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.userapi.database.repositories.UserRepository;
 
 import java.util.UUID;
@@ -22,12 +22,11 @@ public class UserSecurityService {
 
         // Extract the authenticated user's information
         Object principal = authentication.getPrincipal();
-        if (!(principal instanceof UserPrincipal)) {
+        if (!(principal instanceof AgimateUserPrincipal agimateUserPrincipal)) {
             return false;
         }
 
-        UserPrincipal userPrincipal = (UserPrincipal) principal;
-        UUID authenticatedUserPubId = userPrincipal.getPubId();
+        UUID authenticatedUserPubId = UUID.fromString(agimateUserPrincipal.pubId());
 
         // Allow access if:
         // 1. The requested user is the same as the authenticated user (self-access)

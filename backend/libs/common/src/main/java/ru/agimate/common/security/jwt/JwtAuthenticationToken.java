@@ -2,7 +2,6 @@ package ru.agimate.common.security.jwt;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 
@@ -12,35 +11,25 @@ import java.util.Collection;
  */
 public class JwtAuthenticationToken implements Authentication {
 
-    private final Object principal;
-    private final Object credentials;
-    private final Collection<? extends GrantedAuthority> authorities;
+    private final AgimateUserPrincipal principal;
+    private final String credentials;
     private boolean authenticated = false;
 
     /**
      * Creates an authenticated JWT token
      */
-    public JwtAuthenticationToken(Object principal,
-                                  Collection<? extends GrantedAuthority> authorities) {
+    public JwtAuthenticationToken(
+            AgimateUserPrincipal principal
+    ) {
         this.principal = principal;
         this.credentials = null; // JWT token is not stored as credentials in the security context
-        this.authorities = authorities;
         this.authenticated = true;
     }
 
-    /**
-     * Creates an unauthenticated JWT token (for token validation process)
-     */
-    public JwtAuthenticationToken(Object principal, Object credentials) {
-        this.principal = principal;
-        this.credentials = credentials;
-        this.authorities = null;
-        this.authenticated = false;
-    }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return this.authorities;
+        return this.principal.authorities();
     }
 
     @Override
@@ -70,11 +59,6 @@ public class JwtAuthenticationToken implements Authentication {
 
     @Override
     public String getName() {
-        if (principal instanceof String) {
-            return (String) principal;
-        } else if (principal instanceof UserDetails userDetails) {
-            return userDetails.getUsername();
-        }
-        return "unknown";
+        return principal.getName();
     }
 }

@@ -8,12 +8,12 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.mobileapi.controller.dto.request.CreateDeviceAuthKeyRequest;
 import ru.agimate.mobileapi.controller.dto.request.UpdateDeviceAuthKeyRequest;
 import ru.agimate.mobileapi.controller.dto.response.DeviceAuthKeyCreatedResponse;
 import ru.agimate.mobileapi.controller.dto.response.DeviceAuthKeyResponse;
 import ru.agimate.mobileapi.database.entities.DeviceAuthKey;
-import ru.agimate.mobileapi.security.MobileUserPrincipal;
 import ru.agimate.mobileapi.service.DeviceAuthKeyService;
 import ru.agimate.mobileapi.service.dto.DeviceAuthKeyCreateResult;
 
@@ -21,19 +21,21 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/user")
+@RequestMapping(ManageDevicesController.PATH)
 @RequiredArgsConstructor
-@Tag(name = "Device Auth Keys", description = "Manage API keys for mobile device connections")
-public class UserController {
+@Tag(name = "Device Auth Keys", description = "Manage mobile device connections")
+public class ManageDevicesController {
+
+    public static final String PATH = "/manage/devices";
 
     private final DeviceAuthKeyService deviceAuthKeyService;
 
     @Operation(summary = "Get all device auth keys for the current user")
-    @GetMapping("/connections")
+    @GetMapping("/")
     public SuccessResponse<List<DeviceAuthKeyResponse>> getConnections(
-            @AuthenticationPrincipal MobileUserPrincipal principal
+            @AuthenticationPrincipal AgimateUserPrincipal principal
     ) {
-        UUID userPubId = UUID.fromString(principal.getPubId());
+        UUID userPubId = UUID.fromString(principal.pubId());
         List<DeviceAuthKey> keys = deviceAuthKeyService.getKeysForUser(userPubId);
         List<DeviceAuthKeyResponse> response = keys.stream()
                 .map(DeviceAuthKeyResponse::from)
@@ -43,12 +45,12 @@ public class UserController {
 
     @Operation(summary = "Create a new device auth key",
                description = "Creates a new API key. The key value is shown ONLY ONCE in the response. Store it securely.")
-    @PostMapping("/connections")
+    @PostMapping("/")
     public SuccessResponse<DeviceAuthKeyCreatedResponse> createConnection(
-            @AuthenticationPrincipal MobileUserPrincipal principal,
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody CreateDeviceAuthKeyRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.getPubId());
+        UUID userPubId = UUID.fromString(principal.pubId());
         DeviceAuthKeyCreateResult result = deviceAuthKeyService.createKey(
                 userPubId,
                 request.name(),
@@ -61,25 +63,25 @@ public class UserController {
     }
 
     @Operation(summary = "Get a specific device auth key")
-    @GetMapping("/connections/{connectionId}")
+    @GetMapping("/{connectionId}")
     public SuccessResponse<DeviceAuthKeyResponse> getConnection(
-            @AuthenticationPrincipal MobileUserPrincipal principal,
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID connectionId
     ) {
-        UUID userPubId = UUID.fromString(principal.getPubId());
+        UUID userPubId = UUID.fromString(principal.pubId());
         DeviceAuthKey key = deviceAuthKeyService.getKeyByPubId(connectionId, userPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Device auth key not found"));
         return SuccessResponse.ok(DeviceAuthKeyResponse.from(key));
     }
 
     @Operation(summary = "Update a device auth key")
-    @PutMapping("/connections/{connectionId}")
+    @PutMapping("/{connectionId}")
     public SuccessResponse<DeviceAuthKeyResponse> updateConnection(
-            @AuthenticationPrincipal MobileUserPrincipal principal,
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID connectionId,
             @Valid @RequestBody UpdateDeviceAuthKeyRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.getPubId());
+        UUID userPubId = UUID.fromString(principal.pubId());
         DeviceAuthKey updated = deviceAuthKeyService.updateKey(
                 connectionId,
                 userPubId,
@@ -91,24 +93,24 @@ public class UserController {
     }
 
     @Operation(summary = "Delete a device auth key (soft delete)")
-    @DeleteMapping("/connections/{connectionId}")
+    @DeleteMapping("/{connectionId}")
     public SuccessResponse<Void> deleteConnection(
-            @AuthenticationPrincipal MobileUserPrincipal principal,
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID connectionId
     ) {
-        UUID userPubId = UUID.fromString(principal.getPubId());
+        UUID userPubId = UUID.fromString(principal.pubId());
         deviceAuthKeyService.deleteKey(connectionId, userPubId);
         return SuccessResponse.empty();
     }
 
     @Operation(summary = "Regenerate a device auth key",
                description = "Invalidates the old key and creates a new one with the same settings")
-    @PostMapping("/connections/{connectionId}/regenerate")
+    @PostMapping("/{connectionId}/regenerate")
     public SuccessResponse<DeviceAuthKeyCreatedResponse> regenerateConnection(
-            @AuthenticationPrincipal MobileUserPrincipal principal,
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID connectionId
     ) {
-        UUID userPubId = UUID.fromString(principal.getPubId());
+        UUID userPubId = UUID.fromString(principal.pubId());
         DeviceAuthKeyCreateResult result = deviceAuthKeyService.regenerateKey(connectionId, userPubId);
         return SuccessResponse.ok(DeviceAuthKeyCreatedResponse.from(
                 result.deviceAuthKey(),

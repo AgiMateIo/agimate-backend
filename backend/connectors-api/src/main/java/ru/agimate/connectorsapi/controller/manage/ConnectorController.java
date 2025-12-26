@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller;
+package ru.agimate.connectorsapi.controller.manage;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,10 +14,12 @@ import ru.agimate.connectorsapi.service.ConnectorService;
 import java.util.List;
 
 @RestController
-@RequestMapping("/connectors")
+@RequestMapping(ConnectorController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Connectors", description = "Available integrations")
 public class ConnectorController {
+
+    public static final String PATH = "/connectors";
 
     private final ConnectorService connectorService;
     private final ConnectorRegistry connectorRegistry;
