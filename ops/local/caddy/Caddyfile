@@ -10,4 +10,8 @@ http://api.agimate.lc:8000 {
 	handle /mobile-api/* {
 		reverse_proxy localhost:8180
 	}
+
+    handle /connectors-api/* {
+        reverse_proxy localhost:8280
+    }
 }
