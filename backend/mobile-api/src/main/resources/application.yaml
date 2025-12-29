@@ -62,7 +62,7 @@ micrometer:
 logging:
   level:
     root: warn
-    org.springframework.boot.web.embedded.tomcat.TomcatWebServer: debug # to write opened port
+    org.springframework.boot.web: debug # to write opened port
     ru.agimate: debug
 
 springdoc:

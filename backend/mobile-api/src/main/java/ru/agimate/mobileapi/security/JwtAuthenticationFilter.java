@@ -69,10 +69,4 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return null;
     }
 
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        // Only filter /user/** endpoints
-        String servletPath = request.getServletPath();
-        return !servletPath.startsWith("/user");
-    }
 }
