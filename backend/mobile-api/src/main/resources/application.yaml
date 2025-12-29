@@ -80,7 +80,8 @@ springdoc:
   paths-to-exclude: "/favicon.ico"
 
 jwt:
-  secret: ${JWT_SECRET:***REMOVED***}
+  privateKey: ""
+  publicKey: "***REMOVED***"
   accessExpiration: 86400
   refreshExpiration: 604800
 

@@ -3,12 +3,15 @@ package ru.agimate.common.security.jwt;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
-import javax.crypto.SecretKey;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -23,6 +26,28 @@ public class JwtService {
     private static final String CLAIM_TYPE_ACCESS = "a";
 
     private static final String CLAIM_JWT_ID = "jti";
+
+    private PrivateKey getPrivateKey() {
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(jwtProperties.getPrivateKey());
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance("EC");
+            return keyFactory.generatePrivate(keySpec);
+        } catch (Exception e) {
+            throw new JwtException("Failed to load JWT private key", e);
+        }
+    }
+
+    private PublicKey getPublicKey() {
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(jwtProperties.getPublicKey());
+            X509EncodedKeySpec keySpec = new X509EncodedKeySpec(keyBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance("EC");
+            return keyFactory.generatePublic(keySpec);
+        } catch (Exception e) {
+            throw new JwtException("Failed to load JWT public key", e);
+        }
+    }
 
     public String generateAccessToken(AgimateUserPrincipal agimateUserPrincipal) {
         Map<String, Object> claims = new HashMap<>();
@@ -46,12 +71,12 @@ public class JwtService {
     }
 
     private String createToken(String subject, Map<String, Object> claims) {
-        SecretKey key = Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes());
+        PrivateKey privateKey = getPrivateKey();
         return Jwts.builder()
                 .subject(subject)
                 .claims(claims)
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .signWith(key)
+                .signWith(privateKey, Jwts.SIG.ES256)
                 .compact();
     }
 
@@ -80,10 +105,10 @@ public class JwtService {
     }
 
     private Claims extractAllClaims(String token) {
-        SecretKey key = Keys.hmacShaKeyFor(jwtProperties.getSecret().getBytes());
+        PublicKey publicKey = getPublicKey();
 
         var claims = Jwts.parser()
-                .verifyWith(key)
+                .verifyWith(publicKey)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

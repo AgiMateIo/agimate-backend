@@ -57,7 +57,8 @@ connectors:
     key: ${CONNECTORS_ENCRYPTION_KEY:***REMOVED***}
 
 jwt:
-  secret: ${JWT_SECRET:***REMOVED***}
+  privateKey: ""
+  publicKey: "***REMOVED***"
   accessExpiration: 86400 # 24 hours
   refreshExpiration: 604800 # 7 days
 
