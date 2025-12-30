@@ -1,6 +1,7 @@
 package ru.agimate.mobileapi.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
@@ -21,11 +22,10 @@ public class DeviceTriggerController {
     @Operation(summary = "Handle trigger from device")
     @PostMapping("/new")
     public SuccessResponse<String> trigger(
-            @RequestBody
+            @RequestBody @Valid
             TriggerRequest triggerRequest
     ) {
         // TODO: implement later
-        // ***REMOVED***
         log.info("Trigger - {} {}", triggerRequest.name(), triggerRequest.data().toString());
         return SuccessResponse.ok(triggerRequest.name());
     }

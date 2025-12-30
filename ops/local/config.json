@@ -1,0 +1,32 @@
+{
+  "client": {
+    "token": {
+      "hmac_secret_key": "***REMOVED***"
+    },
+    "allowed_origins": [],
+    "insecure": true
+  },
+  "admin": {
+    "enabled": true,
+    "password": "***REMOVED***",
+    "secret": "***REMOVED***"
+  },
+  "http_api": {
+    "key": "***REMOVED***"
+  },
+  "channel": {
+    "namespaces": [
+      {
+        "name": "device",
+        "dynamic": true,
+        "pattern": "^device:.+:(actions|triggers)$",
+        "history": {
+          "max_publications": 100,
+          "ttl": "86400s"
+        },
+        "force_push_join_leave": false,
+        "force_recovery": false
+      }
+    ]
+  }
+}

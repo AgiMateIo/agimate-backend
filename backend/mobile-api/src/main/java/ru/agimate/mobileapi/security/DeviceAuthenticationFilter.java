@@ -69,6 +69,6 @@ public class DeviceAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String servletPath = request.getServletPath();
-        return !servletPath.startsWith("/connection");
+        return !servletPath.startsWith("/device");
     }
 }

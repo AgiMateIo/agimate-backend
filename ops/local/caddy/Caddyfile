@@ -11,6 +11,10 @@ http://api.agimate.lc:8000 {
 		reverse_proxy localhost:8180
 	}
 
+    handle /connection/websocket {
+        reverse_proxy localhost:9000
+    }
+
     handle /connectors-api/* {
         reverse_proxy localhost:8280
     }

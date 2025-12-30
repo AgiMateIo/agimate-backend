@@ -85,6 +85,11 @@ jwt:
   accessExpiration: 86400
   refreshExpiration: 604800
 
+centrifugo:
+  enabled: true
+  url: "http://localhost:9000"
+  api-key: "${CENTRIFUGO_API_KEY:***REMOVED***}"
+
 mobile-api:
   security:
     api-keys:
