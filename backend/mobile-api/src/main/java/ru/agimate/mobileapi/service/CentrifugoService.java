@@ -22,7 +22,7 @@ public class CentrifugoService {
      * Publishes a message to a Centrifugo channel.
      *
      * @param channel The channel name
-     * @param data The message data (will be serialized to JSON)
+     * @param data    The message data (will be serialized to JSON)
      * @throws ServiceUnavailableStatusException if Centrifugo is unavailable or publishing fails
      */
     public void publishMessage(String channel, Object data) {

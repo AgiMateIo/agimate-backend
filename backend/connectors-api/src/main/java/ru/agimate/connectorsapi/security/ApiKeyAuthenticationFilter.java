@@ -12,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import ru.agimate.common.security.apikey.ApiKeyAuthenticationToken;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.connectorsapi.service.ConnectorsApiKeyService;
 
@@ -47,11 +48,12 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                     .ifPresent(connectorsApiKey -> {
                         var authorities = List.of(new SimpleGrantedAuthority("ROLE_CONNECTOR"));
                         var principal = new ApiKeyPrincipal(
-                                connectorsApiKey.getPubId().toString()
+                                connectorsApiKey.getPubId().toString(),
+                                connectorsApiKey.getUserPubId().toString()
                         );
 
                         SecurityContextHolder.getContext().setAuthentication(
-                                new ru.agimate.common.security.apikey.ApiKeyAuthenticationToken(principal, authorities)
+                                new ApiKeyAuthenticationToken(principal, authorities)
                         );
 
                         log.debug("API key authenticated for connector: {} (user: {})",

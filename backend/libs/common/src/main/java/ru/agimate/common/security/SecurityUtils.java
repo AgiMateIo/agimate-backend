@@ -54,7 +54,7 @@ public final class SecurityUtils {
 
         if (authentication instanceof ApiKeyAuthenticationToken apiKeyAuth) {
             ApiKeyPrincipal principal = (ApiKeyPrincipal) apiKeyAuth.getPrincipal();
-            return UUID.fromString(principal.getName());
+            return UUID.fromString(principal.userPubId());
         }
 
         throw new UnauthorizedStatusException("Invalid authentication type");
