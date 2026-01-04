@@ -20,7 +20,7 @@ import java.util.List;
 @Tag(name = "Methods", description = "Connector methods")
 public class MethodController {
 
-    public static final String PATH = "/methods";
+    public static final String PATH = "/api/methods";
 
     private final ConnectorRegistry connectorRegistry;
 

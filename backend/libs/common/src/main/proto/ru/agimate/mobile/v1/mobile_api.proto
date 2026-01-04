@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package ru.agimate.mobile.v1;
+
+option java_package = "ru.agimate.mobile.v1";
+option java_multiple_files = true;
+option java_outer_classname = "MobileApiProto";
+
+// Service definition for mobile device management
+service MobileApiService {
+  // Get all connected devices for a user
+  rpc GetDevices(GetDevicesRequest) returns (GetDevicesResponse);
+
+  // Get available triggers for a specific device
+  rpc GetTriggers(GetTriggersRequest) returns (GetTriggersResponse);
+
+  // Get available actions for a specific device
+  rpc GetActions(GetActionsRequest) returns (GetActionsResponse);
+
+  // Push an action to a device
+  rpc PushAction(PushActionRequest) returns (PushActionResponse);
+}
+
+// ============================================================================
+// Request/Response Messages
+// ============================================================================
+
+message GetDevicesRequest {
+  string user_id = 1; // User's public ID (UUID string)
+}
+
+message GetDevicesResponse {
+  repeated ConnectedDevice devices = 1;
+}
+
+message GetTriggersRequest {
+  string device_id = 1; // Device's public ID (UUID string)
+}
+
+message GetTriggersResponse {
+  repeated DeviceTrigger triggers = 1;
+}
+
+message GetActionsRequest {
+  string device_id = 1; // Device's public ID (UUID string)
+}
+
+message GetActionsResponse {
+  repeated DeviceAction actions = 1;
+}
+
+message PushActionRequest {
+  string device_id = 1; // Device's public ID (UUID string)
+  string data_json = 2; // JSON-encoded action data (flexible Object from Java)
+}
+
+message PushActionResponse {
+  // Empty response - void return type
+}
+
+// ============================================================================
+// Data Models
+// ============================================================================
+
+message ConnectedDevice {
+  string id = 1;          // Device public ID
+  string name = 2;        // Device name
+  string description = 3; // Device description
+}
+
+message DeviceTrigger {
+  string name = 1;        // Trigger name (e.g., "shaked")
+  string description = 2; // Human-readable description
+}
+
+message DeviceAction {
+  string name = 1;        // Action name (e.g., "tts")
+  string description = 2; // Human-readable description
+  map<string, string> params = 3; // Action parameters
+}

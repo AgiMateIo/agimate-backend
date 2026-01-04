@@ -35,6 +35,10 @@ public class ConnectorService {
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found"));
     }
 
+    public List<Connector> getAllConnectorsByUserPubId(UUID userPubId) {
+        return connectorRepository.findByUserPubId(userPubId);
+    }
+
     public boolean hasMethodDefinitions(String connectorCode) {
         return connectorRegistry.hasDefinition(connectorCode);
     }

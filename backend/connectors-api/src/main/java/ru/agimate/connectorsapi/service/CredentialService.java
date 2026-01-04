@@ -14,10 +14,12 @@ import ru.agimate.connectorsapi.controller.dto.response.ConnectorSummaryResponse
 import ru.agimate.connectorsapi.controller.dto.response.CredentialResponse;
 import ru.agimate.connectorsapi.database.entities.Connector;
 import ru.agimate.connectorsapi.database.entities.Credential;
+import ru.agimate.connectorsapi.database.projections.CredentialShortInfoProjection;
 import ru.agimate.connectorsapi.database.repositories.ConnectorRepository;
 import ru.agimate.connectorsapi.database.repositories.CredentialRepository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -50,6 +52,10 @@ public class CredentialService {
                 .stream()
                 .map(CredentialResponse::from)
                 .toList();
+    }
+
+    public List<CredentialShortInfoProjection> getAllCredentialsByUserPubId(UUID userPubId) {
+        return credentialRepository.findShortInfoByUserPubId(userPubId);
     }
 
     public CredentialResponse getCredential(String connectorCode, UUID credentialId, UUID userPubId) {
@@ -172,5 +178,9 @@ public class CredentialService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse credential data", e);
         }
+    }
+
+    public Collection<CredentialShortInfoProjection> getAllCredentialsByUserPubIdAndConnectorCode(UUID userPubId, String connectorCode) {
+        return credentialRepository.findShortInfoByUserPubIdAndConnectorCode(userPubId, connectorCode);
     }
 }

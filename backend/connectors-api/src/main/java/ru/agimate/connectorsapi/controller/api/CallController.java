@@ -16,7 +16,7 @@ import ru.agimate.connectorsapi.service.CallService;
 @Tag(name = "Call", description = "Execute connector methods")
 public class CallController {
 
-    public static final String PATH = "/call";
+    public static final String PATH = "/api/call";
 
     private final CallService callService;
 

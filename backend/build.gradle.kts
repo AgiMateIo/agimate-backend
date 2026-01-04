@@ -8,6 +8,9 @@ plugins {
 allprojects {
     pluginManager.withPlugin("java") {
         dependencies {
+            // Spring gRPC BOM
+            implementation(platform("org.springframework.grpc:spring-grpc-dependencies:1.0.0"))
+
             constraints {
                 implementation("net.logstash.logback:logstash-logback-encoder:7.4")
                 implementation("io.jsonwebtoken:jjwt-api:0.12.6")
@@ -45,8 +48,7 @@ allprojects {
                 implementation("org.postgresql:postgresql:42.7.5")
                 implementation("org.liquibase:liquibase-core:4.29.2")
 
-                implementation("net.devh:grpc-server-spring-boot-starter:3.1.0.RELEASE")
-                implementation("net.devh:grpc-client-spring-boot-starter:3.1.0.RELEASE")
+                // Spring gRPC dependencies managed by BOM
             }
         }
     }

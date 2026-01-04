@@ -16,7 +16,7 @@ import java.util.List;
 @RestController
 @RequestMapping(ConnectorController.PATH)
 @RequiredArgsConstructor
-@Tag(name = "Connectors", description = "Available integrations")
+@Tag(name = "Connectors", description = "Available connectors")
 public class ConnectorController {
 
     public static final String PATH = "/connectors";

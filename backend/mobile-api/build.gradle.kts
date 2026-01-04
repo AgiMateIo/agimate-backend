@@ -42,6 +42,9 @@ dependencies {
 
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 
+    // Spring gRPC Server Support
+    implementation("org.springframework.grpc:spring-grpc-spring-boot-starter")
+
     // Additional Dependencies
     implementation("org.jetbrains:annotations")
     implementation("net.logstash.logback:logstash-logback-encoder")

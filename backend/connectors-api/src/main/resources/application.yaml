@@ -51,6 +51,11 @@ spring:
       ddl-auto: validate
     show-sql: false
     open-in-view: false
+  grpc:
+    client:
+      channels:
+        mobile-api:
+          address: "127.0.0.1:9090"
 
 connectors:
   encryption:

@@ -45,6 +45,9 @@ dependencies {
     implementation("io.jsonwebtoken:jjwt-impl")
     implementation("io.jsonwebtoken:jjwt-jackson")
 
+    // Spring gRPC Client Support
+    implementation("org.springframework.grpc:spring-grpc-spring-boot-starter")
+
     // Additional Dependencies
     implementation("org.jetbrains:annotations")
     implementation("net.logstash.logback:logstash-logback-encoder")
