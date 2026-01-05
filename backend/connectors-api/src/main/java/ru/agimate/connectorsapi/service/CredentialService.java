@@ -7,7 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.connectorsapi.connector.ConnectorRegistry;
 import ru.agimate.connectorsapi.controller.dto.request.CreateCredentialRequest;
 import ru.agimate.connectorsapi.controller.dto.request.UpdateCredentialRequest;
 import ru.agimate.connectorsapi.controller.dto.response.ConnectorSummaryResponse;
@@ -32,7 +31,6 @@ public class CredentialService {
 
     private final CredentialRepository credentialRepository;
     private final ConnectorRepository connectorRepository;
-    private final ConnectorRegistry connectorRegistry;
     private final CredentialEncryptionService encryptionService;
 
     public List<ConnectorSummaryResponse> getCredentialsSummary(UUID userPubId) {
@@ -68,16 +66,6 @@ public class CredentialService {
     public CredentialResponse createCredential(String connectorCode, CreateCredentialRequest request, UUID userPubId) {
         Connector connector = connectorRepository.findByCode(connectorCode.toLowerCase())
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
-
-        // Validate required fields
-        if (connectorRegistry.hasDefinition(connectorCode)) {
-            List<String> requiredFields = connectorRegistry.getRequiredCredentialFields(connectorCode);
-            for (String field : requiredFields) {
-                if (!request.data().containsKey(field) || request.data().get(field).isBlank()) {
-                    throw new BadRequestStatusException("Missing required field: " + field);
-                }
-            }
-        }
 
         // Encrypt credential data
         String jsonData = toJson(request.data());

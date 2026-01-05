@@ -22,7 +22,7 @@ import java.util.Optional;
 
 @Slf4j
 public class JsonUtils {
-    private static final ObjectMapper MAPPER = new ObjectMapper()
+    public static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .registerModule(new JavaTimeModule())
             .registerModule(new KotlinModule.Builder().build());

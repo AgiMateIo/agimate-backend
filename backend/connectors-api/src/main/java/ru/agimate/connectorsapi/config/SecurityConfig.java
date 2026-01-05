@@ -22,7 +22,6 @@ import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.connectorsapi.controller.api.AvailableConnectorsController;
 import ru.agimate.connectorsapi.controller.api.AvailableCredentialsController;
-import ru.agimate.connectorsapi.controller.api.CallController;
 import ru.agimate.connectorsapi.controller.api.MethodController;
 import ru.agimate.connectorsapi.controller.manage.ConnectorController;
 import ru.agimate.connectorsapi.controller.manage.ConnectorsApiKeyController;
@@ -124,7 +123,7 @@ public class SecurityConfig {
         http.securityMatcher(
                 AvailableConnectorsController.PATH + "/**",
                 AvailableCredentialsController.PATH + "/**",
-                CallController.PATH + "/**",
+                "/api/call/**",
                 MethodController.PATH + "/**"
         );
 

@@ -9,3 +9,9 @@ X-Api-Key: ***REMOVED***
 GET http://api.agimate.lc:8000/connectors-api/api/credentials/mobile
 X-Api-Key: ***REMOVED***
 
+
+
+### test credentials
+GET http://api.agimate.lc:8000/connectors-api/api/methods/ozon
+X-Api-Key: ***REMOVED***
+

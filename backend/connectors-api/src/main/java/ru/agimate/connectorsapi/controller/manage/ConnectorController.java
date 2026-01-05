@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.connectorsapi.connector.ConnectorRegistry;
+import java.util.Map;
 import ru.agimate.connectorsapi.controller.dto.response.ConnectorInfoResponse;
 import ru.agimate.connectorsapi.service.ConnectorService;
 
@@ -22,7 +22,12 @@ public class ConnectorController {
     public static final String PATH = "/connectors";
 
     private final ConnectorService connectorService;
-    private final ConnectorRegistry connectorRegistry;
+
+    // Hardcoded metadata for implemented connectors (temporary solution)
+    private static final Map<String, List<String>> CONNECTOR_REQUIRED_FIELDS = Map.of(
+            "ozon", List.of("clientId", "apiKey"),
+            "wildberries", List.of("apiKey")
+    );
 
     @Operation(summary = "Get all available connectors")
     @GetMapping
@@ -30,10 +35,9 @@ public class ConnectorController {
         List<ConnectorInfoResponse> connectors = connectorService.getAllConnectors()
                 .stream()
                 .map(connector -> {
-                    boolean hasMethods = connectorRegistry.hasDefinition(connector.getCode());
-                    List<String> requiredFields = hasMethods
-                            ? connectorRegistry.getRequiredCredentialFields(connector.getCode())
-                            : List.of();
+                    String code = connector.getCode();
+                    boolean hasMethods = CONNECTOR_REQUIRED_FIELDS.containsKey(code);
+                    List<String> requiredFields = CONNECTOR_REQUIRED_FIELDS.getOrDefault(code, List.of());
                     return ConnectorInfoResponse.from(connector, requiredFields, hasMethods);
                 })
                 .toList();

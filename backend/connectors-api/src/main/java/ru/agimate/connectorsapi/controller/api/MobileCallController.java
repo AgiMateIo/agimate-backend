@@ -21,7 +21,7 @@ import java.util.Map;
 @Tag(name = "Mobile Call", description = "Execute mobile device methods via API Key")
 public class MobileCallController {
 
-    public static final String PATH = CallController.PATH + "/mobile";
+    public static final String PATH = "/api/call/mobile";
 
     private final MobileApiService mobileApiService;
 

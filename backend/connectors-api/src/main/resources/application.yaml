@@ -70,10 +70,10 @@ jwt:
 springdoc:
   swagger-ui:
     path: "/docs/ui"
-    enabled: false
+    enabled: false  # Swagger UI disabled in production
   api-docs:
     path: "/docs/api"
-    enabled: false
+    enabled: true   # API docs enabled - required for MethodController
 
 logging:
   level:

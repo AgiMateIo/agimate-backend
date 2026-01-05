@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.connectorsapi.connector.ConnectorRegistry;
 import ru.agimate.connectorsapi.database.entities.Connector;
 import ru.agimate.connectorsapi.database.repositories.ConnectorRepository;
 
@@ -19,7 +18,6 @@ import java.util.UUID;
 public class ConnectorService {
 
     private final ConnectorRepository connectorRepository;
-    private final ConnectorRegistry connectorRegistry;
 
     public List<Connector> getAllConnectors() {
         return connectorRepository.findAllEnabled();
@@ -37,13 +35,5 @@ public class ConnectorService {
 
     public List<Connector> getAllConnectorsByUserPubId(UUID userPubId) {
         return connectorRepository.findByUserPubId(userPubId);
-    }
-
-    public boolean hasMethodDefinitions(String connectorCode) {
-        return connectorRegistry.hasDefinition(connectorCode);
-    }
-
-    public List<String> getRequiredCredentialFields(String connectorCode) {
-        return connectorRegistry.getRequiredCredentialFields(connectorCode);
     }
 }

@@ -40,6 +40,9 @@ dependencies {
     // SpringDoc for OpenAPI
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui")
 
+    // Swagger Parser for reading OpenAPI specs
+    implementation("io.swagger.parser.v3:swagger-parser:2.1.22")
+
     // JWT Dependencies
     implementation("io.jsonwebtoken:jjwt-api")
     implementation("io.jsonwebtoken:jjwt-impl")
@@ -60,6 +63,7 @@ dependencies {
     // Testing Dependencies
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.awaitility:awaitility:4.2.0")
 }
 
 tasks.withType<Test> {
@@ -76,4 +80,52 @@ tasks.named<Jar>("jar") {
 
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
     enabled = true
+}
+
+// OpenAPI specification generation tasks
+
+tasks.register<Test>("generateOpenApiTest") {
+    group = "documentation"
+    description = "Generate OpenAPI specification by running test"
+
+    useJUnitPlatform {
+        includeTags("openapi-generation")
+    }
+
+    // Ensure output directory exists
+    doFirst {
+        project.file("build/generated/openapi").mkdirs()
+    }
+
+    outputs.upToDateWhen { false } // Always run
+}
+
+tasks.register<Copy>("copyOpenApiSpec") {
+    group = "documentation"
+    description = "Copy generated OpenAPI spec to resources directory"
+
+    dependsOn("generateOpenApiTest")
+
+    from("build/generated/openapi/openapi.json")
+    into("src/main/resources/static")
+
+    doLast {
+        println("✓ Copied OpenAPI spec to src/main/resources/static/openapi.json")
+        println("  Remember to commit this file to git!")
+    }
+}
+
+tasks.register("generateOpenApi") {
+    group = "documentation"
+    description = "Generate OpenAPI specification and copy to resources"
+
+    dependsOn("generateOpenApiTest", "copyOpenApiSpec")
+
+    doLast {
+        println("")
+        println("========================================")
+        println("OpenAPI specification generated successfully!")
+        println("File: src/main/resources/static/openapi.json")
+        println("========================================")
+    }
 }
