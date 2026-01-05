@@ -65,6 +65,15 @@
             <column name="enabled" valueBoolean="true"/>
         </insert>
 
+        <insert tableName="connectors">
+            <column name="pub_id" valueComputed="gen_random_uuid()"/>
+            <column name="code" value="mobile"/>
+            <column name="name" value="Mobile"/>
+            <column name="description" value="Mobile API integration"/>
+            <column name="base_url" value="http://localhost:8080"/>
+            <column name="enabled" valueBoolean="true"/>
+        </insert>
+
         <!-- Create credentials table with user_pub_id included from the start -->
         <createTable tableName="credentials">
             <column name="id" type="BIGSERIAL">
