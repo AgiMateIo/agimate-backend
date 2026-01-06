@@ -26,6 +26,7 @@ import ru.agimate.connectorsapi.controller.api.MethodController;
 import ru.agimate.connectorsapi.controller.manage.ConnectorController;
 import ru.agimate.connectorsapi.controller.manage.ConnectorsApiKeyController;
 import ru.agimate.connectorsapi.controller.manage.CredentialController;
+import ru.agimate.connectorsapi.controller.manage.WebhookRegistrationController;
 import ru.agimate.connectorsapi.security.ApiKeyAuthenticationFilter;
 import ru.agimate.connectorsapi.security.JwtAuthenticationFilter;
 
@@ -101,7 +102,8 @@ public class SecurityConfig {
         http.securityMatcher(
                 ConnectorController.PATH + "/**",
                 CredentialController.PATH + "/**",
-                ConnectorsApiKeyController.PATH + "/**"
+                ConnectorsApiKeyController.PATH + "/**",
+                WebhookRegistrationController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);
