@@ -5,12 +5,20 @@ import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
+import io.swagger.v3.parser.OpenAPIV3Parser;
+import io.swagger.v3.parser.core.models.SwaggerParseResult;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 import ru.agimate.connectorsapi.controller.dto.MethodInfo;
 import ru.agimate.connectorsapi.controller.dto.ParameterInfo;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,24 +27,113 @@ import java.util.Map;
 @Slf4j
 public class OpenApiMethodExtractor {
 
-    private final ObjectProvider<OpenAPI> openAPIProvider;
-    private OpenAPI cachedOpenAPI = null;
+    private static final String DEFAULT_GROUP = "connectors";
 
-    public OpenApiMethodExtractor(ObjectProvider<OpenAPI> openAPIProvider) {
-        this.openAPIProvider = openAPIProvider;
+    private OpenAPI openAPI;
+
+    @Value("${server.port:8280}")
+    private int serverPort;
+
+    @Value("${server.servlet.context-path:/connectors-api}")
+    private String contextPath;
+
+    @Value("${springdoc.api-docs.path:/v3/api-docs}")
+    private String apiDocsPath;
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void loadOpenApiSpec() {
+        // Try dynamic loading via SpringDoc REST endpoint first
+        if (tryLoadViaSpringDocEndpoint()) {
+            return;
+        }
+
+        // Fallback to static file
+        log.info("Falling back to static OpenAPI specification file");
+        loadFromStaticFile();
     }
 
-    private OpenAPI getOpenAPI() {
-        if (cachedOpenAPI == null) {
-            cachedOpenAPI = openAPIProvider.getIfAvailable();
-            if (cachedOpenAPI != null && cachedOpenAPI.getPaths() != null) {
-                log.info("Loaded OpenAPI specification from springdoc runtime bean ({} paths)",
-                        cachedOpenAPI.getPaths().size());
-            } else {
-                log.error("OpenAPI bean not available or has no paths");
+    /**
+     * Attempts to load OpenAPI specification dynamically via SpringDoc REST endpoint.
+     * This correctly handles GroupedOpenApi configurations by fetching the specific group.
+     *
+     * @return true if successful, false otherwise
+     */
+    private boolean tryLoadViaSpringDocEndpoint() {
+        try {
+            // Build URL, ensuring no double slashes
+            String basePath = contextPath.endsWith("/") ? contextPath.substring(0, contextPath.length() - 1) : contextPath;
+            String docsPath = apiDocsPath.startsWith("/") ? apiDocsPath : "/" + apiDocsPath;
+            String url = "http://localhost:" + serverPort + basePath + docsPath + "/" + DEFAULT_GROUP;
+            log.debug("Fetching OpenAPI specification from: {}", url);
+
+            RestClient restClient = RestClient.create();
+            String jsonContent = restClient.get()
+                    .uri(url)
+                    .retrieve()
+                    .body(String.class);
+
+            if (jsonContent == null || jsonContent.isBlank()) {
+                log.warn("SpringDoc endpoint returned empty response");
+                return false;
             }
+
+            // Parse JSON using swagger-parser
+            OpenAPIV3Parser parser = new OpenAPIV3Parser();
+            SwaggerParseResult result = parser.readContents(jsonContent, null, null);
+
+            if (result.getMessages() != null && !result.getMessages().isEmpty()) {
+                log.warn("OpenAPI parsing warnings: {}", result.getMessages());
+            }
+
+            openAPI = result.getOpenAPI();
+
+            if (openAPI != null && openAPI.getPaths() != null && !openAPI.getPaths().isEmpty()) {
+                log.info("Successfully loaded OpenAPI specification via SpringDoc endpoint ({} paths)",
+                        openAPI.getPaths().size());
+                return true;
+            } else {
+                log.warn("SpringDoc endpoint returned OpenAPI with no paths");
+                return false;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to load OpenAPI specification via SpringDoc endpoint: {}", e.getMessage());
+            return false;
         }
-        return cachedOpenAPI;
+    }
+
+    /**
+     * Loads OpenAPI specification from static file (fallback method).
+     */
+    private void loadFromStaticFile() {
+        try {
+            ClassPathResource resource = new ClassPathResource("static/openapi.json");
+            if (!resource.exists()) {
+                log.warn("OpenAPI specification file not found at classpath:static/openapi.json");
+                return;
+            }
+
+            // Read file content as string
+            String content = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+            // Parse using swagger-parser
+            OpenAPIV3Parser parser = new OpenAPIV3Parser();
+            SwaggerParseResult result = parser.readContents(content, null, null);
+
+            if (result.getMessages() != null && !result.getMessages().isEmpty()) {
+                log.warn("OpenAPI parsing warnings: {}", result.getMessages());
+            }
+
+            openAPI = result.getOpenAPI();
+
+            if (openAPI != null && openAPI.getPaths() != null) {
+                log.info("Successfully loaded OpenAPI specification from static file ({} paths)",
+                        openAPI.getPaths().size());
+            } else {
+                log.error("Failed to parse OpenAPI specification - result is null or has no paths");
+            }
+        } catch (IOException e) {
+            log.error("Failed to load OpenAPI specification from static file", e);
+        }
     }
 
     /**
