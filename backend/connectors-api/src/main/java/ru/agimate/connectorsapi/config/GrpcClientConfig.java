@@ -12,4 +12,9 @@ public class GrpcClientConfig {
     public MobileApiServiceGrpc.MobileApiServiceBlockingStub mobileApiStub(GrpcChannelFactory channels) {
         return MobileApiServiceGrpc.newBlockingStub(channels.createChannel("mobile-api"));
     }
+
+    @Bean
+    public MobileApiServiceGrpc.MobileApiServiceStub mobileApiAsyncStub(GrpcChannelFactory channels) {
+        return MobileApiServiceGrpc.newStub(channels.createChannel("mobile-api"));
+    }
 }

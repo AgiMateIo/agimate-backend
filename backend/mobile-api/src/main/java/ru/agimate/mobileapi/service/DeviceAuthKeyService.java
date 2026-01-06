@@ -2,12 +2,19 @@ package ru.agimate.mobileapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.rest.error.UnauthorizedStatusException;
+import ru.agimate.common.security.apikey.ApiKeyAuthenticationToken;
+import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.mobileapi.database.entities.DeviceAuthKey;
 import ru.agimate.mobileapi.database.repositories.DeviceAuthKeyRepository;
+import ru.agimate.mobileapi.security.DeviceAuthenticationToken;
+import ru.agimate.mobileapi.security.DevicePrincipal;
 import ru.agimate.mobileapi.service.dto.DeviceAuthKeyCreateResult;
 import ru.agimate.mobileapi.util.ApiKeyUtils;
 import ru.agimate.mobileapi.util.GeneratedApiKey;
@@ -135,5 +142,21 @@ public class DeviceAuthKeyService {
         deviceAuthKeyRepository.softDelete(oldKey.getId(), LocalDateTime.now());
 
         return createKey(userPubId, oldKey.getName(), oldKey.getDescription());
+    }
+
+    public DeviceAuthKey getDeviceAuthKey() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new UnauthorizedStatusException("API key is not authenticated");
+        }
+
+        if (authentication instanceof DeviceAuthenticationToken deviceAuthenticationToken) {
+            DevicePrincipal principal = (DevicePrincipal) deviceAuthenticationToken.getPrincipal();
+            return deviceAuthKeyRepository.findByPubId(principal.deviceAuthPubId())
+                    .orElseThrow(() -> new UnauthorizedStatusException("Device not found"));
+        }
+
+        throw new UnauthorizedStatusException("Invalid authentication type");
     }
 }

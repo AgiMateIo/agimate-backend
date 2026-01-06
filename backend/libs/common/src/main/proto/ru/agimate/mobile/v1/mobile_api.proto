@@ -19,6 +19,9 @@ service MobileApiService {
 
   // Push an action to a device
   rpc PushAction(PushActionRequest) returns (PushActionResponse);
+
+  // Stream trigger events from mobile devices (server-side streaming)
+  rpc StreamTriggerEvents(StreamTriggerEventsRequest) returns (stream TriggerEvent);
 }
 
 // ============================================================================
@@ -56,6 +59,19 @@ message PushActionRequest {
 
 message PushActionResponse {
   // Empty response - void return type
+}
+
+message StreamTriggerEventsRequest {
+  // Empty - stream all events (extensible for future filtering)
+}
+
+message TriggerEvent {
+  string event_name = 1;    // Format: "mobile.{triggerName}" (e.g., "mobile.shaked")
+  string user_pub_id = 2;   // User UUID string
+  string device_id = 3;     // Device ID
+  string trigger_name = 4;  // Original trigger name (e.g., "shaked")
+  string data_json = 5;     // JSON-encoded event data
+  string occurred_at = 6;   // ISO-8601 timestamp
 }
 
 // ============================================================================

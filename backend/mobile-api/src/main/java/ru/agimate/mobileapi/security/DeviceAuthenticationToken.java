@@ -24,7 +24,7 @@ public class DeviceAuthenticationToken implements Authentication {
 
     @Override
     public Object getCredentials() {
-        return principal.connectionKeyPubId();
+        return principal.deviceAuthPubId();
     }
 
     @Override

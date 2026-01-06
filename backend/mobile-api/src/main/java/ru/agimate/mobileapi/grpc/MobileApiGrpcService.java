@@ -9,7 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.mobile.v1.*;
+import ru.agimate.mobileapi.controller.dto.request.TriggerRequest;
 import ru.agimate.mobileapi.service.InternalMobileApiService;
+import ru.agimate.mobileapi.service.TriggerEventPublisher;
 
 import java.util.stream.Collectors;
 
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 public class MobileApiGrpcService extends MobileApiServiceGrpc.MobileApiServiceImplBase {
 
     private final InternalMobileApiService internalMobileApiService;
+    private final TriggerEventPublisher triggerEventPublisher;
 
     @Override
     public void getDevices(GetDevicesRequest request, StreamObserver<GetDevicesResponse> responseObserver) {
@@ -130,5 +133,37 @@ public class MobileApiGrpcService extends MobileApiServiceGrpc.MobileApiServiceI
                     .withDescription("Failed to push action: " + e.getMessage())
                     .asRuntimeException());
         }
+    }
+
+    @Override
+    public void streamTriggerEvents(
+            StreamTriggerEventsRequest request,
+            StreamObserver<TriggerEvent> responseObserver
+    ) {
+        log.info("New GRPC stream client connected for trigger events");
+
+        TriggerEventPublisher.Subscription subscription = triggerEventPublisher.subscribe(trigger -> {
+            try {
+                String eventName = "mobile." + trigger.triggerRequest().name().toLowerCase();
+
+                TriggerEvent event = TriggerEvent.newBuilder()
+                        .setEventName(eventName)
+                        .setUserPubId(trigger.deviceAuthKey().getUserPubId().toString())
+                        .setDeviceId(trigger.deviceAuthKey().getPubId().toString())
+                        .setTriggerName(trigger.triggerRequest().name())
+                        .setDataJson(trigger.triggerRequest().data() != null ? trigger.triggerRequest().data().toString() : "{}")
+                        .setOccurredAt(trigger.triggerRequest().occurredAt() != null ?
+                                trigger.triggerRequest().occurredAt().toString() : "")
+                        .build();
+
+                responseObserver.onNext(event);
+                log.debug("Sent trigger event to GRPC stream: {}", eventName);
+
+            } catch (Exception e) {
+                log.error("Error sending trigger event to GRPC stream: {}", e.getMessage(), e);
+            }
+        });
+
+        log.info("GRPC trigger event stream established");
     }
 }

@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public record DevicePrincipal(
         String name,
-        UUID connectionKeyPubId,
+        UUID deviceAuthPubId,
         UUID userPubId
 ) implements Principal {
 
