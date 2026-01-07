@@ -6,10 +6,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.connectorsapi.controller.dto.request.CreateConnectorsApiKeyRequest;
-import ru.agimate.connectorsapi.controller.dto.request.UpdateConnectorsApiKeyRequest;
-import ru.agimate.connectorsapi.controller.dto.response.ConnectorsApiKeyCreateResponse;
-import ru.agimate.connectorsapi.controller.dto.response.ConnectorsApiKeyResponse;
+import ru.agimate.connectorsapi.controller.manage.dto.request.CreateConnectorsApiKeyRequest;
+import ru.agimate.connectorsapi.controller.manage.dto.request.UpdateConnectorsApiKeyRequest;
+import ru.agimate.connectorsapi.controller.manage.dto.response.ConnectorsApiKeyCreateResponse;
+import ru.agimate.connectorsapi.controller.manage.dto.response.ConnectorsApiKeyResponse;
 import ru.agimate.common.security.SecurityUtils;
 import ru.agimate.connectorsapi.service.ConnectorsApiKeyService;
 

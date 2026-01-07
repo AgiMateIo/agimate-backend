@@ -7,9 +7,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.connectorsapi.controller.dto.request.CreateWebhookRegistrationRequest;
-import ru.agimate.connectorsapi.controller.dto.request.UpdateWebhookRegistrationRequest;
-import ru.agimate.connectorsapi.controller.dto.response.WebhookRegistrationResponse;
+import ru.agimate.connectorsapi.controller.manage.dto.request.CreateWebhookRegistrationRequest;
+import ru.agimate.connectorsapi.controller.manage.dto.request.UpdateWebhookRegistrationRequest;
+import ru.agimate.connectorsapi.controller.manage.dto.response.WebhookRegistrationResponse;
 import ru.agimate.connectorsapi.database.entities.WebhookRegistration;
 import ru.agimate.connectorsapi.database.repositories.WebhookRegistrationRepository;
 

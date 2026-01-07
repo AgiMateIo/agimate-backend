@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.dto;
+package ru.agimate.connectorsapi.controller.api.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 

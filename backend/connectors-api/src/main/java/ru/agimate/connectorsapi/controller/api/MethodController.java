@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.connectorsapi.controller.dto.MethodInfo;
+import ru.agimate.connectorsapi.controller.api.dto.MethodInfo;
 import ru.agimate.connectorsapi.service.OpenApiMethodExtractor;
 
 import java.util.List;

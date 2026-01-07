@@ -13,10 +13,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.connectorsapi.controller.dto.wildberries.WildberriesGetCardsRequest;
-import ru.agimate.connectorsapi.controller.dto.wildberries.WildberriesGetCardsResponse;
-import ru.agimate.connectorsapi.controller.dto.wildberries.WildberriesGetOrdersRequest;
-import ru.agimate.connectorsapi.controller.dto.wildberries.WildberriesGetOrdersResponse;
+import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetCardsRequest;
+import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetCardsResponse;
+import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetOrdersRequest;
+import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetOrdersResponse;
 import ru.agimate.connectorsapi.service.WildberriesCallService;
 
 import java.util.UUID;

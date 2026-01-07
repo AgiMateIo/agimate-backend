@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.dto.response;
+package ru.agimate.connectorsapi.controller.manage.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;

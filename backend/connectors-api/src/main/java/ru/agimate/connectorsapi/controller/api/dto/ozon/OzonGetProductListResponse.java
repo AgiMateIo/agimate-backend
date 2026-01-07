@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.dto.wildberries;
+package ru.agimate.connectorsapi.controller.api.dto.ozon;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
@@ -10,10 +10,10 @@ import java.util.Map;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Response from Wildberries product cards API")
-public class WildberriesGetCardsResponse {
+@Schema(description = "Response from Ozon product list API")
+public class OzonGetProductListResponse {
 
-    @Schema(description = "Response data from Wildberries API - structure matches WB documentation")
+    @Schema(description = "Response data from Ozon API - structure matches Ozon documentation")
     private Map<String, Object> result;
 
     @Schema(description = "Execution duration in milliseconds")

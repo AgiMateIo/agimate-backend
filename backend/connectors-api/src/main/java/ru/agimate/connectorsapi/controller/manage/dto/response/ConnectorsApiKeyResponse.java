@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.dto.response;
+package ru.agimate.connectorsapi.controller.manage.dto.response;
 
 import ru.agimate.connectorsapi.database.entities.ConnectorsApiKey;
 

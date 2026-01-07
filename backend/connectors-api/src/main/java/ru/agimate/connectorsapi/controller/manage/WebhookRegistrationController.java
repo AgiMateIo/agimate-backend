@@ -7,9 +7,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.SecurityUtils;
-import ru.agimate.connectorsapi.controller.dto.request.CreateWebhookRegistrationRequest;
-import ru.agimate.connectorsapi.controller.dto.request.UpdateWebhookRegistrationRequest;
-import ru.agimate.connectorsapi.controller.dto.response.WebhookRegistrationResponse;
+import ru.agimate.connectorsapi.controller.manage.dto.request.CreateWebhookRegistrationRequest;
+import ru.agimate.connectorsapi.controller.manage.dto.request.UpdateWebhookRegistrationRequest;
+import ru.agimate.connectorsapi.controller.manage.dto.response.WebhookRegistrationResponse;
 import ru.agimate.connectorsapi.service.WebhookRegistrationService;
 
 import java.util.List;

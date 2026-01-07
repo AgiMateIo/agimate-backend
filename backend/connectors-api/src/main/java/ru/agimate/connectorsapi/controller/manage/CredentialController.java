@@ -6,10 +6,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.connectorsapi.controller.dto.request.CreateCredentialRequest;
-import ru.agimate.connectorsapi.controller.dto.request.UpdateCredentialRequest;
-import ru.agimate.connectorsapi.controller.dto.response.ConnectorSummaryResponse;
-import ru.agimate.connectorsapi.controller.dto.response.CredentialResponse;
+import ru.agimate.connectorsapi.controller.manage.dto.request.CreateCredentialRequest;
+import ru.agimate.connectorsapi.controller.manage.dto.request.UpdateCredentialRequest;
+import ru.agimate.connectorsapi.controller.manage.dto.response.ConnectorSummaryResponse;
+import ru.agimate.connectorsapi.controller.manage.dto.response.CredentialResponse;
 import ru.agimate.common.security.SecurityUtils;
 import ru.agimate.connectorsapi.service.CredentialService;
 

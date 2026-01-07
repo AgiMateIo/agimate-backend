@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import java.util.Map;
-import ru.agimate.connectorsapi.controller.dto.response.ConnectorInfoResponse;
+import ru.agimate.connectorsapi.controller.manage.dto.response.ConnectorInfoResponse;
 import ru.agimate.connectorsapi.service.ConnectorService;
 
 import java.util.List;

@@ -11,10 +11,10 @@ import ru.agimate.common.security.SecurityUtils;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.connectorsapi.client.ConnectorClient;
 import ru.agimate.connectorsapi.connector.ConnectorMethod;
-import ru.agimate.connectorsapi.controller.dto.wildberries.WildberriesGetCardsRequest;
-import ru.agimate.connectorsapi.controller.dto.wildberries.WildberriesGetCardsResponse;
-import ru.agimate.connectorsapi.controller.dto.wildberries.WildberriesGetOrdersRequest;
-import ru.agimate.connectorsapi.controller.dto.wildberries.WildberriesGetOrdersResponse;
+import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetCardsRequest;
+import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetCardsResponse;
+import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetOrdersRequest;
+import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetOrdersResponse;
 import ru.agimate.connectorsapi.database.entities.Credential;
 import ru.agimate.connectorsapi.database.repositories.CredentialRepository;
 

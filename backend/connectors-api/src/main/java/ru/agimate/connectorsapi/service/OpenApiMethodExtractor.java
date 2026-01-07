@@ -13,8 +13,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import ru.agimate.connectorsapi.controller.dto.MethodInfo;
-import ru.agimate.connectorsapi.controller.dto.ParameterInfo;
+import ru.agimate.connectorsapi.controller.api.dto.MethodInfo;
+import ru.agimate.connectorsapi.controller.api.dto.ParameterInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;

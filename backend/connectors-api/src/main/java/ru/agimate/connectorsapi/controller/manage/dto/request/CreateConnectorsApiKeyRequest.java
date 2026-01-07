@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.dto.request;
+package ru.agimate.connectorsapi.controller.manage.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 

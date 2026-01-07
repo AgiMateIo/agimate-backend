@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.dto.ozon;
+package ru.agimate.connectorsapi.controller.api.dto.ozon;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;

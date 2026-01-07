@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.dto.wildberries;
+package ru.agimate.connectorsapi.controller.api.dto.wildberries;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
