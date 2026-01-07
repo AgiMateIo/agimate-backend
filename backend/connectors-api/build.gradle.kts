@@ -40,9 +40,6 @@ dependencies {
     // SpringDoc for OpenAPI
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui")
 
-    // Swagger Parser - needed for parsing OpenAPI JSON from runtime endpoint
-    implementation("io.swagger.parser.v3:swagger-parser:2.1.22")
-
     // JWT Dependencies
     implementation("io.jsonwebtoken:jjwt-api")
     implementation("io.jsonwebtoken:jjwt-impl")

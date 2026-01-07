@@ -1,12 +1,11 @@
 package ru.agimate.connectorsapi.service;
 
+import io.swagger.v3.core.util.Json;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.parameters.Parameter;
-import io.swagger.v3.parser.OpenAPIV3Parser;
-import io.swagger.v3.parser.core.models.SwaggerParseResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -18,7 +17,6 @@ import ru.agimate.connectorsapi.controller.dto.MethodInfo;
 import ru.agimate.connectorsapi.controller.dto.ParameterInfo;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -77,15 +75,8 @@ public class OpenApiMethodExtractor {
                 return false;
             }
 
-            // Parse JSON using swagger-parser
-            OpenAPIV3Parser parser = new OpenAPIV3Parser();
-            SwaggerParseResult result = parser.readContents(jsonContent, null, null);
-
-            if (result.getMessages() != null && !result.getMessages().isEmpty()) {
-                log.warn("OpenAPI parsing warnings: {}", result.getMessages());
-            }
-
-            openAPI = result.getOpenAPI();
+            // Parse JSON using Swagger's configured Jackson ObjectMapper
+            openAPI = Json.mapper().readValue(jsonContent, OpenAPI.class);
 
             if (openAPI != null && openAPI.getPaths() != null && !openAPI.getPaths().isEmpty()) {
                 log.info("Successfully loaded OpenAPI specification via SpringDoc endpoint ({} paths)",
@@ -112,18 +103,8 @@ public class OpenApiMethodExtractor {
                 return;
             }
 
-            // Read file content as string
-            String content = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-
-            // Parse using swagger-parser
-            OpenAPIV3Parser parser = new OpenAPIV3Parser();
-            SwaggerParseResult result = parser.readContents(content, null, null);
-
-            if (result.getMessages() != null && !result.getMessages().isEmpty()) {
-                log.warn("OpenAPI parsing warnings: {}", result.getMessages());
-            }
-
-            openAPI = result.getOpenAPI();
+            // Parse JSON using Swagger's configured Jackson ObjectMapper
+            openAPI = Json.mapper().readValue(resource.getInputStream(), OpenAPI.class);
 
             if (openAPI != null && openAPI.getPaths() != null) {
                 log.info("Successfully loaded OpenAPI specification from static file ({} paths)",
