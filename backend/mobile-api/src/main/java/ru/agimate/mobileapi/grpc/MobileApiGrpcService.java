@@ -1,15 +1,13 @@
 package ru.agimate.mobileapi.grpc;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.grpc.Status;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.mobile.v1.*;
-import ru.agimate.mobileapi.controller.dto.request.TriggerRequest;
 import ru.agimate.mobileapi.service.InternalMobileApiService;
 import ru.agimate.mobileapi.service.TriggerEventPublisher;
 
@@ -142,7 +140,16 @@ public class MobileApiGrpcService extends MobileApiServiceGrpc.MobileApiServiceI
     ) {
         log.info("New GRPC stream client connected for trigger events");
 
+        ServerCallStreamObserver<TriggerEvent> serverCallObserver =
+                (ServerCallStreamObserver<TriggerEvent>) responseObserver;
+
         TriggerEventPublisher.Subscription subscription = triggerEventPublisher.subscribe(trigger -> {
+            // Check if stream is still active before sending
+            if (serverCallObserver.isCancelled()) {
+                log.debug("Stream is cancelled, skipping trigger event");
+                return;
+            }
+
             try {
                 String eventName = "mobile." + trigger.triggerRequest().name().toLowerCase();
 
@@ -162,6 +169,12 @@ public class MobileApiGrpcService extends MobileApiServiceGrpc.MobileApiServiceI
             } catch (Exception e) {
                 log.error("Error sending trigger event to GRPC stream: {}", e.getMessage(), e);
             }
+        });
+
+        // Handle stream cancellation - unsubscribe to prevent memory leaks
+        serverCallObserver.setOnCancelHandler(() -> {
+            log.info("GRPC trigger event stream cancelled by client, unsubscribing");
+            subscription.cancel();
         });
 
         log.info("GRPC trigger event stream established");

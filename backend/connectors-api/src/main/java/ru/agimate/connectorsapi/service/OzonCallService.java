@@ -1,6 +1,5 @@
 package ru.agimate.connectorsapi.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,7 +32,6 @@ public class OzonCallService {
     private final CredentialRepository credentialRepository;
     private final CredentialService credentialService;
     private final List<ConnectorClient> connectorClients;
-    private final ObjectMapper objectMapper = JsonUtils.MAPPER;
 
     @Transactional
     public OzonGetProductListResponse getProductList(UUID credentialId, OzonGetProductListRequest request) {
@@ -49,7 +47,7 @@ public class OzonCallService {
         );
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> parameters = objectMapper.convertValue(request, Map.class);
+        Map<String, Object> parameters = JsonUtils.MAPPER.convertValue(request, Map.class);
 
         return executeMethod("getProductList", credentialId, method, parameters, OzonGetProductListResponse.class);
     }
@@ -68,7 +66,7 @@ public class OzonCallService {
         );
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> parameters = objectMapper.convertValue(request, Map.class);
+        Map<String, Object> parameters = JsonUtils.MAPPER.convertValue(request, Map.class);
 
         return executeMethod("getProductInfo", credentialId, method, parameters, OzonGetProductInfoResponse.class);
     }
@@ -116,7 +114,7 @@ public class OzonCallService {
             log.info("Successfully called {}.{} in {}ms", CONNECTOR_CODE, methodName, duration);
 
             // Convert result to response type
-            return objectMapper.convertValue(
+            return JsonUtils.MAPPER.convertValue(
                     Map.of("result", result, "durationMs", duration),
                     responseType
             );
