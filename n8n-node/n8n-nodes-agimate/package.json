@@ -1,0 +1,52 @@
+{
+    "name": "n8n-nodes-agimate",
+    "version": "0.1.0",
+    "description": "",
+    "license": "MIT",
+    "homepage": "",
+    "keywords": [
+        "n8n-community-node-package"
+    ],
+    "author": {
+        "name": "Eugene Smith",
+        "email": "easmith@mail.ru"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/agimate/n8n-nodes-agimate.git"
+    },
+    "scripts": {
+        "build": "n8n-node build",
+        "build:watch": "tsc --watch",
+        "dev": "n8n-node dev --external-n8n",
+        "n8n:start": "N8N_DEV_RELOAD=true N8N_CUSTOM_EXTENSIONS=\"$HOME/.n8n-node-cli/.n8n/custom\" n8n start",
+        "lint": "n8n-node lint",
+        "lint:fix": "n8n-node lint --fix",
+        "release": "n8n-node release",
+        "prepublishOnly": "n8n-node prerelease"
+    },
+    "files": [
+        "dist"
+    ],
+    "n8n": {
+        "n8nNodesApiVersion": 1,
+        "strict": true,
+        "credentials": [
+            "dist/credentials/AgimateApi.credentials.js"
+        ],
+        "nodes": [
+            "dist/nodes/Example/Example.node.js",
+            "dist/nodes/AgimateTrigger/AgimateTrigger.node.js"
+        ]
+    },
+    "devDependencies": {
+        "@n8n/node-cli": "*",
+        "eslint": "9.32.0",
+        "prettier": "3.6.2",
+        "release-it": "^19.0.4",
+        "typescript": "5.9.2"
+    },
+    "peerDependencies": {
+        "n8n-workflow": "*"
+    }
+}
