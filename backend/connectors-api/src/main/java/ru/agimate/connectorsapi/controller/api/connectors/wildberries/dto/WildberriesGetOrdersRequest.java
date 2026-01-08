@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.api.dto.wildberries;
+package ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 

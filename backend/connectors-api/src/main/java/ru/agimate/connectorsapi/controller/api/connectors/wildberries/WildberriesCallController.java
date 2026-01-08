@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.api;
+package ru.agimate.connectorsapi.controller.api.connectors.wildberries;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,10 +13,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetCardsRequest;
-import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetCardsResponse;
-import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetOrdersRequest;
-import ru.agimate.connectorsapi.controller.api.dto.wildberries.WildberriesGetOrdersResponse;
+import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.WildberriesGetCardsRequest;
+import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.WildberriesGetCardsResponse;
+import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.WildberriesGetOrdersRequest;
+import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.WildberriesGetOrdersResponse;
 import ru.agimate.connectorsapi.service.WildberriesCallService;
 
 import java.util.UUID;

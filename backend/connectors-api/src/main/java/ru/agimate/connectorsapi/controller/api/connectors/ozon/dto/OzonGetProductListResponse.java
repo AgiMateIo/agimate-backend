@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.api.dto.ozon;
+package ru.agimate.connectorsapi.controller.api.connectors.ozon.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;

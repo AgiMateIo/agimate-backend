@@ -17,17 +17,17 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping(CredentialController.PATH)
+@RequestMapping(CredentialManageController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Credentials", description = "Manage connector credentials")
-public class CredentialController {
+public class CredentialManageController {
 
-    public static final String PATH = "/credentials";
+    public static final String PATH = "/manage/credentials";
 
     private final CredentialService credentialService;
 
     @Operation(summary = "Get credentials summary for all connectors")
-    @GetMapping
+    @GetMapping("/")
     public SuccessResponse<List<ConnectorSummaryResponse>> getCredentialsSummary() {
         UUID userPubId = SecurityUtils.getCurrentUserPubId();
         return SuccessResponse.ok(credentialService.getCredentialsSummary(userPubId));

@@ -10,10 +10,10 @@ import ru.agimate.common.security.SecurityUtils;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.connectorsapi.client.ConnectorClient;
 import ru.agimate.connectorsapi.connector.ConnectorMethod;
-import ru.agimate.connectorsapi.controller.api.dto.ozon.OzonGetProductInfoRequest;
-import ru.agimate.connectorsapi.controller.api.dto.ozon.OzonGetProductInfoResponse;
-import ru.agimate.connectorsapi.controller.api.dto.ozon.OzonGetProductListRequest;
-import ru.agimate.connectorsapi.controller.api.dto.ozon.OzonGetProductListResponse;
+import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductInfoRequest;
+import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductInfoResponse;
+import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductListRequest;
+import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductListResponse;
 import ru.agimate.connectorsapi.database.entities.Credential;
 import ru.agimate.connectorsapi.database.repositories.CredentialRepository;
 

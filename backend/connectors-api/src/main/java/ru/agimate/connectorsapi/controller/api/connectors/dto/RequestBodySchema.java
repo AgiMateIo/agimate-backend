@@ -1,9 +1,8 @@
-package ru.agimate.connectorsapi.controller.api.dto;
+package ru.agimate.connectorsapi.controller.api.connectors.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
-import java.util.Map;
 
 @Schema(description = "Request body schema information")
 public record RequestBodySchema(

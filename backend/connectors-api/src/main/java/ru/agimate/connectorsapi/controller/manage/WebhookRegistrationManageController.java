@@ -16,18 +16,18 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping(WebhookRegistrationController.PATH)
+@RequestMapping(WebhookRegistrationManageController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Webhooks", description = "Manage webhook registrations for event notifications")
-public class WebhookRegistrationController {
+public class WebhookRegistrationManageController {
 
-    public static final String PATH = "/webhooks";
+    public static final String PATH = "/manage/webhooks";
 
     private final WebhookRegistrationService webhookRegistrationService;
 
     @Operation(summary = "Get all webhook registrations",
             description = "Retrieve all webhook registrations for the current user, optionally filtered by event type")
-    @GetMapping
+    @GetMapping("/")
     public SuccessResponse<List<WebhookRegistrationResponse>> getAllWebhooks(
             @RequestParam(required = false) String eventType
     ) {

@@ -20,13 +20,12 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.connectorsapi.controller.api.AvailableConnectorsController;
-import ru.agimate.connectorsapi.controller.api.AvailableCredentialsController;
-import ru.agimate.connectorsapi.controller.api.MethodController;
-import ru.agimate.connectorsapi.controller.manage.ConnectorController;
-import ru.agimate.connectorsapi.controller.manage.ConnectorsApiKeyController;
-import ru.agimate.connectorsapi.controller.manage.CredentialController;
-import ru.agimate.connectorsapi.controller.manage.WebhookRegistrationController;
+import ru.agimate.connectorsapi.controller.api.connectors.ConnectorsApiController;
+import ru.agimate.connectorsapi.controller.api.device.DeviceController;
+import ru.agimate.connectorsapi.controller.manage.ConnectorsManageController;
+import ru.agimate.connectorsapi.controller.manage.ConnectorsApiKeyManageController;
+import ru.agimate.connectorsapi.controller.manage.CredentialManageController;
+import ru.agimate.connectorsapi.controller.manage.WebhookRegistrationManageController;
 import ru.agimate.connectorsapi.security.ApiKeyAuthenticationFilter;
 import ru.agimate.connectorsapi.security.JwtAuthenticationFilter;
 
@@ -100,10 +99,10 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                ConnectorController.PATH + "/**",
-                CredentialController.PATH + "/**",
-                ConnectorsApiKeyController.PATH + "/**",
-                WebhookRegistrationController.PATH + "/**"
+                ConnectorsManageController.PATH + "/**",
+                CredentialManageController.PATH + "/**",
+                ConnectorsApiKeyManageController.PATH + "/**",
+                WebhookRegistrationManageController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);
@@ -123,10 +122,8 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain apiKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                AvailableConnectorsController.PATH + "/**",
-                AvailableCredentialsController.PATH + "/**",
-                "/api/call/**",
-                MethodController.PATH + "/**"
+                ConnectorsApiController.PATH + "/**",
+                DeviceController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

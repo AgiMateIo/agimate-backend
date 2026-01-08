@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.api;
+package ru.agimate.connectorsapi.controller.api.connectors.ozon;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,10 +13,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.connectorsapi.controller.api.dto.ozon.OzonGetProductInfoRequest;
-import ru.agimate.connectorsapi.controller.api.dto.ozon.OzonGetProductInfoResponse;
-import ru.agimate.connectorsapi.controller.api.dto.ozon.OzonGetProductListRequest;
-import ru.agimate.connectorsapi.controller.api.dto.ozon.OzonGetProductListResponse;
+import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductInfoRequest;
+import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductInfoResponse;
+import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductListRequest;
+import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductListResponse;
 import ru.agimate.connectorsapi.service.OzonCallService;
 
 import java.util.UUID;

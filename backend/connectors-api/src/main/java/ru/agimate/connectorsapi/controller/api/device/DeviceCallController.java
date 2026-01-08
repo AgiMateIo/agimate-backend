@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.api;
+package ru.agimate.connectorsapi.controller.api.device;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,56 +13,19 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.common.s2s.ConnectedDevice;
-import ru.agimate.common.s2s.DeviceAction;
-import ru.agimate.common.s2s.DeviceTrigger;
-import ru.agimate.common.security.SecurityUtils;
-import ru.agimate.connectorsapi.controller.api.dto.mobile.MobileActionRequest;
+import ru.agimate.connectorsapi.controller.api.device.dto.MobileActionRequest;
 import ru.agimate.connectorsapi.service.MobileApiService;
 
-import java.util.List;
-import java.util.Map;
-
 @RestController
-@RequestMapping(MobileCallController.PATH)
+@RequestMapping(DeviceCallController.PATH)
 @RequiredArgsConstructor
-@Tag(name = "Mobile Call", description = "Execute mobile device methods via API Key")
-public class MobileCallController {
+@Tag(name = "Device Call", description = "Execute device methods via API Key")
+public class DeviceCallController {
 
-    public static final String PATH = "/api/call/mobile";
+    public static final String PATH = DeviceController.PATH + "/call/";
 
     private final MobileApiService mobileApiService;
 
-    @Operation(
-            summary = "Get connected devices",
-            description = "Returns all connected mobile devices for the authenticated user"
-    )
-    @GetMapping("/devices")
-    public SuccessResponse<List<ConnectedDevice>> getDevices() {
-        var userPubId = SecurityUtils.getApiKeyUserPubId();
-        var devices = mobileApiService.getDevices(userPubId.toString());
-        return SuccessResponse.ok(devices);
-    }
-
-    @Operation(
-            summary = "Get device triggers",
-            description = "Returns available triggers for a specific mobile device"
-    )
-    @GetMapping("/{deviceId}/triggers")
-    public SuccessResponse<List<DeviceTrigger>> getTriggers(@PathVariable String deviceId) {
-        var triggers = mobileApiService.getTriggers(deviceId);
-        return SuccessResponse.ok(triggers);
-    }
-
-    @Operation(
-            summary = "Get device actions",
-            description = "Returns available actions for a specific mobile device"
-    )
-    @GetMapping("/{deviceId}/actions")
-    public SuccessResponse<List<DeviceAction>> getActions(@PathVariable String deviceId) {
-        var actions = mobileApiService.getActions(deviceId);
-        return SuccessResponse.ok(actions);
-    }
 
     @Operation(
             summary = "Push action to device",
@@ -86,8 +49,8 @@ public class MobileCallController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
-    @PostMapping("/{deviceId}/action")
-    public SuccessResponse<Void> pushAction(
+    @PostMapping("/{deviceId}")
+    public SuccessResponse<String> pushAction(
             @Parameter(
                     description = "Device identifier",
                     required = true,
@@ -102,6 +65,6 @@ public class MobileCallController {
             @Valid @RequestBody MobileActionRequest mobileActionRequest
     ) {
         mobileApiService.pushAction(deviceId, mobileActionRequest);
-        return SuccessResponse.ok(null);
+        return SuccessResponse.ok("success");
     }
 }

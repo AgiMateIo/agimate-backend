@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.api.dto.ozon;
+package ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
@@ -8,15 +8,17 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Request for getting Ozon product list")
-public class OzonGetProductListRequest {
+@Schema(description = "Request for getting Wildberries product cards")
+public class WildberriesGetCardsRequest {
 
     @Schema(
-            description = "Number of products per page",
+            description = "Number of product cards per page",
             example = "100",
             defaultValue = "100",
             minimum = "1",
@@ -28,9 +30,9 @@ public class OzonGetProductListRequest {
     private Integer limit = 100;
 
     @Schema(
-            description = "ID of the last product for pagination (cursor-based)",
-            example = "12345",
+            description = "Cursor object for pagination - contains state from previous request",
+            example = "{\"updatedAt\": \"2024-01-01T00:00:00Z\", \"nmID\": 12345}",
             nullable = true
     )
-    private String lastId;
+    private Map<String, Object> cursor;
 }

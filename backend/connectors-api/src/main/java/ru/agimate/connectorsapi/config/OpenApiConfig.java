@@ -11,6 +11,8 @@ import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import ru.agimate.connectorsapi.controller.api.connectors.ConnectorsApiController;
+import ru.agimate.connectorsapi.controller.api.device.DeviceController;
 
 import java.util.List;
 
@@ -57,16 +59,16 @@ public class OpenApiConfig {
         return GroupedOpenApi.builder()
                 .group("connectors")
                 .displayName("Connector Execution API")
-                .pathsToMatch("/api/call/**", "/api/methods/**")
+                .pathsToMatch(ConnectorsApiController.PATH+ "/**")
                 .build();
     }
 
     @Bean
-    public GroupedOpenApi mobileApiGroup() {
+    public GroupedOpenApi deviceApiGroup() {
         return GroupedOpenApi.builder()
-                .group("mobile")
-                .displayName("Mobile Device API")
-                .pathsToMatch("/api/call/mobile/**")
+                .group("device")
+                .displayName("Device API")
+                .pathsToMatch(DeviceController.PATH + "/**")
                 .build();
     }
 
@@ -75,7 +77,7 @@ public class OpenApiConfig {
         return GroupedOpenApi.builder()
                 .group("management")
                 .displayName("Management API")
-                .pathsToMatch("/connectors/**", "/credentials/**", "/api-keys/**")
+                .pathsToMatch("/manage/**")
                 .build();
     }
 }

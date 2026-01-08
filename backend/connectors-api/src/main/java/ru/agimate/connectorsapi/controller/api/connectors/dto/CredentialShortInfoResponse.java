@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.api.dto;
+package ru.agimate.connectorsapi.controller.api.connectors.dto;
 
 import java.util.UUID;
 

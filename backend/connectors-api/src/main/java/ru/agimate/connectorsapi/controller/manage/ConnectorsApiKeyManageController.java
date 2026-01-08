@@ -17,17 +17,17 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ConnectorsApiKeyController.PATH)
+@RequestMapping(ConnectorsApiKeyManageController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Connectors Api Keys", description = "Manage API keys for connector access")
-public class ConnectorsApiKeyController {
+public class ConnectorsApiKeyManageController {
 
-    public static final String PATH = "/api-keys";
+    public static final String PATH = "/manage/api-keys";
 
     private final ConnectorsApiKeyService connectorsApiKeyService;
 
     @Operation(summary = "Get all api keys for current user")
-    @GetMapping
+    @GetMapping("/")
     public SuccessResponse<List<ConnectorsApiKeyResponse>> getAuthKeys() {
         UUID userPubId = SecurityUtils.getCurrentUserPubId();
         return SuccessResponse.ok(
@@ -38,7 +38,7 @@ public class ConnectorsApiKeyController {
     }
 
     @Operation(summary = "Create new api key")
-    @PostMapping
+    @PostMapping("/")
     public SuccessResponse<ConnectorsApiKeyCreateResponse> createAuthKey(
             @Valid @RequestBody CreateConnectorsApiKeyRequest request
     ) {
@@ -71,14 +71,4 @@ public class ConnectorsApiKeyController {
         return SuccessResponse.empty();
     }
 
-    @Operation(summary = "Regenerate auth key")
-    @PostMapping("/{keyId}/regenerate")
-    public SuccessResponse<ConnectorsApiKeyCreateResponse> regenerateAuthKey(@PathVariable UUID keyId) {
-        UUID userPubId = SecurityUtils.getCurrentUserPubId();
-        var result = connectorsApiKeyService.regenerateKey(keyId, userPubId);
-        return SuccessResponse.ok(new ConnectorsApiKeyCreateResponse(
-                ConnectorsApiKeyResponse.from(result.connectorsApiKey()),
-                result.fullKey()
-        ));
-    }
 }

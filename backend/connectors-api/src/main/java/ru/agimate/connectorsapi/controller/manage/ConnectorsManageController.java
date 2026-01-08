@@ -14,12 +14,12 @@ import ru.agimate.connectorsapi.service.ConnectorService;
 import java.util.List;
 
 @RestController
-@RequestMapping(ConnectorController.PATH)
+@RequestMapping(ConnectorsManageController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Connectors", description = "Available connectors")
-public class ConnectorController {
+public class ConnectorsManageController {
 
-    public static final String PATH = "/connectors";
+    public static final String PATH = "/manage/connectors";
 
     private final ConnectorService connectorService;
 
@@ -30,7 +30,7 @@ public class ConnectorController {
     );
 
     @Operation(summary = "Get all available connectors")
-    @GetMapping
+    @GetMapping("/")
     public SuccessResponse<List<ConnectorInfoResponse>> getAllConnectors() {
         List<ConnectorInfoResponse> connectors = connectorService.getAllConnectors()
                 .stream()

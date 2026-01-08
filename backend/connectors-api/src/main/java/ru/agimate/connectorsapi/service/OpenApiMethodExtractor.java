@@ -13,9 +13,9 @@ import org.springframework.context.event.EventListener;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-import ru.agimate.connectorsapi.controller.api.dto.MethodInfo;
-import ru.agimate.connectorsapi.controller.api.dto.ParameterInfo;
-import ru.agimate.connectorsapi.controller.api.dto.RequestBodySchema;
+import ru.agimate.connectorsapi.controller.api.connectors.dto.MethodInfo;
+import ru.agimate.connectorsapi.controller.api.connectors.dto.ParameterInfo;
+import ru.agimate.connectorsapi.controller.api.connectors.dto.RequestBodySchema;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -131,7 +131,7 @@ public class OpenApiMethodExtractor {
         }
 
         List<MethodInfo> methods = new ArrayList<>();
-        String pathPrefix = "/api/call/" + connectorCode.toLowerCase() + "/";
+        String pathPrefix = "/api/connectors/call/" + connectorCode.toLowerCase() + "/";
 
         // Iterate through all paths in OpenAPI spec
         for (Map.Entry<String, PathItem> entry : openAPI.getPaths().entrySet()) {

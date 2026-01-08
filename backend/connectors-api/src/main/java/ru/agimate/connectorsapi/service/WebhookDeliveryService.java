@@ -36,7 +36,7 @@ public class WebhookDeliveryService {
             .followRedirects(true)
             .build();
 
-    @Transactional(readOnly = true)
+    @Transactional()
     public void handleEvent(
             String eventName,
             UUID userPubId,
