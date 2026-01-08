@@ -36,4 +36,30 @@ public class ConnectorService {
     public List<Connector> getAllConnectorsByUserPubId(UUID userPubId) {
         return connectorRepository.findByUserPubId(userPubId);
     }
+
+    /**
+     * Get connectors available for user:
+     * - Connectors with active credentials (enabled=true, deletedAt=null)
+     * - PLUS always include "mobile" connector
+     */
+    public List<Connector> getAvailableConnectorsForUser(UUID userPubId) {
+        // Get connectors where user has active credentials
+        List<Connector> connectorsWithCredentials = connectorRepository.findByUserPubId(userPubId);
+
+        // Always include "mobile" connector if it exists and enabled
+        java.util.Optional<Connector> mobileConnector = connectorRepository.findByCode("mobile");
+
+        if (mobileConnector.isPresent() && mobileConnector.get().getEnabled()) {
+            boolean mobileAlreadyIncluded = connectorsWithCredentials.stream()
+                .anyMatch(c -> "mobile".equalsIgnoreCase(c.getCode()));
+
+            if (!mobileAlreadyIncluded) {
+                java.util.List<Connector> result = new java.util.ArrayList<>(connectorsWithCredentials);
+                result.add(mobileConnector.get());
+                return result;
+            }
+        }
+
+        return connectorsWithCredentials;
+    }
 }

@@ -1,15 +1,23 @@
 package ru.agimate.connectorsapi.controller.api;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.s2s.ConnectedDevice;
 import ru.agimate.common.s2s.DeviceAction;
 import ru.agimate.common.s2s.DeviceTrigger;
 import ru.agimate.common.security.SecurityUtils;
+import ru.agimate.connectorsapi.controller.api.dto.mobile.MobileActionRequest;
 import ru.agimate.connectorsapi.service.MobileApiService;
 
 import java.util.List;
@@ -58,14 +66,42 @@ public class MobileCallController {
 
     @Operation(
             summary = "Push action to device",
-            description = "Sends an action to a specific mobile device via Centrifugo"
+            description = "Sends an action to a specific mobile device via Centrifugo",
+            security = @SecurityRequirement(name = "ApiKey")
     )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Action successfully pushed to device",
+                    content = @Content(schema = @Schema(implementation = SuccessResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid request body",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Invalid or missing API key",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
     @PostMapping("/{deviceId}/action")
     public SuccessResponse<Void> pushAction(
+            @Parameter(
+                    description = "Device identifier",
+                    required = true,
+                    example = "device-123"
+            )
             @PathVariable String deviceId,
-            @Valid @RequestBody Map<String, Object> actionData
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "Action request with type and parameters",
+                    required = true,
+                    content = @Content(schema = @Schema(implementation = MobileActionRequest.class))
+            )
+            @Valid @RequestBody MobileActionRequest mobileActionRequest
     ) {
-        mobileApiService.pushAction(deviceId, actionData);
+        mobileApiService.pushAction(deviceId, mobileActionRequest);
         return SuccessResponse.ok(null);
     }
 }

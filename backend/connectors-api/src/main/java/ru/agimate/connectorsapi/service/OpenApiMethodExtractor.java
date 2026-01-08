@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import ru.agimate.connectorsapi.controller.api.dto.MethodInfo;
 import ru.agimate.connectorsapi.controller.api.dto.ParameterInfo;
+import ru.agimate.connectorsapi.controller.api.dto.RequestBodySchema;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -171,6 +172,7 @@ public class OpenApiMethodExtractor {
         String displayName = operation.getSummary() != null ? operation.getSummary() : methodName;
         String description = operation.getDescription() != null ? operation.getDescription() : "";
         List<ParameterInfo> parameters = extractParameters(operation);
+        RequestBodySchema requestBodySchema = extractRequestBodySchema(operation);
 
         methods.add(new MethodInfo(
                 methodName,
@@ -178,14 +180,15 @@ public class OpenApiMethodExtractor {
                 description,
                 httpMethod,
                 path,
-                parameters
+                parameters,
+                requestBodySchema
         ));
     }
 
     private List<ParameterInfo> extractParameters(Operation operation) {
         List<ParameterInfo> parameters = new ArrayList<>();
 
-        // Extract query and path parameters
+        // Extract query and path parameters only
         if (operation.getParameters() != null) {
             for (Parameter parameter : operation.getParameters()) {
                 String name = parameter.getName();
@@ -197,16 +200,58 @@ public class OpenApiMethodExtractor {
             }
         }
 
-        // Extract request body parameters (for POST/PUT/PATCH)
-        if (operation.getRequestBody() != null && operation.getRequestBody().getContent() != null) {
-            var content = operation.getRequestBody().getContent().get("application/json");
-            if (content != null && content.getSchema() != null) {
-                Schema<?> schema = content.getSchema();
-                extractSchemaProperties(schema, parameters, operation.getRequestBody().getRequired());
+        return parameters;
+    }
+
+    private RequestBodySchema extractRequestBodySchema(Operation operation) {
+        if (operation.getRequestBody() == null || operation.getRequestBody().getContent() == null) {
+            return null;
+        }
+
+        var content = operation.getRequestBody().getContent().get("application/json");
+        if (content == null || content.getSchema() == null) {
+            return null;
+        }
+
+        Schema<?> schema = content.getSchema();
+
+        // Resolve $ref if present
+        schema = resolveSchema(schema);
+
+        if (schema == null) {
+            return null;
+        }
+
+        List<ParameterInfo> fields = new ArrayList<>();
+        extractSchemaProperties(schema, fields, operation.getRequestBody().getRequired());
+
+        // Generate example JSON
+        String example = generateExampleJson(schema);
+
+        return new RequestBodySchema(fields, example);
+    }
+
+    /**
+     * Resolves schema if it's a $ref reference
+     */
+    private Schema<?> resolveSchema(Schema<?> schema) {
+        if (schema == null) {
+            return null;
+        }
+
+        // If schema has a $ref, resolve it from components/schemas
+        if (schema.get$ref() != null) {
+            String ref = schema.get$ref();
+            // Extract schema name from #/components/schemas/SchemaName
+            if (ref.startsWith("#/components/schemas/")) {
+                String schemaName = ref.substring("#/components/schemas/".length());
+                if (openAPI.getComponents() != null && openAPI.getComponents().getSchemas() != null) {
+                    return openAPI.getComponents().getSchemas().get(schemaName);
+                }
             }
         }
 
-        return parameters;
+        return schema;
     }
 
     @SuppressWarnings("unchecked")
@@ -225,6 +270,70 @@ public class OpenApiMethodExtractor {
                 parameters.add(new ParameterInfo(name, type, required, description));
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private String generateExampleJson(Schema<?> schema) {
+        if (schema.getProperties() == null) {
+            return "{}";
+        }
+
+        Map<String, Schema> properties = schema.getProperties();
+        List<String> requiredFields = schema.getRequired() != null ? schema.getRequired() : List.of();
+
+        StringBuilder json = new StringBuilder("{\n");
+        int count = 0;
+
+        for (Map.Entry<String, Schema> entry : properties.entrySet()) {
+            String name = entry.getKey();
+            Schema<?> propertySchema = entry.getValue();
+            String type = propertySchema.getType() != null ? propertySchema.getType() : "object";
+            Object example = propertySchema.getExample();
+
+            if (count > 0) {
+                json.append(",\n");
+            }
+
+            json.append("  \"").append(name).append("\": ");
+
+            // Use example if available
+            if (example != null) {
+                if (type.equals("string")) {
+                    json.append("\"").append(example).append("\"");
+                } else {
+                    json.append(example);
+                }
+            } else {
+                // Generate default values based on type
+                switch (type) {
+                    case "string":
+                        json.append("\"example-value\"");
+                        break;
+                    case "integer":
+                        json.append("0");
+                        break;
+                    case "number":
+                        json.append("0.0");
+                        break;
+                    case "boolean":
+                        json.append("true");
+                        break;
+                    case "array":
+                        json.append("[]");
+                        break;
+                    case "object":
+                        json.append("{}");
+                        break;
+                    default:
+                        json.append("null");
+                }
+            }
+
+            count++;
+        }
+
+        json.append("\n}");
+        return json.toString();
     }
 
     private String extractMethodName(String path, String prefix) {

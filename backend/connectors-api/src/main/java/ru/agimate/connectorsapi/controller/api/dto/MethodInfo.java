@@ -21,7 +21,10 @@ public record MethodInfo(
         @Schema(description = "Full endpoint path", example = "/api/call/ozon/getProductList")
         String endpoint,
 
-        @Schema(description = "List of method parameters")
-        List<ParameterInfo> parameters
+        @Schema(description = "List of method parameters (path and query parameters)")
+        List<ParameterInfo> parameters,
+
+        @Schema(description = "Request body schema (for POST/PUT/PATCH methods)")
+        RequestBodySchema requestBodySchema
 ) {
 }

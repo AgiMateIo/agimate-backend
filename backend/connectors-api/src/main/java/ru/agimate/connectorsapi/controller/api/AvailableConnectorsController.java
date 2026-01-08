@@ -24,13 +24,18 @@ public class AvailableConnectorsController {
     private final ConnectorService connectorService;
 
 
-    @Operation(summary = "Get all available connectors")
+    @Operation(summary = "Get all available connectors for user (with credentials + mobile)")
     @GetMapping("/")
     public SuccessResponse<List<ConnectorShorInfoResponse>> getAvailableConnectors() {
         var apiKeyUserPubId = SecurityUtils.getApiKeyUserPubId();
 
-        var listOfAvailableConnectors = connectorService.getAllConnectorsByUserPubId(apiKeyUserPubId)
-                .stream().map(connector -> new ConnectorShorInfoResponse(connector.getName(), connector.getDescription(), connector.getCode()))
+        var listOfAvailableConnectors = connectorService.getAvailableConnectorsForUser(apiKeyUserPubId)
+                .stream()
+                .map(connector -> new ConnectorShorInfoResponse(
+                    connector.getName(),
+                    connector.getDescription(),
+                    connector.getCode()
+                ))
                 .toList();
 
         return SuccessResponse.ok(listOfAvailableConnectors);
