@@ -32,7 +32,7 @@ public class MobileApiGrpcService extends MobileApiServiceGrpc.MobileApiServiceI
                     .addAllDevices(
                             devices.stream()
                                     .map(device -> ConnectedDevice.newBuilder()
-                                            .setId(device.id())
+                                            .setId(device.deviceAuthKeyId())
                                             .setName(device.name())
                                             .setDescription(device.description())
                                             .build())

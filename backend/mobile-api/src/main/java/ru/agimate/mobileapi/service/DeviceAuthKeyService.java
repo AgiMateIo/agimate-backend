@@ -9,10 +9,11 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
-import ru.agimate.common.security.apikey.ApiKeyAuthenticationToken;
-import ru.agimate.common.security.apikey.ApiKeyPrincipal;
+import ru.agimate.mobileapi.controller.dto.LinkDeviceRequest;
+import ru.agimate.mobileapi.database.entities.Device;
 import ru.agimate.mobileapi.database.entities.DeviceAuthKey;
 import ru.agimate.mobileapi.database.repositories.DeviceAuthKeyRepository;
+import ru.agimate.mobileapi.database.repositories.DeviceRepository;
 import ru.agimate.mobileapi.security.DeviceAuthenticationToken;
 import ru.agimate.mobileapi.security.DevicePrincipal;
 import ru.agimate.mobileapi.service.dto.DeviceAuthKeyCreateResult;
@@ -34,6 +35,7 @@ public class DeviceAuthKeyService {
     private static final int MAX_KEYS_PER_USER = 10;
 
     private final DeviceAuthKeyRepository deviceAuthKeyRepository;
+    private final DeviceRepository deviceRepository;
 
     @Transactional
     public DeviceAuthKeyCreateResult createKey(UUID userPubId, String name, String description) {
@@ -146,6 +148,10 @@ public class DeviceAuthKeyService {
 
     public DeviceAuthKey getDeviceAuthKey() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return getDeviceAuthKey(authentication);
+    }
+
+    public DeviceAuthKey getDeviceAuthKey(Authentication authentication) {
 
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new UnauthorizedStatusException("API key is not authenticated");
@@ -158,5 +164,39 @@ public class DeviceAuthKeyService {
         }
 
         throw new UnauthorizedStatusException("Invalid authentication type");
+    }
+
+    @Transactional
+    public Device linkDevice(Authentication authentication, LinkDeviceRequest linkDeviceRequest) {
+        var deviceAuthKey = getDeviceAuthKey(authentication);
+
+        // Get or create device by deviceId
+        Device device = deviceRepository.findByDeviceId(linkDeviceRequest.deviceId())
+                .orElseGet(() -> {
+                    Device newDevice = Device.builder()
+                            .deviceId(linkDeviceRequest.deviceId())
+                            .name(linkDeviceRequest.deviceName())
+                            .os(linkDeviceRequest.deviceOs())
+                            .build();
+                    return deviceRepository.save(newDevice);
+                });
+
+        // Check if device is already linked to this deviceAuthKey
+        if (device.getDeviceAuthKey() != null && device.getDeviceAuthKey().getId().equals(deviceAuthKey.getId())) {
+            return device;
+        }
+
+        // Check if device is linked to another deviceAuthKey
+        if (device.getDeviceAuthKey() != null && !device.getDeviceAuthKey().getId().equals(deviceAuthKey.getId())) {
+            log.warn("Device {} is already linked to another auth key", linkDeviceRequest.deviceId());
+            return null;
+        }
+
+        // Link device to deviceAuthKey
+        device.setDeviceAuthKey(deviceAuthKey);
+        device = deviceRepository.save(device);
+        log.info("Linked device {} to auth key {}", linkDeviceRequest.deviceId(), deviceAuthKey.getPubId());
+
+        return device;
     }
 }

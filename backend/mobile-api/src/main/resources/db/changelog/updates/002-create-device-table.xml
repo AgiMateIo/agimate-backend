@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-device-table" author="agimate">
+        <createTable tableName="device">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="device_id" type="TEXT">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="os" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="device_auth_key_id" type="BIGINT">
+                <constraints nullable="true"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <!-- Index for looking up devices by device_id -->
+        <createIndex tableName="device" indexName="idx_device_device_id">
+            <column name="device_id"/>
+        </createIndex>
+
+        <!-- Index for looking up devices by device_auth_key_id -->
+        <createIndex tableName="device" indexName="idx_device_auth_key_id">
+            <column name="device_auth_key_id"/>
+        </createIndex>
+
+        <!-- Foreign key to device_auth_keys table -->
+        <addForeignKeyConstraint
+                baseTableName="device"
+                baseColumnNames="device_auth_key_id"
+                constraintName="fk_device_device_auth_key"
+                referencedTableName="device_auth_keys"
+                referencedColumnNames="id"
+                onDelete="SET NULL"/>
+
+        <rollback>
+            <dropTable tableName="device"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

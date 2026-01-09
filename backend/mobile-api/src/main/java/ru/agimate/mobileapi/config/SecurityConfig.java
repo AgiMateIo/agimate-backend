@@ -21,6 +21,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.mobileapi.controller.DeviceActionController;
+import ru.agimate.mobileapi.controller.DeviceRegistrationController;
 import ru.agimate.mobileapi.controller.DeviceTriggerController;
 import ru.agimate.mobileapi.controller.ManageDevicesController;
 import ru.agimate.mobileapi.security.DeviceAuthenticationFilter;
@@ -115,7 +116,8 @@ public class SecurityConfig {
     public SecurityFilterChain deviceAuthKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
                 DeviceActionController.PATH + "/**",
-                DeviceTriggerController.PATH + "/**"
+                DeviceTriggerController.PATH + "/**",
+                DeviceRegistrationController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);
