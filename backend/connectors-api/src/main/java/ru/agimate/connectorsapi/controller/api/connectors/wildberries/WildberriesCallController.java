@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.connectorsapi.controller.api.connectors.ConnectorsApiController;
 import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.WildberriesGetCardsRequest;
 import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.WildberriesGetCardsResponse;
 import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.WildberriesGetOrdersRequest;
@@ -22,10 +23,12 @@ import ru.agimate.connectorsapi.service.WildberriesCallService;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/call/wildberries")
+@RequestMapping(WildberriesCallController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Wildberries", description = "Wildberries marketplace connector - execute WB API methods")
 public class WildberriesCallController {
+
+    public static final String PATH = ConnectorsApiController.PATH + "/call/wildberries";
 
     private final WildberriesCallService wildberriesCallService;
 

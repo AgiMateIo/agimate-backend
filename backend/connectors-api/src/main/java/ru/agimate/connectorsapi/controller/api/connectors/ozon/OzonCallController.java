@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.connectorsapi.controller.api.connectors.ConnectorsApiController;
 import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductInfoRequest;
 import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductInfoResponse;
 import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductListRequest;
@@ -22,10 +23,13 @@ import ru.agimate.connectorsapi.service.OzonCallService;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/call/ozon")
+@RequestMapping(OzonCallController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Ozon", description = "Ozon marketplace connector - execute Ozon API methods")
 public class OzonCallController {
+
+    public static final String PATH = ConnectorsApiController.PATH + "/call/ozon";
+
 
     private final OzonCallService ozonCallService;
 

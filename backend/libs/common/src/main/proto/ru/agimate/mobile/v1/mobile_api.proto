@@ -53,7 +53,7 @@ message GetActionsResponse {
 }
 
 message PushActionRequest {
-  string device_id = 1; // Device's public ID (UUID string)
+  string device_auth_key_id = 1; // DeviceAuthKey's public ID (UUID string)
   string data_json = 2; // JSON-encoded action data (flexible Object from Java)
 }
 

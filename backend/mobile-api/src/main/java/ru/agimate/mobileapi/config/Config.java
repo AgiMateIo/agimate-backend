@@ -19,6 +19,8 @@ public class Config {
     @Bean
     public CentrifugoClient centrifugoClient(CentrifugoProperties properties) {
         CentrifugoConfigurations configurations = CentrifugoConfigurations.builder()
+                .apiUrl(properties.getUrl())
+                .apiPort(properties.getPort())
                 .apiKey(properties.getApiKey())
                 .build();
         return new CentrifugoClient(configurations);

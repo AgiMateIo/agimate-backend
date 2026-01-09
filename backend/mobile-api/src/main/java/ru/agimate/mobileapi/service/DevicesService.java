@@ -2,6 +2,8 @@ package ru.agimate.mobileapi.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import ru.agimate.mobileapi.database.entities.Device;
+import ru.agimate.mobileapi.database.entities.DeviceAuthKey;
 import ru.agimate.mobileapi.database.repositories.DeviceAuthKeyRepository;
 import ru.agimate.common.s2s.ConnectedDevice;
 
@@ -22,5 +24,11 @@ public class DevicesService {
                                 deviceAuthKey.getDescription()
                         )
                 ).collect(Collectors.toList());
+    }
+
+    public Device getDeviceByDeviceAuthKey(String deviceAuthKeyId) {
+        return deviceAuthKeyRepository.findByPubIdNotDeleted(UUID.fromString(deviceAuthKeyId))
+                .map(DeviceAuthKey::getDevice)
+                .orElseThrow(() -> new IllegalStateException("Device for auth key " + deviceAuthKeyId + " is not found"));
     }
 }

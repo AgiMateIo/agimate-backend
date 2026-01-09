@@ -6,6 +6,7 @@ import ru.agimate.common.s2s.DeviceAction;
 import ru.agimate.common.s2s.DeviceTrigger;
 import ru.agimate.common.s2s.MobileApi;
 import ru.agimate.common.s2s.ConnectedDevice;
+import ru.agimate.mobileapi.database.entities.Device;
 
 import java.util.List;
 import java.util.Map;
@@ -16,7 +17,6 @@ public class InternalMobileApiService implements MobileApi {
 
     private final DevicesService devicesService;
     private final CentrifugoService centrifugoService;
-
 
     @Override
     public List<ConnectedDevice> getDevices(String userId) {
@@ -34,7 +34,9 @@ public class InternalMobileApiService implements MobileApi {
     }
 
     @Override
-    public void pushAction(String deviceId, Object data) {
-        centrifugoService.publishMessage(deviceId, data);
+    public void pushAction(String deviceAuthKeyId, Object data) {
+        var device = devicesService.getDeviceByDeviceAuthKey(deviceAuthKeyId);
+        var channel = "device:" + device.getDeviceId() + ":actions";
+        centrifugoService.publishMessage(channel, data);
     }
 }

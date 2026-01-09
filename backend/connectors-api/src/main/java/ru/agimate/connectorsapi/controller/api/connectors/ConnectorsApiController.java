@@ -75,7 +75,7 @@ public class ConnectorsApiController {
                     "Method information is extracted from OpenAPI specification dynamically, " +
                     "so it automatically includes all methods defined in connector controllers."
     )
-    @GetMapping("/methods/{connectorCode}")
+    @GetMapping("/methods/{connectorCode}/")
     public SuccessResponse<List<MethodInfo>> getMethods(
             @PathVariable String connectorCode
     ) {

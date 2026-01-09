@@ -12,5 +12,6 @@ import org.springframework.stereotype.Component;
 public class CentrifugoProperties {
     private boolean enabled;
     private String url;
+    private String port;
     private String apiKey;
 }

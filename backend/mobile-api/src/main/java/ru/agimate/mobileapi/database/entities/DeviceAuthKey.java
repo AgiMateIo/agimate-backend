@@ -48,6 +48,9 @@ public class DeviceAuthKey extends BaseEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @OneToOne(mappedBy = "deviceAuthKey")
+    private Device device;
+
     public boolean isDeleted() {
         return deletedAt != null;
     }

@@ -10,5 +10,5 @@ public interface MobileApi {
 
     List<DeviceAction> getActions(String deviceId);
 
-    void pushAction(String deviceId, Object data);
+    void pushAction(String deviceAuthKeyId, Object data);
 }

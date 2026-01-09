@@ -90,7 +90,8 @@ jwt:
 
 centrifugo:
   enabled: true
-  url: "http://localhost:9000"
+  url: "http://localhost"
+  port: 9000
   api-key: "${CENTRIFUGO_API_KEY:***REMOVED***}"
 
 mobile-api:

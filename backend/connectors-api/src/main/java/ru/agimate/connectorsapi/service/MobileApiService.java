@@ -96,20 +96,20 @@ public class MobileApiService implements MobileApi {
     }
 
     @Override
-    public void pushAction(String deviceId, Object data) {
+    public void pushAction(String deviceAuthKeyId, Object data) {
         try {
-            log.debug("Calling mobile-api gRPC service - pushAction for deviceId: {}", deviceId);
+            log.debug("Calling mobile-api gRPC service - pushAction for deviceId: {}", deviceAuthKeyId);
 
             String dataJson = JsonUtils.writeValueAsString(data);
 
             var request = PushActionRequest.newBuilder()
-                    .setDeviceId(deviceId)
+                    .setDeviceAuthKeyId(deviceAuthKeyId)
                     .setDataJson(dataJson)
                     .build();
 
             mobileApiStub.pushAction(request);
 
-            log.debug("Successfully pushed action to device: {}", deviceId);
+            log.debug("Successfully pushed action to device: {}", deviceAuthKeyId);
         } catch (StatusRuntimeException e) {
             log.error("gRPC error calling pushAction: {}", e.getMessage(), e);
             throw mapGrpcException(e, "Failed to push action to mobile-api");

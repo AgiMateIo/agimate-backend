@@ -111,11 +111,11 @@ public class MobileApiGrpcService extends MobileApiServiceGrpc.MobileApiServiceI
     public void pushAction(PushActionRequest request, StreamObserver<PushActionResponse> responseObserver) {
         try {
             log.debug("gRPC pushAction called for deviceId: {} with data: {}",
-                    request.getDeviceId(), request.getDataJson());
+                    request.getDeviceAuthKeyId(), request.getDataJson());
 
             Object data = JsonUtils.readValue(request.getDataJson(), Object.class);
 
-            internalMobileApiService.pushAction(request.getDeviceId(), data);
+            internalMobileApiService.pushAction(request.getDeviceAuthKeyId(), data);
 
             var response = PushActionResponse.newBuilder().build();
             responseObserver.onNext(response);
