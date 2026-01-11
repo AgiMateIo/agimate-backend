@@ -25,9 +25,12 @@ public class DeviceActionController {
 
     private final CentrifugoService centrifugoService;
 
-    @Operation(summary = "Returns tasks for mobile device")
+    @Operation(
+            summary = "Get pending actions for mobile device",
+            description = "Returns list of pending actions that mobile device should execute"
+    )
     @GetMapping("/get")
-    public SuccessResponse<List<String>> tasks() {
+    public SuccessResponse<List<String>> getPendingActions() {
         return SuccessResponse.ok(List.of("one", "two"));
     }
 

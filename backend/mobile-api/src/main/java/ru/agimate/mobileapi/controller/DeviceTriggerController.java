@@ -29,9 +29,12 @@ public class DeviceTriggerController {
     private final TriggerEventPublisher triggerEventPublisher;
     private final DeviceAuthKeyService deviceAuthKeyService;
 
-    @Operation(summary = "Handle trigger from device")
+    @Operation(
+            summary = "Submit trigger from mobile device",
+            description = "Receives trigger event from mobile device and publishes it for processing by webhook subscribers"
+    )
     @PostMapping("/new")
-    public SuccessResponse<String> trigger(
+    public SuccessResponse<String> submitTrigger(
             @RequestBody @Valid
             TriggerRequest triggerRequest,
             Authentication authentication
@@ -41,7 +44,7 @@ public class DeviceTriggerController {
                 triggerRequest.deviceId(),
                 triggerRequest.userId());
 
-        var deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey();
+        var deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
         triggerEventPublisher.publish(new DeviceTriggerEvent(deviceAuthKey, triggerRequest));
 
         return SuccessResponse.ok(triggerRequest.name());

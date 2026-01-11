@@ -49,14 +49,14 @@ public class DeviceCallController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
-    @PostMapping("/{deviceId}")
+    @PostMapping("/{deviceAuthKeyId}")
     public SuccessResponse<String> pushAction(
             @Parameter(
-                    description = "Device identifier",
+                    description = "Device Auth key identifier",
                     required = true,
                     example = "device-123"
             )
-            @PathVariable String deviceId,
+            @PathVariable String deviceAuthKeyId,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "Action request with type and parameters",
                     required = true,
@@ -64,7 +64,7 @@ public class DeviceCallController {
             )
             @Valid @RequestBody MobileActionRequest mobileActionRequest
     ) {
-        mobileApiService.pushAction(deviceId, mobileActionRequest);
+        mobileApiService.pushAction(deviceAuthKeyId, mobileActionRequest);
         return SuccessResponse.ok("success");
     }
 }

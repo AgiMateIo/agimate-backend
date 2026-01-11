@@ -32,7 +32,10 @@ public class ConnectorsApiController {
     private final OpenApiMethodExtractor openApiMethodExtractor;
 
 
-    @Operation(summary = "Get all available connectors for user (with credentials + mobile)")
+    @Operation(
+            summary = "Get available connectors",
+            description = "Returns list of connectors available to the user - those with configured credentials plus mobile connector"
+    )
     @GetMapping("/")
     public SuccessResponse<List<ConnectorShorInfoResponse>> getAvailableConnectors() {
         var apiKeyUserPubId = SecurityUtils.getApiKeyUserPubId();
@@ -49,7 +52,10 @@ public class ConnectorsApiController {
         return SuccessResponse.ok(listOfAvailableConnectors);
     }
 
-    @Operation(summary = "Get all available credentials")
+    @Operation(
+            summary = "Get available credentials",
+            description = "Returns list of credentials configured for the specified connector"
+    )
     @GetMapping("/credentials/{connectorCode}/")
     public SuccessResponse<List<CredentialShortInfoResponse>> getAvailableCredentials(
             @PathVariable String connectorCode

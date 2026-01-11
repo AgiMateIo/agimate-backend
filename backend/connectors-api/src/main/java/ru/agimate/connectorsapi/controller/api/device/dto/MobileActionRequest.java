@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -17,7 +19,7 @@ public class MobileActionRequest {
     @Schema(
             description = "Action type",
             example = "tts",
-            required = true
+            requiredMode = Schema.RequiredMode.REQUIRED
     )
     @NotNull(message = "Action type is required")
     private String type;
@@ -26,5 +28,5 @@ public class MobileActionRequest {
             description = "Action parameter",
             example = "Hello world"
     )
-    private String param;
+    private Map<String, Object> parameters;
 }

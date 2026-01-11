@@ -27,7 +27,10 @@ public class DeviceRegistrationController {
 
     private final DeviceAuthKeyService deviceAuthKeyService;
 
-    @Operation(summary = "Link device")
+    @Operation(
+            summary = "Link device to auth key",
+            description = "Associates device information (deviceId, deviceName, deviceOs) with the authenticated device auth key"
+    )
     @PostMapping("/link")
     public SuccessResponse<String> linkDevice(
             @RequestBody @Valid
