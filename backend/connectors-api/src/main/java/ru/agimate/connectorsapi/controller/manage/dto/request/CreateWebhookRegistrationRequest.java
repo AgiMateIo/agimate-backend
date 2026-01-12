@@ -3,6 +3,8 @@ package ru.agimate.connectorsapi.controller.manage.dto.request;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 
+import java.util.List;
+
 @Schema(description = "Request to create a new webhook registration")
 public record CreateWebhookRegistrationRequest(
         @NotBlank
@@ -14,10 +16,10 @@ public record CreateWebhookRegistrationRequest(
         @Schema(description = "Optional description")
         String description,
 
-        @NotBlank
-        @Pattern(regexp = "^[a-z0-9_]+(\\.[a-z0-9_]+)+$", message = "Event type must be in format: source.resource.action")
-        @Schema(description = "Event type to subscribe to", example = "ozon.order.created")
-        String eventType,
+        @NotNull
+        @Size(min = 1, message = "At least one event type is required")
+        @Schema(description = "Event types to subscribe to", example = "[\"ozon.order.created\", \"ozon.order.updated\"]")
+        List<@NotBlank @Pattern(regexp = "^[a-z0-9_]+(\\.[a-z0-9_]+)+$", message = "Event type must be in format: source.resource.action") String> eventTypes,
 
         @NotBlank
         @Pattern(regexp = "^https?://.+", message = "URL must start with http:// or https://")

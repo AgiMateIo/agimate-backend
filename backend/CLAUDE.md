@@ -104,6 +104,8 @@ Set the contents of these files as environment variables.
 
 ### API Endpoints
 
+If endpoint returns list of elements it should end with / in path
+
 #### Authentication Types
 
 All services use one or more of these authentication methods:

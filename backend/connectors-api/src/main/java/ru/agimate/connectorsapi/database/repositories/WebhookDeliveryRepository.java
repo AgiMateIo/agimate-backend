@@ -13,9 +13,9 @@ import java.util.UUID;
 @Repository
 public interface WebhookDeliveryRepository extends JpaRepository<WebhookDelivery, Long> {
 
-    @Query("SELECT wd FROM WebhookDelivery wd WHERE wd.webhookRegistrationId = :webhookRegistrationId ORDER BY wd.triggeredAt DESC")
-    Page<WebhookDelivery> findByWebhookRegistrationId(
-            @Param("webhookRegistrationId") Long webhookRegistrationId,
+    @Query("SELECT wd FROM WebhookDelivery wd WHERE wd.webhookUrlId = :webhookUrlId ORDER BY wd.triggeredAt DESC")
+    Page<WebhookDelivery> findByWebhookUrlId(
+            @Param("webhookUrlId") Long webhookUrlId,
             Pageable pageable
     );
 
@@ -32,9 +32,9 @@ public interface WebhookDeliveryRepository extends JpaRepository<WebhookDelivery
             Pageable pageable
     );
 
-    @Query("SELECT COUNT(wd) FROM WebhookDelivery wd WHERE wd.webhookRegistrationId = :webhookRegistrationId AND wd.responseStatusCode >= 200 AND wd.responseStatusCode < 300")
-    long countSuccessfulDeliveriesByWebhook(@Param("webhookRegistrationId") Long webhookRegistrationId);
+    @Query("SELECT COUNT(wd) FROM WebhookDelivery wd WHERE wd.webhookUrlId = :webhookUrlId AND wd.responseStatusCode >= 200 AND wd.responseStatusCode < 300")
+    long countSuccessfulDeliveriesByWebhook(@Param("webhookUrlId") Long webhookUrlId);
 
-    @Query("SELECT COUNT(wd) FROM WebhookDelivery wd WHERE wd.webhookRegistrationId = :webhookRegistrationId AND (wd.responseStatusCode < 200 OR wd.responseStatusCode >= 300 OR wd.responseStatusCode IS NULL)")
-    long countFailedDeliveriesByWebhook(@Param("webhookRegistrationId") Long webhookRegistrationId);
+    @Query("SELECT COUNT(wd) FROM WebhookDelivery wd WHERE wd.webhookUrlId = :webhookUrlId AND (wd.responseStatusCode < 200 OR wd.responseStatusCode >= 300 OR wd.responseStatusCode IS NULL)")
+    long countFailedDeliveriesByWebhook(@Param("webhookUrlId") Long webhookUrlId);
 }

@@ -34,7 +34,7 @@ public class CredentialManageController {
     }
 
     @Operation(summary = "Get all credentials for a connector")
-    @GetMapping("/{connectorCode}")
+    @GetMapping("/{connectorCode}/")
     public SuccessResponse<List<CredentialResponse>> getCredentials(
             @PathVariable String connectorCode
     ) {

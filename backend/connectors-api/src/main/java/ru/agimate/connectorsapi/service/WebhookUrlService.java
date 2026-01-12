@@ -10,10 +10,13 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.connectorsapi.controller.manage.dto.request.CreateWebhookRegistrationRequest;
 import ru.agimate.connectorsapi.controller.manage.dto.request.UpdateWebhookRegistrationRequest;
 import ru.agimate.connectorsapi.controller.manage.dto.response.WebhookRegistrationResponse;
-import ru.agimate.connectorsapi.database.entities.WebhookRegistration;
-import ru.agimate.connectorsapi.database.repositories.WebhookRegistrationRepository;
+import ru.agimate.connectorsapi.database.entities.WebhookUrl;
+import ru.agimate.connectorsapi.database.entities.WebhookUrlEvent;
+import ru.agimate.connectorsapi.database.repositories.WebhookUrlEventRepository;
+import ru.agimate.connectorsapi.database.repositories.WebhookUrlRepository;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -21,27 +24,21 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(readOnly = true)
-public class WebhookRegistrationService {
+public class WebhookUrlService {
 
-    private final WebhookRegistrationRepository webhookRegistrationRepository;
+    private final WebhookUrlRepository webhookUrlRepository;
+    private final WebhookUrlEventRepository webhookUrlEventRepository;
     private final Environment environment;
 
     public List<WebhookRegistrationResponse> getAllByUser(UUID userPubId) {
-        return webhookRegistrationRepository.findByUserPubIdNotDeleted(userPubId)
-                .stream()
-                .map(WebhookRegistrationResponse::from)
-                .toList();
-    }
-
-    public List<WebhookRegistrationResponse> getByEventType(UUID userPubId, String eventType) {
-        return webhookRegistrationRepository.findByUserPubIdAndEventTypeNotDeleted(userPubId, eventType)
+        return webhookUrlRepository.findByUserPubIdNotDeleted(userPubId)
                 .stream()
                 .map(WebhookRegistrationResponse::from)
                 .toList();
     }
 
     public WebhookRegistrationResponse getById(UUID pubId, UUID userPubId) {
-        WebhookRegistration webhook = findByPubIdAndUser(pubId, userPubId);
+        WebhookUrl webhook = findByPubIdAndUser(pubId, userPubId);
         return WebhookRegistrationResponse.from(webhook);
     }
 
@@ -50,34 +47,45 @@ public class WebhookRegistrationService {
         // Validate URL scheme (HTTPS only in non-local profiles)
         validateUrlScheme(request.url());
 
-        // Check for duplicates
-        webhookRegistrationRepository.findDuplicate(userPubId, request.eventType().toLowerCase(), request.url())
+        // Check if URL already exists for this user
+        webhookUrlRepository.findByUserPubIdAndUrl(userPubId, request.url())
                 .ifPresent(existing -> {
                     throw new BadRequestStatusException(
-                            "Webhook registration already exists for this event type and URL"
+                            "Webhook URL already exists for this user"
                     );
                 });
 
-        WebhookRegistration webhook = WebhookRegistration.builder()
+        // Create webhook URL
+        WebhookUrl webhook = WebhookUrl.builder()
                 .userPubId(userPubId)
                 .name(request.name())
                 .description(request.description())
-                .eventType(request.eventType().toLowerCase())
                 .url(request.url())
                 .authHeader(request.authHeader())
                 .enabled(request.enabled() != null ? request.enabled() : true)
+                .events(new ArrayList<>())
                 .build();
 
-        WebhookRegistration saved = webhookRegistrationRepository.save(webhook);
-        log.info("Created webhook registration {} for event type {} (user: {})",
-                saved.getPubId(), request.eventType(), userPubId);
+        // Add event types
+        for (String eventType : request.eventTypes()) {
+            String normalizedEventType = eventType.toLowerCase();
+            WebhookUrlEvent event = WebhookUrlEvent.builder()
+                    .eventType(normalizedEventType)
+                    .userPubId(userPubId)
+                    .build();
+            webhook.getEvents().add(event);
+        }
+
+        WebhookUrl saved = webhookUrlRepository.save(webhook);
+        log.info("Created webhook URL {} with {} event types (user: {})",
+                saved.getPubId(), request.eventTypes().size(), userPubId);
 
         return WebhookRegistrationResponse.from(saved);
     }
 
     @Transactional
     public WebhookRegistrationResponse update(UUID pubId, UpdateWebhookRegistrationRequest request, UUID userPubId) {
-        WebhookRegistration webhook = findByPubIdAndUser(pubId, userPubId);
+        WebhookUrl webhook = findByPubIdAndUser(pubId, userPubId);
 
         // Update fields if provided
         if (request.name() != null) {
@@ -86,25 +94,20 @@ public class WebhookRegistrationService {
         if (request.description() != null) {
             webhook.setDescription(request.description());
         }
-        if (request.eventType() != null) {
-            // Check for duplicate if event type or URL changed
-            String newEventType = request.eventType().toLowerCase();
-            String newUrl = request.url() != null ? request.url() : webhook.getUrl();
+        if (request.url() != null) {
+            validateUrlScheme(request.url());
 
-            if (!webhook.getEventType().equals(newEventType) || !webhook.getUrl().equals(newUrl)) {
-                webhookRegistrationRepository.findDuplicate(userPubId, newEventType, newUrl)
+            // Check if new URL conflicts with existing webhook
+            if (!webhook.getUrl().equals(request.url())) {
+                webhookUrlRepository.findByUserPubIdAndUrl(userPubId, request.url())
                         .ifPresent(existing -> {
                             if (!existing.getId().equals(webhook.getId())) {
                                 throw new BadRequestStatusException(
-                                        "Webhook registration already exists for this event type and URL"
+                                        "Webhook URL already exists for this user"
                                 );
                             }
                         });
             }
-            webhook.setEventType(newEventType);
-        }
-        if (request.url() != null) {
-            validateUrlScheme(request.url());
             webhook.setUrl(request.url());
         }
         if (request.authHeader() != null) {
@@ -114,22 +117,22 @@ public class WebhookRegistrationService {
             webhook.setEnabled(request.enabled());
         }
 
-        WebhookRegistration saved = webhookRegistrationRepository.save(webhook);
-        log.info("Updated webhook registration {}", pubId);
+        WebhookUrl saved = webhookUrlRepository.save(webhook);
+        log.info("Updated webhook URL {}", pubId);
 
         return WebhookRegistrationResponse.from(saved);
     }
 
     @Transactional
     public void delete(UUID pubId, UUID userPubId) {
-        WebhookRegistration webhook = findByPubIdAndUser(pubId, userPubId);
-        webhookRegistrationRepository.softDelete(webhook.getId(), LocalDateTime.now());
-        log.info("Soft deleted webhook registration {}", pubId);
+        WebhookUrl webhook = findByPubIdAndUser(pubId, userPubId);
+        webhookUrlRepository.softDelete(webhook.getId(), LocalDateTime.now());
+        log.info("Soft deleted webhook URL {}", pubId);
     }
 
-    private WebhookRegistration findByPubIdAndUser(UUID pubId, UUID userPubId) {
-        return webhookRegistrationRepository.findByPubIdAndUserPubIdNotDeleted(pubId, userPubId)
-                .orElseThrow(() -> new NotFoundStatusException("Webhook registration not found"));
+    private WebhookUrl findByPubIdAndUser(UUID pubId, UUID userPubId) {
+        return webhookUrlRepository.findByPubIdAndUserPubIdNotDeleted(pubId, userPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Webhook not found"));
     }
 
     private void validateUrlScheme(String url) {

@@ -11,6 +11,8 @@ server:
   max-http-request-header-size: 60KB
   servlet:
     context-path: "/user-api/"
+    session:
+      persistent: false
 
 management:
   server:
@@ -63,6 +65,7 @@ spring:
             scope: openid, profile, email
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             client-name: Google
+
 
 micrometer:
   observations:

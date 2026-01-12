@@ -6,16 +6,18 @@ import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
-@Table(name = "webhook_registrations")
+@Table(name = "webhook_urls")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class WebhookRegistration extends BaseEntity {
+public class WebhookUrl extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,9 +37,6 @@ public class WebhookRegistration extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "event_type", nullable = false, columnDefinition = "TEXT")
-    private String eventType;
-
     @Column(name = "url", nullable = false, columnDefinition = "TEXT")
     private String url;
 
@@ -53,6 +52,11 @@ public class WebhookRegistration extends BaseEntity {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
+    @JoinColumn(name = "webhook_url_id")
+    @Builder.Default
+    private List<WebhookUrlEvent> events = new ArrayList<>();
 
     public boolean isDeleted() {
         return deletedAt != null;

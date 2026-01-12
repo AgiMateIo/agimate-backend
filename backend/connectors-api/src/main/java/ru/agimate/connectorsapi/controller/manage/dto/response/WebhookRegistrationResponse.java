@@ -2,9 +2,10 @@ package ru.agimate.connectorsapi.controller.manage.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.connectorsapi.database.entities.WebhookRegistration;
+import ru.agimate.connectorsapi.database.entities.WebhookUrl;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Schema(description = "Webhook registration information")
@@ -18,8 +19,8 @@ public record WebhookRegistrationResponse(
         @Schema(description = "Webhook description")
         String description,
 
-        @Schema(description = "Event type subscribed to")
-        String eventType,
+        @Schema(description = "Event types subscribed to")
+        List<String> eventTypes,
 
         @Schema(description = "Webhook endpoint URL")
         String url,
@@ -42,12 +43,17 @@ public record WebhookRegistrationResponse(
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
         LocalDateTime updatedAt
 ) {
-    public static WebhookRegistrationResponse from(WebhookRegistration webhook) {
+    public static WebhookRegistrationResponse from(WebhookUrl webhook) {
+        List<String> eventTypes = webhook.getEvents().stream()
+                .map(e -> e.getEventType())
+                .sorted()
+                .toList();
+
         return new WebhookRegistrationResponse(
                 webhook.getPubId(),
                 webhook.getName(),
                 webhook.getDescription(),
-                webhook.getEventType(),
+                eventTypes,
                 webhook.getUrl(),
                 webhook.hasAuth(),
                 webhook.getEnabled(),

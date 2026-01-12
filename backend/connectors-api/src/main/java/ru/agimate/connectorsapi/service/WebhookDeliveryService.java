@@ -9,9 +9,9 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.connectorsapi.database.entities.WebhookDelivery;
-import ru.agimate.connectorsapi.database.entities.WebhookRegistration;
+import ru.agimate.connectorsapi.database.entities.WebhookUrl;
 import ru.agimate.connectorsapi.database.repositories.WebhookDeliveryRepository;
-import ru.agimate.connectorsapi.database.repositories.WebhookRegistrationRepository;
+import ru.agimate.connectorsapi.database.repositories.WebhookUrlRepository;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -26,7 +26,7 @@ public class WebhookDeliveryService {
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
     private static final int MAX_RESPONSE_BODY_LENGTH = 10000;
 
-    private final WebhookRegistrationRepository webhookRegistrationRepository;
+    private final WebhookUrlRepository webhookUrlRepository;
     private final WebhookDeliveryRepository webhookDeliveryRepository;
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
@@ -50,25 +50,22 @@ public class WebhookDeliveryService {
         try {
             String normalizedEventName = eventName.toLowerCase();
 
-            List<WebhookRegistration> webhooks = webhookRegistrationRepository
-                    .findByUserPubIdAndEventTypeNotDeleted(userPubId, normalizedEventName);
+            // Find active webhooks subscribed to this event type
+            List<WebhookUrl> webhooks = webhookUrlRepository
+                    .findActiveByUserPubIdAndEventType(userPubId, normalizedEventName);
 
-            List<WebhookRegistration> activeWebhooks = webhooks.stream()
-                    .filter(WebhookRegistration::isActive)
-                    .toList();
-
-            if (activeWebhooks.isEmpty()) {
+            if (webhooks.isEmpty()) {
                 log.debug("No active webhooks found for event: {} and user: {}", normalizedEventName, userPubId);
                 return;
             }
 
-            log.info("Found {} active webhook(s) for event: {}", activeWebhooks.size(), normalizedEventName);
+            log.info("Found {} active webhook(s) for event: {}", webhooks.size(), normalizedEventName);
 
             Map<String, Object> eventPayload = buildEventPayload(
                     normalizedEventName, userPubId, credentialId, deviceId, params);
 
-            for (WebhookRegistration webhook : activeWebhooks) {
-                deliverWebhook(webhook, eventPayload);
+            for (WebhookUrl webhook : webhooks) {
+                deliverWebhook(webhook, normalizedEventName, eventPayload);
             }
 
         } catch (Exception e) {
@@ -109,11 +106,11 @@ public class WebhookDeliveryService {
         return payload;
     }
 
-    private void deliverWebhook(WebhookRegistration webhook, Map<String, Object> eventPayload) {
+    private void deliverWebhook(WebhookUrl webhook, String eventType, Map<String, Object> eventPayload) {
         long startTime = System.currentTimeMillis();
         WebhookDelivery.WebhookDeliveryBuilder deliveryBuilder = WebhookDelivery.builder()
-                .webhookRegistrationId(webhook.getId())
-                .eventType(webhook.getEventType())
+                .webhookUrlId(webhook.getId())
+                .eventType(eventType)
                 .userPubId(webhook.getUserPubId())
                 .requestUrl(webhook.getUrl())
                 .requestPayload(eventPayload)
@@ -142,7 +139,7 @@ public class WebhookDeliveryService {
 
             Request request = requestBuilder.build();
 
-            log.debug("Calling webhook: {} for event: {}", webhook.getUrl(), webhook.getEventType());
+            log.debug("Calling webhook: {} for event: {}", webhook.getUrl(), eventType);
 
             try (Response response = httpClient.newCall(request).execute()) {
                 long duration = System.currentTimeMillis() - startTime;
@@ -187,14 +184,14 @@ public class WebhookDeliveryService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void saveDeliveryRecord(WebhookDelivery delivery, Long webhookRegistrationId) {
+    public void saveDeliveryRecord(WebhookDelivery delivery, Long webhookUrlId) {
         try {
             webhookDeliveryRepository.save(delivery);
 
-            webhookRegistrationRepository.findById(webhookRegistrationId)
+            webhookUrlRepository.findById(webhookUrlId)
                     .ifPresent(webhook -> {
                         webhook.setLastTriggeredAt(LocalDateTime.now());
-                        webhookRegistrationRepository.save(webhook);
+                        webhookUrlRepository.save(webhook);
                     });
 
         } catch (Exception e) {

@@ -29,8 +29,8 @@ public class WebhookDelivery extends BaseEntity {
     @Builder.Default
     private UUID pubId = UUIDUtils.generateUUIDv8();
 
-    @Column(name = "webhook_registration_id", nullable = false)
-    private Long webhookRegistrationId;
+    @Column(name = "webhook_url_id", nullable = false)
+    private Long webhookUrlId;
 
     @Column(name = "event_type", nullable = false, columnDefinition = "TEXT")
     private String eventType;
