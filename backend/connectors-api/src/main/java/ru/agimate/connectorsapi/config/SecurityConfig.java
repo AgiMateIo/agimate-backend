@@ -22,10 +22,7 @@ import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.connectorsapi.controller.api.connectors.ConnectorsApiController;
 import ru.agimate.connectorsapi.controller.api.device.DeviceController;
-import ru.agimate.connectorsapi.controller.manage.ConnectorsManageController;
-import ru.agimate.connectorsapi.controller.manage.ConnectorsApiKeyManageController;
-import ru.agimate.connectorsapi.controller.manage.CredentialManageController;
-import ru.agimate.connectorsapi.controller.manage.WebhookRegistrationManageController;
+import ru.agimate.connectorsapi.controller.manage.*;
 import ru.agimate.connectorsapi.security.ApiKeyAuthenticationFilter;
 import ru.agimate.connectorsapi.security.JwtAuthenticationFilter;
 
@@ -102,7 +99,8 @@ public class SecurityConfig {
                 ConnectorsManageController.PATH + "/**",
                 CredentialManageController.PATH + "/**",
                 ConnectorsApiKeyManageController.PATH + "/**",
-                WebhookRegistrationManageController.PATH + "/**"
+                WebhookRegistrationManageController.PATH + "/**",
+                EventDescriptionManageController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

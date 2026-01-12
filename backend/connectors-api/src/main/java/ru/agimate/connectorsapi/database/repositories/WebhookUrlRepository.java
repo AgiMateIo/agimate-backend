@@ -24,7 +24,16 @@ public interface WebhookUrlRepository extends JpaRepository<WebhookUrl, Long> {
     @Query("SELECT w FROM WebhookUrl w WHERE w.userPubId = :userPubId AND w.deletedAt IS NULL ORDER BY w.createdAt DESC")
     List<WebhookUrl> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
 
-    @Query("SELECT DISTINCT w FROM WebhookUrl w JOIN w.events e WHERE w.userPubId = :userPubId AND e.eventType = :eventType AND w.deletedAt IS NULL AND w.enabled = true ORDER BY w.createdAt DESC")
+    @Query("""
+        SELECT DISTINCT w 
+        FROM WebhookUrl w 
+        JOIN w.events e 
+            WHERE w.userPubId = :userPubId 
+                AND e.eventType = :eventType 
+                AND w.deletedAt IS NULL 
+                AND w.enabled = true 
+        ORDER BY w.createdAt DESC
+    """)
     List<WebhookUrl> findActiveByUserPubIdAndEventType(
             @Param("userPubId") UUID userPubId,
             @Param("eventType") String eventType
