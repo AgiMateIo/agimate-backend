@@ -79,10 +79,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     private String getRegistrationId(Authentication authentication) {
         // Extract registrationId from the OAuth2 authentication details
-        // First, try to get it from the OAuth2AuthenticationToken details
-        if (authentication.getDetails() instanceof OAuth2AuthenticationToken) {
-            String registrationId = ((OAuth2AuthenticationToken) authentication.getDetails())
-                    .getAuthorizedClientRegistrationId();
+        // First, try to get it from the OAuth2AuthenticationToken
+        if (authentication instanceof OAuth2AuthenticationToken) {
+            String registrationId = ((OAuth2AuthenticationToken) authentication).getAuthorizedClientRegistrationId();
             if (registrationId != null) {
                 return registrationId.toLowerCase();
             }
@@ -93,6 +92,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             String issuer = ((OidcUser) authentication.getPrincipal()).getIdToken().getIssuer().toString();
             if (issuer.contains("google")) {
                 return "google";
+            }
+            if (issuer.contains("yandex")) {
+                return "yandex";
             }
         }
 
@@ -111,7 +113,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     public UserEntity createOrGetUserFromOAuth(OAuth2User oAuth2User, String registrationId) {
         Map<String, Object> attributes = oAuth2User.getAttributes();
 
-        String providerUserId = attributes.get("sub").toString(); // Google uses "sub", GitHub uses "id", etc.
+        String providerUserId = extractProviderUserId(attributes, registrationId);
 
         OAuthProviderType providerType = OAuthProviderType.fromString(registrationId);
 
@@ -122,10 +124,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             return existingAccount.get().getUserEntity();
         }
 
-        String email = attributes.get("email").toString();
-        String firstName = attributes.get("given_name") != null ? attributes.get("given_name").toString() : null;
-        String lastName = attributes.get("family_name") != null ? attributes.get("family_name").toString() : null;
-        String displayName = attributes.get("name") != null ? attributes.get("name").toString() : email;
+        String email = extractEmail(attributes, registrationId);
+        String firstName = extractFirstName(attributes, registrationId);
+        String lastName = extractLastName(attributes, registrationId);
+        String displayName = extractDisplayName(attributes, registrationId);
 
         UserEntity userEntity = userService.findByEmail(email)
                 .orElseGet(() -> userService.createUser(email, firstName, lastName, displayName));
@@ -142,5 +144,46 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         userOAuthAccountRepository.save(oAuthAccount);
 
         return userEntity;
+    }
+
+    private String extractProviderUserId(Map<String, Object> attributes, String registrationId) {
+        return switch (registrationId.toLowerCase()) {
+            case "google" -> attributes.get("sub").toString();
+            case "yandex" -> attributes.get("id").toString();
+            default -> throw new IllegalArgumentException("Unsupported OAuth provider: " + registrationId);
+        };
+    }
+
+    private String extractEmail(Map<String, Object> attributes, String registrationId) {
+        return switch (registrationId.toLowerCase()) {
+            case "google" -> attributes.get("email").toString();
+            case "yandex" -> attributes.get("default_email").toString();
+            default -> throw new IllegalArgumentException("Unsupported OAuth provider: " + registrationId);
+        };
+    }
+
+    private String extractFirstName(Map<String, Object> attributes, String registrationId) {
+        return switch (registrationId.toLowerCase()) {
+            case "google" -> attributes.get("given_name") != null ? attributes.get("given_name").toString() : null;
+            case "yandex" -> attributes.get("first_name") != null ? attributes.get("first_name").toString() : null;
+            default -> null;
+        };
+    }
+
+    private String extractLastName(Map<String, Object> attributes, String registrationId) {
+        return switch (registrationId.toLowerCase()) {
+            case "google" -> attributes.get("family_name") != null ? attributes.get("family_name").toString() : null;
+            case "yandex" -> attributes.get("last_name") != null ? attributes.get("last_name").toString() : null;
+            default -> null;
+        };
+    }
+
+    private String extractDisplayName(Map<String, Object> attributes, String registrationId) {
+        String email = extractEmail(attributes, registrationId);
+        return switch (registrationId.toLowerCase()) {
+            case "google" -> attributes.get("name") != null ? attributes.get("name").toString() : email;
+            case "yandex" -> attributes.get("display_name") != null ? attributes.get("display_name").toString() : email;
+            default -> email;
+        };
     }
 }
