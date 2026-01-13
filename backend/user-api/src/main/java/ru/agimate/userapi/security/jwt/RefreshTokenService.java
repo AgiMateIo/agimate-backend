@@ -62,6 +62,6 @@ public class RefreshTokenService {
     }
 
     public void deleteRefreshTokenCookie(HttpServletResponse response) {
-        CookieUtils.deleteCookie(response, REFRESH_TOKEN_COOKIE_NAME, "/");
+        CookieUtils.deleteCookie(response, REFRESH_TOKEN_COOKIE_NAME);
     }
 }

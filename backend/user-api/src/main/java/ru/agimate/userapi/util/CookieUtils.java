@@ -31,11 +31,10 @@ public class CookieUtils {
      * 
      * @param response The HTTP response to add the cookie to
      * @param name The name of the cookie to delete
-     * @param path The path for the cookie
      */
-    public static void deleteCookie(HttpServletResponse response, String name, String path) {
+    public static void deleteCookie(HttpServletResponse response, String name) {
         Cookie cookie = new Cookie(name, "");
-        cookie.setPath(path);
+        cookie.setPath("/");
         cookie.setMaxAge(0); // Expire the cookie
         response.addCookie(cookie);
     }

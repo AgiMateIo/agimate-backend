@@ -64,7 +64,7 @@ public class JwtDbAuthenticationFilter extends OncePerRequestFilter {
         // Don't filter the login endpoint and OAuth2 endpoints
         String servletPath = request.getServletPath();
         return servletPath.equals("/auth/login") ||
-                servletPath.startsWith("/oauth2/") ||
-                servletPath.equals("/error");
+                servletPath.startsWith("/login/oauth2/") ||
+                servletPath.startsWith("/oauth2/");
     }
 }

@@ -114,11 +114,4 @@ public class OAuthController {
         return ResponseEntity.ok(SuccessResponse.ok("success"));
     }
 
-    @GetMapping("/error")
-    public ResponseEntity<String> handleOAuthError(@RequestParam(required = false) String error) {
-        log.error("OAuth2 authentication error: {}", error);
-        return ResponseEntity.badRequest().body("OAuth2 authentication failed: " + error);
-    }
-
-
 }
