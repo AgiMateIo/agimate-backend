@@ -1,16 +1,12 @@
 server:
-  port: 8280
-  error:
-    whitelabel:
-      enabled: false
-    path: "/error"
+  port: 8080
   shutdown: graceful
   servlet:
     context-path: "/connectors-api/"
 
 management:
   server:
-    port: 8288
+    port: 8088
   endpoints:
     web:
       exposure:
@@ -31,6 +27,10 @@ spring:
   web:
     resources:
       add-mappings: false
+    error:
+      whitelabel:
+        enabled: false
+      path: "/error"
   lifecycle:
     timeout-per-shutdown-phase: 30s
   threads:

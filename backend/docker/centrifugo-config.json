@@ -1,0 +1,24 @@
+{
+  "token_hmac_secret_key": "change_this_secret_in_production",
+  "api_key": "dev_api_key",
+  "admin_password": "dev_admin_password",
+  "admin_secret": "dev_admin_secret",
+  "allowed_origins": ["*"],
+  "log_level": "debug",
+  "health": true,
+  "presence": true,
+  "join_leave": true,
+  "history_size": 10,
+  "history_ttl": "300s",
+  "namespaces": [
+    {
+      "name": "device",
+      "publish": false,
+      "subscribe_to_publish": false,
+      "presence": true,
+      "join_leave": true,
+      "history_size": 100,
+      "history_ttl": "600s"
+    }
+  ]
+}

@@ -1,9 +1,5 @@
 server:
-  port: 8180
-  error:
-    whitelabel:
-      enabled: false
-    path: "/error"
+  port: 8080
   shutdown: graceful
   tomcat:
     mbeanregistry:
@@ -14,7 +10,7 @@ server:
 
 management:
   server:
-    port: 8188
+    port: 8088
 
 spring:
   application:
@@ -30,6 +26,10 @@ spring:
   web:
     resources:
       add-mappings: false
+    error:
+      whitelabel:
+        enabled: false
+      path: "/error"
   lifecycle:
     timeout-per-shutdown-phase: 30s
   threads:
