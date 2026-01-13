@@ -35,7 +35,7 @@ public class UserEntity extends BaseEntity {
     @Column(name = "display_name", columnDefinition = "TEXT")
     private String displayName;
 
-    // Bi-directional relationship with OAuth accounts
+    // Bidirectional relationship with OAuth accounts
     @OneToMany(mappedBy = "userEntity", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<UserOAuthAccount> oauthAccounts = new ArrayList<>();
     

@@ -59,7 +59,9 @@ public class OAuthController {
             throw new UnauthorizedStatusException("Refresh token not found");
         }
 
-        refreshTokenService.isAlreadyUsed(refreshRequest.refreshTokenId());
+        if (refreshTokenService.isAlreadyUsed(refreshRequest.refreshTokenId())) {
+            throw new ForbiddenStatusException("Refresh token already used");
+        }
 
         var wrappedJwtOptional = jwtService.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
         if (wrappedJwtOptional.isEmpty()) {

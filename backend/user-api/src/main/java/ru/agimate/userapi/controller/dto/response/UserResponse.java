@@ -2,7 +2,6 @@ package ru.agimate.userapi.controller.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -34,4 +33,5 @@ public record UserResponse(
         @Schema(description = "User update timestamp")
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
         LocalDateTime updatedAt
-) {}
+) {
+}

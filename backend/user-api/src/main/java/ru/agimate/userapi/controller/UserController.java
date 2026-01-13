@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NonNull;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -15,6 +16,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.userapi.controller.dto.response.UserResponse;
 import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
+import ru.agimate.userapi.mappers.UserMapper;
 import ru.agimate.userapi.service.UserService;
 
 import java.util.Optional;
@@ -35,24 +37,11 @@ public class UserController {
             @Parameter(description = "Public ID of the user", required = true)
             @PathVariable("pub_id") UUID pubId) {
 
-        Optional<UserEntity> userOpt = userService.findByPubId(pubId);
+        return userService.findByPubId(pubId)
+                .map(UserMapper::getUserResponse)
+                .map(ur -> ResponseEntity.ok(SuccessResponse.ok(ur)))
+                .orElse(ResponseEntity.notFound().build());
 
-        if (userOpt.isPresent()) {
-            UserEntity userEntity = userOpt.get();
-            UserResponse userResponse = new UserResponse(
-                    userEntity.getPubId(),
-                    userEntity.getEmail(),
-                    userEntity.getFirstName(),
-                    userEntity.getLastName(),
-                    userEntity.getDisplayName(),
-                    userEntity.getCreatedAt(),
-                    userEntity.getUpdatedAt()
-            );
-
-            return ResponseEntity.ok(SuccessResponse.ok(userResponse));
-        } else {
-            return ResponseEntity.notFound().build();
-        }
     }
 
     @Operation(summary = "Get current user info", description = "Returns information about the currently authenticated user")
@@ -62,29 +51,17 @@ public class UserController {
         if (authentication != null && authentication.isAuthenticated()) {
             Object principal = authentication.getPrincipal();
 
-            if (principal instanceof AgimateUserPrincipal) {
-                AgimateUserPrincipal agimateUserPrincipal = (AgimateUserPrincipal) principal;
-
+            if (principal instanceof AgimateUserPrincipal agimateUserPrincipal) {
                 // Find the user by their pubId to get the full user object
-                Optional<UserEntity> userOpt = userService.findByPubId(UUID.fromString(agimateUserPrincipal.pubId()));
-
-                if (userOpt.isPresent()) {
-                    UserEntity userEntity = userOpt.get();
-                    UserResponse userResponse = new UserResponse(
-                            userEntity.getPubId(),
-                            userEntity.getEmail(),
-                            userEntity.getFirstName(),
-                            userEntity.getLastName(),
-                            userEntity.getDisplayName(),
-                            userEntity.getCreatedAt(),
-                            userEntity.getUpdatedAt()
-                    );
-
-                    return ResponseEntity.ok(SuccessResponse.ok(userResponse));
-                }
+                return userService.findByPubId(UUID.fromString(agimateUserPrincipal.pubId()))
+                        .map(UserMapper::getUserResponse)
+                        .map(ur -> ResponseEntity.ok(SuccessResponse.ok(ur)))
+                        .orElse(ResponseEntity.status(403).build());
             }
         }
 
         return ResponseEntity.status(401).build();
     }
+
+
 }

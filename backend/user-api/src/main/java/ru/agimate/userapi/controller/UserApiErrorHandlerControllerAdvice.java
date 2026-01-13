@@ -1,18 +1,16 @@
 package ru.agimate.userapi.controller;
 
-import ru.agimate.common.rest.BaseErrorHandlerControllerAdvice;
-import ru.agimate.common.rest.ErrorResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import ru.agimate.common.rest.BaseErrorHandlerControllerAdvice;
+import ru.agimate.common.rest.ErrorResponse;
 
 /**
  * Extension of the base error handler to include user-api specific error handling,
