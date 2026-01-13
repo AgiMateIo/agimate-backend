@@ -25,7 +25,6 @@ import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.userapi.security.jwt.JwtDbAuthenticationFilter;
 import ru.agimate.userapi.security.oauth2.CookieOAuth2AuthorizationRequestRepository;
-import ru.agimate.userapi.security.oauth2.OAuth2ErrorInterceptFilter;
 import ru.agimate.userapi.security.oauth2.OAuth2FailureHandler;
 import ru.agimate.userapi.security.oauth2.OAuth2SuccessHandler;
 
@@ -44,7 +43,6 @@ public class SecurityConfig {
 
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final OAuth2FailureHandler oAuth2FailureHandler;
-    private final OAuth2ErrorInterceptFilter oAuth2ErrorInterceptFilter;
     private final SecretKey oauth2CookieEncryptionKey;
 
     @Bean
@@ -127,7 +125,6 @@ public class SecurityConfig {
                 )
                 // Add OAuth2 error intercept filter BEFORE OAuth2LoginAuthenticationFilter
                 // This prevents Spring Security from trying to authenticate requests that already have error parameters
-                .addFilterBefore(oAuth2ErrorInterceptFilter, OAuth2LoginAuthenticationFilter.class)
                 .addFilterBefore(jwtDbAuthenticationFilter, OAuth2LoginAuthenticationFilter.class);
 
         return http.build();
