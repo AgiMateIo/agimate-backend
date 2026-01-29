@@ -1,10 +1,10 @@
 {
   "client": {
     "token": {
-      "hmac_secret_key": "***REMOVED***"
+      "hmac_secret_key": "***REMOVED***",
+      "ecdsa_public_key": "-----BEGIN PUBLIC KEY-----\n***REMOVED***\n-----END PUBLIC KEY-----"
     },
-    "allowed_origins": [],
-    "insecure": true
+    "allowed_origins": []
   },
   "admin": {
     "enabled": true,
@@ -20,6 +20,8 @@
         "name": "device",
         "dynamic": true,
         "pattern": "^device:.+:(actions|triggers)$",
+        "allow_subscribe_for_client": false,
+        "allow_publish_for_client": false,
         "history": {
           "max_publications": 100,
           "ttl": "86400s"

@@ -92,7 +92,9 @@ centrifugo:
   enabled: true
   url: "http://localhost"
   port: 9000
-  api-key: "${CENTRIFUGO_API_KEY:***REMOVED***}"
+  api-key: ""
+  privateKey: ""
+  publicKey: ""
 
 mobile-api:
   security:

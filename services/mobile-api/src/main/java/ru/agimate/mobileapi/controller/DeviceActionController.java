@@ -18,7 +18,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping(DeviceCentrifugoTokenController.PATH)
+@RequestMapping(DeviceActionController.PATH)
 public class DeviceActionController {
 
     public static final String PATH = "/device/actions";

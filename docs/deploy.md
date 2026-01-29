@@ -103,3 +103,53 @@ Configure via standard Spring datasource properties or environment variables:
 ```
 
 JARs are created in `services/{service}/build/libs/`.
+
+## Running Centrifugo
+
+Centrifugo is used for real-time messaging to mobile devices.
+
+### Local Development
+
+Start Centrifugo using docker-compose:
+
+```bash
+cd ops/local
+docker-compose -f docker-compose-centrifugo.yaml up -d
+```
+
+Configuration file: `ops/local/config.json`
+
+### Ports
+
+| Port | Purpose                |
+|------|------------------------|
+| 9000 | WebSocket/HTTP API     |
+
+Admin UI available at `http://localhost:9000` (credentials in config.json).
+
+### Configuration
+
+Key configuration options in `config.json`:
+
+| Field                             | Description                                 |
+|-----------------------------------|---------------------------------------------|
+| `client.token.ecdsa_public_key`   | Public key for verifying client JWT tokens  |
+| `http_api.key`                    | API key for server-to-server communication  |
+| `admin.password`                  | Admin UI password                           |
+| `channel.namespaces`              | Channel namespace configuration             |
+
+### Channel Namespaces
+
+The `device` namespace is configured for device-related events:
+- Pattern: `device:{deviceId}:(actions|triggers)`
+- Publish/Subscribe restricted to server-side only
+- History: 100 messages, 24h TTL
+
+### Production Deployment
+
+For production, ensure:
+1. Generate new keys (do not use development keys)
+2. Set `CENTRIFUGO_API_KEY` in mobile-api to match `http_api.key`
+3. Set `CENTRIFUGO_PUBLICKEY` in mobile-api to match `client.token.ecdsa_public_key`
+4. Configure `allowed_origins` appropriately
+5. Disable admin UI or use strong credentials

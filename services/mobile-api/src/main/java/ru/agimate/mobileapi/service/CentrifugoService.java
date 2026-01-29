@@ -65,6 +65,25 @@ public class CentrifugoService {
     }
 
     /**
+     * Generates a Centrifugo connection token (JWT) for WebSocket connection.
+     * This token does not contain channel claim and is used for initial connection.
+     *
+     * @param subject           The subject (user/device ID)
+     * @param expirationSeconds Token expiration time in seconds
+     * @return JWT connection token
+     */
+    public String generateConnectionToken(String subject, long expirationSeconds) {
+        PrivateKey privateKey = getPrivateKey();
+
+        return Jwts.builder()
+                .subject(subject)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expirationSeconds * 1000))
+                .signWith(privateKey, Jwts.SIG.ES256)
+                .compact();
+    }
+
+    /**
      * Generates a Centrifugo subscription token (JWT) for the specified channel.
      *
      * @param subject           The subject (user/device ID)

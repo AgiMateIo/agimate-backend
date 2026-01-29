@@ -46,17 +46,23 @@ public class DeviceCentrifugoTokenController {
             throw new ForbiddenStatusException("Device is not linked");
         }
 
-        String channel = "device:" + deviceChannelTokenRequest.deviceId() + ":actions";
+        String deviceId = deviceChannelTokenRequest.deviceId();
+        String channel = "device:" + deviceId + ":actions";
 
-        String token = centrifugoService.generateSubscriptionToken(
-                deviceChannelTokenRequest.deviceId(),
+        String connectionToken = centrifugoService.generateConnectionToken(
+                deviceId,
+                TOKEN_EXPIRATION_SECONDS
+        );
+
+        String subscriptionToken = centrifugoService.generateSubscriptionToken(
+                deviceId,
                 channel,
                 TOKEN_EXPIRATION_SECONDS
         );
 
-        log.debug("Generated Centrifugo subscription token for device: {}, channel: {}",
-                deviceChannelTokenRequest.deviceId(), channel);
+        log.debug("Generated Centrifugo tokens for device: {}, channel: {}",
+                deviceId, channel);
 
-        return SuccessResponse.ok(new CentrifugoTokenResponse(token, channel));
+        return SuccessResponse.ok(new CentrifugoTokenResponse(connectionToken, subscriptionToken, channel));
     }
 }
