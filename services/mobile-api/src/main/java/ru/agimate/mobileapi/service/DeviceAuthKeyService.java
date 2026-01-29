@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
-import ru.agimate.mobileapi.controller.dto.LinkDeviceRequest;
+import ru.agimate.mobileapi.controller.dto.request.LinkDeviceRequest;
 import ru.agimate.mobileapi.database.entities.Device;
 import ru.agimate.mobileapi.database.entities.DeviceAuthKey;
 import ru.agimate.mobileapi.database.repositories.DeviceAuthKeyRepository;
@@ -186,9 +186,9 @@ public class DeviceAuthKeyService {
             return device;
         }
 
-        // Check if device is linked to another deviceAuthKey
-        if (device.getDeviceAuthKey() != null && !device.getDeviceAuthKey().getId().equals(deviceAuthKey.getId())) {
-            log.warn("Device {} is already linked to another auth key", linkDeviceRequest.deviceId());
+        // Check if deviceAuthKey is already used by another device
+        if (deviceAuthKey.getDevice() != null) {
+            log.warn("DeviceAuthKey {} is already used by another device", deviceAuthKey.getKeyId());
             return null;
         }
 

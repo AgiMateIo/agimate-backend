@@ -14,4 +14,6 @@ public class CentrifugoProperties {
     private String url;
     private String port;
     private String apiKey;
+    private String privateKey;
+    private String publicKey;
 }

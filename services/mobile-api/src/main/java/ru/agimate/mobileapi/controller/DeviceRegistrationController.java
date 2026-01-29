@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ConflictStatusException;
-import ru.agimate.mobileapi.controller.dto.LinkDeviceRequest;
+import ru.agimate.mobileapi.controller.dto.request.LinkDeviceRequest;
 import ru.agimate.mobileapi.service.DeviceAuthKeyService;
 
 /**

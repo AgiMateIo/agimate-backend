@@ -1,5 +1,7 @@
 package ru.agimate.mobileapi.service;
 
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.opensolutionlab.httpclients.clients.CentrifugoClient;
@@ -7,6 +9,11 @@ import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.ServiceUnavailableStatusException;
 import ru.agimate.mobileapi.config.CentrifugoProperties;
 
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Base64;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -55,5 +62,36 @@ public class CentrifugoService {
         message.put("type", "test");
         message.put("timestamp", System.currentTimeMillis());
         return message;
+    }
+
+    /**
+     * Generates a Centrifugo subscription token (JWT) for the specified channel.
+     *
+     * @param subject           The subject (user/device ID)
+     * @param channel           The channel name
+     * @param expirationSeconds Token expiration time in seconds
+     * @return JWT subscription token
+     */
+    public String generateSubscriptionToken(String subject, String channel, long expirationSeconds) {
+        PrivateKey privateKey = getPrivateKey();
+
+        return Jwts.builder()
+                .subject(subject)
+                .claim("channel", channel)
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + expirationSeconds * 1000))
+                .signWith(privateKey, Jwts.SIG.ES256)
+                .compact();
+    }
+
+    private PrivateKey getPrivateKey() {
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(centrifugoProperties.getPrivateKey());
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance("EC");
+            return keyFactory.generatePrivate(keySpec);
+        } catch (Exception e) {
+            throw new JwtException("Failed to load Centrifugo private key", e);
+        }
     }
 }
