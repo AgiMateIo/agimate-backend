@@ -60,9 +60,9 @@ jobs:
             echo "mobile-api=true" >> $GITHUB_OUTPUT
             echo "connectors-api=true" >> $GITHUB_OUTPUT
           else
-            echo "$CHANGED" | grep -q '^services/user-api/' && echo "user-api=true" >> $GITHUB_OUTPUT
-            echo "$CHANGED" | grep -q '^services/mobile-api/' && echo "mobile-api=true" >> $GITHUB_OUTPUT
-            echo "$CHANGED" | grep -q '^services/connectors-api/' && echo "connectors-api=true" >> $GITHUB_OUTPUT
+            echo "$CHANGED" | grep -q '^services/user-api/' && echo "user-api=true" >> $GITHUB_OUTPUT || true
+            echo "$CHANGED" | grep -q '^services/mobile-api/' && echo "mobile-api=true" >> $GITHUB_OUTPUT || true
+            echo "$CHANGED" | grep -q '^services/connectors-api/' && echo "connectors-api=true" >> $GITHUB_OUTPUT || true
           fi
 
   build-user-api:
