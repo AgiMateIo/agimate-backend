@@ -1,0 +1,104 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'services/user-api/**'
+      - 'services/mobile-api/**'
+      - 'services/connectors-api/**'
+      - 'services/libs/**'
+      - 'services/build.gradle.kts'
+      - 'services/settings.gradle.kts'
+
+env:
+  REGISTRY: agimate.cr.cloud.ru
+  INFRA_REPO: gitverse.ru/agimate/agimate-infra.git
+
+jobs:
+  detect-changes:
+    runs-on: self-hosted
+    outputs:
+      user-api: ${{ steps.changes.outputs.user-api }}
+      mobile-api: ${{ steps.changes.outputs.mobile-api }}
+      connectors-api: ${{ steps.changes.outputs.connectors-api }}
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed services
+        id: changes
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          echo "user-api=false" >> $GITHUB_OUTPUT
+          echo "mobile-api=false" >> $GITHUB_OUTPUT
+          echo "connectors-api=false" >> $GITHUB_OUTPUT
+
+          if echo "$CHANGED" | grep -qE '^services/(build\.gradle\.kts|settings\.gradle\.kts|gradle/|libs/)'; then
+            echo "Root build files or libs changed — rebuilding all"
+            echo "user-api=true" >> $GITHUB_OUTPUT
+            echo "mobile-api=true" >> $GITHUB_OUTPUT
+            echo "connectors-api=true" >> $GITHUB_OUTPUT
+          else
+            echo "$CHANGED" | grep -q '^services/user-api/' && echo "user-api=true" >> $GITHUB_OUTPUT
+            echo "$CHANGED" | grep -q '^services/mobile-api/' && echo "mobile-api=true" >> $GITHUB_OUTPUT
+            echo "$CHANGED" | grep -q '^services/connectors-api/' && echo "connectors-api=true" >> $GITHUB_OUTPUT
+          fi
+
+  build-user-api:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.user-api == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build and push
+        run: ./ci/build-and-push.sh user-api
+        env:
+          CR_USERNAME: ${{ secrets.CR_USERNAME }}
+          CR_PASSWORD: ${{ secrets.CR_PASSWORD }}
+
+      - name: Update infra repo
+        run: ./ci/update-infra.sh user-api
+        env:
+          INFRA_REPO_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+
+  build-mobile-api:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mobile-api == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build and push
+        run: ./ci/build-and-push.sh mobile-api
+        env:
+          CR_USERNAME: ${{ secrets.CR_USERNAME }}
+          CR_PASSWORD: ${{ secrets.CR_PASSWORD }}
+
+      - name: Update infra repo
+        run: ./ci/update-infra.sh mobile-api
+        env:
+          INFRA_REPO_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+
+  build-connectors-api:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.connectors-api == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Build and push
+        run: ./ci/build-and-push.sh connectors-api
+        env:
+          CR_USERNAME: ${{ secrets.CR_USERNAME }}
+          CR_PASSWORD: ${{ secrets.CR_PASSWORD }}
+
+      - name: Update infra repo
+        run: ./ci/update-infra.sh connectors-api
+        env:
+          INFRA_REPO_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
