@@ -4,7 +4,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.jspecify.annotations.NonNull;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -14,12 +13,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.userapi.controller.dto.response.UserResponse;
-import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.userapi.mappers.UserMapper;
 import ru.agimate.userapi.service.UserService;
 
-import java.util.Optional;
 import java.util.UUID;
 
 @RestController

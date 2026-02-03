@@ -3,10 +3,6 @@ package ru.agimate.mobileapi.database.entities;
 import jakarta.persistence.*;
 import lombok.*;
 import ru.agimate.common.persistence.BaseEntity;
-import ru.agimate.common.util.UUIDUtils;
-
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "device")

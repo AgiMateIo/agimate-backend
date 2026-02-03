@@ -2,51 +2,42 @@
 set -euo pipefail
 
 # ──────────────────────────────────────────────────────────
-# Update image version in agimate-infra
+# Update image versions in agimate-infra
 #
-# Usage:   ./ci/update-infra.sh <service-name>
-# Example: ./ci/update-infra.sh user-api
+# Usage:   ./ci/update-infra.sh <service1> [service2] ...
+# Example: ./ci/update-infra.sh user-api mobile-api
 #
 # Environment variables:
+#   INFRA_REPO       — Infra repo URL (without https://)
 #   INFRA_REPO_TOKEN — Git token for pushing to agimate-infra
 # ──────────────────────────────────────────────────────────
 
-SERVICE=$1
-REGISTRY="${REGISTRY:-agimate.cr.cloud.ru}"
-TAG="${TAG:-$(git describe --tags --always)}"
-INFRA_REPO="${INFRA_REPO:-gitverse.ru/agimate/agimate-infra.git}"
-
-if [ -z "$SERVICE" ]; then
-  echo "❌ Service name required: ./ci/update-infra.sh <service-name>"
+if [ $# -eq 0 ]; then
+  echo "❌ Usage: ./ci/update-infra.sh <service1> [service2] ..."
   exit 1
 fi
 
-IMAGE="${REGISTRY}/${SERVICE}"
+TAG="${TAG:-$(git describe --tags --always)}"
+
+if [ -z "${INFRA_REPO:-}" ]; then
+  echo "❌ INFRA_REPO is not set"
+  exit 1
+fi
+
 WORKDIR=$(mktemp -d)
+trap "rm -rf ${WORKDIR}" EXIT
 
 echo "▶ Cloning infra repo..."
 git clone "https://oauth2:${INFRA_REPO_TOKEN}@${INFRA_REPO}" "${WORKDIR}"
-
 cd "${WORKDIR}"
 
-echo "▶ Updating image: ${SERVICE} → ${IMAGE}:${TAG}"
-kustomize edit set image "${SERVICE}=${IMAGE}:${TAG}"
+# Update each service
+for SERVICE in "$@"; do
+  echo "▶ Updating ${SERVICE} → ${TAG}..."
+  ./scripts/update-image.sh "${SERVICE}" "${TAG}"
+done
 
-# ── Check for changes ────────────────────────────────────
-if git diff --quiet; then
-  echo "⏭ No changes in infra repo, skipping"
-  rm -rf "${WORKDIR}"
-  exit 0
-fi
+# Single commit for all changes
+./scripts/commit-changes.sh
 
-# ── Commit and push ─────────────────────────────────────
-git config user.name "CI Bot"
-git config user.email "ci@agimate.com"
-git add kustomization.yaml
-git commit -m "deploy: ${SERVICE} ${TAG}"
-git push
-
-echo "✅ Infra repo updated: ${SERVICE} → ${TAG}"
-
-# ── Cleanup ──────────────────────────────────────────────
-rm -rf "${WORKDIR}"
+echo "✅ Infra updated: $@ → ${TAG}"

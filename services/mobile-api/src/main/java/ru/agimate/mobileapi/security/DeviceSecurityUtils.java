@@ -3,8 +3,6 @@ package ru.agimate.mobileapi.security;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
-import ru.agimate.common.security.apikey.ApiKeyAuthenticationToken;
-import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 
 import java.util.UUID;
 

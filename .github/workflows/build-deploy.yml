@@ -11,12 +11,27 @@ on:
       - 'services/build.gradle.kts'
       - 'services/settings.gradle.kts'
 
-env:
-  REGISTRY: agimate.cr.cloud.ru
-  INFRA_REPO: gitverse.ru/agimate/agimate-infra.git
-
 jobs:
+  validate-config:
+    runs-on: self-hosted
+    steps:
+      - name: Check required variables and secrets
+        run: |
+          MISSING=""
+          [ -z "${{ vars.REGISTRY }}" ] && MISSING="$MISSING REGISTRY"
+          [ -z "${{ vars.INFRA_REPO }}" ] && MISSING="$MISSING INFRA_REPO"
+          [ -z "${{ secrets.CR_USERNAME }}" ] && MISSING="$MISSING CR_USERNAME"
+          [ -z "${{ secrets.CR_PASSWORD }}" ] && MISSING="$MISSING CR_PASSWORD"
+          [ -z "${{ secrets.INFRA_REPO_TOKEN }}" ] && MISSING="$MISSING INFRA_REPO_TOKEN"
+
+          if [ -n "$MISSING" ]; then
+            echo "❌ Missing required variables/secrets:$MISSING"
+            exit 1
+          fi
+          echo "✅ All required variables and secrets are set"
+
   detect-changes:
+    needs: validate-config
     runs-on: self-hosted
     outputs:
       user-api: ${{ steps.changes.outputs.user-api }}
@@ -59,13 +74,9 @@ jobs:
       - name: Build and push
         run: ./ci/build-and-push.sh user-api
         env:
+          REGISTRY: ${{ vars.REGISTRY }}
           CR_USERNAME: ${{ secrets.CR_USERNAME }}
           CR_PASSWORD: ${{ secrets.CR_PASSWORD }}
-
-      - name: Update infra repo
-        run: ./ci/update-infra.sh user-api
-        env:
-          INFRA_REPO_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
 
   build-mobile-api:
     needs: detect-changes
@@ -77,13 +88,9 @@ jobs:
       - name: Build and push
         run: ./ci/build-and-push.sh mobile-api
         env:
+          REGISTRY: ${{ vars.REGISTRY }}
           CR_USERNAME: ${{ secrets.CR_USERNAME }}
           CR_PASSWORD: ${{ secrets.CR_PASSWORD }}
-
-      - name: Update infra repo
-        run: ./ci/update-infra.sh mobile-api
-        env:
-          INFRA_REPO_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
 
   build-connectors-api:
     needs: detect-changes
@@ -95,10 +102,24 @@ jobs:
       - name: Build and push
         run: ./ci/build-and-push.sh connectors-api
         env:
+          REGISTRY: ${{ vars.REGISTRY }}
           CR_USERNAME: ${{ secrets.CR_USERNAME }}
           CR_PASSWORD: ${{ secrets.CR_PASSWORD }}
 
-      - name: Update infra repo
-        run: ./ci/update-infra.sh connectors-api
+  update-infra:
+    needs: [build-user-api, build-mobile-api, build-connectors-api]
+    if: always() && (needs.build-user-api.result == 'success' || needs.build-mobile-api.result == 'success' || needs.build-connectors-api.result == 'success')
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Update infra
+        run: |
+          SERVICES=""
+          [ "${{ needs.build-user-api.result }}" == "success" ] && SERVICES="$SERVICES user-api"
+          [ "${{ needs.build-mobile-api.result }}" == "success" ] && SERVICES="$SERVICES mobile-api"
+          [ "${{ needs.build-connectors-api.result }}" == "success" ] && SERVICES="$SERVICES connectors-api"
+          ./ci/update-infra.sh $SERVICES
         env:
+          INFRA_REPO: ${{ vars.INFRA_REPO }}
           INFRA_REPO_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}

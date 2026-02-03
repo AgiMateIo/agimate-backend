@@ -6,7 +6,6 @@ import ru.agimate.common.s2s.DeviceAction;
 import ru.agimate.common.s2s.DeviceTrigger;
 import ru.agimate.common.s2s.MobileApi;
 import ru.agimate.common.s2s.ConnectedDevice;
-import ru.agimate.mobileapi.database.entities.Device;
 
 import java.util.List;
 import java.util.Map;
