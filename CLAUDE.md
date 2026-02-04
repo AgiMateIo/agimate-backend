@@ -4,7 +4,11 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Build Commands
 
+Working directory - services
+
 ```bash
+cd services
+
 # Build entire project
 ./gradlew build
 
@@ -38,8 +42,8 @@ This file provides guidance to Claude Code when working with code in this reposi
 - Keep documentation in sync with code
 
 See `/docs/` for:
-- [Architecture](../docs/architecture.md) — Services, databases, authentication flows
-- [Deployment](../docs/deploy.md) — Environment variables, key generation, ports
+- [Architecture](docs/architecture.md) — Services, databases, authentication flows
+- [Deployment](docs/deploy.md) — Environment variables, key generation, ports
 - [Services](../docs/services/) — API endpoints, configuration per service
 
 ## Key Patterns

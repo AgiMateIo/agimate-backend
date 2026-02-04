@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import ru.agimate.common.build.BuildInfoService;
+import ru.agimate.common.buildinfo.BuildInfoService;
 import ru.agimate.common.rest.SuccessResponse;
 
 @RestController
