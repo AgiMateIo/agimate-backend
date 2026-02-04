@@ -8,8 +8,8 @@ set -euo pipefail
 # Example: ./ci/update-infra.sh user-api mobile-api
 #
 # Environment variables:
-#   INFRA_REPO       — Infra repo URL (without https://)
-#   INFRA_REPO_TOKEN — Git token for pushing to agimate-infra
+#   INFRA_REPO_SSH    — SSH URL (e.g., git@gitverse.ru:org/infra.git)
+#   INFRA_DEPLOY_KEY  — Private SSH key for pushing
 # ──────────────────────────────────────────────────────────
 
 if [ $# -eq 0 ]; then
@@ -19,17 +19,33 @@ fi
 
 TAG="${TAG:-$(git describe --tags --always)}"
 
-if [ -z "${INFRA_REPO:-}" ]; then
-  echo "❌ INFRA_REPO is not set"
+if [ -z "${INFRA_REPO_SSH:-}" ]; then
+  echo "❌ INFRA_REPO_SSH is not set"
   exit 1
 fi
 
+if [ -z "${INFRA_DEPLOY_KEY:-}" ]; then
+  echo "❌ INFRA_DEPLOY_KEY is not set"
+  exit 1
+fi
+
+# Temporary directory for work and SSH key
 WORKDIR=$(mktemp -d)
+SSH_KEY_FILE="${WORKDIR}/.deploy_key"
+
+# Cleanup on exit — removes key and workdir
 trap "rm -rf ${WORKDIR}" EXIT
 
+# Setup temporary SSH key
+echo "$INFRA_DEPLOY_KEY" > "$SSH_KEY_FILE"
+chmod 600 "$SSH_KEY_FILE"
+
+# Use temporary key for git operations (key never touches ~/.ssh)
+export GIT_SSH_COMMAND="ssh -i ${SSH_KEY_FILE} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null"
+
 echo "▶ Cloning infra repo..."
-git clone "https://oauth2:${INFRA_REPO_TOKEN}@${INFRA_REPO}" "${WORKDIR}"
-cd "${WORKDIR}"
+git clone "${INFRA_REPO_SSH}" "${WORKDIR}/repo"
+cd "${WORKDIR}/repo"
 
 # Update each service
 for SERVICE in "$@"; do

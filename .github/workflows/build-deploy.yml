@@ -20,10 +20,10 @@ jobs:
         run: |
           MISSING=""
           [ -z "${{ vars.REGISTRY }}" ] && MISSING="$MISSING REGISTRY"
-          [ -z "${{ vars.INFRA_REPO }}" ] && MISSING="$MISSING INFRA_REPO"
+          [ -z "${{ vars.INFRA_REPO_SSH }}" ] && MISSING="$MISSING INFRA_REPO_SSH"
           [ -z "${{ secrets.CR_USERNAME }}" ] && MISSING="$MISSING CR_USERNAME"
           [ -z "${{ secrets.CR_PASSWORD }}" ] && MISSING="$MISSING CR_PASSWORD"
-          [ -z "${{ secrets.INFRA_REPO_TOKEN }}" ] && MISSING="$MISSING INFRA_REPO_TOKEN"
+          [ -z "${{ secrets.INFRA_DEPLOY_KEY }}" ] && MISSING="$MISSING INFRA_DEPLOY_KEY"
 
           if [ -n "$MISSING" ]; then
             echo "❌ Missing required variables/secrets:$MISSING"
@@ -122,5 +122,5 @@ jobs:
           [ "${{ needs.build-connectors-api.result }}" == "success" ] && SERVICES="$SERVICES connectors-api"
           ./ci/update-infra.sh $SERVICES
         env:
-          INFRA_REPO: ${{ vars.INFRA_REPO }}
-          INFRA_REPO_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
+          INFRA_REPO_SSH: ${{ vars.INFRA_REPO_SSH }}
+          INFRA_DEPLOY_KEY: ${{ secrets.INFRA_DEPLOY_KEY }}
