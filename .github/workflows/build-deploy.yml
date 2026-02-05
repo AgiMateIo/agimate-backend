@@ -122,5 +122,6 @@ jobs:
           [ "${{ needs.build-connectors-api.result }}" == "success" ] && SERVICES="$SERVICES connectors-api"
           ./ci/update-infra.sh $SERVICES
         env:
+          REGISTRY: ${{ vars.REGISTRY }}
           INFRA_REPO_SSH: ${{ vars.INFRA_REPO_SSH }}
           INFRA_DEPLOY_KEY: ${{ secrets.INFRA_DEPLOY_KEY }}

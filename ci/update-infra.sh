@@ -8,6 +8,7 @@ set -euo pipefail
 # Example: ./ci/update-infra.sh user-api mobile-api
 #
 # Environment variables:
+#   REGISTRY          — Container Registry URL
 #   INFRA_REPO_SSH    — SSH URL (e.g., git@gitverse.ru:org/infra.git)
 #   INFRA_DEPLOY_KEY  — Private SSH key for pushing
 # ──────────────────────────────────────────────────────────
@@ -18,6 +19,11 @@ if [ $# -eq 0 ]; then
 fi
 
 TAG="${TAG:-$(git describe --tags --always)}"
+
+if [ -z "${REGISTRY:-}" ]; then
+  echo "❌ REGISTRY is not set"
+  exit 1
+fi
 
 if [ -z "${INFRA_REPO_SSH:-}" ]; then
   echo "❌ INFRA_REPO_SSH is not set"
@@ -34,7 +40,7 @@ WORKDIR=$(mktemp -d)
 SSH_KEY_FILE="${WORKDIR}/.deploy_key"
 
 # Cleanup on exit — removes key and workdir
-trap "rm -rf ${WORKDIR}" EXIT
+trap 'rm -rf ${WORKDIR}' EXIT
 
 # Setup temporary SSH key
 echo "$INFRA_DEPLOY_KEY" > "$SSH_KEY_FILE"
@@ -50,10 +56,16 @@ cd "${WORKDIR}/repo"
 # Update each service
 for SERVICE in "$@"; do
   echo "▶ Updating ${SERVICE} → ${TAG}..."
-  ./scripts/update-image.sh "${SERVICE}" "${TAG}"
+  ./scripts/update-image.sh "${REGISTRY}" "${SERVICE}" "${TAG}"
 done
 
-# Single commit for all changes
-./scripts/commit-changes.sh
+# Commit and push changes
+if git diff --quiet; then
+  echo "⚠️ No changes to commit"
+else
+  git add .
+  git commit -m "chore: update image versions to ${TAG}"
+  git push
+fi
 
-echo "✅ Infra updated: $@ → ${TAG}"
+echo "✅ Infra updated: $* → ${TAG}"
