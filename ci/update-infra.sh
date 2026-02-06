@@ -5,7 +5,7 @@ set -euo pipefail
 # Update image versions in agimate-infra
 #
 # Usage:   ./ci/update-infra.sh <service1> [service2] ...
-# Example: ./ci/update-infra.sh user-api mobile-api
+# Example: ./ci/update-infra.sh user-api device-api
 #
 # Environment variables:
 #   REGISTRY          — Container Registry URL
@@ -50,8 +50,11 @@ chmod 600 "$SSH_KEY_FILE"
 export GIT_SSH_COMMAND="ssh -i ${SSH_KEY_FILE} -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=/dev/null"
 
 echo "▶ Cloning infra repo..."
-git clone "${INFRA_REPO_SSH}" "${WORKDIR}/repo"
+git clone --quiet "${INFRA_REPO_SSH}" "${WORKDIR}/repo"
 cd "${WORKDIR}/repo"
+
+git config user.email "ci@agimate.ru"
+git config user.name "agimate-ci"
 
 # Update each service
 for SERVICE in "$@"; do

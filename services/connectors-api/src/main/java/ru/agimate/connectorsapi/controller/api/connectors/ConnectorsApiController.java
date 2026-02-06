@@ -34,7 +34,7 @@ public class ConnectorsApiController {
 
     @Operation(
             summary = "Get available connectors",
-            description = "Returns list of connectors available to the user - those with configured credentials plus mobile connector"
+            description = "Returns list of connectors available to the user - those with configured credentials plus device connector"
     )
     @GetMapping("/")
     public SuccessResponse<List<ConnectorShorInfoResponse>> getAvailableConnectors() {

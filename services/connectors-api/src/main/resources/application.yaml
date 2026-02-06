@@ -54,7 +54,7 @@ spring:
   grpc:
     client:
       channels:
-        mobile-api:
+        device-api:
           address: "127.0.0.1:9090"
 
 connectors:

@@ -12,7 +12,7 @@ COPY build.gradle.kts .
 # Copy all module build files
 COPY libs/common/build.gradle.kts libs/common/
 COPY user-api/build.gradle.kts user-api/
-COPY mobile-api/build.gradle.kts mobile-api/
+COPY device-api/build.gradle.kts device-api/
 COPY connectors-api/build.gradle.kts connectors-api/
 
 # Download dependencies (cached layer)

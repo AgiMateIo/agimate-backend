@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: agimate
       POSTGRES_PASSWORD: agimate_dev_password
-      POSTGRES_MULTIPLE_DATABASES: am_core_db,am_mobile_db,am_connectors_db
+      POSTGRES_MULTIPLE_DATABASES: am_core_db,am_device_db,am_connectors_db
     ports:
       - "5432:5432"
     volumes:
@@ -22,7 +22,7 @@ services:
     networks:
       - agimate-network
 
-  # Centrifugo for real-time messaging (used by mobile-api)
+  # Centrifugo for real-time messaging (used by device-api)
   centrifugo:
     image: centrifugo/centrifugo:v5
     container_name: agimate-centrifugo
@@ -66,12 +66,12 @@ services:
       - agimate-network
     restart: unless-stopped
 
-  # Mobile API Service
-  mobile-api:
+  # Device API Service
+  device-api:
     build:
       context: ..
-      dockerfile: mobile-api/Dockerfile
-    container_name: agimate-mobile-api
+      dockerfile: device-api/Dockerfile
+    container_name: agimate-device-api
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,7 +81,7 @@ services:
       - ../.env
     environment:
       SPRING_PROFILES_ACTIVE: develop
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_mobile_db
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_device_db
       SPRING_DATASOURCE_USERNAME: agimate
       SPRING_DATASOURCE_PASSWORD: agimate_dev_password
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
@@ -102,7 +102,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mobile-api:
+      device-api:
         condition: service_started
     env_file:
       - ../.env
@@ -113,8 +113,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: agimate_dev_password
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       CONNECTORS_ENCRYPTION_KEY: ${CONNECTORS_ENCRYPTION_KEY}
-      MOBILE_API_GRPC_HOST: mobile-api
-      MOBILE_API_GRPC_PORT: 9090
+      DEVICE_API_GRPC_HOST: device-api
+      DEVICE_API_GRPC_PORT: 9090
     ports:
       - "8280:8280"
       - "8288:8288"

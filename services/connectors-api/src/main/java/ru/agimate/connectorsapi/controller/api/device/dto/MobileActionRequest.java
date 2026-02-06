@@ -13,7 +13,7 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Request to push action to mobile device")
+@Schema(description = "Request to push action to device")
 public class MobileActionRequest {
 
     @Schema(

@@ -17,7 +17,7 @@ cd services
 
 # Run a specific module's tests
 ./gradlew :user-api:test
-./gradlew :mobile-api:test
+./gradlew :device-api:test
 ./gradlew :connectors-api:test
 ./gradlew :libs:common:test
 
@@ -26,12 +26,12 @@ cd services
 
 # Run services locally
 ./gradlew :user-api:bootRun
-./gradlew :mobile-api:bootRun
+./gradlew :device-api:bootRun
 ./gradlew :connectors-api:bootRun
 
 # Create deployment JARs
 ./gradlew :user-api:bootJar
-./gradlew :mobile-api:bootJar
+./gradlew :device-api:bootJar
 ./gradlew :connectors-api:bootJar
 ```
 

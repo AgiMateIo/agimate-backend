@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.connectorsapi.controller.api.device.dto.MobileActionRequest;
-import ru.agimate.connectorsapi.service.MobileApiService;
+import ru.agimate.connectorsapi.service.DeviceApiService;
 
 @RestController
 @RequestMapping(DeviceCallController.PATH)
@@ -24,12 +24,12 @@ public class DeviceCallController {
 
     public static final String PATH = DeviceController.PATH + "/call/";
 
-    private final MobileApiService mobileApiService;
+    private final DeviceApiService deviceApiService;
 
 
     @Operation(
             summary = "Push action to device",
-            description = "Sends an action to a specific mobile device via Centrifugo",
+            description = "Sends an action to a specific device via Centrifugo",
             security = @SecurityRequirement(name = "ApiKey")
     )
     @ApiResponses({
@@ -64,7 +64,7 @@ public class DeviceCallController {
             )
             @Valid @RequestBody MobileActionRequest mobileActionRequest
     ) {
-        mobileApiService.pushAction(deviceAuthKeyId, mobileActionRequest);
+        deviceApiService.pushAction(deviceAuthKeyId, mobileActionRequest);
         return SuccessResponse.ok("success");
     }
 }

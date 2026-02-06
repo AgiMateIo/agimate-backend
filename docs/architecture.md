@@ -12,13 +12,13 @@ graph TB
 
     subgraph "Services"
         UserAPI[user-api<br/>:8080/user-api/]
-        MobileAPI[mobile-api<br/>:8080/mobile-api]
+        DeviceAPI[device-api<br/>:8080/device-api]
         ConnectorsAPI[connectors-api<br/>:8080/connectors-api/]
     end
 
     subgraph "Databases"
         UserDB[(am_user_db)]
-        MobileDB[(am_mobile_db)]
+        DeviceDB[(am_device_db)]
         ConnectorsDB[(am_connectors_db)]
     end
 
@@ -30,17 +30,17 @@ graph TB
 
     WebApp --> UserAPI
     WebApp --> ConnectorsAPI
-    MobileApp --> MobileAPI
+    MobileApp --> DeviceAPI
     External --> ConnectorsAPI
 
     UserAPI --> UserDB
-    MobileAPI --> MobileDB
+    DeviceAPI --> DeviceDB
     ConnectorsAPI --> ConnectorsDB
 
     UserAPI --> OAuth
-    MobileAPI --> Centrifugo
+    DeviceAPI --> Centrifugo
     ConnectorsAPI --> Marketplaces
-    ConnectorsAPI -.->|gRPC :9090| MobileAPI
+    ConnectorsAPI -.->|gRPC :9090| DeviceAPI
 ```
 
 ## Services
@@ -48,11 +48,11 @@ graph TB
 ### user-api
 Authentication service handling OAuth2 login (Google, Yandex), JWT token management, and user profiles.
 
-### mobile-api
-Mobile device API for device registration, action delivery, and trigger submission. Integrates with Centrifugo for real-time push to devices.
+### device-api
+Device API for device registration, action delivery, and trigger submission. Integrates with Centrifugo for real-time push to devices.
 
 ### connectors-api
-External integrations service managing connector definitions, encrypted credentials storage, and marketplace API calls. Communicates with mobile-api via gRPC for device actions.
+External integrations service managing connector definitions, encrypted credentials storage, and marketplace API calls. Communicates with device-api via gRPC for device actions.
 
 ### libs/common
 Shared library containing exception hierarchy, REST response wrappers (`SuccessResponse`, `ErrorResponse`), JWT/API Key utilities, and `UUIDUtils` (UUIDv8 generation).
@@ -63,7 +63,7 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 |-----------------|----------------------------------------|-------------------------------------|
 | **JWT**         | Bearer token authentication for users  | All services (management endpoints) |
 | **API Key**     | Header `X-API-Key` for connector calls | connectors-api                      |
-| **Device Auth** | Header `X-Device-Auth-Key` for devices | mobile-api                          |
+| **Device Auth** | Header `X-Device-Auth-Key` for devices | device-api                          |
 | **OAuth2**      | Google/Yandex social login             | user-api                            |
 
 ### JWT Flow
@@ -76,7 +76,7 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 | Database         | Owner          | Tables                                                                      |
 |------------------|----------------|-----------------------------------------------------------------------------|
 | am_user_db       | user-api       | `users`, `user_oauth_accounts`                                              |
-| am_mobile_db     | mobile-api     | `device_auth_keys`                                                          |
+| am_device_db     | device-api     | `device_auth_keys`                                                          |
 | am_connectors_db | connectors-api | `connectors`, `credentials`, `connectors_api_keys`, `webhook_registrations` |
 
 All migrations managed via Liquibase in each service's `src/main/resources/db/changelog/`.
@@ -88,11 +88,11 @@ All migrations managed via Liquibase in each service's `src/main/resources/db/ch
 
 ## Inter-Service Communication
 
-### gRPC (mobile-api ↔ connectors-api)
+### gRPC (device-api ↔ connectors-api)
 - Port: **9090**
 - connectors-api acts as gRPC client
-- mobile-api acts as gRPC server
-- Used for pushing actions to mobile devices
+- device-api acts as gRPC server
+- Used for pushing actions to devices
 
 ## Ports
 
@@ -100,4 +100,4 @@ All migrations managed via Liquibase in each service's `src/main/resources/db/ch
 |------|------------------------------------|
 | 8080 | HTTP (all services)                |
 | 8088 | Management/actuator (all services) |
-| 9090 | gRPC (mobile-api server)           |
+| 9090 | gRPC (device-api server)           |

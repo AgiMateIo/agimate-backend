@@ -3,19 +3,19 @@ http://www.agimate.lc:8000 {
 }
 
 http://api.agimate.lc:8000 {
-        handle /user-api/* {
+        handle /user/* {
                 reverse_proxy localhost:8080
         }
 
-        handle /mobile-api/* {
+        handle /device/* {
                 reverse_proxy localhost:8180
+        }
+
+        handle /connectors/* {
+                reverse_proxy localhost:8280
         }
 
         handle /connection/websocket {
                 reverse_proxy localhost:9000
-        }
-
-        handle /connectors-api/* {
-                reverse_proxy localhost:8280
         }
 }

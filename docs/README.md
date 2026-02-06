@@ -21,7 +21,7 @@ Agimate is an automation platform that connects external services (marketplaces,
 
 # Run services locally
 ./gradlew :user-api:bootRun
-./gradlew :mobile-api:bootRun
+./gradlew :device-api:bootRun
 ./gradlew :connectors-api:bootRun
 ```
 
@@ -33,7 +33,7 @@ Agimate is an automation platform that connects external services (marketplaces,
 | [Deployment](deploy.md)                       | Environment variables, key generation, configuration  |
 | **Services**                                  |                                                       |
 | [user-api](services/user-api.md)              | Authentication service (OAuth2, JWT)                  |
-| [mobile-api](services/mobile-api.md)          | Mobile device API                                     |
+| [device-api](services/device-api.md)          | Device API                                     |
 | [connectors-api](services/connectors-api.md)  | External integrations service                         |
 
 ## Services Overview
@@ -41,7 +41,7 @@ Agimate is an automation platform that connects external services (marketplaces,
 | Service        | Port  | Context Path       |
 |----------------|-------|--------------------|
 | user-api       | 8080  | `/user-api/`       |
-| mobile-api     | 8080  | `/mobile-api`      |
+| device-api     | 8080  | `/device-api`      |
 | connectors-api | 8080  | `/connectors-api/` |
 
 All services expose management endpoints on port **8088**.

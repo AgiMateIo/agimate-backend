@@ -40,10 +40,10 @@ docker-compose up -d
 ```
 
 This will start:
-- PostgreSQL (port 5432) with 3 databases: `am_core_db`, `am_mobile_db`, `am_connectors_db`
+- PostgreSQL (port 5432) with 3 databases: `am_core_db`, `am_device_db`, `am_connectors_db`
 - Centrifugo (ports 8000, 8001)
 - user-api (port 8080)
-- mobile-api (port 8081)
+- device-api (port 8081)
 - connectors-api (ports 8280, 8288)
 
 4. **Check service status**
@@ -59,7 +59,7 @@ docker-compose logs -f
 
 ```bash
 docker-compose build user-api
-docker-compose build mobile-api
+docker-compose build device-api
 docker-compose build connectors-api
 ```
 
@@ -79,7 +79,7 @@ docker-compose logs -f
 
 # Specific service
 docker-compose logs -f user-api
-docker-compose logs -f mobile-api
+docker-compose logs -f device-api
 docker-compose logs -f connectors-api
 ```
 
@@ -100,7 +100,7 @@ Set the contents of these files as environment variables in `../.env`.
 
 ### Mobile API (port 8081)
 - Health: http://localhost:8188/actuator/health
-- Info: http://localhost:8081/mobile-api/
+- Info: http://localhost:8081/device-api/
 
 ### Connectors API (port 8280)
 - Health: http://localhost:8288/actuator/health
@@ -108,7 +108,7 @@ Set the contents of these files as environment variables in `../.env`.
 - Swagger UI (local profile): http://localhost:8280/connectors-api/docs/ui
 
 ### PostgreSQL (port 5432)
-- Databases: `am_core_db`, `am_mobile_db`, `am_connectors_db`
+- Databases: `am_core_db`, `am_device_db`, `am_connectors_db`
 - User: `agimate`
 - Password: `agimate_dev_password` (change in production)
 
@@ -122,7 +122,7 @@ Connect to PostgreSQL:
 
 ```bash
 docker-compose exec postgres psql -U agimate -d am_core_db
-docker-compose exec postgres psql -U agimate -d am_mobile_db
+docker-compose exec postgres psql -U agimate -d am_device_db
 docker-compose exec postgres psql -U agimate -d am_connectors_db
 ```
 
@@ -147,7 +147,7 @@ docker-compose up -d
 
 ```bash
 docker-compose logs user-api
-docker-compose logs mobile-api
+docker-compose logs device-api
 docker-compose logs connectors-api
 docker-compose logs postgres
 docker-compose logs centrifugo
@@ -157,7 +157,7 @@ docker-compose logs centrifugo
 
 ```bash
 docker-compose exec user-api sh
-docker-compose exec mobile-api sh
+docker-compose exec device-api sh
 docker-compose exec connectors-api sh
 docker-compose exec postgres sh
 ```
@@ -190,7 +190,7 @@ backend/
 │   └── generate-jwt-keys.sh         # JWT key generation script
 ├── user-api/
 │   └── Dockerfile              # User API container definition
-├── mobile-api/
+├── device-api/
 │   └── Dockerfile              # Mobile API container definition
 └── connectors-api/
     └── Dockerfile              # Connectors API container definition

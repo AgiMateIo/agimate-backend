@@ -8,9 +8,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.mobile.v1.MobileApiServiceGrpc;
-import ru.agimate.mobile.v1.StreamTriggerEventsRequest;
-import ru.agimate.mobile.v1.TriggerEvent;
+import ru.agimate.device.v1.DeviceApiServiceGrpc;
+import ru.agimate.device.v1.StreamTriggerEventsRequest;
+import ru.agimate.device.v1.TriggerEvent;
 
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class TriggerEventStreamListener {
 
-    private final MobileApiServiceGrpc.MobileApiServiceStub mobileApiAsyncStub;
+    private final DeviceApiServiceGrpc.DeviceApiServiceStub deviceApiAsyncStub;
     private final WebhookDeliveryService webhookDeliveryService;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -48,7 +48,7 @@ public class TriggerEventStreamListener {
             return;
         }
 
-        log.info("Connecting to trigger event stream from mobile-api");
+        log.info("Connecting to trigger event stream from device-api");
 
         try {
             StreamTriggerEventsRequest request = StreamTriggerEventsRequest.newBuilder().build();
@@ -84,7 +84,7 @@ public class TriggerEventStreamListener {
                 }
             };
 
-            mobileApiAsyncStub.streamTriggerEvents(request, currentStreamObserver);
+            deviceApiAsyncStub.streamTriggerEvents(request, currentStreamObserver);
             log.info("Trigger event stream established successfully");
 
         } catch (Exception e) {
@@ -122,7 +122,7 @@ public class TriggerEventStreamListener {
             webhookDeliveryService.handleEvent(
                     event.getEventName(),
                     userPubId,
-                    null,  // credentialId - not applicable for mobile events
+                    null,  // credentialId - not applicable for device events
                     deviceId,
                     params
             );
