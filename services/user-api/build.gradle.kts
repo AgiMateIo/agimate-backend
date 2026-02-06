@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "ru.agimate.userapi"
-version = findProperty("buildVersion") ?: "0.0.1"
+version = findProperty("buildVersion") ?: "0.1.0"
 
 java {
     toolchain {
