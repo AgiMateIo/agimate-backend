@@ -22,6 +22,9 @@ public class RefreshTokenService {
     @Value("${app.oauth.cookie-secure:false}")
     private boolean cookieSecure;
 
+    @Value("${app.oauth.cookie-domain}")
+    private String cookieDomain;
+
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
 
     // Blacklist to track used refresh tokens to prevent replay attacks
@@ -57,7 +60,8 @@ public class RefreshTokenService {
                 refreshToken,
                 "/",
                 jwtProperties.getRefreshExpiration(),
-                cookieSecure
+                cookieSecure,
+                cookieDomain
         );
     }
 

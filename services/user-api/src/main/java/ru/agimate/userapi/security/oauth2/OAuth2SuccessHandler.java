@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -35,6 +36,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final RefreshTokenService refreshTokenService;
     private final UserOAuthAccountRepository userOAuthAccountRepository;
     private final UserService userService;
+
+    @Value("${app.oauth.frontend-redirect-url}")
+    private String frontendRedirectUrl;
 
 
     @Override
@@ -72,7 +76,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         log.info("created a new JWT token: {}", refreshToken);
 
         refreshTokenService.setHttpOnlyRefreshTokenCookie(response, refreshToken);
-        response.sendRedirect("http://www.agimate.lc:8000/login#" + refreshTokenId);
+        response.sendRedirect(frontendRedirectUrl + "#" + refreshTokenId);
         response.getWriter().flush();
     }
 

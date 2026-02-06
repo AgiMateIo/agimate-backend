@@ -15,10 +15,10 @@ public class CookieUtils {
      * @param maxAge The maximum age of the cookie in seconds
      * @param isSecure Whether the cookie should only be sent over HTTPS
      */
-    public static void setHttpOnlyCookie(HttpServletResponse response, String name, String value, 
-                                         String path, int maxAge, boolean isSecure) {
+    public static void setHttpOnlyCookie(HttpServletResponse response, String name, String value,
+                                         String path, int maxAge, boolean isSecure, String domain) {
         Cookie cookie = new Cookie(name, value);
-        cookie.setDomain("agimate.lc");
+        cookie.setDomain(domain);
         cookie.setHttpOnly(true);
         cookie.setPath(path);
         cookie.setMaxAge(maxAge);
