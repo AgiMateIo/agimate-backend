@@ -38,6 +38,16 @@ echo "  Service:  ${SERVICE}"
 echo "  Image:    ${IMAGE}:${TAG}"
 echo "══════════════════════════════════════════"
 
+# ── Cleanup old images (older than 3h) ───────────────────
+echo "▶ Cleaning up old ${IMAGE} images (older than 3h)..."
+THRESHOLD=$(date -d '3 hours ago' +%s)
+docker images "${IMAGE}" --format '{{.ID}} {{.CreatedAt}}' | sort -u | while read -r ID REST; do
+  CREATED=$(date -d "$(echo "$REST" | sed 's/ [A-Z]*$//')" +%s 2>/dev/null || echo 0)
+  if [ "$CREATED" -lt "$THRESHOLD" ]; then
+    docker rmi -f "$ID" 2>/dev/null || true
+  fi
+done
+
 # ── Docker build ─────────────────────────────────────────
 echo "▶ Building Docker image..."
 docker build \
