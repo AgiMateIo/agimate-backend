@@ -1,0 +1,55 @@
+# Build artifacts
+buildinfo/
+user-api/build/
+mobile-api/build/
+connectors-api/build/
+libs/common/build/
+**/target/
+**/.gradle/
+**/.idea/
+**/.qwen/
+**/.claude/
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# IDE
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+
+# Documentation
+*.md
+!README.md
+
+# Test files
+**/test/
+**/*Test.java
+**/*Tests.java
+
+# Local env files
+.env
+.env.local
+*.env
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Docker files (not needed in image)
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Logs
+*.log
+logs/

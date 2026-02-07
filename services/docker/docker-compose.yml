@@ -56,8 +56,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_core_db
       SPRING_DATASOURCE_USERNAME: agimate
       SPRING_DATASOURCE_PASSWORD: agimate_dev_password
-      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
-      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_PRIVATEKEY: ${JWT_PRIVATEKEY}
+      JWT_PUBLICKEY: ${JWT_PUBLICKEY}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
     ports:
@@ -84,9 +84,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_device_db
       SPRING_DATASOURCE_USERNAME: agimate
       SPRING_DATASOURCE_PASSWORD: agimate_dev_password
-      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_PUBLICKEY: ${JWT_PUBLICKEY}
       CENTRIFUGO_URL: http://centrifugo:8000
-      CENTRIFUGO_API_KEY: ${CENTRIFUGO_API_KEY:-dev_api_key}
+      CENTRIFUGO_APIKEY: ${CENTRIFUGO_APIKEY:-dev_api_key}
     ports:
       - "8081:8080"
     networks:
@@ -111,7 +111,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_connectors_db
       SPRING_DATASOURCE_USERNAME: agimate
       SPRING_DATASOURCE_PASSWORD: agimate_dev_password
-      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
+      JWT_PUBLICKEY: ${JWT_PUBLICKEY}
       CONNECTORS_ENCRYPTION_KEY: ${CONNECTORS_ENCRYPTION_KEY}
       DEVICE_API_GRPC_HOST: device-api
       DEVICE_API_GRPC_PORT: 9090
