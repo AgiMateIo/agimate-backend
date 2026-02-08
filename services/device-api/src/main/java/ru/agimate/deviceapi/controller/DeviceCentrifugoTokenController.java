@@ -23,7 +23,7 @@ import ru.agimate.deviceapi.service.DeviceAuthKeyService;
 @RequestMapping(DeviceCentrifugoTokenController.PATH)
 public class DeviceCentrifugoTokenController {
 
-    public static final String PATH = "/device/centrifugo";
+    public static final String PATH = "/centrifugo";
 
     private static final long TOKEN_EXPIRATION_SECONDS = 3600; // 1 hour
 

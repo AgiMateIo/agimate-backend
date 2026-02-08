@@ -24,7 +24,7 @@ import ru.agimate.deviceapi.service.dto.DeviceTriggerEvent;
 @RequiredArgsConstructor
 public class DeviceTriggerController {
 
-    public static final String PATH = "/device/trigger";
+    public static final String PATH = "/trigger";
 
     private final TriggerEventPublisher triggerEventPublisher;
     private final DeviceAuthKeyService deviceAuthKeyService;

@@ -6,10 +6,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.deviceapi.controller.dto.request.LinkDeviceRequest;
+import ru.agimate.deviceapi.controller.dto.response.UserDeviceResponse;
 import ru.agimate.deviceapi.database.entities.Device;
 import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import ru.agimate.deviceapi.database.repositories.DeviceAuthKeyRepository;
@@ -144,6 +146,28 @@ public class DeviceAuthKeyService {
         deviceAuthKeyRepository.softDelete(oldKey.getId(), LocalDateTime.now());
 
         return createKey(userPubId, oldKey.getName(), oldKey.getDescription());
+    }
+
+    public List<UserDeviceResponse> getUserDevices(UUID userPubId) {
+        return deviceAuthKeyRepository.findByUserPubIdNotDeletedWithDevice(userPubId).stream()
+                .map(UserDeviceResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public void disconnectDevice(UUID connectionId, UUID userPubId) {
+        DeviceAuthKey authKey = deviceAuthKeyRepository.findByPubIdNotDeleted(connectionId)
+                .filter(k -> k.getUserPubId().equals(userPubId))
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found"));
+
+        Device device = authKey.getDevice();
+        if (device == null) {
+            throw new BadRequestStatusException("No device connected to this auth key");
+        }
+
+        device.setDeviceAuthKey(null);
+        deviceRepository.save(device);
+        log.info("Disconnected device {} from auth key {}", device.getDeviceId(), connectionId);
     }
 
     public DeviceAuthKey getDeviceAuthKey() {

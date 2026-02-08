@@ -66,9 +66,4 @@ public class DeviceAuthenticationFilter extends OncePerRequestFilter {
         return request.getRemoteAddr();
     }
 
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String servletPath = request.getServletPath();
-        return !servletPath.startsWith("/device");
-    }
 }

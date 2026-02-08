@@ -31,3 +31,10 @@ http://api.agimate.lc:8000 {
 		reverse_proxy localhost:9000
 	}
 }
+
+
+
+http://centrifugo.agimate.lc:8000 {
+	log
+	reverse_proxy localhost:9000
+}

@@ -14,6 +14,7 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -88,12 +89,15 @@ public class SecurityConfig {
 
     /**
      * JWT-protected endpoints SecurityFilterChain for dashboard/management operations.
-     * Handles /manage/devices/** with JWT authentication.
+     * Handles /manage/device-keys/** and /manage/devices/** with JWT authentication.
      */
     @Bean
     @Order(1)
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher(ManageDevicesController.PATH + "/**");
+        http.securityMatcher(
+                ManageDeviceKeysController.PATH + "/**",
+                ManageDevicesController.PATH + "/**"
+        );
 
         applyCommonSecurityConfig(http);
 
@@ -148,6 +152,13 @@ public class SecurityConfig {
         );
 
         return http.build();
+    }
+
+    @Bean
+    public FilterRegistrationBean<DeviceAuthenticationFilter> disableDeviceAuthFilterAutoRegistration() {
+        FilterRegistrationBean<DeviceAuthenticationFilter> registration = new FilterRegistrationBean<>(deviceAuthenticationFilter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     /**

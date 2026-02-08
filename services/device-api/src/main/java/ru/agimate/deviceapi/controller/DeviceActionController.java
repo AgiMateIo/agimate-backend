@@ -21,7 +21,7 @@ import java.util.Map;
 @RequestMapping(DeviceActionController.PATH)
 public class DeviceActionController {
 
-    public static final String PATH = "/device/actions";
+    public static final String PATH = "/actions";
 
     private final CentrifugoService centrifugoService;
 

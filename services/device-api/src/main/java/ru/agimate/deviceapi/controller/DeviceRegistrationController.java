@@ -5,10 +5,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.deviceapi.controller.dto.request.LinkDeviceRequest;
@@ -23,7 +20,7 @@ import ru.agimate.deviceapi.service.DeviceAuthKeyService;
 @RequiredArgsConstructor
 public class DeviceRegistrationController {
 
-    public static final String PATH = "/device/registration";
+    public static final String PATH = "/registration";
 
     private final DeviceAuthKeyService deviceAuthKeyService;
 
@@ -45,7 +42,7 @@ public class DeviceRegistrationController {
         var device = deviceAuthKeyService.linkDevice(authentication, linkDeviceRequest);
 
         if (device == null) {
-            throw new ConflictStatusException("Can't link this device");
+            throw new ConflictStatusException("Can't link this device. This device key is probably already in use");
         }
 
         return SuccessResponse.ok("success");

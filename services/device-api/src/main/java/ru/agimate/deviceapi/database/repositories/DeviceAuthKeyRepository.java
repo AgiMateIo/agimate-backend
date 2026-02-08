@@ -26,6 +26,9 @@ public interface DeviceAuthKeyRepository extends JpaRepository<DeviceAuthKey, Lo
     @Query("SELECT d FROM DeviceAuthKey d WHERE d.userPubId = :userPubId AND d.deletedAt IS NULL ORDER BY d.createdAt DESC")
     List<DeviceAuthKey> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
 
+    @Query("SELECT d FROM DeviceAuthKey d LEFT JOIN FETCH d.device WHERE d.userPubId = :userPubId AND d.deletedAt IS NULL ORDER BY d.createdAt DESC")
+    List<DeviceAuthKey> findByUserPubIdNotDeletedWithDevice(@Param("userPubId") UUID userPubId);
+
     @Query("SELECT d FROM DeviceAuthKey d WHERE d.keyId = :keyId AND d.deletedAt IS NULL AND d.enabled = true")
     Optional<DeviceAuthKey> findActiveKeyByKeyId(@Param("keyId") String keyId);
 
