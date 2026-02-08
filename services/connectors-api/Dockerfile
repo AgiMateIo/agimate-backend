@@ -46,7 +46,6 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
 
 # Run the application with virtual threads enabled
 ENTRYPOINT ["java", \
-    "-XX:+UseZGC", \
     "-XX:MaxRAMPercentage=75.0", \
     "-Djava.security.egd=file:/dev/./urandom", \
     "-jar", \

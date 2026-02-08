@@ -22,7 +22,6 @@ dependencies {
     implementation(project(":libs:common"))
 
     // Spring Boot Starters
-    implementation("org.springframework.boot:spring-boot-starter")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
@@ -43,11 +42,6 @@ dependencies {
     implementation("io.jsonwebtoken:jjwt-api")
     implementation("io.jsonwebtoken:jjwt-impl")
     implementation("io.jsonwebtoken:jjwt-jackson")
-
-    // Additional Dependencies
-    implementation("org.jetbrains:annotations")
-    implementation("net.logstash.logback:logstash-logback-encoder")
-    implementation("commons-io:commons-io")
 
     // Lombok for code generation
     compileOnly("org.projectlombok:lombok")

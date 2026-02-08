@@ -1,0 +1,15 @@
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+
+logging:
+  level:
+    root: warn
+    ru.agimate: info
+
+server:
+  tomcat:
+    mbeanregistry:
+      enabled: false
