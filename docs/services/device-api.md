@@ -31,24 +31,31 @@ Device API for device registration, action delivery, and trigger submission.
 
 ### Device Endpoints (Device Auth)
 
-| Method | Path                                   | Description                             |
-|--------|----------------------------------------|-----------------------------------------|
-| GET    | `/device-api/device/actions/get`       | Get pending actions for device          |
-| GET    | `/device-api/device/actions/test`      | Test endpoint (publishes to Centrifugo) |
-| POST   | `/device-api/device/trigger/new`       | Submit trigger from device              |
-| POST   | `/device-api/device/registration/link` | Link device to auth key                 |
-| POST   | `/device-api/device/centrifugo/token`  | Get Centrifugo subscription token       |
+| Method | Path                                  | Description                             |
+|--------|---------------------------------------|-----------------------------------------|
+| GET    | `/device-api/actions/get`             | Get pending actions for device          |
+| GET    | `/device-api/actions/test`            | Test endpoint (publishes to Centrifugo) |
+| POST   | `/device-api/trigger/new`             | Submit trigger from device              |
+| POST   | `/device-api/registration/link`       | Link device to auth key                 |
+| POST   | `/device-api/centrifugo/token`        | Get Centrifugo subscription token       |
 
 ### Device Management (JWT)
 
-| Method | Path                                                   | Description                   |
-|--------|--------------------------------------------------------|-------------------------------|
-| GET    | `/device-api/manage/devices/`                          | List all device auth keys     |
-| POST   | `/device-api/manage/devices/`                          | Create new device auth key    |
-| GET    | `/device-api/manage/devices/{connectionId}`            | Get specific device auth key  |
-| PUT    | `/device-api/manage/devices/{connectionId}`            | Update device auth key        |
-| DELETE | `/device-api/manage/devices/{connectionId}`            | Delete device auth key (soft) |
-| POST   | `/device-api/manage/devices/{connectionId}/regenerate` | Regenerate auth key           |
+| Method | Path                                                       | Description                   |
+|--------|----------------------------------------------------------  |-------------------------------|
+| GET    | `/device-api/manage/devices/`                              | List user devices             |
+| POST   | `/device-api/manage/devices/{connectionId}/disconnect`     | Disconnect device             |
+
+### Device Auth Key Management (JWT)
+
+| Method | Path                                                       | Description                   |
+|--------|----------------------------------------------------------  |-------------------------------|
+| GET    | `/device-api/manage/device-keys/`                          | List all device auth keys     |
+| POST   | `/device-api/manage/device-keys/`                          | Create new device auth key    |
+| GET    | `/device-api/manage/device-keys/{connectionId}`            | Get specific device auth key  |
+| PUT    | `/device-api/manage/device-keys/{connectionId}`            | Update device auth key        |
+| DELETE | `/device-api/manage/device-keys/{connectionId}`            | Delete device auth key (soft) |
+| POST   | `/device-api/manage/device-keys/{connectionId}/regenerate` | Regenerate auth key           |
 
 ### Public
 

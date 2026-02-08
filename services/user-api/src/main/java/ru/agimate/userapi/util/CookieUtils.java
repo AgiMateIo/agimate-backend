@@ -28,14 +28,22 @@ public class CookieUtils {
 
     /**
      * Deletes a cookie by name
-     * 
+     *
      * @param response The HTTP response to add the cookie to
      * @param name The name of the cookie to delete
      */
     public static void deleteCookie(HttpServletResponse response, String name) {
         Cookie cookie = new Cookie(name, "");
         cookie.setPath("/");
-        cookie.setMaxAge(0); // Expire the cookie
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+    }
+
+    public static void deleteCookie(HttpServletResponse response, String name, String domain) {
+        Cookie cookie = new Cookie(name, "");
+        cookie.setPath("/");
+        cookie.setDomain(domain);
+        cookie.setMaxAge(0);
         response.addCookie(cookie);
     }
 }

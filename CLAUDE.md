@@ -52,6 +52,10 @@ See `/docs/` for:
 - **Response Wrappers**: Wrap responses with `SuccessResponse<T>`, errors with `ErrorResponse`
 - **Entity IDs**: Use `UUIDUtils.generateUuidV8()` for public-facing identifiers
 - **Endpoint Paths**: If endpoint returns a list, path should end with `/`
+- **Migrations**: `updated_at` always NOT NULL + DEFAULT CURRENT_TIMESTAMP (matches BaseEntity)
+- **Migrations**: Don't create explicit indexes on columns with UNIQUE constraint (PostgreSQL creates one automatically)
+- **Migrations**: Composite business keys should be UNIQUE constraints, not just indexes
+- **JPA Entities**: Duplicate unique constraints in `@Table(uniqueConstraints=...)` on the entity
 
 ## Adding New Connector
 

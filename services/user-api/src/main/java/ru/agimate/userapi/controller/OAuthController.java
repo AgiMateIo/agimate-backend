@@ -16,6 +16,7 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.common.security.jwt.JwtService;
+import ru.agimate.userapi.config.OAuthProperties;
 import ru.agimate.userapi.controller.dto.request.auth.LogoutRequest;
 import ru.agimate.userapi.controller.dto.request.auth.RefreshRequest;
 import ru.agimate.userapi.controller.dto.response.auth.AuthResponse;
@@ -34,6 +35,7 @@ public class OAuthController {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final UserService userService;
+    private final OAuthProperties oAuthProperties;
 
     @Operation(
             summary = "Refresh authentication tokens",
@@ -53,6 +55,8 @@ public class OAuthController {
             @RequestBody
             RefreshRequest refreshRequest
     ) {
+        OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRequest(request);
+
         String refreshTokenValue = refreshTokenService.getRefreshTokenFromCookie(request);
 
         if (refreshTokenValue == null || refreshTokenValue.isEmpty()) {
@@ -65,7 +69,7 @@ public class OAuthController {
 
         var wrappedJwtOptional = jwtService.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
         if (wrappedJwtOptional.isEmpty()) {
-            refreshTokenService.deleteRefreshTokenCookie(response);
+            refreshTokenService.deleteRefreshTokenCookie(response, resolved.cookieDomain());
             throw new ForbiddenStatusException("Invalid or expired refresh token");
         }
 
@@ -81,7 +85,8 @@ public class OAuthController {
 
         refreshTokenService.markTokenAsUsed(refreshTokenValue);
 
-        refreshTokenService.setHttpOnlyRefreshTokenCookie(response, newRefreshToken);
+        refreshTokenService.setHttpOnlyRefreshTokenCookie(response, newRefreshToken,
+                resolved.cookieDomain(), resolved.cookieSecure());
 
         AuthResponse authResponse = new AuthResponse(newAccessToken, newRefreshTokenId);
 
@@ -96,6 +101,8 @@ public class OAuthController {
             @RequestBody
             LogoutRequest refreshRequest
     ) {
+        OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRequest(request);
+
         String refreshTokenValue = refreshTokenService.getRefreshTokenFromCookie(request);
 
         if (refreshTokenValue == null || refreshTokenValue.isEmpty()) {
@@ -104,12 +111,12 @@ public class OAuthController {
 
         var wrappedJwtOptional = jwtService.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
         if (wrappedJwtOptional.isEmpty()) {
-            refreshTokenService.deleteRefreshTokenCookie(response);
+            refreshTokenService.deleteRefreshTokenCookie(response, resolved.cookieDomain());
             throw new ForbiddenStatusException("Invalid or expired refresh token");
         }
 
         refreshTokenService.markTokenAsUsed(refreshTokenValue);
-        refreshTokenService.deleteRefreshTokenCookie(response);
+        refreshTokenService.deleteRefreshTokenCookie(response, resolved.cookieDomain());
 
         return ResponseEntity.ok(SuccessResponse.ok("success"));
     }

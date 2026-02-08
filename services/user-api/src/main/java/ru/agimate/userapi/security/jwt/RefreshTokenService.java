@@ -3,7 +3,6 @@ package ru.agimate.userapi.security.jwt;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.security.jwt.JwtProperties;
 import ru.agimate.userapi.util.CookieUtils;
@@ -18,12 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public class RefreshTokenService {
 
     private final JwtProperties jwtProperties;
-
-    @Value("${app.oauth.cookie-secure:false}")
-    private boolean cookieSecure;
-
-    @Value("${app.oauth.cookie-domain}")
-    private String cookieDomain;
 
     private static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
 
@@ -52,8 +45,8 @@ public class RefreshTokenService {
                 .orElse(null);
     }
 
-    public void setHttpOnlyRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
-        // Set the new refresh token as an httpOnly cookie
+    public void setHttpOnlyRefreshTokenCookie(HttpServletResponse response, String refreshToken,
+                                              String cookieDomain, boolean cookieSecure) {
         CookieUtils.setHttpOnlyCookie(
                 response,
                 REFRESH_TOKEN_COOKIE_NAME,
@@ -65,7 +58,7 @@ public class RefreshTokenService {
         );
     }
 
-    public void deleteRefreshTokenCookie(HttpServletResponse response) {
-        CookieUtils.deleteCookie(response, REFRESH_TOKEN_COOKIE_NAME);
+    public void deleteRefreshTokenCookie(HttpServletResponse response, String cookieDomain) {
+        CookieUtils.deleteCookie(response, REFRESH_TOKEN_COOKIE_NAME, cookieDomain);
     }
 }

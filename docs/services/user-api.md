@@ -20,15 +20,19 @@ Authentication service handling OAuth2 login and JWT token management.
 
 ## Environment Variables
 
-| Variable                       | Description                         |
-|--------------------------------|-------------------------------------|
-| `JWT_PRIVATE_KEY`              | ECDSA private key (Base64, PKCS#8)  |
-| `JWT_PUBLIC_KEY`               | ECDSA public key (Base64, X.509)    |
-| `GOOGLE_CLIENT_ID`             | Google OAuth2 client ID             |
-| `GOOGLE_CLIENT_SECRET`         | Google OAuth2 client secret         |
-| `YANDEX_CLIENT_ID`             | Yandex OAuth2 client ID             |
-| `YANDEX_CLIENT_SECRET`         | Yandex OAuth2 client secret         |
-| `OAUTH2_COOKIE_ENCRYPTION_KEY` | AES-256 key for OAuth2 cookies      |
+| Variable                          | Description                                          |
+|-----------------------------------|------------------------------------------------------|
+| `JWT_PRIVATE_KEY`                 | ECDSA private key (Base64, PKCS#8)                   |
+| `JWT_PUBLIC_KEY`                  | ECDSA public key (Base64, X.509)                     |
+| `GOOGLE_CLIENT_ID`                | Google OAuth2 client ID                              |
+| `GOOGLE_CLIENT_SECRET`            | Google OAuth2 client secret                          |
+| `YANDEX_CLIENT_ID`                | Yandex OAuth2 client ID                              |
+| `YANDEX_CLIENT_SECRET`            | Yandex OAuth2 client secret                          |
+| `OAUTH2_COOKIE_ENCRYPTION_KEY`    | AES-256 key for OAuth2 cookies                       |
+| `APP_OAUTH_COOKIE_DOMAIN`         | Default cookie domain for refresh tokens             |
+| `APP_OAUTH_COOKIE_SECURE`         | Set to `true` in production (HTTPS)                  |
+| `APP_OAUTH_FRONTEND_REDIRECT_URL` | Default frontend redirect URL after OAuth2 login     |
+| `APP_OAUTH_ALLOWED_REDIRECT_URLS` | Comma-separated whitelist for multi-domain redirects |
 
 ## API Endpoints
 
@@ -53,6 +57,25 @@ Authentication service handling OAuth2 login and JWT token management.
 |--------|-------------------------|-----------------------------|
 | GET    | `/user-api/`            | Application info and uptime |
 | GET    | `/user-api/favicon.ico` | Empty favicon               |
+
+## Multi-domain OAuth2 Redirect
+
+Supports OAuth2 login from multiple frontend domains (e.g. `agimate.ru` and `agimate.io`).
+
+**How it works:**
+1. Frontend appends `?redirect_to=https://www.agimate.io/login` to the OAuth2 authorization URL
+2. The value is saved in a temporary `oauth2_redirect_to` cookie (15 min TTL)
+3. After successful OAuth2 authentication, the handler reads the cookie and validates the URL against `allowed-redirect-urls`
+4. If valid — redirects to the specified URL with the correct cookie domain. If not — falls back to the default `frontend-redirect-url`
+
+For `refresh` and `logout` endpoints, the cookie domain is resolved from the request's `Host` header by matching against `allowed-redirect-urls`.
+
+**Production example:**
+```
+APP_OAUTH_ALLOWED_REDIRECT_URLS=https://www.agimate.ru/login,https://www.agimate.io/login
+APP_OAUTH_FRONTEND_REDIRECT_URL=https://www.agimate.ru/login
+APP_OAUTH_COOKIE_DOMAIN=agimate.ru
+```
 
 ## Database Tables
 

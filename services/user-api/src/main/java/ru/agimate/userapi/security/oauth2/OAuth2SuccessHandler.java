@@ -1,10 +1,10 @@
 package ru.agimate.userapi.security.oauth2;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -12,17 +12,19 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.ErrorResponse;
+import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.common.security.jwt.JwtService;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.userapi.config.OAuthProperties;
 import ru.agimate.userapi.database.entities.OAuthProviderType;
 import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.entities.UserOAuthAccount;
 import ru.agimate.userapi.database.repositories.UserOAuthAccountRepository;
-import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
 import ru.agimate.userapi.service.UserService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,9 +38,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final RefreshTokenService refreshTokenService;
     private final UserOAuthAccountRepository userOAuthAccountRepository;
     private final UserService userService;
-
-    @Value("${app.oauth.frontend-redirect-url}")
-    private String frontendRedirectUrl;
+    private final OAuthProperties oAuthProperties;
 
 
     @Override
@@ -50,7 +50,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 return;
             }
 
-            redirectToFrontend(response, authentication);
+            redirectToFrontend(request, response, authentication);
         } catch (Exception ex) {
             logger.error("Error in OAuth2SuccessHandler.onAuthenticationSuccess", ex);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
@@ -61,7 +61,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     }
 
 
-    private void redirectToFrontend(HttpServletResponse response, Authentication authentication) throws IOException {
+    private void redirectToFrontend(HttpServletRequest request, HttpServletResponse response,
+                                    Authentication authentication) throws IOException {
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String registrationId = getRegistrationId(authentication);
 
@@ -75,9 +76,25 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         log.info("created a new JWT token: {}", refreshTokenId);
         log.info("created a new JWT token: {}", refreshToken);
 
-        refreshTokenService.setHttpOnlyRefreshTokenCookie(response, refreshToken);
-        response.sendRedirect(frontendRedirectUrl + "#" + refreshTokenId);
+        String redirectToUrl = getRedirectToCookieValue(request);
+        OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRedirectUrl(redirectToUrl);
+
+        refreshTokenService.setHttpOnlyRefreshTokenCookie(response, refreshToken,
+                resolved.cookieDomain(), resolved.cookieSecure());
+        response.sendRedirect(resolved.frontendRedirectUrl() + "#" + refreshTokenId);
         response.getWriter().flush();
+    }
+
+    private String getRedirectToCookieValue(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
+        return Arrays.stream(cookies)
+                .filter(c -> CookieOAuth2AuthorizationRequestRepository.OAUTH2_REDIRECT_TO_COOKIE_NAME.equals(c.getName()))
+                .findFirst()
+                .map(Cookie::getValue)
+                .orElse(null);
     }
 
     private String getRegistrationId(Authentication authentication) {

@@ -24,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 public class CookieOAuth2AuthorizationRequestRepository implements AuthorizationRequestRepository<OAuth2AuthorizationRequest> {
 
     public static final String OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME = "oauth2_auth_request";
+    public static final String OAUTH2_REDIRECT_TO_COOKIE_NAME = "oauth2_redirect_to";
     public static final int COOKIE_EXPIRE_SECONDS = 900; // 15 minutes
 
     private final SecretKey encryptionKey;
@@ -54,6 +55,11 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
 
         String cookieValue = serialize(authorizationRequest);
         addCookie(response, OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME, cookieValue, COOKIE_EXPIRE_SECONDS);
+
+        String redirectTo = request.getParameter("redirect_to");
+        if (redirectTo != null && !redirectTo.isBlank()) {
+            addCookie(response, OAUTH2_REDIRECT_TO_COOKIE_NAME, redirectTo, COOKIE_EXPIRE_SECONDS);
+        }
     }
 
     @Override
@@ -63,6 +69,7 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         if (authorizationRequest != null) {
             deleteCookie(request, response, OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME);
         }
+        deleteCookie(request, response, OAUTH2_REDIRECT_TO_COOKIE_NAME);
         return authorizationRequest;
     }
 
@@ -159,10 +166,10 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         if (cookies != null) {
             for (Cookie cookie : cookies) {
                 if (name.equals(cookie.getName())) {
-                    cookie.setValue("");
-                    cookie.setPath("/");
-                    cookie.setMaxAge(0);
-                    response.addCookie(cookie);
+                    Cookie deletionCookie = new Cookie(name, "");
+                    deletionCookie.setPath("/");
+                    deletionCookie.setMaxAge(0);
+                    response.addCookie(deletionCookie);
                 }
             }
         }

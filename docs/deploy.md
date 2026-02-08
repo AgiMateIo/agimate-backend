@@ -11,13 +11,17 @@
 
 ### OAuth2 (user-api)
 
-| Variable                       | Description                                       |
-|--------------------------------|---------------------------------------------------|
-| `GOOGLE_CLIENT_ID`             | Google OAuth2 client ID                           |
-| `GOOGLE_CLIENT_SECRET`         | Google OAuth2 client secret                       |
-| `YANDEX_CLIENT_ID`             | Yandex OAuth2 client ID                           |
-| `YANDEX_CLIENT_SECRET`         | Yandex OAuth2 client secret                       |
-| `OAUTH2_COOKIE_ENCRYPTION_KEY` | AES-256 key for OAuth2 cookies (Base64, 32 bytes) |
+| Variable                          | Description                                          |
+|-----------------------------------|------------------------------------------------------|
+| `GOOGLE_CLIENT_ID`                | Google OAuth2 client ID                              |
+| `GOOGLE_CLIENT_SECRET`            | Google OAuth2 client secret                          |
+| `YANDEX_CLIENT_ID`                | Yandex OAuth2 client ID                              |
+| `YANDEX_CLIENT_SECRET`            | Yandex OAuth2 client secret                          |
+| `OAUTH2_COOKIE_ENCRYPTION_KEY`    | AES-256 key for OAuth2 cookies (Base64, 32 bytes)    |
+| `APP_OAUTH_COOKIE_DOMAIN`         | Default cookie domain for refresh tokens             |
+| `APP_OAUTH_COOKIE_SECURE`         | `true` for production (HTTPS)                        |
+| `APP_OAUTH_FRONTEND_REDIRECT_URL` | Default frontend redirect URL after OAuth2 login     |
+| `APP_OAUTH_ALLOWED_REDIRECT_URLS` | Comma-separated whitelist for multi-domain redirects |
 
 ### Connectors (connectors-api)
 
