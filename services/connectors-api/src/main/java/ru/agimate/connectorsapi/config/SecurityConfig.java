@@ -97,8 +97,8 @@ public class SecurityConfig {
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
                 ConnectorsManageController.PATH + "/**",
-                CredentialManageController.PATH + "/**",
-                ConnectorsApiKeyManageController.PATH + "/**",
+                ConnectorCredentialManageController.PATH + "/**",
+                ServiceApiKeyManageController.PATH + "/**",
                 WebhookRegistrationManageController.PATH + "/**",
                 EventDescriptionManageController.PATH + "/**"
         );

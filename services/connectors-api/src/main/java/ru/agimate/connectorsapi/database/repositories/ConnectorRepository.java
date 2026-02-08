@@ -22,7 +22,7 @@ public interface ConnectorRepository extends JpaRepository<Connector, Long> {
 
     @Query("""
         SELECT DISTINCT c FROM Connector c
-        JOIN Credential cr ON cr.connector = c
+        JOIN ConnectorCredential cr ON cr.connector = c
         WHERE c.enabled = true
           AND cr.userPubId = :userPubId
           AND cr.deletedAt IS NULL

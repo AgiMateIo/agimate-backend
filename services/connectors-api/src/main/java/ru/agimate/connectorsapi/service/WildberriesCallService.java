@@ -15,8 +15,8 @@ import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.Wildbe
 import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.WildberriesGetCardsResponse;
 import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.WildberriesGetOrdersRequest;
 import ru.agimate.connectorsapi.controller.api.connectors.wildberries.dto.WildberriesGetOrdersResponse;
-import ru.agimate.connectorsapi.database.entities.Credential;
-import ru.agimate.connectorsapi.database.repositories.CredentialRepository;
+import ru.agimate.connectorsapi.database.entities.ConnectorCredential;
+import ru.agimate.connectorsapi.database.repositories.ConnectorCredentialRepository;
 
 import java.util.List;
 import java.util.Map;
@@ -30,8 +30,8 @@ public class WildberriesCallService {
 
     private static final String CONNECTOR_CODE = "wildberries";
 
-    private final CredentialRepository credentialRepository;
-    private final CredentialService credentialService;
+    private final ConnectorCredentialRepository connectorCredentialRepository;
+    private final ConnectorCredentialService connectorCredentialService;
     private final List<ConnectorClient> connectorClients;
     private final ObjectMapper objectMapper = JsonUtils.MAPPER;
 
@@ -84,7 +84,7 @@ public class WildberriesCallService {
         var apiKeyUserPubId = SecurityUtils.getApiKeyUserPubId();
 
         // Get and validate credential
-        Credential credential = credentialRepository.findByPubIdAndUserPubIdNotDeleted(credentialId, apiKeyUserPubId)
+        ConnectorCredential credential = connectorCredentialRepository.findByPubIdAndUserPubIdNotDeleted(credentialId, apiKeyUserPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Credential not found or access denied"));
 
         if (!credential.getConnector().getCode().equalsIgnoreCase(CONNECTOR_CODE)) {
@@ -102,7 +102,7 @@ public class WildberriesCallService {
                 .orElseThrow(() -> new NotFoundStatusException("No client implementation for connector: " + CONNECTOR_CODE));
 
         // Get decrypted credentials
-        Map<String, String> credentials = credentialService.getDecryptedCredentialData(credentialId);
+        Map<String, String> credentials = connectorCredentialService.getDecryptedCredentialData(credentialId);
 
         // Execute call
         long startTime = System.currentTimeMillis();
@@ -111,7 +111,7 @@ public class WildberriesCallService {
             long duration = System.currentTimeMillis() - startTime;
 
             // Update last used
-            credentialService.updateLastUsedAt(credential.getId());
+            connectorCredentialService.updateLastUsedAt(credential.getId());
 
             log.info("Successfully called {}.{} in {}ms", CONNECTOR_CODE, methodName, duration);
 

@@ -13,9 +13,9 @@ import ru.agimate.connectorsapi.controller.manage.dto.request.CreateWebhookRegis
 import ru.agimate.connectorsapi.controller.manage.dto.request.UpdateWebhookRegistrationRequest;
 import ru.agimate.connectorsapi.controller.manage.dto.response.WebhookDeliveryResponse;
 import ru.agimate.connectorsapi.controller.manage.dto.response.WebhookRegistrationResponse;
-import ru.agimate.connectorsapi.database.repositories.WebhookDeliveryRepository;
-import ru.agimate.connectorsapi.database.repositories.WebhookUrlRepository;
-import ru.agimate.connectorsapi.service.WebhookUrlService;
+import ru.agimate.connectorsapi.database.repositories.WebhookLogRepository;
+import ru.agimate.connectorsapi.database.repositories.WebhookRepository;
+import ru.agimate.connectorsapi.service.WebhookService;
 
 import java.util.List;
 import java.util.UUID;
@@ -28,16 +28,16 @@ public class WebhookRegistrationManageController {
 
     public static final String PATH = "/manage/webhooks";
 
-    private final WebhookUrlService webhookUrlService;
-    private final WebhookUrlRepository webhookUrlRepository;
-    private final WebhookDeliveryRepository webhookDeliveryRepository;
+    private final WebhookService webhookService;
+    private final WebhookRepository webhookRepository;
+    private final WebhookLogRepository webhookLogRepository;
 
     @Operation(summary = "Get all webhook registrations",
             description = "Retrieve all webhook registrations for the current user")
     @GetMapping("/")
     public SuccessResponse<List<WebhookRegistrationResponse>> getAllWebhooks() {
         UUID userPubId = SecurityUtils.getCurrentUserPubId();
-        return SuccessResponse.ok(webhookUrlService.getAllByUser(userPubId));
+        return SuccessResponse.ok(webhookService.getAllByUser(userPubId));
     }
 
     @Operation(summary = "Get webhook registration details",
@@ -47,7 +47,7 @@ public class WebhookRegistrationManageController {
             @PathVariable UUID webhookId
     ) {
         UUID userPubId = SecurityUtils.getCurrentUserPubId();
-        return SuccessResponse.ok(webhookUrlService.getById(webhookId, userPubId));
+        return SuccessResponse.ok(webhookService.getById(webhookId, userPubId));
     }
 
     @Operation(summary = "Get webhook delivery history",
@@ -61,12 +61,12 @@ public class WebhookRegistrationManageController {
         UUID userPubId = SecurityUtils.getCurrentUserPubId();
 
         // Verify webhook belongs to user
-        var webhook = webhookUrlRepository.findByPubIdAndUserPubIdNotDeleted(webhookId, userPubId)
+        var webhook = webhookRepository.findByPubIdAndUserPubIdNotDeleted(webhookId, userPubId)
                 .orElseThrow(() -> new ru.agimate.common.rest.error.NotFoundStatusException("Webhook not found"));
 
         // Get deliveries
-        Page<WebhookDeliveryResponse> deliveries = webhookDeliveryRepository
-                .findByWebhookUrlId(webhook.getId(), PageRequest.of(page, size))
+        Page<WebhookDeliveryResponse> deliveries = webhookLogRepository
+                .findByWebhookId(webhook.getId(), PageRequest.of(page, size))
                 .map(WebhookDeliveryResponse::from);
 
         return SuccessResponse.ok(deliveries);
@@ -79,7 +79,7 @@ public class WebhookRegistrationManageController {
             @Valid @RequestBody CreateWebhookRegistrationRequest request
     ) {
         UUID userPubId = SecurityUtils.getCurrentUserPubId();
-        return SuccessResponse.ok(webhookUrlService.create(request, userPubId));
+        return SuccessResponse.ok(webhookService.create(request, userPubId));
     }
 
     @Operation(summary = "Update webhook registration",
@@ -90,7 +90,7 @@ public class WebhookRegistrationManageController {
             @Valid @RequestBody UpdateWebhookRegistrationRequest request
     ) {
         UUID userPubId = SecurityUtils.getCurrentUserPubId();
-        return SuccessResponse.ok(webhookUrlService.update(webhookId, request, userPubId));
+        return SuccessResponse.ok(webhookService.update(webhookId, request, userPubId));
     }
 
     @Operation(summary = "Delete webhook registration",
@@ -100,7 +100,7 @@ public class WebhookRegistrationManageController {
             @PathVariable UUID webhookId
     ) {
         UUID userPubId = SecurityUtils.getCurrentUserPubId();
-        webhookUrlService.delete(webhookId, userPubId);
+        webhookService.delete(webhookId, userPubId);
         return SuccessResponse.empty();
     }
 }

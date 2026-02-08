@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import ru.agimate.common.security.apikey.ApiKeyAuthenticationToken;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
-import ru.agimate.connectorsapi.service.ConnectorsApiKeyService;
+import ru.agimate.connectorsapi.service.ServiceApiKeyService;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +32,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private static final String API_KEY_HEADER = "X-Api-Key";
     private static final String X_FORWARDED_FOR = "X-Forwarded-For";
 
-    private final ConnectorsApiKeyService connectorsApiKeyService;
+    private final ServiceApiKeyService serviceApiKeyService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -44,12 +44,12 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(apiKey)) {
             String clientIp = getClientIp(request);
 
-            connectorsApiKeyService.validateKeyAndRecordUsage(apiKey, clientIp)
-                    .ifPresent(connectorsApiKey -> {
+            serviceApiKeyService.validateKeyAndRecordUsage(apiKey, clientIp)
+                    .ifPresent(serviceApiKey -> {
                         var authorities = List.of(new SimpleGrantedAuthority("ROLE_CONNECTOR"));
                         var principal = new ApiKeyPrincipal(
-                                connectorsApiKey.getPubId().toString(),
-                                connectorsApiKey.getUserPubId().toString()
+                                serviceApiKey.getPubId().toString(),
+                                serviceApiKey.getUserPubId().toString()
                         );
 
                         SecurityContextHolder.getContext().setAuthentication(
@@ -57,7 +57,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
                         );
 
                         log.debug("API key authenticated for connector: {} (user: {})",
-                                connectorsApiKey.getName(), connectorsApiKey.getUserPubId());
+                                serviceApiKey.getName(), serviceApiKey.getUserPubId());
                     });
         }
 

@@ -11,10 +11,10 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.SecurityUtils;
 import ru.agimate.connectorsapi.controller.api.connectors.dto.ConnectorShorInfoResponse;
-import ru.agimate.connectorsapi.controller.api.connectors.dto.CredentialShortInfoResponse;
+import ru.agimate.connectorsapi.controller.api.connectors.dto.ConnectorCredentialShortInfoResponse;
 import ru.agimate.connectorsapi.controller.api.connectors.dto.MethodInfo;
 import ru.agimate.connectorsapi.service.ConnectorService;
-import ru.agimate.connectorsapi.service.CredentialService;
+import ru.agimate.connectorsapi.service.ConnectorCredentialService;
 import ru.agimate.connectorsapi.service.OpenApiMethodExtractor;
 
 import java.util.List;
@@ -28,7 +28,7 @@ public class ConnectorsApiController {
     public static final String PATH = "/api/connectors";
 
     private final ConnectorService connectorService;
-    private final CredentialService credentialService;
+    private final ConnectorCredentialService connectorCredentialService;
     private final OpenApiMethodExtractor openApiMethodExtractor;
 
 
@@ -57,13 +57,13 @@ public class ConnectorsApiController {
             description = "Returns list of credentials configured for the specified connector"
     )
     @GetMapping("/credentials/{connectorCode}/")
-    public SuccessResponse<List<CredentialShortInfoResponse>> getAvailableCredentials(
+    public SuccessResponse<List<ConnectorCredentialShortInfoResponse>> getAvailableCredentials(
             @PathVariable String connectorCode
     ) {
         var apiKeyUserPubId = SecurityUtils.getApiKeyUserPubId();
 
-        var listOfAvailableCredentials = credentialService.getAllCredentialsByUserPubIdAndConnectorCode(apiKeyUserPubId, connectorCode)
-                .stream().map(projection -> new CredentialShortInfoResponse(
+        var listOfAvailableCredentials = connectorCredentialService.getAllCredentialsByUserPubIdAndConnectorCode(apiKeyUserPubId, connectorCode)
+                .stream().map(projection -> new ConnectorCredentialShortInfoResponse(
                         projection.getPubId(),
                         projection.getName(),
                         projection.getDescription(),

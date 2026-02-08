@@ -6,7 +6,7 @@ server:
       enabled: true
   max-http-request-header-size: 60KB
   servlet:
-    context-path: "/device-api"
+    context-path: "/device"
 
 management:
   server:

@@ -9,7 +9,11 @@ import lombok.Setter;
 import ru.agimate.common.persistence.BaseEntity;
 
 @Entity
-@Table(name = "user_oauth_accounts")
+@Table(name = "user_oauth_accounts",
+       uniqueConstraints = @UniqueConstraint(
+               name = "unq_oauth_accounts_provider_user",
+               columnNames = {"oauth_provider", "provider_user_id"}
+       ))
 @Getter
 @Setter
 @Builder

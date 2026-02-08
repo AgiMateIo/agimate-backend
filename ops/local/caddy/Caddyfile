@@ -1,21 +1,33 @@
+{
+	auto_https off
+	log {
+		output stdout
+		format console
+		level DEBUG
+	}
+}
+
 http://www.agimate.lc:8000 {
-        reverse_proxy localhost:3000
+	log
+	reverse_proxy localhost:3000
 }
 
 http://api.agimate.lc:8000 {
-        handle /user/* {
-                reverse_proxy localhost:8080
-        }
+	log
 
-        handle /device/* {
-                reverse_proxy localhost:8180
-        }
+	handle /user/* {
+		reverse_proxy localhost:8080
+	}
 
-        handle /connectors/* {
-                reverse_proxy localhost:8280
-        }
+	handle /device/* {
+		reverse_proxy localhost:8180
+	}
 
-        handle /connection/websocket {
-                reverse_proxy localhost:9000
-        }
+	handle /connectors/* {
+		reverse_proxy localhost:8280
+	}
+
+	handle /connection/websocket {
+		reverse_proxy localhost:9000
+	}
 }

@@ -1,0 +1,333 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-connectors-table" author="agimate">
+        <createTable tableName="connectors">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="code" type="TEXT">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="base_url" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="icon_url" type="TEXT"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="connectors" indexName="idx_connectors_enabled">
+            <column name="enabled"/>
+        </createIndex>
+
+        <insert tableName="connectors">
+            <column name="pub_id" valueComputed="gen_random_uuid()"/>
+            <column name="code" value="ozon"/>
+            <column name="name" value="Ozon"/>
+            <column name="description" value="Маркетплейс Ozon - интеграция с Seller API"/>
+            <column name="base_url" value="https://api-seller.ozon.ru"/>
+            <column name="enabled" valueBoolean="true"/>
+        </insert>
+
+        <insert tableName="connectors">
+            <column name="pub_id" valueComputed="gen_random_uuid()"/>
+            <column name="code" value="wildberries"/>
+            <column name="name" value="Wildberries"/>
+            <column name="description" value="Маркетплейс Wildberries - интеграция с API поставщиков"/>
+            <column name="base_url" value="https://suppliers-api.wildberries.ru"/>
+            <column name="enabled" valueBoolean="true"/>
+        </insert>
+
+        <insert tableName="connectors">
+            <column name="pub_id" valueComputed="gen_random_uuid()"/>
+            <column name="code" value="mobile"/>
+            <column name="name" value="Mobile"/>
+            <column name="description" value="Mobile API integration"/>
+            <column name="base_url" value="http://localhost:8080"/>
+            <column name="enabled" valueBoolean="true"/>
+        </insert>
+    </changeSet>
+
+    <changeSet id="create-connector-credentials-table" author="agimate">
+        <createTable tableName="connector_credentials">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="connector_id" type="BIGINT">
+                <constraints nullable="false" foreignKeyName="fk_connector_credentials_connector"
+                             references="connectors(id)"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="encrypted_data" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="encryption_iv" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_pub_id" type="UUID"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_used_at" type="TIMESTAMP"/>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="connector_credentials" indexName="idx_connector_credentials_connector_id">
+            <column name="connector_id"/>
+        </createIndex>
+
+        <createIndex tableName="connector_credentials" indexName="idx_connector_credentials_enabled_deleted">
+            <column name="enabled"/>
+            <column name="deleted_at"/>
+        </createIndex>
+
+        <createIndex tableName="connector_credentials" indexName="idx_connector_credentials_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="connector_credentials" indexName="idx_connector_credentials_user_connector">
+            <column name="user_pub_id"/>
+            <column name="connector_id"/>
+            <column name="deleted_at"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create-service-api-keys-table" author="agimate">
+        <createTable tableName="service_api_keys">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="key_hash" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="key_id" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="service_api_keys" indexName="idx_service_api_keys_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="service_api_keys" indexName="idx_service_api_keys_key_id_active">
+            <column name="key_id"/>
+            <column name="enabled"/>
+            <column name="deleted_at"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create-event-descriptions-table" author="agimate">
+        <createTable tableName="event_descriptions">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="event_type" type="TEXT">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="title" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="create-webhooks-table" author="agimate">
+        <createTable tableName="webhooks">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="url" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="auth_header" type="TEXT"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_triggered_at" type="TIMESTAMP"/>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="webhooks" indexName="idx_webhooks_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="webhooks" indexName="idx_webhooks_enabled_deleted">
+            <column name="enabled"/>
+            <column name="deleted_at"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create-webhook-events-table" author="agimate">
+        <createTable tableName="webhook_events">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="webhook_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="event_type" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="webhook_events"
+                baseColumnNames="webhook_id"
+                constraintName="fk_webhook_events_webhook"
+                referencedTableName="webhooks"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <addUniqueConstraint
+                tableName="webhook_events"
+                columnNames="webhook_id, event_type"
+                constraintName="unq_webhook_events_webhook_event"/>
+
+        <createIndex tableName="webhook_events" indexName="idx_webhook_events_user_event">
+            <column name="user_pub_id"/>
+            <column name="event_type"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create-webhook-logs-table" author="agimate">
+        <createTable tableName="webhook_logs">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="webhook_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="event_type" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="credential_id" type="UUID"/>
+            <column name="device_id" type="TEXT"/>
+            <column name="request_url" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="request_payload" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="response_status_code" type="INTEGER"/>
+            <column name="response_body" type="TEXT"/>
+            <column name="error_message" type="TEXT"/>
+            <column name="duration_ms" type="BIGINT"/>
+            <column name="triggered_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="webhook_logs"
+                baseColumnNames="webhook_id"
+                constraintName="fk_webhook_logs_webhook"
+                referencedTableName="webhooks"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <createIndex tableName="webhook_logs" indexName="idx_webhook_logs_webhook_id">
+            <column name="webhook_id"/>
+        </createIndex>
+
+        <createIndex tableName="webhook_logs" indexName="idx_webhook_logs_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="webhook_logs" indexName="idx_webhook_logs_event_type">
+            <column name="event_type"/>
+        </createIndex>
+
+        <createIndex tableName="webhook_logs" indexName="idx_webhook_logs_triggered_at">
+            <column name="triggered_at" descending="true"/>
+        </createIndex>
+
+        <createIndex tableName="webhook_logs" indexName="idx_webhook_logs_user_event_time">
+            <column name="user_pub_id"/>
+            <column name="event_type"/>
+            <column name="triggered_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

@@ -2,7 +2,7 @@ package ru.agimate.connectorsapi.controller.manage.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.connectorsapi.database.entities.WebhookDelivery;
+import ru.agimate.connectorsapi.database.entities.WebhookLog;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -34,16 +34,16 @@ public record WebhookDeliveryResponse(
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
         LocalDateTime triggeredAt
 ) {
-    public static WebhookDeliveryResponse from(WebhookDelivery delivery) {
+    public static WebhookDeliveryResponse from(WebhookLog log) {
         return new WebhookDeliveryResponse(
-                delivery.getPubId(),
-                delivery.getEventType(),
-                delivery.getRequestUrl(),
-                delivery.getResponseStatusCode(),
-                delivery.getErrorMessage(),
-                delivery.getDurationMs(),
-                delivery.isSuccess(),
-                delivery.getTriggeredAt()
+                log.getPubId(),
+                log.getEventType(),
+                log.getRequestUrl(),
+                log.getResponseStatusCode(),
+                log.getErrorMessage(),
+                log.getDurationMs(),
+                log.isSuccess(),
+                log.getTriggeredAt()
         );
     }
 }

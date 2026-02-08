@@ -22,12 +22,10 @@
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
-            <column name="updated_at" type="TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
-
-        <createIndex tableName="users" indexName="idx_users_email">
-            <column name="email"/>
-        </createIndex>
     </changeSet>
 
     <changeSet id="create-userEntity-oauth-accounts-table" author="agimate">
@@ -52,7 +50,9 @@
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
-            <column name="updated_at" type="TIMESTAMP"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
         </createTable>
 
         <addForeignKeyConstraint
@@ -67,10 +67,9 @@
             <column name="user_id"/>
         </createIndex>
 
-        <createIndex tableName="user_oauth_accounts" indexName="idx_oauth_accounts_provider_user">
-            <column name="oauth_provider"/>
-            <column name="provider_user_id"/>
-        </createIndex>
+        <addUniqueConstraint tableName="user_oauth_accounts"
+                             columnNames="oauth_provider, provider_user_id"
+                             constraintName="unq_oauth_accounts_provider_user"/>
     </changeSet>
 
 </databaseChangeLog>

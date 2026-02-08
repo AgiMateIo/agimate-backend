@@ -2,7 +2,7 @@ package ru.agimate.connectorsapi.controller.manage.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.connectorsapi.database.entities.WebhookUrl;
+import ru.agimate.connectorsapi.database.entities.Webhook;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,7 +43,7 @@ public record WebhookRegistrationResponse(
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
         LocalDateTime updatedAt
 ) {
-    public static WebhookRegistrationResponse from(WebhookUrl webhook) {
+    public static WebhookRegistrationResponse from(Webhook webhook) {
         List<String> eventTypes = webhook.getEvents().stream()
                 .map(e -> e.getEventType())
                 .sorted()

@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TriggerEventStreamListener {
 
     private final DeviceApiServiceGrpc.DeviceApiServiceStub deviceApiAsyncStub;
-    private final WebhookDeliveryService webhookDeliveryService;
+    private final WebhookLogService webhookLogService;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicBoolean shouldReconnect = new AtomicBoolean(true);
@@ -119,7 +119,7 @@ public class TriggerEventStreamListener {
             String deviceId = event.getDeviceId();
             Object params = JsonUtils.readValue(event.getDataJson(), Object.class);
 
-            webhookDeliveryService.handleEvent(
+            webhookLogService.handleEvent(
                     event.getEventName(),
                     userPubId,
                     null,  // credentialId - not applicable for device events

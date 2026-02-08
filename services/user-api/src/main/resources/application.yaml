@@ -6,7 +6,7 @@ server:
       enabled: true
   max-http-request-header-size: 60KB
   servlet:
-    context-path: "/user-api/"
+    context-path: "/user/"
     session:
       persistent: false
 

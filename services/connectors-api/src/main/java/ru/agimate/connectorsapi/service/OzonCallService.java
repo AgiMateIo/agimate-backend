@@ -14,8 +14,8 @@ import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProduc
 import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductInfoResponse;
 import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductListRequest;
 import ru.agimate.connectorsapi.controller.api.connectors.ozon.dto.OzonGetProductListResponse;
-import ru.agimate.connectorsapi.database.entities.Credential;
-import ru.agimate.connectorsapi.database.repositories.CredentialRepository;
+import ru.agimate.connectorsapi.database.entities.ConnectorCredential;
+import ru.agimate.connectorsapi.database.repositories.ConnectorCredentialRepository;
 
 import java.util.List;
 import java.util.Map;
@@ -29,8 +29,8 @@ public class OzonCallService {
 
     private static final String CONNECTOR_CODE = "ozon";
 
-    private final CredentialRepository credentialRepository;
-    private final CredentialService credentialService;
+    private final ConnectorCredentialRepository connectorCredentialRepository;
+    private final ConnectorCredentialService connectorCredentialService;
     private final List<ConnectorClient> connectorClients;
 
     @Transactional
@@ -82,7 +82,7 @@ public class OzonCallService {
         var apiKeyUserPubId = SecurityUtils.getApiKeyUserPubId();
 
         // Get and validate credential
-        Credential credential = credentialRepository.findByPubIdAndUserPubIdNotDeleted(credentialId, apiKeyUserPubId)
+        ConnectorCredential credential = connectorCredentialRepository.findByPubIdAndUserPubIdNotDeleted(credentialId, apiKeyUserPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Credential not found or access denied"));
 
         if (!credential.getConnector().getCode().equalsIgnoreCase(CONNECTOR_CODE)) {
@@ -100,7 +100,7 @@ public class OzonCallService {
                 .orElseThrow(() -> new NotFoundStatusException("No client implementation for connector: " + CONNECTOR_CODE));
 
         // Get decrypted credentials
-        Map<String, String> credentials = credentialService.getDecryptedCredentialData(credentialId);
+        Map<String, String> credentials = connectorCredentialService.getDecryptedCredentialData(credentialId);
 
         // Execute call
         long startTime = System.currentTimeMillis();
@@ -109,7 +109,7 @@ public class OzonCallService {
             long duration = System.currentTimeMillis() - startTime;
 
             // Update last used
-            credentialService.updateLastUsedAt(credential.getId());
+            connectorCredentialService.updateLastUsedAt(credential.getId());
 
             log.info("Successfully called {}.{} in {}ms", CONNECTOR_CODE, methodName, duration);
 
