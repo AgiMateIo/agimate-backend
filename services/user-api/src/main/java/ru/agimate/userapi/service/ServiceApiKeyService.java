@@ -39,7 +39,7 @@ public class ServiceApiKeyService {
             throw new ConflictStatusException("A key with this name already exists");
         }
 
-        GeneratedApiKey generatedKey = ApiKeyUtils.generate("con");
+        GeneratedApiKey generatedKey = ApiKeyUtils.generate("apik");
 
         ServiceApiKey serviceApiKey = ServiceApiKey.builder()
                 .userPubId(userPubId)

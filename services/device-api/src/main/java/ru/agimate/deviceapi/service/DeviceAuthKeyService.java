@@ -50,7 +50,7 @@ public class DeviceAuthKeyService {
             throw new ConflictStatusException("A key with this name already exists");
         }
 
-        GeneratedApiKey generatedKey = ApiKeyUtils.generate("mob");
+        GeneratedApiKey generatedKey = ApiKeyUtils.generate("dvck");
 
         DeviceAuthKey deviceAuthKey = DeviceAuthKey.builder()
                 .userPubId(userPubId)

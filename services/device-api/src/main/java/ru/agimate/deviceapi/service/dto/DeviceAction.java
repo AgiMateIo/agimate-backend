@@ -1,4 +1,4 @@
-package ru.agimate.common.s2s;
+package ru.agimate.deviceapi.service.dto;
 
 import java.util.Map;
 

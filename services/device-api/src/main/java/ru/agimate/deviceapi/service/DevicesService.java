@@ -5,7 +5,7 @@ import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.database.entities.Device;
 import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import ru.agimate.deviceapi.database.repositories.DeviceAuthKeyRepository;
-import ru.agimate.common.s2s.ConnectedDevice;
+import ru.agimate.deviceapi.service.dto.ConnectedDevice;
 
 import java.util.List;
 import java.util.UUID;

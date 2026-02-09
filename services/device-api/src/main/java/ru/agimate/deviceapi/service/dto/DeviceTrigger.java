@@ -1,4 +1,4 @@
-package ru.agimate.common.s2s;
+package ru.agimate.deviceapi.service.dto;
 
 public record DeviceTrigger(
         String name,

@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.config;
+package ru.agimate.deviceapi.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

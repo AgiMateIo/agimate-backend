@@ -39,6 +39,9 @@ dependencies {
     compileOnly("io.micrometer:micrometer-core")
     compileOnly("com.squareup.okhttp3:okhttp")
 
+    // Caffeine cache (used by ApiKeyIntrospectService)
+    api("com.github.ben-manes.caffeine:caffeine")
+
     implementation("org.springframework.data:spring-data-commons")
 
     implementation("org.apache.commons:commons-lang3")

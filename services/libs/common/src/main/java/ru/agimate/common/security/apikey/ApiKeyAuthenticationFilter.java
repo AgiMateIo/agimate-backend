@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.security;
+package ru.agimate.common.security.apikey;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -9,22 +9,17 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
-import ru.agimate.common.security.apikey.ApiKeyAuthenticationToken;
-import ru.agimate.common.security.apikey.ApiKeyPrincipal;
-import ru.agimate.connectorsapi.service.ApiKeyIntrospectService;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
- * API key authentication filter for connectors-api.
- * Processes API keys from X-Api-Key header for connector method calls.
+ * API key authentication filter.
+ * Processes API keys from X-Api-Key header.
  * Validates keys via gRPC introspect call to user-api (with Caffeine cache).
  */
-@Component
 @RequiredArgsConstructor
 @Slf4j
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {

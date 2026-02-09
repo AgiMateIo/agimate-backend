@@ -12,7 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import ru.agimate.connectorsapi.controller.api.connectors.ConnectorsApiController;
-import ru.agimate.connectorsapi.controller.api.device.DeviceController;
 
 import java.util.List;
 
@@ -60,15 +59,6 @@ public class OpenApiConfig {
                 .group("connectors")
                 .displayName("Connector Execution API")
                 .pathsToMatch(ConnectorsApiController.PATH+ "/**")
-                .build();
-    }
-
-    @Bean
-    public GroupedOpenApi deviceApiGroup() {
-        return GroupedOpenApi.builder()
-                .group("device")
-                .displayName("Device API")
-                .pathsToMatch(DeviceController.PATH + "/**")
                 .build();
     }
 

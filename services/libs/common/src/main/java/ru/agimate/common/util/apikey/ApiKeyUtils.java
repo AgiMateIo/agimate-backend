@@ -15,22 +15,17 @@ import java.util.zip.CRC32;
 /**
  * Utility class for API key generation and validation.
  * <p>
- * Key format: {prefix}{type}{keyid}{payload} (no separators, positional)
+ * Key format: {prefix}{keyid}{payload} (no separators, positional)
  * <ul>
- *   <li>prefix: "a" (1 char, Agimate)</li>
- *   <li>type: key type, exactly 3 lowercase letters (e.g., "mob", "api", "dev")</li>
+ *   <li>prefix: exactly 4 lowercase letters identifying key type (e.g., "apik", "dvck")</li>
  *   <li>keyid: base64url(timestamp_4bytes || random_5bytes) = 12 chars</li>
  *   <li>payload: base64url(secret_32bytes || crc32_4bytes) = 48 chars</li>
  * </ul>
- * Total length: 64 characters (1 + 3 + 12 + 48)
+ * Total length: 64 characters (4 + 12 + 48)
  */
 public final class ApiKeyUtils {
 
-    public static final String PREFIX = "a";
-    public static final String DEFAULT_TYPE = "mob";
-
-    private static final int PREFIX_LENGTH = 1;
-    private static final int TYPE_LENGTH = 3;
+    private static final int PREFIX_LENGTH = 4;
 
     private static final int TIMESTAMP_BYTES = 4;
     private static final int RANDOM_KEYID_BYTES = 5;
@@ -42,9 +37,9 @@ public final class ApiKeyUtils {
     private static final int PAYLOAD_BYTES = SECRET_BYTES + CHECKSUM_BYTES; // 36
     private static final int PAYLOAD_LENGTH = 48; // base64url(36 bytes) = 48 chars
 
-    private static final int TOTAL_LENGTH = PREFIX_LENGTH + TYPE_LENGTH + KEYID_LENGTH + PAYLOAD_LENGTH; // 64
+    private static final int TOTAL_LENGTH = PREFIX_LENGTH + KEYID_LENGTH + PAYLOAD_LENGTH; // 64
 
-    private static final Pattern TYPE_PATTERN = Pattern.compile("^[a-z]{3}$");
+    private static final Pattern PREFIX_PATTERN = Pattern.compile("^[a-z]{4}$");
     private static final Pattern BASE64URL_PATTERN = Pattern.compile("^[A-Za-z0-9_-]+$");
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
@@ -53,24 +48,15 @@ public final class ApiKeyUtils {
     }
 
     /**
-     * Generate a new API key with the default type.
+     * Generate a new API key with the specified prefix.
      *
+     * @param prefix key prefix (exactly 4 lowercase letters, e.g. "amob", "acon")
      * @return generated key with fullKey, keyId, and secretHash
+     * @throws IllegalArgumentException if prefix format is invalid
      */
-    public static GeneratedApiKey generate() {
-        return generate(DEFAULT_TYPE);
-    }
-
-    /**
-     * Generate a new API key with the specified type.
-     *
-     * @param type key type (exactly 3 lowercase letters)
-     * @return generated key with fullKey, keyId, and secretHash
-     * @throws IllegalArgumentException if type format is invalid
-     */
-    public static GeneratedApiKey generate(String type) {
-        if (type == null || !TYPE_PATTERN.matcher(type).matches()) {
-            throw new IllegalArgumentException("Type must be exactly 3 lowercase letters");
+    public static GeneratedApiKey generate(String prefix) {
+        if (prefix == null || !PREFIX_PATTERN.matcher(prefix).matches()) {
+            throw new IllegalArgumentException("Prefix must be exactly 4 lowercase letters");
         }
 
         // 1. Generate keyId = timestamp(4) + random(5) → base64url → 12 chars
@@ -86,8 +72,8 @@ public final class ApiKeyUtils {
         byte[] secret = new byte[SECRET_BYTES];
         SECURE_RANDOM.nextBytes(secret);
 
-        // 3. Calculate checksum = crc32(prefix || type || keyid || secret)
-        byte[] checksum = calculateChecksum(PREFIX, type, keyId, secret);
+        // 3. Calculate checksum = crc32(prefix || keyid || secret)
+        byte[] checksum = calculateChecksum(prefix, keyId, secret);
 
         // 4. Build payload = base64url(secret || checksum) → 48 chars
         ByteBuffer payloadBuffer = ByteBuffer.allocate(PAYLOAD_BYTES);
@@ -96,7 +82,7 @@ public final class ApiKeyUtils {
         String payload = Base64.getUrlEncoder().withoutPadding().encodeToString(payloadBuffer.array());
 
         // 5. Build full key without separators (positional format)
-        String fullKey = PREFIX + type + keyId + payload;
+        String fullKey = prefix + keyId + payload;
 
         // 6. Calculate secretHash = sha256(secret) hex
         String secretHash = hashSecret(secret);
@@ -108,7 +94,7 @@ public final class ApiKeyUtils {
      * Parse an API key string into its components.
      * <p>
      * Uses simple positional parsing (no separators).
-     * Format: {prefix}{type}{keyid}{payload} all parts have fixed lengths.
+     * Format: {prefix}{keyid}{payload} all parts have fixed lengths.
      *
      * @param apiKey the full API key string
      * @return parsed key components
@@ -126,13 +112,9 @@ public final class ApiKeyUtils {
         // Simple positional parsing (all parts have fixed lengths)
         int pos = 0;
 
-        // prefix: 1 character
+        // prefix: 4 characters
         String prefix = apiKey.substring(pos, pos + PREFIX_LENGTH);
         pos += PREFIX_LENGTH;
-
-        // type: 3 characters
-        String type = apiKey.substring(pos, pos + TYPE_LENGTH);
-        pos += TYPE_LENGTH;
 
         // keyId: 12 characters
         String keyId = apiKey.substring(pos, pos + KEYID_LENGTH);
@@ -142,13 +124,8 @@ public final class ApiKeyUtils {
         String payload = apiKey.substring(pos);
 
         // Validate prefix
-        if (!PREFIX.equals(prefix)) {
-            throw new IllegalArgumentException("Invalid API key prefix: expected '" + PREFIX + "'");
-        }
-
-        // Validate type
-        if (!TYPE_PATTERN.matcher(type).matches()) {
-            throw new IllegalArgumentException("Invalid type: must be exactly 3 lowercase letters");
+        if (!PREFIX_PATTERN.matcher(prefix).matches()) {
+            throw new IllegalArgumentException("Invalid prefix: must be exactly 4 lowercase letters");
         }
 
         // Validate keyId format
@@ -176,7 +153,7 @@ public final class ApiKeyUtils {
         byte[] secret = Arrays.copyOfRange(payloadBytes, 0, SECRET_BYTES);
         byte[] checksum = Arrays.copyOfRange(payloadBytes, SECRET_BYTES, PAYLOAD_BYTES);
 
-        return new ParsedApiKey(prefix, type, keyId, secret, checksum);
+        return new ParsedApiKey(prefix, keyId, secret, checksum);
     }
 
     /**
@@ -186,7 +163,7 @@ public final class ApiKeyUtils {
      * @return true if checksum is valid
      */
     public static boolean verifyChecksum(ParsedApiKey parsed) {
-        byte[] expected = calculateChecksum(parsed.prefix(), parsed.type(), parsed.keyId(), parsed.secret());
+        byte[] expected = calculateChecksum(parsed.prefix(), parsed.keyId(), parsed.secret());
         return Arrays.equals(expected, parsed.checksum());
     }
 
@@ -223,10 +200,9 @@ public final class ApiKeyUtils {
     /**
      * Calculate CRC32 checksum of key components.
      */
-    private static byte[] calculateChecksum(String prefix, String type, String keyId, byte[] secret) {
+    private static byte[] calculateChecksum(String prefix, String keyId, byte[] secret) {
         CRC32 crc = new CRC32();
         crc.update(prefix.getBytes(StandardCharsets.UTF_8));
-        crc.update(type.getBytes(StandardCharsets.UTF_8));
         crc.update(keyId.getBytes(StandardCharsets.UTF_8));
         crc.update(secret);
         return ByteBuffer.allocate(CHECKSUM_BYTES).putInt((int) crc.getValue()).array();

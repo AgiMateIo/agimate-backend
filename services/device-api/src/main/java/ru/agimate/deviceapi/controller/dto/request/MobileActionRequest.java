@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.api.device.dto;
+package ru.agimate.deviceapi.controller.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;

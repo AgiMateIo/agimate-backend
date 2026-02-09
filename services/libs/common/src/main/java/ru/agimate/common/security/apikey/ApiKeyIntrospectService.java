@@ -1,10 +1,8 @@
-package ru.agimate.connectorsapi.service;
+package ru.agimate.common.security.apikey;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import ru.agimate.connectorsapi.service.dto.ApiKeyIntrospectResult;
 import ru.agimate.user.v1.IntrospectApiKeyRequest;
 import ru.agimate.user.v1.IntrospectApiKeyResponse;
 import ru.agimate.user.v1.UserApiServiceGrpc;
@@ -12,7 +10,6 @@ import ru.agimate.user.v1.UserApiServiceGrpc;
 import java.time.Duration;
 import java.util.Optional;
 
-@Service
 @Slf4j
 public class ApiKeyIntrospectService {
 

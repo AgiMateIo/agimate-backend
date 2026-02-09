@@ -1,7 +1,5 @@
 package ru.agimate.common.rest;
 
-import ru.agimate.common.exception.ExternalServiceException;
-import ru.agimate.common.exception.NotFoundException;
 import ru.agimate.common.rest.error.*;
 import ru.agimate.common.rest.error.CustomResponseStatusException.LoggingLevel;
 import jakarta.servlet.http.HttpServletRequest;
@@ -72,7 +70,7 @@ public class BaseErrorHandlerControllerAdvice {
         return new ErrorResponse(ex.getMessage());
     }
 
-    @ExceptionHandler({NotFoundStatusException.class, NotFoundException.class})
+    @ExceptionHandler({NotFoundStatusException.class})
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse notFound(RuntimeException ex, HttpServletRequest request) {
         log.info("Not found on {} {}: cause: {}", request.getMethod(), request.getRequestURL(), ex.getMessage());
@@ -187,29 +185,6 @@ public class BaseErrorHandlerControllerAdvice {
         );
 
         return new ErrorResponse("Internal server error. Please contact support with Error ID: " + errorId);
-    }
-
-    @ExceptionHandler(ExternalServiceException.class)
-    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
-    public ErrorResponse serviceUnavailable(ExternalServiceException ex, HttpServletRequest request, HttpServletResponse response) {
-        var responseMsg = "External resource error. Please retry your request later.";
-
-        final var exMessage = ex.getMessage();
-        if (exMessage != null && !exMessage.isBlank()) {
-            responseMsg += exMessage;
-        }
-
-        StackTraceElement caller = ex.getStackTrace()[0];
-        log.error("{}: {} {}.{}:{}",
-                ex.getClass().getSimpleName(),
-                ex.getMessage(),
-                caller.getClassName(),
-                caller.getMethodName(),
-                caller.getLineNumber(),
-                ex
-        );
-
-        return new ErrorResponse(responseMsg);
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)

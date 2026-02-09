@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.service.dto;
+package ru.agimate.common.security.apikey;
 
 /**
  * Result of API key introspection via gRPC call to user-api.

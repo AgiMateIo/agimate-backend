@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller;
+package ru.agimate.deviceapi.controller.manage;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

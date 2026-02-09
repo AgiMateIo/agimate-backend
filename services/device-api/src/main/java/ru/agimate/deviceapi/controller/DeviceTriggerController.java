@@ -12,9 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.deviceapi.controller.dto.request.TriggerRequest;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
-import ru.agimate.deviceapi.service.TriggerEventPublisher;
 import ru.agimate.deviceapi.service.TriggerLogService;
-import ru.agimate.deviceapi.service.dto.DeviceTriggerEvent;
 
 /**
  * This Controller is used to handle requests from devices
@@ -27,7 +25,6 @@ public class DeviceTriggerController {
 
     public static final String PATH = "/trigger";
 
-    private final TriggerEventPublisher triggerEventPublisher;
     private final DeviceAuthKeyService deviceAuthKeyService;
     private final TriggerLogService triggerLogService;
 
@@ -45,7 +42,6 @@ public class DeviceTriggerController {
 
         var deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
         triggerLogService.logTrigger(deviceAuthKey, triggerRequest);
-        triggerEventPublisher.publish(new DeviceTriggerEvent(deviceAuthKey, triggerRequest));
 
         return SuccessResponse.ok(triggerRequest.name());
     }

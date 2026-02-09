@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.api.device;
+package ru.agimate.deviceapi.controller.api;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,19 +13,18 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.connectorsapi.controller.api.device.dto.MobileActionRequest;
-import ru.agimate.connectorsapi.service.DeviceApiService;
+import ru.agimate.deviceapi.controller.dto.request.MobileActionRequest;
+import ru.agimate.deviceapi.service.InternalDeviceApiService;
 
 @RestController
-@RequestMapping(DeviceCallController.PATH)
+@RequestMapping(DeviceCallApiController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Device Call", description = "Execute device methods via API Key")
-public class DeviceCallController {
+public class DeviceCallApiController {
 
-    public static final String PATH = DeviceController.PATH + "/call/";
+    public static final String PATH = DeviceApiController.PATH + "/call";
 
-    private final DeviceApiService deviceApiService;
-
+    private final InternalDeviceApiService internalDeviceApiService;
 
     @Operation(
             summary = "Push action to device",
@@ -64,7 +63,7 @@ public class DeviceCallController {
             )
             @Valid @RequestBody MobileActionRequest mobileActionRequest
     ) {
-        deviceApiService.pushAction(deviceAuthKeyId, mobileActionRequest);
+        internalDeviceApiService.pushAction(deviceAuthKeyId, mobileActionRequest);
         return SuccessResponse.ok("success");
     }
 }

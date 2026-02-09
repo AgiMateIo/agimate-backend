@@ -22,6 +22,10 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.*;
+import ru.agimate.deviceapi.controller.api.DeviceApiController;
+import ru.agimate.common.security.apikey.ApiKeyAuthenticationFilter;
+import ru.agimate.deviceapi.controller.manage.ManageDeviceKeysController;
+import ru.agimate.deviceapi.controller.manage.ManageDevicesController;
 import ru.agimate.deviceapi.security.DeviceAuthenticationFilter;
 import ru.agimate.deviceapi.security.JwtAuthenticationFilter;
 
@@ -39,6 +43,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final DeviceAuthenticationFilter deviceAuthenticationFilter;
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -132,11 +137,31 @@ public class SecurityConfig {
     }
 
     /**
+     * API key-protected endpoints SecurityFilterChain for external device API calls.
+     * Handles /api/** with API key authentication via user-api introspect.
+     */
+    @Bean
+    @Order(3)
+    public SecurityFilterChain apiKeySecurityFilterChain(HttpSecurity http) throws Exception {
+        http.securityMatcher(
+                DeviceApiController.PATH + "/**"
+        );
+
+        applyCommonSecurityConfig(http);
+
+        http.authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
+                .userDetailsService(userDetailsService())
+                .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    /**
      * Public endpoints SecurityFilterChain for health checks, documentation, etc.
      * Handles all other requests not matched by higher-priority chains.
      */
     @Bean
-    @Order(3)
+    @Order(4)
     public SecurityFilterChain publicSecurityFilterChain(HttpSecurity http) throws Exception {
         applyCommonSecurityConfig(http);
 
@@ -157,6 +182,13 @@ public class SecurityConfig {
     @Bean
     public FilterRegistrationBean<DeviceAuthenticationFilter> disableDeviceAuthFilterAutoRegistration() {
         FilterRegistrationBean<DeviceAuthenticationFilter> registration = new FilterRegistrationBean<>(deviceAuthenticationFilter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<ApiKeyAuthenticationFilter> disableApiKeyAuthFilterAutoRegistration() {
+        FilterRegistrationBean<ApiKeyAuthenticationFilter> registration = new FilterRegistrationBean<>(apiKeyAuthenticationFilter);
         registration.setEnabled(false);
         return registration;
     }

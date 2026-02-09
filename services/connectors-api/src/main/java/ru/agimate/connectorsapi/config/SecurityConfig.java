@@ -21,9 +21,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.connectorsapi.controller.api.connectors.ConnectorsApiController;
-import ru.agimate.connectorsapi.controller.api.device.DeviceController;
 import ru.agimate.connectorsapi.controller.manage.*;
-import ru.agimate.connectorsapi.security.ApiKeyAuthenticationFilter;
+import ru.agimate.common.security.apikey.ApiKeyAuthenticationFilter;
 import ru.agimate.connectorsapi.security.JwtAuthenticationFilter;
 
 import java.nio.charset.StandardCharsets;
@@ -119,8 +118,7 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain apiKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                ConnectorsApiController.PATH + "/**",
-                DeviceController.PATH + "/**"
+                ConnectorsApiController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

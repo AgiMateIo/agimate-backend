@@ -13,58 +13,57 @@ class ApiKeyUtilsTest {
     class GenerateTests {
 
         @Test
-        @DisplayName("generates valid key with default type")
-        void generate_defaultType_createsValidKey() {
-            GeneratedApiKey generated = ApiKeyUtils.generate();
+        @DisplayName("generates valid key with given prefix")
+        void generate_withPrefix_createsValidKey() {
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
 
             assertNotNull(generated.fullKey());
             assertNotNull(generated.keyId());
             assertNotNull(generated.secretHash());
 
-            assertTrue(generated.fullKey().startsWith("adev"));
+            assertTrue(generated.fullKey().startsWith("dvck"));
             assertEquals(64, generated.fullKey().length());
             assertEquals(12, generated.keyId().length());
             assertEquals(64, generated.secretHash().length()); // SHA256 hex = 64 chars
         }
 
         @Test
-        @DisplayName("generates valid key with custom type")
-        void generate_customType_createsValidKey() {
-            GeneratedApiKey generated = ApiKeyUtils.generate("api");
+        @DisplayName("generates valid key with custom prefix")
+        void generate_customPrefix_createsValidKey() {
+            GeneratedApiKey generated = ApiKeyUtils.generate("apik");
 
-            assertTrue(generated.fullKey().startsWith("aapi"));
+            assertTrue(generated.fullKey().startsWith("apik"));
             assertEquals(64, generated.fullKey().length());
         }
 
         @Test
         @DisplayName("generated key passes parse and verify")
         void generate_keyPassesValidation() {
-            GeneratedApiKey generated = ApiKeyUtils.generate();
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
 
             ParsedApiKey parsed = ApiKeyUtils.parse(generated.fullKey());
 
-            assertEquals("a", parsed.prefix());
-            assertEquals("dev", parsed.type());
+            assertEquals("dvck", parsed.prefix());
             assertEquals(generated.keyId(), parsed.keyId());
             assertTrue(ApiKeyUtils.verifyChecksum(parsed));
             assertTrue(ApiKeyUtils.verifySecret(parsed.secret(), generated.secretHash()));
         }
 
         @Test
-        @DisplayName("throws exception for invalid type")
-        void generate_invalidType_throwsException() {
-            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.generate("ab")); // too short
-            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.generate("abcd")); // too long
-            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.generate("ABC")); // uppercase
-            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.generate("ab1")); // contains digit
+        @DisplayName("throws exception for invalid prefix")
+        void generate_invalidPrefix_throwsException() {
+            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.generate("abc")); // too short
+            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.generate("abcde")); // too long
+            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.generate("ABCD")); // uppercase
+            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.generate("abc1")); // contains digit
             assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.generate(null));
         }
 
         @Test
         @DisplayName("generates unique keys")
         void generate_multipleKeys_areUnique() {
-            GeneratedApiKey key1 = ApiKeyUtils.generate();
-            GeneratedApiKey key2 = ApiKeyUtils.generate();
+            GeneratedApiKey key1 = ApiKeyUtils.generate("dvck");
+            GeneratedApiKey key2 = ApiKeyUtils.generate("dvck");
 
             assertNotEquals(key1.fullKey(), key2.fullKey());
             assertNotEquals(key1.keyId(), key2.keyId());
@@ -74,19 +73,16 @@ class ApiKeyUtilsTest {
         @Test
         @DisplayName("key has correct format and length")
         void generate_keyFormat_isCorrect() {
-            GeneratedApiKey generated = ApiKeyUtils.generate();
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
 
             // Verify structure using positional parsing
             String fullKey = generated.fullKey();
 
-            // Total length: 1 + 3 + 12 + 48 = 64
+            // Total length: 4 + 12 + 48 = 64
             assertEquals(64, fullKey.length());
 
-            // Prefix (position 0)
-            assertEquals("a", fullKey.substring(0, 1));
-
-            // Type (positions 1-3)
-            assertEquals("dev", fullKey.substring(1, 4));
+            // Prefix (positions 0-3)
+            assertEquals("dvck", fullKey.substring(0, 4));
 
             // keyId (positions 4-15, 12 chars)
             assertEquals(12, fullKey.substring(4, 16).length());
@@ -104,11 +100,10 @@ class ApiKeyUtilsTest {
         @Test
         @DisplayName("parses valid key correctly")
         void parse_validKey_returnsParsedKey() {
-            GeneratedApiKey generated = ApiKeyUtils.generate("api");
+            GeneratedApiKey generated = ApiKeyUtils.generate("apik");
             ParsedApiKey parsed = ApiKeyUtils.parse(generated.fullKey());
 
-            assertEquals("a", parsed.prefix());
-            assertEquals("api", parsed.type());
+            assertEquals("apik", parsed.prefix());
             assertEquals(generated.keyId(), parsed.keyId());
             assertEquals(32, parsed.secret().length);
             assertEquals(4, parsed.checksum().length);
@@ -125,9 +120,9 @@ class ApiKeyUtilsTest {
         @Test
         @DisplayName("throws exception for invalid prefix")
         void parse_invalidPrefix_throwsException() {
-            GeneratedApiKey generated = ApiKeyUtils.generate();
-            // Replace first character (prefix)
-            String invalidKey = "x" + generated.fullKey().substring(1);
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
+            // Replace first character with uppercase
+            String invalidKey = "DVCK" + generated.fullKey().substring(4);
 
             IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                     () -> ApiKeyUtils.parse(invalidKey));
@@ -137,33 +132,28 @@ class ApiKeyUtilsTest {
         @Test
         @DisplayName("throws exception for wrong length")
         void parse_wrongLength_throwsException() {
-            // Too short
-            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.parse("amobshort"));
-            // Too long
+            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.parse("dvckshort"));
             assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.parse("a".repeat(80)));
-            // Almost correct
             assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.parse("a".repeat(63)));
             assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.parse("a".repeat(65)));
         }
 
         @Test
-        @DisplayName("throws exception for invalid type format")
-        void parse_invalidType_throwsException() {
-            // Create a valid-length key but with uppercase type
-            // a + ABC + <12 chars> + <48 chars> = 64 chars, but type has uppercase
-            String invalidTypeKey = "aABC" + "a".repeat(12) + "a".repeat(48);
-            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.parse(invalidTypeKey));
+        @DisplayName("throws exception for invalid prefix format")
+        void parse_invalidPrefixFormat_throwsException() {
+            // Create a valid-length key but with uppercase prefix
+            String invalidPrefixKey = "ABCD" + "a".repeat(12) + "a".repeat(48);
+            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.parse(invalidPrefixKey));
 
-            // Type with digit
-            String digitType = "aab1" + "a".repeat(12) + "a".repeat(48);
-            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.parse(digitType));
+            // Prefix with digit
+            String digitPrefix = "abc1" + "a".repeat(12) + "a".repeat(48);
+            assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.parse(digitPrefix));
         }
 
         @Test
         @DisplayName("throws exception for invalid base64url in keyId")
         void parse_invalidKeyId_throwsException() {
-            // keyId with invalid characters (not base64url)
-            String invalidKeyId = "amob" + "!!!!!!!!!!" + "aa" + "a".repeat(48);
+            String invalidKeyId = "dvck" + "!!!!!!!!!!" + "aa" + "a".repeat(48);
             assertThrows(IllegalArgumentException.class, () -> ApiKeyUtils.parse(invalidKeyId));
         }
     }
@@ -175,7 +165,7 @@ class ApiKeyUtilsTest {
         @Test
         @DisplayName("returns true for valid checksum")
         void verifyChecksum_validKey_returnsTrue() {
-            GeneratedApiKey generated = ApiKeyUtils.generate();
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
             ParsedApiKey parsed = ApiKeyUtils.parse(generated.fullKey());
 
             assertTrue(ApiKeyUtils.verifyChecksum(parsed));
@@ -184,7 +174,7 @@ class ApiKeyUtilsTest {
         @Test
         @DisplayName("returns false for tampered secret")
         void verifyChecksum_tamperedSecret_returnsFalse() {
-            GeneratedApiKey generated = ApiKeyUtils.generate();
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
             ParsedApiKey parsed = ApiKeyUtils.parse(generated.fullKey());
 
             // Tamper with secret
@@ -193,7 +183,6 @@ class ApiKeyUtilsTest {
 
             ParsedApiKey tampered = new ParsedApiKey(
                     parsed.prefix(),
-                    parsed.type(),
                     parsed.keyId(),
                     tamperedSecret,
                     parsed.checksum()
@@ -205,7 +194,7 @@ class ApiKeyUtilsTest {
         @Test
         @DisplayName("returns false for tampered checksum")
         void verifyChecksum_tamperedChecksum_returnsFalse() {
-            GeneratedApiKey generated = ApiKeyUtils.generate();
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
             ParsedApiKey parsed = ApiKeyUtils.parse(generated.fullKey());
 
             // Tamper with checksum
@@ -214,7 +203,6 @@ class ApiKeyUtilsTest {
 
             ParsedApiKey tampered = new ParsedApiKey(
                     parsed.prefix(),
-                    parsed.type(),
                     parsed.keyId(),
                     parsed.secret(),
                     tamperedChecksum
@@ -231,7 +219,7 @@ class ApiKeyUtilsTest {
         @Test
         @DisplayName("returns true for matching hash")
         void verifySecret_correctHash_returnsTrue() {
-            GeneratedApiKey generated = ApiKeyUtils.generate();
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
             ParsedApiKey parsed = ApiKeyUtils.parse(generated.fullKey());
 
             assertTrue(ApiKeyUtils.verifySecret(parsed.secret(), generated.secretHash()));
@@ -240,7 +228,7 @@ class ApiKeyUtilsTest {
         @Test
         @DisplayName("returns false for wrong hash")
         void verifySecret_wrongHash_returnsFalse() {
-            GeneratedApiKey generated = ApiKeyUtils.generate();
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
             ParsedApiKey parsed = ApiKeyUtils.parse(generated.fullKey());
 
             String wrongHash = "a".repeat(64);
@@ -258,7 +246,7 @@ class ApiKeyUtilsTest {
         @Test
         @DisplayName("hash comparison is case insensitive")
         void verifySecret_caseInsensitive() {
-            GeneratedApiKey generated = ApiKeyUtils.generate();
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
             ParsedApiKey parsed = ApiKeyUtils.parse(generated.fullKey());
 
             assertTrue(ApiKeyUtils.verifySecret(parsed.secret(), generated.secretHash().toUpperCase()));
@@ -312,7 +300,7 @@ class ApiKeyUtilsTest {
         @DisplayName("complete key lifecycle")
         void fullWorkflow_generateParseVerify() {
             // 1. Generate key
-            GeneratedApiKey generated = ApiKeyUtils.generate("dev");
+            GeneratedApiKey generated = ApiKeyUtils.generate("dvck");
 
             // 2. Store keyId and secretHash in DB (simulated)
             String storedKeyId = generated.keyId();
@@ -335,20 +323,20 @@ class ApiKeyUtilsTest {
         }
 
         @Test
-        @DisplayName("different types create different keys")
-        void fullWorkflow_differentTypes() {
-            GeneratedApiKey devKey = ApiKeyUtils.generate("dev");
-            GeneratedApiKey apiKey = ApiKeyUtils.generate("api");
-            GeneratedApiKey srvKey = ApiKeyUtils.generate("srv");
+        @DisplayName("different prefixes create different keys")
+        void fullWorkflow_differentPrefixes() {
+            GeneratedApiKey dvckKey = ApiKeyUtils.generate("dvck");
+            GeneratedApiKey apikKey = ApiKeyUtils.generate("apik");
+            GeneratedApiKey srvk = ApiKeyUtils.generate("srvk");
 
-            assertTrue(devKey.fullKey().startsWith("adev"));
-            assertTrue(apiKey.fullKey().startsWith("aapi"));
-            assertTrue(srvKey.fullKey().startsWith("asrv"));
+            assertTrue(dvckKey.fullKey().startsWith("dvck"));
+            assertTrue(apikKey.fullKey().startsWith("apik"));
+            assertTrue(srvk.fullKey().startsWith("srvk"));
 
             // All should be valid
-            assertTrue(ApiKeyUtils.verifyChecksum(ApiKeyUtils.parse(devKey.fullKey())));
-            assertTrue(ApiKeyUtils.verifyChecksum(ApiKeyUtils.parse(apiKey.fullKey())));
-            assertTrue(ApiKeyUtils.verifyChecksum(ApiKeyUtils.parse(srvKey.fullKey())));
+            assertTrue(ApiKeyUtils.verifyChecksum(ApiKeyUtils.parse(dvckKey.fullKey())));
+            assertTrue(ApiKeyUtils.verifyChecksum(ApiKeyUtils.parse(apikKey.fullKey())));
+            assertTrue(ApiKeyUtils.verifyChecksum(ApiKeyUtils.parse(srvk.fullKey())));
         }
     }
 }
