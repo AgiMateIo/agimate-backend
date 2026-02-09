@@ -26,6 +26,7 @@ import ru.agimate.deviceapi.controller.api.DeviceApiController;
 import ru.agimate.common.security.apikey.ApiKeyAuthenticationFilter;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceKeysController;
 import ru.agimate.deviceapi.controller.manage.ManageDevicesController;
+import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.deviceapi.security.DeviceAuthenticationFilter;
 import ru.agimate.deviceapi.security.JwtAuthenticationFilter;
 
@@ -101,7 +102,8 @@ public class SecurityConfig {
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
                 ManageDeviceKeysController.PATH + "/**",
-                ManageDevicesController.PATH + "/**"
+                ManageDevicesController.PATH + "/**",
+                ManageTriggerLogsController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

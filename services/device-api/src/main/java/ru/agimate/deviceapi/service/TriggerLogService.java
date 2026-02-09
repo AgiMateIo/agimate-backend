@@ -6,20 +6,31 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.dto.request.TriggerRequest;
+import ru.agimate.deviceapi.controller.dto.response.TriggerLogResponse;
 import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.repositories.TriggerLogRepository;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class TriggerLogService {
 
     private final TriggerLogRepository triggerLogRepository;
+
+    public List<TriggerLogResponse> getTriggerLogs(UUID userPubId, String deviceId, UUID deviceAuthKeyId) {
+        return triggerLogRepository.findByUserPubIdWithFilters(userPubId, deviceId, deviceAuthKeyId)
+                .stream()
+                .map(TriggerLogResponse::from)
+                .toList();
+    }
 
     @Transactional
     public void logTrigger(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {

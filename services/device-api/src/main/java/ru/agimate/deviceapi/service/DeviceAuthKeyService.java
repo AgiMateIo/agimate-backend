@@ -201,13 +201,19 @@ public class DeviceAuthKeyService {
                             .deviceId(linkDeviceRequest.deviceId())
                             .name(linkDeviceRequest.deviceName())
                             .os(linkDeviceRequest.deviceOs())
+                            .triggers(linkDeviceRequest.triggers())
+                            .actions(linkDeviceRequest.actions())
                             .build();
                     return deviceRepository.save(newDevice);
                 });
 
-        // Check if device is already linked to this deviceAuthKey
+        // Check if device is already linked to this deviceAuthKey — update capabilities
         if (device.getDeviceAuthKey() != null && device.getDeviceAuthKey().getId().equals(deviceAuthKey.getId())) {
-            return device;
+            device.setName(linkDeviceRequest.deviceName());
+            device.setOs(linkDeviceRequest.deviceOs());
+            device.setTriggers(linkDeviceRequest.triggers());
+            device.setActions(linkDeviceRequest.actions());
+            return deviceRepository.save(device);
         }
 
         // Check if deviceAuthKey is already used by another device
