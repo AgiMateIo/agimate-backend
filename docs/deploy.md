@@ -66,11 +66,11 @@ Centrifugo uses the same ES256 key format as JWT. Generate using the JWT key gen
 
 ## Ports
 
-| Port | Service    | Purpose                                   |
-|------|------------|-------------------------------------------|
-| 8080 | All        | HTTP API                                  |
-| 8088 | All        | Management (health, metrics, prometheus)  |
-| 9090 | device-api | gRPC server for intenral s2s interactions |
+| Port | Service              | Purpose                                   |
+|------|----------------------|-------------------------------------------|
+| 8080 | All                  | HTTP API                                  |
+| 8088 | All                  | Management (health, metrics, prometheus)  |
+| 9090 | device-api, user-api | gRPC server for internal s2s interactions |
 
 ## Spring Profiles
 

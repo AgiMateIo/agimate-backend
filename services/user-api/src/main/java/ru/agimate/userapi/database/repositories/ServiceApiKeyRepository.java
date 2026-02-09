@@ -1,11 +1,11 @@
-package ru.agimate.connectorsapi.database.repositories;
+package ru.agimate.userapi.database.repositories;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import ru.agimate.connectorsapi.database.entities.ServiceApiKey;
+import ru.agimate.userapi.database.entities.ServiceApiKey;
 
 import java.time.LocalDateTime;
 import java.util.List;

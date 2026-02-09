@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.manage.dto.response;
+package ru.agimate.userapi.controller.dto.response;
 
 public record ServiceApiKeyCreateResponse(
         ServiceApiKeyResponse apiKey,

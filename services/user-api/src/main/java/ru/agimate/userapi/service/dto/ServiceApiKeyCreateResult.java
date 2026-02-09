@@ -1,6 +1,6 @@
-package ru.agimate.connectorsapi.service.dto;
+package ru.agimate.userapi.service.dto;
 
-import ru.agimate.connectorsapi.database.entities.ServiceApiKey;
+import ru.agimate.userapi.database.entities.ServiceApiKey;
 
 /**
  * Result of creating a new service API key.

@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.database.entities;
+package ru.agimate.userapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;

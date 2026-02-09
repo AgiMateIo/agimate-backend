@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import ru.agimate.common.security.apikey.ApiKeyAuthenticationToken;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
-import ru.agimate.connectorsapi.service.ServiceApiKeyService;
+import ru.agimate.connectorsapi.service.ApiKeyIntrospectService;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,7 +22,7 @@ import java.util.List;
 /**
  * API key authentication filter for connectors-api.
  * Processes API keys from X-Api-Key header for connector method calls.
- * Applied only to API key-protected endpoints via SecurityFilterChain configuration.
+ * Validates keys via gRPC introspect call to user-api (with Caffeine cache).
  */
 @Component
 @RequiredArgsConstructor
@@ -30,9 +30,8 @@ import java.util.List;
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String API_KEY_HEADER = "X-Api-Key";
-    private static final String X_FORWARDED_FOR = "X-Forwarded-For";
 
-    private final ServiceApiKeyService serviceApiKeyService;
+    private final ApiKeyIntrospectService apiKeyIntrospectService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -42,33 +41,22 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         String apiKey = request.getHeader(API_KEY_HEADER);
 
         if (StringUtils.hasText(apiKey)) {
-            String clientIp = getClientIp(request);
-
-            serviceApiKeyService.validateKeyAndRecordUsage(apiKey, clientIp)
-                    .ifPresent(serviceApiKey -> {
+            apiKeyIntrospectService.introspect(apiKey)
+                    .ifPresent(result -> {
                         var authorities = List.of(new SimpleGrantedAuthority("ROLE_CONNECTOR"));
                         var principal = new ApiKeyPrincipal(
-                                serviceApiKey.getPubId().toString(),
-                                serviceApiKey.getUserPubId().toString()
+                                result.keyPubId(),
+                                result.userPubId()
                         );
 
                         SecurityContextHolder.getContext().setAuthentication(
                                 new ApiKeyAuthenticationToken(principal, authorities)
                         );
 
-                        log.debug("API key authenticated for connector: {} (user: {})",
-                                serviceApiKey.getName(), serviceApiKey.getUserPubId());
+                        log.debug("API key authenticated via introspect (user: {})", result.userPubId());
                     });
         }
 
         filterChain.doFilter(request, response);
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader(X_FORWARDED_FOR);
-        if (StringUtils.hasText(xForwardedFor)) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 }

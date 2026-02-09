@@ -98,7 +98,6 @@ public class SecurityConfig {
         http.securityMatcher(
                 ConnectorsManageController.PATH + "/**",
                 ConnectorCredentialManageController.PATH + "/**",
-                ServiceApiKeyManageController.PATH + "/**",
                 WebhookRegistrationManageController.PATH + "/**",
                 EventDescriptionManageController.PATH + "/**"
         );

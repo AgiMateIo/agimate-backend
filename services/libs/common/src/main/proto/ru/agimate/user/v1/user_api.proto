@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package ru.agimate.user.v1;
+
+option java_package = "ru.agimate.user.v1";
+option java_multiple_files = true;
+option java_outer_classname = "UserApiProto";
+
+// Service definition for user API key introspection
+service UserApiService {
+  // Introspect an API key to check validity and get associated user info
+  rpc IntrospectApiKey(IntrospectApiKeyRequest) returns (IntrospectApiKeyResponse);
+}
+
+message IntrospectApiKeyRequest {
+  string api_key = 1; // Full API key (64 characters)
+}
+
+message IntrospectApiKeyResponse {
+  bool valid = 1;
+  string key_pub_id = 2;  // UUID of the API key
+  string user_pub_id = 3; // UUID of the key owner
+}

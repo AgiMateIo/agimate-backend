@@ -41,18 +41,19 @@ graph TB
     DeviceAPI --> Centrifugo
     ConnectorsAPI --> Marketplaces
     ConnectorsAPI -.->|gRPC :9090| DeviceAPI
+    ConnectorsAPI -.->|gRPC :9090| UserAPI
 ```
 
 ## Services
 
 ### user-api
-Authentication service handling OAuth2 login (Google, Yandex), JWT token management, and user profiles.
+Authentication service handling OAuth2 login (Google, Yandex), JWT token management, user profiles, and API key management. Exposes gRPC IntrospectApiKey endpoint for API key validation by other services.
 
 ### device-api
 Device API for device registration, action delivery, and trigger submission. Integrates with Centrifugo for real-time push to devices.
 
 ### connectors-api
-External integrations service managing connector definitions, encrypted credentials storage, and marketplace API calls. Communicates with device-api via gRPC for device actions.
+External integrations service managing connector definitions, encrypted credentials storage, and marketplace API calls. Communicates with device-api via gRPC for device actions and with user-api via gRPC for API key introspection (with Caffeine cache, TTL 2 min).
 
 ### libs/common
 Shared library containing exception hierarchy, REST response wrappers (`SuccessResponse`, `ErrorResponse`), JWT/API Key utilities, and `UUIDUtils` (UUIDv8 generation).
@@ -75,9 +76,9 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 
 | Database         | Owner          | Tables                                                                      |
 |------------------|----------------|-----------------------------------------------------------------------------|
-| am_user_db       | user-api       | `users`, `user_oauth_accounts`                                              |
+| am_user_db       | user-api       | `users`, `user_oauth_accounts`, `service_api_keys`                          |
 | am_device_db     | device-api     | `device_auth_keys`                                                          |
-| am_connectors_db | connectors-api | `connectors`, `credentials`, `connectors_api_keys`, `webhook_registrations` |
+| am_connectors_db | connectors-api | `connectors`, `credentials`, `webhook_registrations`                        |
 
 All migrations managed via Liquibase in each service's `src/main/resources/db/changelog/`.
 
@@ -94,10 +95,17 @@ All migrations managed via Liquibase in each service's `src/main/resources/db/ch
 - device-api acts as gRPC server
 - Used for pushing actions to devices
 
+### gRPC (user-api ↔ connectors-api)
+- Port: **9090**
+- connectors-api acts as gRPC client
+- user-api acts as gRPC server
+- Used for API key introspection (IntrospectApiKey)
+- Caffeine cache on client side (TTL 2 min, max 10k entries)
+
 ## Ports
 
-| Port | Purpose                            |
-|------|------------------------------------|
-| 8080 | HTTP (all services)                |
-| 8088 | Management/actuator (all services) |
-| 9090 | gRPC (device-api server)           |
+| Port | Purpose                                    |
+|------|--------------------------------------------|
+| 8080 | HTTP (all services)                        |
+| 8088 | Management/actuator (all services)         |
+| 9090 | gRPC (device-api and user-api servers)     |

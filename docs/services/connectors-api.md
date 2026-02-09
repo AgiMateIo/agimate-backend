@@ -13,7 +13,7 @@ External integrations service managing connector definitions, credentials, and m
 
 ## Authentication
 
-- **API Key**: Header `X-API-Key` for connector/device API calls
+- **API Key**: Header `X-API-Key` for connector/device API calls (validated via gRPC introspect to user-api, cached with Caffeine TTL 2 min)
 - **JWT**: Bearer token for management endpoints
 
 ## Environment Variables
@@ -68,15 +68,6 @@ External integrations service managing connector definitions, credentials, and m
 | PUT    | `/connectors-api/manage/credentials/{connectorCode}/{id}` | Update credential          |
 | DELETE | `/connectors-api/manage/credentials/{connectorCode}/{id}` | Delete credential          |
 
-### API Keys Management (JWT)
-
-| Method | Path                                      | Description        |
-|--------|-------------------------------------------|--------------------|
-| GET    | `/connectors-api/manage/api-keys/`        | List all API keys  |
-| POST   | `/connectors-api/manage/api-keys/`        | Create new API key |
-| PUT    | `/connectors-api/manage/api-keys/{keyId}` | Update API key     |
-| DELETE | `/connectors-api/manage/api-keys/{keyId}` | Delete API key     |
-
 ### Webhooks Management (JWT)
 
 | Method | Path                                                     | Description                                 |
@@ -119,7 +110,6 @@ Swagger UI (local profile): `/connectors-api/docs/ui`
 
 - `connectors` — Connector definitions
 - `credentials` — Encrypted API credentials
-- `connectors_api_keys` — User API keys
 - `webhook_registrations` — Webhook configurations
 
 Migrations: `services/connectors-api/src/main/resources/db/changelog/`

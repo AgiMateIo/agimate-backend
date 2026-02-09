@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.service;
+package ru.agimate.userapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,9 +9,9 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.apikey.ApiKeyUtils;
 import ru.agimate.common.util.apikey.GeneratedApiKey;
 import ru.agimate.common.util.apikey.ParsedApiKey;
-import ru.agimate.connectorsapi.database.entities.ServiceApiKey;
-import ru.agimate.connectorsapi.database.repositories.ServiceApiKeyRepository;
-import ru.agimate.connectorsapi.service.dto.ServiceApiKeyCreateResult;
+import ru.agimate.userapi.database.entities.ServiceApiKey;
+import ru.agimate.userapi.database.repositories.ServiceApiKeyRepository;
+import ru.agimate.userapi.service.dto.ServiceApiKeyCreateResult;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -87,13 +87,6 @@ public class ServiceApiKeyService {
         }
 
         return Optional.of(key);
-    }
-
-    @Transactional
-    public Optional<ServiceApiKey> validateKeyAndRecordUsage(String apiKey, String clientIp) {
-        // For now, just validate without recording usage
-        // Can extend later to track last_used_at, usage_count, etc.
-        return validateKey(apiKey);
     }
 
     public List<ServiceApiKey> getKeysForUser(UUID userPubId) {

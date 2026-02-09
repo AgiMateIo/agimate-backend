@@ -1,4 +1,4 @@
-package ru.agimate.connectorsapi.controller.manage.dto.request;
+package ru.agimate.userapi.controller.dto.request;
 
 public record UpdateServiceApiKeyRequest(
         String name,

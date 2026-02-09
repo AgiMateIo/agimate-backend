@@ -77,9 +77,25 @@ APP_OAUTH_FRONTEND_REDIRECT_URL=https://www.agimate.ru/login
 APP_OAUTH_COOKIE_DOMAIN=agimate.ru
 ```
 
+### API Key Management (JWT)
+
+| Method | Path                             | Description        |
+|--------|----------------------------------|--------------------|
+| GET    | `/user-api/manage/api-keys/`     | List all API keys  |
+| POST   | `/user-api/manage/api-keys/`     | Create new API key |
+| PUT    | `/user-api/manage/api-keys/{id}` | Update API key     |
+| DELETE | `/user-api/manage/api-keys/{id}` | Delete API key     |
+
+## gRPC Endpoints
+
+| RPC              | Description                       | Port |
+|------------------|-----------------------------------|------|
+| IntrospectApiKey | Validate API key, return user info | 9090 |
+
 ## Database Tables
 
 - `users` — User accounts
 - `user_oauth_accounts` — OAuth2 provider links
+- `service_api_keys` — API keys for connector access
 
 Migrations: `services/user-api/src/main/resources/db/changelog/`

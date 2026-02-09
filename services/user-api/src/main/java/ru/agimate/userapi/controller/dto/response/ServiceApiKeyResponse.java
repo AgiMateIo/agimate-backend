@@ -1,6 +1,6 @@
-package ru.agimate.connectorsapi.controller.manage.dto.response;
+package ru.agimate.userapi.controller.dto.response;
 
-import ru.agimate.connectorsapi.database.entities.ServiceApiKey;
+import ru.agimate.userapi.database.entities.ServiceApiKey;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
