@@ -13,6 +13,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.deviceapi.controller.dto.request.TriggerRequest;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
 import ru.agimate.deviceapi.service.TriggerEventPublisher;
+import ru.agimate.deviceapi.service.TriggerLogService;
 import ru.agimate.deviceapi.service.dto.DeviceTriggerEvent;
 
 /**
@@ -28,6 +29,7 @@ public class DeviceTriggerController {
 
     private final TriggerEventPublisher triggerEventPublisher;
     private final DeviceAuthKeyService deviceAuthKeyService;
+    private final TriggerLogService triggerLogService;
 
     @Operation(
             summary = "Submit trigger from device",
@@ -42,6 +44,7 @@ public class DeviceTriggerController {
         log.info("Trigger received - {}", triggerRequest.toString());
 
         var deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
+        triggerLogService.logTrigger(deviceAuthKey, triggerRequest);
         triggerEventPublisher.publish(new DeviceTriggerEvent(deviceAuthKey, triggerRequest));
 
         return SuccessResponse.ok(triggerRequest.name());

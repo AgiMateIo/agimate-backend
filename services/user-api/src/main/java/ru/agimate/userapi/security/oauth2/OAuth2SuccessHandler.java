@@ -73,15 +73,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         String refreshTokenId = UUID.randomUUID().toString();
         String refreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, refreshTokenId);
-        log.info("created a new JWT token: {}", refreshTokenId);
-        log.info("created a new JWT token: {}", refreshToken);
 
         String redirectToUrl = getRedirectToCookieValue(request);
         OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRedirectUrl(redirectToUrl);
 
         refreshTokenService.setHttpOnlyRefreshTokenCookie(response, refreshToken,
                 resolved.cookieDomain(), resolved.cookieSecure());
-        response.sendRedirect(resolved.frontendRedirectUrl() + "#" + refreshTokenId);
+        response.sendRedirect(resolved.frontendRedirectUrl() + "#rti-" + refreshTokenId);
         response.getWriter().flush();
     }
 

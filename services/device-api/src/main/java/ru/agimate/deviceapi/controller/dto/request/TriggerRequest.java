@@ -13,7 +13,6 @@ public record TriggerRequest(
         String name,
         String source,
         String deviceId,
-        String userId,
         Instant occurredAt,
         @NotNull
         JsonNode data
