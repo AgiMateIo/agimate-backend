@@ -13,6 +13,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.deviceapi.controller.dto.request.TriggerRequest;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
 import ru.agimate.deviceapi.service.TriggerLogService;
+import ru.agimate.deviceapi.service.TriggerNotificationService;
 
 /**
  * This Controller is used to handle requests from devices
@@ -27,6 +28,7 @@ public class DeviceTriggerController {
 
     private final DeviceAuthKeyService deviceAuthKeyService;
     private final TriggerLogService triggerLogService;
+    private final TriggerNotificationService triggerNotificationService;
 
     @Operation(
             summary = "Submit trigger from device",
@@ -42,6 +44,8 @@ public class DeviceTriggerController {
 
         var deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
         triggerLogService.logTrigger(deviceAuthKey, triggerRequest);
+
+        triggerNotificationService.notifyTrigger(deviceAuthKey, triggerRequest);
 
         return SuccessResponse.ok(triggerRequest.name());
     }

@@ -52,6 +52,8 @@ spring:
     show-sql: false
     open-in-view: false
   grpc:
+    server:
+      port: 9090
     client:
       channels:
         user-api:
@@ -78,4 +80,4 @@ springdoc:
 logging:
   level:
     root: warn
-    ru.agimate: info
+    ru.agimate: debug

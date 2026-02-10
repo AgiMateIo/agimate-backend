@@ -87,6 +87,7 @@ services:
       JWT_PUBLICKEY: ${JWT_PUBLICKEY}
       CENTRIFUGO_URL: http://centrifugo:8000
       CENTRIFUGO_APIKEY: ${CENTRIFUGO_APIKEY:-dev_api_key}
+      SPRING_GRPC_CLIENT_CHANNELS_CONNECTORS_API_ADDRESS: "connectors-api:9090"
     ports:
       - "8081:8080"
     networks:
@@ -118,6 +119,7 @@ services:
     ports:
       - "8280:8280"
       - "8288:8288"
+      - "9090:9090"
     networks:
       - agimate-network
     restart: unless-stopped

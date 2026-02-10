@@ -1,10 +1,9 @@
 package ru.agimate.deviceapi.service.dto;
 
-import java.util.Map;
+import java.util.List;
 
 public record DeviceAction(
         String name,
-        String description,
-        Map<String, String> params
+        List<String> params
 ) {
 }

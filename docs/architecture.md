@@ -40,6 +40,7 @@ graph TB
     UserAPI --> OAuth
     DeviceAPI --> Centrifugo
     ConnectorsAPI --> Marketplaces
+    DeviceAPI -.->|gRPC :9090| ConnectorsAPI
     ConnectorsAPI -.->|gRPC :9090| DeviceAPI
     ConnectorsAPI -.->|gRPC :9090| UserAPI
 ```
@@ -89,11 +90,17 @@ All migrations managed via Liquibase in each service's `src/main/resources/db/ch
 
 ## Inter-Service Communication
 
-### gRPC (device-api ↔ connectors-api)
+### gRPC (connectors-api → device-api)
 - Port: **9090**
 - connectors-api acts as gRPC client
 - device-api acts as gRPC server
 - Used for pushing actions to devices
+
+### gRPC (device-api → connectors-api)
+- Port: **9090**
+- device-api acts as gRPC client
+- connectors-api acts as gRPC server
+- Used for trigger event notification (fires registered webhooks)
 
 ### gRPC (user-api ↔ connectors-api)
 - Port: **9090**
@@ -108,4 +115,4 @@ All migrations managed via Liquibase in each service's `src/main/resources/db/ch
 |------|--------------------------------------------|
 | 8080 | HTTP (all services)                        |
 | 8088 | Management/actuator (all services)         |
-| 9090 | gRPC (device-api and user-api servers)     |
+| 9090 | gRPC (all services)                        |

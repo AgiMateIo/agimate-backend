@@ -24,8 +24,22 @@ public class InternalDeviceApiService {
         return List.of(new DeviceTrigger("shaked", "If device shaked"));
     }
 
+    @SuppressWarnings("unchecked")
     public List<DeviceAction> getActions(String deviceId) {
-        return List.of(new DeviceAction("tts", "test to speach", Map.of("title", "Title", "message", "Message")));
+        var device = devicesService.getDeviceByDeviceAuthKey(deviceId);
+        var actions = device.getActions();
+        if (actions == null) {
+            return List.of();
+        }
+        return actions.entrySet().stream()
+                .map(entry -> {
+                    var value = (Map<String, Object>) entry.getValue();
+                    var params = value.get("params") instanceof List<?> list
+                            ? list.stream().map(Object::toString).toList()
+                            : List.<String>of();
+                    return new DeviceAction(entry.getKey(), params);
+                })
+                .toList();
     }
 
     public void pushAction(String deviceAuthKeyId, Object data) {

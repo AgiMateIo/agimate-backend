@@ -53,8 +53,7 @@ public class Webhook extends BaseEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
-    @JoinColumn(name = "webhook_id")
+    @OneToMany(mappedBy = "webhook", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<WebhookEvent> events = new ArrayList<>();
 

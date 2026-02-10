@@ -73,11 +73,11 @@ public class WebhookService {
         // Save to get the ID
         Webhook saved = webhookRepository.save(webhook);
 
-        // Now add event types with the webhook ID
+        // Now add event types
         for (String eventType : request.eventTypes()) {
             String normalizedEventType = eventType.toLowerCase();
             WebhookEvent event = WebhookEvent.builder()
-                    .webhookId(saved.getId())
+                    .webhook(saved)
                     .eventType(normalizedEventType)
                     .userPubId(userPubId)
                     .build();
@@ -150,7 +150,7 @@ public class WebhookService {
             for (String eventType : requestedEventTypes) {
                 if (!currentEventTypes.contains(eventType)) {
                     WebhookEvent event = WebhookEvent.builder()
-                            .webhookId(webhook.getId())
+                            .webhook(webhook)
                             .eventType(eventType)
                             .userPubId(userPubId)
                             .build();

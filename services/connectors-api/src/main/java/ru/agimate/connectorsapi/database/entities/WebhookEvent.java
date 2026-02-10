@@ -19,8 +19,9 @@ public class WebhookEvent {
     @Column(name = "id", nullable = false)
     private Long id;
 
-    @Column(name = "webhook_id", nullable = false)
-    private Long webhookId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "webhook_id", nullable = false)
+    private Webhook webhook;
 
     @Column(name = "event_type", nullable = false, columnDefinition = "TEXT")
     private String eventType;
