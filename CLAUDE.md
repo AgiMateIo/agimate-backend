@@ -49,7 +49,7 @@ See `/docs/` for:
 ## Key Patterns
 
 - **Exception Handling**: Extend `BaseErrorHandlerControllerAdvice`. Use `NotFoundStatusException`, `BadRequestStatusException` for HTTP errors.
-- **Response Wrappers**: Wrap responses with `SuccessResponse<T>`, errors with `ErrorResponse`
+- **Response Wrappers**: Wrap responses with `SuccessResponse<T>` → `{ "response": <T> }`, errors with `ErrorResponse` → `{ "error": { "message": "..." } }`
 - **Entity IDs**: Use `UUIDUtils.generateUuidV8()` for public-facing identifiers
 - **Endpoint Paths**: If endpoint returns a list, path should end with `/`
 - **Migrations**: `updated_at` always NOT NULL + DEFAULT CURRENT_TIMESTAMP (matches BaseEntity)

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="add-user-pub-id-to-device" author="agimate">
+        <addColumn tableName="device">
+            <column name="user_pub_id" type="UUID"/>
+        </addColumn>
+
+        <sql>
+            UPDATE device
+            SET user_pub_id = (
+                SELECT dak.user_pub_id
+                FROM device_auth_keys dak
+                WHERE dak.id = device.device_auth_key_id
+            )
+            WHERE device_auth_key_id IS NOT NULL
+        </sql>
+
+        <sql>DELETE FROM device WHERE user_pub_id IS NULL</sql>
+
+        <addNotNullConstraint tableName="device" columnName="user_pub_id"/>
+
+        <dropUniqueConstraint tableName="device" constraintName="device_device_id_key"/>
+
+        <addUniqueConstraint tableName="device"
+                             columnNames="device_id, user_pub_id"
+                             constraintName="uq_device_device_id_user_pub_id"/>
+    </changeSet>
+
+</databaseChangeLog>

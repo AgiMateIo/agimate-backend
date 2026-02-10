@@ -7,6 +7,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
+import ru.agimate.deviceapi.controller.dto.response.UserDeviceDetailResponse;
 import ru.agimate.deviceapi.controller.dto.response.UserDeviceResponse;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
 
@@ -36,16 +37,30 @@ public class ManageDevicesController {
     }
 
     @Operation(
-            summary = "Disconnect device",
-            description = "Removes the device link from the specified connection"
+            summary = "Get device details",
+            description = "Returns full device information including triggers and actions"
     )
-    @PostMapping("/{connectionId}/disconnect")
-    public SuccessResponse<Void> disconnectDevice(
+    @GetMapping("/{deviceId}")
+    public SuccessResponse<UserDeviceDetailResponse> getDeviceDetails(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID connectionId
+            @PathVariable String deviceId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        deviceAuthKeyService.disconnectDevice(connectionId, userPubId);
+        var device = deviceAuthKeyService.getDeviceByDeviceId(deviceId, userPubId);
+        return SuccessResponse.ok(UserDeviceDetailResponse.from(device));
+    }
+
+    @Operation(
+            summary = "Disconnect device",
+            description = "Removes the auth key link from the specified device"
+    )
+    @PostMapping("/{deviceId}/disconnect")
+    public SuccessResponse<Void> disconnectDevice(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable String deviceId
+    ) {
+        UUID userPubId = UUID.fromString(principal.pubId());
+        deviceAuthKeyService.disconnectDevice(deviceId, userPubId);
         return SuccessResponse.ok(null);
     }
 }

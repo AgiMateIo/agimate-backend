@@ -8,11 +8,11 @@ import java.util.UUID;
 
 @Schema(description = "User device connection information")
 public record UserDeviceResponse(
-        @Schema(description = "Connection ID (DeviceAuthKey public ID)")
-        UUID connectionId,
+        @Schema(description = "DeviceAuthKey public ID")
+        UUID deviceAuthKeyId,
 
-        @Schema(description = "Connection name")
-        String connectionName,
+        @Schema(description = "DeviceAuthKey name")
+        String deviceAuthKeyName,
 
         @Schema(description = "Linked device ID")
         String linkedDeviceId,

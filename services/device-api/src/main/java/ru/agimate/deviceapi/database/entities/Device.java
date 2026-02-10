@@ -7,9 +7,10 @@ import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 
 import java.util.Map;
+import java.util.UUID;
 
 @Entity
-@Table(name = "device")
+@Table(name = "device", uniqueConstraints = @UniqueConstraint(columnNames = {"device_id", "user_pub_id"}))
 @Getter
 @Setter
 @Builder
@@ -22,8 +23,11 @@ public class Device extends BaseEntity {
     @Column(name = "id", nullable = false)
     private Long id;
 
-    @Column(name = "device_id", unique = true, nullable = false)
+    @Column(name = "device_id", nullable = false)
     private String deviceId;
+
+    @Column(name = "user_pub_id", nullable = false)
+    private UUID userPubId;
 
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;

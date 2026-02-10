@@ -7,11 +7,12 @@ import org.springframework.stereotype.Repository;
 import ru.agimate.deviceapi.database.entities.Device;
 
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public interface DeviceRepository extends JpaRepository<Device, Long> {
 
-    Optional<Device> findByDeviceId(String deviceId);
+    Optional<Device> findByDeviceIdAndUserPubId(String deviceId, UUID userPubId);
 
     @Query("SELECT d FROM Device d WHERE d.deviceId = :deviceId AND d.deviceAuthKey.id = :deviceAuthKeyId")
     Optional<Device> findByDeviceIdAndDeviceAuthKeyId(@Param("deviceId") String deviceId, @Param("deviceAuthKeyId") Long deviceAuthKeyId);

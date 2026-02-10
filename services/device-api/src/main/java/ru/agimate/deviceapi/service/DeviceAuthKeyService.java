@@ -148,6 +148,11 @@ public class DeviceAuthKeyService {
         return createKey(userPubId, oldKey.getName(), oldKey.getDescription());
     }
 
+    public Device getDeviceByDeviceId(String deviceId, UUID userPubId) {
+        return deviceRepository.findByDeviceIdAndUserPubId(deviceId, userPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Device not found"));
+    }
+
     public List<UserDeviceResponse> getUserDevices(UUID userPubId) {
         return deviceAuthKeyRepository.findByUserPubIdNotDeletedWithDevice(userPubId).stream()
                 .map(UserDeviceResponse::from)
@@ -155,19 +160,17 @@ public class DeviceAuthKeyService {
     }
 
     @Transactional
-    public void disconnectDevice(UUID connectionId, UUID userPubId) {
-        DeviceAuthKey authKey = deviceAuthKeyRepository.findByPubIdNotDeleted(connectionId)
-                .filter(k -> k.getUserPubId().equals(userPubId))
-                .orElseThrow(() -> new NotFoundStatusException("Connection not found"));
+    public void disconnectDevice(String deviceId, UUID userPubId) {
+        Device device = deviceRepository.findByDeviceIdAndUserPubId(deviceId, userPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Device not found"));
 
-        Device device = authKey.getDevice();
-        if (device == null) {
-            throw new BadRequestStatusException("No device connected to this auth key");
+        if (device.getDeviceAuthKey() == null) {
+            throw new BadRequestStatusException("No auth key connected to this device");
         }
 
         device.setDeviceAuthKey(null);
         deviceRepository.save(device);
-        log.info("Disconnected device {} from auth key {}", device.getDeviceId(), connectionId);
+        log.info("Disconnected device {} from auth key", deviceId);
     }
 
     public DeviceAuthKey getDeviceAuthKey() {
@@ -194,11 +197,12 @@ public class DeviceAuthKeyService {
     public Device linkDevice(Authentication authentication, LinkDeviceRequest linkDeviceRequest) {
         var deviceAuthKey = getDeviceAuthKey(authentication);
 
-        // Get or create device by deviceId
-        Device device = deviceRepository.findByDeviceId(linkDeviceRequest.deviceId())
+        // Get or create device by deviceId + userPubId
+        Device device = deviceRepository.findByDeviceIdAndUserPubId(linkDeviceRequest.deviceId(), deviceAuthKey.getUserPubId())
                 .orElseGet(() -> {
                     Device newDevice = Device.builder()
                             .deviceId(linkDeviceRequest.deviceId())
+                            .userPubId(deviceAuthKey.getUserPubId())
                             .name(linkDeviceRequest.deviceName())
                             .os(linkDeviceRequest.deviceOs())
                             .triggers(linkDeviceRequest.triggers())
