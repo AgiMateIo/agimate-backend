@@ -19,7 +19,7 @@ public record CreateWebhookRegistrationRequest(
         @NotNull
         @Size(min = 1, message = "At least one event type is required")
         @Schema(description = "Event types to subscribe to", example = "[\"ozon.order.created\", \"ozon.order.updated\"]")
-        List<@NotBlank @Pattern(regexp = "^[a-z0-9_]+(\\.[a-z0-9_]+)+$", message = "Event type must be in format: source.resource.action") String> eventTypes,
+        List<@NotBlank @Pattern(regexp = "^[a-zA-Z0-9_]+(\\.[a-zA-Z0-9_]+)+$", message = "Event type must be in format: source.resource.action") String> eventTypes,
 
         @NotBlank
         @Pattern(regexp = "^https?://.+", message = "URL must start with http:// or https://")
