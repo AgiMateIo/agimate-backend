@@ -5,7 +5,7 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <changeSet id="create-device-auth-keys-table" author="agimate">
+    <changeSet id="create-device-auth-keys-table" author="Eugene Smith">
         <createTable tableName="device_auth_keys">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -38,7 +38,6 @@
             </column>
         </createTable>
 
-        <!-- Index for looking up keys by userEntity -->
         <createIndex tableName="device_auth_keys" indexName="idx_device_auth_keys_user_pub_id">
             <column name="user_pub_id"/>
         </createIndex>
@@ -51,13 +50,16 @@
         </createIndex>
     </changeSet>
 
-    <changeSet id="create-device-table" author="agimate">
+    <changeSet id="create-device-table" author="Eugene Smith">
         <createTable tableName="device">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="device_id" type="TEXT">
-                <constraints nullable="false" unique="true"/>
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT">
                 <constraints nullable="false"/>
@@ -68,6 +70,8 @@
             <column name="device_auth_key_id" type="BIGINT">
                 <constraints nullable="true"/>
             </column>
+            <column name="triggers" type="JSONB"/>
+            <column name="actions" type="JSONB"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
@@ -75,6 +79,10 @@
                 <constraints nullable="false"/>
             </column>
         </createTable>
+
+        <addUniqueConstraint tableName="device"
+                             columnNames="device_id, user_pub_id"
+                             constraintName="uq_device_device_id_user_pub_id"/>
 
         <!-- Index for looking up devices by device_auth_key_id -->
         <createIndex tableName="device" indexName="idx_device_auth_key_id">
@@ -89,6 +97,60 @@
                 referencedTableName="device_auth_keys"
                 referencedColumnNames="id"
                 onDelete="SET NULL"/>
+    </changeSet>
+
+    <changeSet id="create-trigger-logs-table" author="Eugene Smith">
+        <createTable tableName="trigger_logs">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="device_auth_key_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_id" type="TEXT"/>
+            <column name="trigger_type" type="TEXT"/>
+            <column name="trigger_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_source" type="TEXT"/>
+            <column name="request_device_id" type="TEXT"/>
+            <column name="linked_device_id" type="TEXT"/>
+            <column name="occurred_at" type="TIMESTAMP"/>
+            <column name="trigger_data" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="trigger_logs"
+                baseColumnNames="device_auth_key_id"
+                constraintName="fk_trigger_logs_device_auth_key"
+                referencedTableName="device_auth_keys"
+                referencedColumnNames="id"/>
+
+        <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_device_auth_key_id">
+            <column name="device_auth_key_id"/>
+        </createIndex>
+
+        <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_created_at">
+            <column name="created_at" descending="true"/>
+        </createIndex>
     </changeSet>
 
 </databaseChangeLog>
