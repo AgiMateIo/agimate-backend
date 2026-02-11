@@ -25,7 +25,6 @@ Device API for device registration, action delivery, and trigger submission.
 | `CENTRIFUGO_API_KEY`    | Centrifugo HTTP API key           |
 | `CENTRIFUGO_PRIVATEKEY` | Centrifugo JWT private key        |
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT public key         |
-| `DEVICE_API_KEY_1`      | API key for device authentication |
 
 ## API Endpoints
 

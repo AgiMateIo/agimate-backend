@@ -88,7 +88,7 @@ springdoc:
 
 jwt:
   privateKey: ""
-  publicKey: "***REMOVED***"
+  publicKey: ""
   accessExpiration: 86400
   refreshExpiration: 604800
 
@@ -99,9 +99,3 @@ centrifugo:
   api-key: ""
   privateKey: ""
   publicKey: ""
-
-device-api:
-  security:
-    api-keys:
-      - name: "mobile-device-1"
-        key: ${DEVICE_API_KEY_1:dev-api-key-1}

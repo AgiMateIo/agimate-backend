@@ -37,12 +37,6 @@
 | `CENTRIFUGO_PRIVATEKEY` | Centrifugo JWT signing private key     |
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT verification public key |
 
-### Device API
-
-| Variable           | Description                               |
-|--------------------|-------------------------------------------|
-| `DEVICE_API_KEY_1` | API key for device authentication  |
-
 ## Key Generation
 
 ### JWT Keys (ES256)
