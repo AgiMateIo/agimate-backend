@@ -1,6 +1,7 @@
 package ru.agimate.deviceapi.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +39,8 @@ public class DeviceCentrifugoTokenController {
     public SuccessResponse<CentrifugoTokenResponse> getSubscriptionToken(
             @RequestBody @Valid
             DeviceChannelTokenRequest deviceChannelTokenRequest,
-            Authentication authentication
+            Authentication authentication,
+            HttpServletRequest request
     ) {
         DeviceAuthKey deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
 
@@ -60,9 +62,13 @@ public class DeviceCentrifugoTokenController {
                 TOKEN_EXPIRATION_SECONDS
         );
 
+        String wsScheme = "https".equals(request.getScheme()) ? "wss" : "ws";
+        String wsHost = request.getServerName().replaceFirst("^api\\.", "centrifugo.");
+        String wsUrl = wsScheme + "://" + wsHost + "/connection/websocket";
+
         log.debug("Generated Centrifugo tokens for device: {}, channel: {}",
                 deviceId, channel);
 
-        return SuccessResponse.ok(new CentrifugoTokenResponse(connectionToken, subscriptionToken, channel));
+        return SuccessResponse.ok(new CentrifugoTokenResponse(connectionToken, subscriptionToken, channel, wsUrl));
     }
 }

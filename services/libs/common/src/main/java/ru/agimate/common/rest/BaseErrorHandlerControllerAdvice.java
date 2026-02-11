@@ -78,6 +78,13 @@ public class BaseErrorHandlerControllerAdvice {
     }
 
 
+    @ExceptionHandler(ValidationErrorStatusException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse validationError(ValidationErrorStatusException ex, HttpServletRequest request) {
+        log.info("Validation error on {} {}: {}", request.getMethod(), request.getRequestURL(), ex.getFields());
+        return new ErrorResponse("Bad request", ex.getFields());
+    }
+
     @ExceptionHandler(BadRequestStatusException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse badRequest(BadRequestStatusException ex, HttpServletRequest request) {

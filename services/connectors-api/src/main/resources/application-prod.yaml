@@ -8,3 +8,6 @@ logging:
   level:
     root: warn
     ru.agimate: info
+
+server:
+  forward-headers-strategy: framework

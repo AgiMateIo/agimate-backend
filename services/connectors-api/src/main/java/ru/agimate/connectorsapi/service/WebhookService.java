@@ -6,8 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.connectorsapi.controller.manage.dto.request.CreateWebhookRegistrationRequest;
 import ru.agimate.connectorsapi.controller.manage.dto.request.UpdateWebhookRegistrationRequest;
 import ru.agimate.connectorsapi.controller.manage.dto.response.WebhookRegistrationResponse;
@@ -54,8 +54,8 @@ public class WebhookService {
         // Check if URL already exists for this user
         webhookRepository.findByUserPubIdAndUrl(userPubId, request.url())
                 .ifPresent(existing -> {
-                    throw new BadRequestStatusException(
-                            "Webhook URL already exists for this user"
+                    throw new ValidationErrorStatusException(
+                            "url", "Webhook URL already exists for this user"
                     );
                 });
 
@@ -111,8 +111,8 @@ public class WebhookService {
                 webhookRepository.findByUserPubIdAndUrl(userPubId, request.url())
                         .ifPresent(existing -> {
                             if (!existing.getId().equals(webhook.getId())) {
-                                throw new BadRequestStatusException(
-                                        "Webhook URL already exists for this user"
+                                throw new ValidationErrorStatusException(
+                                        "url", "Webhook URL already exists for this user"
                                 );
                             }
                         });
@@ -187,7 +187,7 @@ public class WebhookService {
         boolean isLocalProfile = List.of(environment.getActiveProfiles()).contains("local");
 
         if (!isLocalProfile && url.startsWith("http://")) {
-            throw new BadRequestStatusException("HTTPS is required for webhook URLs in production");
+            throw new ValidationErrorStatusException("url", "HTTPS is required for webhook URLs in production");
         }
     }
 }

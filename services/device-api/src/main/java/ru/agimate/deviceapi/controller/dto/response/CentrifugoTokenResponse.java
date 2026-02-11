@@ -11,6 +11,9 @@ public record CentrifugoTokenResponse(
         String subscriptionToken,
 
         @Schema(description = "Channel name the subscription token is valid for")
-        String channel
+        String channel,
+
+        @Schema(description = "Centrifugo WebSocket URL")
+        String wsUrl
 ) {
 }

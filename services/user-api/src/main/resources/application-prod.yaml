@@ -10,6 +10,7 @@ logging:
     ru.agimate: info
 
 server:
+  forward-headers-strategy: framework
   tomcat:
     mbeanregistry:
       enabled: false
