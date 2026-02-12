@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.deviceapi.controller.dto.response.DeviceTriggersResponse;
 import ru.agimate.deviceapi.service.dto.ConnectedDevice;
 import ru.agimate.deviceapi.service.dto.DeviceAction;
 import ru.agimate.deviceapi.service.dto.DeviceTrigger;
@@ -32,6 +33,17 @@ public class DeviceApiController {
         var userPubId = SecurityUtils.getApiKeyUserPubId();
         var devices = internalDeviceApiService.getDevices(userPubId.toString());
         return SuccessResponse.ok(devices);
+    }
+
+    @Operation(
+            summary = "Get all device triggers",
+            description = "Returns available triggers for all user's devices"
+    )
+    @GetMapping("/triggers/")
+    public SuccessResponse<List<DeviceTriggersResponse>> getAllTriggers() {
+        var userPubId = SecurityUtils.getApiKeyUserPubId();
+        var triggers = internalDeviceApiService.getAllTriggers(userPubId.toString());
+        return SuccessResponse.ok(triggers);
     }
 
     @Operation(

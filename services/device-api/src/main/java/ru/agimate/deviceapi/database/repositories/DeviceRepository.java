@@ -6,11 +6,14 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.deviceapi.database.entities.Device;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface DeviceRepository extends JpaRepository<Device, Long> {
+
+    List<Device> findByUserPubId(UUID userPubId);
 
     Optional<Device> findByDeviceIdAndUserPubId(String deviceId, UUID userPubId);
 

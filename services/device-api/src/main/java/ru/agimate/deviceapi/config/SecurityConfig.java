@@ -25,6 +25,7 @@ import ru.agimate.deviceapi.controller.*;
 import ru.agimate.deviceapi.controller.api.DeviceApiController;
 import ru.agimate.common.security.apikey.ApiKeyAuthenticationFilter;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceKeysController;
+import ru.agimate.deviceapi.controller.manage.ManageDeviceTriggersController;
 import ru.agimate.deviceapi.controller.manage.ManageDevicesController;
 import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.deviceapi.security.DeviceAuthenticationFilter;
@@ -103,6 +104,7 @@ public class SecurityConfig {
         http.securityMatcher(
                 ManageDeviceKeysController.PATH + "/**",
                 ManageDevicesController.PATH + "/**",
+                ManageDeviceTriggersController.PATH + "/**",
                 ManageTriggerLogsController.PATH + "/**"
         );
 

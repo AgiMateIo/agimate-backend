@@ -2,12 +2,14 @@ package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import ru.agimate.deviceapi.controller.dto.response.DeviceTriggersResponse;
 import ru.agimate.deviceapi.service.dto.ConnectedDevice;
 import ru.agimate.deviceapi.service.dto.DeviceAction;
 import ru.agimate.deviceapi.service.dto.DeviceTrigger;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -22,6 +24,10 @@ public class InternalDeviceApiService {
 
     public List<DeviceTrigger> getTriggers(String deviceId) {
         return List.of(new DeviceTrigger("shaked", "If device shaked"));
+    }
+
+    public List<DeviceTriggersResponse> getAllTriggers(String userId) {
+        return devicesService.getAllDeviceTriggers(UUID.fromString(userId));
     }
 
     @SuppressWarnings("unchecked")
