@@ -106,13 +106,13 @@ app:
     cookie-domain: agimate.lc
     frontend-redirect-url: https://www.agimate.io/login
     allowed-redirect-urls:
-      - http://www.agimate.lc:8000/login
-      - https://www.agimate.ru/login
-      - https://www.agimate.io/login
+      - http://www.agimate.lc:8000/login-check
+      - https://www.agimate.ru/login-check
+      - https://www.agimate.io/login-check
     # AES-256 encryption key for OAuth2 authorization request cookies (Base64-encoded, 32 bytes)
     # IMPORTANT: Use the same key across all backend instances for multi-instance deployments
     # Generate with: openssl rand -base64 32
-    cookie-encryption-key: ${OAUTH2_COOKIE_ENCRYPTION_KEY:***REMOVED***}
+    cookie-encryption-key: ***REMOVED***
 
 springdoc:
   swagger-ui:
