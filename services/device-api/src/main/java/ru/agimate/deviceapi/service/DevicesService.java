@@ -2,7 +2,7 @@ package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import ru.agimate.deviceapi.controller.dto.response.DeviceTriggersResponse;
+import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
 import ru.agimate.deviceapi.database.entities.Device;
 import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import ru.agimate.deviceapi.database.repositories.DeviceAuthKeyRepository;

@@ -13,28 +13,28 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.deviceapi.controller.dto.request.MobileActionRequest;
-import ru.agimate.deviceapi.service.InternalDeviceApiService;
+import ru.agimate.deviceapi.controller.api.dto.ToolUseRequest;
+import ru.agimate.deviceapi.service.DeviceApiService;
 
 @RestController
-@RequestMapping(DeviceCallApiController.PATH)
+@RequestMapping(ApiDeviceCallApiController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Device Call", description = "Execute device methods via API Key")
-public class DeviceCallApiController {
+public class ApiDeviceCallApiController {
 
-    public static final String PATH = DeviceApiController.PATH + "/call";
+    public static final String PATH = ApiDeviceApiController.PATH + "/call";
 
-    private final InternalDeviceApiService internalDeviceApiService;
+    private final DeviceApiService deviceApiService;
 
     @Operation(
-            summary = "Push action to device",
-            description = "Sends an action to a specific device via Centrifugo",
+            summary = "Push tool to device",
+            description = "Sends a tool use request to a specific device via Centrifugo",
             security = @SecurityRequirement(name = "ApiKey")
     )
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "Action successfully pushed to device",
+                    description = "Tool successfully pushed to device",
                     content = @Content(schema = @Schema(implementation = SuccessResponse.class))
             ),
             @ApiResponse(
@@ -49,21 +49,16 @@ public class DeviceCallApiController {
             )
     })
     @PostMapping("/{deviceAuthKeyId}")
-    public SuccessResponse<String> pushAction(
+    public SuccessResponse<String> pushTool(
             @Parameter(
                     description = "Device Auth key identifier",
                     required = true,
                     example = "device-123"
             )
             @PathVariable String deviceAuthKeyId,
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "Action request with type and parameters",
-                    required = true,
-                    content = @Content(schema = @Schema(implementation = MobileActionRequest.class))
-            )
-            @Valid @RequestBody MobileActionRequest mobileActionRequest
+            @Valid @RequestBody ToolUseRequest toolUseRequest
     ) {
-        internalDeviceApiService.pushAction(deviceAuthKeyId, mobileActionRequest);
+        deviceApiService.pushTool(deviceAuthKeyId, toolUseRequest);
         return SuccessResponse.ok("success");
     }
 }

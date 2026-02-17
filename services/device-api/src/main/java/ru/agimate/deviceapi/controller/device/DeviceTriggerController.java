@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller;
+package ru.agimate.deviceapi.controller.device;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.deviceapi.controller.dto.request.TriggerRequest;
+import ru.agimate.deviceapi.controller.device.dto.TriggerRequest;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
 import ru.agimate.deviceapi.service.TriggerLogService;
 import ru.agimate.deviceapi.service.TriggerNotificationService;
@@ -43,8 +43,8 @@ public class DeviceTriggerController {
         log.info("Trigger received - {}", triggerRequest.toString());
 
         var deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
-        triggerLogService.logTrigger(deviceAuthKey, triggerRequest);
 
+        triggerLogService.logTrigger(deviceAuthKey, triggerRequest);
         triggerNotificationService.notifyTrigger(deviceAuthKey, triggerRequest);
 
         return SuccessResponse.ok(triggerRequest.name());

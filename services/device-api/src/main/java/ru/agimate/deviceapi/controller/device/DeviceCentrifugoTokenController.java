@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller;
+package ru.agimate.deviceapi.controller.device;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
-import ru.agimate.deviceapi.controller.dto.request.DeviceChannelTokenRequest;
-import ru.agimate.deviceapi.controller.dto.response.CentrifugoTokenResponse;
+import ru.agimate.deviceapi.controller.device.dto.DeviceChannelTokenRequest;
+import ru.agimate.deviceapi.controller.device.dto.CentrifugoTokenResponse;
 import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import ru.agimate.deviceapi.service.CentrifugoService;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
@@ -33,7 +33,7 @@ public class DeviceCentrifugoTokenController {
 
     @Operation(
             summary = "Get Centrifugo subscription token",
-            description = "Returns a JWT subscription token for the device's actions channel"
+            description = "Returns a JWT subscription token for the device's tools channel"
     )
     @PostMapping("/token")
     public SuccessResponse<CentrifugoTokenResponse> getSubscriptionToken(
@@ -49,7 +49,7 @@ public class DeviceCentrifugoTokenController {
         }
 
         String deviceId = deviceChannelTokenRequest.deviceId();
-        String channel = "device:" + deviceId + ":actions";
+        String channel = "device:" + deviceId;
 
         String connectionToken = centrifugoService.generateConnectionToken(
                 deviceId,

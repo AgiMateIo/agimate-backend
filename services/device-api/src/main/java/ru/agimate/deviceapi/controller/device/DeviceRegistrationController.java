@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller;
+package ru.agimate.deviceapi.controller.device;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -8,7 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ConflictStatusException;
-import ru.agimate.deviceapi.controller.dto.request.LinkDeviceRequest;
+import ru.agimate.deviceapi.controller.device.dto.LinkDeviceRequest;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
 
 /**

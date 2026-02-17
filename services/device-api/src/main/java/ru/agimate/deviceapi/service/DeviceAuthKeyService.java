@@ -10,8 +10,8 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
-import ru.agimate.deviceapi.controller.dto.request.LinkDeviceRequest;
-import ru.agimate.deviceapi.controller.dto.response.UserDeviceResponse;
+import ru.agimate.deviceapi.controller.device.dto.LinkDeviceRequest;
+import ru.agimate.deviceapi.controller.manage.dto.UserDeviceResponse;
 import ru.agimate.deviceapi.database.entities.Device;
 import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import ru.agimate.deviceapi.database.repositories.DeviceAuthKeyRepository;
@@ -206,7 +206,7 @@ public class DeviceAuthKeyService {
                             .name(linkDeviceRequest.deviceName())
                             .os(linkDeviceRequest.deviceOs())
                             .triggers(linkDeviceRequest.triggers())
-                            .actions(linkDeviceRequest.actions())
+                            .tools(linkDeviceRequest.tools())
                             .build();
                     return deviceRepository.save(newDevice);
                 });
@@ -216,7 +216,7 @@ public class DeviceAuthKeyService {
             device.setName(linkDeviceRequest.deviceName());
             device.setOs(linkDeviceRequest.deviceOs());
             device.setTriggers(linkDeviceRequest.triggers());
-            device.setActions(linkDeviceRequest.actions());
+            device.setTools(linkDeviceRequest.tools());
             return deviceRepository.save(device);
         }
 

@@ -7,8 +7,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.deviceapi.controller.dto.response.UserDeviceDetailResponse;
-import ru.agimate.deviceapi.controller.dto.response.UserDeviceResponse;
+import ru.agimate.deviceapi.controller.manage.dto.UserDeviceDetailResponse;
+import ru.agimate.deviceapi.controller.manage.dto.UserDeviceResponse;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
 
 import java.util.List;
@@ -38,7 +38,7 @@ public class ManageDevicesController {
 
     @Operation(
             summary = "Get device details",
-            description = "Returns full device information including triggers and actions"
+            description = "Returns full device information including triggers and tools"
     )
     @GetMapping("/{deviceId}")
     public SuccessResponse<UserDeviceDetailResponse> getDeviceDetails(

@@ -5,24 +5,24 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.deviceapi.controller.dto.response.DeviceTriggersResponse;
+import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
 import ru.agimate.deviceapi.service.dto.ConnectedDevice;
-import ru.agimate.deviceapi.service.dto.DeviceAction;
+import ru.agimate.deviceapi.service.dto.DeviceTool;
 import ru.agimate.deviceapi.service.dto.DeviceTrigger;
 import ru.agimate.common.security.SecurityUtils;
-import ru.agimate.deviceapi.service.InternalDeviceApiService;
+import ru.agimate.deviceapi.service.DeviceApiService;
 
 import java.util.List;
 
 @RestController
-@RequestMapping(DeviceApiController.PATH)
+@RequestMapping(ApiDeviceApiController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Device API", description = "Device operations via API Key")
-public class DeviceApiController {
+public class ApiDeviceApiController {
 
     public static final String PATH = "/api/device";
 
-    private final InternalDeviceApiService internalDeviceApiService;
+    private final DeviceApiService deviceApiService;
 
     @Operation(
             summary = "Get connected devices",
@@ -31,7 +31,7 @@ public class DeviceApiController {
     @GetMapping("/")
     public SuccessResponse<List<ConnectedDevice>> getDevices() {
         var userPubId = SecurityUtils.getApiKeyUserPubId();
-        var devices = internalDeviceApiService.getDevices(userPubId.toString());
+        var devices = deviceApiService.getDevices(userPubId.toString());
         return SuccessResponse.ok(devices);
     }
 
@@ -42,7 +42,7 @@ public class DeviceApiController {
     @GetMapping("/triggers/")
     public SuccessResponse<List<DeviceTriggersResponse>> getAllTriggers() {
         var userPubId = SecurityUtils.getApiKeyUserPubId();
-        var triggers = internalDeviceApiService.getAllTriggers(userPubId.toString());
+        var triggers = deviceApiService.getAllTriggers(userPubId.toString());
         return SuccessResponse.ok(triggers);
     }
 
@@ -52,17 +52,25 @@ public class DeviceApiController {
     )
     @GetMapping("/triggers/{deviceId}")
     public SuccessResponse<List<DeviceTrigger>> getTriggers(@PathVariable String deviceId) {
-        var triggers = internalDeviceApiService.getTriggers(deviceId);
+        // todo: refine - get triggers from database
+        var triggers = deviceApiService.getTriggers(deviceId);
         return SuccessResponse.ok(triggers);
     }
 
+
+    @GetMapping("/tools/")
+    public SuccessResponse<List<DeviceTriggersResponse>> getAllTools() {
+        // TODO: implement as for triggers
+        return SuccessResponse.ok(null);
+    }
+
     @Operation(
-            summary = "Get device actions",
-            description = "Returns available actions for a specific device"
+            summary = "Get device tools",
+            description = "Returns available tools for a specific device"
     )
-    @GetMapping("/actions/{deviceId}")
-    public SuccessResponse<List<DeviceAction>> getActions(@PathVariable String deviceId) {
-        var actions = internalDeviceApiService.getActions(deviceId);
-        return SuccessResponse.ok(actions);
+    @GetMapping("/tools/{deviceId}")
+    public SuccessResponse<List<DeviceTool>> getTools(@PathVariable String deviceId) {
+        var tools = deviceApiService.getTools(deviceId);
+        return SuccessResponse.ok(tools);
     }
 }

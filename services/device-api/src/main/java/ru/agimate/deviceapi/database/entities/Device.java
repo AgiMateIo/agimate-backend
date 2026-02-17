@@ -40,8 +40,8 @@ public class Device extends BaseEntity {
     private Map<String, Object> triggers;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "actions", columnDefinition = "JSONB")
-    private Map<String, Object> actions;
+    @Column(name = "tools", columnDefinition = "JSONB")
+    private Map<String, Object> tools;
 
     @OneToOne
     @JoinColumn(name = "device_auth_key_id")

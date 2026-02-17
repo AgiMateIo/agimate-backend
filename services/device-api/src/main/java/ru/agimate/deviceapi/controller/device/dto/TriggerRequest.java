@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller.dto.request;
+package ru.agimate.deviceapi.controller.device.dto;
 
 
 import jakarta.validation.constraints.NotNull;

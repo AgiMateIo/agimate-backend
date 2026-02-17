@@ -6,7 +6,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.agimate.connectors.v1.ConnectorsEventServiceGrpc;
 import ru.agimate.connectors.v1.HandleEventRequest;
-import ru.agimate.deviceapi.controller.dto.request.TriggerRequest;
+import ru.agimate.deviceapi.controller.device.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 
 @Slf4j

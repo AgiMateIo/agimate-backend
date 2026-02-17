@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller.dto.response;
+package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.deviceapi.database.entities.Device;
@@ -7,7 +7,7 @@ import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import java.util.Map;
 import java.util.UUID;
 
-@Schema(description = "Full device information including triggers and actions")
+@Schema(description = "Full device information including triggers and tools")
 public record UserDeviceDetailResponse(
         @Schema(description = "Device ID")
         String deviceId,
@@ -30,8 +30,8 @@ public record UserDeviceDetailResponse(
         @Schema(description = "Device triggers")
         Map<String, Object> triggers,
 
-        @Schema(description = "Device actions")
-        Map<String, Object> actions
+        @Schema(description = "Device tools")
+        Map<String, Object> tools
 ) {
     public static UserDeviceDetailResponse from(Device device) {
         DeviceAuthKey authKey = device.getDeviceAuthKey();
@@ -43,7 +43,7 @@ public record UserDeviceDetailResponse(
                 authKey != null ? authKey.getName() : null,
                 authKey != null,
                 device.getTriggers(),
-                device.getActions()
+                device.getTools()
         );
     }
 }

@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller.dto.response;
+package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.deviceapi.database.entities.Device;

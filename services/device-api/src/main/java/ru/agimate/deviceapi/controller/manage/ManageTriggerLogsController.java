@@ -7,7 +7,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.deviceapi.controller.dto.response.TriggerLogResponse;
+import ru.agimate.deviceapi.controller.manage.dto.TriggerLogResponse;
 import ru.agimate.deviceapi.service.TriggerLogService;
 
 import java.util.List;

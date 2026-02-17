@@ -2,9 +2,9 @@ package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import ru.agimate.deviceapi.controller.dto.response.DeviceTriggersResponse;
+import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
 import ru.agimate.deviceapi.service.dto.ConnectedDevice;
-import ru.agimate.deviceapi.service.dto.DeviceAction;
+import ru.agimate.deviceapi.service.dto.DeviceTool;
 import ru.agimate.deviceapi.service.dto.DeviceTrigger;
 
 import java.util.List;
@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class InternalDeviceApiService {
+public class DeviceApiService {
 
     private final DevicesService devicesService;
     private final CentrifugoService centrifugoService;
@@ -31,26 +31,31 @@ public class InternalDeviceApiService {
     }
 
     @SuppressWarnings("unchecked")
-    public List<DeviceAction> getActions(String deviceId) {
+    public List<DeviceTool> getTools(String deviceId) {
         var device = devicesService.getDeviceByDeviceAuthKey(deviceId);
-        var actions = device.getActions();
-        if (actions == null) {
+        var tools = device.getTools();
+        if (tools == null) {
             return List.of();
         }
-        return actions.entrySet().stream()
+        return tools.entrySet().stream()
                 .map(entry -> {
                     var value = (Map<String, Object>) entry.getValue();
                     var params = value.get("params") instanceof List<?> list
                             ? list.stream().map(Object::toString).toList()
                             : List.<String>of();
-                    return new DeviceAction(entry.getKey(), params);
+                    return new DeviceTool(entry.getKey(), params);
                 })
                 .toList();
     }
 
-    public void pushAction(String deviceAuthKeyId, Object data) {
+    public void pushTool(String deviceAuthKeyId, IToolUse toolUse) {
         var device = devicesService.getDeviceByDeviceAuthKey(deviceAuthKeyId);
-        var channel = "device:" + device.getDeviceId() + ":actions";
-        centrifugoService.publishMessage(channel, data);
+        var channel = "device:" + device.getDeviceId();
+        centrifugoService.publishMessage(channel, toolUse);
+    }
+
+    public void pushToolResult(String agentId, IToolResult toolResult) {
+        var channel = "agent:" + agentId;
+        centrifugoService.publishMessage(channel, toolResult);
     }
 }

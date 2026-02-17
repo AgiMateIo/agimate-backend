@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller.dto.response;
+package ru.agimate.deviceapi.controller.manage.dto;
 
 import ru.agimate.deviceapi.service.dto.DeviceTrigger;
 
