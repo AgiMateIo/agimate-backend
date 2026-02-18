@@ -48,13 +48,13 @@ public class DeviceApiService {
                 .toList();
     }
 
-    public void pushTool(String deviceAuthKeyId, IToolUse toolUse) {
+    public void pushToDevice(String deviceAuthKeyId, IToolUse toolUse) {
         var device = devicesService.getDeviceByDeviceAuthKey(deviceAuthKeyId);
         var channel = "device:" + device.getDeviceId();
         centrifugoService.publishMessage(channel, toolUse);
     }
 
-    public void pushToolResult(String agentId, IToolResult toolResult) {
+    public void pushToAgent(String agentId, IToolResult toolResult) {
         var channel = "agent:" + agentId;
         centrifugoService.publishMessage(channel, toolResult);
     }

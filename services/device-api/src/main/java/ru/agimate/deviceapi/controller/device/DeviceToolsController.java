@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.deviceapi.controller.device.dto.ToolResultRequest;
 import ru.agimate.deviceapi.service.CentrifugoService;
+import ru.agimate.deviceapi.service.DeviceApiService;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
 
 import java.util.List;
@@ -27,6 +28,7 @@ public class DeviceToolsController {
 
     private final DeviceAuthKeyService deviceAuthKeyService;
     private final CentrifugoService centrifugoService;
+    private final DeviceApiService deviceApiService;
 
     @PostMapping("/result")
     public SuccessResponse<String> submitToolResult(
@@ -39,6 +41,8 @@ public class DeviceToolsController {
 
         var deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
         // todo:
+        // update tool_use_log
+        // deviceApiService.pushToAgent();
 
         return SuccessResponse.empty();
     }

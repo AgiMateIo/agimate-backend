@@ -27,7 +27,7 @@ public class ApiDeviceCallApiController {
     private final DeviceApiService deviceApiService;
 
     @Operation(
-            summary = "Push tool to device",
+            summary = "Push tool_use to device",
             description = "Sends a tool use request to a specific device via Centrifugo",
             security = @SecurityRequirement(name = "ApiKey")
     )
@@ -49,7 +49,7 @@ public class ApiDeviceCallApiController {
             )
     })
     @PostMapping("/{deviceAuthKeyId}")
-    public SuccessResponse<String> pushTool(
+    public SuccessResponse<String> toolUse(
             @Parameter(
                     description = "Device Auth key identifier",
                     required = true,
@@ -58,7 +58,11 @@ public class ApiDeviceCallApiController {
             @PathVariable String deviceAuthKeyId,
             @Valid @RequestBody ToolUseRequest toolUseRequest
     ) {
-        deviceApiService.pushTool(deviceAuthKeyId, toolUseRequest);
+
+        // todo:
+        // create tool_use_log
+
+        deviceApiService.pushToDevice(deviceAuthKeyId, toolUseRequest);
         return SuccessResponse.ok("success");
     }
 }
