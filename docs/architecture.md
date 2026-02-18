@@ -8,6 +8,7 @@ graph TB
         WebApp[Web Application]
         MobileApp[Mobile App]
         External[External Systems]
+        Agents[AI Agents]
     end
 
     subgraph "Services"
@@ -31,6 +32,8 @@ graph TB
     WebApp --> UserAPI
     WebApp --> ConnectorsAPI
     MobileApp --> DeviceAPI
+    Agents --> DeviceAPI
+    Agents --> Centrifugo
     External --> ConnectorsAPI
 
     UserAPI --> UserDB
@@ -51,7 +54,7 @@ graph TB
 Authentication service handling OAuth2 login (Google, Yandex), JWT token management, user profiles, and API key management. Exposes gRPC IntrospectApiKey endpoint for API key validation by other services.
 
 ### device-api
-Device API for device registration, action delivery, and trigger submission. Integrates with Centrifugo for real-time push to devices.
+Device API for device registration, tool delivery, trigger submission, and AI agent integration. Integrates with Centrifugo for real-time push to devices and agents. Agents authenticate via API Key, invoke tools on devices, receive tool results and trigger events through Centrifugo channels.
 
 ### connectors-api
 External integrations service managing connector definitions, encrypted credentials storage, and marketplace API calls. Communicates with device-api via gRPC for device actions and with user-api via gRPC for API key introspection (with Caffeine cache, TTL 2 min).
@@ -64,7 +67,7 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 | Method          | Description                            | Used By                             |
 |-----------------|----------------------------------------|-------------------------------------|
 | **JWT**         | Bearer token authentication for users  | All services (management endpoints) |
-| **API Key**     | Header `X-API-Key` for connector calls | connectors-api                      |
+| **API Key**     | Header `X-Api-Key` for connector/agent calls | connectors-api, device-api          |
 | **Device Auth** | Header `X-Device-Auth-Key` for devices | device-api                          |
 | **OAuth2**      | Google/Yandex social login             | user-api                            |
 
@@ -78,7 +81,7 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 | Database         | Owner          | Tables                                                                      |
 |------------------|----------------|-----------------------------------------------------------------------------|
 | am_user_db       | user-api       | `users`, `user_oauth_accounts`, `service_api_keys`                          |
-| am_device_db     | device-api     | `device_auth_keys`                                                          |
+| am_device_db     | device-api     | `device_auth_keys`, `device`, `trigger_logs`, `tool_use_logs`, `agent_settings`, `agent_tools`, `agent_triggers` |
 | am_connectors_db | connectors-api | `connectors`, `credentials`, `webhook_registrations`                        |
 
 All migrations managed via Liquibase in each service's `src/main/resources/db/changelog/`.

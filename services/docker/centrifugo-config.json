@@ -19,6 +19,15 @@
       "join_leave": true,
       "history_size": 100,
       "history_ttl": "600s"
+    },
+    {
+      "name": "agent",
+      "publish": false,
+      "subscribe_to_publish": false,
+      "presence": true,
+      "join_leave": true,
+      "history_size": 100,
+      "history_ttl": "600s"
     }
   ]
 }

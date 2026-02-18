@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.controller.api.dto.AgentConfigResponse;
 import ru.agimate.deviceapi.controller.manage.dto.AgentSettingsResponse;
 import ru.agimate.deviceapi.controller.manage.dto.CreateAgentSettingsRequest;
@@ -14,11 +13,9 @@ import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentSettingsRequest;
 import ru.agimate.deviceapi.database.entities.AgentSettings;
 import ru.agimate.deviceapi.database.entities.AgentTool;
 import ru.agimate.deviceapi.database.entities.AgentTrigger;
-import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import ru.agimate.deviceapi.database.repositories.AgentSettingsRepository;
 import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerRepository;
-import ru.agimate.deviceapi.database.repositories.DeviceAuthKeyRepository;
 
 import java.util.List;
 import java.util.UUID;
@@ -32,7 +29,6 @@ public class AgentSettingsService {
     private final AgentSettingsRepository agentSettingsRepository;
     private final AgentToolRepository agentToolRepository;
     private final AgentTriggerRepository agentTriggerRepository;
-    private final DeviceAuthKeyRepository deviceAuthKeyRepository;
 
     public List<AgentSettingsResponse> getAllForUser(UUID userPubId) {
         List<AgentSettings> settingsList = agentSettingsRepository.findByUserPubId(userPubId);
@@ -122,25 +118,6 @@ public class AgentSettingsService {
         agentSettingsRepository.delete(settings);
 
         log.info("Deleted agent settings for apiKeyPubId={}", apiKeyPubId);
-    }
-
-    public void authorizeToolUseRequest(ApiKeyPrincipal apiKeyPrincipal, String deviceAuthKeyId, String toolName) {
-        validateDeviceAccess(UUID.fromString(apiKeyPrincipal.userPubId()), deviceAuthKeyId);
-        validateToolAuthorized(UUID.fromString(apiKeyPrincipal.pubId()), toolName);
-    }
-
-    protected void validateDeviceAccess(UUID userPubId, String deviceAuthKeyId) {
-        DeviceAuthKey key = deviceAuthKeyRepository.findByPubIdNotDeleted(UUID.fromString(deviceAuthKeyId))
-                .orElseThrow(() -> new NotFoundStatusException("Device auth key not found"));
-        if (!key.getUserPubId().equals(userPubId)) {
-            throw new ForbiddenStatusException("Device is not accessible for this agent");
-        }
-    }
-
-    protected void validateToolAuthorized(UUID apiKeyPubId, String toolName) {
-        if (!agentToolRepository.existsByApiKeyPubIdAndToolName(apiKeyPubId, toolName)) {
-            throw new ForbiddenStatusException("Tool '" + toolName + "' is not authorized for this agent");
-        }
     }
 
     private List<AgentTool> createTools(UUID userPubId, UUID apiKeyPubId, List<String> toolNames) {

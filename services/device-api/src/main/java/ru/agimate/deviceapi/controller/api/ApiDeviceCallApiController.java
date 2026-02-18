@@ -16,8 +16,8 @@ import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.controller.api.dto.ToolUseRequest;
-import ru.agimate.deviceapi.service.AgentSettingsService;
 import ru.agimate.deviceapi.service.DeviceApiService;
+import ru.agimate.deviceapi.service.ToolUseAuthorizerService;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
 import java.util.UUID;
@@ -32,7 +32,7 @@ public class ApiDeviceCallApiController {
 
     private final DeviceApiService deviceApiService;
     private final ToolUseLogService toolUseLogService;
-    private final AgentSettingsService agentSettingsService;
+    private final ToolUseAuthorizerService toolUseAuthorizerService;
 
     @Operation(
             summary = "Push tool_use to device",
@@ -68,7 +68,7 @@ public class ApiDeviceCallApiController {
             @AuthenticationPrincipal ApiKeyPrincipal principal
     ) {
 
-        agentSettingsService.authorizeToolUseRequest(principal, deviceAuthKeyId, toolUseRequest.getName());
+        toolUseAuthorizerService.authorizeToolUseRequest(principal, deviceAuthKeyId, toolUseRequest.getName());
 
         UUID apiKeyPubId = UUID.fromString(principal.pubId());
         toolUseLogService.createLog(apiKeyPubId, deviceAuthKeyId, toolUseRequest);
