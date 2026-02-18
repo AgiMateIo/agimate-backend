@@ -7,10 +7,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.device.dto.ToolResultRequest;
 import ru.agimate.deviceapi.service.CentrifugoService;
 import ru.agimate.deviceapi.service.DeviceApiService;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
+import ru.agimate.deviceapi.service.ToolUseLogService;
 
 import java.util.List;
 import java.util.Map;
@@ -29,6 +31,7 @@ public class DeviceToolsController {
     private final DeviceAuthKeyService deviceAuthKeyService;
     private final CentrifugoService centrifugoService;
     private final DeviceApiService deviceApiService;
+    private final ToolUseLogService toolUseLogService;
 
     @PostMapping("/result")
     public SuccessResponse<String> submitToolResult(
@@ -36,13 +39,13 @@ public class DeviceToolsController {
             ToolResultRequest toolResultRequest,
             Authentication authentication
     ) {
-
         log.info("Tool result received - {}", toolResultRequest.toString());
 
         var deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
-        // todo:
-        // update tool_use_log
-        // deviceApiService.pushToAgent();
+
+        String resultString = JsonUtils.toJson(toolResultRequest.result()).orElse(null);
+        var toolUseLog = toolUseLogService.recordResult(deviceAuthKey, toolResultRequest.id(), resultString, null);
+        deviceApiService.pushToAgent(toolUseLog.getApiKeyPubId().toString(), toolResultRequest);
 
         return SuccessResponse.empty();
     }
