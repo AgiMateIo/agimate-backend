@@ -60,4 +60,7 @@ public class TriggerLog extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "trigger_data", nullable = false, columnDefinition = "JSONB")
     private Map<String, Object> triggerData;
+
+    @Column(name = "routed_to", columnDefinition = "TEXT")
+    private String routedTo;
 }
