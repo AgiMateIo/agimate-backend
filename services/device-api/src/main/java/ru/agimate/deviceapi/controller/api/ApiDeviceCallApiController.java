@@ -10,11 +10,17 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.controller.api.dto.ToolUseRequest;
+import ru.agimate.deviceapi.service.AgentSettingsService;
 import ru.agimate.deviceapi.service.DeviceApiService;
+import ru.agimate.deviceapi.service.ToolUseLogService;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping(ApiDeviceCallApiController.PATH)
@@ -25,6 +31,8 @@ public class ApiDeviceCallApiController {
     public static final String PATH = ApiDeviceApiController.PATH + "/call";
 
     private final DeviceApiService deviceApiService;
+    private final ToolUseLogService toolUseLogService;
+    private final AgentSettingsService agentSettingsService;
 
     @Operation(
             summary = "Push tool_use to device",
@@ -56,11 +64,14 @@ public class ApiDeviceCallApiController {
                     example = "device-123"
             )
             @PathVariable String deviceAuthKeyId,
-            @Valid @RequestBody ToolUseRequest toolUseRequest
+            @Valid @RequestBody ToolUseRequest toolUseRequest,
+            @AuthenticationPrincipal ApiKeyPrincipal principal
     ) {
 
-        // todo:
-        // create tool_use_log
+        agentSettingsService.authorizeToolUseRequest(principal, deviceAuthKeyId, toolUseRequest.getName());
+
+        UUID apiKeyPubId = UUID.fromString(principal.pubId());
+        toolUseLogService.createLog(apiKeyPubId, deviceAuthKeyId, toolUseRequest);
 
         deviceApiService.pushToDevice(deviceAuthKeyId, toolUseRequest);
         return SuccessResponse.ok("success");

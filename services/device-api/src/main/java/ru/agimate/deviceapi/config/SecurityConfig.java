@@ -27,9 +27,11 @@ import ru.agimate.deviceapi.controller.device.DeviceToolsController;
 import ru.agimate.deviceapi.controller.device.DeviceCentrifugoTokenController;
 import ru.agimate.deviceapi.controller.device.DeviceRegistrationController;
 import ru.agimate.deviceapi.controller.device.DeviceTriggerController;
+import ru.agimate.deviceapi.controller.manage.ManageAgentSettingsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceKeysController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceTriggersController;
 import ru.agimate.deviceapi.controller.manage.ManageDevicesController;
+import ru.agimate.deviceapi.controller.manage.ManageToolUseLogsController;
 import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.deviceapi.security.DeviceAuthenticationFilter;
 import ru.agimate.deviceapi.security.JwtAuthenticationFilter;
@@ -108,7 +110,9 @@ public class SecurityConfig {
                 ManageDeviceKeysController.PATH + "/**",
                 ManageDevicesController.PATH + "/**",
                 ManageDeviceTriggersController.PATH + "/**",
-                ManageTriggerLogsController.PATH + "/**"
+                ManageTriggerLogsController.PATH + "/**",
+                ManageToolUseLogsController.PATH + "/**",
+                ManageAgentSettingsController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

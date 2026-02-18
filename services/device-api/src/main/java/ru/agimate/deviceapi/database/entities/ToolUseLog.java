@@ -32,6 +32,9 @@ public class ToolUseLog extends BaseEntity {
     @Column(name = "api_key_pub_id", nullable = false)
     private UUID apiKeyPubId;
 
+    @Column(name = "device_auth_key_id", columnDefinition = "TEXT")
+    private String deviceAuthKeyId;
+
     @Column(name = "tool_use_id", nullable = false, columnDefinition = "TEXT")
     private String toolUseId;
 
