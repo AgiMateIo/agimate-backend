@@ -4,8 +4,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.manage.dto.ToolUseLogResponse;
+import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.database.repositories.ToolUseLogRepository;
 
@@ -35,9 +37,13 @@ public class ToolUseLogService {
     }
 
     @Transactional
-    public ToolUseLog recordResult(String toolUseId, String result, String error) {
+    public ToolUseLog recordResult(DeviceAuthKey deviceAuthKey, String toolUseId, String result, String error) {
         var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
                 .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
+
+        if (!deviceAuthKey.getPubId().toString().equals(toolUseLog.getDeviceAuthKeyId())) {
+            throw new ForbiddenStatusException("Incorrect device");
+        }
 
         toolUseLog.setResultAt(LocalDateTime.now());
         toolUseLog.setResult(result);
