@@ -9,8 +9,6 @@ import ru.agimate.deviceapi.database.entities.AgentSettings;
 import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.repositories.AgentSettingsRepository;
-import ru.agimate.deviceapi.database.repositories.AgentTriggerRepository;
-import ru.agimate.deviceapi.database.repositories.TriggerLogRepository;
 
 import java.util.*;
 
@@ -20,66 +18,64 @@ import java.util.*;
 public class TriggerRouterService {
 
     private final AgentSettingsRepository agentSettingsRepository;
-    private final AgentTriggerRepository agentTriggerRepository;
     private final CentrifugoService centrifugoService;
-    private final TriggerLogRepository triggerLogRepository;
+    private final TriggerLogService triggerLogService;
+    private final TriggerNotificationService triggerNotificationService;
 
     @Async
-    public void routeTriggerToAgents(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest, TriggerLog triggerLog) {
+    public void routeTrigger(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {
+        TriggerLog.TriggerLogBuilder triggerLogBuilder = triggerLogService.getTriggerLogBuilder(deviceAuthKey, triggerRequest);
         try {
-            List<AgentSettings> allSettings = agentSettingsRepository.findAll();
+            UUID userPubId = deviceAuthKey.getUserPubId();
+
+            List<AgentSettings> agents = agentSettingsRepository
+                    .findRoutableByUserPubIdAndTriggerName(userPubId, triggerRequest.name());
+
             Set<String> routedMethods = new LinkedHashSet<>();
-
-            for (AgentSettings settings : allSettings) {
-                if ("ignore".equals(settings.getTriggersTo())) {
-                    continue;
-                }
-
-                boolean subscribed = settings.isTriggersAllowAll()
-                        || agentTriggerRepository.existsByApiKeyPubIdAndTriggerName(
-                                settings.getApiKeyPubId(), triggerRequest.name());
-
-                if (!subscribed) {
-                    continue;
-                }
-
-                try {
-                    switch (settings.getTriggersTo()) {
-                        case "centrifugo" -> {
-                            Map<String, Object> payload = new HashMap<>();
-                            payload.put("type", "trigger");
-                            payload.put("triggerName", triggerRequest.name());
-                            payload.put("triggerData", triggerRequest.data());
-                            payload.put("deviceId", triggerRequest.deviceId());
-                            payload.put("occurredAt", triggerRequest.occurredAt());
-
-                            String channel = "agent:" + settings.getApiKeyPubId();
-                            centrifugoService.publishMessage(channel, payload);
-                            routedMethods.add("centrifugo");
-                            log.debug("Routed trigger '{}' to agent channel '{}'", triggerRequest.name(), channel);
-                        }
-                        case "webhook" -> {
-                            // Webhook delivery reuses the existing gRPC notification mechanism
-                            // handled by TriggerNotificationService in the caller
-                            routedMethods.add("webhook");
-                            log.debug("Routed trigger '{}' to webhook for agent '{}'",
-                                    triggerRequest.name(), settings.getApiKeyPubId());
-                        }
-                        default -> log.warn("Unknown triggersTo value '{}' for agent '{}'",
-                                settings.getTriggersTo(), settings.getApiKeyPubId());
-                    }
-                } catch (Exception e) {
-                    log.warn("Failed to route trigger '{}' to agent '{}': {}",
-                            triggerRequest.name(), settings.getApiKeyPubId(), e.getMessage());
+            for (AgentSettings settings : agents) {
+                routedMethods.add(settings.getTriggersTo());
+                switch (settings.getTriggersTo()) {
+                    case "centrifugo" -> routeToCentrifugo(settings, triggerRequest);
+                    case "webhook" -> routeToWebhook(deviceAuthKey, triggerRequest);
+                    default -> log.warn("Unknown triggersTo value '{}' for agent '{}'", settings.getTriggersTo(), settings.getApiKeyPubId());
                 }
             }
 
             if (!routedMethods.isEmpty()) {
-                triggerLog.setRoutedTo(String.join(",", routedMethods));
-                triggerLogRepository.save(triggerLog);
+                triggerLogBuilder.routedTo(String.join(",", routedMethods));
             }
         } catch (Exception e) {
-            log.warn("Failed to route trigger '{}' to agents: {}", triggerRequest.name(), e.getMessage());
+            log.warn("Failed to route trigger '{}': {}", triggerRequest.name(), e.getMessage());
+        } finally {
+            triggerLogService.logTrigger(triggerLogBuilder);
+        }
+    }
+
+    private void routeToCentrifugo(AgentSettings settings, TriggerRequest triggerRequest) {
+        try {
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("type", "trigger");
+            payload.put("triggerName", triggerRequest.name());
+            payload.put("triggerData", triggerRequest.data());
+            payload.put("deviceId", triggerRequest.deviceId());
+            payload.put("occurredAt", triggerRequest.occurredAt());
+
+            String channel = "agent:" + settings.getApiKeyPubId();
+            centrifugoService.publishMessage(channel, payload);
+            log.debug("Routed trigger '{}' to agent channel '{}'", triggerRequest.name(), channel);
+        } catch (Exception e) {
+            log.warn("Failed to route trigger '{}' to centrifugo for agent '{}': {}",
+                    triggerRequest.name(), settings.getApiKeyPubId(), e.getMessage());
+        }
+    }
+
+    private void routeToWebhook(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {
+        try {
+            triggerNotificationService.notifyTrigger(deviceAuthKey, triggerRequest);
+            log.debug("Routed trigger '{}' to webhook", triggerRequest.name());
+        } catch (Exception e) {
+            log.warn("Failed to route trigger '{}' to webhook: {}",
+                    triggerRequest.name(), e.getMessage());
         }
     }
 }

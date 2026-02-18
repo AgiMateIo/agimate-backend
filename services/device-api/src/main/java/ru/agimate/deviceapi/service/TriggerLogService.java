@@ -32,8 +32,9 @@ public class TriggerLogService {
                 .toList();
     }
 
+
     @Transactional
-    public TriggerLog logTrigger(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {
+    public TriggerLog.TriggerLogBuilder getTriggerLogBuilder(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {
         String linkedDeviceId = null;
         if (deviceAuthKey.getDevice() != null) {
             linkedDeviceId = deviceAuthKey.getDevice().getDeviceId();
@@ -48,7 +49,7 @@ public class TriggerLogService {
 
         var triggerData = JsonUtils.fromJsonToMap(triggerRequest.data().toString());
 
-        var triggerLog = TriggerLog.builder()
+        return TriggerLog.builder()
                 .deviceAuthKey(deviceAuthKey)
                 .userPubId(deviceAuthKey.getUserPubId())
                 .triggerId(triggerRequest.id())
@@ -60,9 +61,11 @@ public class TriggerLogService {
                 .occurredAt(triggerRequest.occurredAt() != null
                         ? LocalDateTime.ofInstant(triggerRequest.occurredAt(), ZoneOffset.UTC)
                         : null)
-                .triggerData(triggerData)
-                .build();
+                .triggerData(triggerData);
+    }
 
-        return triggerLogRepository.save(triggerLog);
+    @Transactional
+    public TriggerLog logTrigger(TriggerLog.TriggerLogBuilder triggerLogBuilder) {
+        return triggerLogRepository.save(triggerLogBuilder.build());
     }
 }

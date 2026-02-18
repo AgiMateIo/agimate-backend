@@ -12,8 +12,6 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.deviceapi.controller.device.dto.TriggerRequest;
 import ru.agimate.deviceapi.service.DeviceAuthKeyService;
-import ru.agimate.deviceapi.service.TriggerLogService;
-import ru.agimate.deviceapi.service.TriggerNotificationService;
 import ru.agimate.deviceapi.service.TriggerRouterService;
 
 /**
@@ -28,8 +26,6 @@ public class DeviceTriggerController {
     public static final String PATH = "/trigger";
 
     private final DeviceAuthKeyService deviceAuthKeyService;
-    private final TriggerLogService triggerLogService;
-    private final TriggerNotificationService triggerNotificationService;
     private final TriggerRouterService triggerRouterService;
 
     @Operation(
@@ -45,10 +41,7 @@ public class DeviceTriggerController {
         log.info("Trigger received - {}", triggerRequest.toString());
 
         var deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
-
-        var triggerLog = triggerLogService.logTrigger(deviceAuthKey, triggerRequest);
-        triggerNotificationService.notifyTrigger(deviceAuthKey, triggerRequest);
-        triggerRouterService.routeTriggerToAgents(deviceAuthKey, triggerRequest, triggerLog);
+        triggerRouterService.routeTrigger(deviceAuthKey, triggerRequest);
 
         return SuccessResponse.ok(triggerRequest.name());
     }
