@@ -33,7 +33,7 @@ public class TriggerLogService {
     }
 
     @Transactional
-    public void logTrigger(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {
+    public TriggerLog logTrigger(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {
         String linkedDeviceId = null;
         if (deviceAuthKey.getDevice() != null) {
             linkedDeviceId = deviceAuthKey.getDevice().getDeviceId();
@@ -63,6 +63,6 @@ public class TriggerLogService {
                 .triggerData(triggerData)
                 .build();
 
-        triggerLogRepository.save(triggerLog);
+        return triggerLogRepository.save(triggerLog);
     }
 }
