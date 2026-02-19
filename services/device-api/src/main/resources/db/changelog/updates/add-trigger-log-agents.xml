@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="create-trigger-log-agents-table" author="agimate">
+        <createTable tableName="trigger_log_agents">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="trigger_log_id" type="BIGINT">
+                <constraints nullable="false"
+                             foreignKeyName="fk_trigger_log_agents_trigger_log"
+                             references="trigger_logs(id)"/>
+            </column>
+            <column name="agent_settings_id" type="BIGINT">
+                <constraints nullable="false"
+                             foreignKeyName="fk_trigger_log_agents_agent_settings"
+                             references="agent_settings(id)"/>
+            </column>
+            <column name="routed_to" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="trigger_log_agents"
+                             columnNames="trigger_log_id, agent_settings_id"
+                             constraintName="uq_trigger_log_agents_log_id_settings_id"/>
+
+        <createIndex tableName="trigger_log_agents" indexName="idx_trigger_log_agents_trigger_log_id">
+            <column name="trigger_log_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="drop-routed-to-from-trigger-logs" author="agimate">
+        <dropColumn tableName="trigger_logs" columnName="routed_to"/>
+    </changeSet>
+
+</databaseChangeLog>

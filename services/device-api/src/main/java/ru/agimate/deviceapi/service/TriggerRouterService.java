@@ -8,7 +8,9 @@ import ru.agimate.deviceapi.controller.device.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.AgentSettings;
 import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
 import ru.agimate.deviceapi.database.entities.TriggerLog;
+import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.repositories.AgentSettingsRepository;
+import ru.agimate.deviceapi.database.repositories.TriggerLogRepository;
 
 import java.util.*;
 
@@ -20,20 +22,27 @@ public class TriggerRouterService {
     private final AgentSettingsRepository agentSettingsRepository;
     private final CentrifugoService centrifugoService;
     private final TriggerLogService triggerLogService;
+    private final TriggerLogRepository triggerLogRepository;
     private final TriggerNotificationService triggerNotificationService;
 
     @Async
     public void routeTrigger(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {
         TriggerLog.TriggerLogBuilder triggerLogBuilder = triggerLogService.getTriggerLogBuilder(deviceAuthKey, triggerRequest);
+        TriggerLog triggerLog = triggerLogService.logTrigger(triggerLogBuilder);
         try {
             UUID userPubId = deviceAuthKey.getUserPubId();
 
             List<AgentSettings> agents = agentSettingsRepository
                     .findRoutableByUserPubIdAndTriggerName(userPubId, triggerRequest.name());
 
-            Set<String> routedMethods = new LinkedHashSet<>();
             for (AgentSettings settings : agents) {
-                routedMethods.add(settings.getTriggersTo());
+                triggerLog.getTriggerLogAgents().add(
+                        TriggerLogAgent.builder()
+                                .triggerLog(triggerLog)
+                                .agentSettings(settings)
+                                .routedTo(settings.getTriggersTo())
+                                .build()
+                );
                 switch (settings.getTriggersTo()) {
                     case "centrifugo" -> routeToCentrifugo(settings, triggerRequest);
                     case "webhook" -> routeToWebhook(deviceAuthKey, triggerRequest);
@@ -41,13 +50,9 @@ public class TriggerRouterService {
                 }
             }
 
-            if (!routedMethods.isEmpty()) {
-                triggerLogBuilder.routedTo(String.join(",", routedMethods));
-            }
+            triggerLogRepository.save(triggerLog);
         } catch (Exception e) {
             log.warn("Failed to route trigger '{}': {}", triggerRequest.name(), e.getMessage());
-        } finally {
-            triggerLogService.logTrigger(triggerLogBuilder);
         }
     }
 

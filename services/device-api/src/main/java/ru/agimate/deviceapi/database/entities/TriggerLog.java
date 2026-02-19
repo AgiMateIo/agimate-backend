@@ -8,6 +8,8 @@ import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -61,6 +63,7 @@ public class TriggerLog extends BaseEntity {
     @Column(name = "trigger_data", nullable = false, columnDefinition = "JSONB")
     private Map<String, Object> triggerData;
 
-    @Column(name = "routed_to", columnDefinition = "TEXT")
-    private String routedTo;
+    @OneToMany(mappedBy = "triggerLog", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<TriggerLogAgent> triggerLogAgents = new ArrayList<>();
 }
