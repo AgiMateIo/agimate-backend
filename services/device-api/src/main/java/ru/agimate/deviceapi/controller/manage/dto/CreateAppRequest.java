@@ -4,11 +4,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-@Schema(description = "Request to create a new device auth key")
-public record CreateDeviceAuthKeyRequest(
+@Schema(description = "Request to create a new app")
+public record CreateAppRequest(
         @NotBlank
         @Size(min = 1, max = 100)
-        @Schema(description = "Name/label for the key", example = "My Home Device")
+        @Schema(description = "Name/label for the app", example = "My Home Device")
         String name,
 
         @Size(max = 500)

@@ -8,9 +8,10 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
-import ru.agimate.deviceapi.service.DeviceApiService;
+import ru.agimate.deviceapi.service.AppApiService;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping(ManageDeviceTriggersController.PATH)
@@ -20,7 +21,7 @@ public class ManageDeviceTriggersController {
 
     public static final String PATH = "/manage/triggers";
 
-    private final DeviceApiService deviceApiService;
+    private final AppApiService appApiService;
 
     @Operation(
             summary = "Get all device triggers",
@@ -30,7 +31,8 @@ public class ManageDeviceTriggersController {
     public SuccessResponse<List<DeviceTriggersResponse>> getAllTriggers(
             @AuthenticationPrincipal AgimateUserPrincipal principal
     ) {
-        var triggers = deviceApiService.getAllTriggers(principal.pubId());
+        UUID userPubId = UUID.fromString(principal.pubId());
+        var triggers = appApiService.getAllAppTriggers(userPubId);
         return SuccessResponse.ok(triggers);
     }
 }

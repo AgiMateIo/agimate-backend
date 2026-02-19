@@ -48,7 +48,7 @@ public record TriggerLogResponse(
     public static TriggerLogResponse from(TriggerLog triggerLog) {
         return new TriggerLogResponse(
                 triggerLog.getPubId(),
-                triggerLog.getDeviceAuthKey().getPubId(),
+                triggerLog.getApp().getPubId(),
                 triggerLog.getTriggerId(),
                 triggerLog.getTriggerType(),
                 triggerLog.getTriggerName(),
