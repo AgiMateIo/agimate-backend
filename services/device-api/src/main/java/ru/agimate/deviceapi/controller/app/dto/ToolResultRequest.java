@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller.device.dto;
+package ru.agimate.deviceapi.controller.app.dto;
 
 import ru.agimate.deviceapi.service.IToolResult;
 

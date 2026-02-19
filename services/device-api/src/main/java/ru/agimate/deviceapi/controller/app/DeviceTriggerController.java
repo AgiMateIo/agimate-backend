@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller.device;
+package ru.agimate.deviceapi.controller.app;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -10,13 +10,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.deviceapi.controller.device.dto.TriggerRequest;
-import ru.agimate.deviceapi.service.DeviceAuthKeyService;
+import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
+import ru.agimate.deviceapi.service.AppService;
 import ru.agimate.deviceapi.service.TriggerRouterService;
 
-/**
- * This Controller is used to handle requests from devices
- */
 @Slf4j
 @RestController
 @RequestMapping(DeviceTriggerController.PATH)
@@ -25,7 +22,7 @@ public class DeviceTriggerController {
 
     public static final String PATH = "/trigger";
 
-    private final DeviceAuthKeyService deviceAuthKeyService;
+    private final AppService appService;
     private final TriggerRouterService triggerRouterService;
 
     @Operation(
@@ -40,8 +37,8 @@ public class DeviceTriggerController {
     ) {
         log.info("Trigger received - {}", triggerRequest.toString());
 
-        var deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
-        triggerRouterService.routeTrigger(deviceAuthKey, triggerRequest);
+        var app = appService.getApp(authentication);
+        triggerRouterService.routeTrigger(app, triggerRequest);
 
         return SuccessResponse.ok(triggerRequest.name());
     }

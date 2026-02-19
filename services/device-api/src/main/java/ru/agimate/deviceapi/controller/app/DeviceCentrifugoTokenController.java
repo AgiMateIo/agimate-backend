@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller.device;
+package ru.agimate.deviceapi.controller.app;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,11 +12,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
-import ru.agimate.deviceapi.controller.device.dto.DeviceChannelTokenRequest;
-import ru.agimate.deviceapi.controller.device.dto.CentrifugoTokenResponse;
-import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
+import ru.agimate.deviceapi.controller.app.dto.DeviceChannelTokenRequest;
+import ru.agimate.deviceapi.controller.app.dto.CentrifugoTokenResponse;
+import ru.agimate.deviceapi.database.entities.App;
+import ru.agimate.deviceapi.service.AppService;
 import ru.agimate.deviceapi.service.CentrifugoService;
-import ru.agimate.deviceapi.service.DeviceAuthKeyService;
 
 @Slf4j
 @RestController
@@ -29,7 +29,7 @@ public class DeviceCentrifugoTokenController {
     private static final long TOKEN_EXPIRATION_SECONDS = 3600; // 1 hour
 
     private final CentrifugoService centrifugoService;
-    private final DeviceAuthKeyService deviceAuthKeyService;
+    private final AppService appService;
 
     @Operation(
             summary = "Get Centrifugo subscription token",
@@ -42,9 +42,9 @@ public class DeviceCentrifugoTokenController {
             Authentication authentication,
             HttpServletRequest request
     ) {
-        DeviceAuthKey deviceAuthKey = deviceAuthKeyService.getDeviceAuthKey(authentication);
+        App app = appService.getApp(authentication);
 
-        if (deviceAuthKey.getDevice() == null || !deviceChannelTokenRequest.deviceId().equals(deviceAuthKey.getDevice().getDeviceId())) {
+        if (!app.isLinked() || !deviceChannelTokenRequest.deviceId().equals(app.getDeviceId())) {
             throw new ForbiddenStatusException("Device is not linked");
         }
 
