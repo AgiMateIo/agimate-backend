@@ -2,6 +2,7 @@ package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import ru.agimate.deviceapi.controller.manage.dto.DeviceToolsResponse;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
@@ -57,6 +58,35 @@ public class AppApiService {
                             app.getDeviceId(),
                             getDeviceName(app),
                             triggerList
+                    );
+                })
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<DeviceToolsResponse> getAllAppTools(UUID userPubId) {
+        return appRepository.findLinkedByUserPubId(userPubId).stream()
+                .map(app -> {
+                    var tools = app.getTools();
+                    List<DeviceTool> toolList;
+                    if (tools == null) {
+                        toolList = List.of();
+                    } else {
+                        toolList = tools.entrySet().stream()
+                                .map(entry -> {
+                                    var value = (Map<String, Object>) entry.getValue();
+                                    var params = value.get("params") instanceof List<?> list
+                                            ? list.stream().map(Object::toString).toList()
+                                            : List.<String>of();
+                                    return new DeviceTool(entry.getKey(), params);
+                                })
+                                .toList();
+                    }
+                    return new DeviceToolsResponse(
+                            app.getPubId().toString(),
+                            app.getDeviceId(),
+                            getDeviceName(app),
+                            toolList
                     );
                 })
                 .toList();
