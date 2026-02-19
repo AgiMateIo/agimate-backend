@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.controller.api.dto.AgentCentrifugoTokenRequest;
-import ru.agimate.deviceapi.controller.device.dto.CentrifugoTokenResponse;
+import ru.agimate.deviceapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.deviceapi.service.CentrifugoService;
 
 @Slf4j
@@ -24,7 +24,7 @@ import ru.agimate.deviceapi.service.CentrifugoService;
 @Tag(name = "Agent Centrifugo", description = "Centrifugo tokens for agents")
 public class ApiAgentCentrifugoTokenController {
 
-    public static final String PATH = ApiDeviceApiController.PATH + "/centrifugo";
+    public static final String PATH = ApiAppsController.PATH + "/centrifugo";
 
     private static final long TOKEN_EXPIRATION_SECONDS = 3600; // 1 hour
 

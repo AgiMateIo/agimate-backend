@@ -20,7 +20,7 @@ import java.util.UUID;
 @Tag(name = "Agent API", description = "Agent configuration via API Key")
 public class ApiAgentSettingsController {
 
-    public static final String PATH = ApiDeviceApiController.PATH + "/agent";
+    public static final String PATH = ApiAppsController.PATH + "/agent";
 
     private final AgentSettingsService agentSettingsService;
 

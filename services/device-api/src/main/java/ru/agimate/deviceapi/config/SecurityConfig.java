@@ -21,19 +21,18 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.deviceapi.controller.api.ApiDeviceApiController;
+import ru.agimate.deviceapi.controller.api.ApiAppsController;
 import ru.agimate.common.security.apikey.ApiKeyAuthenticationFilter;
-import ru.agimate.deviceapi.controller.device.DeviceToolsController;
-import ru.agimate.deviceapi.controller.device.DeviceCentrifugoTokenController;
-import ru.agimate.deviceapi.controller.device.DeviceRegistrationController;
-import ru.agimate.deviceapi.controller.device.DeviceTriggerController;
+import ru.agimate.deviceapi.controller.app.DeviceToolsController;
+import ru.agimate.deviceapi.controller.app.DeviceCentrifugoTokenController;
+import ru.agimate.deviceapi.controller.app.DeviceRegistrationController;
+import ru.agimate.deviceapi.controller.app.DeviceTriggerController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentSettingsController;
-import ru.agimate.deviceapi.controller.manage.ManageDeviceKeysController;
+import ru.agimate.deviceapi.controller.manage.ManageAppsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceTriggersController;
-import ru.agimate.deviceapi.controller.manage.ManageDevicesController;
 import ru.agimate.deviceapi.controller.manage.ManageToolUseLogsController;
 import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
-import ru.agimate.deviceapi.security.DeviceAuthenticationFilter;
+import ru.agimate.deviceapi.security.AppAuthenticationFilter;
 import ru.agimate.deviceapi.security.JwtAuthenticationFilter;
 
 import java.nio.charset.StandardCharsets;
@@ -49,7 +48,7 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final DeviceAuthenticationFilter deviceAuthenticationFilter;
+    private final AppAuthenticationFilter appAuthenticationFilter;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     @Bean
@@ -67,7 +66,6 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService userDetailsService() {
-        // Empty UserDetailsService - we use JWT and device auth keys
         return new InMemoryUserDetailsManager();
     }
 
@@ -99,16 +97,11 @@ public class SecurityConfig {
         };
     }
 
-    /**
-     * JWT-protected endpoints SecurityFilterChain for dashboard/management operations.
-     * Handles /manage/device-keys/** and /manage/devices/** with JWT authentication.
-     */
     @Bean
     @Order(1)
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                ManageDeviceKeysController.PATH + "/**",
-                ManageDevicesController.PATH + "/**",
+                ManageAppsController.PATH + "/**",
                 ManageDeviceTriggersController.PATH + "/**",
                 ManageTriggerLogsController.PATH + "/**",
                 ManageToolUseLogsController.PATH + "/**",
@@ -124,10 +117,6 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * Device auth key-protected endpoints SecurityFilterChain for device operations.
-     * Handles /device/** with device auth key authentication.
-     */
     @Bean
     @Order(2)
     public SecurityFilterChain deviceAuthKeySecurityFilterChain(HttpSecurity http) throws Exception {
@@ -142,20 +131,16 @@ public class SecurityConfig {
 
         http.authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
                 .userDetailsService(userDetailsService())
-                .addFilterBefore(deviceAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(appAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
-    /**
-     * API key-protected endpoints SecurityFilterChain for external device API calls.
-     * Handles /api/** with API key authentication via user-api introspect.
-     */
     @Bean
     @Order(3)
     public SecurityFilterChain apiKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                ApiDeviceApiController.PATH + "/**"
+                ApiAppsController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);
@@ -167,10 +152,6 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * Public endpoints SecurityFilterChain for health checks, documentation, etc.
-     * Handles all other requests not matched by higher-priority chains.
-     */
     @Bean
     @Order(4)
     public SecurityFilterChain publicSecurityFilterChain(HttpSecurity http) throws Exception {
@@ -191,8 +172,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public FilterRegistrationBean<DeviceAuthenticationFilter> disableDeviceAuthFilterAutoRegistration() {
-        FilterRegistrationBean<DeviceAuthenticationFilter> registration = new FilterRegistrationBean<>(deviceAuthenticationFilter);
+    public FilterRegistrationBean<AppAuthenticationFilter> disableAppAuthFilterAutoRegistration() {
+        FilterRegistrationBean<AppAuthenticationFilter> registration = new FilterRegistrationBean<>(appAuthenticationFilter);
         registration.setEnabled(false);
         return registration;
     }
@@ -204,10 +185,6 @@ public class SecurityConfig {
         return registration;
     }
 
-    /**
-     * Apply common security configuration to all SecurityFilterChain beans.
-     * Includes CORS, CSRF disable, stateless sessions, and exception handling.
-     */
     private void applyCommonSecurityConfig(HttpSecurity http) throws Exception {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)

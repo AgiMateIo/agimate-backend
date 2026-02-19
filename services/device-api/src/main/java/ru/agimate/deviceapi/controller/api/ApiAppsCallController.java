@@ -16,21 +16,21 @@ import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.controller.api.dto.ToolUseRequest;
-import ru.agimate.deviceapi.service.DeviceApiService;
+import ru.agimate.deviceapi.service.AppApiService;
 import ru.agimate.deviceapi.service.ToolUseAuthorizerService;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ApiDeviceCallApiController.PATH)
+@RequestMapping(ApiAppsCallController.PATH)
 @RequiredArgsConstructor
-@Tag(name = "Device Call", description = "Execute device methods via API Key")
-public class ApiDeviceCallApiController {
+@Tag(name = "App Call", description = "Execute app methods via API Key")
+public class ApiAppsCallController {
 
-    public static final String PATH = ApiDeviceApiController.PATH + "/call";
+    public static final String PATH = ApiAppsController.PATH + "/call";
 
-    private final DeviceApiService deviceApiService;
+    private final AppApiService appApiService;
     private final ToolUseLogService toolUseLogService;
     private final ToolUseAuthorizerService toolUseAuthorizerService;
 
@@ -56,24 +56,24 @@ public class ApiDeviceCallApiController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
-    @PostMapping("/{deviceAuthKeyId}")
+    @PostMapping("/{appId}")
     public SuccessResponse<String> toolUse(
             @Parameter(
-                    description = "Device Auth key identifier",
+                    description = "App identifier",
                     required = true,
-                    example = "device-123"
+                    example = "app-123"
             )
-            @PathVariable String deviceAuthKeyId,
+            @PathVariable String appId,
             @Valid @RequestBody ToolUseRequest toolUseRequest,
             @AuthenticationPrincipal ApiKeyPrincipal principal
     ) {
 
-        toolUseAuthorizerService.authorizeToolUseRequest(principal, deviceAuthKeyId, toolUseRequest.getName());
+        toolUseAuthorizerService.authorizeToolUseRequest(principal, appId, toolUseRequest.getName());
 
         UUID apiKeyPubId = UUID.fromString(principal.pubId());
-        toolUseLogService.createLog(apiKeyPubId, deviceAuthKeyId, toolUseRequest);
+        toolUseLogService.createLog(apiKeyPubId, appId, toolUseRequest);
 
-        deviceApiService.pushToDevice(deviceAuthKeyId, toolUseRequest);
+        appApiService.pushToDevice(appId, toolUseRequest);
         return SuccessResponse.ok("success");
     }
 }
