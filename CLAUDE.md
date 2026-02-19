@@ -55,6 +55,7 @@ See `/docs/` for:
 - **Migrations**: `updated_at` always NOT NULL + DEFAULT CURRENT_TIMESTAMP (matches BaseEntity)
 - **Migrations**: Don't create explicit indexes on columns with UNIQUE constraint (PostgreSQL creates one automatically)
 - **Migrations**: Composite business keys should be UNIQUE constraints, not just indexes
+- **Migrations format**: `updates/YYYY/MM/DD-00-name.xml` (00 — порядковый номер на дату, например `updates/2026/02/19-01-add-users.xml`)
 - **JPA Entities**: Duplicate unique constraints in `@Table(uniqueConstraints=...)` on the entity
 
 ## Adding New Connector

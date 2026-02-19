@@ -5,7 +5,7 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <changeSet id="create-device-auth-keys-table" author="Eugene Smith">
+    <changeSet id="create-device-auth-keys-table" author="agimate">
         <createTable tableName="device_auth_keys">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -42,7 +42,6 @@
             <column name="user_pub_id"/>
         </createIndex>
 
-        <!-- Index for authentication lookup by key ID -->
         <createIndex tableName="device_auth_keys" indexName="idx_device_auth_keys_key_id_active">
             <column name="key_id"/>
             <column name="enabled"/>
@@ -50,7 +49,7 @@
         </createIndex>
     </changeSet>
 
-    <changeSet id="create-device-table" author="Eugene Smith">
+    <changeSet id="create-device-table" author="agimate">
         <createTable tableName="device">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -71,7 +70,7 @@
                 <constraints nullable="true"/>
             </column>
             <column name="triggers" type="JSONB"/>
-            <column name="actions" type="JSONB"/>
+            <column name="tools" type="JSONB"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
@@ -84,12 +83,10 @@
                              columnNames="device_id, user_pub_id"
                              constraintName="uq_device_device_id_user_pub_id"/>
 
-        <!-- Index for looking up devices by device_auth_key_id -->
         <createIndex tableName="device" indexName="idx_device_auth_key_id">
             <column name="device_auth_key_id"/>
         </createIndex>
 
-        <!-- Foreign key to device_auth_keys table -->
         <addForeignKeyConstraint
                 baseTableName="device"
                 baseColumnNames="device_auth_key_id"
@@ -99,7 +96,7 @@
                 onDelete="SET NULL"/>
     </changeSet>
 
-    <changeSet id="create-trigger-logs-table" author="Eugene Smith">
+    <changeSet id="create-trigger-logs-table" author="agimate">
         <createTable tableName="trigger_logs">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
@@ -150,6 +147,160 @@
 
         <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_created_at">
             <column name="created_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create-tool-use-logs-table" author="agimate">
+        <createTable tableName="tool_use_logs">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="api_key_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tool_use_id" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tool_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="device_auth_key_id" type="TEXT"/>
+            <column name="tool_params" type="JSONB"/>
+            <column name="result_at" type="TIMESTAMP"/>
+            <column name="result" type="TEXT"/>
+            <column name="error" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_api_key_pub_id">
+            <column name="api_key_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_created_at">
+            <column name="created_at" descending="true"/>
+        </createIndex>
+
+        <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_tool_use_id">
+            <column name="tool_use_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create-agent-settings-table" author="agimate">
+        <createTable tableName="agent_settings">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="api_key_pub_id" type="UUID">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="prompt" type="TEXT"/>
+            <column name="triggers_allow_all" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="triggers_to" type="TEXT" defaultValue="ignore">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="agent_settings" indexName="idx_agent_settings_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create-agent-tools-table" author="agimate">
+        <createTable tableName="agent_tools">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="api_key_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tool_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="agent_tools"
+                             columnNames="api_key_pub_id, tool_name"
+                             constraintName="uq_agent_tools_api_key_pub_id_tool_name"/>
+    </changeSet>
+
+    <changeSet id="create-agent-triggers-table" author="agimate">
+        <createTable tableName="agent_triggers">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="api_key_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="agent_triggers"
+                             columnNames="api_key_pub_id, trigger_name"
+                             constraintName="uq_agent_triggers_api_key_pub_id_trigger_name"/>
+    </changeSet>
+
+    <changeSet id="create-trigger-log-agents-table" author="agimate">
+        <createTable tableName="trigger_log_agents">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="trigger_log_id" type="BIGINT">
+                <constraints nullable="false"
+                             foreignKeyName="fk_trigger_log_agents_trigger_log"
+                             references="trigger_logs(id)"/>
+            </column>
+            <column name="agent_settings_id" type="BIGINT">
+                <constraints nullable="false"
+                             foreignKeyName="fk_trigger_log_agents_agent_settings"
+                             references="agent_settings(id)"/>
+            </column>
+            <column name="routed_to" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="trigger_log_agents"
+                             columnNames="trigger_log_id, agent_settings_id"
+                             constraintName="uq_trigger_log_agents_log_id_settings_id"/>
+
+        <createIndex tableName="trigger_log_agents" indexName="idx_trigger_log_agents_trigger_log_id">
+            <column name="trigger_log_id"/>
         </createIndex>
     </changeSet>
 
