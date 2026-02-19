@@ -25,7 +25,7 @@ public record AppResponse(
         boolean enabled,
 
         @Schema(description = "Creation timestamp")
-        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime createdAt
 ) {
     public static AppResponse from(App app) {

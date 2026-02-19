@@ -3,6 +3,7 @@ package ru.agimate.deviceapi.controller.manage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
@@ -10,7 +11,6 @@ import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.ToolUseLogResponse;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -28,11 +28,13 @@ public class ManageToolUseLogsController {
             description = "Returns tool use logs with optional filtering by API key"
     )
     @GetMapping("/")
-    public SuccessResponse<List<ToolUseLogResponse>> getToolUseLogs(
+    public SuccessResponse<Page<ToolUseLogResponse>> getToolUseLogs(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam(required = false) UUID apiKeyPubId
+            @RequestParam(required = false) UUID apiKeyPubId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
-        // todo check access to this logs by user_pub_id (should be added to tool_use_log entity)
-        return SuccessResponse.ok(toolUseLogService.getToolUseLogs(apiKeyPubId));
+        UUID userPubId = UUID.fromString(principal.pubId());
+        return SuccessResponse.ok(toolUseLogService.getToolUseLogs(userPubId, apiKeyPubId, page, size));
     }
 }

@@ -16,8 +16,8 @@ public record ToolUseLogResponse(
         @Schema(description = "API key public ID (agent identifier)")
         UUID apiKeyPubId,
 
-        @Schema(description = "Device auth key ID")
-        String deviceAuthKeyId,
+        @Schema(description = "App public ID")
+        String appPubId,
 
         @Schema(description = "Tool use correlation ID")
         String toolUseId,
@@ -46,7 +46,7 @@ public record ToolUseLogResponse(
         return new ToolUseLogResponse(
                 toolUseLog.getPubId(),
                 toolUseLog.getApiKeyPubId(),
-                toolUseLog.getDeviceAuthKeyId(),
+                toolUseLog.getAppPubId(),
                 toolUseLog.getToolUseId(),
                 toolUseLog.getToolName(),
                 toolUseLog.getToolParams(),

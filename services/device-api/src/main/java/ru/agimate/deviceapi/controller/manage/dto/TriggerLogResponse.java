@@ -13,8 +13,8 @@ public record TriggerLogResponse(
         @Schema(description = "Trigger log ID")
         UUID id,
 
-        @Schema(description = "Device auth key ID")
-        UUID deviceAuthKeyId,
+        @Schema(description = "App public ID")
+        UUID appPubId,
 
         @Schema(description = "Trigger ID")
         String triggerId,

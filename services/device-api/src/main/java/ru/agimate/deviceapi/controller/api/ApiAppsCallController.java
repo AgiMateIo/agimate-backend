@@ -71,7 +71,8 @@ public class ApiAppsCallController {
         toolUseAuthorizerService.authorizeToolUseRequest(principal, appId, toolUseRequest.getName());
 
         UUID apiKeyPubId = UUID.fromString(principal.pubId());
-        toolUseLogService.createLog(apiKeyPubId, appId, toolUseRequest);
+        UUID userPubId = UUID.fromString(principal.userPubId());
+        toolUseLogService.createLog(apiKeyPubId, userPubId, appId, toolUseRequest);
 
         appApiService.pushToDevice(appId, toolUseRequest);
         return SuccessResponse.ok("success");

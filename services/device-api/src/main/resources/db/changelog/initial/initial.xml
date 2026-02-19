@@ -5,8 +5,8 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <changeSet id="create-device-auth-keys-table" author="agimate">
-        <createTable tableName="device_auth_keys">
+    <changeSet id="create-apps-table" author="agimate">
+        <createTable tableName="apps">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
@@ -30,45 +30,8 @@
                 <constraints nullable="false"/>
             </column>
             <column name="deleted_at" type="TIMESTAMP"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-        </createTable>
-
-        <createIndex tableName="device_auth_keys" indexName="idx_device_auth_keys_user_pub_id">
-            <column name="user_pub_id"/>
-        </createIndex>
-
-        <createIndex tableName="device_auth_keys" indexName="idx_device_auth_keys_key_id_active">
-            <column name="key_id"/>
-            <column name="enabled"/>
-            <column name="deleted_at"/>
-        </createIndex>
-    </changeSet>
-
-    <changeSet id="create-device-table" author="agimate">
-        <createTable tableName="device">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
-                <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="device_id" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="user_pub_id" type="UUID">
-                <constraints nullable="false"/>
-            </column>
-            <column name="name" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="os" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="device_auth_key_id" type="BIGINT">
-                <constraints nullable="true"/>
-            </column>
+            <column name="device_id" type="TEXT"/>
+            <column name="device_features" type="JSONB"/>
             <column name="triggers" type="JSONB"/>
             <column name="tools" type="JSONB"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
@@ -79,21 +42,20 @@
             </column>
         </createTable>
 
-        <addUniqueConstraint tableName="device"
-                             columnNames="device_id, user_pub_id"
-                             constraintName="uq_device_device_id_user_pub_id"/>
-
-        <createIndex tableName="device" indexName="idx_device_auth_key_id">
-            <column name="device_auth_key_id"/>
+        <createIndex tableName="apps" indexName="idx_apps_user_pub_id">
+            <column name="user_pub_id"/>
         </createIndex>
 
-        <addForeignKeyConstraint
-                baseTableName="device"
-                baseColumnNames="device_auth_key_id"
-                constraintName="fk_device_device_auth_key"
-                referencedTableName="device_auth_keys"
-                referencedColumnNames="id"
-                onDelete="SET NULL"/>
+        <createIndex tableName="apps" indexName="idx_apps_key_id_active">
+            <column name="key_id"/>
+            <column name="enabled"/>
+            <column name="deleted_at"/>
+        </createIndex>
+
+        <createIndex tableName="apps" indexName="idx_apps_device_id_user_pub_id">
+            <column name="device_id"/>
+            <column name="user_pub_id"/>
+        </createIndex>
     </changeSet>
 
     <changeSet id="create-trigger-logs-table" author="agimate">
@@ -104,7 +66,7 @@
             <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
                 <constraints nullable="false" unique="true"/>
             </column>
-            <column name="device_auth_key_id" type="BIGINT">
+            <column name="app_id" type="BIGINT">
                 <constraints nullable="false"/>
             </column>
             <column name="user_pub_id" type="UUID">
@@ -132,13 +94,13 @@
 
         <addForeignKeyConstraint
                 baseTableName="trigger_logs"
-                baseColumnNames="device_auth_key_id"
-                constraintName="fk_trigger_logs_device_auth_key"
-                referencedTableName="device_auth_keys"
+                baseColumnNames="app_id"
+                constraintName="fk_trigger_logs_app"
+                referencedTableName="apps"
                 referencedColumnNames="id"/>
 
-        <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_device_auth_key_id">
-            <column name="device_auth_key_id"/>
+        <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_app_id">
+            <column name="app_id"/>
         </createIndex>
 
         <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_user_pub_id">
@@ -158,16 +120,19 @@
             <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
                 <constraints nullable="false" unique="true"/>
             </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
             <column name="api_key_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
+            <column name="app_pub_id" type="TEXT"/>
             <column name="tool_use_id" type="TEXT">
                 <constraints nullable="false"/>
             </column>
             <column name="tool_name" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="device_auth_key_id" type="TEXT"/>
             <column name="tool_params" type="JSONB"/>
             <column name="result_at" type="TIMESTAMP"/>
             <column name="result" type="TEXT"/>
@@ -179,6 +144,10 @@
                 <constraints nullable="false"/>
             </column>
         </createTable>
+
+        <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
 
         <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_api_key_pub_id">
             <column name="api_key_pub_id"/>

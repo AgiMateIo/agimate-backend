@@ -32,7 +32,7 @@ public class TriggerLog extends BaseEntity {
     private UUID pubId = UUIDUtils.generateUUIDv8();
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "device_auth_key_id", nullable = false)
+    @JoinColumn(name = "app_id", nullable = false)
     private App app;
 
     @Column(name = "user_pub_id", nullable = false)

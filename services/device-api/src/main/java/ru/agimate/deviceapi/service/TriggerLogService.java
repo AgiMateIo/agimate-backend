@@ -2,6 +2,8 @@ package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
@@ -13,7 +15,6 @@ import ru.agimate.deviceapi.database.repositories.TriggerLogRepository;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -25,11 +26,9 @@ public class TriggerLogService {
 
     private final TriggerLogRepository triggerLogRepository;
 
-    public List<TriggerLogResponse> getTriggerLogs(UUID userPubId, String deviceId, UUID deviceAuthKeyId) {
-        return triggerLogRepository.findByUserPubIdWithFilters(userPubId, deviceId, deviceAuthKeyId)
-                .stream()
-                .map(TriggerLogResponse::from)
-                .toList();
+    public Page<TriggerLogResponse> getTriggerLogs(UUID userPubId, String deviceId, UUID appPubId, int page, int size) {
+        return triggerLogRepository.findByUserPubIdWithFilters(userPubId, deviceId, appPubId, PageRequest.of(page, size))
+                .map(TriggerLogResponse::from);
     }
 
 

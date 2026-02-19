@@ -29,11 +29,14 @@ public class ToolUseLog extends BaseEntity {
     @Builder.Default
     private UUID pubId = UUIDUtils.generateUUIDv8();
 
+    @Column(name = "user_pub_id", nullable = false)
+    private UUID userPubId;
+
     @Column(name = "api_key_pub_id", nullable = false)
     private UUID apiKeyPubId;
 
-    @Column(name = "device_auth_key_id", columnDefinition = "TEXT")
-    private String deviceAuthKeyId;
+    @Column(name = "app_pub_id", columnDefinition = "TEXT")
+    private String appPubId;
 
     @Column(name = "tool_use_id", nullable = false, columnDefinition = "TEXT")
     private String toolUseId;
