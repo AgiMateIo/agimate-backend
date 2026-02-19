@@ -4,6 +4,7 @@ import java.util.List;
 
 public record DeviceTool(
         String name,
+        String description,
         List<String> params
 ) {
 }

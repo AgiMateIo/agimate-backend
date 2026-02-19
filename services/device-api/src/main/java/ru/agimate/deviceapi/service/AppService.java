@@ -21,7 +21,9 @@ import ru.agimate.deviceapi.util.GeneratedApiKey;
 import ru.agimate.deviceapi.util.ParsedApiKey;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -190,7 +192,7 @@ public class AppService {
 
         // If already linked to the same device — update capabilities
         if (app.isLinked() && app.getDeviceId().equals(linkDeviceRequest.deviceId())) {
-            app.setDeviceFeatures(linkDeviceRequest.deviceFeatures());
+            app.setDeviceFeatures(buildDeviceFeatures(linkDeviceRequest));
             app.setTriggers(linkDeviceRequest.triggers());
             app.setTools(linkDeviceRequest.tools());
             return appRepository.save(app);
@@ -204,12 +206,21 @@ public class AppService {
 
         // Link device
         app.setDeviceId(linkDeviceRequest.deviceId());
-        app.setDeviceFeatures(linkDeviceRequest.deviceFeatures());
+        app.setDeviceFeatures(buildDeviceFeatures(linkDeviceRequest));
         app.setTriggers(linkDeviceRequest.triggers());
         app.setTools(linkDeviceRequest.tools());
         app = appRepository.save(app);
         log.info("Linked device {} to app {}", linkDeviceRequest.deviceId(), app.getPubId());
 
         return app;
+    }
+
+    private Map<String, Object> buildDeviceFeatures(LinkDeviceRequest request) {
+        var features = request.deviceFeatures() != null
+                ? new HashMap<>(request.deviceFeatures())
+                : new HashMap<String, Object>();
+        if (request.deviceName() != null) features.put("deviceName", request.deviceName());
+        if (request.deviceOs() != null) features.put("deviceOs", request.deviceOs());
+        return features;
     }
 }

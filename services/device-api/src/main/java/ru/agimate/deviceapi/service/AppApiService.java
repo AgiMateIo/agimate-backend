@@ -49,7 +49,10 @@ public class AppApiService {
                                 .map(entry -> {
                                     var value = (Map<String, Object>) entry.getValue();
                                     var description = value.getOrDefault("description", "").toString();
-                                    return new DeviceTrigger(entry.getKey(), description);
+                                    var params = value.get("params") instanceof List<?> list
+                                            ? list.stream().map(Object::toString).toList()
+                                            : List.<String>of();
+                                    return new DeviceTrigger(entry.getKey(), description, params);
                                 })
                                 .toList();
                     }
@@ -75,10 +78,11 @@ public class AppApiService {
                         toolList = tools.entrySet().stream()
                                 .map(entry -> {
                                     var value = (Map<String, Object>) entry.getValue();
+                                    var description = value.getOrDefault("description", "").toString();
                                     var params = value.get("params") instanceof List<?> list
                                             ? list.stream().map(Object::toString).toList()
                                             : List.<String>of();
-                                    return new DeviceTool(entry.getKey(), params);
+                                    return new DeviceTool(entry.getKey(), description, params);
                                 })
                                 .toList();
                     }
@@ -93,7 +97,7 @@ public class AppApiService {
     }
 
     public List<DeviceTrigger> getTriggers(String appId) {
-        return List.of(new DeviceTrigger("shaked", "If device shaked"));
+        return List.of(new DeviceTrigger("shaked", "If device shaked", List.of()));
     }
 
     @SuppressWarnings("unchecked")
@@ -106,10 +110,11 @@ public class AppApiService {
         return tools.entrySet().stream()
                 .map(entry -> {
                     var value = (Map<String, Object>) entry.getValue();
+                    var description = value.getOrDefault("description", "").toString();
                     var params = value.get("params") instanceof List<?> list
                             ? list.stream().map(Object::toString).toList()
                             : List.<String>of();
-                    return new DeviceTool(entry.getKey(), params);
+                    return new DeviceTool(entry.getKey(), description, params);
                 })
                 .toList();
     }

@@ -17,6 +17,12 @@ public record UserAppDetailResponse(
         @Schema(description = "Device ID")
         String deviceId,
 
+        @Schema(description = "Device name")
+        String deviceName,
+
+        @Schema(description = "Device OS")
+        String deviceOs,
+
         @Schema(description = "Device features (deviceName, deviceOs, etc.)")
         Map<String, Object> deviceFeatures,
 
@@ -30,11 +36,19 @@ public record UserAppDetailResponse(
         Map<String, Object> tools
 ) {
     public static UserAppDetailResponse from(App app) {
+        var features = app.getDeviceFeatures();
+        var deviceName = features != null && features.get("deviceName") != null
+                ? features.get("deviceName").toString() : null;
+        var deviceOs = features != null && features.get("deviceOs") != null
+                ? features.get("deviceOs").toString() : null;
+
         return new UserAppDetailResponse(
                 app.getPubId(),
                 app.getName(),
                 app.getDeviceId(),
-                app.getDeviceFeatures(),
+                deviceName,
+                deviceOs,
+                features,
                 app.isLinked(),
                 app.getTriggers(),
                 app.getTools()

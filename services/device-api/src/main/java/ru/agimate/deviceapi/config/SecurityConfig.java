@@ -29,6 +29,7 @@ import ru.agimate.deviceapi.controller.app.DeviceRegistrationController;
 import ru.agimate.deviceapi.controller.app.DeviceTriggerController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentSettingsController;
 import ru.agimate.deviceapi.controller.manage.ManageAppsController;
+import ru.agimate.deviceapi.controller.manage.ManageDeviceToolsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceTriggersController;
 import ru.agimate.deviceapi.controller.manage.ManageToolUseLogsController;
 import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
@@ -102,6 +103,7 @@ public class SecurityConfig {
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
                 ManageAppsController.PATH + "/**",
+                ManageDeviceToolsController.PATH + "/**",
                 ManageDeviceTriggersController.PATH + "/**",
                 ManageTriggerLogsController.PATH + "/**",
                 ManageToolUseLogsController.PATH + "/**",
