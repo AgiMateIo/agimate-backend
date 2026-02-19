@@ -2,20 +2,23 @@ package ru.agimate.deviceapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
-@Table(name = "device_auth_keys")
+@Table(name = "apps")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DeviceAuthKey extends BaseEntity {
+public class App extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,8 +51,20 @@ public class DeviceAuthKey extends BaseEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    @OneToOne(mappedBy = "deviceAuthKey")
-    private Device device;
+    @Column(name = "device_id", columnDefinition = "TEXT")
+    private String deviceId;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "device_features", columnDefinition = "JSONB")
+    private Map<String, Object> deviceFeatures;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "triggers", columnDefinition = "JSONB")
+    private Map<String, Object> triggers;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "tools", columnDefinition = "JSONB")
+    private Map<String, Object> tools;
 
     public boolean isDeleted() {
         return deletedAt != null;
@@ -57,5 +72,16 @@ public class DeviceAuthKey extends BaseEntity {
 
     public boolean isActive() {
         return enabled && !isDeleted();
+    }
+
+    public boolean isLinked() {
+        return deviceId != null;
+    }
+
+    public void disconnect() {
+        this.deviceId = null;
+        this.deviceFeatures = null;
+        this.triggers = null;
+        this.tools = null;
     }
 }

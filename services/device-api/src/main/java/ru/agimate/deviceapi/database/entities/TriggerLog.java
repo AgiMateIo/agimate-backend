@@ -33,7 +33,7 @@ public class TriggerLog extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "device_auth_key_id", nullable = false)
-    private DeviceAuthKey deviceAuthKey;
+    private App app;
 
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;

@@ -10,10 +10,10 @@ import java.util.UUID;
 public interface TriggerLogRepository extends JpaRepository<TriggerLog, Long> {
 
     @Query("""
-            SELECT t FROM TriggerLog t JOIN FETCH t.deviceAuthKey
+            SELECT t FROM TriggerLog t JOIN FETCH t.app
             WHERE t.userPubId = :userPubId
             AND (:linkedDeviceId IS NULL OR t.linkedDeviceId = :linkedDeviceId)
-            AND (:deviceAuthKeyPubId IS NULL OR t.deviceAuthKey.pubId = :deviceAuthKeyPubId)
+            AND (:deviceAuthKeyPubId IS NULL OR t.app.pubId = :deviceAuthKeyPubId)
             ORDER BY t.createdAt DESC
             """)
     List<TriggerLog> findByUserPubIdWithFilters(UUID userPubId, String linkedDeviceId, UUID deviceAuthKeyPubId);
