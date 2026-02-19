@@ -6,8 +6,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.agimate.connectors.v1.ConnectorsEventServiceGrpc;
 import ru.agimate.connectors.v1.HandleEventRequest;
-import ru.agimate.deviceapi.controller.device.dto.TriggerRequest;
-import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
+import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
+import ru.agimate.deviceapi.database.entities.App;
 
 @Slf4j
 @Service
@@ -17,16 +17,16 @@ public class TriggerNotificationService {
     private final ConnectorsEventServiceGrpc.ConnectorsEventServiceBlockingStub connectorsEventStub;
 
     @Async
-    public void notifyTrigger(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {
+    public void notifyTrigger(App app, TriggerRequest triggerRequest) {
         try {
             String deviceId = triggerRequest.deviceId();
-            if (deviceId == null && deviceAuthKey.getDevice() != null) {
-                deviceId = deviceAuthKey.getDevice().getDeviceId();
+            if (deviceId == null && app.isLinked()) {
+                deviceId = app.getDeviceId();
             }
 
             HandleEventRequest request = HandleEventRequest.newBuilder()
                     .setEventName(triggerRequest.name())
-                    .setUserPubId(deviceAuthKey.getUserPubId().toString())
+                    .setUserPubId(app.getUserPubId().toString())
                     .setCredentialId("")
                     .setDeviceId(deviceId != null ? deviceId : "")
                     .setParamsJson(triggerRequest.data().toString())

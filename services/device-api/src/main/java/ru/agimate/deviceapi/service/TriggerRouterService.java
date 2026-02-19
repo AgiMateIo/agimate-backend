@@ -4,9 +4,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import ru.agimate.deviceapi.controller.device.dto.TriggerRequest;
+import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.AgentSettings;
-import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.repositories.AgentSettingsRepository;
@@ -26,11 +26,11 @@ public class TriggerRouterService {
     private final TriggerNotificationService triggerNotificationService;
 
     @Async
-    public void routeTrigger(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {
-        TriggerLog.TriggerLogBuilder triggerLogBuilder = triggerLogService.getTriggerLogBuilder(deviceAuthKey, triggerRequest);
+    public void routeTrigger(App app, TriggerRequest triggerRequest) {
+        TriggerLog.TriggerLogBuilder triggerLogBuilder = triggerLogService.getTriggerLogBuilder(app, triggerRequest);
         TriggerLog triggerLog = triggerLogService.logTrigger(triggerLogBuilder);
         try {
-            UUID userPubId = deviceAuthKey.getUserPubId();
+            UUID userPubId = app.getUserPubId();
 
             List<AgentSettings> agents = agentSettingsRepository
                     .findRoutableByUserPubIdAndTriggerName(userPubId, triggerRequest.name());
@@ -45,7 +45,7 @@ public class TriggerRouterService {
                 );
                 switch (settings.getTriggersTo()) {
                     case "centrifugo" -> routeToCentrifugo(settings, triggerRequest);
-                    case "webhook" -> routeToWebhook(deviceAuthKey, triggerRequest);
+                    case "webhook" -> routeToWebhook(app, triggerRequest);
                     default -> log.warn("Unknown triggersTo value '{}' for agent '{}'", settings.getTriggersTo(), settings.getApiKeyPubId());
                 }
             }
@@ -74,9 +74,9 @@ public class TriggerRouterService {
         }
     }
 
-    private void routeToWebhook(DeviceAuthKey deviceAuthKey, TriggerRequest triggerRequest) {
+    private void routeToWebhook(App app, TriggerRequest triggerRequest) {
         try {
-            triggerNotificationService.notifyTrigger(deviceAuthKey, triggerRequest);
+            triggerNotificationService.notifyTrigger(app, triggerRequest);
             log.debug("Routed trigger '{}' to webhook", triggerRequest.name());
         } catch (Exception e) {
             log.warn("Failed to route trigger '{}' to webhook: {}",

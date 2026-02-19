@@ -6,9 +6,9 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
-import ru.agimate.deviceapi.database.entities.DeviceAuthKey;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
-import ru.agimate.deviceapi.database.repositories.DeviceAuthKeyRepository;
+import ru.agimate.deviceapi.database.repositories.AppRepository;
 
 import java.util.UUID;
 
@@ -18,18 +18,18 @@ import java.util.UUID;
 public class ToolUseAuthorizerService {
 
     private final AgentToolRepository agentToolRepository;
-    private final DeviceAuthKeyRepository deviceAuthKeyRepository;
+    private final AppRepository appRepository;
 
-    public void authorizeToolUseRequest(ApiKeyPrincipal apiKeyPrincipal, String deviceAuthKeyId, String toolName) {
-        validateDeviceAccess(UUID.fromString(apiKeyPrincipal.userPubId()), deviceAuthKeyId);
+    public void authorizeToolUseRequest(ApiKeyPrincipal apiKeyPrincipal, String appId, String toolName) {
+        validateDeviceAccess(UUID.fromString(apiKeyPrincipal.userPubId()), appId);
         validateToolAuthorized(UUID.fromString(apiKeyPrincipal.pubId()), toolName);
     }
 
-    private void validateDeviceAccess(UUID userPubId, String deviceAuthKeyId) {
-        DeviceAuthKey key = deviceAuthKeyRepository.findByPubIdNotDeleted(UUID.fromString(deviceAuthKeyId))
-                .orElseThrow(() -> new NotFoundStatusException("Device auth key not found"));
-        if (!key.getUserPubId().equals(userPubId)) {
-            throw new ForbiddenStatusException("Device is not accessible for this agent");
+    private void validateDeviceAccess(UUID userPubId, String appId) {
+        App app = appRepository.findByPubIdNotDeleted(UUID.fromString(appId))
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
+        if (!app.getUserPubId().equals(userPubId)) {
+            throw new ForbiddenStatusException("App is not accessible for this agent");
         }
     }
 
