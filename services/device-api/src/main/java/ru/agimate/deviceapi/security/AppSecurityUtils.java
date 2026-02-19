@@ -6,14 +6,8 @@ import ru.agimate.common.rest.error.UnauthorizedStatusException;
 
 import java.util.UUID;
 
-public class DeviceSecurityUtils {
+public class AppSecurityUtils {
 
-    /**
-     * Get current API key's user public ID.
-     *
-     * @return user public ID associated with the API key
-     * @throws UnauthorizedStatusException if API key is not authenticated
-     */
     public static UUID getApiKeyUserPubId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
@@ -21,9 +15,9 @@ public class DeviceSecurityUtils {
             throw new UnauthorizedStatusException("API key is not authenticated");
         }
 
-        if (authentication instanceof DeviceAuthenticationToken deviceAuthenticationToken) {
-            DevicePrincipal principal = (DevicePrincipal) deviceAuthenticationToken.getPrincipal();
-            return principal.deviceAuthPubId();
+        if (authentication instanceof AppAuthenticationToken appAuthenticationToken) {
+            AppPrincipal principal = (AppPrincipal) appAuthenticationToken.getPrincipal();
+            return principal.appPubId();
         }
 
         throw new UnauthorizedStatusException("Invalid authentication type");

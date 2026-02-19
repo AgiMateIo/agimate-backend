@@ -12,7 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
-import ru.agimate.deviceapi.service.DeviceAuthKeyService;
+import ru.agimate.deviceapi.service.AppService;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,38 +20,38 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class DeviceAuthenticationFilter extends OncePerRequestFilter {
+public class AppAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String DEVICE_AUTH_KEY_HEADER = "X-Device-Auth-Key";
+    private static final String APP_AUTH_KEY_HEADER = "X-App-Auth-Key";
     private static final String X_FORWARDED_FOR = "X-Forwarded-For";
 
-    private final DeviceAuthKeyService deviceAuthKeyService;
+    private final AppService appService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        String apiKey = request.getHeader(DEVICE_AUTH_KEY_HEADER);
+        String apiKey = request.getHeader(APP_AUTH_KEY_HEADER);
 
         if (StringUtils.hasText(apiKey)) {
             String clientIp = getClientIp(request);
 
-            deviceAuthKeyService.validateKeyAndRecordUsage(apiKey, clientIp)
-                    .ifPresent(deviceAuthKey -> {
+            appService.validateKeyAndRecordUsage(apiKey, clientIp)
+                    .ifPresent(app -> {
                         var authorities = List.of(new SimpleGrantedAuthority("ROLE_DEVICE"));
-                        var principal = new DevicePrincipal(
-                                deviceAuthKey.getName(),
-                                deviceAuthKey.getPubId(),
-                                deviceAuthKey.getUserPubId()
+                        var principal = new AppPrincipal(
+                                app.getName(),
+                                app.getPubId(),
+                                app.getUserPubId()
                         );
 
                         SecurityContextHolder.getContext().setAuthentication(
-                                new DeviceAuthenticationToken(principal, authorities)
+                                new AppAuthenticationToken(principal, authorities)
                         );
 
-                        log.debug("API key authenticated for device: {} (user: {})",
-                                deviceAuthKey.getName(), deviceAuthKey.getUserPubId());
+                        log.debug("API key authenticated for app: {} (user: {})",
+                                app.getName(), app.getUserPubId());
                     });
         }
 
