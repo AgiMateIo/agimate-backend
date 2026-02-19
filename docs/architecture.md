@@ -68,7 +68,7 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 |-----------------|----------------------------------------|-------------------------------------|
 | **JWT**         | Bearer token authentication for users  | All services (management endpoints) |
 | **API Key**     | Header `X-Api-Key` for connector/agent calls | connectors-api, device-api          |
-| **Device Auth** | Header `X-Device-Auth-Key` for devices | device-api                          |
+| **App Auth**    | Header `X-App-Auth-Key` for apps       | device-api                          |
 | **OAuth2**      | Google/Yandex social login             | user-api                            |
 
 ### JWT Flow
@@ -81,7 +81,7 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 | Database         | Owner          | Tables                                                                      |
 |------------------|----------------|-----------------------------------------------------------------------------|
 | am_user_db       | user-api       | `users`, `user_oauth_accounts`, `service_api_keys`                          |
-| am_device_db     | device-api     | `device_auth_keys`, `device`, `trigger_logs`, `tool_use_logs`, `agent_settings`, `agent_tools`, `agent_triggers` |
+| am_device_db     | device-api     | `apps`, `trigger_logs`, `trigger_log_agents`, `tool_use_logs`, `agent_settings`, `agent_tools`, `agent_triggers` |
 | am_connectors_db | connectors-api | `connectors`, `credentials`, `webhook_registrations`                        |
 
 All migrations managed via Liquibase in each service's `src/main/resources/db/changelog/`.

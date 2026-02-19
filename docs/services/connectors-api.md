@@ -42,14 +42,14 @@ External integrations service managing connector definitions, credentials, and m
 | POST   | `/connectors-api/api/connectors/call/wildberries/getCards`  | Get Wildberries cards  |
 | GET    | `/connectors-api/api/connectors/call/wildberries/getOrders` | Get Wildberries orders |
 
-### Mobile Device Integration (API Key)
+### Mobile App Integration (API Key)
 
-| Method | Path                                                | Description            |
-|--------|-----------------------------------------------------|------------------------|
-| GET    | `/connectors-api/api/device/`                       | Get connected devices  |
-| GET    | `/connectors-api/api/device/triggers/{deviceId}`    | Get device triggers    |
-| GET    | `/connectors-api/api/device/actions/{deviceId}`     | Get device actions     |
-| POST   | `/connectors-api/api/device/call/{deviceAuthKeyId}` | Push action to device  |
+| Method | Path                                           | Description            |
+|--------|-------------------------------------------------|------------------------|
+| GET    | `/connectors-api/api/apps/`                     | Get connected apps     |
+| GET    | `/connectors-api/api/apps/triggers/{appId}`     | Get app triggers       |
+| GET    | `/connectors-api/api/apps/tools/{appId}`        | Get app tools          |
+| POST   | `/connectors-api/api/apps/call/{appId}`         | Push action to device  |
 
 ### Connector Management (JWT)
 
