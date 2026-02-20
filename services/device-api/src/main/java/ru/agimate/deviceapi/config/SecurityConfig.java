@@ -28,11 +28,13 @@ import ru.agimate.deviceapi.controller.app.DeviceCentrifugoTokenController;
 import ru.agimate.deviceapi.controller.app.DeviceRegistrationController;
 import ru.agimate.deviceapi.controller.app.DeviceTriggerController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentSettingsController;
+import ru.agimate.deviceapi.controller.manage.ManageAgenticTeamController;
 import ru.agimate.deviceapi.controller.manage.ManageAppsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceToolsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceTriggersController;
 import ru.agimate.deviceapi.controller.manage.ManageToolUseLogsController;
 import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
+import ru.agimate.deviceapi.controller.manage.ManageWebhookDeliveryLogsController;
 import ru.agimate.deviceapi.security.AppAuthenticationFilter;
 import ru.agimate.deviceapi.security.JwtAuthenticationFilter;
 
@@ -107,7 +109,9 @@ public class SecurityConfig {
                 ManageDeviceTriggersController.PATH + "/**",
                 ManageTriggerLogsController.PATH + "/**",
                 ManageToolUseLogsController.PATH + "/**",
-                ManageAgentSettingsController.PATH + "/**"
+                ManageAgentSettingsController.PATH + "/**",
+                ManageAgenticTeamController.PATH + "/**",
+                ManageWebhookDeliveryLogsController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

@@ -29,10 +29,11 @@ public class ManageAgentSettingsController {
     @Operation(summary = "List agent settings for the current user")
     @GetMapping("/")
     public SuccessResponse<List<AgentSettingsResponse>> getAgentSettings(
-            @AuthenticationPrincipal AgimateUserPrincipal principal
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @RequestParam(required = false) UUID agenticTeamPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentSettingsService.getAllForUser(userPubId));
+        return SuccessResponse.ok(agentSettingsService.getAllForUser(userPubId, agenticTeamPubId));
     }
 
     @Operation(summary = "Create agent settings")
@@ -47,7 +48,7 @@ public class ManageAgentSettingsController {
 
     @Operation(summary = "Get agent settings by API key")
     @GetMapping("/{apiKeyPubId}")
-    public SuccessResponse<AgentSettingsResponse> getAgentSettings(
+    public SuccessResponse<AgentSettingsResponse> getAgentSettingsById(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID apiKeyPubId
     ) {

@@ -37,8 +37,15 @@ public class AgentSettingsService {
     private final AgentTriggerRepository agentTriggerRepository;
     private final AgenticTeamRepository agenticTeamRepository;
 
-    public List<AgentSettingsResponse> getAllForUser(UUID userPubId) {
-        List<AgentSettings> settingsList = agentSettingsRepository.findByUserPubId(userPubId);
+    public List<AgentSettingsResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId) {
+        List<AgentSettings> settingsList;
+        if (agenticTeamPubId != null) {
+            AgenticTeam team = agenticTeamRepository.findByPubId(agenticTeamPubId)
+                    .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
+            settingsList = agentSettingsRepository.findByUserPubIdAndAgenticTeamId(userPubId, team.getId());
+        } else {
+            settingsList = agentSettingsRepository.findByUserPubId(userPubId);
+        }
 
         List<Long> teamIds = settingsList.stream()
                 .map(AgentSettings::getAgenticTeamId)
