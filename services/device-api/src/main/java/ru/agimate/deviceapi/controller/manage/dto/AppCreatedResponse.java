@@ -10,20 +10,24 @@ import java.util.UUID;
 @Schema(description = "Response when a new app is created (includes the actual key)")
 public record AppCreatedResponse(
         @Schema(description = "Public ID of the app")
-        UUID id,
+        UUID pubId,
 
         @Schema(description = "App name/label")
         String name,
 
         @Schema(description = "The actual API key - SAVE THIS NOW, it will not be shown again!")
-        String key,
+        String fullKey,
 
         @Schema(description = "App description")
         String description,
 
         @Schema(description = "Creation timestamp")
-        @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-        LocalDateTime createdAt
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+        LocalDateTime createdAt,
+
+        @Schema(description = "Last update timestamp")
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+        LocalDateTime updatedAt
 ) {
     public static AppCreatedResponse from(App app, String plaintextKey) {
         return new AppCreatedResponse(
@@ -31,7 +35,8 @@ public record AppCreatedResponse(
                 app.getName(),
                 plaintextKey,
                 app.getDescription(),
-                app.getCreatedAt()
+                app.getCreatedAt(),
+                app.getUpdatedAt()
         );
     }
 }

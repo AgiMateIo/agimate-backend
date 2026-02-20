@@ -25,6 +25,7 @@ import java.util.UUID;
 public class ServiceApiKeyService {
 
     private static final int MAX_KEYS_PER_USER = 10;
+    public static final String API_KEY_PREFIX = "apik";
 
     private final ServiceApiKeyRepository serviceApiKeyRepository;
 
@@ -39,7 +40,7 @@ public class ServiceApiKeyService {
             throw new ConflictStatusException("A key with this name already exists");
         }
 
-        GeneratedApiKey generatedKey = ApiKeyUtils.generate("apik");
+        GeneratedApiKey generatedKey = ApiKeyUtils.generate(API_KEY_PREFIX);
 
         ServiceApiKey serviceApiKey = ServiceApiKey.builder()
                 .userPubId(userPubId)

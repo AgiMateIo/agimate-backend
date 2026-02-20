@@ -34,6 +34,7 @@ import java.util.UUID;
 public class AppService {
 
     private static final int MAX_KEYS_PER_USER = 10;
+    public static final String APP_KEY_PREFIX = "dvck";
 
     private final AppRepository appRepository;
 
@@ -48,7 +49,7 @@ public class AppService {
             throw new ConflictStatusException("A key with this name already exists");
         }
 
-        GeneratedApiKey generatedKey = ApiKeyUtils.generate("dvck");
+        GeneratedApiKey generatedKey = ApiKeyUtils.generate(APP_KEY_PREFIX);
 
         App app = App.builder()
                 .userPubId(userPubId)
