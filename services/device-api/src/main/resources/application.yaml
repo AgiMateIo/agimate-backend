@@ -58,8 +58,6 @@ spring:
       channels:
         user-api:
           address: "user-api:9090"
-        connectors-api:
-          address: "connectors-api:9090"
 
 micrometer:
   observations:

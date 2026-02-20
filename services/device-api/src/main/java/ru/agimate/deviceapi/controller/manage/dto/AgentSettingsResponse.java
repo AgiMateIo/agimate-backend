@@ -33,6 +33,12 @@ public record AgentSettingsResponse(
         @Schema(description = "Subscribed trigger names")
         List<String> triggers,
 
+        @Schema(description = "Webhook URL")
+        String webhookUrl,
+
+        @Schema(description = "Whether webhook auth header is configured")
+        boolean hasWebhookAuth,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the settings were created")
         LocalDateTime createdAt
@@ -46,6 +52,8 @@ public record AgentSettingsResponse(
                 settings.getTriggersTo(),
                 tools.stream().map(AgentTool::getToolName).toList(),
                 triggers.stream().map(AgentTrigger::getTriggerName).toList(),
+                settings.getWebhookUrl(),
+                settings.hasWebhookAuth(),
                 settings.getCreatedAt()
         );
     }

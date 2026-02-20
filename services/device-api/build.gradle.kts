@@ -39,6 +39,8 @@ dependencies {
     // SpringDoc for OpenAPI
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui")
 
+    implementation("com.squareup.okhttp3:okhttp")
+
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 
     // Spring gRPC Client Support (for user-api introspect)

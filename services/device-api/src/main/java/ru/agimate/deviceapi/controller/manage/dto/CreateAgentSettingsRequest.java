@@ -26,6 +26,12 @@ public record CreateAgentSettingsRequest(
         List<String> tools,
 
         @Schema(description = "List of subscribed trigger names")
-        List<String> triggers
+        List<String> triggers,
+
+        @Schema(description = "Webhook URL (required when triggersTo is 'webhook')")
+        String webhookUrl,
+
+        @Schema(description = "Webhook authorization header value")
+        String webhookAuthHeader
 ) {
 }

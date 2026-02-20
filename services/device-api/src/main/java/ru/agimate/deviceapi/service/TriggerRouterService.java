@@ -23,7 +23,7 @@ public class TriggerRouterService {
     private final CentrifugoService centrifugoService;
     private final TriggerLogService triggerLogService;
     private final TriggerLogRepository triggerLogRepository;
-    private final TriggerNotificationService triggerNotificationService;
+    private final WebhookDeliveryService webhookDeliveryService;
 
     @Async
     public void routeTrigger(App app, TriggerRequest triggerRequest) {
@@ -36,21 +36,26 @@ public class TriggerRouterService {
                     .findRoutableByUserPubIdAndTriggerName(userPubId, triggerRequest.name());
 
             for (AgentSettings settings : agents) {
-                triggerLog.getTriggerLogAgents().add(
-                        TriggerLogAgent.builder()
-                                .triggerLog(triggerLog)
-                                .agentSettings(settings)
-                                .routedTo(settings.getTriggersTo())
-                                .build()
-                );
+                TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
+                        .triggerLog(triggerLog)
+                        .agentSettings(settings)
+                        .routedTo(settings.getTriggersTo())
+                        .build();
+                triggerLog.getTriggerLogAgents().add(triggerLogAgent);
+            }
+
+            // Save first so TriggerLogAgent entities get IDs (needed for webhook delivery FK)
+            triggerLogRepository.save(triggerLog);
+
+            // Now dispatch async deliveries
+            for (TriggerLogAgent triggerLogAgent : triggerLog.getTriggerLogAgents()) {
+                AgentSettings settings = triggerLogAgent.getAgentSettings();
                 switch (settings.getTriggersTo()) {
                     case "centrifugo" -> routeToCentrifugo(settings, triggerRequest);
-                    case "webhook" -> routeToWebhook(app, triggerRequest);
+                    case "webhook" -> webhookDeliveryService.deliverWebhook(settings, triggerLogAgent, app, triggerRequest);
                     default -> log.warn("Unknown triggersTo value '{}' for agent '{}'", settings.getTriggersTo(), settings.getApiKeyPubId());
                 }
             }
-
-            triggerLogRepository.save(triggerLog);
         } catch (Exception e) {
             log.warn("Failed to route trigger '{}': {}", triggerRequest.name(), e.getMessage());
         }
@@ -71,16 +76,6 @@ public class TriggerRouterService {
         } catch (Exception e) {
             log.warn("Failed to route trigger '{}' to centrifugo for agent '{}': {}",
                     triggerRequest.name(), settings.getApiKeyPubId(), e.getMessage());
-        }
-    }
-
-    private void routeToWebhook(App app, TriggerRequest triggerRequest) {
-        try {
-            triggerNotificationService.notifyTrigger(app, triggerRequest);
-            log.debug("Routed trigger '{}' to webhook", triggerRequest.name());
-        } catch (Exception e) {
-            log.warn("Failed to route trigger '{}' to webhook: {}",
-                    triggerRequest.name(), e.getMessage());
         }
     }
 }

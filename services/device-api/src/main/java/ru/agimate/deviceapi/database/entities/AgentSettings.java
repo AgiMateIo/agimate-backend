@@ -41,4 +41,14 @@ public class AgentSettings extends BaseEntity {
     @Column(name = "triggers_to", nullable = false, columnDefinition = "TEXT")
     @Builder.Default
     private String triggersTo = "ignore";
+
+    @Column(name = "webhook_url", columnDefinition = "TEXT")
+    private String webhookUrl;
+
+    @Column(name = "webhook_auth_header", columnDefinition = "TEXT")
+    private String webhookAuthHeader;
+
+    public boolean hasWebhookAuth() {
+        return webhookAuthHeader != null && !webhookAuthHeader.isBlank();
+    }
 }

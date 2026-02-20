@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.api.dto.AgentConfigResponse;
@@ -64,12 +65,16 @@ public class AgentSettingsService {
 
     @Transactional
     public AgentSettingsResponse create(UUID userPubId, CreateAgentSettingsRequest request) {
+        validateWebhookFields(request.triggersTo(), request.webhookUrl());
+
         AgentSettings settings = AgentSettings.builder()
                 .apiKeyPubId(request.apiKeyPubId())
                 .userPubId(userPubId)
                 .prompt(request.prompt())
                 .triggersAllowAll(request.triggersAllowAll())
                 .triggersTo(request.triggersTo())
+                .webhookUrl(request.webhookUrl())
+                .webhookAuthHeader(request.webhookAuthHeader())
                 .build();
         settings = agentSettingsRepository.save(settings);
 
@@ -89,9 +94,13 @@ public class AgentSettingsService {
             throw new ForbiddenStatusException("Access denied");
         }
 
+        validateWebhookFields(request.triggersTo(), request.webhookUrl());
+
         settings.setPrompt(request.prompt());
         settings.setTriggersAllowAll(request.triggersAllowAll());
         settings.setTriggersTo(request.triggersTo());
+        settings.setWebhookUrl(request.webhookUrl());
+        settings.setWebhookAuthHeader(request.webhookAuthHeader());
         settings = agentSettingsRepository.save(settings);
 
         agentToolRepository.deleteByApiKeyPubId(apiKeyPubId);
@@ -118,6 +127,12 @@ public class AgentSettingsService {
         agentSettingsRepository.delete(settings);
 
         log.info("Deleted agent settings for apiKeyPubId={}", apiKeyPubId);
+    }
+
+    private void validateWebhookFields(String triggersTo, String webhookUrl) {
+        if ("webhook".equals(triggersTo) && (webhookUrl == null || webhookUrl.isBlank())) {
+            throw new BadRequestStatusException("webhookUrl is required when triggersTo is 'webhook'");
+        }
     }
 
     private List<AgentTool> createTools(UUID userPubId, UUID apiKeyPubId, List<String> toolNames) {
