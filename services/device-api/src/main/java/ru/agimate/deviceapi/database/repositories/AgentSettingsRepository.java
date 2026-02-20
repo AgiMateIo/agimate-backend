@@ -29,4 +29,6 @@ public interface AgentSettingsRepository extends JpaRepository<AgentSettings, Lo
     List<AgentSettings> findRoutableByUserPubIdAndTriggerName(
             @Param("userPubId") UUID userPubId,
             @Param("triggerName") String triggerName);
+
+    boolean existsByAgenticTeamId(Long agenticTeamId);
 }

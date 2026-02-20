@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.deviceapi.database.entities.AgentSettings;
 import ru.agimate.deviceapi.database.entities.AgentTool;
 import ru.agimate.deviceapi.database.entities.AgentTrigger;
+import ru.agimate.deviceapi.database.entities.AgenticTeam;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,11 +40,17 @@ public record AgentSettingsResponse(
         @Schema(description = "Whether webhook auth header is configured")
         boolean hasWebhookAuth,
 
+        @Schema(description = "Agentic team ID")
+        UUID agenticTeamId,
+
+        @Schema(description = "Agentic team name")
+        String agenticTeamName,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the settings were created")
         LocalDateTime createdAt
 ) {
-    public static AgentSettingsResponse from(AgentSettings settings, List<AgentTool> tools, List<AgentTrigger> triggers) {
+    public static AgentSettingsResponse from(AgentSettings settings, List<AgentTool> tools, List<AgentTrigger> triggers, AgenticTeam team) {
         return new AgentSettingsResponse(
                 settings.getPubId(),
                 settings.getApiKeyPubId(),
@@ -54,7 +61,13 @@ public record AgentSettingsResponse(
                 triggers.stream().map(AgentTrigger::getTriggerName).toList(),
                 settings.getWebhookUrl(),
                 settings.hasWebhookAuth(),
+                team != null ? team.getPubId() : null,
+                team != null ? team.getName() : null,
                 settings.getCreatedAt()
         );
+    }
+
+    public static AgentSettingsResponse from(AgentSettings settings, List<AgentTool> tools, List<AgentTrigger> triggers) {
+        return from(settings, tools, triggers, null);
     }
 }

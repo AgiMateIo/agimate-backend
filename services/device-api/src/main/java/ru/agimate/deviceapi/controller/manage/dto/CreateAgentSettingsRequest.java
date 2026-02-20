@@ -32,6 +32,9 @@ public record CreateAgentSettingsRequest(
         String webhookUrl,
 
         @Schema(description = "Webhook authorization header value")
-        String webhookAuthHeader
+        String webhookAuthHeader,
+
+        @Schema(description = "Agentic team public ID")
+        UUID agenticTeamPubId
 ) {
 }

@@ -14,12 +14,17 @@ import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentSettingsRequest;
 import ru.agimate.deviceapi.database.entities.AgentSettings;
 import ru.agimate.deviceapi.database.entities.AgentTool;
 import ru.agimate.deviceapi.database.entities.AgentTrigger;
+import ru.agimate.deviceapi.database.entities.AgenticTeam;
 import ru.agimate.deviceapi.database.repositories.AgentSettingsRepository;
 import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerRepository;
+import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -30,14 +35,25 @@ public class AgentSettingsService {
     private final AgentSettingsRepository agentSettingsRepository;
     private final AgentToolRepository agentToolRepository;
     private final AgentTriggerRepository agentTriggerRepository;
+    private final AgenticTeamRepository agenticTeamRepository;
 
     public List<AgentSettingsResponse> getAllForUser(UUID userPubId) {
         List<AgentSettings> settingsList = agentSettingsRepository.findByUserPubId(userPubId);
+
+        List<Long> teamIds = settingsList.stream()
+                .map(AgentSettings::getAgenticTeamId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        Map<Long, AgenticTeam> teamsById = agenticTeamRepository.findAllById(teamIds).stream()
+                .collect(Collectors.toMap(AgenticTeam::getId, Function.identity()));
+
         return settingsList.stream()
                 .map(settings -> {
                     var tools = agentToolRepository.findByApiKeyPubId(settings.getApiKeyPubId());
                     var triggers = agentTriggerRepository.findByApiKeyPubId(settings.getApiKeyPubId());
-                    return AgentSettingsResponse.from(settings, tools, triggers);
+                    var team = settings.getAgenticTeamId() != null ? teamsById.get(settings.getAgenticTeamId()) : null;
+                    return AgentSettingsResponse.from(settings, tools, triggers, team);
                 })
                 .toList();
     }
@@ -47,7 +63,8 @@ public class AgentSettingsService {
                 .orElseThrow(() -> new NotFoundStatusException("Agent settings not found"));
         var tools = agentToolRepository.findByApiKeyPubId(apiKeyPubId);
         var triggers = agentTriggerRepository.findByApiKeyPubId(apiKeyPubId);
-        return AgentSettingsResponse.from(settings, tools, triggers);
+        var team = resolveTeam(settings.getAgenticTeamId());
+        return AgentSettingsResponse.from(settings, tools, triggers, team);
     }
 
     public AgentConfigResponse getConfigByApiKeyPubId(UUID apiKeyPubId) {
@@ -67,6 +84,15 @@ public class AgentSettingsService {
     public AgentSettingsResponse create(UUID userPubId, CreateAgentSettingsRequest request) {
         validateWebhookFields(request.triggersTo(), request.webhookUrl());
 
+        AgenticTeam team = null;
+        if (request.agenticTeamPubId() != null) {
+            team = agenticTeamRepository.findByPubId(request.agenticTeamPubId())
+                    .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
+            if (!team.getUserPubId().equals(userPubId)) {
+                throw new ForbiddenStatusException("Access denied to the specified team");
+            }
+        }
+
         AgentSettings settings = AgentSettings.builder()
                 .apiKeyPubId(request.apiKeyPubId())
                 .userPubId(userPubId)
@@ -75,6 +101,7 @@ public class AgentSettingsService {
                 .triggersTo(request.triggersTo())
                 .webhookUrl(request.webhookUrl())
                 .webhookAuthHeader(request.webhookAuthHeader())
+                .agenticTeamId(team != null ? team.getId() : null)
                 .build();
         settings = agentSettingsRepository.save(settings);
 
@@ -82,7 +109,7 @@ public class AgentSettingsService {
         List<AgentTrigger> triggers = createTriggers(userPubId, request.apiKeyPubId(), request.triggers());
 
         log.info("Created agent settings for apiKeyPubId={}, user={}", request.apiKeyPubId(), userPubId);
-        return AgentSettingsResponse.from(settings, tools, triggers);
+        return AgentSettingsResponse.from(settings, tools, triggers, team);
     }
 
     @Transactional
@@ -109,8 +136,10 @@ public class AgentSettingsService {
         agentTriggerRepository.deleteByApiKeyPubId(apiKeyPubId);
         List<AgentTrigger> triggers = createTriggers(userPubId, apiKeyPubId, request.triggers());
 
+        var team = resolveTeam(settings.getAgenticTeamId());
+
         log.info("Updated agent settings for apiKeyPubId={}", apiKeyPubId);
-        return AgentSettingsResponse.from(settings, tools, triggers);
+        return AgentSettingsResponse.from(settings, tools, triggers, team);
     }
 
     @Transactional
@@ -127,6 +156,13 @@ public class AgentSettingsService {
         agentSettingsRepository.delete(settings);
 
         log.info("Deleted agent settings for apiKeyPubId={}", apiKeyPubId);
+    }
+
+    private AgenticTeam resolveTeam(Long agenticTeamId) {
+        if (agenticTeamId == null) {
+            return null;
+        }
+        return agenticTeamRepository.findById(agenticTeamId).orElse(null);
     }
 
     private void validateWebhookFields(String triggersTo, String webhookUrl) {

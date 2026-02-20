@@ -48,6 +48,9 @@ public class AgentSettings extends BaseEntity {
     @Column(name = "webhook_auth_header", columnDefinition = "TEXT")
     private String webhookAuthHeader;
 
+    @Column(name = "agentic_team_id")
+    private Long agenticTeamId;
+
     public boolean hasWebhookAuth() {
         return webhookAuthHeader != null && !webhookAuthHeader.isBlank();
     }
