@@ -140,6 +140,7 @@ public class AgentSettingsService {
             return List.of();
         }
         List<AgentTool> tools = toolNames.stream()
+                .distinct()
                 .map(name -> AgentTool.builder()
                         .userPubId(userPubId)
                         .apiKeyPubId(apiKeyPubId)
@@ -154,6 +155,7 @@ public class AgentSettingsService {
             return List.of();
         }
         List<AgentTrigger> triggers = triggerNames.stream()
+                .distinct()
                 .map(name -> AgentTrigger.builder()
                         .userPubId(userPubId)
                         .apiKeyPubId(apiKeyPubId)
