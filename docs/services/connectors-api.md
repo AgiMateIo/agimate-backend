@@ -4,12 +4,12 @@ External integrations service managing connector definitions, credentials, and m
 
 ## Configuration
 
-| Setting         | Value              |
-|-----------------|--------------------|
-| Port            | 8080               |
-| Context Path    | `/connectors-api/` |
-| Management Port | 8088               |
-| Database        | am_connectors_db   |
+| Setting         | Value            |
+|-----------------|------------------|
+| Port            | 8080             |
+| Context Path    | `/connectors/`   |
+| Management Port | 8088             |
+| Database        | am_connectors_db |
 
 ## Authentication
 
@@ -20,71 +20,57 @@ External integrations service managing connector definitions, credentials, and m
 
 | Variable                    | Description                            |
 |-----------------------------|----------------------------------------|
-| `JWT_PUBLIC_KEY`            | ECDSA public key (Base64, X.509)       |
+| `JWT_PUBLICKEY`             | ECDSA public key (Base64, X.509)       |
 | `CONNECTORS_ENCRYPTION_KEY` | AES-256 key for credentials encryption |
 
 ## API Endpoints
 
 ### Connector Info (API Key)
 
-| Method | Path                                                      | Description                    |
-|--------|-----------------------------------------------------------|--------------------------------|
-| GET    | `/connectors-api/api/connectors/`                         | List available connectors      |
-| GET    | `/connectors-api/api/connectors/credentials/{code}/`      | List credentials for connector |
-| GET    | `/connectors-api/api/connectors/methods/{connectorCode}/` | List methods for connector     |
+| Method | Path                                                    | Description                    |
+|--------|---------------------------------------------------------|--------------------------------|
+| GET    | `/connectors/api/connectors/`                           | List available connectors      |
+| GET    | `/connectors/api/connectors/credentials/{code}/`        | List credentials for connector |
+| GET    | `/connectors/api/connectors/methods/{connectorCode}/`   | List methods for connector     |
 
 ### Connector Execution (API Key)
 
-| Method | Path                                                        | Description            |
-|--------|-------------------------------------------------------------|------------------------|
-| POST   | `/connectors-api/api/connectors/call/ozon/getProductList`   | Get Ozon product list  |
-| POST   | `/connectors-api/api/connectors/call/ozon/getProductInfo`   | Get Ozon product info  |
-| POST   | `/connectors-api/api/connectors/call/wildberries/getCards`  | Get Wildberries cards  |
-| GET    | `/connectors-api/api/connectors/call/wildberries/getOrders` | Get Wildberries orders |
-
-### Mobile App Integration (API Key)
-
-| Method | Path                                           | Description            |
-|--------|-------------------------------------------------|------------------------|
-| GET    | `/connectors-api/api/apps/`                     | Get connected apps     |
-| GET    | `/connectors-api/api/apps/triggers/{appId}`     | Get app triggers       |
-| GET    | `/connectors-api/api/apps/tools/{appId}`        | Get app tools          |
-| POST   | `/connectors-api/api/apps/call/{appId}`         | Push action to device  |
+| Method | Path                                                      | Description            |
+|--------|-----------------------------------------------------------|------------------------|
+| POST   | `/connectors/api/connectors/call/ozon/getProductList`     | Get Ozon product list  |
+| POST   | `/connectors/api/connectors/call/ozon/getProductInfo`     | Get Ozon product info  |
+| POST   | `/connectors/api/connectors/call/wildberries/getCards`    | Get Wildberries cards  |
+| GET    | `/connectors/api/connectors/call/wildberries/getOrders`   | Get Wildberries orders |
 
 ### Connector Management (JWT)
 
-| Method | Path                                  | Description                       |
-|--------|---------------------------------------|-----------------------------------|
-| GET    | `/connectors-api/manage/connectors/`  | List all connectors with metadata |
+| Method | Path                                | Description                       |
+|--------|-------------------------------------|-----------------------------------|
+| GET    | `/connectors/manage/connectors/`    | List all connectors with metadata |
 
 ### Credentials Management (JWT)
 
-| Method | Path                                                      | Description                |
-|--------|-----------------------------------------------------------|----------------------------|
-| GET    | `/connectors-api/manage/credentials/`                     | Get credentials summary    |
-| GET    | `/connectors-api/manage/credentials/{connectorCode}`      | List connector credentials |
-| POST   | `/connectors-api/manage/credentials/{connectorCode}`      | Create credential          |
-| GET    | `/connectors-api/manage/credentials/{connectorCode}/{id}` | Get credential details     |
-| PUT    | `/connectors-api/manage/credentials/{connectorCode}/{id}` | Update credential          |
-| DELETE | `/connectors-api/manage/credentials/{connectorCode}/{id}` | Delete credential          |
+| Method | Path                                                    | Description                |
+|--------|---------------------------------------------------------|----------------------------|
+| GET    | `/connectors/manage/credentials/`                       | Get credentials summary    |
+| GET    | `/connectors/manage/credentials/{connectorCode}`        | List connector credentials |
+| POST   | `/connectors/manage/credentials/{connectorCode}`        | Create credential          |
+| GET    | `/connectors/manage/credentials/{connectorCode}/{id}`   | Get credential details     |
+| PUT    | `/connectors/manage/credentials/{connectorCode}/{id}`   | Update credential          |
+| DELETE | `/connectors/manage/credentials/{connectorCode}/{id}`   | Delete credential          |
 
-### Webhooks Management (JWT)
+### Event Descriptions (JWT)
 
-| Method | Path                                                     | Description                                 |
-|--------|----------------------------------------------------------|---------------------------------------------|
-| GET    | `/connectors-api/manage/webhooks/`                       | List webhooks (optional ?eventType filter)  |
-| GET    | `/connectors-api/manage/webhooks/{webhookId}`            | Get webhook details                         |
-| POST   | `/connectors-api/manage/webhooks`                        | Create webhook                              |
-| PUT    | `/connectors-api/manage/webhooks/{webhookId}`            | Update webhook                              |
-| DELETE | `/connectors-api/manage/webhooks/{webhookId}`            | Delete webhook (soft)                       |
-| GET    | `/connectors-api/manage/webhooks/{webhookId}/deliveries` | Get webhook deliveries                      |
+| Method | Path                              | Description                                        |
+|--------|-----------------------------------|----------------------------------------------------|
+| GET    | `/connectors/manage/events/`      | List event descriptions (optional `?event_type_like` filter) |
 
 ### Public
 
-| Method | Path                          | Description                  |
-|--------|-------------------------------|------------------------------|
-| GET    | `/connectors-api/`            | Application info and uptime  |
-| GET    | `/connectors-api/favicon.ico` | Empty favicon                |
+| Method | Path                        | Description                  |
+|--------|-----------------------------|------------------------------|
+| GET    | `/connectors/`              | Application info and uptime  |
+| GET    | `/connectors/favicon.ico`   | Empty favicon                |
 
 ## OpenAPI Specification
 
@@ -97,7 +83,7 @@ Generate with:
 ./gradlew :connectors-api:generateOpenApi
 ```
 
-Swagger UI (local profile): `/connectors-api/docs/ui`
+Swagger UI (local profile): `/connectors/docs/ui`
 
 ## Connector Architecture
 
@@ -110,7 +96,10 @@ Swagger UI (local profile): `/connectors-api/docs/ui`
 
 - `connectors` — Connector definitions
 - `credentials` — Encrypted API credentials
-- `webhook_registrations` — Webhook configurations
+- `webhooks` — Webhook configurations (exists in DB from initial migration, no longer used by application code)
+- `webhook_events` — Webhook event mappings (exists in DB from initial migration, no longer used by application code)
+- `webhook_logs` — Webhook delivery logs (exists in DB from initial migration, no longer used by application code)
+- `event_descriptions` — Event type descriptions
 
 Migrations: `services/connectors-api/src/main/resources/db/changelog/`
 

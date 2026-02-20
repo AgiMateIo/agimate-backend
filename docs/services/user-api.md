@@ -4,12 +4,12 @@ Authentication service handling OAuth2 login and JWT token management.
 
 ## Configuration
 
-| Setting         | Value        |
-|-----------------|--------------|
-| Port            | 8080         |
-| Context Path    | `/user-api/` |
-| Management Port | 8088         |
-| Database        | am_user_db   |
+| Setting         | Value      |
+|-----------------|------------|
+| Port            | 8080       |
+| Context Path    | `/user/`   |
+| Management Port | 8088       |
+| Database        | am_user_db |
 
 ## Authentication
 
@@ -22,13 +22,13 @@ Authentication service handling OAuth2 login and JWT token management.
 
 | Variable                          | Description                                          |
 |-----------------------------------|------------------------------------------------------|
-| `JWT_PRIVATE_KEY`                 | ECDSA private key (Base64, PKCS#8)                   |
-| `JWT_PUBLIC_KEY`                  | ECDSA public key (Base64, X.509)                     |
+| `JWT_PRIVATEKEY`                  | ECDSA private key (Base64, PKCS#8)                   |
+| `JWT_PUBLICKEY`                   | ECDSA public key (Base64, X.509)                     |
 | `GOOGLE_CLIENT_ID`                | Google OAuth2 client ID                              |
 | `GOOGLE_CLIENT_SECRET`            | Google OAuth2 client secret                          |
 | `YANDEX_CLIENT_ID`                | Yandex OAuth2 client ID                              |
 | `YANDEX_CLIENT_SECRET`            | Yandex OAuth2 client secret                          |
-| `OAUTH2_COOKIE_ENCRYPTION_KEY`    | AES-256 key for OAuth2 cookies                       |
+| `APP_OAUTH_COOKIE_ENCRYPTION_KEY` | AES-256 key for OAuth2 cookies                       |
 | `APP_OAUTH_COOKIE_DOMAIN`         | Default cookie domain for refresh tokens             |
 | `APP_OAUTH_COOKIE_SECURE`         | Set to `true` in production (HTTPS)                  |
 | `APP_OAUTH_FRONTEND_REDIRECT_URL` | Default frontend redirect URL after OAuth2 login     |
@@ -38,25 +38,31 @@ Authentication service handling OAuth2 login and JWT token management.
 
 ### User Management (JWT)
 
-| Method | Path                      | Description                    |
-|--------|---------------------------|--------------------------------|
-| GET    | `/user-api/user/{pub_id}` | Get user by public ID          |
-| GET    | `/user-api/user/me`       | Get current authenticated user |
+| Method | Path                | Description                    |
+|--------|---------------------|--------------------------------|
+| GET    | `/user/user/{pub_id}` | Get user by public ID          |
+| GET    | `/user/user/me`     | Get current authenticated user |
 
 ### OAuth2 Authentication
 
-| Method | Path                       | Description                       |
-|--------|----------------------------|-----------------------------------|
-| POST   | `/user-api/oauth2/refresh` | Refresh access token              |
-| POST   | `/user-api/oauth2/logout`  | Logout (invalidate refresh token) |
-| GET    | `/user-api/oauth2/error`   | OAuth2 error handler              |
+| Method | Path                 | Description                       |
+|--------|----------------------|-----------------------------------|
+| POST   | `/user/oauth2/refresh` | Refresh access token              |
+| POST   | `/user/oauth2/logout`  | Logout (invalidate refresh token) |
+| GET    | `/user/oauth2/error`   | OAuth2 error handler              |
+
+### API Key Verification (Public)
+
+| Method | Path                    | Description                                      |
+|--------|-------------------------|--------------------------------------------------|
+| POST   | `/user/api-keys/verify` | Verify API key (header `X-Api-Key`), public endpoint |
 
 ### Public
 
-| Method | Path                    | Description                 |
-|--------|-------------------------|-----------------------------|
-| GET    | `/user-api/`            | Application info and uptime |
-| GET    | `/user-api/favicon.ico` | Empty favicon               |
+| Method | Path              | Description                 |
+|--------|-------------------|-----------------------------|
+| GET    | `/user/`          | Application info and uptime |
+| GET    | `/user/favicon.ico` | Empty favicon               |
 
 ## Multi-domain OAuth2 Redirect
 
@@ -79,12 +85,12 @@ APP_OAUTH_COOKIE_DOMAIN=agimate.ru
 
 ### API Key Management (JWT)
 
-| Method | Path                             | Description        |
-|--------|----------------------------------|--------------------|
-| GET    | `/user-api/manage/api-keys/`     | List all API keys  |
-| POST   | `/user-api/manage/api-keys/`     | Create new API key |
-| PUT    | `/user-api/manage/api-keys/{id}` | Update API key     |
-| DELETE | `/user-api/manage/api-keys/{id}` | Delete API key     |
+| Method | Path                       | Description        |
+|--------|----------------------------|--------------------|
+| GET    | `/user/manage/api-keys/`   | List all API keys  |
+| POST   | `/user/manage/api-keys/`   | Create new API key |
+| PUT    | `/user/manage/api-keys/{id}` | Update API key     |
+| DELETE | `/user/manage/api-keys/{id}` | Delete API key     |
 
 ## gRPC Endpoints
 

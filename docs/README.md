@@ -40,8 +40,8 @@ Agimate is an automation platform that connects external services (marketplaces,
 
 | Service        | Port  | Context Path       |
 |----------------|-------|--------------------|
-| user-api       | 8080  | `/user-api/`       |
-| device-api     | 8080  | `/device-api`      |
-| connectors-api | 8080  | `/connectors-api/` |
+| user-api       | 8080  | `/user/`         |
+| device-api     | 8080  | `/device`        |
+| connectors-api | 8080  | `/connectors/`   |
 
 All services expose management endpoints on port **8088**.

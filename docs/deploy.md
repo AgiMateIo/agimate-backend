@@ -6,8 +6,8 @@
 
 | Variable          | Description                                     | Required      |
 |-------------------|-------------------------------------------------|---------------|
-| `JWT_PRIVATE_KEY` | Base64-encoded ECDSA P-256 private key (PKCS#8) | user-api only |
-| `JWT_PUBLIC_KEY`  | Base64-encoded ECDSA P-256 public key (X.509)   | All services  |
+| `JWT_PRIVATEKEY`  | Base64-encoded ECDSA P-256 private key (PKCS#8) | user-api only |
+| `JWT_PUBLICKEY`   | Base64-encoded ECDSA P-256 public key (X.509)   | All services  |
 
 ### OAuth2 (user-api)
 
@@ -17,7 +17,7 @@
 | `GOOGLE_CLIENT_SECRET`            | Google OAuth2 client secret                          |
 | `YANDEX_CLIENT_ID`                | Yandex OAuth2 client ID                              |
 | `YANDEX_CLIENT_SECRET`            | Yandex OAuth2 client secret                          |
-| `OAUTH2_COOKIE_ENCRYPTION_KEY`    | AES-256 key for OAuth2 cookies (Base64, 32 bytes)    |
+| `APP_OAUTH_COOKIE_ENCRYPTION_KEY` | AES-256 key for OAuth2 cookies (Base64, 32 bytes)    |
 | `APP_OAUTH_COOKIE_DOMAIN`         | Default cookie domain for refresh tokens             |
 | `APP_OAUTH_COOKIE_SECURE`         | `true` for production (HTTPS)                        |
 | `APP_OAUTH_FRONTEND_REDIRECT_URL` | Default frontend redirect URL after OAuth2 login     |
@@ -33,7 +33,7 @@
 
 | Variable                | Description                            |
 |-------------------------|----------------------------------------|
-| `CENTRIFUGO_API_KEY`    | Centrifugo HTTP API key                |
+| `CENTRIFUGO_APIKEY`     | Centrifugo HTTP API key                |
 | `CENTRIFUGO_PRIVATEKEY` | Centrifugo JWT signing private key     |
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT verification public key |
 
@@ -51,7 +51,7 @@ openssl rand -base64 32
 ```
 
 Use for:
-- `OAUTH2_COOKIE_ENCRYPTION_KEY`
+- `APP_OAUTH_COOKIE_ENCRYPTION_KEY`
 - `CONNECTORS_ENCRYPTION_KEY`
 
 ### Centrifugo Keys
@@ -64,7 +64,7 @@ Centrifugo uses the same ES256 key format as JWT. Generate using the JWT key gen
 |------|----------------------|-------------------------------------------|
 | 8080 | All                  | HTTP API                                  |
 | 8088 | All                  | Management (health, metrics, prometheus)  |
-| 9090 | All                  | gRPC server for internal s2s interactions |
+| 9090 | user-api             | gRPC server for internal s2s interactions |
 
 ## Spring Profiles
 
@@ -138,8 +138,11 @@ Key configuration options in `config.json`:
 
 ### Channel Namespaces
 
-The `device` namespace is configured for device-related events:
-- Pattern: `device:{deviceId}:(actions|triggers)`
+| Namespace | Pattern                                    | Description                        |
+|-----------|--------------------------------------------|------------------------------------|
+| `device`  | `device:{deviceId}:(actions\|triggers)`    | Device-related events              |
+| `agent`   | `agent:{apiKeyPubId}`                      | Agent events (tool results, triggers) |
+
 - Publish/Subscribe restricted to server-side only
 - History: 100 messages, 24h TTL
 
@@ -147,7 +150,7 @@ The `device` namespace is configured for device-related events:
 
 For production, ensure:
 1. Generate new keys (do not use development keys)
-2. Set `CENTRIFUGO_API_KEY` in device-api to match `http_api.key`
+2. Set `CENTRIFUGO_APIKEY` in device-api to match `http_api.key`
 3. Set `CENTRIFUGO_PUBLICKEY` in device-api to match `client.token.ecdsa_public_key`
 4. Configure `allowed_origins` appropriately
 5. Disable admin UI or use strong credentials

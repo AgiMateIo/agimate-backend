@@ -4,13 +4,12 @@ Device API for app registration, tool delivery, trigger submission, and AI agent
 
 ## Configuration
 
-| Setting         | Value         |
-|-----------------|---------------|
-| Port            | 8080          |
-| Context Path    | `/device-api` |
-| Management Port | 8088          |
-| gRPC Port       | 9090          |
-| Database        | am_device_db  |
+| Setting         | Value        |
+|-----------------|--------------|
+| Port            | 8080         |
+| Context Path    | `/device`    |
+| Management Port | 8088         |
+| Database        | am_device_db |
 
 ## Authentication
 
@@ -22,8 +21,8 @@ Device API for app registration, tool delivery, trigger submission, and AI agent
 
 | Variable                | Description                       |
 |-------------------------|-----------------------------------|
-| `JWT_PUBLIC_KEY`        | ECDSA public key (Base64, X.509)  |
-| `CENTRIFUGO_API_KEY`    | Centrifugo HTTP API key           |
+| `JWT_PUBLICKEY`         | ECDSA public key (Base64, X.509)  |
+| `CENTRIFUGO_APIKEY`     | Centrifugo HTTP API key           |
 | `CENTRIFUGO_PRIVATEKEY` | Centrifugo JWT private key        |
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT public key         |
 
@@ -31,74 +30,87 @@ Device API for app registration, tool delivery, trigger submission, and AI agent
 
 ### App Endpoints (App Auth)
 
-| Method | Path                            | Description                             |
-|--------|---------------------------------|-----------------------------------------|
-| POST   | `/device-api/tools/result`      | Submit tool result from device          |
-| GET    | `/device-api/tools/get`         | Get pending tools for device            |
-| GET    | `/device-api/tools/test`        | Test endpoint (publishes to Centrifugo) |
-| POST   | `/device-api/trigger/new`       | Submit trigger from device              |
-| POST   | `/device-api/registration/link` | Link device to app                      |
-| POST   | `/device-api/centrifugo/token`  | Get Centrifugo subscription token       |
+| Method | Path                          | Description                             |
+|--------|-------------------------------|-----------------------------------------|
+| POST   | `/device/tools/result`        | Submit tool result from device          |
+| GET    | `/device/tools/get`           | Get pending tools for device            |
+| GET    | `/device/tools/test`          | Test endpoint (publishes to Centrifugo) |
+| POST   | `/device/trigger/new`         | Submit trigger from device              |
+| POST   | `/device/registration/link`   | Link device to app                      |
+| POST   | `/device/centrifugo/token`    | Get Centrifugo subscription token       |
 
 ### Agent/External API (API Key)
 
-| Method | Path                                          | Description                          |
-|--------|------------------------------------------------|--------------------------------------|
-| POST   | `/device-api/api/apps/call/{appId}`            | Push tool_use to device              |
-| GET    | `/device-api/api/apps/agent/settings`          | Get agent settings (from API key)    |
-| POST   | `/device-api/api/apps/centrifugo/token`        | Get Centrifugo token for agent       |
-| GET    | `/device-api/api/apps/`                        | List connected apps                  |
-| GET    | `/device-api/api/apps/triggers/`               | Get all app triggers                 |
-| GET    | `/device-api/api/apps/triggers/{appId}`        | Get app triggers                     |
-| GET    | `/device-api/api/apps/tools/{appId}`           | Get app tools                        |
+| Method | Path                                    | Description                          |
+|--------|-----------------------------------------|--------------------------------------|
+| POST   | `/device/api/apps/call/{appId}`         | Push tool_use to device              |
+| GET    | `/device/api/apps/agent/settings`       | Get agent settings (from API key)    |
+| POST   | `/device/api/apps/centrifugo/token`     | Get Centrifugo token for agent       |
+| GET    | `/device/api/apps/`                     | List connected apps                  |
+| GET    | `/device/api/apps/triggers/`            | Get all app triggers                 |
+| GET    | `/device/api/apps/triggers/{appId}`     | Get app triggers                     |
+| GET    | `/device/api/apps/tools/{appId}`        | Get app tools                        |
+| GET    | `/device/api/apps/tools/`              | List all app tools                   |
 
 ### App Management (JWT)
 
-| Method | Path                                                | Description                   |
-|--------|------------------------------------------------------|-------------------------------|
-| GET    | `/device-api/manage/apps/`                           | List all apps                 |
-| POST   | `/device-api/manage/apps/`                           | Create new app                |
-| GET    | `/device-api/manage/apps/{id}`                       | Get specific app              |
-| PUT    | `/device-api/manage/apps/{id}`                       | Update app                    |
-| DELETE | `/device-api/manage/apps/{id}`                       | Delete app (soft)             |
-| POST   | `/device-api/manage/apps/{id}/regenerate`            | Regenerate auth key           |
-| GET    | `/device-api/manage/apps/{id}/detail`                | Get app detail with device info |
-| POST   | `/device-api/manage/apps/{id}/disconnect`            | Disconnect device from app    |
+| Method | Path                                          | Description                   |
+|--------|-----------------------------------------------|-------------------------------|
+| GET    | `/device/manage/apps/`                        | List all apps                 |
+| POST   | `/device/manage/apps/`                        | Create new app                |
+| GET    | `/device/manage/apps/{id}`                    | Get specific app              |
+| PUT    | `/device/manage/apps/{id}`                    | Update app                    |
+| DELETE | `/device/manage/apps/{id}`                    | Delete app (soft)             |
+| POST   | `/device/manage/apps/{id}/regenerate`         | Regenerate auth key           |
+| GET    | `/device/manage/apps/{id}/detail`             | Get app detail with device info |
+| POST   | `/device/manage/apps/{id}/disconnect`         | Disconnect device from app    |
+
+### Tool Management (JWT)
+
+| Method | Path                        | Description              |
+|--------|-----------------------------|--------------------------|
+| GET    | `/device/manage/tools/`     | List all device tools    |
 
 ### Trigger Management (JWT)
 
-| Method | Path                                  | Description                        |
-|--------|---------------------------------------|------------------------------------|
-| GET    | `/device-api/manage/triggers/`        | List all device triggers           |
+| Method | Path                            | Description                        |
+|--------|---------------------------------|------------------------------------|
+| GET    | `/device/manage/triggers/`      | List all device triggers           |
 
 ### Trigger Logs (JWT)
 
-| Method | Path                                  | Description                        |
-|--------|---------------------------------------|------------------------------------|
-| GET    | `/device-api/manage/trigger-logs/`    | List trigger logs (filter by deviceId, appId) |
+| Method | Path                              | Description                        |
+|--------|-----------------------------------|------------------------------------|
+| GET    | `/device/manage/trigger-logs/`    | List trigger logs (filter by deviceId, appId) |
+
+### Webhook Delivery Logs (JWT)
+
+| Method | Path                                    | Description                                          |
+|--------|-----------------------------------------|------------------------------------------------------|
+| GET    | `/device/manage/webhook-deliveries/`    | List webhook delivery logs (optional `?apiKeyPubId`, pagination) |
 
 ### Agent Settings Management (JWT)
 
-| Method | Path                                                 | Description                   |
-|--------|------------------------------------------------------|-------------------------------|
-| GET    | `/device-api/manage/agent-settings/`                 | List agent settings           |
-| POST   | `/device-api/manage/agent-settings/`                 | Create agent settings         |
-| GET    | `/device-api/manage/agent-settings/{apiKeyPubId}`    | Get agent settings            |
-| PUT    | `/device-api/manage/agent-settings/{apiKeyPubId}`    | Update agent settings         |
-| DELETE | `/device-api/manage/agent-settings/{apiKeyPubId}`    | Delete agent settings         |
+| Method | Path                                           | Description                   |
+|--------|-------------------------------------------------|-------------------------------|
+| GET    | `/device/manage/agent-settings/`               | List agent settings           |
+| POST   | `/device/manage/agent-settings/`               | Create agent settings         |
+| GET    | `/device/manage/agent-settings/{apiKeyPubId}`  | Get agent settings            |
+| PUT    | `/device/manage/agent-settings/{apiKeyPubId}`  | Update agent settings         |
+| DELETE | `/device/manage/agent-settings/{apiKeyPubId}`  | Delete agent settings         |
 
 ### Tool Use Logs (JWT)
 
-| Method | Path                                  | Description                        |
-|--------|---------------------------------------|------------------------------------|
-| GET    | `/device-api/manage/tool-use-logs/`   | List tool use logs (filter by apiKeyPubId) |
+| Method | Path                            | Description                        |
+|--------|---------------------------------|------------------------------------|
+| GET    | `/device/manage/tool-use-logs/` | List tool use logs (filter by apiKeyPubId) |
 
 ### Public
 
-| Method | Path                      | Description                 |
-|--------|---------------------------|-----------------------------|
-| GET    | `/device-api/`            | Application info and uptime |
-| GET    | `/device-api/favicon.ico` | Empty favicon               |
+| Method | Path                | Description                 |
+|--------|---------------------|-----------------------------|
+| GET    | `/device/`          | Application info and uptime |
+| GET    | `/device/favicon.ico` | Empty favicon               |
 
 ## Centrifugo Integration
 
@@ -106,7 +118,6 @@ device-api integrates with Centrifugo for real-time messaging:
 - **Device channels** (`device:{deviceId}`) — push tool_use requests to devices
 - **Agent channels** (`agent:{apiKeyPubId}`) — deliver tool_result and trigger events to agents
 - Connection and subscription token generation (ES256 JWT)
-- gRPC server for connectors-api to push actions
 
 ## AI Agent Flow
 
@@ -122,7 +133,7 @@ device-api integrates with Centrifugo for real-time messaging:
    - Result published to agent's Centrifugo channel
 7. Device triggers (`POST /trigger/new`) are routed to subscribed agents:
    - `triggers_to=centrifugo` — published to agent's Centrifugo channel
-   - `triggers_to=webhook` — sent via gRPC to connectors-api
+   - `triggers_to=webhook` — delivered directly by device-api to the webhook URL configured in `agent_settings`
    - `triggers_to=ignore` — not routed (default)
    - `triggers_allow_all=true` — agent receives all triggers without explicit subscription
 
@@ -132,8 +143,9 @@ device-api integrates with Centrifugo for real-time messaging:
 - `trigger_logs` — Logged trigger events
 - `trigger_log_agents` — Trigger routing log per agent
 - `tool_use_logs` — Tool invocation logs (request + result)
-- `agent_settings` — Agent configuration (prompt, triggers_allow_all, triggers_to)
+- `agent_settings` — Agent configuration (prompt, triggers_allow_all, triggers_to, webhook_url, webhook_auth_header)
 - `agent_tools` — Agent-to-tool access mapping
 - `agent_triggers` — Agent-to-trigger subscription mapping
+- `webhook_delivery_logs` — Webhook delivery attempt logs
 
 Migrations: `services/device-api/src/main/resources/db/changelog/`
