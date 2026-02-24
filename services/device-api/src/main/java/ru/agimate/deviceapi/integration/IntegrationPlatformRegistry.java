@@ -15,7 +15,7 @@ public class IntegrationPlatformRegistry {
 
     public IntegrationPlatformRegistry(List<IntegrationPlatformHandler> handlerList) {
         this.handlers = handlerList.stream()
-                .collect(Collectors.toMap(IntegrationPlatformHandler::getPlatformType, Function.identity()));
+                .collect(Collectors.toMap(IntegrationPlatformHandler::getPlatformCode, Function.identity()));
     }
 
     public IntegrationPlatformHandler getHandler(String platformType) {

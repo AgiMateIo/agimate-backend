@@ -25,62 +25,32 @@ class IntegrationEncryptionServiceTest {
     }
 
     @Test
-    @DisplayName("encrypt and decrypt round-trip")
-    void encryptDecrypt_roundTrip() {
-        String plaintext = "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11";
-
-        var result = encryptionService.encrypt(plaintext);
-        assertNotNull(result.encryptedData());
-        assertNotNull(result.iv());
-        assertNotEquals(plaintext, result.encryptedData());
-
-        String decrypted = encryptionService.decrypt(result.encryptedData(), result.iv());
-        assertEquals(plaintext, decrypted);
-    }
-
-    @Test
-    @DisplayName("different encryptions produce different ciphertexts (random IV)")
-    void encrypt_differentIVs() {
-        String plaintext = "test-token";
-
-        var result1 = encryptionService.encrypt(plaintext);
-        var result2 = encryptionService.encrypt(plaintext);
-
-        assertNotEquals(result1.encryptedData(), result2.encryptedData());
-        assertNotEquals(result1.iv(), result2.iv());
-
-        // Both should decrypt to the same value
-        assertEquals(plaintext, encryptionService.decrypt(result1.encryptedData(), result1.iv()));
-        assertEquals(plaintext, encryptionService.decrypt(result2.encryptedData(), result2.iv()));
-    }
-
-    @Test
-    @DisplayName("decrypt with wrong IV throws exception")
-    void decrypt_wrongIV_throws() {
-        String plaintext = "test-token";
-        var result = encryptionService.encrypt(plaintext);
-
-        // Use a different IV
-        byte[] wrongIv = new byte[12];
-        String wrongIvBase64 = Base64.getEncoder().encodeToString(wrongIv);
-
-        assertThrows(IllegalStateException.class,
-                () -> encryptionService.decrypt(result.encryptedData(), wrongIvBase64));
-    }
-
-    @Test
-    @DisplayName("encryptCredentials and decryptCredentials round-trip for Map")
+    @DisplayName("encryptCredentials and decryptCredentials round-trip")
     void encryptDecryptCredentials_roundTrip() {
         Map<String, String> credentials = Map.of(
                 "token", "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
         );
 
-        var result = encryptionService.encryptCredentials(credentials);
-        assertNotNull(result.encryptedData());
-        assertNotNull(result.iv());
+        String encrypted = encryptionService.encryptCredentials(credentials);
+        assertNotNull(encrypted);
 
-        Map<String, String> decrypted = encryptionService.decryptCredentials(result.encryptedData(), result.iv());
+        Map<String, String> decrypted = encryptionService.decryptCredentials(encrypted);
         assertEquals(credentials, decrypted);
+    }
+
+    @Test
+    @DisplayName("different encryptions produce different ciphertexts (random IV)")
+    void encrypt_differentIVs() {
+        Map<String, String> credentials = Map.of("token", "test-token");
+
+        String encrypted1 = encryptionService.encryptCredentials(credentials);
+        String encrypted2 = encryptionService.encryptCredentials(credentials);
+
+        assertNotEquals(encrypted1, encrypted2);
+
+        // Both should decrypt to the same value
+        assertEquals(credentials, encryptionService.decryptCredentials(encrypted1));
+        assertEquals(credentials, encryptionService.decryptCredentials(encrypted2));
     }
 
     @Test
@@ -91,10 +61,23 @@ class IntegrationEncryptionServiceTest {
                 "apiKey", "my-api-key-12345"
         );
 
-        var result = encryptionService.encryptCredentials(credentials);
-        Map<String, String> decrypted = encryptionService.decryptCredentials(result.encryptedData(), result.iv());
+        String encrypted = encryptionService.encryptCredentials(credentials);
+        Map<String, String> decrypted = encryptionService.decryptCredentials(encrypted);
 
         assertEquals("my-client-id", decrypted.get("clientId"));
         assertEquals("my-api-key-12345", decrypted.get("apiKey"));
+    }
+
+    @Test
+    @DisplayName("decrypt with tampered data throws exception")
+    void decrypt_tamperedData_throws() {
+        Map<String, String> credentials = Map.of("token", "test-token");
+        String encrypted = encryptionService.encryptCredentials(credentials);
+
+        // Tamper with the encrypted data
+        String tampered = encrypted.substring(0, encrypted.length() - 2) + "XX";
+
+        assertThrows(IllegalStateException.class,
+                () -> encryptionService.decryptCredentials(tampered));
     }
 }

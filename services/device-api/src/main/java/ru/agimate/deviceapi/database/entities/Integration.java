@@ -11,7 +11,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "integrations", uniqueConstraints = {
         @UniqueConstraint(name = "uq_integrations_user_platform",
-                columnNames = {"user_pub_id", "platform_type", "platform_identifier"})
+                columnNames = {"user_pub_id", "platform_id", "platform_identifier"})
 })
 @Getter
 @Setter
@@ -43,17 +43,11 @@ public class Integration extends BaseEntity {
     @Column(name = "name", columnDefinition = "TEXT")
     private String name;
 
-    @Column(name = "platform_type", nullable = false, columnDefinition = "TEXT")
-    private String platformType;
-
     @Column(name = "platform_identifier", nullable = false, columnDefinition = "TEXT")
     private String platformIdentifier;
 
     @Column(name = "encrypted_data", nullable = false, columnDefinition = "TEXT")
     private String encryptedData;
-
-    @Column(name = "encryption_iv", nullable = false, columnDefinition = "TEXT")
-    private String encryptionIv;
 
     @Column(name = "webhook_secret", columnDefinition = "TEXT")
     private String webhookSecret;

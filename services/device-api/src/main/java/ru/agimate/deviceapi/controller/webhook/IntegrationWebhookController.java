@@ -23,16 +23,15 @@ public class IntegrationWebhookController {
     private final IntegrationPlatformRegistry platformRegistry;
     private final TriggerRouterService triggerRouterService;
 
-    @PostMapping("/{platformType}/{integrationPubId}")
+    @PostMapping("/{integrationPubId}")
     public ResponseEntity<String> handleWebhook(
-            @PathVariable String platformType,
             @PathVariable UUID integrationPubId,
             @RequestBody String rawBody,
             HttpServletRequest request
     ) {
-        var integrationOpt = integrationRepository.findByPubIdAndPlatformType(integrationPubId, platformType);
+        var integrationOpt = integrationRepository.findByPubIdNotDeleted(integrationPubId);
         if (integrationOpt.isEmpty()) {
-            log.warn("Webhook received for unknown integration: {} / {}", platformType, integrationPubId);
+            log.warn("Webhook received for unknown integration: {}", integrationPubId);
             return ResponseEntity.ok("ok");
         }
 
@@ -44,11 +43,11 @@ public class IntegrationWebhookController {
 
         // Guard: platform must support webhooks
         if (!integration.getPlatform().getSupportsWebhooks()) {
-            log.warn("Webhook received for non-webhook platform: {} / {}", platformType, integrationPubId);
+            log.warn("Webhook received for non-webhook platform: {}", integrationPubId);
             return ResponseEntity.notFound().build();
         }
 
-        var handler = platformRegistry.getHandler(platformType);
+        var handler = platformRegistry.getHandler(integration.getPlatform().getCode());
 
         if (!handler.validateWebhookRequest(integration, request)) {
             log.warn("Webhook validation failed for integration: {}", integrationPubId);

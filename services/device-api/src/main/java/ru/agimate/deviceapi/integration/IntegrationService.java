@@ -52,7 +52,7 @@ public class IntegrationService {
 
         // Check for duplicate
         integrationRepository.findByUserPubIdNotDeleted(userPubId).stream()
-                .filter(i -> i.getPlatformType().equals(platform.getCode())
+                .filter(i -> i.getPlatform().getCode().equals(platform.getCode())
                         && i.getPlatformIdentifier().equals(validationResult.identifier()))
                 .findFirst()
                 .ifPresent(existing -> {
@@ -73,7 +73,7 @@ public class IntegrationService {
         app.setTools(handler.getPredefinedTools());
 
         // Encrypt credentials
-        var encryptionResult = encryptionService.encryptCredentials(credentials);
+        String encryptedData = encryptionService.encryptCredentials(credentials);
 
         // Generate webhook secret only if platform supports webhooks
         String webhookSecret = platform.getSupportsWebhooks()
@@ -85,10 +85,8 @@ public class IntegrationService {
                 .platform(platform)
                 .userPubId(userPubId)
                 .name(name)
-                .platformType(platform.getCode())
                 .platformIdentifier(validationResult.identifier())
-                .encryptedData(encryptionResult.encryptedData())
-                .encryptionIv(encryptionResult.iv())
+                .encryptedData(encryptedData)
                 .webhookSecret(webhookSecret)
                 .build();
 
@@ -96,7 +94,7 @@ public class IntegrationService {
 
         // Setup webhook only if platform supports it
         if (platform.getSupportsWebhooks()) {
-            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + platform.getCode() + "/" + integration.getPubId();
+            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integration.getPubId();
             try {
                 handler.setupWebhook(integration, credentials, webhookUrl);
             } catch (Exception e) {
@@ -129,7 +127,7 @@ public class IntegrationService {
 
         // Remove webhook if platform supports it
         try {
-            var handler = platformRegistry.getHandler(integration.getPlatformType());
+            var handler = platformRegistry.getHandler(integration.getPlatform().getCode());
             Map<String, String> credentials = decryptCredentials(integration);
             handler.removeWebhook(credentials);
         } catch (Exception e) {
@@ -141,14 +139,13 @@ public class IntegrationService {
     }
 
     public Map<String, String> decryptCredentials(Integration integration) {
-        return encryptionService.decryptCredentials(
-                integration.getEncryptedData(), integration.getEncryptionIv());
+        return encryptionService.decryptCredentials(integration.getEncryptedData());
     }
 
     @Transactional
     public Integration updateCredentials(UUID pubId, UUID userPubId, Map<String, String> credentials) {
         Integration integration = getIntegration(pubId, userPubId);
-        var handler = platformRegistry.getHandler(integration.getPlatformType());
+        var handler = platformRegistry.getHandler(integration.getPlatform().getCode());
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
@@ -163,14 +160,11 @@ public class IntegrationService {
         }
 
         // Re-encrypt
-        var encryptionResult = encryptionService.encryptCredentials(credentials);
-        integration.setEncryptedData(encryptionResult.encryptedData());
-        integration.setEncryptionIv(encryptionResult.iv());
+        integration.setEncryptedData(encryptionService.encryptCredentials(credentials));
 
         // Re-setup webhook if platform supports it
         if (integration.getPlatform().getSupportsWebhooks()) {
-            String webhookUrl = webhookBaseUrl + "/webhook/integration/"
-                    + integration.getPlatformType() + "/" + integration.getPubId();
+            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integration.getPubId();
             handler.setupWebhook(integration, credentials, webhookUrl);
         }
 

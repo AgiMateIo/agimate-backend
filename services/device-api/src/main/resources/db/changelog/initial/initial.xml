@@ -432,16 +432,10 @@
                 <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT"/>
-            <column name="platform_type" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
             <column name="platform_identifier" type="TEXT">
                 <constraints nullable="false"/>
             </column>
             <column name="encrypted_data" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="encryption_iv" type="TEXT">
                 <constraints nullable="false"/>
             </column>
             <column name="webhook_secret" type="TEXT"/>
@@ -459,7 +453,7 @@
         </createTable>
 
         <addUniqueConstraint tableName="integrations"
-                             columnNames="user_pub_id, platform_type, platform_identifier"
+                             columnNames="user_pub_id, platform_id, platform_identifier"
                              constraintName="uq_integrations_user_platform"/>
 
         <createIndex tableName="integrations" indexName="idx_integrations_user_pub_id">

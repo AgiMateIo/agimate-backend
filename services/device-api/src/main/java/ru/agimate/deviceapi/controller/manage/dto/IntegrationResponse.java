@@ -12,9 +12,6 @@ public record IntegrationResponse(
         @Schema(description = "Integration public ID")
         UUID id,
 
-        @Schema(description = "Platform type")
-        String platformType,
-
         @Schema(description = "Platform code")
         String platformCode,
 
@@ -44,7 +41,6 @@ public record IntegrationResponse(
     public static IntegrationResponse from(Integration integration) {
         return new IntegrationResponse(
                 integration.getPubId(),
-                integration.getPlatformType(),
                 integration.getPlatform().getCode(),
                 integration.getPlatform().getName(),
                 integration.getPlatformIdentifier(),

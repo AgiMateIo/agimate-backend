@@ -29,7 +29,7 @@ public class TelegramPlatformHandler implements IntegrationPlatformHandler {
     private final ObjectMapper objectMapper;
 
     @Override
-    public String getPlatformType() {
+    public String getPlatformCode() {
         return PLATFORM_TYPE;
     }
 

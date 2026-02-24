@@ -37,9 +37,9 @@ class TelegramPlatformHandlerTest {
     }
 
     @Test
-    @DisplayName("getPlatformType returns 'telegram'")
-    void getPlatformType() {
-        assertEquals("telegram", handler.getPlatformType());
+    @DisplayName("getPlatformCode returns 'telegram'")
+    void getPlatformCode() {
+        assertEquals("telegram", handler.getPlatformCode());
     }
 
     @Nested

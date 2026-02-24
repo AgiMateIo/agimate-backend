@@ -18,9 +18,6 @@ public interface IntegrationRepository extends JpaRepository<Integration, Long> 
     @Query("SELECT i FROM Integration i WHERE i.pubId = :pubId AND i.deletedAt IS NULL")
     Optional<Integration> findByPubIdNotDeleted(@Param("pubId") UUID pubId);
 
-    @Query("SELECT i FROM Integration i WHERE i.pubId = :pubId AND i.platformType = :platformType AND i.deletedAt IS NULL")
-    Optional<Integration> findByPubIdAndPlatformType(@Param("pubId") UUID pubId, @Param("platformType") String platformType);
-
     @Query("SELECT i FROM Integration i WHERE i.userPubId = :userPubId AND i.deletedAt IS NULL ORDER BY i.createdAt DESC")
     List<Integration> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
 

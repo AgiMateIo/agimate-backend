@@ -10,7 +10,7 @@ public interface IntegrationPlatformHandler {
 
     // === Required ===
 
-    String getPlatformType();
+    String getPlatformCode();
 
     PlatformValidationResult validateCredentials(Map<String, String> credentials);
 
