@@ -12,6 +12,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.deviceapi.controller.app.dto.LinkDeviceRequest;
 import ru.agimate.deviceapi.database.entities.App;
+import ru.agimate.deviceapi.database.entities.AppType;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
 import ru.agimate.deviceapi.security.AppAuthenticationToken;
 import ru.agimate.deviceapi.security.AppPrincipal;
@@ -64,6 +65,39 @@ public class AppService {
         log.info("Created new app for user {}: {}", userPubId, saved.getPubId());
 
         return new AppCreateResult(saved, generatedKey.fullKey());
+    }
+
+    @Transactional
+    public App createAppForIntegration(
+            UUID userPubId,
+            String name,
+            String description,
+            Map<String, Object> triggers,
+            Map<String, Object> tools
+    ) {
+        long existingCount = appRepository.countByUserPubIdNotDeleted(userPubId);
+        if (existingCount >= MAX_KEYS_PER_USER) {
+            throw new ConflictStatusException("Maximum number of API keys reached: " + MAX_KEYS_PER_USER);
+        }
+
+        GeneratedApiKey generatedKey = ApiKeyUtils.generate(APP_KEY_PREFIX);
+
+        App app = App.builder()
+                .userPubId(userPubId)
+                .name(name)
+                .description(description)
+                .keyHash(generatedKey.secretHash())
+                .keyId(generatedKey.keyId())
+                .type(AppType.INTEGRATION)
+                .triggers(triggers)
+                .tools(tools)
+                .enabled(true)
+                .build();
+
+        App saved = appRepository.save(app);
+        log.info("Created integration app for user {}: {}", userPubId, saved.getPubId());
+
+        return saved;
     }
 
     public Optional<App> validateKey(String apiKey) {

@@ -20,15 +20,15 @@ import java.util.Map;
 public class IntegrationToolExecutorService {
 
     private final IntegrationPlatformRegistry platformRegistry;
-    private final IntegrationService integrationService;
     private final IntegrationRepository integrationRepository;
     private final CentrifugoService centrifugoService;
     private final ToolUseLogService toolUseLogService;
+    private final IntegrationEncryptionService encryptionService;
 
     @Async
     public void execute(Integration integration, IToolUse toolUse, String agentId) {
         var handler = platformRegistry.getHandler(integration.getPlatform().getCode());
-        Map<String, String> credentials = integrationService.decryptCredentials(integration);
+        Map<String, String> credentials = encryptionService.decryptCredentials(integration.getEncryptedData());
 
         try {
             Map<String, Object> result = handler.executeTool(

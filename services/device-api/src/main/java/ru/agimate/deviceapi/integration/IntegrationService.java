@@ -9,8 +9,6 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
-import ru.agimate.deviceapi.database.entities.App;
-import ru.agimate.deviceapi.database.entities.AppType;
 import ru.agimate.deviceapi.database.entities.Integration;
 import ru.agimate.deviceapi.database.entities.Platform;
 import ru.agimate.deviceapi.database.repositories.IntegrationRepository;
@@ -38,8 +36,12 @@ public class IntegrationService {
     private final AppService appService;
 
     @Transactional
-    public Integration createIntegration(UUID userPubId, String platformCode,
-                                         Map<String, String> credentials, String name) {
+    public Integration createIntegration(
+            UUID userPubId,
+            String platformCode,
+            Map<String, String> credentials,
+            String name
+    ) {
         Platform platform = platformRepository.findByCode(platformCode)
                 .orElseThrow(() -> new BadRequestStatusException("Unknown platform: " + platformCode));
 
@@ -63,14 +65,10 @@ public class IntegrationService {
         String appName = name != null ? name
                 : validationResult.displayName() != null ? validationResult.displayName()
                 : platform.getCode() + ": " + validationResult.identifier();
-        var appResult = appService.createApp(userPubId, appName, "Integration: " + platform.getCode());
-        App app = appResult.app();
-
-        app.setType(AppType.INTEGRATION);
-
-        // Set predefined triggers and tools on the app
-        app.setTriggers(handler.getPredefinedTriggers());
-        app.setTools(handler.getPredefinedTools());
+        var app = appService.createAppForIntegration(
+                userPubId, appName, "Integration: " + platform.getCode(),
+                handler.getPredefinedTriggers(), handler.getPredefinedTools()
+        );
 
         // Encrypt credentials
         String encryptedData = encryptionService.encryptCredentials(credentials);
@@ -128,18 +126,15 @@ public class IntegrationService {
         // Remove webhook if platform supports it
         try {
             var handler = platformRegistry.getHandler(integration.getPlatform().getCode());
-            Map<String, String> credentials = decryptCredentials(integration);
+            Map<String, String> credentials = encryptionService.decryptCredentials(integration.getEncryptedData());
             handler.removeWebhook(credentials);
         } catch (Exception e) {
             log.warn("Failed to remove webhook for integration {}: {}", pubId, e.getMessage());
         }
 
         integrationRepository.softDelete(integration.getId(), LocalDateTime.now());
+        appService.deleteKey(integration.getApp().getPubId(), userPubId);
         log.info("Deleted integration {}", pubId);
-    }
-
-    public Map<String, String> decryptCredentials(Integration integration) {
-        return encryptionService.decryptCredentials(integration.getEncryptedData());
     }
 
     @Transactional
