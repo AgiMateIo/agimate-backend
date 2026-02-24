@@ -29,6 +29,9 @@ public interface AppRepository extends JpaRepository<App, Long> {
     @Query("SELECT a FROM App a WHERE a.userPubId = :userPubId AND a.deletedAt IS NULL AND a.deviceId IS NOT NULL ORDER BY a.createdAt DESC")
     List<App> findLinkedByUserPubId(@Param("userPubId") UUID userPubId);
 
+    @Query("SELECT a FROM App a WHERE a.userPubId = :userPubId AND a.deletedAt IS NULL AND (a.deviceId IS NOT NULL OR a.triggers IS NOT NULL OR a.tools IS NOT NULL) ORDER BY a.createdAt DESC")
+    List<App> findWithCapabilitiesByUserPubId(@Param("userPubId") UUID userPubId);
+
     @Query("SELECT a FROM App a WHERE a.keyId = :keyId AND a.deletedAt IS NULL AND a.enabled = true")
     Optional<App> findActiveKeyByKeyId(@Param("keyId") String keyId);
 

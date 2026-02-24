@@ -74,7 +74,7 @@ public class ApiAppsCallController {
         UUID userPubId = UUID.fromString(principal.userPubId());
         toolUseLogService.createLog(apiKeyPubId, userPubId, appId, toolUseRequest);
 
-        appApiService.pushToDevice(appId, toolUseRequest);
+        appApiService.pushToApp(appId, toolUseRequest, principal.pubId());
         return SuccessResponse.ok("success");
     }
 }

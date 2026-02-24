@@ -32,6 +32,11 @@ public class App extends BaseEntity {
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type", nullable = false)
+    @Builder.Default
+    private AppType type = AppType.DEVICE;
+
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
 

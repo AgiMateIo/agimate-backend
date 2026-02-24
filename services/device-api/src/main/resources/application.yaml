@@ -90,6 +90,11 @@ jwt:
   accessExpiration: 86400
   refreshExpiration: 604800
 
+app:
+  integration:
+    encryption-key: "***REMOVED***"
+    webhook-base-url: "http://localhost:8080/device"
+
 centrifugo:
   enabled: true
   url: "http://localhost"

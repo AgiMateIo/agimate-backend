@@ -25,6 +25,8 @@ Device API for app registration, tool delivery, trigger submission, and AI agent
 | `CENTRIFUGO_APIKEY`     | Centrifugo HTTP API key           |
 | `CENTRIFUGO_PRIVATEKEY` | Centrifugo JWT private key        |
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT public key         |
+| `APP_INTEGRATION_ENCRYPTION_KEY` | AES-256 key for token encryption (Base64) |
+| `APP_INTEGRATION_WEBHOOK_BASE_URL` | Public URL for webhook callbacks |
 
 ## API Endpoints
 
@@ -105,6 +107,21 @@ Device API for app registration, tool delivery, trigger submission, and AI agent
 |--------|---------------------------------|------------------------------------|
 | GET    | `/device/manage/tool-use-logs/` | List tool use logs (filter by apiKeyPubId) |
 
+### Integration Management (JWT)
+
+| Method | Path                                | Description              |
+|--------|-------------------------------------|--------------------------|
+| GET    | `/device/manage/integrations/`      | List all integrations    |
+| POST   | `/device/manage/integrations/`      | Create integration       |
+| GET    | `/device/manage/integrations/{id}`  | Get integration details  |
+| DELETE | `/device/manage/integrations/{id}`  | Delete integration       |
+
+### Integration Webhooks (Public)
+
+| Method | Path                                                         | Description                     |
+|--------|--------------------------------------------------------------|---------------------------------|
+| POST   | `/device/webhook/integration/{platformType}/{integrationId}` | Receive inbound webhook events  |
+
 ### Public
 
 | Method | Path                | Description                 |
@@ -137,6 +154,18 @@ device-api integrates with Centrifugo for real-time messaging:
    - `triggers_to=ignore` — not routed (default)
    - `triggers_allow_all=true` — agent receives all triggers without explicit subscription
 
+## Integration Flow (Telegram, etc.)
+
+1. User creates integration via `POST /manage/integrations/` with platform token
+   - Token validated against platform API (e.g., Telegram getMe)
+   - Virtual App created with predefined triggers/tools
+   - Token encrypted (AES-GCM) and stored
+   - Platform webhook configured (e.g., Telegram setWebhook)
+2. User subscribes Agent to integration triggers (AgentTrigger) and tools (AgentTool)
+3. Inbound messages hit webhook endpoint → normalized → routed via TriggerRouterService
+4. Agent calls `POST /api/apps/call/{appId}` with integration tool → executed directly against platform API
+5. Tool result pushed back to agent via Centrifugo
+
 ## Database Tables
 
 - `apps` — App authentication keys, linked device info (deviceId, deviceFeatures JSONB), triggers/tools capabilities (JSONB)
@@ -147,5 +176,6 @@ device-api integrates with Centrifugo for real-time messaging:
 - `agent_tools` — Agent-to-tool access mapping
 - `agent_triggers` — Agent-to-trigger subscription mapping
 - `webhook_delivery_logs` — Webhook delivery attempt logs
+- `integrations` — Platform integrations (Telegram, etc.) linked to apps
 
 Migrations: `services/device-api/src/main/resources/db/changelog/`

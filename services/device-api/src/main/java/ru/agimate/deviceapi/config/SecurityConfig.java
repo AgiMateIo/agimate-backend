@@ -34,7 +34,10 @@ import ru.agimate.deviceapi.controller.manage.ManageDeviceToolsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceTriggersController;
 import ru.agimate.deviceapi.controller.manage.ManageToolUseLogsController;
 import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
+import ru.agimate.deviceapi.controller.manage.ManageIntegrationController;
+import ru.agimate.deviceapi.controller.manage.ManagePlatformController;
 import ru.agimate.deviceapi.controller.manage.ManageWebhookDeliveryLogsController;
+import ru.agimate.deviceapi.controller.webhook.IntegrationWebhookController;
 import ru.agimate.deviceapi.security.AppAuthenticationFilter;
 import ru.agimate.deviceapi.security.JwtAuthenticationFilter;
 
@@ -111,7 +114,9 @@ public class SecurityConfig {
                 ManageToolUseLogsController.PATH + "/**",
                 ManageAgentController.PATH + "/**",
                 ManageAgenticTeamController.PATH + "/**",
-                ManageWebhookDeliveryLogsController.PATH + "/**"
+                ManageWebhookDeliveryLogsController.PATH + "/**",
+                ManageIntegrationController.PATH + "/**",
+                ManagePlatformController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);
@@ -169,7 +174,8 @@ public class SecurityConfig {
                         "/error",
                         "/favicon.ico",
                         "/docs/**",
-                        "/actuator/health"
+                        "/actuator/health",
+                        IntegrationWebhookController.PATH + "/**"
                 ).permitAll()
                 .anyRequest().authenticated()
         );
