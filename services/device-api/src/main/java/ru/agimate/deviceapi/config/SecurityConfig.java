@@ -27,7 +27,7 @@ import ru.agimate.deviceapi.controller.app.DeviceToolsController;
 import ru.agimate.deviceapi.controller.app.DeviceCentrifugoTokenController;
 import ru.agimate.deviceapi.controller.app.DeviceRegistrationController;
 import ru.agimate.deviceapi.controller.app.DeviceTriggerController;
-import ru.agimate.deviceapi.controller.manage.ManageAgentSettingsController;
+import ru.agimate.deviceapi.controller.manage.ManageAgentController;
 import ru.agimate.deviceapi.controller.manage.ManageAgenticTeamController;
 import ru.agimate.deviceapi.controller.manage.ManageAppsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceToolsController;
@@ -109,7 +109,7 @@ public class SecurityConfig {
                 ManageDeviceTriggersController.PATH + "/**",
                 ManageTriggerLogsController.PATH + "/**",
                 ManageToolUseLogsController.PATH + "/**",
-                ManageAgentSettingsController.PATH + "/**",
+                ManageAgentController.PATH + "/**",
                 ManageAgenticTeamController.PATH + "/**",
                 ManageWebhookDeliveryLogsController.PATH + "/**"
         );

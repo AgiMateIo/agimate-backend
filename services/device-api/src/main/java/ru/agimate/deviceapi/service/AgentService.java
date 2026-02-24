@@ -8,14 +8,14 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.api.dto.AgentConfigResponse;
-import ru.agimate.deviceapi.controller.manage.dto.AgentSettingsResponse;
-import ru.agimate.deviceapi.controller.manage.dto.CreateAgentSettingsRequest;
-import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentSettingsRequest;
-import ru.agimate.deviceapi.database.entities.AgentSettings;
+import ru.agimate.deviceapi.controller.manage.dto.AgentResponse;
+import ru.agimate.deviceapi.controller.manage.dto.CreateAgentRequest;
+import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentRequest;
+import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentTool;
 import ru.agimate.deviceapi.database.entities.AgentTrigger;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
-import ru.agimate.deviceapi.database.repositories.AgentSettingsRepository;
+import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerRepository;
 import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
@@ -30,65 +30,65 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class AgentSettingsService {
+public class AgentService {
 
-    private final AgentSettingsRepository agentSettingsRepository;
+    private final AgentRepository agentRepository;
     private final AgentToolRepository agentToolRepository;
     private final AgentTriggerRepository agentTriggerRepository;
     private final AgenticTeamRepository agenticTeamRepository;
 
-    public List<AgentSettingsResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId) {
-        List<AgentSettings> settingsList;
+    public List<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId) {
+        List<Agent> agents;
         if (agenticTeamPubId != null) {
             AgenticTeam team = agenticTeamRepository.findByPubId(agenticTeamPubId)
                     .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
-            settingsList = agentSettingsRepository.findByUserPubIdAndAgenticTeamId(userPubId, team.getId());
+            agents = agentRepository.findByUserPubIdAndAgenticTeamId(userPubId, team.getId());
         } else {
-            settingsList = agentSettingsRepository.findByUserPubId(userPubId);
+            agents = agentRepository.findByUserPubId(userPubId);
         }
 
-        List<Long> teamIds = settingsList.stream()
-                .map(AgentSettings::getAgenticTeamId)
+        List<Long> teamIds = agents.stream()
+                .map(Agent::getAgenticTeamId)
                 .filter(id -> id != null)
                 .distinct()
                 .toList();
         Map<Long, AgenticTeam> teamsById = agenticTeamRepository.findAllById(teamIds).stream()
                 .collect(Collectors.toMap(AgenticTeam::getId, Function.identity()));
 
-        return settingsList.stream()
-                .map(settings -> {
-                    var tools = agentToolRepository.findByApiKeyPubId(settings.getApiKeyPubId());
-                    var triggers = agentTriggerRepository.findByApiKeyPubId(settings.getApiKeyPubId());
-                    var team = settings.getAgenticTeamId() != null ? teamsById.get(settings.getAgenticTeamId()) : null;
-                    return AgentSettingsResponse.from(settings, tools, triggers, team);
+        return agents.stream()
+                .map(agent -> {
+                    var tools = agentToolRepository.findByApiKeyPubId(agent.getApiKeyPubId());
+                    var triggers = agentTriggerRepository.findByApiKeyPubId(agent.getApiKeyPubId());
+                    var team = agent.getAgenticTeamId() != null ? teamsById.get(agent.getAgenticTeamId()) : null;
+                    return AgentResponse.from(agent, tools, triggers, team);
                 })
                 .toList();
     }
 
-    public AgentSettingsResponse getByApiKeyPubId(UUID apiKeyPubId) {
-        AgentSettings settings = agentSettingsRepository.findByApiKeyPubId(apiKeyPubId)
-                .orElseThrow(() -> new NotFoundStatusException("Agent settings not found"));
+    public AgentResponse getByApiKeyPubId(UUID apiKeyPubId) {
+        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
         var tools = agentToolRepository.findByApiKeyPubId(apiKeyPubId);
         var triggers = agentTriggerRepository.findByApiKeyPubId(apiKeyPubId);
-        var team = resolveTeam(settings.getAgenticTeamId());
-        return AgentSettingsResponse.from(settings, tools, triggers, team);
+        var team = resolveTeam(agent.getAgenticTeamId());
+        return AgentResponse.from(agent, tools, triggers, team);
     }
 
     public AgentConfigResponse getConfigByApiKeyPubId(UUID apiKeyPubId) {
-        AgentSettings settings = agentSettingsRepository.findByApiKeyPubId(apiKeyPubId)
-                .orElseThrow(() -> new NotFoundStatusException("Agent settings not found"));
+        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
         var tools = agentToolRepository.findByApiKeyPubId(apiKeyPubId);
         var triggers = agentTriggerRepository.findByApiKeyPubId(apiKeyPubId);
         return new AgentConfigResponse(
-                settings.getApiKeyPubId(),
-                settings.getPrompt(),
+                agent.getApiKeyPubId(),
+                agent.getPrompt(),
                 tools.stream().map(AgentTool::getToolName).toList(),
                 triggers.stream().map(AgentTrigger::getTriggerName).toList()
         );
     }
 
     @Transactional
-    public AgentSettingsResponse create(UUID userPubId, CreateAgentSettingsRequest request) {
+    public AgentResponse create(UUID userPubId, CreateAgentRequest request) {
         validateWebhookFields(request.triggersTo(), request.webhookUrl());
 
         AgenticTeam team = null;
@@ -100,9 +100,10 @@ public class AgentSettingsService {
             }
         }
 
-        AgentSettings settings = AgentSettings.builder()
+        Agent agent = Agent.builder()
                 .apiKeyPubId(request.apiKeyPubId())
                 .userPubId(userPubId)
+                .name(request.name())
                 .prompt(request.prompt())
                 .triggersAllowAll(request.triggersAllowAll())
                 .triggersTo(request.triggersTo())
@@ -110,32 +111,35 @@ public class AgentSettingsService {
                 .webhookAuthHeader(request.webhookAuthHeader())
                 .agenticTeamId(team != null ? team.getId() : null)
                 .build();
-        settings = agentSettingsRepository.save(settings);
+        agent = agentRepository.save(agent);
 
         List<AgentTool> tools = createTools(userPubId, request.apiKeyPubId(), request.tools());
         List<AgentTrigger> triggers = createTriggers(userPubId, request.apiKeyPubId(), request.triggers());
 
-        log.info("Created agent settings for apiKeyPubId={}, user={}", request.apiKeyPubId(), userPubId);
-        return AgentSettingsResponse.from(settings, tools, triggers, team);
+        log.info("Created agent for apiKeyPubId={}, user={}", request.apiKeyPubId(), userPubId);
+        return AgentResponse.from(agent, tools, triggers, team);
     }
 
     @Transactional
-    public AgentSettingsResponse update(UUID apiKeyPubId, UUID userPubId, UpdateAgentSettingsRequest request) {
-        AgentSettings settings = agentSettingsRepository.findByApiKeyPubId(apiKeyPubId)
-                .orElseThrow(() -> new NotFoundStatusException("Agent settings not found"));
+    public AgentResponse update(UUID apiKeyPubId, UUID userPubId, UpdateAgentRequest request) {
+        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
-        if (!settings.getUserPubId().equals(userPubId)) {
+        if (!agent.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");
         }
 
         validateWebhookFields(request.triggersTo(), request.webhookUrl());
 
-        settings.setPrompt(request.prompt());
-        settings.setTriggersAllowAll(request.triggersAllowAll());
-        settings.setTriggersTo(request.triggersTo());
-        settings.setWebhookUrl(request.webhookUrl());
-        settings.setWebhookAuthHeader(request.webhookAuthHeader());
-        settings = agentSettingsRepository.save(settings);
+        if (request.name() != null) {
+            agent.setName(request.name());
+        }
+        agent.setPrompt(request.prompt());
+        agent.setTriggersAllowAll(request.triggersAllowAll());
+        agent.setTriggersTo(request.triggersTo());
+        agent.setWebhookUrl(request.webhookUrl());
+        agent.setWebhookAuthHeader(request.webhookAuthHeader());
+        agent = agentRepository.save(agent);
 
         agentToolRepository.deleteByApiKeyPubId(apiKeyPubId);
         List<AgentTool> tools = createTools(userPubId, apiKeyPubId, request.tools());
@@ -143,26 +147,26 @@ public class AgentSettingsService {
         agentTriggerRepository.deleteByApiKeyPubId(apiKeyPubId);
         List<AgentTrigger> triggers = createTriggers(userPubId, apiKeyPubId, request.triggers());
 
-        var team = resolveTeam(settings.getAgenticTeamId());
+        var team = resolveTeam(agent.getAgenticTeamId());
 
-        log.info("Updated agent settings for apiKeyPubId={}", apiKeyPubId);
-        return AgentSettingsResponse.from(settings, tools, triggers, team);
+        log.info("Updated agent for apiKeyPubId={}", apiKeyPubId);
+        return AgentResponse.from(agent, tools, triggers, team);
     }
 
     @Transactional
     public void delete(UUID apiKeyPubId, UUID userPubId) {
-        AgentSettings settings = agentSettingsRepository.findByApiKeyPubId(apiKeyPubId)
-                .orElseThrow(() -> new NotFoundStatusException("Agent settings not found"));
+        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
-        if (!settings.getUserPubId().equals(userPubId)) {
+        if (!agent.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");
         }
 
         agentToolRepository.deleteByApiKeyPubId(apiKeyPubId);
         agentTriggerRepository.deleteByApiKeyPubId(apiKeyPubId);
-        agentSettingsRepository.delete(settings);
+        agentRepository.delete(agent);
 
-        log.info("Deleted agent settings for apiKeyPubId={}", apiKeyPubId);
+        log.info("Deleted agent for apiKeyPubId={}", apiKeyPubId);
     }
 
     private AgenticTeam resolveTeam(Long agenticTeamId) {

@@ -8,13 +8,13 @@ import ru.agimate.common.util.UUIDUtils;
 import java.util.UUID;
 
 @Entity
-@Table(name = "agent_settings", uniqueConstraints = @UniqueConstraint(columnNames = "api_key_pub_id"))
+@Table(name = "agents", uniqueConstraints = @UniqueConstraint(columnNames = "api_key_pub_id"))
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AgentSettings extends BaseEntity {
+public class Agent extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -30,6 +30,9 @@ public class AgentSettings extends BaseEntity {
 
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
+
+    @Column(name = "name", nullable = false, columnDefinition = "TEXT")
+    private String name;
 
     @Column(name = "prompt", columnDefinition = "TEXT")
     private String prompt;

@@ -6,11 +6,15 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.UUID;
 
-@Schema(description = "Request to create agent settings")
-public record CreateAgentSettingsRequest(
+@Schema(description = "Request to create an agent")
+public record CreateAgentRequest(
         @NotNull
         @Schema(description = "API key public ID")
         UUID apiKeyPubId,
+
+        @NotNull
+        @Schema(description = "Agent name")
+        String name,
 
         @Schema(description = "Agent prompt")
         String prompt,

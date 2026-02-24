@@ -5,8 +5,11 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
-@Schema(description = "Request to update agent settings")
-public record UpdateAgentSettingsRequest(
+@Schema(description = "Request to update an agent")
+public record UpdateAgentRequest(
+        @Schema(description = "Agent name")
+        String name,
+
         @Schema(description = "Agent prompt")
         String prompt,
 

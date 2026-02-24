@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="24-01-rename-agent-settings-to-agents" author="agimate">
+        <!-- Rename table agent_settings → agents -->
+        <renameTable oldTableName="agent_settings" newTableName="agents"/>
+
+        <!-- Add name column -->
+        <addColumn tableName="agents">
+            <column name="name" type="TEXT" defaultValue="Unnamed Agent">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <!-- Rename column in trigger_log_agents -->
+        <renameColumn tableName="trigger_log_agents"
+                      oldColumnName="agent_settings_id"
+                      newColumnName="agent_id"
+                      columnDataType="BIGINT"/>
+
+        <!-- Drop old foreign key and create new one with updated name -->
+        <dropForeignKeyConstraint baseTableName="trigger_log_agents"
+                                  constraintName="fk_trigger_log_agents_agent_settings"/>
+        <addForeignKeyConstraint baseTableName="trigger_log_agents"
+                                 baseColumnNames="agent_id"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_trigger_log_agents_agent"/>
+
+        <!-- Drop old unique constraint and create new one -->
+        <dropUniqueConstraint tableName="trigger_log_agents"
+                              constraintName="uq_trigger_log_agents_log_id_settings_id"/>
+        <addUniqueConstraint tableName="trigger_log_agents"
+                             columnNames="trigger_log_id, agent_id"
+                             constraintName="uq_trigger_log_agents_log_id_agent_id"/>
+
+        <!-- Drop old foreign key on agentic_team_id and create new one -->
+        <dropForeignKeyConstraint baseTableName="agents"
+                                  constraintName="fk_agent_settings_agentic_team"/>
+        <addForeignKeyConstraint baseTableName="agents"
+                                 baseColumnNames="agentic_team_id"
+                                 referencedTableName="agentic_teams"
+                                 referencedColumnNames="id"
+                                 constraintName="fk_agents_agentic_team"/>
+
+        <!-- Rename indexes -->
+        <sql>ALTER INDEX idx_agent_settings_user_pub_id RENAME TO idx_agents_user_pub_id</sql>
+        <sql>ALTER INDEX idx_agent_settings_agentic_team_id RENAME TO idx_agents_agentic_team_id</sql>
+    </changeSet>
+
+</databaseChangeLog>

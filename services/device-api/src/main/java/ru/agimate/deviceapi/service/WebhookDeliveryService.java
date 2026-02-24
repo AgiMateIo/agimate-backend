@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.controller.manage.dto.WebhookDeliveryLogResponse;
-import ru.agimate.deviceapi.database.entities.AgentSettings;
+import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.entities.WebhookDeliveryLog;
@@ -41,7 +41,7 @@ public class WebhookDeliveryService {
             .build();
 
     @Async
-    public void deliverWebhook(AgentSettings settings, TriggerLogAgent triggerLogAgent, App app, TriggerRequest triggerRequest) {
+    public void deliverWebhook(Agent settings, TriggerLogAgent triggerLogAgent, App app, TriggerRequest triggerRequest) {
         Map<String, Object> payload = buildPayload(triggerRequest, app);
 
         long startTime = System.currentTimeMillis();

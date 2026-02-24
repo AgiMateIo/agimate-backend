@@ -5,11 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
-import ru.agimate.deviceapi.database.entities.AgentSettings;
+import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
-import ru.agimate.deviceapi.database.repositories.AgentSettingsRepository;
+import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.TriggerLogRepository;
 
 import java.util.*;
@@ -19,7 +19,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class TriggerRouterService {
 
-    private final AgentSettingsRepository agentSettingsRepository;
+    private final AgentRepository agentRepository;
     private final CentrifugoService centrifugoService;
     private final TriggerLogService triggerLogService;
     private final TriggerLogRepository triggerLogRepository;
@@ -32,14 +32,14 @@ public class TriggerRouterService {
         try {
             UUID userPubId = app.getUserPubId();
 
-            List<AgentSettings> agents = agentSettingsRepository
+            List<Agent> agents = agentRepository
                     .findRoutableByUserPubIdAndTriggerName(userPubId, triggerRequest.name());
 
-            for (AgentSettings settings : agents) {
+            for (Agent agent : agents) {
                 TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
                         .triggerLog(triggerLog)
-                        .agentSettings(settings)
-                        .routedTo(settings.getTriggersTo())
+                        .agent(agent)
+                        .routedTo(agent.getTriggersTo())
                         .build();
                 triggerLog.getTriggerLogAgents().add(triggerLogAgent);
             }
@@ -49,11 +49,11 @@ public class TriggerRouterService {
 
             // Now dispatch async deliveries
             for (TriggerLogAgent triggerLogAgent : triggerLog.getTriggerLogAgents()) {
-                AgentSettings settings = triggerLogAgent.getAgentSettings();
-                switch (settings.getTriggersTo()) {
-                    case "centrifugo" -> routeToCentrifugo(settings, triggerRequest);
-                    case "webhook" -> webhookDeliveryService.deliverWebhook(settings, triggerLogAgent, app, triggerRequest);
-                    default -> log.warn("Unknown triggersTo value '{}' for agent '{}'", settings.getTriggersTo(), settings.getApiKeyPubId());
+                Agent agent = triggerLogAgent.getAgent();
+                switch (agent.getTriggersTo()) {
+                    case "centrifugo" -> routeToCentrifugo(agent, triggerRequest);
+                    case "webhook" -> webhookDeliveryService.deliverWebhook(agent, triggerLogAgent, app, triggerRequest);
+                    default -> log.warn("Unknown triggersTo value '{}' for agent '{}'", agent.getTriggersTo(), agent.getApiKeyPubId());
                 }
             }
         } catch (Exception e) {
@@ -61,7 +61,7 @@ public class TriggerRouterService {
         }
     }
 
-    private void routeToCentrifugo(AgentSettings settings, TriggerRequest triggerRequest) {
+    private void routeToCentrifugo(Agent agent, TriggerRequest triggerRequest) {
         try {
             Map<String, Object> payload = new HashMap<>();
             payload.put("type", "trigger");
@@ -70,12 +70,12 @@ public class TriggerRouterService {
             payload.put("deviceId", triggerRequest.deviceId());
             payload.put("occurredAt", triggerRequest.occurredAt());
 
-            String channel = "agent:" + settings.getApiKeyPubId();
+            String channel = "agent:" + agent.getApiKeyPubId();
             centrifugoService.publishMessage(channel, payload);
             log.debug("Routed trigger '{}' to agent channel '{}'", triggerRequest.name(), channel);
         } catch (Exception e) {
             log.warn("Failed to route trigger '{}' to centrifugo for agent '{}': {}",
-                    triggerRequest.name(), settings.getApiKeyPubId(), e.getMessage());
+                    triggerRequest.name(), agent.getApiKeyPubId(), e.getMessage());
         }
     }
 }

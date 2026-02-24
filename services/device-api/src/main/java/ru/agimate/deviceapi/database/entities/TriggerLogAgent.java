@@ -6,7 +6,7 @@ import ru.agimate.common.persistence.BaseEntity;
 
 @Entity
 @Table(name = "trigger_log_agents", uniqueConstraints =
-        @UniqueConstraint(columnNames = {"trigger_log_id", "agent_settings_id"}))
+        @UniqueConstraint(columnNames = {"trigger_log_id", "agent_id"}))
 @Getter
 @Setter
 @Builder
@@ -24,8 +24,8 @@ public class TriggerLogAgent extends BaseEntity {
     private TriggerLog triggerLog;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "agent_settings_id", nullable = false)
-    private AgentSettings agentSettings;
+    @JoinColumn(name = "agent_id", nullable = false)
+    private Agent agent;
 
     @Column(name = "routed_to", nullable = false, columnDefinition = "TEXT")
     private String routedTo;

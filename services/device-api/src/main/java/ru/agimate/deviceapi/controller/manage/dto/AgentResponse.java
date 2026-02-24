@@ -2,7 +2,7 @@ package ru.agimate.deviceapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.database.entities.AgentSettings;
+import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentTool;
 import ru.agimate.deviceapi.database.entities.AgentTrigger;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
@@ -11,13 +11,16 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-@Schema(description = "Agent settings response")
-public record AgentSettingsResponse(
-        @Schema(description = "Agent settings ID")
+@Schema(description = "Agent response")
+public record AgentResponse(
+        @Schema(description = "Agent ID")
         UUID id,
 
         @Schema(description = "API key public ID")
         UUID apiKeyPubId,
+
+        @Schema(description = "Agent name")
+        String name,
 
         @Schema(description = "Agent prompt")
         String prompt,
@@ -47,27 +50,28 @@ public record AgentSettingsResponse(
         String agenticTeamName,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-        @Schema(description = "When the settings were created")
+        @Schema(description = "When the agent was created")
         LocalDateTime createdAt
 ) {
-    public static AgentSettingsResponse from(AgentSettings settings, List<AgentTool> tools, List<AgentTrigger> triggers, AgenticTeam team) {
-        return new AgentSettingsResponse(
-                settings.getPubId(),
-                settings.getApiKeyPubId(),
-                settings.getPrompt(),
-                settings.isTriggersAllowAll(),
-                settings.getTriggersTo(),
+    public static AgentResponse from(Agent agent, List<AgentTool> tools, List<AgentTrigger> triggers, AgenticTeam team) {
+        return new AgentResponse(
+                agent.getPubId(),
+                agent.getApiKeyPubId(),
+                agent.getName(),
+                agent.getPrompt(),
+                agent.isTriggersAllowAll(),
+                agent.getTriggersTo(),
                 tools.stream().map(AgentTool::getToolName).toList(),
                 triggers.stream().map(AgentTrigger::getTriggerName).toList(),
-                settings.getWebhookUrl(),
-                settings.hasWebhookAuth(),
+                agent.getWebhookUrl(),
+                agent.hasWebhookAuth(),
                 team != null ? team.getPubId() : null,
                 team != null ? team.getName() : null,
-                settings.getCreatedAt()
+                agent.getCreatedAt()
         );
     }
 
-    public static AgentSettingsResponse from(AgentSettings settings, List<AgentTool> tools, List<AgentTrigger> triggers) {
-        return from(settings, tools, triggers, null);
+    public static AgentResponse from(Agent agent, List<AgentTool> tools, List<AgentTrigger> triggers) {
+        return from(agent, tools, triggers, null);
     }
 }

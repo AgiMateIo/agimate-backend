@@ -10,19 +10,19 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.controller.api.dto.AgentConfigResponse;
-import ru.agimate.deviceapi.service.AgentSettingsService;
+import ru.agimate.deviceapi.service.AgentService;
 
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ApiAgentSettingsController.PATH)
+@RequestMapping(ApiAgentController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Agent API", description = "Agent configuration via API Key")
-public class ApiAgentSettingsController {
+public class ApiAgentController {
 
     public static final String PATH = ApiAppsController.PATH + "/agent";
 
-    private final AgentSettingsService agentSettingsService;
+    private final AgentService agentService;
 
     @Operation(
             summary = "Get agent configuration",
@@ -33,6 +33,6 @@ public class ApiAgentSettingsController {
             @AuthenticationPrincipal ApiKeyPrincipal principal
     ) {
         UUID apiKeyPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentSettingsService.getConfigByApiKeyPubId(apiKeyPubId));
+        return SuccessResponse.ok(agentService.getConfigByApiKeyPubId(apiKeyPubId));
     }
 }
