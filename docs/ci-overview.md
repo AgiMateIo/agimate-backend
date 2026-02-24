@@ -47,7 +47,6 @@ on:
     paths:
       - 'services/user-api/**'
       - 'services/device-api/**'
-      - 'services/connectors-api/**'
       - 'services/libs/**'
       - 'services/build.gradle.kts'
       - 'services/settings.gradle.kts'
@@ -73,7 +72,7 @@ on:
 - Если изменились корневые build-файлы (`build.gradle.kts`, `settings.gradle.kts`, `gradle/`, `libs/`) — пересобираются **все** сервисы
 - Иначе — только те, чьи файлы изменились
 
-### Jobs 3-5: build-{service}
+### Jobs 3-4: build-{service}
 
 Запускаются параллельно, только для изменённых сервисов. Каждый вызывает:
 
@@ -81,7 +80,7 @@ on:
 ./ci/build-and-push.sh <service-name>
 ```
 
-### Job 6: update-infra
+### Job 5: update-infra
 
 Запускается после всех сборок. Условие: хотя бы одна сборка завершилась успешно. Собирает список успешных сервисов и вызывает:
 
@@ -159,7 +158,7 @@ ci/
 
 - Изменить `paths` в триггерах под структуру фронтенд-проекта
 - Убрать detect-changes если сервис один (не нужна мульти-сервисная логика)
-- Оставить один build-job вместо трёх
+- Оставить один build-job вместо нескольких
 
 ### 3. Написать Dockerfile
 

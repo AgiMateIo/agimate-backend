@@ -23,12 +23,6 @@
 | `APP_OAUTH_FRONTEND_REDIRECT_URL` | Default frontend redirect URL after OAuth2 login     |
 | `APP_OAUTH_ALLOWED_REDIRECT_URLS` | Comma-separated whitelist for multi-domain redirects |
 
-### Connectors (connectors-api)
-
-| Variable                     | Description                                               |
-|------------------------------|-----------------------------------------------------------|
-| `CONNECTORS_ENCRYPTION_KEY`  | AES-256 key for credentials encryption (Base64, 32 bytes) |
-
 ### Centrifugo (device-api)
 
 | Variable                | Description                            |
@@ -52,7 +46,6 @@ openssl rand -base64 32
 
 Use for:
 - `APP_OAUTH_COOKIE_ENCRYPTION_KEY`
-- `CONNECTORS_ENCRYPTION_KEY`
 
 ### Centrifugo Keys
 
@@ -84,7 +77,6 @@ Each service connects to its own PostgreSQL database:
 |----------------|------------------|-----------------------------------------------------|
 | user-api       | am_user_db       | `jdbc:postgresql://localhost:5432/am_user_db`       |
 | device-api     | am_device_db     | `jdbc:postgresql://localhost:5432/am_device_db`     |
-| connectors-api | am_connectors_db | `jdbc:postgresql://localhost:5432/am_connectors_db` |
 
 Configure via standard Spring datasource properties or environment variables:
 - `SPRING_DATASOURCE_URL`
@@ -97,7 +89,6 @@ Configure via standard Spring datasource properties or environment variables:
 # Create deployment JARs
 ./gradlew :user-api:bootJar
 ./gradlew :device-api:bootJar
-./gradlew :connectors-api:bootJar
 ```
 
 JARs are created in `services/{service}/build/libs/`.

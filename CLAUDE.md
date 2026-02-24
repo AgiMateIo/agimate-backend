@@ -18,7 +18,6 @@ cd services
 # Run a specific module's tests
 ./gradlew :user-api:test
 ./gradlew :device-api:test
-./gradlew :connectors-api:test
 ./gradlew :libs:common:test
 
 # Run a single test class
@@ -27,12 +26,10 @@ cd services
 # Run services locally
 ./gradlew :user-api:bootRun
 ./gradlew :device-api:bootRun
-./gradlew :connectors-api:bootRun
 
 # Create deployment JARs
 ./gradlew :user-api:bootJar
 ./gradlew :device-api:bootJar
-./gradlew :connectors-api:bootJar
 ```
 
 ## Documentation
@@ -57,39 +54,3 @@ See `/docs/` for:
 - **Migrations**: Composite business keys should be UNIQUE constraints, not just indexes
 - **Migrations format**: `updates/YYYY/MM/DD-00-name.xml` (00 — порядковый номер на дату, например `updates/2026/02/19-01-add-users.xml`)
 - **JPA Entities**: Duplicate unique constraints in `@Table(uniqueConstraints=...)` on the entity
-
-## Adding New Connector
-
-1. **Create DTOs** in `controller/dto/{connector}/`:
-   - Request DTOs with `@Schema` and Jakarta validation
-   - Response DTOs with `result` and `durationMs` fields
-
-2. **Create Service** `{Connector}CallService.java`:
-   - Manually create `ConnectorMethod` objects
-   - Implement business logic using `ConnectorClient.execute()`
-
-3. **Create Controller** `{Connector}CallController.java`:
-   - Map endpoints under `/api/connectors/call/{connector}/`
-   - Add OpenAPI annotations (`@Operation`, `@ApiResponses`, etc.)
-   - Use `@Tag` for grouping in OpenAPI spec
-
-4. **Create Client** implementing `ConnectorClient` interface
-
-5. **Update ConnectorController** to add required credential fields to `CONNECTOR_REQUIRED_FIELDS` map
-
-6. **Generate OpenAPI**: `./gradlew :connectors-api:generateOpenApi`
-
-7. **Commit** the updated `openapi.json` to git
-
-**Note**: The `openapi.json` must be committed — MethodController reads it at runtime for `/api/connectors/methods/{connectorCode}/`.
-
-## OpenAPI Generation
-
-```bash
-# Generate OpenAPI specification
-./gradlew :connectors-api:generateOpenApi
-```
-
-Output locations:
-- `connectors-api/build/generated/openapi/openapi.json`
-- `connectors-api/src/main/resources/static/openapi.json`

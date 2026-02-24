@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: agimate
       POSTGRES_PASSWORD: agimate_dev_password
-      POSTGRES_MULTIPLE_DATABASES: am_core_db,am_device_db,am_connectors_db
+      POSTGRES_MULTIPLE_DATABASES: am_core_db,am_device_db
     ports:
       - "5432:5432"
     volumes:
@@ -87,39 +87,8 @@ services:
       JWT_PUBLICKEY: ${JWT_PUBLICKEY}
       CENTRIFUGO_URL: http://centrifugo:8000
       CENTRIFUGO_APIKEY: ${CENTRIFUGO_APIKEY:-dev_api_key}
-      SPRING_GRPC_CLIENT_CHANNELS_CONNECTORS_API_ADDRESS: "connectors-api:9090"
     ports:
       - "8081:8080"
-    networks:
-      - agimate-network
-    restart: unless-stopped
-
-  # Connectors API Service
-  connectors-api:
-    build:
-      context: ..
-      dockerfile: connectors-api/Dockerfile
-    container_name: agimate-connectors-api
-    depends_on:
-      postgres:
-        condition: service_healthy
-      device-api:
-        condition: service_started
-    env_file:
-      - ../.env
-    environment:
-      SPRING_PROFILES_ACTIVE: develop
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_connectors_db
-      SPRING_DATASOURCE_USERNAME: agimate
-      SPRING_DATASOURCE_PASSWORD: agimate_dev_password
-      JWT_PUBLICKEY: ${JWT_PUBLICKEY}
-      CONNECTORS_ENCRYPTION_KEY: ${CONNECTORS_ENCRYPTION_KEY}
-      DEVICE_API_GRPC_HOST: device-api
-      DEVICE_API_GRPC_PORT: 9090
-    ports:
-      - "8280:8280"
-      - "8288:8288"
-      - "9090:9090"
     networks:
       - agimate-network
     restart: unless-stopped

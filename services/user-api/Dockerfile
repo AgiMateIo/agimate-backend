@@ -13,7 +13,6 @@ COPY build.gradle.kts .
 COPY libs/common/build.gradle.kts libs/common/
 COPY user-api/build.gradle.kts user-api/
 COPY device-api/build.gradle.kts device-api/
-COPY connectors-api/build.gradle.kts connectors-api/
 
 # Download dependencies (cached layer)
 RUN ./gradlew dependencies --no-daemon || true

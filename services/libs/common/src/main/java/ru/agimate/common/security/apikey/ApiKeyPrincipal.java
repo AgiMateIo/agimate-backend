@@ -3,8 +3,8 @@ package ru.agimate.common.security.apikey;
 import java.security.Principal;
 
 /**
- * Principal for API key authenticated requests in connectors-api.
- * Contains information about the connector API key and associated user.
+ * Principal for API key authenticated requests.
+ * Contains information about the API key and associated user.
  */
 public record ApiKeyPrincipal(
         String pubId,
