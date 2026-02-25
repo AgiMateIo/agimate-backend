@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller.api;
+package ru.agimate.deviceapi.controller.agent;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
-import ru.agimate.deviceapi.controller.api.dto.AgentConfigResponse;
+import ru.agimate.deviceapi.controller.agent.dto.AgentConfigResponse;
 import ru.agimate.deviceapi.service.AgentService;
 
 import java.util.UUID;

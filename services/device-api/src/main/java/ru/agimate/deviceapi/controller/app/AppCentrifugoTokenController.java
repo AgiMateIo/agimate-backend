@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
+import ru.agimate.deviceapi.config.CentrifugoProperties;
 import ru.agimate.deviceapi.controller.app.dto.DeviceChannelTokenRequest;
 import ru.agimate.deviceapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.deviceapi.database.entities.Connector;
@@ -21,8 +22,8 @@ import ru.agimate.deviceapi.service.CentrifugoService;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping(DeviceCentrifugoTokenController.PATH)
-public class DeviceCentrifugoTokenController {
+@RequestMapping(AppCentrifugoTokenController.PATH)
+public class AppCentrifugoTokenController {
 
     public static final String PATH = "/centrifugo";
 
@@ -30,6 +31,8 @@ public class DeviceCentrifugoTokenController {
 
     private final CentrifugoService centrifugoService;
     private final ConnectorService connectorService;
+
+    private final CentrifugoProperties centrifugoProperties;
 
     @Operation(
             summary = "Get Centrifugo subscription token",
@@ -62,12 +65,10 @@ public class DeviceCentrifugoTokenController {
                 TOKEN_EXPIRATION_SECONDS
         );
 
-        String wsScheme = "https".equals(request.getScheme()) ? "wss" : "ws";
-        String wsHost = request.getServerName().replaceFirst("^api\\.", "centrifugo.");
-        String wsUrl = wsScheme + "://" + wsHost + "/connection/websocket";
+        String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
 
-        log.debug("Generated Centrifugo tokens for device: {}, channel: {}",
-                deviceId, channel);
+        log.debug("Generated Centrifugo tokens for device: {}, channel: {}, wsUrl: {}",
+                deviceId, channel, wsUrl);
 
         return SuccessResponse.ok(new CentrifugoTokenResponse(connectionToken, subscriptionToken, channel, wsUrl));
     }

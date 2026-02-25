@@ -52,12 +52,12 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 
 ## Authentication Flows
 
-| Method          | Description                            | Used By                             |
-|-----------------|----------------------------------------|-------------------------------------|
-| **JWT**         | Bearer token authentication for users  | All services (management endpoints) |
-| **API Key**     | Header `X-Api-Key` for agent calls     | device-api                          |
-| **App Auth**    | Header `X-App-Auth-Key` for apps       | device-api                          |
-| **OAuth2**      | Google/Yandex social login             | user-api                            |
+| Method             | Description                            | Used By                             |
+|--------------------|----------------------------------------|-------------------------------------|
+| **JWT**            | Bearer token authentication for users  | All services (management endpoints) |
+| **API Key**        | Header `X-Api-Key` for agent calls     | device-api                          |
+| **Connector Auth** | Header `X-App-Auth-Key` for connectors/devices | device-api                          |
+| **OAuth2**         | Google/Yandex social login             | user-api                            |
 
 ### JWT Flow
 - Access tokens returned in response body
@@ -69,7 +69,7 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 | Database         | Owner          | Tables                                                                      |
 |------------------|----------------|-----------------------------------------------------------------------------|
 | am_user_db       | user-api       | `users`, `user_oauth_accounts`, `service_api_keys`                          |
-| am_device_db     | device-api     | `apps`, `trigger_logs`, `trigger_log_agents`, `tool_use_logs`, `agent_settings`, `agent_tools`, `agent_triggers`, `webhook_delivery_logs` |
+| am_device_db     | device-api     | `connectors`, `trigger_logs`, `trigger_log_agents`, `tool_use_logs`, `agents`, `agent_tools`, `agent_triggers`, `webhook_delivery_logs`, `platforms`, `integrations`, `agentic_teams` |
 
 All migrations managed via Liquibase in each service's `src/main/resources/db/changelog/`.
 

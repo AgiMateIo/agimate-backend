@@ -21,12 +21,12 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.deviceapi.controller.api.ApiConnectorsController;
+import ru.agimate.deviceapi.controller.agent.ApiConnectorsController;
 import ru.agimate.common.security.apikey.ApiKeyAuthenticationFilter;
-import ru.agimate.deviceapi.controller.app.DeviceToolsController;
-import ru.agimate.deviceapi.controller.app.DeviceCentrifugoTokenController;
-import ru.agimate.deviceapi.controller.app.DeviceRegistrationController;
-import ru.agimate.deviceapi.controller.app.DeviceTriggerController;
+import ru.agimate.deviceapi.controller.app.AppToolsController;
+import ru.agimate.deviceapi.controller.app.AppCentrifugoTokenController;
+import ru.agimate.deviceapi.controller.app.AppRegistrationController;
+import ru.agimate.deviceapi.controller.app.AppTriggerController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentController;
 import ru.agimate.deviceapi.controller.manage.ManageAgenticTeamController;
 import ru.agimate.deviceapi.controller.manage.ManageConnectorsController;
@@ -132,10 +132,10 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain deviceAuthKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                DeviceToolsController.PATH + "/**",
-                DeviceTriggerController.PATH + "/**",
-                DeviceRegistrationController.PATH + "/**",
-                DeviceCentrifugoTokenController.PATH + "/**"
+                AppToolsController.PATH + "/**",
+                AppTriggerController.PATH + "/**",
+                AppRegistrationController.PATH + "/**",
+                AppCentrifugoTokenController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

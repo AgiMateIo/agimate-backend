@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller.api;
+package ru.agimate.deviceapi.controller.agent;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
-import ru.agimate.deviceapi.controller.api.dto.ToolUseRequest;
+import ru.agimate.deviceapi.controller.agent.dto.ToolUseRequest;
+import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.service.ConnectorApiService;
 import ru.agimate.deviceapi.service.ToolUseAuthorizerService;
 import ru.agimate.deviceapi.service.ToolUseLogService;
@@ -71,9 +72,9 @@ public class ApiConnectorCallController {
 
         UUID apiKeyPubId = UUID.fromString(principal.pubId());
         UUID userPubId = UUID.fromString(principal.userPubId());
-        toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest);
+        ToolUseLog log = toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest);
 
         connectorApiService.pushToConnector(connectorId, toolUseRequest, principal.pubId());
-        return SuccessResponse.ok("success");
+        return SuccessResponse.ok(log.getToolUseId());
     }
 }

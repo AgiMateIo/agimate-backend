@@ -16,9 +16,9 @@ import ru.agimate.deviceapi.service.TriggerRouterService;
 
 @Slf4j
 @RestController
-@RequestMapping(DeviceTriggerController.PATH)
+@RequestMapping(AppTriggerController.PATH)
 @RequiredArgsConstructor
-public class DeviceTriggerController {
+public class AppTriggerController {
 
     public static final String PATH = "/trigger";
 

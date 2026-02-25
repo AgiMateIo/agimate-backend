@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.deviceapi.controller.api.dto.AgentConfigResponse;
+import ru.agimate.deviceapi.controller.agent.dto.AgentConfigResponse;
 import ru.agimate.deviceapi.controller.manage.dto.AgentResponse;
 import ru.agimate.deviceapi.controller.manage.dto.CreateAgentRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentRequest;

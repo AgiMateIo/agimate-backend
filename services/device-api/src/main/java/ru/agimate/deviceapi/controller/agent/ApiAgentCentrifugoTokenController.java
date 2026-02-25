@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.controller.api;
+package ru.agimate.deviceapi.controller.agent;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -13,7 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
-import ru.agimate.deviceapi.controller.api.dto.AgentCentrifugoTokenRequest;
+import ru.agimate.deviceapi.config.CentrifugoProperties;
+import ru.agimate.deviceapi.controller.agent.dto.AgentCentrifugoTokenRequest;
 import ru.agimate.deviceapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.deviceapi.service.CentrifugoService;
 
@@ -29,6 +30,8 @@ public class ApiAgentCentrifugoTokenController {
     private static final long TOKEN_EXPIRATION_SECONDS = 3600; // 1 hour
 
     private final CentrifugoService centrifugoService;
+
+    private final CentrifugoProperties centrifugoProperties;
 
     @Operation(
             summary = "Get Centrifugo subscription token for agent",
@@ -54,9 +57,7 @@ public class ApiAgentCentrifugoTokenController {
                 TOKEN_EXPIRATION_SECONDS
         );
 
-        String wsScheme = "https".equals(httpRequest.getScheme()) ? "wss" : "ws";
-        String wsHost = httpRequest.getServerName().replaceFirst("^api\\.", "centrifugo.");
-        String wsUrl = wsScheme + "://" + wsHost + "/connection/websocket";
+        String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
 
         log.debug("Generated Centrifugo tokens for agent: {}, channel: {}",
                 apiKeyPubId, channel);

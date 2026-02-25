@@ -13,9 +13,9 @@ import ru.agimate.deviceapi.service.ConnectorService;
 
 @Slf4j
 @RestController
-@RequestMapping(DeviceRegistrationController.PATH)
+@RequestMapping(AppRegistrationController.PATH)
 @RequiredArgsConstructor
-public class DeviceRegistrationController {
+public class AppRegistrationController {
 
     public static final String PATH = "/registration";
 

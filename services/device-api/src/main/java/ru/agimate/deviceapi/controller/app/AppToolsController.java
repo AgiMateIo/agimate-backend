@@ -20,8 +20,8 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping(DeviceToolsController.PATH)
-public class DeviceToolsController {
+@RequestMapping(AppToolsController.PATH)
+public class AppToolsController {
 
     public static final String PATH = "/tools";
 

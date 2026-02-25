@@ -13,6 +13,7 @@ public class CentrifugoProperties {
     private boolean enabled;
     private String url;
     private String port;
+    private String publicUrl;
     private String apiKey;
     private String privateKey;
     private String publicKey;

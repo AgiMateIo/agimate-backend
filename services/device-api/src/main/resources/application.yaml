@@ -99,6 +99,7 @@ centrifugo:
   enabled: true
   url: "http://localhost"
   port: 9000
+  public-url: "wss://centrifugo.agimate.io"
   api-key: ""
   privateKey: ""
   publicKey: ""
