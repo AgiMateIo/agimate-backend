@@ -13,6 +13,7 @@ import ru.agimate.deviceapi.controller.manage.dto.UpdateAgenticTeamRequest;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
+import ru.agimate.deviceapi.database.repositories.BoardRepository;
 
 import java.util.List;
 import java.util.UUID;
@@ -25,6 +26,7 @@ public class AgenticTeamService {
 
     private final AgenticTeamRepository agenticTeamRepository;
     private final AgentRepository agentRepository;
+    private final BoardRepository boardRepository;
 
     public List<AgenticTeamResponse> getAllForUser(UUID userPubId) {
         return agenticTeamRepository.findByUserPubId(userPubId).stream()
@@ -85,6 +87,10 @@ public class AgenticTeamService {
                 .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
         if (!team.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");
+        }
+
+        if (boardRepository.existsByAgenticTeamId(team.getId())) {
+            throw new BadRequestStatusException("Cannot delete team that has a board");
         }
 
         if (agentRepository.existsByAgenticTeamId(team.getId())) {

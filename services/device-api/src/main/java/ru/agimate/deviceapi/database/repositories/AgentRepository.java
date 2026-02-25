@@ -11,6 +11,8 @@ import java.util.UUID;
 
 public interface AgentRepository extends JpaRepository<Agent, Long> {
 
+    Optional<Agent> findByPubId(UUID pubId);
+
     Optional<Agent> findByApiKeyPubId(UUID apiKeyPubId);
 
     List<Agent> findByUserPubId(UUID userPubId);
