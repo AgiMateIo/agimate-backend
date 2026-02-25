@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
-import ru.agimate.deviceapi.service.AppApiService;
-import ru.agimate.deviceapi.service.AppService;
+import ru.agimate.deviceapi.service.ConnectorApiService;
+import ru.agimate.deviceapi.service.ConnectorService;
 import ru.agimate.deviceapi.service.CentrifugoService;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
@@ -25,9 +25,9 @@ public class DeviceToolsController {
 
     public static final String PATH = "/tools";
 
-    private final AppService appService;
+    private final ConnectorService connectorService;
     private final CentrifugoService centrifugoService;
-    private final AppApiService appApiService;
+    private final ConnectorApiService connectorApiService;
     private final ToolUseLogService toolUseLogService;
 
     @PostMapping("/result")
@@ -38,11 +38,11 @@ public class DeviceToolsController {
     ) {
         log.info("Tool result received - {}", toolResultRequest.toString());
 
-        var app = appService.getApp(authentication);
+        var connector = connectorService.getConnector(authentication);
 
         String resultString = JsonUtils.toJson(toolResultRequest.result()).orElse(null);
-        var toolUseLog = toolUseLogService.recordResult(app, toolResultRequest.id(), resultString, null);
-        appApiService.pushToAgent(toolUseLog.getApiKeyPubId().toString(), toolResultRequest);
+        var toolUseLog = toolUseLogService.recordResult(connector, toolResultRequest.id(), resultString, null);
+        connectorApiService.pushToAgent(toolUseLog.getApiKeyPubId().toString(), toolResultRequest);
 
         return SuccessResponse.empty();
     }

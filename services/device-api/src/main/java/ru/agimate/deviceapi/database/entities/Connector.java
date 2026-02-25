@@ -12,13 +12,13 @@ import java.util.Map;
 import java.util.UUID;
 
 @Entity
-@Table(name = "apps")
+@Table(name = "connectors")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class App extends BaseEntity {
+public class Connector extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,7 +35,7 @@ public class App extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false)
     @Builder.Default
-    private AppType type = AppType.DEVICE;
+    private ConnectorType type = ConnectorType.INBOUND;
 
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;

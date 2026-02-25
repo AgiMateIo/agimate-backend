@@ -31,11 +31,11 @@ public class ManageTriggerLogsController {
     public SuccessResponse<Page<TriggerLogResponse>> getTriggerLogs(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) String deviceId,
-            @RequestParam(required = false) UUID appPubId,
+            @RequestParam(required = false) UUID connectorPubId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(triggerLogService.getTriggerLogs(userPubId, deviceId, appPubId, page, size));
+        return SuccessResponse.ok(triggerLogService.getTriggerLogs(userPubId, deviceId, connectorPubId, page, size));
     }
 }

@@ -11,10 +11,10 @@ import java.util.UUID;
 public interface TriggerLogRepository extends JpaRepository<TriggerLog, Long> {
 
     @Query("""
-            SELECT t FROM TriggerLog t JOIN FETCH t.app
+            SELECT t FROM TriggerLog t JOIN FETCH t.connector
             WHERE t.userPubId = :userPubId
             AND (:linkedDeviceId IS NULL OR t.linkedDeviceId = :linkedDeviceId)
-            AND (:appPubId IS NULL OR t.app.pubId = :appPubId)
+            AND (:connectorPubId IS NULL OR t.connector.pubId = :connectorPubId)
             """)
-    Page<TriggerLog> findByUserPubIdWithFilters(UUID userPubId, String linkedDeviceId, UUID appPubId, Pageable pageable);
+    Page<TriggerLog> findByUserPubIdWithFilters(UUID userPubId, String linkedDeviceId, UUID connectorPubId, Pageable pageable);
 }

@@ -24,8 +24,8 @@ public record IntegrationResponse(
         @Schema(description = "Integration name")
         String name,
 
-        @Schema(description = "Associated app public ID")
-        UUID appPubId,
+        @Schema(description = "Associated connector public ID")
+        UUID connectorPubId,
 
         @Schema(description = "Whether integration is enabled")
         Boolean enabled,
@@ -45,7 +45,7 @@ public record IntegrationResponse(
                 integration.getPlatform().getName(),
                 integration.getPlatformIdentifier(),
                 integration.getName(),
-                integration.getApp().getPubId(),
+                integration.getConnector().getPubId(),
                 integration.getEnabled(),
                 integration.getLastUsedAt(),
                 integration.getCreatedAt()

@@ -13,8 +13,8 @@ public record TriggerLogResponse(
         @Schema(description = "Trigger log ID")
         UUID id,
 
-        @Schema(description = "App public ID")
-        UUID appPubId,
+        @Schema(description = "Connector public ID")
+        UUID connectorPubId,
 
         @Schema(description = "Trigger ID")
         String triggerId,
@@ -48,7 +48,7 @@ public record TriggerLogResponse(
     public static TriggerLogResponse from(TriggerLog triggerLog) {
         return new TriggerLogResponse(
                 triggerLog.getPubId(),
-                triggerLog.getApp().getPubId(),
+                triggerLog.getConnector().getPubId(),
                 triggerLog.getTriggerId(),
                 triggerLog.getTriggerType(),
                 triggerLog.getTriggerName(),

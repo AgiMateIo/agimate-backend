@@ -13,7 +13,7 @@ import ru.agimate.deviceapi.database.entities.Integration;
 import ru.agimate.deviceapi.database.entities.Platform;
 import ru.agimate.deviceapi.database.repositories.IntegrationRepository;
 import ru.agimate.deviceapi.database.repositories.PlatformRepository;
-import ru.agimate.deviceapi.service.AppService;
+import ru.agimate.deviceapi.service.ConnectorService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -33,7 +33,7 @@ public class IntegrationService {
     private final PlatformRepository platformRepository;
     private final IntegrationPlatformRegistry platformRegistry;
     private final IntegrationEncryptionService encryptionService;
-    private final AppService appService;
+    private final ConnectorService connectorService;
 
     @Transactional
     public Integration createIntegration(
@@ -61,12 +61,12 @@ public class IntegrationService {
                     throw new ConflictStatusException("Integration already exists for " + platform.getCode() + ": " + validationResult.identifier());
                 });
 
-        // Create App for this integration
-        String appName = name != null ? name
+        // Create outbound connector for this integration
+        String connectorName = name != null ? name
                 : validationResult.displayName() != null ? validationResult.displayName()
                 : platform.getCode() + ": " + validationResult.identifier();
-        var app = appService.createAppForIntegration(
-                userPubId, appName, "Integration: " + platform.getCode(),
+        var connector = connectorService.createOutboundConnector(
+                userPubId, connectorName, "Integration: " + platform.getCode(),
                 handler.getPredefinedTriggers(), handler.getPredefinedTools()
         );
 
@@ -79,7 +79,7 @@ public class IntegrationService {
                 : null;
 
         Integration integration = Integration.builder()
-                .app(app)
+                .connector(connector)
                 .platform(platform)
                 .userPubId(userPubId)
                 .name(name)
@@ -98,7 +98,7 @@ public class IntegrationService {
             } catch (Exception e) {
                 log.error("Failed to setup webhook for integration {}, rolling back", integration.getPubId(), e);
                 integrationRepository.delete(integration);
-                appService.deleteKey(app.getPubId(), userPubId);
+                connectorService.deleteConnector(connector.getPubId(), userPubId);
                 throw new BadRequestStatusException("Failed to setup webhook");
             }
         }
@@ -133,7 +133,7 @@ public class IntegrationService {
         }
 
         integrationRepository.softDelete(integration.getId(), LocalDateTime.now());
-        appService.deleteKey(integration.getApp().getPubId(), userPubId);
+        connectorService.deleteConnector(integration.getConnector().getPubId(), userPubId);
         log.info("Deleted integration {}", pubId);
     }
 

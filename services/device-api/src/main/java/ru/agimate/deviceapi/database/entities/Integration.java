@@ -30,8 +30,8 @@ public class Integration extends BaseEntity {
     private UUID pubId = UUIDUtils.generateUUIDv8();
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "app_id", nullable = false)
-    private App app;
+    @JoinColumn(name = "connector_id", nullable = false)
+    private Connector connector;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "platform_id", nullable = false)

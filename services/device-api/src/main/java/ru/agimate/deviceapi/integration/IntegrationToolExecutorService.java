@@ -39,7 +39,7 @@ public class IntegrationToolExecutorService {
 
             // Record result in log
             toolUseLogService.recordResult(
-                    integration.getApp(),
+                    integration.getConnector(),
                     toolUse.getId(),
                     result.toString(),
                     null
@@ -59,7 +59,7 @@ public class IntegrationToolExecutorService {
             // Record error (sanitized to avoid leaking tokens)
             try {
                 toolUseLogService.recordResult(
-                        integration.getApp(),
+                        integration.getConnector(),
                         toolUse.getId(),
                         null,
                         sanitizeErrorMessage(e.getMessage())

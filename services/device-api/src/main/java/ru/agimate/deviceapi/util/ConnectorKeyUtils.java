@@ -13,17 +13,17 @@ import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 
 /**
- * Utility class for API key generation and validation.
+ * Utility class for connector key generation and validation.
  * <p>
  * Key format: {prefix}{keyid}{payload} (no separators, positional)
  * <ul>
- *   <li>prefix: exactly 4 lowercase letters identifying key type (e.g., "amob", "acon", "adev")</li>
+ *   <li>prefix: exactly 4 lowercase letters identifying key type (e.g., "dvck")</li>
  *   <li>keyid: base64url(timestamp_4bytes || random_5bytes) = 12 chars</li>
  *   <li>payload: base64url(secret_32bytes || crc32_4bytes) = 48 chars</li>
  * </ul>
  * Total length: 64 characters (4 + 12 + 48)
  */
-public final class ApiKeyUtils {
+public final class ConnectorKeyUtils {
 
     private static final int PREFIX_LENGTH = 4;
 
@@ -44,17 +44,17 @@ public final class ApiKeyUtils {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    private ApiKeyUtils() {
+    private ConnectorKeyUtils() {
     }
 
     /**
-     * Generate a new API key with the specified prefix.
+     * Generate a new connector key with the specified prefix.
      *
-     * @param prefix key prefix (exactly 4 lowercase letters, e.g. "amob", "acon")
+     * @param prefix key prefix (exactly 4 lowercase letters, e.g. "dvck")
      * @return generated key with fullKey, keyId, and secretHash
      * @throws IllegalArgumentException if prefix format is invalid
      */
-    public static GeneratedApiKey generate(String prefix) {
+    public static GeneratedConnectorKey generate(String prefix) {
         if (prefix == null || !PREFIX_PATTERN.matcher(prefix).matches()) {
             throw new IllegalArgumentException("Prefix must be exactly 4 lowercase letters");
         }
@@ -87,25 +87,25 @@ public final class ApiKeyUtils {
         // 6. Calculate secretHash = sha256(secret) hex
         String secretHash = hashSecret(secret);
 
-        return new GeneratedApiKey(fullKey, keyId, secretHash);
+        return new GeneratedConnectorKey(fullKey, keyId, secretHash);
     }
 
     /**
-     * Parse an API key string into its components.
+     * Parse a connector key string into its components.
      * <p>
      * Uses simple positional parsing (no separators).
      * Format: {prefix}{keyid}{payload} all parts have fixed lengths.
      *
-     * @param apiKey the full API key string
+     * @param key the full connector key string
      * @return parsed key components
      * @throws IllegalArgumentException if the key format is invalid
      */
-    public static ParsedApiKey parse(String apiKey) {
-        if (apiKey == null || apiKey.isBlank()) {
+    public static ParsedConnectorKey parse(String key) {
+        if (key == null || key.isBlank()) {
             throw new IllegalArgumentException("API key cannot be null or empty");
         }
 
-        if (apiKey.length() != TOTAL_LENGTH) {
+        if (key.length() != TOTAL_LENGTH) {
             throw new IllegalArgumentException("Invalid API key length: expected " + TOTAL_LENGTH + " characters");
         }
 
@@ -113,15 +113,15 @@ public final class ApiKeyUtils {
         int pos = 0;
 
         // prefix: 4 characters
-        String prefix = apiKey.substring(pos, pos + PREFIX_LENGTH);
+        String prefix = key.substring(pos, pos + PREFIX_LENGTH);
         pos += PREFIX_LENGTH;
 
         // keyId: 12 characters
-        String keyId = apiKey.substring(pos, pos + KEYID_LENGTH);
+        String keyId = key.substring(pos, pos + KEYID_LENGTH);
         pos += KEYID_LENGTH;
 
         // payload: 48 characters
-        String payload = apiKey.substring(pos);
+        String payload = key.substring(pos);
 
         // Validate prefix
         if (!PREFIX_PATTERN.matcher(prefix).matches()) {
@@ -153,16 +153,16 @@ public final class ApiKeyUtils {
         byte[] secret = Arrays.copyOfRange(payloadBytes, 0, SECRET_BYTES);
         byte[] checksum = Arrays.copyOfRange(payloadBytes, SECRET_BYTES, PAYLOAD_BYTES);
 
-        return new ParsedApiKey(prefix, keyId, secret, checksum);
+        return new ParsedConnectorKey(prefix, keyId, secret, checksum);
     }
 
     /**
-     * Verify the CRC32 checksum of a parsed API key.
+     * Verify the CRC32 checksum of a parsed connector key.
      *
-     * @param parsed the parsed API key
+     * @param parsed the parsed connector key
      * @return true if checksum is valid
      */
-    public static boolean verifyChecksum(ParsedApiKey parsed) {
+    public static boolean verifyChecksum(ParsedConnectorKey parsed) {
         byte[] expected = calculateChecksum(parsed.prefix(), parsed.keyId(), parsed.secret());
         return Arrays.equals(expected, parsed.checksum());
     }

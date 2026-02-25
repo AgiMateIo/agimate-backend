@@ -21,8 +21,8 @@ public interface IntegrationRepository extends JpaRepository<Integration, Long> 
     @Query("SELECT i FROM Integration i WHERE i.userPubId = :userPubId AND i.deletedAt IS NULL ORDER BY i.createdAt DESC")
     List<Integration> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
 
-    @Query("SELECT i FROM Integration i WHERE i.app.id = :appId AND i.deletedAt IS NULL")
-    Optional<Integration> findByAppId(@Param("appId") Long appId);
+    @Query("SELECT i FROM Integration i WHERE i.connector.id = :connectorId AND i.deletedAt IS NULL")
+    Optional<Integration> findByConnectorId(@Param("connectorId") Long connectorId);
 
     @Modifying
     @Query("UPDATE Integration i SET i.deletedAt = :now WHERE i.id = :id")

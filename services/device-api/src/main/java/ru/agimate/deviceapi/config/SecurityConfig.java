@@ -21,7 +21,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.deviceapi.controller.api.ApiAppsController;
+import ru.agimate.deviceapi.controller.api.ApiConnectorsController;
 import ru.agimate.common.security.apikey.ApiKeyAuthenticationFilter;
 import ru.agimate.deviceapi.controller.app.DeviceToolsController;
 import ru.agimate.deviceapi.controller.app.DeviceCentrifugoTokenController;
@@ -29,7 +29,7 @@ import ru.agimate.deviceapi.controller.app.DeviceRegistrationController;
 import ru.agimate.deviceapi.controller.app.DeviceTriggerController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentController;
 import ru.agimate.deviceapi.controller.manage.ManageAgenticTeamController;
-import ru.agimate.deviceapi.controller.manage.ManageAppsController;
+import ru.agimate.deviceapi.controller.manage.ManageConnectorsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceToolsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceTriggersController;
 import ru.agimate.deviceapi.controller.manage.ManageToolUseLogsController;
@@ -38,7 +38,7 @@ import ru.agimate.deviceapi.controller.manage.ManageIntegrationController;
 import ru.agimate.deviceapi.controller.manage.ManagePlatformController;
 import ru.agimate.deviceapi.controller.manage.ManageWebhookDeliveryLogsController;
 import ru.agimate.deviceapi.controller.webhook.IntegrationWebhookController;
-import ru.agimate.deviceapi.security.AppAuthenticationFilter;
+import ru.agimate.deviceapi.security.ConnectorAuthFilter;
 import ru.agimate.deviceapi.security.JwtAuthenticationFilter;
 
 import java.nio.charset.StandardCharsets;
@@ -54,7 +54,7 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final AppAuthenticationFilter appAuthenticationFilter;
+    private final ConnectorAuthFilter connectorAuthFilter;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     @Bean
@@ -107,7 +107,7 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                ManageAppsController.PATH + "/**",
+                ManageConnectorsController.PATH + "/**",
                 ManageDeviceToolsController.PATH + "/**",
                 ManageDeviceTriggersController.PATH + "/**",
                 ManageTriggerLogsController.PATH + "/**",
@@ -142,7 +142,7 @@ public class SecurityConfig {
 
         http.authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
                 .userDetailsService(userDetailsService())
-                .addFilterBefore(appAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(connectorAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -151,7 +151,7 @@ public class SecurityConfig {
     @Order(3)
     public SecurityFilterChain apiKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                ApiAppsController.PATH + "/**"
+                ApiConnectorsController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);
@@ -184,8 +184,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public FilterRegistrationBean<AppAuthenticationFilter> disableAppAuthFilterAutoRegistration() {
-        FilterRegistrationBean<AppAuthenticationFilter> registration = new FilterRegistrationBean<>(appAuthenticationFilter);
+    public FilterRegistrationBean<ConnectorAuthFilter> disableConnectorAuthFilterAutoRegistration() {
+        FilterRegistrationBean<ConnectorAuthFilter> registration = new FilterRegistrationBean<>(connectorAuthFilter);
         registration.setEnabled(false);
         return registration;
     }

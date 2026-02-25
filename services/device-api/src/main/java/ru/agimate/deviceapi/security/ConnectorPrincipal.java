@@ -3,9 +3,9 @@ package ru.agimate.deviceapi.security;
 import java.security.Principal;
 import java.util.UUID;
 
-public record AppPrincipal(
+public record ConnectorPrincipal(
         String name,
-        UUID appPubId,
+        UUID connectorPubId,
         UUID userPubId
 ) implements Principal {
 

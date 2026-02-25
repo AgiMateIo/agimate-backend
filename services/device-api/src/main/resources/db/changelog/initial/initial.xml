@@ -5,8 +5,8 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <changeSet id="create-apps-table" author="agimate">
-        <createTable tableName="apps">
+    <changeSet id="create-connectors-table" author="agimate">
+        <createTable tableName="connectors">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
@@ -16,7 +16,7 @@
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="type" type="TEXT" defaultValue="DEVICE">
+            <column name="type" type="TEXT" defaultValue="INBOUND">
                 <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT">
@@ -45,17 +45,17 @@
             </column>
         </createTable>
 
-        <createIndex tableName="apps" indexName="idx_apps_user_pub_id">
+        <createIndex tableName="connectors" indexName="idx_connectors_user_pub_id">
             <column name="user_pub_id"/>
         </createIndex>
 
-        <createIndex tableName="apps" indexName="idx_apps_key_id_active">
+        <createIndex tableName="connectors" indexName="idx_connectors_key_id_active">
             <column name="key_id"/>
             <column name="enabled"/>
             <column name="deleted_at"/>
         </createIndex>
 
-        <createIndex tableName="apps" indexName="idx_apps_device_id_user_pub_id">
+        <createIndex tableName="connectors" indexName="idx_connectors_device_id_user_pub_id">
             <column name="device_id"/>
             <column name="user_pub_id"/>
         </createIndex>
@@ -69,7 +69,7 @@
             <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
                 <constraints nullable="false" unique="true"/>
             </column>
-            <column name="app_id" type="BIGINT">
+            <column name="connector_id" type="BIGINT">
                 <constraints nullable="false"/>
             </column>
             <column name="user_pub_id" type="UUID">
@@ -97,13 +97,13 @@
 
         <addForeignKeyConstraint
                 baseTableName="trigger_logs"
-                baseColumnNames="app_id"
-                constraintName="fk_trigger_logs_app"
-                referencedTableName="apps"
+                baseColumnNames="connector_id"
+                constraintName="fk_trigger_logs_connector"
+                referencedTableName="connectors"
                 referencedColumnNames="id"/>
 
-        <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_app_id">
-            <column name="app_id"/>
+        <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_connector_id">
+            <column name="connector_id"/>
         </createIndex>
 
         <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_user_pub_id">
@@ -129,7 +129,7 @@
             <column name="api_key_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="app_pub_id" type="TEXT"/>
+            <column name="connector_pub_id" type="TEXT"/>
             <column name="tool_use_id" type="TEXT">
                 <constraints nullable="false"/>
             </column>
@@ -418,10 +418,10 @@
             <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
-            <column name="app_id" type="BIGINT">
+            <column name="connector_id" type="BIGINT">
                 <constraints nullable="false"
-                             foreignKeyName="fk_integrations_app_id"
-                             references="apps(id)"/>
+                             foreignKeyName="fk_integrations_connector_id"
+                             references="connectors(id)"/>
             </column>
             <column name="platform_id" type="BIGINT">
                 <constraints nullable="false"
@@ -460,8 +460,8 @@
             <column name="user_pub_id"/>
         </createIndex>
 
-        <createIndex tableName="integrations" indexName="idx_integrations_app_id">
-            <column name="app_id"/>
+        <createIndex tableName="integrations" indexName="idx_integrations_connector_id">
+            <column name="connector_id"/>
         </createIndex>
     </changeSet>
 

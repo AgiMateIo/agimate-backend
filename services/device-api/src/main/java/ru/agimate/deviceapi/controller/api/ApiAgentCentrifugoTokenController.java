@@ -24,7 +24,7 @@ import ru.agimate.deviceapi.service.CentrifugoService;
 @Tag(name = "Agent Centrifugo", description = "Centrifugo tokens for agents")
 public class ApiAgentCentrifugoTokenController {
 
-    public static final String PATH = ApiAppsController.PATH + "/centrifugo";
+    public static final String PATH = ApiConnectorsController.PATH + "/centrifugo";
 
     private static final long TOKEN_EXPIRATION_SECONDS = 3600; // 1 hour
 

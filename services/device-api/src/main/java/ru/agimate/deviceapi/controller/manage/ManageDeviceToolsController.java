@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceToolsResponse;
-import ru.agimate.deviceapi.service.AppApiService;
+import ru.agimate.deviceapi.service.ConnectorApiService;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,7 +21,7 @@ public class ManageDeviceToolsController {
 
     public static final String PATH = "/manage/tools";
 
-    private final AppApiService appApiService;
+    private final ConnectorApiService connectorApiService;
 
     @Operation(
             summary = "Get all device tools",
@@ -32,7 +32,7 @@ public class ManageDeviceToolsController {
             @AuthenticationPrincipal AgimateUserPrincipal principal
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var tools = appApiService.getAllAppTools(userPubId);
+        var tools = connectorApiService.getAllConnectorTools(userPubId);
         return SuccessResponse.ok(tools);
     }
 }

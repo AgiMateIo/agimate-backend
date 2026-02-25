@@ -6,9 +6,9 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
-import ru.agimate.deviceapi.database.entities.App;
+import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
-import ru.agimate.deviceapi.database.repositories.AppRepository;
+import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 
 import java.util.UUID;
 
@@ -18,18 +18,18 @@ import java.util.UUID;
 public class ToolUseAuthorizerService {
 
     private final AgentToolRepository agentToolRepository;
-    private final AppRepository appRepository;
+    private final ConnectorRepository connectorRepository;
 
-    public void authorizeToolUseRequest(ApiKeyPrincipal apiKeyPrincipal, String appId, String toolName) {
-        validateDeviceAccess(UUID.fromString(apiKeyPrincipal.userPubId()), appId);
+    public void authorizeToolUseRequest(ApiKeyPrincipal apiKeyPrincipal, String connectorId, String toolName) {
+        validateDeviceAccess(UUID.fromString(apiKeyPrincipal.userPubId()), connectorId);
         validateToolAuthorized(UUID.fromString(apiKeyPrincipal.pubId()), toolName);
     }
 
-    private void validateDeviceAccess(UUID userPubId, String appId) {
-        App app = appRepository.findByPubIdNotDeleted(UUID.fromString(appId))
-                .orElseThrow(() -> new NotFoundStatusException("App not found"));
-        if (!app.getUserPubId().equals(userPubId)) {
-            throw new ForbiddenStatusException("App is not accessible for this agent");
+    private void validateDeviceAccess(UUID userPubId, String connectorId) {
+        Connector connector = connectorRepository.findByPubIdNotDeleted(UUID.fromString(connectorId))
+                .orElseThrow(() -> new NotFoundStatusException("Connector not found"));
+        if (!connector.getUserPubId().equals(userPubId)) {
+            throw new ForbiddenStatusException("Connector is not accessible for this agent");
         }
     }
 

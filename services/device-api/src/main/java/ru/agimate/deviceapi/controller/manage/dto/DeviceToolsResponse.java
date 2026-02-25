@@ -5,7 +5,7 @@ import ru.agimate.deviceapi.service.dto.DeviceTool;
 import java.util.List;
 
 public record DeviceToolsResponse(
-        String deviceAuthKeyId,
+        String connectorPubId,
         String deviceId,
         String deviceName,
         List<DeviceTool> tools

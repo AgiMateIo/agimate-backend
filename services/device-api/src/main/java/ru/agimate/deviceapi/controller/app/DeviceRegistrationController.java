@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.deviceapi.controller.app.dto.LinkDeviceRequest;
-import ru.agimate.deviceapi.service.AppService;
+import ru.agimate.deviceapi.service.ConnectorService;
 
 @Slf4j
 @RestController
@@ -19,11 +19,11 @@ public class DeviceRegistrationController {
 
     public static final String PATH = "/registration";
 
-    private final AppService appService;
+    private final ConnectorService connectorService;
 
     @Operation(
-            summary = "Link device to app",
-            description = "Associates device information with the authenticated app"
+            summary = "Link device to connector",
+            description = "Associates device information with the authenticated connector"
     )
     @PostMapping("/link")
     public SuccessResponse<String> linkDevice(
@@ -33,10 +33,10 @@ public class DeviceRegistrationController {
     ) {
         log.info("Link device - deviceId {}", linkDeviceRequest.deviceId());
 
-        var app = appService.linkDevice(authentication, linkDeviceRequest);
+        var connector = connectorService.linkDevice(authentication, linkDeviceRequest);
 
-        if (app == null) {
-            throw new ConflictStatusException("Can't link this device. This app key is probably already in use");
+        if (connector == null) {
+            throw new ConflictStatusException("Can't link this device. This connector key is probably already in use");
         }
 
         return SuccessResponse.ok("success");

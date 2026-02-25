@@ -16,21 +16,21 @@ import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.controller.api.dto.ToolUseRequest;
-import ru.agimate.deviceapi.service.AppApiService;
+import ru.agimate.deviceapi.service.ConnectorApiService;
 import ru.agimate.deviceapi.service.ToolUseAuthorizerService;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ApiAppsCallController.PATH)
+@RequestMapping(ApiConnectorCallController.PATH)
 @RequiredArgsConstructor
-@Tag(name = "App Call", description = "Execute app methods via API Key")
-public class ApiAppsCallController {
+@Tag(name = "Connector Call", description = "Execute connector methods via API Key")
+public class ApiConnectorCallController {
 
-    public static final String PATH = ApiAppsController.PATH + "/call";
+    public static final String PATH = ApiConnectorsController.PATH + "/call";
 
-    private final AppApiService appApiService;
+    private final ConnectorApiService connectorApiService;
     private final ToolUseLogService toolUseLogService;
     private final ToolUseAuthorizerService toolUseAuthorizerService;
 
@@ -56,25 +56,24 @@ public class ApiAppsCallController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
-    @PostMapping("/{appId}")
+    @PostMapping("/{connectorId}")
     public SuccessResponse<String> toolUse(
             @Parameter(
-                    description = "App identifier",
-                    required = true,
-                    example = "app-123"
+                    description = "Connector identifier",
+                    required = true
             )
-            @PathVariable String appId,
+            @PathVariable String connectorId,
             @Valid @RequestBody ToolUseRequest toolUseRequest,
             @AuthenticationPrincipal ApiKeyPrincipal principal
     ) {
 
-        toolUseAuthorizerService.authorizeToolUseRequest(principal, appId, toolUseRequest.getName());
+        toolUseAuthorizerService.authorizeToolUseRequest(principal, connectorId, toolUseRequest.getName());
 
         UUID apiKeyPubId = UUID.fromString(principal.pubId());
         UUID userPubId = UUID.fromString(principal.userPubId());
-        toolUseLogService.createLog(apiKeyPubId, userPubId, appId, toolUseRequest);
+        toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest);
 
-        appApiService.pushToApp(appId, toolUseRequest, principal.pubId());
+        connectorApiService.pushToConnector(connectorId, toolUseRequest, principal.pubId());
         return SuccessResponse.ok("success");
     }
 }

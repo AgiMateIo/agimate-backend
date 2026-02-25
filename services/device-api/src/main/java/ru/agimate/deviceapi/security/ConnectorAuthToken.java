@@ -5,14 +5,14 @@ import org.springframework.security.core.GrantedAuthority;
 
 import java.util.Collection;
 
-public class AppAuthenticationToken implements Authentication {
+public class ConnectorAuthToken implements Authentication {
 
-    private final AppPrincipal principal;
+    private final ConnectorPrincipal principal;
     private final Collection<? extends GrantedAuthority> authorities;
     private boolean authenticated = true;
 
-    public AppAuthenticationToken(AppPrincipal principal,
-                                  Collection<? extends GrantedAuthority> authorities) {
+    public ConnectorAuthToken(ConnectorPrincipal principal,
+                              Collection<? extends GrantedAuthority> authorities) {
         this.principal = principal;
         this.authorities = authorities;
     }
@@ -24,7 +24,7 @@ public class AppAuthenticationToken implements Authentication {
 
     @Override
     public Object getCredentials() {
-        return principal.appPubId();
+        return principal.connectorPubId();
     }
 
     @Override

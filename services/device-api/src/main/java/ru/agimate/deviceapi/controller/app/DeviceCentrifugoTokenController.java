@@ -14,8 +14,8 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.deviceapi.controller.app.dto.DeviceChannelTokenRequest;
 import ru.agimate.deviceapi.controller.app.dto.CentrifugoTokenResponse;
-import ru.agimate.deviceapi.database.entities.App;
-import ru.agimate.deviceapi.service.AppService;
+import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.service.ConnectorService;
 import ru.agimate.deviceapi.service.CentrifugoService;
 
 @Slf4j
@@ -29,7 +29,7 @@ public class DeviceCentrifugoTokenController {
     private static final long TOKEN_EXPIRATION_SECONDS = 3600; // 1 hour
 
     private final CentrifugoService centrifugoService;
-    private final AppService appService;
+    private final ConnectorService connectorService;
 
     @Operation(
             summary = "Get Centrifugo subscription token",
@@ -42,9 +42,9 @@ public class DeviceCentrifugoTokenController {
             Authentication authentication,
             HttpServletRequest request
     ) {
-        App app = appService.getApp(authentication);
+        Connector connector = connectorService.getConnector(authentication);
 
-        if (!app.isLinked() || !deviceChannelTokenRequest.deviceId().equals(app.getDeviceId())) {
+        if (!connector.isLinked() || !deviceChannelTokenRequest.deviceId().equals(connector.getDeviceId())) {
             throw new ForbiddenStatusException("Device is not linked");
         }
 
