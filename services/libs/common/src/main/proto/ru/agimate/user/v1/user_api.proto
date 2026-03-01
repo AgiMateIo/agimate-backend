@@ -20,4 +20,5 @@ message IntrospectApiKeyResponse {
   bool valid = 1;
   string key_pub_id = 2;  // UUID of the API key
   string user_pub_id = 3; // UUID of the key owner
+  string user_role = 4;   // "GUEST", "USER", "ADMIN"
 }

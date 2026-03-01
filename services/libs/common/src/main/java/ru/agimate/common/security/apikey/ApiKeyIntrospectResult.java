@@ -5,5 +5,6 @@ package ru.agimate.common.security.apikey;
  */
 public record ApiKeyIntrospectResult(
         String keyPubId,
-        String userPubId
+        String userPubId,
+        String userRole
 ) {}

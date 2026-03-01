@@ -23,8 +23,11 @@ import ru.agimate.userapi.database.repositories.UserOAuthAccountRepository;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
 import ru.agimate.userapi.service.UserService;
 
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -69,7 +72,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         UserEntity userEntity = createOrGetUserFromOAuth(oAuth2User, registrationId);
 
         // Generate JWT tokens
-        AgimateUserPrincipal agimateUserPrincipal = new AgimateUserPrincipal(userEntity.getPubId().toString());
+        AgimateUserPrincipal agimateUserPrincipal = new AgimateUserPrincipal(
+                userEntity.getPubId().toString(),
+                List.of(new SimpleGrantedAuthority(userEntity.getRole().toAuthority()))
+        );
 
         String refreshTokenId = UUID.randomUUID().toString();
         String refreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, refreshTokenId);

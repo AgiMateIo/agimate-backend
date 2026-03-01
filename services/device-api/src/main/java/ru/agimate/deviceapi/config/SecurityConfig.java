@@ -123,7 +123,7 @@ public class SecurityConfig {
 
         applyCommonSecurityConfig(http);
 
-        http.authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
+        http.authorizeHttpRequests(authz -> authz.anyRequest().hasAnyRole("USER", "ADMIN"))
                 .userDetailsService(userDetailsService())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

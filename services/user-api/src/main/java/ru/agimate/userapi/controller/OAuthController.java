@@ -24,6 +24,9 @@ import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
 import ru.agimate.userapi.service.UserService;
 
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -78,7 +81,10 @@ public class OAuthController {
         UserEntity userEntity = userService.findByPubId(UUID.fromString(subject))
                 .orElseThrow(() -> new BadRequestStatusException("User doesn't exist"));
 
-        var agimateUserPrincipal = new AgimateUserPrincipal(userEntity.getPubId().toString());
+        var agimateUserPrincipal = new AgimateUserPrincipal(
+                userEntity.getPubId().toString(),
+                List.of(new SimpleGrantedAuthority(userEntity.getRole().toAuthority()))
+        );
         String newAccessToken = jwtService.generateAccessToken(agimateUserPrincipal);
         String newRefreshTokenId = UUID.randomUUID().toString();
         String newRefreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, newRefreshTokenId);

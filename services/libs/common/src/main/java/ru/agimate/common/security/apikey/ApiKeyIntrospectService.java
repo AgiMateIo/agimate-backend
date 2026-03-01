@@ -36,7 +36,8 @@ public class ApiKeyIntrospectService {
                 if (response.getValid()) {
                     return Optional.of(new ApiKeyIntrospectResult(
                             response.getKeyPubId(),
-                            response.getUserPubId()
+                            response.getUserPubId(),
+                            response.getUserRole()
                     ));
                 }
                 return Optional.empty();

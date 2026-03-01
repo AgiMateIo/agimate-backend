@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.common.security.UserRole;
 import ru.agimate.common.util.UUIDUtils;
 
 import java.util.ArrayList;
@@ -34,6 +35,10 @@ public class UserEntity extends BaseEntity {
     
     @Column(name = "display_name", columnDefinition = "TEXT")
     private String displayName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    private UserRole role = UserRole.GUEST;
 
     // Bidirectional relationship with OAuth accounts
     @OneToMany(mappedBy = "userEntity", cascade = CascadeType.ALL, fetch = FetchType.LAZY)

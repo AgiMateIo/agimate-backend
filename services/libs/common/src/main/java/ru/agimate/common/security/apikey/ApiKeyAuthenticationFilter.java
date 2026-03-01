@@ -11,8 +11,12 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import ru.agimate.common.rest.ErrorResponse;
+import ru.agimate.common.security.UserRole;
+import ru.agimate.common.util.JsonUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -36,20 +40,33 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         String apiKey = request.getHeader(API_KEY_HEADER);
 
         if (StringUtils.hasText(apiKey)) {
-            apiKeyIntrospectService.introspect(apiKey)
-                    .ifPresent(result -> {
-                        var authorities = List.of(new SimpleGrantedAuthority("ROLE_CONNECTOR"));
-                        var principal = new ApiKeyPrincipal(
-                                result.keyPubId(),
-                                result.userPubId()
-                        );
+            var resultOpt = apiKeyIntrospectService.introspect(apiKey);
 
-                        SecurityContextHolder.getContext().setAuthentication(
-                                new ApiKeyAuthenticationToken(principal, authorities)
-                        );
+            if (resultOpt.isPresent()) {
+                var result = resultOpt.get();
 
-                        log.debug("API key authenticated via introspect (user: {})", result.userPubId());
-                    });
+                if (UserRole.GUEST.name().equals(result.userRole())) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.setContentType("application/json");
+                    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                    response.getWriter().write(JsonUtils.writeValueAsString(
+                            new ErrorResponse("Access denied. Insufficient permissions.")));
+                    response.getWriter().flush();
+                    return;
+                }
+
+                var authorities = List.of(new SimpleGrantedAuthority("ROLE_CONNECTOR"));
+                var principal = new ApiKeyPrincipal(
+                        result.keyPubId(),
+                        result.userPubId()
+                );
+
+                SecurityContextHolder.getContext().setAuthentication(
+                        new ApiKeyAuthenticationToken(principal, authorities)
+                );
+
+                log.debug("API key authenticated via introspect (user: {})", result.userPubId());
+            }
         }
 
         filterChain.doFilter(request, response);

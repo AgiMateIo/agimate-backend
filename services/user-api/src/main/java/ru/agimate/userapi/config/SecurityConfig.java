@@ -113,9 +113,9 @@ public class SecurityConfig {
                         .requestMatchers("/", "/oauth2/**", "/api-keys/verify").permitAll()
                         .requestMatchers("/docs/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/manage/api-keys/**").authenticated()
-                        .requestMatchers("/user/**").authenticated()
-                        .anyRequest().authenticated()
+                        .requestMatchers("/manage/api-keys/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "GUEST")
+                        .anyRequest().hasAnyRole("USER", "ADMIN")
                 )
                 .userDetailsService(new InMemoryUserDetailsManager())
                 .oauth2Login(oauth2 -> oauth2
