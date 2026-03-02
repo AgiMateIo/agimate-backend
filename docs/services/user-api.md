@@ -57,6 +57,12 @@ Authentication service handling OAuth2 login and JWT token management.
 |--------|-------------------------|--------------------------------------------------|
 | POST   | `/user/api-keys/verify` | Verify API key (header `X-Api-Key`), public endpoint |
 
+### Wait List (Public)
+
+| Method | Path              | Description                          |
+|--------|-------------------|--------------------------------------|
+| POST   | `/user/waitlist`  | Join the waitlist (email, name, message) |
+
 ### Public
 
 | Method | Path              | Description                 |
@@ -103,5 +109,6 @@ APP_OAUTH_COOKIE_DOMAIN=agimate.ru
 - `users` — User accounts
 - `user_oauth_accounts` — OAuth2 provider links
 - `service_api_keys` — API keys for connector access
+- `waitlist_entries` — Wait list registrations
 
 Migrations: `services/user-api/src/main/resources/db/changelog/`

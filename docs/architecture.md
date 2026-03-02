@@ -68,7 +68,7 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 
 | Database         | Owner          | Tables                                                                      |
 |------------------|----------------|-----------------------------------------------------------------------------|
-| am_user_db       | user-api       | `users`, `user_oauth_accounts`, `service_api_keys`                          |
+| am_user_db       | user-api       | `users`, `user_oauth_accounts`, `service_api_keys`, `waitlist_entries`      |
 | am_device_db     | device-api     | `connectors`, `trigger_logs`, `trigger_log_agents`, `tool_use_logs`, `agents`, `agent_tools`, `agent_triggers`, `webhook_delivery_logs`, `platforms`, `integrations`, `agentic_teams` |
 
 All migrations managed via Liquibase in each service's `src/main/resources/db/changelog/`.
