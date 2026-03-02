@@ -13,6 +13,8 @@ import ru.agimate.deviceapi.service.dto.ConnectedDevice;
 import ru.agimate.deviceapi.service.dto.DeviceTool;
 import ru.agimate.deviceapi.service.dto.DeviceTrigger;
 
+import ru.agimate.common.rest.error.NotFoundStatusException;
+
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,8 +28,8 @@ public class ConnectorApiService {
     private final IntegrationRepository integrationRepository;
     private final IntegrationToolExecutorService integrationToolExecutorService;
 
-    public List<ConnectedDevice> getConnectors(String userId) {
-        return connectorRepository.findByPubIdNotDeletedAndActive(UUID.fromString(userId))
+    public List<ConnectedDevice> getConnectors(UUID userId) {
+        return connectorRepository.findByPubIdNotDeletedAndActive(userId)
                 .stream().map(connector -> new ConnectedDevice(
                         connector.getPubId().toString(),
                         connector.getName(),
@@ -38,7 +40,7 @@ public class ConnectorApiService {
 
     public Connector getConnectorByPubId(String connectorPubId) {
         return connectorRepository.findByPubIdNotDeleted(UUID.fromString(connectorPubId))
-                .orElseThrow(() -> new IllegalStateException("Connector " + connectorPubId + " is not found"));
+                .orElseThrow(() -> new NotFoundStatusException("Connector not found"));
     }
 
     public List<DeviceTriggersResponse> getAllConnectorTriggers(UUID userPubId) {
@@ -77,7 +79,7 @@ public class ConnectorApiService {
 
         if (connector.getType() == ConnectorType.OUTBOUND) {
             var integration = integrationRepository.findByConnectorId(connector.getId())
-                    .orElseThrow(() -> new IllegalStateException("Integration not found for connector " + connectorPubId));
+                    .orElseThrow(() -> new NotFoundStatusException("Integration not found"));
             integrationToolExecutorService.execute(integration, toolUse, agentId);
             return;
         }

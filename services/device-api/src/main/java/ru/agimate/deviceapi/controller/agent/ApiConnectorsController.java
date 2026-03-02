@@ -31,7 +31,7 @@ public class ApiConnectorsController {
     @GetMapping("/")
     public SuccessResponse<List<ConnectedDevice>> getConnectors() {
         var userPubId = SecurityUtils.getApiKeyUserPubId();
-        var devices = connectorApiService.getConnectors(userPubId.toString());
+        var devices = connectorApiService.getConnectors(userPubId);
         return SuccessResponse.ok(devices);
     }
 

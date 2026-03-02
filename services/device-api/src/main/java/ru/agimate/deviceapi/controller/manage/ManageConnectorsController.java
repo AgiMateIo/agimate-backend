@@ -140,6 +140,6 @@ public class ManageConnectorsController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         connectorService.disconnectConnector(connectorId, userPubId);
-        return SuccessResponse.ok(null);
+        return SuccessResponse.empty();
     }
 }
