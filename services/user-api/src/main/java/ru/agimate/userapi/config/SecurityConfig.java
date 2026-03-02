@@ -86,7 +86,7 @@ public class SecurityConfig {
 
             // Write JSON response
             var writer = response.getWriter();
-            writer.write(JsonUtils.writeValueAsString(new ErrorResponse("Access denied. Insufficient permissions to access this resource.")));
+            writer.write(JsonUtils.writeValueAsString(new ErrorResponse("Access denied. Insufficient permissions.")));
             writer.flush();
         };
     }

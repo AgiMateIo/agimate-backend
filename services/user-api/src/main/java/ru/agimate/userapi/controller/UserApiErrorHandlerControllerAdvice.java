@@ -45,6 +45,6 @@ public class UserApiErrorHandlerControllerAdvice extends BaseErrorHandlerControl
             HttpServletResponse response) {
 
         log.warn("Access denied on {} {}: {}", request.getMethod(), request.getRequestURL(), ex.getMessage());
-        return new ErrorResponse("Access denied. Insufficient permissions to access this resource.");
+        return new ErrorResponse("Access denied. Insufficient permissions.");
     }
 }
