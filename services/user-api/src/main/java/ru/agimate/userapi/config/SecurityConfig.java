@@ -110,7 +110,7 @@ public class SecurityConfig {
                                 .accessDeniedHandler(accessDeniedHandler()) // For authorization failures
                 )
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/", "/oauth2/**", "/api-keys/verify").permitAll()
+                        .requestMatchers("/", "/oauth2/**", "/api-keys/verify", "/waitlist/**").permitAll()
                         .requestMatchers("/docs/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/manage/api-keys/**").hasAnyRole("USER", "ADMIN")
