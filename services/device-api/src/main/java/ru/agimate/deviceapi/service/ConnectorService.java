@@ -97,6 +97,34 @@ public class ConnectorService {
         return saved;
     }
 
+    @Transactional
+    public Connector createServerConnector(
+            UUID userPubId,
+            String name,
+            String description,
+            Map<String, Object> triggers,
+            Map<String, Object> tools
+    ) {
+        GeneratedConnectorKey generatedKey = ConnectorKeyUtils.generate(CONNECTOR_KEY_PREFIX);
+
+        Connector connector = Connector.builder()
+                .userPubId(userPubId)
+                .name(name)
+                .description(description)
+                .keyHash(generatedKey.secretHash())
+                .keyId(generatedKey.keyId())
+                .type(ConnectorType.SERVER)
+                .triggers(triggers)
+                .tools(tools)
+                .enabled(true)
+                .build();
+
+        Connector saved = connectorRepository.save(connector);
+        log.info("Created server connector for user {}: {}", userPubId, saved.getPubId());
+
+        return saved;
+    }
+
     public List<Connector> getConnectorsForUser(UUID userPubId) {
         return connectorRepository.findByUserPubIdNotDeleted(userPubId);
     }

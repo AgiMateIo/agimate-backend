@@ -12,6 +12,7 @@ import ru.agimate.deviceapi.integration.IntegrationToolExecutorService;
 import ru.agimate.deviceapi.service.dto.ConnectedDevice;
 import ru.agimate.deviceapi.service.dto.DeviceTool;
 import ru.agimate.deviceapi.service.dto.DeviceTrigger;
+import ru.agimate.deviceapi.service.servertools.ServerToolExecutorService;
 
 import ru.agimate.common.rest.error.NotFoundStatusException;
 
@@ -27,6 +28,7 @@ public class ConnectorApiService {
     private final CentrifugoService centrifugoService;
     private final IntegrationRepository integrationRepository;
     private final IntegrationToolExecutorService integrationToolExecutorService;
+    private final ServerToolExecutorService serverToolExecutorService;
 
     public List<ConnectedDevice> getConnectors(UUID userId) {
         return connectorRepository.findByPubIdNotDeletedAndActive(userId)
@@ -76,6 +78,11 @@ public class ConnectorApiService {
 
     public void pushToConnector(String connectorPubId, IToolUse toolUse, String agentId) {
         var connector = getConnectorByPubId(connectorPubId);
+
+        if (connector.getType() == ConnectorType.SERVER) {
+            serverToolExecutorService.execute(connector, toolUse, agentId);
+            return;
+        }
 
         if (connector.getType() == ConnectorType.OUTBOUND) {
             var integration = integrationRepository.findByConnectorId(connector.getId())

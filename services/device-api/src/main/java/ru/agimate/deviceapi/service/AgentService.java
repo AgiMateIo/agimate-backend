@@ -8,6 +8,7 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.agent.dto.AgentConfigResponse;
+import ru.agimate.deviceapi.controller.agent.dto.ToolDefinition;
 import ru.agimate.deviceapi.controller.manage.dto.AgentResponse;
 import ru.agimate.deviceapi.controller.manage.dto.CreateAgentRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentRequest;
@@ -15,14 +16,14 @@ import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentTool;
 import ru.agimate.deviceapi.database.entities.AgentTrigger;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
+import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerRepository;
 import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
+import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -36,6 +37,7 @@ public class AgentService {
     private final AgentToolRepository agentToolRepository;
     private final AgentTriggerRepository agentTriggerRepository;
     private final AgenticTeamRepository agenticTeamRepository;
+    private final ConnectorRepository connectorRepository;
 
     public List<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId) {
         List<Agent> agents;
@@ -77,14 +79,64 @@ public class AgentService {
     public AgentConfigResponse getConfigByApiKeyPubId(UUID apiKeyPubId) {
         Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-        var tools = agentToolRepository.findByApiKeyPubId(apiKeyPubId);
+        var agentTools = agentToolRepository.findByApiKeyPubId(apiKeyPubId);
         var triggers = agentTriggerRepository.findByApiKeyPubId(apiKeyPubId);
+
+        Set<String> allowedToolNames = agentTools.stream()
+                .map(AgentTool::getToolName)
+                .collect(Collectors.toSet());
+
+        Map<String, ToolDefinition> toolDefinitionMap = buildToolDefinitionMap(agent.getUserPubId());
+
+        List<ToolDefinition> toolDefinitions = allowedToolNames.stream()
+                .map(name -> toolDefinitionMap.getOrDefault(name,
+                        new ToolDefinition(name, null, null)))
+                .toList();
+
         return new AgentConfigResponse(
                 agent.getApiKeyPubId(),
                 agent.getPrompt(),
-                tools.stream().map(AgentTool::getToolName).toList(),
+                toolDefinitions,
                 triggers.stream().map(AgentTrigger::getTriggerName).toList()
         );
+    }
+
+    public List<ToolDefinition> getAvailableTools(UUID apiKeyPubId) {
+        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
+        var agentTools = agentToolRepository.findByApiKeyPubId(apiKeyPubId);
+
+        Set<String> allowedToolNames = agentTools.stream()
+                .map(AgentTool::getToolName)
+                .collect(Collectors.toSet());
+
+        Map<String, ToolDefinition> toolDefinitionMap = buildToolDefinitionMap(agent.getUserPubId());
+
+        return allowedToolNames.stream()
+                .map(name -> toolDefinitionMap.getOrDefault(name,
+                        new ToolDefinition(name, null, null)))
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, ToolDefinition> buildToolDefinitionMap(UUID userPubId) {
+        List<Connector> connectors = connectorRepository.findByUserPubIdNotDeleted(userPubId);
+        Map<String, ToolDefinition> map = new LinkedHashMap<>();
+
+        for (Connector connector : connectors) {
+            if (connector.getTools() == null) continue;
+            for (var entry : connector.getTools().entrySet()) {
+                String toolName = entry.getKey();
+                var value = (Map<String, Object>) entry.getValue();
+                String description = value.getOrDefault("description", "").toString();
+                List<String> params = value.get("params") instanceof List<?> list
+                        ? list.stream().map(Object::toString).toList()
+                        : List.of();
+                map.put(toolName, new ToolDefinition(toolName, description, params));
+            }
+        }
+
+        return map;
     }
 
     @Transactional

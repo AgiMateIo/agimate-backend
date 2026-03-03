@@ -17,13 +17,16 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.controller.agent.dto.AgentToolResultRequest;
+import ru.agimate.deviceapi.controller.agent.dto.ToolDefinition;
 import ru.agimate.deviceapi.controller.agent.dto.ToolUseRequest;
 import ru.agimate.deviceapi.database.enums.PermissionDecision;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
+import ru.agimate.deviceapi.service.AgentService;
 import ru.agimate.deviceapi.service.ConnectorApiService;
 import ru.agimate.deviceapi.service.ToolUseAuthorizerService;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -37,6 +40,26 @@ public class AgentToolController {
     private final ConnectorApiService connectorApiService;
     private final ToolUseLogService toolUseLogService;
     private final ToolUseAuthorizerService toolUseAuthorizerService;
+    private final AgentService agentService;
+
+    @Operation(
+            summary = "Get available tools",
+            description = "Returns all tool definitions available to the authenticated agent",
+            security = @SecurityRequirement(name = "ApiKey")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "List of available tools"
+            )
+    })
+    @GetMapping("/")
+    public SuccessResponse<List<ToolDefinition>> getAvailableTools(
+            @AuthenticationPrincipal ApiKeyPrincipal principal
+    ) {
+        UUID apiKeyPubId = UUID.fromString(principal.pubId());
+        return SuccessResponse.ok(agentService.getAvailableTools(apiKeyPubId));
+    }
 
     @Operation(
             summary = "Push tool_use to device",

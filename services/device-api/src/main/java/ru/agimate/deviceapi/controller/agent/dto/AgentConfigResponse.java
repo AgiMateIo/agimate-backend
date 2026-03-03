@@ -13,8 +13,8 @@ public record AgentConfigResponse(
         @Schema(description = "Agent prompt")
         String prompt,
 
-        @Schema(description = "Authorized tool names")
-        List<String> tools,
+        @Schema(description = "Authorized tools with definitions")
+        List<ToolDefinition> tools,
 
         @Schema(description = "Subscribed trigger names")
         List<String> triggers

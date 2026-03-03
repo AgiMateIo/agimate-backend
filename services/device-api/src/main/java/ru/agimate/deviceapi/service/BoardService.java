@@ -29,6 +29,8 @@ public class BoardService {
     private final AgenticTeamRepository agenticTeamRepository;
     private final AgentRepository agentRepository;
     private final BoardTriggerService boardTriggerService;
+    private final ConnectorService connectorService;
+    private final ru.agimate.deviceapi.service.servertools.BoardToolHandler boardToolHandler;
 
     // ---- Board CRUD ----
 
@@ -69,6 +71,14 @@ public class BoardService {
                 .description(request.description())
                 .build();
         board = boardRepository.save(board);
+
+        connectorService.createServerConnector(
+                userPubId,
+                "Board",
+                "Board tools",
+                Map.of(),
+                boardToolHandler.getToolDefinitions()
+        );
 
         log.info("Created board '{}' for agenticTeam={}, user={}", request.name(), team.getPubId(), userPubId);
         return BoardResponse.from(board, team);
