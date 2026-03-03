@@ -9,6 +9,8 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.manage.dto.*;
 import ru.agimate.deviceapi.database.entities.*;
+import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
+import ru.agimate.deviceapi.database.enums.BoardTaskType;
 import ru.agimate.deviceapi.database.repositories.*;
 
 import java.util.*;

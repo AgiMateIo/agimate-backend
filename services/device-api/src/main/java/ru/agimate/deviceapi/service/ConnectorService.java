@@ -11,7 +11,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.deviceapi.controller.app.dto.LinkDeviceRequest;
 import ru.agimate.deviceapi.database.entities.Connector;
-import ru.agimate.deviceapi.database.entities.ConnectorType;
+import ru.agimate.deviceapi.database.enums.ConnectorType;
 import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.security.ConnectorSecurityUtils;
 import ru.agimate.deviceapi.service.dto.ConnectorCreateResult;

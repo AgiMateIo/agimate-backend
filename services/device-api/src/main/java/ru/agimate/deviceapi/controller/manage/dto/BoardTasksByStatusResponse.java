@@ -1,7 +1,7 @@
 package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.database.entities.BoardTaskStatus;
+import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 
 import java.util.List;
 import java.util.Map;

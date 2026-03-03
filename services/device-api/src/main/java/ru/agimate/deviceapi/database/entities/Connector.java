@@ -6,6 +6,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
+import ru.agimate.deviceapi.database.enums.ConnectorType;
 
 import java.time.LocalDateTime;
 import java.util.Map;

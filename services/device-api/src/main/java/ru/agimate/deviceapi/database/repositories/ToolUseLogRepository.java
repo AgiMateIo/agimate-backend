@@ -13,6 +13,8 @@ public interface ToolUseLogRepository extends JpaRepository<ToolUseLog, Long> {
 
     Optional<ToolUseLog> findByToolUseId(String toolUseId);
 
+    Optional<ToolUseLog> findByToolUseIdAndUserPubId(String toolUseId, UUID userPubId);
+
     @Query("""
             SELECT t FROM ToolUseLog t
             WHERE t.userPubId = :userPubId

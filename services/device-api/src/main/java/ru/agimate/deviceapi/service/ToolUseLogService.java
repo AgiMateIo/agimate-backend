@@ -10,10 +10,12 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.manage.dto.ToolUseLogResponse;
 import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.enums.PermissionDecision;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.database.repositories.ToolUseLogRepository;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -24,8 +26,13 @@ public class ToolUseLogService {
 
     private final ToolUseLogRepository toolUseLogRepository;
 
+    public Optional<ToolUseLog> findByToolUseIdAndUserPubId(String toolUseId, UUID userPubId) {
+        return toolUseLogRepository.findByToolUseIdAndUserPubId(toolUseId, userPubId);
+    }
+
     @Transactional
-    public ToolUseLog createLog(UUID apiKeyPubId, UUID userPubId, String connectorPubId, IToolUse toolUse) {
+    public ToolUseLog createLog(UUID apiKeyPubId, UUID userPubId, String connectorPubId,
+                                IToolUse toolUse, PermissionDecision permissionDecision, String error) {
         var toolUseLog = ToolUseLog.builder()
                 .apiKeyPubId(apiKeyPubId)
                 .userPubId(userPubId)
@@ -33,6 +40,8 @@ public class ToolUseLogService {
                 .toolUseId(toolUse.getId())
                 .toolName(toolUse.getName())
                 .toolParams(toolUse.getParams())
+                .permissionDecision(permissionDecision)
+                .error(error)
                 .build();
 
         return toolUseLogRepository.save(toolUseLog);

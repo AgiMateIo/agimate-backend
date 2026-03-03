@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import ru.agimate.deviceapi.database.entities.BoardTaskType;
+import ru.agimate.deviceapi.database.enums.BoardTaskType;
 
 import java.util.UUID;
 

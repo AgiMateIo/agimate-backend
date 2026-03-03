@@ -2,6 +2,7 @@ package ru.agimate.deviceapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.deviceapi.database.enums.PermissionDecision;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 
 import java.time.LocalDateTime;
@@ -28,6 +29,9 @@ public record ToolUseLogResponse(
         @Schema(description = "Tool parameters")
         Map<String, Object> toolParams,
 
+        @Schema(description = "Permission decision")
+        PermissionDecision permissionDecision,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the result was received")
         LocalDateTime resultAt,
@@ -50,6 +54,7 @@ public record ToolUseLogResponse(
                 toolUseLog.getToolUseId(),
                 toolUseLog.getToolName(),
                 toolUseLog.getToolParams(),
+                toolUseLog.getPermissionDecision(),
                 toolUseLog.getResultAt(),
                 toolUseLog.getResult(),
                 toolUseLog.getError(),

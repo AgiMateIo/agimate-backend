@@ -5,7 +5,7 @@ import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceToolsResponse;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
 import ru.agimate.deviceapi.database.entities.Connector;
-import ru.agimate.deviceapi.database.entities.ConnectorType;
+import ru.agimate.deviceapi.database.enums.ConnectorType;
 import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.database.repositories.IntegrationRepository;
 import ru.agimate.deviceapi.integration.IntegrationToolExecutorService;

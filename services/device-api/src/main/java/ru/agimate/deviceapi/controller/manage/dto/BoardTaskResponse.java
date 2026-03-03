@@ -3,8 +3,8 @@ package ru.agimate.deviceapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.deviceapi.database.entities.BoardTask;
-import ru.agimate.deviceapi.database.entities.BoardTaskStatus;
-import ru.agimate.deviceapi.database.entities.BoardTaskType;
+import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
+import ru.agimate.deviceapi.database.enums.BoardTaskType;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

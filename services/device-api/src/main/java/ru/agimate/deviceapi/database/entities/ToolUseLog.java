@@ -6,6 +6,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
+import ru.agimate.deviceapi.database.enums.PermissionDecision;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -47,6 +48,10 @@ public class ToolUseLog extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "tool_params", columnDefinition = "JSONB")
     private Map<String, Object> toolParams;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "permission_decision")
+    private PermissionDecision permissionDecision;
 
     @Column(name = "result_at")
     private LocalDateTime resultAt;
