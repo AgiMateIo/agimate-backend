@@ -26,9 +26,6 @@ public interface ConnectorRepository extends JpaRepository<Connector, Long> {
     @Query("SELECT c FROM Connector c WHERE c.userPubId = :userPubId AND c.deletedAt IS NULL ORDER BY c.createdAt DESC")
     List<Connector> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
 
-    @Query("SELECT c FROM Connector c WHERE c.userPubId = :userPubId AND c.deletedAt IS NULL AND c.deviceId IS NOT NULL ORDER BY c.createdAt DESC")
-    List<Connector> findLinkedByUserPubId(@Param("userPubId") UUID userPubId);
-
     @Query("SELECT c FROM Connector c WHERE c.userPubId = :userPubId AND c.deletedAt IS NULL AND (c.deviceId IS NOT NULL OR c.triggers IS NOT NULL OR c.tools IS NOT NULL) ORDER BY c.createdAt DESC")
     List<Connector> findWithCapabilitiesByUserPubId(@Param("userPubId") UUID userPubId);
 
@@ -45,6 +42,6 @@ public interface ConnectorRepository extends JpaRepository<Connector, Long> {
     @Query("SELECT COUNT(c) > 0 FROM Connector c WHERE c.userPubId = :userPubId AND c.name = :name AND c.deletedAt IS NULL")
     boolean existsByUserPubIdAndName(@Param("userPubId") UUID userPubId, @Param("name") String name);
 
-    @Query("SELECT c FROM Connector c WHERE c.deviceId = :deviceId AND c.userPubId = :userPubId AND c.deletedAt IS NULL")
-    Optional<Connector> findByDeviceIdAndUserPubId(@Param("deviceId") String deviceId, @Param("userPubId") UUID userPubId);
+    @Query("SELECT COUNT(c) > 0 FROM Connector c WHERE c.pubId = :pubId AND c.userPubId = :userPubId AND c.deletedAt IS NULL")
+    boolean existsByPubIdAndUserPubId(@Param("pubId") UUID pubId, @Param("userPubId") UUID userPubId);
 }

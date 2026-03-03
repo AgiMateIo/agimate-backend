@@ -20,6 +20,9 @@ public record ToolUseLogResponse(
         @Schema(description = "Connector public ID")
         String connectorPubId,
 
+        @Schema(description = "Agent session identifier")
+        String agentSessionId,
+
         @Schema(description = "Tool use correlation ID")
         String toolUseId,
 
@@ -51,6 +54,7 @@ public record ToolUseLogResponse(
                 toolUseLog.getPubId(),
                 toolUseLog.getApiKeyPubId(),
                 toolUseLog.getConnectorPubId(),
+                toolUseLog.getAgentSessionId(),
                 toolUseLog.getToolUseId(),
                 toolUseLog.getToolName(),
                 toolUseLog.getToolParams(),

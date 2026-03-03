@@ -20,6 +20,9 @@ public class ToolUseRequest implements IToolUse {
     @NotNull(message = "Request id is required")
     private String id;
 
+    @Schema(description = "Agent session identifier")
+    private String agentSessionId;
+
     @Schema(
             description = "Full name of tool",
             example = "tool.device.tts.speak",

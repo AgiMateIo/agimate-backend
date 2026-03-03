@@ -16,6 +16,7 @@ import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
+import ru.agimate.deviceapi.controller.agent.dto.AgentToolResultRequest;
 import ru.agimate.deviceapi.controller.agent.dto.ToolUseRequest;
 import ru.agimate.deviceapi.database.enums.PermissionDecision;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
@@ -83,12 +84,12 @@ public class AgentToolController {
             toolUseAuthorizerService.authorizeToolUseRequest(principal, connectorId, toolUseRequest.getName());
         } catch (ForbiddenStatusException e) {
             toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest,
-                    PermissionDecision.DENY, e.getMessage());
+                    toolUseRequest.getAgentSessionId(), PermissionDecision.DENY, e.getMessage());
             throw e;
         }
 
         ToolUseLog log = toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest,
-                PermissionDecision.ALLOW, null);
+                toolUseRequest.getAgentSessionId(), PermissionDecision.ALLOW, null);
 
         connectorApiService.pushToConnector(connectorId, toolUseRequest, principal.pubId());
         return SuccessResponse.ok(log.getToolUseId());
@@ -135,12 +136,47 @@ public class AgentToolController {
             toolUseAuthorizerService.authorizeToolUseRequest(principal, connectorId, toolUseRequest.getName());
         } catch (ForbiddenStatusException e) {
             toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest,
-                    PermissionDecision.DENY, e.getMessage());
+                    toolUseRequest.getAgentSessionId(), PermissionDecision.DENY, e.getMessage());
             return SuccessResponse.ok(PermissionDecision.DENY);
         }
 
         toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest,
-                PermissionDecision.ALLOW, null);
+                toolUseRequest.getAgentSessionId(), PermissionDecision.ALLOW, null);
         return SuccessResponse.ok(PermissionDecision.ALLOW);
+    }
+
+    @Operation(
+            summary = "Save tool_use result",
+            description = "Saves the result of a tool use execution. Only allowed for tool uses with ALLOW permission decision.",
+            security = @SecurityRequirement(name = "ApiKey")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Result saved successfully",
+                    content = @Content(schema = @Schema(implementation = SuccessResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Not allowed to save result (denied tool use or wrong agent)",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Tool use log not found",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    @PostMapping("/result")
+    public SuccessResponse<String> saveToolResult(
+            @Valid @RequestBody AgentToolResultRequest request,
+            @AuthenticationPrincipal ApiKeyPrincipal principal
+    ) {
+        UUID apiKeyPubId = UUID.fromString(principal.pubId());
+
+        var toolUseLog = toolUseLogService.recordResultByAgent(
+                apiKeyPubId, request.getToolUseId(), request.getResult(), request.getError());
+
+        return SuccessResponse.ok(toolUseLog.getToolUseId());
     }
 }

@@ -4,9 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
-import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
-import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
 import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 
@@ -21,14 +19,15 @@ public class ToolUseAuthorizerService {
     private final ConnectorRepository connectorRepository;
 
     public void authorizeToolUseRequest(ApiKeyPrincipal apiKeyPrincipal, String connectorId, String toolName) {
-        validateDeviceAccess(UUID.fromString(apiKeyPrincipal.userPubId()), connectorId);
+        validateConnector(UUID.fromString(apiKeyPrincipal.userPubId()), connectorId);
         validateToolAuthorized(UUID.fromString(apiKeyPrincipal.pubId()), toolName);
     }
 
-    private void validateDeviceAccess(UUID userPubId, String connectorId) {
-        Connector connector = connectorRepository.findByPubIdNotDeleted(UUID.fromString(connectorId))
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found"));
-        if (!connector.getUserPubId().equals(userPubId)) {
+    private void validateConnector(UUID userPubId, String connectorId) {
+        if ("local".equals(connectorId)) {
+            return;
+        }
+        if (!connectorRepository.existsByPubIdAndUserPubId(UUID.fromString(connectorId), userPubId)) {
             throw new ForbiddenStatusException("Connector is not accessible for this agent");
         }
     }

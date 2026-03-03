@@ -49,6 +49,9 @@ public class ToolUseLog extends BaseEntity {
     @Column(name = "tool_params", columnDefinition = "JSONB")
     private Map<String, Object> toolParams;
 
+    @Column(name = "agent_session_id", columnDefinition = "TEXT")
+    private String agentSessionId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "permission_decision")
     private PermissionDecision permissionDecision;

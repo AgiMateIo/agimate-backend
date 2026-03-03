@@ -54,3 +54,7 @@ See `/docs/` for:
 - **Migrations**: Composite business keys should be UNIQUE constraints, not just indexes
 - **Migrations format**: `updates/YYYY/MM/DD-00-name.xml` (00 — порядковый номер на дату, например `updates/2026/02/19-01-add-users.xml`)
 - **JPA Entities**: Duplicate unique constraints in `@Table(uniqueConstraints=...)` on the entity
+
+## Spring Boot Checklist
+
+When implementing new Spring Boot features, always verify: 1) Security filter chain includes new paths 2) Database migrations use correct sequence numbers.

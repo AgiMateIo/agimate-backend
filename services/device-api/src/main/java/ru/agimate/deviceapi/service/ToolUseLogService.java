@@ -32,7 +32,8 @@ public class ToolUseLogService {
 
     @Transactional
     public ToolUseLog createLog(UUID apiKeyPubId, UUID userPubId, String connectorPubId,
-                                IToolUse toolUse, PermissionDecision permissionDecision, String error) {
+                                IToolUse toolUse, String agentSessionId,
+                                PermissionDecision permissionDecision, String error) {
         var toolUseLog = ToolUseLog.builder()
                 .apiKeyPubId(apiKeyPubId)
                 .userPubId(userPubId)
@@ -40,6 +41,7 @@ public class ToolUseLogService {
                 .toolUseId(toolUse.getId())
                 .toolName(toolUse.getName())
                 .toolParams(toolUse.getParams())
+                .agentSessionId(agentSessionId)
                 .permissionDecision(permissionDecision)
                 .error(error)
                 .build();
@@ -54,6 +56,26 @@ public class ToolUseLogService {
 
         if (!connector.getPubId().toString().equals(toolUseLog.getConnectorPubId())) {
             throw new ForbiddenStatusException("Incorrect device");
+        }
+
+        toolUseLog.setResultAt(LocalDateTime.now());
+        toolUseLog.setResult(result);
+        toolUseLog.setError(error);
+
+        return toolUseLogRepository.save(toolUseLog);
+    }
+
+    @Transactional
+    public ToolUseLog recordResultByAgent(UUID apiKeyPubId, String toolUseId, String result, String error) {
+        var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
+                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
+
+        if (!apiKeyPubId.equals(toolUseLog.getApiKeyPubId())) {
+            throw new ForbiddenStatusException("ToolUseLog does not belong to this agent");
+        }
+
+        if (toolUseLog.getPermissionDecision() != PermissionDecision.ALLOW) {
+            throw new ForbiddenStatusException("Cannot record result for denied tool use");
         }
 
         toolUseLog.setResultAt(LocalDateTime.now());
