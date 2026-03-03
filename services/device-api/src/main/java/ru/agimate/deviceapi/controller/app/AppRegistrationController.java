@@ -17,7 +17,7 @@ import ru.agimate.deviceapi.service.ConnectorService;
 @RequiredArgsConstructor
 public class AppRegistrationController {
 
-    public static final String PATH = "/registration";
+    public static final String PATH = "/app";
 
     private final ConnectorService connectorService;
 
@@ -25,7 +25,7 @@ public class AppRegistrationController {
             summary = "Link device to connector",
             description = "Associates device information with the authenticated connector"
     )
-    @PostMapping("/link")
+    @PostMapping("/registration/link")
     public SuccessResponse<String> linkDevice(
             @RequestBody @Valid
             LinkDeviceRequest linkDeviceRequest,

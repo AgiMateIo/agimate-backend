@@ -21,11 +21,11 @@ import ru.agimate.deviceapi.service.CentrifugoService;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping(ApiAgentCentrifugoTokenController.PATH)
+@RequestMapping(AgentCentrifugoTokenController.PATH)
 @Tag(name = "Agent Centrifugo", description = "Centrifugo tokens for agents")
-public class ApiAgentCentrifugoTokenController {
+public class AgentCentrifugoTokenController {
 
-    public static final String PATH = ApiConnectorsController.PATH + "/centrifugo";
+    public static final String PATH = AgentController.PATH + "/centrifugo";
 
     private static final long TOKEN_EXPIRATION_SECONDS = 3600; // 1 hour
 

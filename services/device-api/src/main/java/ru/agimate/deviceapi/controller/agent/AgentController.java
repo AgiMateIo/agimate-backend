@@ -15,12 +15,12 @@ import ru.agimate.deviceapi.service.AgentService;
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ApiAgentController.PATH)
+@RequestMapping(AgentController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Agent API", description = "Agent configuration via API Key")
-public class ApiAgentController {
+public class AgentController {
 
-    public static final String PATH = ApiConnectorsController.PATH + "/agent";
+    public static final String PATH = "/agent";
 
     private final AgentService agentService;
 

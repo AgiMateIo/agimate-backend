@@ -24,12 +24,12 @@ import ru.agimate.deviceapi.service.ToolUseLogService;
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ApiConnectorCallController.PATH)
+@RequestMapping(AgentToolController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Connector Call", description = "Execute connector methods via API Key")
-public class ApiConnectorCallController {
+public class AgentToolController {
 
-    public static final String PATH = ApiConnectorsController.PATH + "/call";
+    public static final String PATH = AgentController.PATH + "/tool";
 
     private final ConnectorApiService connectorApiService;
     private final ToolUseLogService toolUseLogService;
@@ -57,7 +57,7 @@ public class ApiConnectorCallController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
-    @PostMapping("/{connectorId}")
+    @PostMapping("/call/{connectorId}")
     public SuccessResponse<String> toolUse(
             @Parameter(
                     description = "Connector identifier",

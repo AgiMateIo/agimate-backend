@@ -15,12 +15,12 @@ import ru.agimate.deviceapi.service.ConnectorApiService;
 import java.util.List;
 
 @RestController
-@RequestMapping(ApiConnectorsController.PATH)
+@RequestMapping(AgentConnectorsController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Connectors API", description = "Connector operations via API Key")
-public class ApiConnectorsController {
+public class AgentConnectorsController {
 
-    public static final String PATH = "/api/connectors";
+    public static final String PATH = AgentController.PATH + "/connectors";
 
     private final ConnectorApiService connectorApiService;
 

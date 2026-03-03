@@ -21,12 +21,9 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.deviceapi.controller.agent.ApiConnectorsController;
+import ru.agimate.deviceapi.controller.agent.AgentController;
 import ru.agimate.common.security.apikey.ApiKeyAuthenticationFilter;
-import ru.agimate.deviceapi.controller.app.AppToolsController;
-import ru.agimate.deviceapi.controller.app.AppCentrifugoTokenController;
 import ru.agimate.deviceapi.controller.app.AppRegistrationController;
-import ru.agimate.deviceapi.controller.app.AppTriggerController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentController;
 import ru.agimate.deviceapi.controller.manage.ManageAgenticTeamController;
 import ru.agimate.deviceapi.controller.manage.ManageBoardController;
@@ -134,10 +131,7 @@ public class SecurityConfig {
     @Order(2)
     public SecurityFilterChain deviceAuthKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                AppToolsController.PATH + "/**",
-                AppTriggerController.PATH + "/**",
-                AppRegistrationController.PATH + "/**",
-                AppCentrifugoTokenController.PATH + "/**"
+                AppRegistrationController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);
@@ -153,7 +147,7 @@ public class SecurityConfig {
     @Order(3)
     public SecurityFilterChain apiKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                ApiConnectorsController.PATH + "/**"
+                AgentController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

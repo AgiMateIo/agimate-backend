@@ -13,9 +13,12 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 
 ## Authentication
 
-- **Connector Auth**: Header `X-App-Auth-Key` for device/connector endpoints
-- **JWT**: Bearer token for management endpoints
-- **API Key**: Header `X-Api-Key` for agent/external API endpoints
+| Mechanism | Header | Scope |
+|-----------|--------|-------|
+| **Connector Auth** | `X-App-Auth-Key: <key>` | `/app/**` — device/connector endpoints |
+| **API Key** | `X-Api-Key: <key>` | `/agent/**` — agent API endpoints |
+| **JWT** | `Authorization: Bearer <jwt>` | `/manage/**` — management endpoints |
+| **Public** | — | `/`, `/webhook/**`, `/actuator/health` |
 
 ## Environment Variables
 
@@ -30,29 +33,29 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 
 ## API Endpoints
 
-### Device Endpoints (Connector Auth)
+> All paths below are relative to the context path `/device`.
 
-| Method | Path                          | Description                             |
-|--------|-------------------------------|-----------------------------------------|
-| POST   | `/device/tools/result`        | Submit tool result from device          |
-| GET    | `/device/tools/get`           | Get pending tools for device            |
-| GET    | `/device/tools/test`          | Test endpoint (publishes to Centrifugo) |
-| POST   | `/device/trigger/new`         | Submit trigger from device              |
-| POST   | `/device/registration/link`   | Link device to connector                |
-| POST   | `/device/centrifugo/token`    | Get Centrifugo subscription token       |
+### App Endpoints (Connector Auth — `X-App-Auth-Key`)
 
-### Agent/External API (API Key)
+| Method | Path                          | Description                        |
+|--------|-------------------------------|------------------------------------|
+| POST   | `/device/app/registration/link` | Link device to connector         |
+| POST   | `/device/app/centrifugo/token`  | Get Centrifugo subscription token |
+| POST   | `/device/app/tools/result`      | Submit tool result from device   |
+| POST   | `/device/app/trigger/new`       | Submit trigger from device       |
 
-| Method | Path                                              | Description                          |
-|--------|----------------------------------------------------|--------------------------------------|
-| POST   | `/device/api/connectors/call/{connectorId}`        | Push tool_use to connector/device    |
-| GET    | `/device/api/connectors/agent/settings`            | Get agent settings (from API key)    |
-| POST   | `/device/api/connectors/centrifugo/token`          | Get Centrifugo token for agent       |
-| GET    | `/device/api/connectors/`                          | List connected connectors            |
-| GET    | `/device/api/connectors/triggers/`                 | Get all connector triggers           |
-| GET    | `/device/api/connectors/triggers/{connectorId}`    | Get connector triggers               |
-| GET    | `/device/api/connectors/tools/{connectorId}`       | Get connector tools                  |
-| GET    | `/device/api/connectors/tools/`                    | List all connector tools             |
+### Agent API (API Key — `X-Api-Key`)
+
+| Method | Path                                            | Description                          |
+|--------|-------------------------------------------------|--------------------------------------|
+| GET    | `/device/agent/settings`                        | Get agent settings (from API key)    |
+| POST   | `/device/agent/centrifugo/token`                | Get Centrifugo token for agent       |
+| POST   | `/device/agent/tool/call/{connectorId}`         | Push tool_use to connector/device    |
+| GET    | `/device/agent/connectors/`                     | List connected connectors            |
+| GET    | `/device/agent/connectors/triggers/`            | Get all connector triggers           |
+| GET    | `/device/agent/connectors/triggers/{connectorId}` | Get connector triggers            |
+| GET    | `/device/agent/connectors/tools/`               | List all connector tools             |
+| GET    | `/device/agent/connectors/tools/{connectorId}`  | Get connector tools                  |
 
 ### Connector Management (JWT)
 
@@ -111,6 +114,19 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 | PUT    | `/device/manage/agentic-teams/{pubId}`         | Update agentic team           |
 | DELETE | `/device/manage/agentic-teams/{pubId}`         | Delete agentic team           |
 
+### Board Management (JWT)
+
+| Method | Path                                                   | Description                   |
+|--------|--------------------------------------------------------|-------------------------------|
+| GET    | `/device/manage/boards/`                               | List boards                   |
+| POST   | `/device/manage/boards/`                               | Create board                  |
+| GET    | `/device/manage/boards/{pubId}`                        | Get board                     |
+| GET    | `/device/manage/boards/{boardPubId}/tasks/`            | Get board tasks by status     |
+| POST   | `/device/manage/boards/{boardPubId}/tasks/`            | Create board task             |
+| PATCH  | `/device/manage/boards/tasks/{taskPubId}/status`       | Update task status            |
+| GET    | `/device/manage/boards/tasks/{taskPubId}/comments/`    | Get task comments             |
+| POST   | `/device/manage/boards/tasks/{taskPubId}/comments/`    | Create task comment           |
+
 ### Tool Use Logs (JWT)
 
 | Method | Path                            | Description                        |
@@ -143,9 +159,9 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 
 ### Public
 
-| Method | Path                | Description                 |
-|--------|---------------------|-----------------------------|
-| GET    | `/device/`          | Application info and uptime |
+| Method | Path                  | Description                 |
+|--------|-----------------------|-----------------------------|
+| GET    | `/device/`            | Application info and uptime |
 | GET    | `/device/favicon.ico` | Empty favicon               |
 
 ## Centrifugo Integration
@@ -158,16 +174,16 @@ device-api integrates with Centrifugo for real-time messaging:
 ## AI Agent Flow
 
 1. Agent authenticates with API Key (`X-Api-Key` header)
-2. Gets settings via `GET /api/connectors/agent/settings` (prompt, available tools, triggers)
-3. Gets Centrifugo token via `POST /api/connectors/centrifugo/token` for channel `agent:{apiKeyPubId}`
+2. Gets settings via `GET /agent/settings` (prompt, available tools, triggers)
+3. Gets Centrifugo token via `POST /agent/centrifugo/token` for channel `agent:{apiKeyPubId}`
 4. Subscribes to agent channel for real-time events
-5. Calls `POST /api/connectors/call/{connectorId}` to invoke a tool on a connector/device
+5. Calls `POST /agent/tool/call/{connectorId}` to invoke a tool on a connector/device
    - Tool authorization checked against `agent_tools` table
    - `tool_use_log` entry created
-6. Device executes tool and sends result via `POST /tools/result`
+6. Device executes tool and sends result via `POST /app/tools/result`
    - `tool_use_log` updated with result
    - Result published to agent's Centrifugo channel
-7. Device triggers (`POST /trigger/new`) are routed to subscribed agents:
+7. Device triggers (`POST /app/trigger/new`) are routed to subscribed agents:
    - `triggers_to=centrifugo` — published to agent's Centrifugo channel
    - `triggers_to=webhook` — delivered directly by device-api to the webhook URL configured in agent
    - `triggers_to=ignore` — not routed (default)
@@ -182,7 +198,7 @@ device-api integrates with Centrifugo for real-time messaging:
    - Platform webhook configured (e.g., Telegram setWebhook)
 2. User subscribes Agent to integration triggers (AgentTrigger) and tools (AgentTool)
 3. Inbound messages hit webhook endpoint → normalized → routed via TriggerRouterService
-4. Agent calls `POST /api/connectors/call/{connectorId}` with integration tool → executed directly against platform API
+4. Agent calls `POST /agent/tool/call/{connectorId}` with integration tool → executed directly against platform API
 5. Tool result pushed back to agent via Centrifugo
 
 ## Database Tables
@@ -198,5 +214,8 @@ device-api integrates with Centrifugo for real-time messaging:
 - `platforms` — Platform definitions (Telegram, etc.)
 - `integrations` — Platform integrations linked to connectors
 - `agentic_teams` — Agentic team groupings
+- `boards` — Boards linked to agentic teams
+- `board_tasks` — Tasks on boards (EPIC, TASK, SUBTASK)
+- `board_task_comments` — Comments on board tasks
 
 Migrations: `services/device-api/src/main/resources/db/changelog/`

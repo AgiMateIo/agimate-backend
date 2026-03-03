@@ -20,7 +20,7 @@ import ru.agimate.deviceapi.service.TriggerRouterService;
 @RequiredArgsConstructor
 public class AppTriggerController {
 
-    public static final String PATH = "/trigger";
+    public static final String PATH = AppRegistrationController.PATH + "/trigger";
 
     private final ConnectorService connectorService;
     private final TriggerRouterService triggerRouterService;
