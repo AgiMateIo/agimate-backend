@@ -65,24 +65,24 @@ public class IntegrationService {
                     throw new ConflictStatusException("Integration already exists for " + platform.getCode() + ": " + validationResult.identifier());
                 });
 
-        // Create connector registry entry for this integration
+        // Create connector entry for this integration
         String connectorName = name != null ? name
                 : validationResult.displayName() != null ? validationResult.displayName()
                 : platform.getCode() + ": " + validationResult.identifier();
 
-        Connector registry = Connector.builder()
+        Connector connector = Connector.builder()
                 .code(platformCode + ":" + validationResult.identifier())
                 .type(ConnectorType.INTEGRATION)
                 .name(connectorName)
                 .description("Integration: " + platform.getCode())
                 .userPubId(userPubId)
                 .build();
-        registry = connectorRepository.save(registry);
+        connector = connectorRepository.save(connector);
 
         // Create app with capabilities for this integration
         var app = connectorService.createAppWithCapabilities(
                 userPubId, connectorName, "Integration: " + platform.getCode(),
-                registry.getCode(),
+                connector.getCode(),
                 handler.getPredefinedTriggers(), handler.getPredefinedTools()
         );
 
@@ -95,7 +95,7 @@ public class IntegrationService {
                 : null;
 
         IntegrationCredentials integrationCredentials = IntegrationCredentials.builder()
-                .connectorCode(registry.getCode())
+                .connectorCode(connector.getCode())
                 .platform(platform)
                 .userPubId(userPubId)
                 .name(name)

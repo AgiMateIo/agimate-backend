@@ -16,6 +16,6 @@ public record CreateConnectorRequest(
         String description,
 
         @NotBlank
-        @Schema(description = "Connector registry code")
+        @Schema(description = "Connector code")
         String connectorCode
 ) {}

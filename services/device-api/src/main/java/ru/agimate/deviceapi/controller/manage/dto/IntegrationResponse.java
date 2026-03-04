@@ -24,7 +24,7 @@ public record IntegrationResponse(
         @Schema(description = "Integration name")
         String name,
 
-        @Schema(description = "Associated connector registry code")
+        @Schema(description = "Associated connector code")
         String connectorCode,
 
         @Schema(description = "Whether integration is enabled")

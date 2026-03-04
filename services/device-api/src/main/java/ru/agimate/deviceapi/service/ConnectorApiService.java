@@ -80,11 +80,11 @@ public class ConnectorApiService {
     }
 
     public void pushToConnector(String connectorCode, IToolUse toolUse, String agentId) {
-        Connector registry = connectorRepository.findById(connectorCode)
+        Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
-        if (registry.getType() == ConnectorType.INTERNAL_SERVICE) {
-            var app = appRepository.findByPubIdNotDeletedAndActive(registry.getUserPubId()).stream()
+        if (connector.getType() == ConnectorType.INTERNAL_SERVICE) {
+            var app = appRepository.findByPubIdNotDeletedAndActive(connector.getUserPubId()).stream()
                     .filter(a -> connectorCode.equals(a.getConnectorCode()))
                     .findFirst()
                     .orElseThrow(() -> new NotFoundStatusException("App not found for connector: " + connectorCode));
@@ -92,7 +92,7 @@ public class ConnectorApiService {
             return;
         }
 
-        if (registry.getType() == ConnectorType.INTEGRATION) {
+        if (connector.getType() == ConnectorType.INTEGRATION) {
             var integrationCredentials = integrationCredentialsRepository.findByConnectorCode(connectorCode)
                     .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found"));
             integrationToolExecutorService.execute(integrationCredentials, toolUse, agentId);
@@ -100,7 +100,7 @@ public class ConnectorApiService {
         }
 
         // For APP type connectors, find the app and push via centrifugo
-        var app = appRepository.findByPubIdNotDeletedAndActive(registry.getUserPubId()).stream()
+        var app = appRepository.findByPubIdNotDeletedAndActive(connector.getUserPubId()).stream()
                 .filter(a -> connectorCode.equals(a.getConnectorCode()))
                 .findFirst()
                 .orElseThrow(() -> new NotFoundStatusException("App not found for connector: " + connectorCode));

@@ -74,20 +74,20 @@ public class BoardService {
                 .build();
         board = boardRepository.save(board);
 
-        Connector registry = Connector.builder()
+        Connector connector = Connector.builder()
                 .code("board:" + board.getPubId())
                 .type(ConnectorType.INTERNAL_SERVICE)
                 .name("Board")
                 .description("Board tools")
                 .userPubId(userPubId)
                 .build();
-        registry = connectorRepository.save(registry);
+        connector = connectorRepository.save(connector);
 
         connectorService.createAppWithCapabilities(
                 userPubId,
                 "Board",
                 "Board tools",
-                registry.getCode(),
+                connector.getCode(),
                 Map.of(),
                 boardToolHandler.getToolDefinitions()
         );
