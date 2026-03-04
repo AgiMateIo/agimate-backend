@@ -44,4 +44,7 @@ public interface AppRepository extends JpaRepository<App, Long> {
 
     @Query("SELECT COUNT(a) > 0 FROM App a WHERE a.pubId = :pubId AND a.userPubId = :userPubId AND a.deletedAt IS NULL")
     boolean existsByPubIdAndUserPubId(@Param("pubId") UUID pubId, @Param("userPubId") UUID userPubId);
+
+    @Query("SELECT a FROM App a WHERE a.pubId = :pubId AND a.userPubId = :userPubId AND a.deletedAt IS NULL")
+    Optional<App> findByPubIdAndUserPubIdNotDeleted(@Param("pubId") UUID pubId, @Param("userPubId") UUID userPubId);
 }

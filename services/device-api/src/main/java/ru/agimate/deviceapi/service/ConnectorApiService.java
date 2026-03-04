@@ -3,7 +3,6 @@ package ru.agimate.deviceapi.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationToolExecutorService;
 import ru.agimate.deviceapi.connectors.internal.ServerToolExecutorService;
@@ -86,20 +85,14 @@ public class ConnectorApiService {
 
         switch (connector.getType()) {
             case APP -> {
-                var app = appRepository.findByPubIdNotDeleted(UUID.fromString(identity))
+                var app = appRepository.findByPubIdAndUserPubIdNotDeleted(UUID.fromString(identity), userPubId)
                         .orElseThrow(() -> new NotFoundStatusException("App not found: " + identity));
-                if (!app.getUserPubId().equals(userPubId)) {
-                    throw new ForbiddenStatusException("App does not belong to user");
-                }
                 var channel = "device:" + app.getDeviceId();
                 centrifugoService.publishMessage(channel, toolUse);
             }
             case INTEGRATION -> {
-                var credentials = integrationCredentialsRepository.findByPubIdNotDeleted(UUID.fromString(identity))
+                var credentials = integrationCredentialsRepository.findByPubIdAndUserPubIdNotDeleted(UUID.fromString(identity), userPubId)
                         .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found: " + identity));
-                if (!credentials.getUserPubId().equals(userPubId)) {
-                    throw new ForbiddenStatusException("Integration credentials do not belong to user");
-                }
                 integrationToolExecutorService.execute(credentials, toolUse, agentId);
             }
             case INTERNAL_SERVICE -> {
