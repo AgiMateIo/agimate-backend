@@ -99,6 +99,8 @@ public class AgentToolController {
         UUID apiKeyPubId = UUID.fromString(apiKeyPrincipal.pubId());
         UUID userPubId = UUID.fromString(apiKeyPrincipal.userPubId());
 
+        // todo: получить сущность Agent для заданного ApiKeyPrincipal и использовать эту сущность в методах ниже, вместо использоваться apiKeyPubId и userPubId
+
         var existingLog = toolUseLogService.findByToolUseIdAndUserPubId(toolUseRequest.getId(), userPubId);
         if (existingLog.isPresent()) {
             return SuccessResponse.ok(existingLog.get().getToolUseId());
@@ -114,7 +116,7 @@ public class AgentToolController {
             throw new ForbiddenStatusException("Tool '" + toolUseRequest.getName() + "' is not authorized for this agent: " + decision.reason());
         }
 
-        connectorApiService.pushToConnector(connectorCode, toolUseRequest, toolUseRequest.getIdentity(), userPubId, apiKeyPrincipal.pubId());
+        connectorApiService.pushToConnector(userPubId, apiKeyPrincipal.pubId(), connectorCode, toolUseRequest.getIdentity(), toolUseRequest);
         return SuccessResponse.ok(log.getToolUseId());
     }
 
@@ -149,6 +151,8 @@ public class AgentToolController {
     ) {
         UUID apiKeyPubId = UUID.fromString(principal.pubId());
         UUID userPubId = UUID.fromString(principal.userPubId());
+
+        // todo: получить сущность Agent для заданного ApiKeyPrincipal и использовать эту сущность в методах ниже, вместо использоваться apiKeyPubId и userPubId
 
         var existingLog = toolUseLogService.findByToolUseIdAndUserPubId(toolUseRequest.getId(), userPubId);
         if (existingLog.isPresent()) {

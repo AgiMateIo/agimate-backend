@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
-import ru.agimate.deviceapi.database.entities.App;
+
 import ru.agimate.deviceapi.service.CentrifugoService;
 import ru.agimate.deviceapi.service.IToolUse;
 import ru.agimate.deviceapi.service.ToolUseLogService;
@@ -23,31 +23,30 @@ public class ServerToolExecutorService {
     private final ToolUseLogService toolUseLogService;
 
     @Async
-    public void execute(App app, IToolUse toolUse, String agentId) {
+    public void execute(IToolUse toolUse, UUID apiKeyPubId, UUID userPubId, String agentId) {
         var handler = toolRegistry.getHandlerByToolName(toolUse.getName());
 
         try {
             Map<String, Object> result = handler.executeTool(
                     toolUse.getName(),
                     toolUse.getParams(),
-                    UUID.fromString(agentId),
-                    app.getUserPubId()
+                    apiKeyPubId,
+                    userPubId
             );
 
-            toolUseLogService.recordResult(app, toolUse.getId(), result.toString(), null);
+            toolUseLogService.recordResult(toolUse.getId(), result.toString(), null);
 
             if (agentId != null) {
                 var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(), result);
                 centrifugoService.publishMessage("agent:" + agentId, toolResult);
             }
 
-            log.debug("Executed server tool '{}' for app {}", toolUse.getName(), app.getPubId());
+            log.debug("Executed server tool '{}'", toolUse.getName());
         } catch (Exception e) {
-            log.error("Failed to execute server tool '{}' for app {}: {}",
-                    toolUse.getName(), app.getPubId(), e.getMessage());
+            log.error("Failed to execute server tool '{}': {}", toolUse.getName(), e.getMessage());
 
             try {
-                toolUseLogService.recordResult(app, toolUse.getId(), null, e.getMessage());
+                toolUseLogService.recordResult(toolUse.getId(), null, e.getMessage());
             } catch (Exception logError) {
                 log.warn("Failed to log server tool error: {}", logError.getMessage());
             }

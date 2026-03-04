@@ -66,6 +66,18 @@ public class ToolUseLogService {
     }
 
     @Transactional
+    public ToolUseLog recordResult(String toolUseId, String result, String error) {
+        var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
+                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
+
+        toolUseLog.setResultAt(LocalDateTime.now());
+        toolUseLog.setResult(result);
+        toolUseLog.setError(error);
+
+        return toolUseLogRepository.save(toolUseLog);
+    }
+
+    @Transactional
     public ToolUseLog recordResultByAgent(UUID apiKeyPubId, String toolUseId, String result, String error) {
         var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
                 .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));

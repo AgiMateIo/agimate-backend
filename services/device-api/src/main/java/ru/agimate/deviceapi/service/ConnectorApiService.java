@@ -79,7 +79,7 @@ public class ConnectorApiService {
         return parseTools(app.getTools());
     }
 
-    public void pushToConnector(String connectorCode, IToolUse toolUse, String identity, UUID userPubId, String agentId) {
+    public void pushToConnector(UUID userPubId, String agentId, String connectorCode, String identity, IToolUse toolUse) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
@@ -95,13 +95,7 @@ public class ConnectorApiService {
                         .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found: " + identity));
                 integrationToolExecutorService.execute(credentials, toolUse, agentId);
             }
-            case INTERNAL_SERVICE -> {
-                var app = appRepository.findByPubIdNotDeletedAndActive(userPubId).stream()
-                        .filter(a -> connectorCode.equals(a.getConnectorCode()))
-                        .findFirst()
-                        .orElseThrow(() -> new NotFoundStatusException("App not found for connector: " + connectorCode));
-                serverToolExecutorService.execute(app, toolUse, agentId);
-            }
+            case INTERNAL_SERVICE -> serverToolExecutorService.execute(toolUse, UUID.fromString(agentId), userPubId, agentId);
             case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}", connectorCode, toolUse.getName());
         }
     }
