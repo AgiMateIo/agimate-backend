@@ -29,13 +29,13 @@ public class AgentTriggerPolicyService {
     }
 
     @Transactional
-    public AgentTriggerPolicy createPolicy(UUID apiKeyPubId, String connectorName, String connectorIdentity,
+    public AgentTriggerPolicy createPolicy(UUID apiKeyPubId, String connectorCode, String connectorIdentity,
                                            String triggerName, AccessEffect effect, Integer priority, String description) {
-        validateConstraints(connectorName, connectorIdentity, triggerName);
+        validateConstraints(connectorCode, connectorIdentity, triggerName);
 
         AgentTriggerPolicy policy = AgentTriggerPolicy.builder()
                 .apiKeyPubId(apiKeyPubId)
-                .connectorName(connectorName)
+                .connectorCode(connectorCode)
                 .connectorIdentity(connectorIdentity)
                 .triggerName(triggerName)
                 .effect(effect)
@@ -49,13 +49,13 @@ public class AgentTriggerPolicyService {
     }
 
     @Transactional
-    public AgentTriggerPolicy updatePolicy(UUID id, String connectorName, String connectorIdentity,
+    public AgentTriggerPolicy updatePolicy(UUID id, String connectorCode, String connectorIdentity,
                                            String triggerName, AccessEffect effect, Integer priority, String description) {
         AgentTriggerPolicy policy = getPolicyById(id);
-        validateConstraints(connectorName, connectorIdentity, triggerName);
+        validateConstraints(connectorCode, connectorIdentity, triggerName);
 
-        if (connectorName != null || policy.getConnectorName() != null) {
-            policy.setConnectorName(connectorName);
+        if (connectorCode != null || policy.getConnectorCode() != null) {
+            policy.setConnectorCode(connectorCode);
         }
         policy.setConnectorIdentity(connectorIdentity);
         policy.setTriggerName(triggerName);
@@ -79,12 +79,12 @@ public class AgentTriggerPolicyService {
         triggerPolicyEvaluatorService.invalidateByAgent(policy.getApiKeyPubId());
     }
 
-    private void validateConstraints(String connectorName, String connectorIdentity, String triggerName) {
-        if (connectorIdentity != null && connectorName == null) {
-            throw new BadRequestStatusException("connector_identity requires connector_name to be set");
+    private void validateConstraints(String connectorCode, String connectorIdentity, String triggerName) {
+        if (connectorIdentity != null && connectorCode == null) {
+            throw new BadRequestStatusException("connector_identity requires connector_code to be set");
         }
-        if (triggerName != null && connectorName == null) {
-            throw new BadRequestStatusException("trigger_name requires connector_name to be set");
+        if (triggerName != null && connectorCode == null) {
+            throw new BadRequestStatusException("trigger_name requires connector_code to be set");
         }
     }
 }

@@ -54,7 +54,7 @@ public class ManageAgentTriggerPolicyController {
     ) {
         AgentTriggerPolicy policy = agentTriggerPolicyService.createPolicy(
                 request.apiKeyPubId(),
-                request.connectorName(),
+                request.connectorCode(),
                 request.connectorIdentity(),
                 request.triggerName(),
                 AccessEffect.valueOf(request.effect()),
@@ -72,7 +72,7 @@ public class ManageAgentTriggerPolicyController {
     ) {
         AgentTriggerPolicy policy = agentTriggerPolicyService.updatePolicy(
                 policyId,
-                request.connectorName(),
+                request.connectorCode(),
                 request.connectorIdentity(),
                 request.triggerName(),
                 request.effect() != null ? AccessEffect.valueOf(request.effect()) : null,

@@ -29,13 +29,13 @@ public class AgentToolPolicyService {
     }
 
     @Transactional
-    public AgentToolPolicy createPolicy(UUID apiKeyPubId, String connectorName, String connectorIdentity,
+    public AgentToolPolicy createPolicy(UUID apiKeyPubId, String connectorCode, String connectorIdentity,
                                         String toolName, AccessEffect effect, Integer priority, String description) {
-        validateConstraints(connectorName, connectorIdentity, toolName);
+        validateConstraints(connectorCode, connectorIdentity, toolName);
 
         AgentToolPolicy policy = AgentToolPolicy.builder()
                 .apiKeyPubId(apiKeyPubId)
-                .connectorName(connectorName)
+                .connectorCode(connectorCode)
                 .connectorIdentity(connectorIdentity)
                 .toolName(toolName)
                 .effect(effect)
@@ -49,13 +49,13 @@ public class AgentToolPolicyService {
     }
 
     @Transactional
-    public AgentToolPolicy updatePolicy(UUID id, String connectorName, String connectorIdentity,
+    public AgentToolPolicy updatePolicy(UUID id, String connectorCode, String connectorIdentity,
                                         String toolName, AccessEffect effect, Integer priority, String description) {
         AgentToolPolicy policy = getPolicyById(id);
-        validateConstraints(connectorName, connectorIdentity, toolName);
+        validateConstraints(connectorCode, connectorIdentity, toolName);
 
-        if (connectorName != null || policy.getConnectorName() != null) {
-            policy.setConnectorName(connectorName);
+        if (connectorCode != null || policy.getConnectorCode() != null) {
+            policy.setConnectorCode(connectorCode);
         }
         policy.setConnectorIdentity(connectorIdentity);
         policy.setToolName(toolName);
@@ -79,12 +79,12 @@ public class AgentToolPolicyService {
         toolPolicyEvaluatorService.invalidateByAgent(policy.getApiKeyPubId());
     }
 
-    private void validateConstraints(String connectorName, String connectorIdentity, String toolName) {
-        if (connectorIdentity != null && connectorName == null) {
-            throw new BadRequestStatusException("connector_identity requires connector_name to be set");
+    private void validateConstraints(String connectorCode, String connectorIdentity, String toolName) {
+        if (connectorIdentity != null && connectorCode == null) {
+            throw new BadRequestStatusException("connector_identity requires connector_code to be set");
         }
-        if (toolName != null && connectorName == null) {
-            throw new BadRequestStatusException("tool_name requires connector_name to be set");
+        if (toolName != null && connectorCode == null) {
+            throw new BadRequestStatusException("tool_name requires connector_code to be set");
         }
     }
 }

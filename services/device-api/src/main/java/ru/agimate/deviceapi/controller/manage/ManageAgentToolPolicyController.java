@@ -54,7 +54,7 @@ public class ManageAgentToolPolicyController {
     ) {
         AgentToolPolicy policy = agentToolPolicyService.createPolicy(
                 request.apiKeyPubId(),
-                request.connectorName(),
+                request.connectorCode(),
                 request.connectorIdentity(),
                 request.toolName(),
                 AccessEffect.valueOf(request.effect()),
@@ -72,7 +72,7 @@ public class ManageAgentToolPolicyController {
     ) {
         AgentToolPolicy policy = agentToolPolicyService.updatePolicy(
                 policyId,
-                request.connectorName(),
+                request.connectorCode(),
                 request.connectorIdentity(),
                 request.toolName(),
                 request.effect() != null ? AccessEffect.valueOf(request.effect()) : null,

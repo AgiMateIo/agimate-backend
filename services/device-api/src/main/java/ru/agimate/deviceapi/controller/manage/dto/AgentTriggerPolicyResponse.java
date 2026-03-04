@@ -10,7 +10,7 @@ import java.util.UUID;
 public record AgentTriggerPolicyResponse(
         UUID id,
         UUID apiKeyPubId,
-        String connectorName,
+        String connectorCode,
         String connectorIdentity,
         String triggerName,
         String effect,
@@ -23,7 +23,7 @@ public record AgentTriggerPolicyResponse(
         return new AgentTriggerPolicyResponse(
                 policy.getId(),
                 policy.getApiKeyPubId(),
-                policy.getConnectorName(),
+                policy.getConnectorCode(),
                 policy.getConnectorIdentity(),
                 policy.getTriggerName(),
                 policy.getEffect().name(),

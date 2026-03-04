@@ -4,8 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Request to update an agent trigger policy")
 public record UpdateAgentTriggerPolicyRequest(
-        @Schema(description = "Connector name (null = wildcard)")
-        String connectorName,
+        @Schema(description = "Connector code (null = wildcard)")
+        String connectorCode,
 
         @Schema(description = "Connector identity (null = wildcard)")
         String connectorIdentity,

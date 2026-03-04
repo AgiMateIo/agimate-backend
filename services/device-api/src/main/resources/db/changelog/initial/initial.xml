@@ -317,7 +317,7 @@
             <column name="api_key_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="connector_name" type="TEXT"/>
+            <column name="connector_code" type="TEXT"/>
             <column name="connector_identity" type="TEXT"/>
             <column name="tool_name" type="TEXT"/>
             <column name="effect" type="TEXT">
@@ -337,13 +337,13 @@
             ALTER TABLE agent_tool_policies
                 ADD CONSTRAINT chk_agent_tool_policies_effect CHECK (effect IN ('ALLOW', 'DENY'));
             ALTER TABLE agent_tool_policies
-                ADD CONSTRAINT chk_agent_tool_policies_identity_requires_connector CHECK (connector_identity IS NULL OR connector_name IS NOT NULL);
+                ADD CONSTRAINT chk_agent_tool_policies_identity_requires_connector CHECK (connector_identity IS NULL OR connector_code IS NOT NULL);
             ALTER TABLE agent_tool_policies
-                ADD CONSTRAINT chk_agent_tool_policies_tool_requires_connector CHECK (tool_name IS NULL OR connector_name IS NOT NULL);
+                ADD CONSTRAINT chk_agent_tool_policies_tool_requires_connector CHECK (tool_name IS NULL OR connector_code IS NOT NULL);
         </sql>
 
         <addUniqueConstraint tableName="agent_tool_policies"
-                             columnNames="api_key_pub_id, connector_name, connector_identity, tool_name, effect"
+                             columnNames="api_key_pub_id, connector_code, connector_identity, tool_name, effect"
                              constraintName="uq_agent_tool_policies_composite"/>
 
         <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_api_key">
@@ -352,7 +352,7 @@
 
         <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_lookup">
             <column name="api_key_pub_id"/>
-            <column name="connector_name"/>
+            <column name="connector_code"/>
             <column name="connector_identity"/>
             <column name="tool_name"/>
         </createIndex>
@@ -369,7 +369,7 @@
             <column name="api_key_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="connector_name" type="TEXT"/>
+            <column name="connector_code" type="TEXT"/>
             <column name="connector_identity" type="TEXT"/>
             <column name="trigger_name" type="TEXT"/>
             <column name="effect" type="TEXT">
@@ -389,13 +389,13 @@
             ALTER TABLE agent_trigger_policies
                 ADD CONSTRAINT chk_agent_trigger_policies_effect CHECK (effect IN ('ALLOW', 'DENY'));
             ALTER TABLE agent_trigger_policies
-                ADD CONSTRAINT chk_agent_trigger_policies_identity_requires_connector CHECK (connector_identity IS NULL OR connector_name IS NOT NULL);
+                ADD CONSTRAINT chk_agent_trigger_policies_identity_requires_connector CHECK (connector_identity IS NULL OR connector_code IS NOT NULL);
             ALTER TABLE agent_trigger_policies
-                ADD CONSTRAINT chk_agent_trigger_policies_trigger_requires_connector CHECK (trigger_name IS NULL OR connector_name IS NOT NULL);
+                ADD CONSTRAINT chk_agent_trigger_policies_trigger_requires_connector CHECK (trigger_name IS NULL OR connector_code IS NOT NULL);
         </sql>
 
         <addUniqueConstraint tableName="agent_trigger_policies"
-                             columnNames="api_key_pub_id, connector_name, connector_identity, trigger_name, effect"
+                             columnNames="api_key_pub_id, connector_code, connector_identity, trigger_name, effect"
                              constraintName="uq_agent_trigger_policies_composite"/>
 
         <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_api_key">
@@ -404,7 +404,7 @@
 
         <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_lookup">
             <column name="api_key_pub_id"/>
-            <column name="connector_name"/>
+            <column name="connector_code"/>
             <column name="connector_identity"/>
             <column name="trigger_name"/>
         </createIndex>

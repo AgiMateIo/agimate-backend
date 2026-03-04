@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "agent_tool_policies", uniqueConstraints = @UniqueConstraint(
-        columnNames = {"api_key_pub_id", "connector_name", "connector_identity", "tool_name", "effect"}
+        columnNames = {"api_key_pub_id", "connector_code", "connector_identity", "tool_name", "effect"}
 ))
 @Getter
 @Setter
@@ -27,8 +27,8 @@ public class AgentToolPolicy extends BaseEntity {
     @Column(name = "api_key_pub_id", nullable = false)
     private UUID apiKeyPubId;
 
-    @Column(name = "connector_name", columnDefinition = "TEXT")
-    private String connectorName;
+    @Column(name = "connector_code", columnDefinition = "TEXT")
+    private String connectorCode;
 
     @Column(name = "connector_identity", columnDefinition = "TEXT")
     private String connectorIdentity;

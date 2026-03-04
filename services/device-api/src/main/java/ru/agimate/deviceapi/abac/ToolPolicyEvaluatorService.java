@@ -17,25 +17,25 @@ public class ToolPolicyEvaluatorService {
 
     private final AgentToolPolicyRepository agentToolPolicyRepository;
 
-    private record CacheKey(UUID apiKeyPubId, String connectorName, String connectorIdentity, String toolName) {}
+    private record CacheKey(UUID apiKeyPubId, String connectorCode, String connectorIdentity, String toolName) {}
 
     private final Cache<CacheKey, AccessDecision> cache = Caffeine.newBuilder()
             .maximumSize(10_000)
             .expireAfterWrite(Duration.ofMinutes(5))
             .build();
 
-    public AccessDecision evaluate(UUID apiKeyPubId, String connectorName, String connectorIdentity, String toolName) {
-        var key = new CacheKey(apiKeyPubId, connectorName, connectorIdentity, toolName);
-        return cache.get(key, k -> doEvaluate(apiKeyPubId, connectorName, connectorIdentity, toolName));
+    public AccessDecision evaluate(UUID apiKeyPubId, String connectorCode, String connectorIdentity, String toolName) {
+        var key = new CacheKey(apiKeyPubId, connectorCode, connectorIdentity, toolName);
+        return cache.get(key, k -> doEvaluate(apiKeyPubId, connectorCode, connectorIdentity, toolName));
     }
 
     public void invalidateByAgent(UUID apiKeyPubId) {
         cache.asMap().keySet().removeIf(key -> key.apiKeyPubId().equals(apiKeyPubId));
     }
 
-    private AccessDecision doEvaluate(UUID apiKeyPubId, String connectorName, String connectorIdentity, String toolName) {
+    private AccessDecision doEvaluate(UUID apiKeyPubId, String connectorCode, String connectorIdentity, String toolName) {
         List<AgentToolPolicy> matched = agentToolPolicyRepository.findMatchingPolicies(
-                apiKeyPubId, connectorName, connectorIdentity, toolName
+                apiKeyPubId, connectorCode, connectorIdentity, toolName
         );
 
         if (matched.isEmpty()) {
@@ -76,7 +76,7 @@ public class ToolPolicyEvaluatorService {
             return policy.getPriority();
         }
         int spec = 0;
-        if (policy.getConnectorName() != null) spec++;
+        if (policy.getConnectorCode() != null) spec++;
         if (policy.getConnectorIdentity() != null) spec++;
         if (policy.getToolName() != null) spec++;
         return spec;

@@ -17,25 +17,25 @@ public class TriggerPolicyEvaluatorService {
 
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
 
-    private record CacheKey(UUID apiKeyPubId, String connectorName, String connectorIdentity, String triggerName) {}
+    private record CacheKey(UUID apiKeyPubId, String connectorCode, String connectorIdentity, String triggerName) {}
 
     private final Cache<CacheKey, AccessDecision> cache = Caffeine.newBuilder()
             .maximumSize(10_000)
             .expireAfterWrite(Duration.ofMinutes(5))
             .build();
 
-    public AccessDecision evaluate(UUID apiKeyPubId, String connectorName, String connectorIdentity, String triggerName) {
-        var key = new CacheKey(apiKeyPubId, connectorName, connectorIdentity, triggerName);
-        return cache.get(key, k -> doEvaluate(apiKeyPubId, connectorName, connectorIdentity, triggerName));
+    public AccessDecision evaluate(UUID apiKeyPubId, String connectorCode, String connectorIdentity, String triggerName) {
+        var key = new CacheKey(apiKeyPubId, connectorCode, connectorIdentity, triggerName);
+        return cache.get(key, k -> doEvaluate(apiKeyPubId, connectorCode, connectorIdentity, triggerName));
     }
 
     public void invalidateByAgent(UUID apiKeyPubId) {
         cache.asMap().keySet().removeIf(key -> key.apiKeyPubId().equals(apiKeyPubId));
     }
 
-    private AccessDecision doEvaluate(UUID apiKeyPubId, String connectorName, String connectorIdentity, String triggerName) {
+    private AccessDecision doEvaluate(UUID apiKeyPubId, String connectorCode, String connectorIdentity, String triggerName) {
         List<AgentTriggerPolicy> matched = agentTriggerPolicyRepository.findMatchingPolicies(
-                apiKeyPubId, connectorName, connectorIdentity, triggerName
+                apiKeyPubId, connectorCode, connectorIdentity, triggerName
         );
 
         if (matched.isEmpty()) {
@@ -76,7 +76,7 @@ public class TriggerPolicyEvaluatorService {
             return policy.getPriority();
         }
         int spec = 0;
-        if (policy.getConnectorName() != null) spec++;
+        if (policy.getConnectorCode() != null) spec++;
         if (policy.getConnectorIdentity() != null) spec++;
         if (policy.getTriggerName() != null) spec++;
         return spec;

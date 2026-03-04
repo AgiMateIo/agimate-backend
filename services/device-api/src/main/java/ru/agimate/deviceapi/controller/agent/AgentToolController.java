@@ -16,6 +16,8 @@ import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
+import ru.agimate.deviceapi.abac.AccessDecision;
+import ru.agimate.deviceapi.abac.ToolPolicyDbEvaluatorService;
 import ru.agimate.deviceapi.controller.agent.dto.AgentToolResultRequest;
 import ru.agimate.deviceapi.controller.agent.dto.ToolDefinition;
 import ru.agimate.deviceapi.controller.agent.dto.ToolUseRequest;
@@ -23,7 +25,6 @@ import ru.agimate.deviceapi.database.enums.PermissionDecision;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.service.AgentService;
 import ru.agimate.deviceapi.service.ConnectorApiService;
-import ru.agimate.deviceapi.service.ToolUseAuthorizerService;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
 import java.util.List;
@@ -39,7 +40,7 @@ public class AgentToolController {
 
     private final ConnectorApiService connectorApiService;
     private final ToolUseLogService toolUseLogService;
-    private final ToolUseAuthorizerService toolUseAuthorizerService;
+    private final ToolPolicyDbEvaluatorService toolPolicyDbEvaluatorService;
     private final AgentService agentService;
 
     @Operation(
@@ -103,12 +104,13 @@ public class AgentToolController {
             return SuccessResponse.ok(existingLog.get().getToolUseId());
         }
 
-        try {
-            toolUseAuthorizerService.authorizeToolUseRequest(principal, connectorCode, toolUseRequest.getName());
-        } catch (ForbiddenStatusException e) {
+        AccessDecision decision = toolPolicyDbEvaluatorService.evaluate(
+                apiKeyPubId, connectorCode, toolUseRequest.getIdentity(), toolUseRequest.getName());
+
+        if (!decision.allowed()) {
             toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
-                    toolUseRequest.getAgentSessionId(), PermissionDecision.DENY, e.getMessage());
-            throw e;
+                    toolUseRequest.getAgentSessionId(), PermissionDecision.DENY, decision.reason());
+            throw new ForbiddenStatusException("Tool '" + toolUseRequest.getName() + "' is not authorized for this agent: " + decision.reason());
         }
 
         ToolUseLog log = toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
@@ -155,11 +157,12 @@ public class AgentToolController {
             return SuccessResponse.ok(existingLog.get().getPermissionDecision());
         }
 
-        try {
-            toolUseAuthorizerService.authorizeToolUseRequest(principal, connectorCode, toolUseRequest.getName());
-        } catch (ForbiddenStatusException e) {
+        AccessDecision decision = toolPolicyDbEvaluatorService.evaluate(
+                apiKeyPubId, connectorCode, toolUseRequest.getIdentity(), toolUseRequest.getName());
+
+        if (!decision.allowed()) {
             toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
-                    toolUseRequest.getAgentSessionId(), PermissionDecision.DENY, e.getMessage());
+                    toolUseRequest.getAgentSessionId(), PermissionDecision.DENY, decision.reason());
             return SuccessResponse.ok(PermissionDecision.DENY);
         }
 

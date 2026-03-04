@@ -11,8 +11,8 @@ public record CreateAgentTriggerPolicyRequest(
         @Schema(description = "API key public ID")
         UUID apiKeyPubId,
 
-        @Schema(description = "Connector name (null = wildcard)")
-        String connectorName,
+        @Schema(description = "Connector code (null = wildcard)")
+        String connectorCode,
 
         @Schema(description = "Connector identity (null = wildcard)")
         String connectorIdentity,
