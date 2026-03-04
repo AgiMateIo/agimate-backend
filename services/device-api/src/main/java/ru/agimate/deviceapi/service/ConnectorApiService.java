@@ -1,27 +1,28 @@
 package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import ru.agimate.common.rest.error.ForbiddenStatusException;
+import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationToolExecutorService;
+import ru.agimate.deviceapi.connectors.internal.ServerToolExecutorService;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceToolsResponse;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.Connector;
-import ru.agimate.deviceapi.database.enums.ConnectorType;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
 import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationToolExecutorService;
 import ru.agimate.deviceapi.service.dto.ConnectedDevice;
 import ru.agimate.deviceapi.service.dto.DeviceTool;
 import ru.agimate.deviceapi.service.dto.DeviceTrigger;
-import ru.agimate.deviceapi.connectors.internal.ServerToolExecutorService;
-
-import ru.agimate.common.rest.error.NotFoundStatusException;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ConnectorApiService {
@@ -79,34 +80,37 @@ public class ConnectorApiService {
         return parseTools(app.getTools());
     }
 
-    public void pushToConnector(String connectorCode, IToolUse toolUse, String agentId) {
+    public void pushToConnector(String connectorCode, IToolUse toolUse, String identity, UUID userPubId, String agentId) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
-        if (connector.getType() == ConnectorType.INTERNAL_SERVICE) {
-            var app = appRepository.findByPubIdNotDeletedAndActive(connector.getUserPubId()).stream()
-                    .filter(a -> connectorCode.equals(a.getConnectorCode()))
-                    .findFirst()
-                    .orElseThrow(() -> new NotFoundStatusException("App not found for connector: " + connectorCode));
-            serverToolExecutorService.execute(app, toolUse, agentId);
-            return;
+        switch (connector.getType()) {
+            case APP -> {
+                var app = appRepository.findByPubIdNotDeleted(UUID.fromString(identity))
+                        .orElseThrow(() -> new NotFoundStatusException("App not found: " + identity));
+                if (!app.getUserPubId().equals(userPubId)) {
+                    throw new ForbiddenStatusException("App does not belong to user");
+                }
+                var channel = "device:" + app.getDeviceId();
+                centrifugoService.publishMessage(channel, toolUse);
+            }
+            case INTEGRATION -> {
+                var credentials = integrationCredentialsRepository.findByPubIdNotDeleted(UUID.fromString(identity))
+                        .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found: " + identity));
+                if (!credentials.getUserPubId().equals(userPubId)) {
+                    throw new ForbiddenStatusException("Integration credentials do not belong to user");
+                }
+                integrationToolExecutorService.execute(credentials, toolUse, agentId);
+            }
+            case INTERNAL_SERVICE -> {
+                var app = appRepository.findByPubIdNotDeletedAndActive(userPubId).stream()
+                        .filter(a -> connectorCode.equals(a.getConnectorCode()))
+                        .findFirst()
+                        .orElseThrow(() -> new NotFoundStatusException("App not found for connector: " + connectorCode));
+                serverToolExecutorService.execute(app, toolUse, agentId);
+            }
+            case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}", connectorCode, toolUse.getName());
         }
-
-        if (connector.getType() == ConnectorType.INTEGRATION) {
-            var integrationCredentials = integrationCredentialsRepository.findByConnectorCode(connectorCode)
-                    .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found"));
-            integrationToolExecutorService.execute(integrationCredentials, toolUse, agentId);
-            return;
-        }
-
-        // For APP type connectors, find the app and push via centrifugo
-        var app = appRepository.findByPubIdNotDeletedAndActive(connector.getUserPubId()).stream()
-                .filter(a -> connectorCode.equals(a.getConnectorCode()))
-                .findFirst()
-                .orElseThrow(() -> new NotFoundStatusException("App not found for connector: " + connectorCode));
-
-        var channel = "device:" + app.getDeviceId();
-        centrifugoService.publishMessage(channel, toolUse);
     }
 
     public void pushToAgent(String agentId, IToolResult toolResult) {

@@ -94,10 +94,10 @@ public class AgentToolController {
             @Parameter(description = "Connector code", required = true)
             @PathVariable String connectorCode,
             @Valid @RequestBody ToolUseRequest toolUseRequest,
-            @AuthenticationPrincipal ApiKeyPrincipal principal
+            @AuthenticationPrincipal ApiKeyPrincipal apiKeyPrincipal
     ) {
-        UUID apiKeyPubId = UUID.fromString(principal.pubId());
-        UUID userPubId = UUID.fromString(principal.userPubId());
+        UUID apiKeyPubId = UUID.fromString(apiKeyPrincipal.pubId());
+        UUID userPubId = UUID.fromString(apiKeyPrincipal.userPubId());
 
         var existingLog = toolUseLogService.findByToolUseIdAndUserPubId(toolUseRequest.getId(), userPubId);
         if (existingLog.isPresent()) {
@@ -114,7 +114,7 @@ public class AgentToolController {
             throw new ForbiddenStatusException("Tool '" + toolUseRequest.getName() + "' is not authorized for this agent: " + decision.reason());
         }
 
-        connectorApiService.pushToConnector(connectorCode, toolUseRequest, principal.pubId());
+        connectorApiService.pushToConnector(connectorCode, toolUseRequest, toolUseRequest.getIdentity(), userPubId, apiKeyPrincipal.pubId());
         return SuccessResponse.ok(log.getToolUseId());
     }
 
