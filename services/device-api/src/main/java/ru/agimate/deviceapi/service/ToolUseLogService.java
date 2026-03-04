@@ -9,8 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.manage.dto.ToolUseLogResponse;
-import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.abac.AccessEffect;
+import ru.agimate.deviceapi.database.entities.Agent;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.database.repositories.ToolUseLogRepository;
 
@@ -31,13 +32,14 @@ public class ToolUseLogService {
     }
 
     @Transactional
-    public ToolUseLog createLog(UUID apiKeyPubId, UUID userPubId, String connectorPubId,
+    public ToolUseLog createLog(Agent agent, String connectorCode, String identity,
                                 IToolUse toolUse, String agentSessionId,
                                 AccessEffect effect, String error) {
         var toolUseLog = ToolUseLog.builder()
-                .apiKeyPubId(apiKeyPubId)
-                .userPubId(userPubId)
-                .connectorPubId(connectorPubId)
+                .apiKeyPubId(agent.getApiKeyPubId())
+                .userPubId(agent.getUserPubId())
+                .connectorCode(connectorCode)
+                .identity(identity)
                 .toolUseId(toolUse.getId())
                 .toolName(toolUse.getName())
                 .toolParams(toolUse.getParams())
@@ -54,7 +56,7 @@ public class ToolUseLogService {
         var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
                 .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
 
-        if (!app.getPubId().toString().equals(toolUseLog.getConnectorPubId())) {
+        if (!app.getPubId().toString().equals(toolUseLog.getIdentity())) {
             throw new ForbiddenStatusException("Incorrect device");
         }
 

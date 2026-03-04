@@ -571,7 +571,8 @@
             <column name="api_key_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="connector_pub_id" type="TEXT"/>
+            <column name="connector_code" type="TEXT"/>
+            <column name="identity" type="TEXT"/>
             <column name="tool_use_id" type="TEXT">
                 <constraints nullable="false"/>
             </column>

@@ -22,6 +22,7 @@ import ru.agimate.deviceapi.controller.agent.dto.AgentToolResultRequest;
 import ru.agimate.deviceapi.controller.agent.dto.ToolDefinition;
 import ru.agimate.deviceapi.controller.agent.dto.ToolUseRequest;
 import ru.agimate.deviceapi.abac.AccessEffect;
+import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.service.AgentService;
 import ru.agimate.deviceapi.service.ConnectorApiService;
@@ -96,27 +97,24 @@ public class AgentToolController {
             @Valid @RequestBody ToolUseRequest toolUseRequest,
             @AuthenticationPrincipal ApiKeyPrincipal apiKeyPrincipal
     ) {
-        UUID apiKeyPubId = UUID.fromString(apiKeyPrincipal.pubId());
-        UUID userPubId = UUID.fromString(apiKeyPrincipal.userPubId());
+        Agent agent = agentService.findByApiKeyPubId(UUID.fromString(apiKeyPrincipal.pubId()));
 
-        // todo: получить сущность Agent для заданного ApiKeyPrincipal и использовать эту сущность в методах ниже, вместо использоваться apiKeyPubId и userPubId
-
-        var existingLog = toolUseLogService.findByToolUseIdAndUserPubId(toolUseRequest.getId(), userPubId);
+        var existingLog = toolUseLogService.findByToolUseIdAndUserPubId(toolUseRequest.getId(), agent.getUserPubId());
         if (existingLog.isPresent()) {
             return SuccessResponse.ok(existingLog.get().getToolUseId());
         }
 
         AccessDecision decision = toolPolicyDbEvaluatorService.evaluate(
-                apiKeyPubId, connectorCode, toolUseRequest.getIdentity(), toolUseRequest.getName());
+                agent.getApiKeyPubId(), connectorCode, toolUseRequest.getIdentity(), toolUseRequest.getName());
 
-        ToolUseLog log = toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
+        ToolUseLog log = toolUseLogService.createLog(agent, connectorCode, toolUseRequest.getIdentity(), toolUseRequest,
                 toolUseRequest.getAgentSessionId(), decision.accessEffect(), decision.reason());
 
         if (!decision.allowed()) {
             throw new ForbiddenStatusException("Tool '" + toolUseRequest.getName() + "' is not authorized for this agent: " + decision.reason());
         }
 
-        connectorApiService.pushToConnector(userPubId, apiKeyPrincipal.pubId(), connectorCode, toolUseRequest.getIdentity(), toolUseRequest);
+        connectorApiService.pushToConnector(agent.getUserPubId(), agent.getApiKeyPubId().toString(), connectorCode, toolUseRequest.getIdentity(), toolUseRequest);
         return SuccessResponse.ok(log.getToolUseId());
     }
 
@@ -149,20 +147,17 @@ public class AgentToolController {
             @Valid @RequestBody ToolUseRequest toolUseRequest,
             @AuthenticationPrincipal ApiKeyPrincipal principal
     ) {
-        UUID apiKeyPubId = UUID.fromString(principal.pubId());
-        UUID userPubId = UUID.fromString(principal.userPubId());
+        Agent agent = agentService.findByApiKeyPubId(UUID.fromString(principal.pubId()));
 
-        // todo: получить сущность Agent для заданного ApiKeyPrincipal и использовать эту сущность в методах ниже, вместо использоваться apiKeyPubId и userPubId
-
-        var existingLog = toolUseLogService.findByToolUseIdAndUserPubId(toolUseRequest.getId(), userPubId);
+        var existingLog = toolUseLogService.findByToolUseIdAndUserPubId(toolUseRequest.getId(), agent.getUserPubId());
         if (existingLog.isPresent()) {
             return SuccessResponse.ok(existingLog.get().getAccessEffect());
         }
 
         AccessDecision decision = toolPolicyDbEvaluatorService.evaluate(
-                apiKeyPubId, connectorCode, toolUseRequest.getIdentity(), toolUseRequest.getName());
+                agent.getApiKeyPubId(), connectorCode, toolUseRequest.getIdentity(), toolUseRequest.getName());
 
-        toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
+        toolUseLogService.createLog(agent, connectorCode, toolUseRequest.getIdentity(), toolUseRequest,
                 toolUseRequest.getAgentSessionId(), decision.accessEffect(), decision.reason());
 
         return SuccessResponse.ok(decision.accessEffect());
@@ -195,10 +190,10 @@ public class AgentToolController {
             @Valid @RequestBody AgentToolResultRequest request,
             @AuthenticationPrincipal ApiKeyPrincipal principal
     ) {
-        UUID apiKeyPubId = UUID.fromString(principal.pubId());
+        Agent agent = agentService.findByApiKeyPubId(UUID.fromString(principal.pubId()));
 
         var toolUseLog = toolUseLogService.recordResultByAgent(
-                apiKeyPubId, request.getToolUseId(), request.getResult(), request.getError());
+                agent.getApiKeyPubId(), request.getToolUseId(), request.getResult(), request.getError());
 
         return SuccessResponse.ok(toolUseLog.getToolUseId());
     }

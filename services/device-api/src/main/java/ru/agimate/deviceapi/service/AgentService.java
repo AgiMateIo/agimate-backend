@@ -66,6 +66,11 @@ public class AgentService {
                 .toList();
     }
 
+    public Agent findByApiKeyPubId(UUID apiKeyPubId) {
+        return agentRepository.findByApiKeyPubId(apiKeyPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
+    }
+
     public AgentResponse getByApiKeyPubId(UUID apiKeyPubId) {
         Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
