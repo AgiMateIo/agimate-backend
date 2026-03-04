@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.database.entities.AgentTriggerPolicy;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerPolicyRepository;
@@ -19,21 +20,24 @@ public class AgentTriggerPolicyService {
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
     private final TriggerPolicyEvaluatorService triggerPolicyEvaluatorService;
 
-    public List<AgentTriggerPolicy> getPoliciesByAgent(UUID apiKeyPubId) {
-        return agentTriggerPolicyRepository.findByApiKeyPubId(apiKeyPubId);
+    public List<AgentTriggerPolicy> getPoliciesByAgent(UUID userPubId, UUID apiKeyPubId) {
+        return agentTriggerPolicyRepository.findByUserPubIdAndApiKeyPubId(userPubId, apiKeyPubId);
     }
 
-    public AgentTriggerPolicy getPolicyById(UUID id) {
-        return agentTriggerPolicyRepository.findById(id)
+    public AgentTriggerPolicy getPolicyById(UUID userPubId, UUID id) {
+        AgentTriggerPolicy policy = agentTriggerPolicyRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent trigger policy not found"));
+        validateOwnership(policy, userPubId);
+        return policy;
     }
 
     @Transactional
-    public AgentTriggerPolicy createPolicy(UUID apiKeyPubId, String connectorCode, String connectorIdentity,
+    public AgentTriggerPolicy createPolicy(UUID userPubId, UUID apiKeyPubId, String connectorCode, String connectorIdentity,
                                            String triggerName, AccessEffect effect, Integer priority, String description) {
         validateConstraints(connectorCode, connectorIdentity, triggerName);
 
         AgentTriggerPolicy policy = AgentTriggerPolicy.builder()
+                .userPubId(userPubId)
                 .apiKeyPubId(apiKeyPubId)
                 .connectorCode(connectorCode)
                 .connectorIdentity(connectorIdentity)
@@ -49,9 +53,9 @@ public class AgentTriggerPolicyService {
     }
 
     @Transactional
-    public AgentTriggerPolicy updatePolicy(UUID id, String connectorCode, String connectorIdentity,
+    public AgentTriggerPolicy updatePolicy(UUID userPubId, UUID id, String connectorCode, String connectorIdentity,
                                            String triggerName, AccessEffect effect, Integer priority, String description) {
-        AgentTriggerPolicy policy = getPolicyById(id);
+        AgentTriggerPolicy policy = getPolicyById(userPubId, id);
         validateConstraints(connectorCode, connectorIdentity, triggerName);
 
         if (connectorCode != null || policy.getConnectorCode() != null) {
@@ -73,10 +77,16 @@ public class AgentTriggerPolicyService {
     }
 
     @Transactional
-    public void deletePolicy(UUID id) {
-        AgentTriggerPolicy policy = getPolicyById(id);
+    public void deletePolicy(UUID userPubId, UUID id) {
+        AgentTriggerPolicy policy = getPolicyById(userPubId, id);
         agentTriggerPolicyRepository.delete(policy);
         triggerPolicyEvaluatorService.invalidateByAgent(policy.getApiKeyPubId());
+    }
+
+    private void validateOwnership(AgentTriggerPolicy policy, UUID userPubId) {
+        if (!policy.getUserPubId().equals(userPubId)) {
+            throw new ForbiddenStatusException("Access denied");
+        }
     }
 
     private void validateConstraints(String connectorCode, String connectorIdentity, String triggerName) {

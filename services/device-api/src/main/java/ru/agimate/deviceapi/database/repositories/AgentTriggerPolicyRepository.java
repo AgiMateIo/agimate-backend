@@ -14,6 +14,8 @@ public interface AgentTriggerPolicyRepository extends JpaRepository<AgentTrigger
 
     List<AgentTriggerPolicy> findByApiKeyPubId(UUID apiKeyPubId);
 
+    List<AgentTriggerPolicy> findByUserPubIdAndApiKeyPubId(UUID userPubId, UUID apiKeyPubId);
+
     @Query(value = """
             SELECT * FROM agent_trigger_policies
             WHERE api_key_pub_id = :apiKeyPubId

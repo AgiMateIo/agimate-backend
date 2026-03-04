@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.database.entities.AgentToolPolicy;
 import ru.agimate.deviceapi.database.repositories.AgentToolPolicyRepository;
@@ -19,21 +20,24 @@ public class AgentToolPolicyService {
     private final AgentToolPolicyRepository agentToolPolicyRepository;
     private final ToolPolicyEvaluatorService toolPolicyEvaluatorService;
 
-    public List<AgentToolPolicy> getPoliciesByAgent(UUID apiKeyPubId) {
-        return agentToolPolicyRepository.findByApiKeyPubId(apiKeyPubId);
+    public List<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID apiKeyPubId) {
+        return agentToolPolicyRepository.findByUserPubIdAndApiKeyPubId(userPubId, apiKeyPubId);
     }
 
-    public AgentToolPolicy getPolicyById(UUID id) {
-        return agentToolPolicyRepository.findById(id)
+    public AgentToolPolicy getPolicyById(UUID userPubId, UUID id) {
+        AgentToolPolicy policy = agentToolPolicyRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent tool policy not found"));
+        validateOwnership(policy, userPubId);
+        return policy;
     }
 
     @Transactional
-    public AgentToolPolicy createPolicy(UUID apiKeyPubId, String connectorCode, String connectorIdentity,
+    public AgentToolPolicy createPolicy(UUID userPubId, UUID apiKeyPubId, String connectorCode, String connectorIdentity,
                                         String toolName, AccessEffect effect, Integer priority, String description) {
         validateConstraints(connectorCode, connectorIdentity, toolName);
 
         AgentToolPolicy policy = AgentToolPolicy.builder()
+                .userPubId(userPubId)
                 .apiKeyPubId(apiKeyPubId)
                 .connectorCode(connectorCode)
                 .connectorIdentity(connectorIdentity)
@@ -49,9 +53,9 @@ public class AgentToolPolicyService {
     }
 
     @Transactional
-    public AgentToolPolicy updatePolicy(UUID id, String connectorCode, String connectorIdentity,
+    public AgentToolPolicy updatePolicy(UUID userPubId, UUID id, String connectorCode, String connectorIdentity,
                                         String toolName, AccessEffect effect, Integer priority, String description) {
-        AgentToolPolicy policy = getPolicyById(id);
+        AgentToolPolicy policy = getPolicyById(userPubId, id);
         validateConstraints(connectorCode, connectorIdentity, toolName);
 
         if (connectorCode != null || policy.getConnectorCode() != null) {
@@ -73,10 +77,16 @@ public class AgentToolPolicyService {
     }
 
     @Transactional
-    public void deletePolicy(UUID id) {
-        AgentToolPolicy policy = getPolicyById(id);
+    public void deletePolicy(UUID userPubId, UUID id) {
+        AgentToolPolicy policy = getPolicyById(userPubId, id);
         agentToolPolicyRepository.delete(policy);
         toolPolicyEvaluatorService.invalidateByAgent(policy.getApiKeyPubId());
+    }
+
+    private void validateOwnership(AgentToolPolicy policy, UUID userPubId) {
+        if (!policy.getUserPubId().equals(userPubId)) {
+            throw new ForbiddenStatusException("Access denied");
+        }
     }
 
     private void validateConstraints(String connectorCode, String connectorIdentity, String toolName) {

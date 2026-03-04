@@ -10,6 +10,7 @@ import java.util.UUID;
 public record AgentToolPolicyResponse(
         UUID id,
         UUID apiKeyPubId,
+        UUID userPubId,
         String connectorCode,
         String connectorIdentity,
         String toolName,
@@ -23,6 +24,7 @@ public record AgentToolPolicyResponse(
         return new AgentToolPolicyResponse(
                 policy.getId(),
                 policy.getApiKeyPubId(),
+                policy.getUserPubId(),
                 policy.getConnectorCode(),
                 policy.getConnectorIdentity(),
                 policy.getToolName(),

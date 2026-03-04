@@ -311,6 +311,9 @@
             <column name="api_key_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
             <column name="connector_code" type="TEXT"/>
             <column name="connector_identity" type="TEXT"/>
             <column name="tool_name" type="TEXT"/>
@@ -344,6 +347,10 @@
             <column name="api_key_pub_id"/>
         </createIndex>
 
+        <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+
         <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_lookup">
             <column name="api_key_pub_id"/>
             <column name="connector_code"/>
@@ -361,6 +368,9 @@
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="api_key_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="connector_code" type="TEXT"/>
@@ -394,6 +404,10 @@
 
         <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_api_key">
             <column name="api_key_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_user_pub_id">
+            <column name="user_pub_id"/>
         </createIndex>
 
         <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_lookup">

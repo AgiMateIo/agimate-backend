@@ -4,8 +4,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.abac.AccessEffect;
 import ru.agimate.deviceapi.abac.AgentToolPolicyService;
 import ru.agimate.deviceapi.controller.manage.dto.AgentToolPolicyResponse;
@@ -29,9 +31,11 @@ public class ManageAgentToolPolicyController {
     @Operation(summary = "Get tool policies for an agent")
     @GetMapping("/")
     public SuccessResponse<List<AgentToolPolicyResponse>> getPolicies(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam UUID apiKeyPubId
     ) {
-        List<AgentToolPolicy> policies = agentToolPolicyService.getPoliciesByAgent(apiKeyPubId);
+        UUID userPubId = UUID.fromString(principal.pubId());
+        List<AgentToolPolicy> policies = agentToolPolicyService.getPoliciesByAgent(userPubId, apiKeyPubId);
         List<AgentToolPolicyResponse> response = policies.stream()
                 .map(AgentToolPolicyResponse::from)
                 .toList();
@@ -41,18 +45,23 @@ public class ManageAgentToolPolicyController {
     @Operation(summary = "Get a specific agent tool policy")
     @GetMapping("/{policyId}")
     public SuccessResponse<AgentToolPolicyResponse> getPolicy(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID policyId
     ) {
-        AgentToolPolicy policy = agentToolPolicyService.getPolicyById(policyId);
+        UUID userPubId = UUID.fromString(principal.pubId());
+        AgentToolPolicy policy = agentToolPolicyService.getPolicyById(userPubId, policyId);
         return SuccessResponse.ok(AgentToolPolicyResponse.from(policy));
     }
 
     @Operation(summary = "Create an agent tool policy")
     @PostMapping("/")
     public SuccessResponse<AgentToolPolicyResponse> createPolicy(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody CreateAgentToolPolicyRequest request
     ) {
+        UUID userPubId = UUID.fromString(principal.pubId());
         AgentToolPolicy policy = agentToolPolicyService.createPolicy(
+                userPubId,
                 request.apiKeyPubId(),
                 request.connectorCode(),
                 request.connectorIdentity(),
@@ -67,10 +76,13 @@ public class ManageAgentToolPolicyController {
     @Operation(summary = "Update an agent tool policy")
     @PutMapping("/{policyId}")
     public SuccessResponse<AgentToolPolicyResponse> updatePolicy(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID policyId,
             @Valid @RequestBody UpdateAgentToolPolicyRequest request
     ) {
+        UUID userPubId = UUID.fromString(principal.pubId());
         AgentToolPolicy policy = agentToolPolicyService.updatePolicy(
+                userPubId,
                 policyId,
                 request.connectorCode(),
                 request.connectorIdentity(),
@@ -85,9 +97,11 @@ public class ManageAgentToolPolicyController {
     @Operation(summary = "Delete an agent tool policy")
     @DeleteMapping("/{policyId}")
     public SuccessResponse<Void> deletePolicy(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID policyId
     ) {
-        agentToolPolicyService.deletePolicy(policyId);
+        UUID userPubId = UUID.fromString(principal.pubId());
+        agentToolPolicyService.deletePolicy(userPubId, policyId);
         return SuccessResponse.empty();
     }
 }
