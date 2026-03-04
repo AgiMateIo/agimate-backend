@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import ru.agimate.deviceapi.abac.AccessDecision;
+import ru.agimate.deviceapi.abac.TriggerPolicyEvaluatorService;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.App;
@@ -24,6 +26,7 @@ public class TriggerRouterService {
     private final TriggerLogService triggerLogService;
     private final TriggerLogRepository triggerLogRepository;
     private final WebhookDeliveryService webhookDeliveryService;
+    private final TriggerPolicyEvaluatorService triggerPolicyEvaluatorService;
 
     @Async
     public void routeTrigger(App app, TriggerRequest triggerRequest) {
@@ -35,7 +38,17 @@ public class TriggerRouterService {
             List<Agent> agents = agentRepository
                     .findRoutableByUserPubIdAndTriggerName(userPubId, triggerRequest.name());
 
+            String connectorCode = app.getPubId() != null ? app.getPubId().toString() : null;
+
             for (Agent agent : agents) {
+                AccessDecision decision = triggerPolicyEvaluatorService.evaluate(
+                        agent.getApiKeyPubId(), connectorCode, null, triggerRequest.name());
+                if (!agent.isTriggersAllowAll() && !decision.allowed()) {
+                    log.debug("Skipping agent '{}' for trigger '{}': {}",
+                            agent.getApiKeyPubId(), triggerRequest.name(), decision.reason());
+                    continue;
+                }
+
                 TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
                         .triggerLog(triggerLog)
                         .agent(agent)

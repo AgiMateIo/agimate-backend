@@ -6,9 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.abac.AccessDecision;
-import ru.agimate.deviceapi.abac.AccessEvaluatorService;
-import ru.agimate.deviceapi.abac.AccessRequest;
-import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
+import ru.agimate.deviceapi.abac.ToolPolicyEvaluatorService;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
 
 import java.util.UUID;
@@ -18,13 +16,20 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class ToolUseAuthorizerService {
 
-    private final AgentToolRepository agentToolRepository;
     private final AppRepository appRepository;
-    private final AccessEvaluatorService accessEvaluatorService;
+    private final ToolPolicyEvaluatorService toolPolicyEvaluatorService;
 
     public void authorizeToolUseRequest(ApiKeyPrincipal apiKeyPrincipal, String connectorId, String toolName) {
-        validateConnector(UUID.fromString(apiKeyPrincipal.userPubId()), connectorId);
-        validateToolAuthorized(UUID.fromString(apiKeyPrincipal.pubId()), toolName);
+        UUID userPubId = UUID.fromString(apiKeyPrincipal.userPubId());
+        UUID apiKeyPubId = UUID.fromString(apiKeyPrincipal.pubId());
+
+        validateConnector(userPubId, connectorId);
+
+        String connectorName = resolveConnectorName(connectorId);
+        AccessDecision decision = toolPolicyEvaluatorService.evaluate(apiKeyPubId, connectorName, null, toolName);
+        if (!decision.allowed()) {
+            throw new ForbiddenStatusException("Tool '" + toolName + "' is not authorized for this agent: " + decision.reason());
+        }
     }
 
     private void validateConnector(UUID userPubId, String connectorId) {
@@ -36,13 +41,10 @@ public class ToolUseAuthorizerService {
         }
     }
 
-    private void validateToolAuthorized(UUID apiKeyPubId, String toolName) {
-        if (!agentToolRepository.existsByApiKeyPubIdAndToolName(apiKeyPubId, toolName)) {
-            throw new ForbiddenStatusException("Tool '" + toolName + "' is not authorized for this agent");
+    private String resolveConnectorName(String connectorId) {
+        if ("local".equals(connectorId)) {
+            return "local";
         }
-    }
-
-    public AccessDecision evaluateAccess(String agentName, String connectorCode, String connectorIdentity, String toolName) {
-        return accessEvaluatorService.evaluate(new AccessRequest(agentName, connectorCode, connectorIdentity, toolName));
+        return connectorId;
     }
 }

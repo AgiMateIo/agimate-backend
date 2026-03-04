@@ -7,19 +7,20 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.deviceapi.abac.AccessEffect;
 import ru.agimate.deviceapi.controller.agent.dto.AgentConfigResponse;
 import ru.agimate.deviceapi.controller.agent.dto.ToolDefinition;
 import ru.agimate.deviceapi.controller.manage.dto.AgentResponse;
 import ru.agimate.deviceapi.controller.manage.dto.CreateAgentRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentRequest;
 import ru.agimate.deviceapi.database.entities.Agent;
-import ru.agimate.deviceapi.database.entities.AgentTool;
-import ru.agimate.deviceapi.database.entities.AgentTrigger;
+import ru.agimate.deviceapi.database.entities.AgentToolPolicy;
+import ru.agimate.deviceapi.database.entities.AgentTriggerPolicy;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
-import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
-import ru.agimate.deviceapi.database.repositories.AgentTriggerRepository;
+import ru.agimate.deviceapi.database.repositories.AgentToolPolicyRepository;
+import ru.agimate.deviceapi.database.repositories.AgentTriggerPolicyRepository;
 import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
 
@@ -34,8 +35,8 @@ import java.util.stream.Collectors;
 public class AgentService {
 
     private final AgentRepository agentRepository;
-    private final AgentToolRepository agentToolRepository;
-    private final AgentTriggerRepository agentTriggerRepository;
+    private final AgentToolPolicyRepository agentToolPolicyRepository;
+    private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
     private final AgenticTeamRepository agenticTeamRepository;
     private final AppRepository appRepository;
 
@@ -59,10 +60,8 @@ public class AgentService {
 
         return agents.stream()
                 .map(agent -> {
-                    var tools = agentToolRepository.findByApiKeyPubId(agent.getApiKeyPubId());
-                    var triggers = agentTriggerRepository.findByApiKeyPubId(agent.getApiKeyPubId());
                     var team = agent.getAgenticTeamId() != null ? teamsById.get(agent.getAgenticTeamId()) : null;
-                    return AgentResponse.from(agent, tools, triggers, team);
+                    return AgentResponse.from(agent, team);
                 })
                 .toList();
     }
@@ -70,20 +69,21 @@ public class AgentService {
     public AgentResponse getByApiKeyPubId(UUID apiKeyPubId) {
         Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-        var tools = agentToolRepository.findByApiKeyPubId(apiKeyPubId);
-        var triggers = agentTriggerRepository.findByApiKeyPubId(apiKeyPubId);
         var team = resolveTeam(agent.getAgenticTeamId());
-        return AgentResponse.from(agent, tools, triggers, team);
+        return AgentResponse.from(agent, team);
     }
 
     public AgentConfigResponse getConfigByApiKeyPubId(UUID apiKeyPubId) {
         Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-        var agentTools = agentToolRepository.findByApiKeyPubId(apiKeyPubId);
-        var triggers = agentTriggerRepository.findByApiKeyPubId(apiKeyPubId);
 
-        Set<String> allowedToolNames = agentTools.stream()
-                .map(AgentTool::getToolName)
+        var toolPolicies = agentToolPolicyRepository.findByApiKeyPubId(apiKeyPubId);
+        var triggerPolicies = agentTriggerPolicyRepository.findByApiKeyPubId(apiKeyPubId);
+
+        Set<String> allowedToolNames = toolPolicies.stream()
+                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
+                .map(AgentToolPolicy::getToolName)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
         Map<String, ToolDefinition> toolDefinitionMap = buildToolDefinitionMap(agent.getUserPubId());
@@ -93,21 +93,30 @@ public class AgentService {
                         new ToolDefinition(name, null, null)))
                 .toList();
 
+        List<String> triggerNames = triggerPolicies.stream()
+                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
+                .map(AgentTriggerPolicy::getTriggerName)
+                .filter(Objects::nonNull)
+                .toList();
+
         return new AgentConfigResponse(
                 agent.getApiKeyPubId(),
                 agent.getPrompt(),
                 toolDefinitions,
-                triggers.stream().map(AgentTrigger::getTriggerName).toList()
+                triggerNames
         );
     }
 
     public List<ToolDefinition> getAvailableTools(UUID apiKeyPubId) {
         Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-        var agentTools = agentToolRepository.findByApiKeyPubId(apiKeyPubId);
 
-        Set<String> allowedToolNames = agentTools.stream()
-                .map(AgentTool::getToolName)
+        var toolPolicies = agentToolPolicyRepository.findByApiKeyPubId(apiKeyPubId);
+
+        Set<String> allowedToolNames = toolPolicies.stream()
+                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
+                .map(AgentToolPolicy::getToolName)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
         Map<String, ToolDefinition> toolDefinitionMap = buildToolDefinitionMap(agent.getUserPubId());
@@ -165,11 +174,8 @@ public class AgentService {
                 .build();
         agent = agentRepository.save(agent);
 
-        List<AgentTool> tools = createTools(userPubId, request.apiKeyPubId(), request.tools());
-        List<AgentTrigger> triggers = createTriggers(userPubId, request.apiKeyPubId(), request.triggers());
-
         log.info("Created agent for apiKeyPubId={}, user={}", request.apiKeyPubId(), userPubId);
-        return AgentResponse.from(agent, tools, triggers, team);
+        return AgentResponse.from(agent, team);
     }
 
     @Transactional
@@ -193,16 +199,10 @@ public class AgentService {
         agent.setWebhookAuthHeader(request.webhookAuthHeader());
         agent = agentRepository.save(agent);
 
-        agentToolRepository.deleteByApiKeyPubId(apiKeyPubId);
-        List<AgentTool> tools = createTools(userPubId, apiKeyPubId, request.tools());
-
-        agentTriggerRepository.deleteByApiKeyPubId(apiKeyPubId);
-        List<AgentTrigger> triggers = createTriggers(userPubId, apiKeyPubId, request.triggers());
-
         var team = resolveTeam(agent.getAgenticTeamId());
 
         log.info("Updated agent for apiKeyPubId={}", apiKeyPubId);
-        return AgentResponse.from(agent, tools, triggers, team);
+        return AgentResponse.from(agent, team);
     }
 
     @Transactional
@@ -214,8 +214,8 @@ public class AgentService {
             throw new ForbiddenStatusException("Access denied");
         }
 
-        agentToolRepository.deleteByApiKeyPubId(apiKeyPubId);
-        agentTriggerRepository.deleteByApiKeyPubId(apiKeyPubId);
+        agentToolPolicyRepository.deleteByApiKeyPubId(apiKeyPubId);
+        agentTriggerPolicyRepository.deleteByApiKeyPubId(apiKeyPubId);
         agentRepository.delete(agent);
 
         log.info("Deleted agent for apiKeyPubId={}", apiKeyPubId);
@@ -232,35 +232,5 @@ public class AgentService {
         if ("webhook".equals(triggersTo) && (webhookUrl == null || webhookUrl.isBlank())) {
             throw new BadRequestStatusException("webhookUrl is required when triggersTo is 'webhook'");
         }
-    }
-
-    private List<AgentTool> createTools(UUID userPubId, UUID apiKeyPubId, List<String> toolNames) {
-        if (toolNames == null || toolNames.isEmpty()) {
-            return List.of();
-        }
-        List<AgentTool> tools = toolNames.stream()
-                .distinct()
-                .map(name -> AgentTool.builder()
-                        .userPubId(userPubId)
-                        .apiKeyPubId(apiKeyPubId)
-                        .toolName(name)
-                        .build())
-                .toList();
-        return agentToolRepository.saveAll(tools);
-    }
-
-    private List<AgentTrigger> createTriggers(UUID userPubId, UUID apiKeyPubId, List<String> triggerNames) {
-        if (triggerNames == null || triggerNames.isEmpty()) {
-            return List.of();
-        }
-        List<AgentTrigger> triggers = triggerNames.stream()
-                .distinct()
-                .map(name -> AgentTrigger.builder()
-                        .userPubId(userPubId)
-                        .apiKeyPubId(apiKeyPubId)
-                        .triggerName(name)
-                        .build())
-                .toList();
-        return agentTriggerRepository.saveAll(triggers);
     }
 }

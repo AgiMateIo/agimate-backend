@@ -3,12 +3,9 @@ package ru.agimate.deviceapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.deviceapi.database.entities.Agent;
-import ru.agimate.deviceapi.database.entities.AgentTool;
-import ru.agimate.deviceapi.database.entities.AgentTrigger;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.UUID;
 
 @Schema(description = "Agent response")
@@ -31,12 +28,6 @@ public record AgentResponse(
         @Schema(description = "Triggers destination")
         String triggersTo,
 
-        @Schema(description = "Authorized tool names")
-        List<String> tools,
-
-        @Schema(description = "Subscribed trigger names")
-        List<String> triggers,
-
         @Schema(description = "Webhook URL")
         String webhookUrl,
 
@@ -53,7 +44,7 @@ public record AgentResponse(
         @Schema(description = "When the agent was created")
         LocalDateTime createdAt
 ) {
-    public static AgentResponse from(Agent agent, List<AgentTool> tools, List<AgentTrigger> triggers, AgenticTeam team) {
+    public static AgentResponse from(Agent agent, AgenticTeam team) {
         return new AgentResponse(
                 agent.getPubId(),
                 agent.getApiKeyPubId(),
@@ -61,8 +52,6 @@ public record AgentResponse(
                 agent.getPrompt(),
                 agent.isTriggersAllowAll(),
                 agent.getTriggersTo(),
-                tools.stream().map(AgentTool::getToolName).toList(),
-                triggers.stream().map(AgentTrigger::getTriggerName).toList(),
                 agent.getWebhookUrl(),
                 agent.hasWebhookAuth(),
                 team != null ? team.getPubId() : null,
@@ -71,7 +60,7 @@ public record AgentResponse(
         );
     }
 
-    public static AgentResponse from(Agent agent, List<AgentTool> tools, List<AgentTrigger> triggers) {
-        return from(agent, tools, triggers, null);
+    public static AgentResponse from(Agent agent) {
+        return from(agent, null);
     }
 }

@@ -306,52 +306,108 @@
         </createIndex>
     </changeSet>
 
-    <!-- ===================== -->
-    <!-- agent_tools           -->
-    <!-- ===================== -->
-    <changeSet id="create-agent-tools-table" author="agimate">
-        <createTable tableName="agent_tools">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+    <!-- ============================= -->
+    <!-- agent_tool_policies (ABAC)    -->
+    <!-- ============================= -->
+    <changeSet id="create-agent-tool-policies-table" author="agimate">
+        <createTable tableName="agent_tool_policies">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="user_pub_id" type="UUID">
-                <constraints nullable="false"/>
             </column>
             <column name="api_key_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="tool_name" type="TEXT">
+            <column name="connector_name" type="TEXT"/>
+            <column name="connector_identity" type="TEXT"/>
+            <column name="tool_name" type="TEXT"/>
+            <column name="effect" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="priority" type="INTEGER"/>
+            <column name="description" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
         </createTable>
 
-        <addUniqueConstraint tableName="agent_tools"
-                             columnNames="api_key_pub_id, tool_name"
-                             constraintName="uq_agent_tools_api_key_pub_id_tool_name"/>
+        <sql>
+            ALTER TABLE agent_tool_policies
+                ADD CONSTRAINT chk_agent_tool_policies_effect CHECK (effect IN ('ALLOW', 'DENY'));
+            ALTER TABLE agent_tool_policies
+                ADD CONSTRAINT chk_agent_tool_policies_identity_requires_connector CHECK (connector_identity IS NULL OR connector_name IS NOT NULL);
+            ALTER TABLE agent_tool_policies
+                ADD CONSTRAINT chk_agent_tool_policies_tool_requires_connector CHECK (tool_name IS NULL OR connector_name IS NOT NULL);
+        </sql>
+
+        <addUniqueConstraint tableName="agent_tool_policies"
+                             columnNames="api_key_pub_id, connector_name, connector_identity, tool_name, effect"
+                             constraintName="uq_agent_tool_policies_composite"/>
+
+        <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_api_key">
+            <column name="api_key_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_lookup">
+            <column name="api_key_pub_id"/>
+            <column name="connector_name"/>
+            <column name="connector_identity"/>
+            <column name="tool_name"/>
+        </createIndex>
     </changeSet>
 
-    <!-- ===================== -->
-    <!-- agent_triggers        -->
-    <!-- ===================== -->
-    <changeSet id="create-agent-triggers-table" author="agimate">
-        <createTable tableName="agent_triggers">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+    <!-- ================================ -->
+    <!-- agent_trigger_policies (ABAC)    -->
+    <!-- ================================ -->
+    <changeSet id="create-agent-trigger-policies-table" author="agimate">
+        <createTable tableName="agent_trigger_policies">
+            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="user_pub_id" type="UUID">
-                <constraints nullable="false"/>
             </column>
             <column name="api_key_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="trigger_name" type="TEXT">
+            <column name="connector_name" type="TEXT"/>
+            <column name="connector_identity" type="TEXT"/>
+            <column name="trigger_name" type="TEXT"/>
+            <column name="effect" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="priority" type="INTEGER"/>
+            <column name="description" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
         </createTable>
 
-        <addUniqueConstraint tableName="agent_triggers"
-                             columnNames="api_key_pub_id, trigger_name"
-                             constraintName="uq_agent_triggers_api_key_pub_id_trigger_name"/>
+        <sql>
+            ALTER TABLE agent_trigger_policies
+                ADD CONSTRAINT chk_agent_trigger_policies_effect CHECK (effect IN ('ALLOW', 'DENY'));
+            ALTER TABLE agent_trigger_policies
+                ADD CONSTRAINT chk_agent_trigger_policies_identity_requires_connector CHECK (connector_identity IS NULL OR connector_name IS NOT NULL);
+            ALTER TABLE agent_trigger_policies
+                ADD CONSTRAINT chk_agent_trigger_policies_trigger_requires_connector CHECK (trigger_name IS NULL OR connector_name IS NOT NULL);
+        </sql>
+
+        <addUniqueConstraint tableName="agent_trigger_policies"
+                             columnNames="api_key_pub_id, connector_name, connector_identity, trigger_name, effect"
+                             constraintName="uq_agent_trigger_policies_composite"/>
+
+        <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_api_key">
+            <column name="api_key_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_lookup">
+            <column name="api_key_pub_id"/>
+            <column name="connector_name"/>
+            <column name="connector_identity"/>
+            <column name="trigger_name"/>
+        </createIndex>
     </changeSet>
 
     <!-- ===================== -->
@@ -692,52 +748,5 @@
         </createIndex>
     </changeSet>
 
-    <!-- ===================== -->
-    <!-- access_policies (ABAC) -->
-    <!-- ===================== -->
-    <changeSet id="create-access-policies-table" author="agimate">
-        <createTable tableName="access_policies">
-            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
-                <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="agent_name" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="connector_name" type="TEXT"/>
-            <column name="connector_identity" type="TEXT"/>
-            <column name="tool_name" type="TEXT"/>
-            <column name="effect" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="priority" type="INTEGER"/>
-            <column name="description" type="TEXT"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-        </createTable>
-
-        <sql>
-            ALTER TABLE access_policies
-                ADD CONSTRAINT chk_access_policies_effect CHECK (effect IN ('ALLOW', 'DENY'));
-            ALTER TABLE access_policies
-                ADD CONSTRAINT chk_identity_requires_connector CHECK (connector_identity IS NULL OR connector_name IS NOT NULL);
-            ALTER TABLE access_policies
-                ADD CONSTRAINT chk_tool_requires_connector CHECK (tool_name IS NULL OR connector_name IS NOT NULL);
-        </sql>
-
-        <createIndex tableName="access_policies" indexName="idx_access_policies_agent">
-            <column name="agent_name"/>
-        </createIndex>
-
-        <createIndex tableName="access_policies" indexName="idx_access_policies_lookup">
-            <column name="agent_name"/>
-            <column name="connector_name"/>
-            <column name="connector_identity"/>
-            <column name="tool_name"/>
-        </createIndex>
-    </changeSet>
 
 </databaseChangeLog>

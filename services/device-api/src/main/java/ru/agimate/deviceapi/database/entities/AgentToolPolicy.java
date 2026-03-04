@@ -1,30 +1,31 @@
-package ru.agimate.deviceapi.abac;
+package ru.agimate.deviceapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
+import ru.agimate.deviceapi.abac.AccessEffect;
 
 import java.util.UUID;
 
 @Entity
-@Table(name = "access_policies", uniqueConstraints = @UniqueConstraint(
-        columnNames = {"agent_name", "connector_name", "connector_identity", "tool_name", "effect"}
+@Table(name = "agent_tool_policies", uniqueConstraints = @UniqueConstraint(
+        columnNames = {"api_key_pub_id", "connector_name", "connector_identity", "tool_name", "effect"}
 ))
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AccessPolicy extends BaseEntity {
+public class AgentToolPolicy extends BaseEntity {
 
     @Id
     @Column(name = "id")
     @Builder.Default
     private UUID id = UUIDUtils.generateUUIDv8();
 
-    @Column(name = "agent_name", nullable = false, columnDefinition = "TEXT")
-    private String agentName;
+    @Column(name = "api_key_pub_id", nullable = false)
+    private UUID apiKeyPubId;
 
     @Column(name = "connector_name", columnDefinition = "TEXT")
     private String connectorName;

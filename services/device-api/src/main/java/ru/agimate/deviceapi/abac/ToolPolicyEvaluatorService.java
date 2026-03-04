@@ -4,6 +4,8 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import ru.agimate.deviceapi.database.entities.AgentToolPolicy;
+import ru.agimate.deviceapi.database.repositories.AgentToolPolicyRepository;
 
 import java.time.Duration;
 import java.util.List;
@@ -11,29 +13,29 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class AccessEvaluatorService {
+public class ToolPolicyEvaluatorService {
 
-    private final AccessPolicyRepository accessPolicyRepository;
+    private final AgentToolPolicyRepository agentToolPolicyRepository;
 
-    private final Cache<AccessRequest, AccessDecision> cache = Caffeine.newBuilder()
+    private record CacheKey(UUID apiKeyPubId, String connectorName, String connectorIdentity, String toolName) {}
+
+    private final Cache<CacheKey, AccessDecision> cache = Caffeine.newBuilder()
             .maximumSize(10_000)
             .expireAfterWrite(Duration.ofMinutes(5))
             .build();
 
-    public AccessDecision evaluate(AccessRequest request) {
-        return cache.get(request, this::doEvaluate);
+    public AccessDecision evaluate(UUID apiKeyPubId, String connectorName, String connectorIdentity, String toolName) {
+        var key = new CacheKey(apiKeyPubId, connectorName, connectorIdentity, toolName);
+        return cache.get(key, k -> doEvaluate(apiKeyPubId, connectorName, connectorIdentity, toolName));
     }
 
-    public void invalidateByAgent(String agentName) {
-        cache.asMap().keySet().removeIf(key -> key.agentName().equals(agentName));
+    public void invalidateByAgent(UUID apiKeyPubId) {
+        cache.asMap().keySet().removeIf(key -> key.apiKeyPubId().equals(apiKeyPubId));
     }
 
-    private AccessDecision doEvaluate(AccessRequest request) {
-        List<AccessPolicy> matched = accessPolicyRepository.findMatchingPolicies(
-                request.agentName(),
-                request.connectorName(),
-                request.connectorIdentity(),
-                request.toolName()
+    private AccessDecision doEvaluate(UUID apiKeyPubId, String connectorName, String connectorIdentity, String toolName) {
+        List<AgentToolPolicy> matched = agentToolPolicyRepository.findMatchingPolicies(
+                apiKeyPubId, connectorName, connectorIdentity, toolName
         );
 
         if (matched.isEmpty()) {
@@ -45,7 +47,7 @@ public class AccessEvaluatorService {
                 .max()
                 .orElse(0);
 
-        List<AccessPolicy> topGroup = matched.stream()
+        List<AgentToolPolicy> topGroup = matched.stream()
                 .filter(p -> getSpecificity(p) == maxSpecificity)
                 .toList();
 
@@ -56,7 +58,7 @@ public class AccessEvaluatorService {
             UUID denyPolicyId = topGroup.stream()
                     .filter(p -> p.getEffect() == AccessEffect.DENY)
                     .findFirst()
-                    .map(AccessPolicy::getId)
+                    .map(AgentToolPolicy::getId)
                     .orElse(null);
             return AccessDecision.deny("Denied by policy at specificity level " + maxSpecificity, denyPolicyId);
         }
@@ -64,12 +66,12 @@ public class AccessEvaluatorService {
         UUID allowPolicyId = topGroup.stream()
                 .filter(p -> p.getEffect() == AccessEffect.ALLOW)
                 .findFirst()
-                .map(AccessPolicy::getId)
+                .map(AgentToolPolicy::getId)
                 .orElse(null);
         return AccessDecision.allow(allowPolicyId);
     }
 
-    private int getSpecificity(AccessPolicy policy) {
+    private int getSpecificity(AgentToolPolicy policy) {
         if (policy.getPriority() != null) {
             return policy.getPriority();
         }

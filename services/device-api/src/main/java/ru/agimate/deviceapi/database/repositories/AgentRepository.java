@@ -23,8 +23,9 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
             SELECT a FROM Agent a WHERE a.userPubId = :userPubId AND a.triggersTo <> 'ignore' AND (
                 a.triggersAllowAll = true
                 OR a.apiKeyPubId IN (
-                    SELECT DISTINCT at.apiKeyPubId FROM AgentTrigger at
-                    WHERE at.userPubId = :userPubId AND at.triggerName = :triggerName
+                    SELECT DISTINCT p.apiKeyPubId FROM AgentTriggerPolicy p
+                    WHERE p.effect = ru.agimate.deviceapi.abac.AccessEffect.ALLOW
+                    AND (p.triggerName IS NULL OR p.triggerName = :triggerName)
                 )
             )
             """)
