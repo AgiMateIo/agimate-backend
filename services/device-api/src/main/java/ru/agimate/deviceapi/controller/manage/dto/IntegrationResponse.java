@@ -24,8 +24,8 @@ public record IntegrationResponse(
         @Schema(description = "Integration name")
         String name,
 
-        @Schema(description = "Associated connector registry ID")
-        Long connectorRegistryId,
+        @Schema(description = "Associated connector registry code")
+        String connectorCode,
 
         @Schema(description = "Whether integration is enabled")
         Boolean enabled,
@@ -45,7 +45,7 @@ public record IntegrationResponse(
                 integrationCredentials.getPlatform().getName(),
                 integrationCredentials.getPlatformIdentifier(),
                 integrationCredentials.getName(),
-                integrationCredentials.getConnectorRegistryId(),
+                integrationCredentials.getConnectorCode(),
                 integrationCredentials.getEnabled(),
                 integrationCredentials.getLastUsedAt(),
                 integrationCredentials.getCreatedAt()

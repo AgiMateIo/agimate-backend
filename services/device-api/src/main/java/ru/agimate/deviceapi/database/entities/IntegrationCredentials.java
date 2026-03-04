@@ -29,8 +29,8 @@ public class IntegrationCredentials extends BaseEntity {
     @Builder.Default
     private UUID pubId = UUIDUtils.generateUUIDv8();
 
-    @Column(name = "connector_registry_id", nullable = false)
-    private Long connectorRegistryId;
+    @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
+    private String connectorCode;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "platform_id", nullable = false)

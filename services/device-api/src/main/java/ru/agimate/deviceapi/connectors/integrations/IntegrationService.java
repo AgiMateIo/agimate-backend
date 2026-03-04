@@ -9,11 +9,11 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
-import ru.agimate.deviceapi.database.entities.ConnectorRegistry;
+import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.database.entities.Platform;
 import ru.agimate.deviceapi.database.enums.ConnectorType;
-import ru.agimate.deviceapi.database.repositories.ConnectorRegistryRepository;
+import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.deviceapi.database.repositories.PlatformRepository;
 import ru.agimate.deviceapi.service.ConnectorService;
@@ -33,7 +33,7 @@ public class IntegrationService {
     private String webhookBaseUrl;
 
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
-    private final ConnectorRegistryRepository connectorRegistryRepository;
+    private final ConnectorRepository connectorRepository;
     private final PlatformRepository platformRepository;
     private final IntegrationPlatformRegistry platformRegistry;
     private final IntegrationEncryptionService encryptionService;
@@ -70,19 +70,19 @@ public class IntegrationService {
                 : validationResult.displayName() != null ? validationResult.displayName()
                 : platform.getCode() + ": " + validationResult.identifier();
 
-        ConnectorRegistry registry = ConnectorRegistry.builder()
+        Connector registry = Connector.builder()
                 .code(platformCode + ":" + validationResult.identifier())
                 .type(ConnectorType.INTEGRATION)
-                .title(connectorName)
+                .name(connectorName)
                 .description("Integration: " + platform.getCode())
                 .userPubId(userPubId)
                 .build();
-        registry = connectorRegistryRepository.save(registry);
+        registry = connectorRepository.save(registry);
 
         // Create app with capabilities for this integration
         var app = connectorService.createAppWithCapabilities(
                 userPubId, connectorName, "Integration: " + platform.getCode(),
-                registry.getId(),
+                registry.getCode(),
                 handler.getPredefinedTriggers(), handler.getPredefinedTools()
         );
 
@@ -95,7 +95,7 @@ public class IntegrationService {
                 : null;
 
         IntegrationCredentials integrationCredentials = IntegrationCredentials.builder()
-                .connectorRegistryId(registry.getId())
+                .connectorCode(registry.getCode())
                 .platform(platform)
                 .userPubId(userPubId)
                 .name(name)

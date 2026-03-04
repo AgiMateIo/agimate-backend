@@ -52,7 +52,7 @@ public class ManageConnectorsController {
                 userPubId,
                 request.name(),
                 request.description(),
-                request.connectorRegistryId()
+                request.connectorCode()
         );
         return SuccessResponse.ok(ConnectorCreatedResponse.from(
                 result.app(),

@@ -32,8 +32,8 @@ public class App extends BaseEntity {
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
 
-    @Column(name = "connector_registry_id", nullable = false)
-    private Long connectorRegistryId;
+    @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
+    private String connectorCode;
 
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;

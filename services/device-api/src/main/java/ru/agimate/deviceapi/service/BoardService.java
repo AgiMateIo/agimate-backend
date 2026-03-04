@@ -31,7 +31,7 @@ public class BoardService {
     private final AgentRepository agentRepository;
     private final BoardTriggerService boardTriggerService;
     private final ConnectorService connectorService;
-    private final ConnectorRegistryRepository connectorRegistryRepository;
+    private final ConnectorRepository connectorRepository;
     private final ru.agimate.deviceapi.connectors.internal.BoardToolHandler boardToolHandler;
 
     // ---- Board CRUD ----
@@ -74,20 +74,20 @@ public class BoardService {
                 .build();
         board = boardRepository.save(board);
 
-        ConnectorRegistry registry = ConnectorRegistry.builder()
+        Connector registry = Connector.builder()
                 .code("board:" + board.getPubId())
                 .type(ConnectorType.INTERNAL_SERVICE)
-                .title("Board")
+                .name("Board")
                 .description("Board tools")
                 .userPubId(userPubId)
                 .build();
-        registry = connectorRegistryRepository.save(registry);
+        registry = connectorRepository.save(registry);
 
         connectorService.createAppWithCapabilities(
                 userPubId,
                 "Board",
                 "Board tools",
-                registry.getId(),
+                registry.getCode(),
                 Map.of(),
                 boardToolHandler.getToolDefinitions()
         );

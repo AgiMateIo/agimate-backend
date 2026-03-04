@@ -60,7 +60,7 @@ public class IntegrationWebhookController {
             var triggerRequest = handler.normalizeInbound(integrationCredentials, rawBody);
             // Find the app associated with this integration's connector registry
             var app = appRepository.findByPubIdNotDeletedAndActive(integrationCredentials.getUserPubId()).stream()
-                    .filter(a -> integrationCredentials.getConnectorRegistryId().equals(a.getConnectorRegistryId()))
+                    .filter(a -> integrationCredentials.getConnectorCode().equals(a.getConnectorCode()))
                     .findFirst()
                     .orElse(null);
             if (app != null) {

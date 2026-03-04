@@ -5,10 +5,10 @@ import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceToolsResponse;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
 import ru.agimate.deviceapi.database.entities.App;
-import ru.agimate.deviceapi.database.entities.ConnectorRegistry;
+import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.enums.ConnectorType;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
-import ru.agimate.deviceapi.database.repositories.ConnectorRegistryRepository;
+import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationToolExecutorService;
 import ru.agimate.deviceapi.service.dto.ConnectedDevice;
@@ -28,7 +28,7 @@ public class ConnectorApiService {
 
     private final AppRepository appRepository;
     private final CentrifugoService centrifugoService;
-    private final ConnectorRegistryRepository connectorRegistryRepository;
+    private final ConnectorRepository connectorRepository;
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
     private final IntegrationToolExecutorService integrationToolExecutorService;
     private final ServerToolExecutorService serverToolExecutorService;
@@ -80,13 +80,12 @@ public class ConnectorApiService {
     }
 
     public void pushToConnector(String connectorCode, IToolUse toolUse, String agentId) {
-        ConnectorRegistry registry = connectorRegistryRepository.findByCode(connectorCode)
+        Connector registry = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
         if (registry.getType() == ConnectorType.INTERNAL_SERVICE) {
-            // For internal service connectors, find the app by connector registry id
             var app = appRepository.findByPubIdNotDeletedAndActive(registry.getUserPubId()).stream()
-                    .filter(a -> registry.getId().equals(a.getConnectorRegistryId()))
+                    .filter(a -> connectorCode.equals(a.getConnectorCode()))
                     .findFirst()
                     .orElseThrow(() -> new NotFoundStatusException("App not found for connector: " + connectorCode));
             serverToolExecutorService.execute(app, toolUse, agentId);
@@ -94,7 +93,7 @@ public class ConnectorApiService {
         }
 
         if (registry.getType() == ConnectorType.INTEGRATION) {
-            var integrationCredentials = integrationCredentialsRepository.findByConnectorRegistryId(registry.getId())
+            var integrationCredentials = integrationCredentialsRepository.findByConnectorCode(connectorCode)
                     .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found"));
             integrationToolExecutorService.execute(integrationCredentials, toolUse, agentId);
             return;
@@ -102,7 +101,7 @@ public class ConnectorApiService {
 
         // For APP type connectors, find the app and push via centrifugo
         var app = appRepository.findByPubIdNotDeletedAndActive(registry.getUserPubId()).stream()
-                .filter(a -> registry.getId().equals(a.getConnectorRegistryId()))
+                .filter(a -> connectorCode.equals(a.getConnectorCode()))
                 .findFirst()
                 .orElseThrow(() -> new NotFoundStatusException("App not found for connector: " + connectorCode));
 

@@ -2,7 +2,6 @@ package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 @Schema(description = "Request to create a new connector")
@@ -16,7 +15,7 @@ public record CreateConnectorRequest(
         @Schema(description = "Optional description", example = "Connector for living room automation")
         String description,
 
-        @NotNull
-        @Schema(description = "Connector registry ID")
-        Long connectorRegistryId
+        @NotBlank
+        @Schema(description = "Connector registry code")
+        String connectorCode
 ) {}

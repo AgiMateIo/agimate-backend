@@ -36,7 +36,7 @@ public class ConnectorService {
     private final AppRepository appRepository;
 
     @Transactional
-    public ConnectorCreateResult createConnector(UUID userPubId, String name, String description, Long connectorRegistryId) {
+    public ConnectorCreateResult createConnector(UUID userPubId, String name, String description, String connectorCode) {
         long existingCount = appRepository.countByUserPubIdNotDeleted(userPubId);
         if (existingCount >= MAX_KEYS_PER_USER) {
             throw new ConflictStatusException("Maximum number of connectors reached: " + MAX_KEYS_PER_USER);
@@ -50,7 +50,7 @@ public class ConnectorService {
 
         App app = App.builder()
                 .userPubId(userPubId)
-                .connectorRegistryId(connectorRegistryId)
+                .connectorCode(connectorCode)
                 .name(name)
                 .description(description)
                 .keyHash(generatedKey.secretHash())
@@ -69,7 +69,7 @@ public class ConnectorService {
             UUID userPubId,
             String name,
             String description,
-            Long connectorRegistryId,
+            String connectorCode,
             Map<String, Object> triggers,
             Map<String, Object> tools
     ) {
@@ -82,7 +82,7 @@ public class ConnectorService {
 
         App app = App.builder()
                 .userPubId(userPubId)
-                .connectorRegistryId(connectorRegistryId)
+                .connectorCode(connectorCode)
                 .name(name)
                 .description(description)
                 .keyHash(generatedKey.secretHash())
@@ -138,7 +138,7 @@ public class ConnectorService {
 
         appRepository.softDelete(oldApp.getId(), LocalDateTime.now());
 
-        return createConnector(userPubId, oldApp.getName(), oldApp.getDescription(), oldApp.getConnectorRegistryId());
+        return createConnector(userPubId, oldApp.getName(), oldApp.getDescription(), oldApp.getConnectorCode());
     }
 
     public App getConnectorByPubId(UUID pubId, UUID userPubId) {
