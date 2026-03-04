@@ -6,7 +6,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
-import ru.agimate.deviceapi.database.enums.PermissionDecision;
+import ru.agimate.deviceapi.abac.AccessEffect;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -53,8 +53,8 @@ public class ToolUseLog extends BaseEntity {
     private String agentSessionId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "permission_decision")
-    private PermissionDecision permissionDecision;
+    @Column(name = "access_effect")
+    private AccessEffect accessEffect;
 
     @Column(name = "result_at")
     private LocalDateTime resultAt;

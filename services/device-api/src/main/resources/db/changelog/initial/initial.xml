@@ -33,7 +33,7 @@
 
         <sql>
             ALTER TABLE connectors
-                ADD CONSTRAINT chk_connector_code CHECK (code ~ '^[a-z0-9:\-]{3,128}$');
+                ADD CONSTRAINT chk_connectors_code CHECK (code ~ '^[a-z0-9:\-]{3,128}$');
             ALTER TABLE connectors
                 ADD CONSTRAINT chk_connectors_type CHECK (type IN ('APP', 'INTEGRATION', 'INTERNAL_SERVICE', 'LOOPBACK'));
         </sql>
@@ -566,7 +566,7 @@
             </column>
             <column name="tool_params" type="JSONB"/>
             <column name="agent_session_id" type="TEXT"/>
-            <column name="permission_decision" type="VARCHAR(10)"/>
+            <column name="access_effect" type="TEXT"/>
             <column name="result_at" type="TIMESTAMP"/>
             <column name="result" type="TEXT"/>
             <column name="error" type="TEXT"/>

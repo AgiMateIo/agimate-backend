@@ -21,7 +21,7 @@ import ru.agimate.deviceapi.abac.ToolPolicyDbEvaluatorService;
 import ru.agimate.deviceapi.controller.agent.dto.AgentToolResultRequest;
 import ru.agimate.deviceapi.controller.agent.dto.ToolDefinition;
 import ru.agimate.deviceapi.controller.agent.dto.ToolUseRequest;
-import ru.agimate.deviceapi.database.enums.PermissionDecision;
+import ru.agimate.deviceapi.abac.AccessEffect;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.service.AgentService;
 import ru.agimate.deviceapi.service.ConnectorApiService;
@@ -107,14 +107,12 @@ public class AgentToolController {
         AccessDecision decision = toolPolicyDbEvaluatorService.evaluate(
                 apiKeyPubId, connectorCode, toolUseRequest.getIdentity(), toolUseRequest.getName());
 
+        ToolUseLog log = toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
+                toolUseRequest.getAgentSessionId(), decision.accessEffect(), decision.reason());
+
         if (!decision.allowed()) {
-            toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
-                    toolUseRequest.getAgentSessionId(), PermissionDecision.DENY, decision.reason());
             throw new ForbiddenStatusException("Tool '" + toolUseRequest.getName() + "' is not authorized for this agent: " + decision.reason());
         }
-
-        ToolUseLog log = toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
-                toolUseRequest.getAgentSessionId(), PermissionDecision.ALLOW, null);
 
         connectorApiService.pushToConnector(connectorCode, toolUseRequest, principal.pubId());
         return SuccessResponse.ok(log.getToolUseId());
@@ -143,7 +141,7 @@ public class AgentToolController {
             )
     })
     @PostMapping("/check/{connectorCode}")
-    public SuccessResponse<PermissionDecision> checkToolUse(
+    public SuccessResponse<AccessEffect> checkToolUse(
             @Parameter(description = "Connector code", required = true)
             @PathVariable String connectorCode,
             @Valid @RequestBody ToolUseRequest toolUseRequest,
@@ -154,21 +152,16 @@ public class AgentToolController {
 
         var existingLog = toolUseLogService.findByToolUseIdAndUserPubId(toolUseRequest.getId(), userPubId);
         if (existingLog.isPresent()) {
-            return SuccessResponse.ok(existingLog.get().getPermissionDecision());
+            return SuccessResponse.ok(existingLog.get().getAccessEffect());
         }
 
         AccessDecision decision = toolPolicyDbEvaluatorService.evaluate(
                 apiKeyPubId, connectorCode, toolUseRequest.getIdentity(), toolUseRequest.getName());
 
-        if (!decision.allowed()) {
-            toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
-                    toolUseRequest.getAgentSessionId(), PermissionDecision.DENY, decision.reason());
-            return SuccessResponse.ok(PermissionDecision.DENY);
-        }
-
         toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
-                toolUseRequest.getAgentSessionId(), PermissionDecision.ALLOW, null);
-        return SuccessResponse.ok(PermissionDecision.ALLOW);
+                toolUseRequest.getAgentSessionId(), decision.accessEffect(), decision.reason());
+
+        return SuccessResponse.ok(decision.accessEffect());
     }
 
     @Operation(

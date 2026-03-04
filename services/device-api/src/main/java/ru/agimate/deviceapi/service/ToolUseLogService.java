@@ -10,7 +10,7 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.manage.dto.ToolUseLogResponse;
 import ru.agimate.deviceapi.database.entities.App;
-import ru.agimate.deviceapi.database.enums.PermissionDecision;
+import ru.agimate.deviceapi.abac.AccessEffect;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.database.repositories.ToolUseLogRepository;
 
@@ -33,7 +33,7 @@ public class ToolUseLogService {
     @Transactional
     public ToolUseLog createLog(UUID apiKeyPubId, UUID userPubId, String connectorPubId,
                                 IToolUse toolUse, String agentSessionId,
-                                PermissionDecision permissionDecision, String error) {
+                                AccessEffect effect, String error) {
         var toolUseLog = ToolUseLog.builder()
                 .apiKeyPubId(apiKeyPubId)
                 .userPubId(userPubId)
@@ -42,7 +42,7 @@ public class ToolUseLogService {
                 .toolName(toolUse.getName())
                 .toolParams(toolUse.getParams())
                 .agentSessionId(agentSessionId)
-                .permissionDecision(permissionDecision)
+                .accessEffect(effect)
                 .error(error)
                 .build();
 
@@ -74,7 +74,7 @@ public class ToolUseLogService {
             throw new ForbiddenStatusException("ToolUseLog does not belong to this agent");
         }
 
-        if (toolUseLog.getPermissionDecision() != PermissionDecision.ALLOW) {
+        if (toolUseLog.getAccessEffect() != AccessEffect.ALLOW) {
             throw new ForbiddenStatusException("Cannot record result for denied tool use");
         }
 
