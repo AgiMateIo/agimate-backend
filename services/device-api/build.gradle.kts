@@ -39,6 +39,9 @@ dependencies {
     // SpringDoc for OpenAPI
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui")
 
+    // Caffeine cache for ABAC policy evaluation
+    implementation("com.github.ben-manes.caffeine:caffeine")
+
     implementation("com.squareup.okhttp3:okhttp")
 
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")

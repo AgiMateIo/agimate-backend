@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.deviceapi.database.entities.Connector;
-import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
+import ru.agimate.deviceapi.database.entities.App;
+import ru.agimate.deviceapi.database.repositories.AppRepository;
 import ru.agimate.deviceapi.util.ConnectorKeyUtils;
 import ru.agimate.deviceapi.util.ParsedConnectorKey;
 
@@ -17,9 +17,9 @@ import java.util.Optional;
 @Transactional(readOnly = true)
 public class ConnectorKeyAuthService {
 
-    private final ConnectorRepository connectorRepository;
+    private final AppRepository appRepository;
 
-    public Optional<Connector> validateKey(String apiKey) {
+    public Optional<App> validateKey(String apiKey) {
         if (apiKey == null || apiKey.isBlank()) {
             return Optional.empty();
         }
@@ -37,13 +37,13 @@ public class ConnectorKeyAuthService {
             return Optional.empty();
         }
 
-        Optional<Connector> keyOpt = connectorRepository.findActiveKeyByKeyId(parsedKey.keyId());
+        Optional<App> keyOpt = appRepository.findActiveKeyByKeyId(parsedKey.keyId());
 
         if (keyOpt.isEmpty()) {
             return Optional.empty();
         }
 
-        Connector key = keyOpt.get();
+        App key = keyOpt.get();
         if (!ConnectorKeyUtils.verifySecret(parsedKey.secret(), key.getKeyHash())) {
             log.debug("Connector key secret verification failed");
             return Optional.empty();

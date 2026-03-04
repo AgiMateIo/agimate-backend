@@ -2,7 +2,7 @@ package ru.agimate.deviceapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -29,14 +29,14 @@ public record ConnectorCreatedResponse(
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime updatedAt
 ) {
-    public static ConnectorCreatedResponse from(Connector connector, String plaintextKey) {
+    public static ConnectorCreatedResponse from(App app, String plaintextKey) {
         return new ConnectorCreatedResponse(
-                connector.getPubId(),
-                connector.getName(),
+                app.getPubId(),
+                app.getName(),
                 plaintextKey,
-                connector.getDescription(),
-                connector.getCreatedAt(),
-                connector.getUpdatedAt()
+                app.getDescription(),
+                app.getCreatedAt(),
+                app.getUpdatedAt()
         );
     }
 }

@@ -88,10 +88,10 @@ public class AgentToolController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
-    @PostMapping("/call/{connectorId}")
+    @PostMapping("/call/{connectorCode}")
     public SuccessResponse<String> toolUse(
-            @Parameter(description = "Connector identifier", required = true)
-            @PathVariable String connectorId,
+            @Parameter(description = "Connector code", required = true)
+            @PathVariable String connectorCode,
             @Valid @RequestBody ToolUseRequest toolUseRequest,
             @AuthenticationPrincipal ApiKeyPrincipal principal
     ) {
@@ -104,17 +104,17 @@ public class AgentToolController {
         }
 
         try {
-            toolUseAuthorizerService.authorizeToolUseRequest(principal, connectorId, toolUseRequest.getName());
+            toolUseAuthorizerService.authorizeToolUseRequest(principal, connectorCode, toolUseRequest.getName());
         } catch (ForbiddenStatusException e) {
-            toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest,
+            toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
                     toolUseRequest.getAgentSessionId(), PermissionDecision.DENY, e.getMessage());
             throw e;
         }
 
-        ToolUseLog log = toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest,
+        ToolUseLog log = toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
                 toolUseRequest.getAgentSessionId(), PermissionDecision.ALLOW, null);
 
-        connectorApiService.pushToConnector(connectorId, toolUseRequest, principal.pubId());
+        connectorApiService.pushToConnector(connectorCode, toolUseRequest, principal.pubId());
         return SuccessResponse.ok(log.getToolUseId());
     }
 
@@ -140,10 +140,10 @@ public class AgentToolController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
-    @PostMapping("/check/{connectorId}")
+    @PostMapping("/check/{connectorCode}")
     public SuccessResponse<PermissionDecision> checkToolUse(
-            @Parameter(description = "Connector identifier", required = true)
-            @PathVariable String connectorId,
+            @Parameter(description = "Connector code", required = true)
+            @PathVariable String connectorCode,
             @Valid @RequestBody ToolUseRequest toolUseRequest,
             @AuthenticationPrincipal ApiKeyPrincipal principal
     ) {
@@ -156,14 +156,14 @@ public class AgentToolController {
         }
 
         try {
-            toolUseAuthorizerService.authorizeToolUseRequest(principal, connectorId, toolUseRequest.getName());
+            toolUseAuthorizerService.authorizeToolUseRequest(principal, connectorCode, toolUseRequest.getName());
         } catch (ForbiddenStatusException e) {
-            toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest,
+            toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
                     toolUseRequest.getAgentSessionId(), PermissionDecision.DENY, e.getMessage());
             return SuccessResponse.ok(PermissionDecision.DENY);
         }
 
-        toolUseLogService.createLog(apiKeyPubId, userPubId, connectorId, toolUseRequest,
+        toolUseLogService.createLog(apiKeyPubId, userPubId, connectorCode, toolUseRequest,
                 toolUseRequest.getAgentSessionId(), PermissionDecision.ALLOW, null);
         return SuccessResponse.ok(PermissionDecision.ALLOW);
     }

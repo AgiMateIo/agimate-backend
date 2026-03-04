@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.manage.dto.ToolUseLogResponse;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.enums.PermissionDecision;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.database.repositories.ToolUseLogRepository;
@@ -50,11 +50,11 @@ public class ToolUseLogService {
     }
 
     @Transactional
-    public ToolUseLog recordResult(Connector connector, String toolUseId, String result, String error) {
+    public ToolUseLog recordResult(App app, String toolUseId, String result, String error) {
         var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
                 .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
 
-        if (!connector.getPubId().toString().equals(toolUseLog.getConnectorPubId())) {
+        if (!app.getPubId().toString().equals(toolUseLog.getConnectorPubId())) {
             throw new ForbiddenStatusException("Incorrect device");
         }
 

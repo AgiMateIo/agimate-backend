@@ -10,9 +10,8 @@ import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.deviceapi.controller.app.dto.LinkDeviceRequest;
-import ru.agimate.deviceapi.database.entities.Connector;
-import ru.agimate.deviceapi.database.enums.ConnectorType;
-import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
+import ru.agimate.deviceapi.database.entities.App;
+import ru.agimate.deviceapi.database.repositories.AppRepository;
 import ru.agimate.deviceapi.security.ConnectorSecurityUtils;
 import ru.agimate.deviceapi.service.dto.ConnectorCreateResult;
 import ru.agimate.deviceapi.util.ConnectorKeyUtils;
@@ -34,23 +33,24 @@ public class ConnectorService {
     private static final int MAX_KEYS_PER_USER = 10;
     public static final String CONNECTOR_KEY_PREFIX = "dvck";
 
-    private final ConnectorRepository connectorRepository;
+    private final AppRepository appRepository;
 
     @Transactional
-    public ConnectorCreateResult createConnector(UUID userPubId, String name, String description) {
-        long existingCount = connectorRepository.countByUserPubIdNotDeleted(userPubId);
+    public ConnectorCreateResult createConnector(UUID userPubId, String name, String description, Long connectorRegistryId) {
+        long existingCount = appRepository.countByUserPubIdNotDeleted(userPubId);
         if (existingCount >= MAX_KEYS_PER_USER) {
             throw new ConflictStatusException("Maximum number of connectors reached: " + MAX_KEYS_PER_USER);
         }
 
-        if (connectorRepository.existsByUserPubIdAndName(userPubId, name)) {
+        if (appRepository.existsByUserPubIdAndName(userPubId, name)) {
             throw new ConflictStatusException("A connector with this name already exists");
         }
 
         GeneratedConnectorKey generatedKey = ConnectorKeyUtils.generate(CONNECTOR_KEY_PREFIX);
 
-        Connector connector = Connector.builder()
+        App app = App.builder()
                 .userPubId(userPubId)
+                .connectorRegistryId(connectorRegistryId)
                 .name(name)
                 .description(description)
                 .keyHash(generatedKey.secretHash())
@@ -58,176 +58,149 @@ public class ConnectorService {
                 .enabled(true)
                 .build();
 
-        Connector saved = connectorRepository.save(connector);
-        log.info("Created new connector for user {}: {}", userPubId, saved.getPubId());
+        App saved = appRepository.save(app);
+        log.info("Created new app for user {}: {}", userPubId, saved.getPubId());
 
         return new ConnectorCreateResult(saved, generatedKey.fullKey());
     }
 
     @Transactional
-    public Connector createOutboundConnector(
+    public App createAppWithCapabilities(
             UUID userPubId,
             String name,
             String description,
+            Long connectorRegistryId,
             Map<String, Object> triggers,
             Map<String, Object> tools
     ) {
-        long existingCount = connectorRepository.countByUserPubIdNotDeleted(userPubId);
+        long existingCount = appRepository.countByUserPubIdNotDeleted(userPubId);
         if (existingCount >= MAX_KEYS_PER_USER) {
             throw new ConflictStatusException("Maximum number of connectors reached: " + MAX_KEYS_PER_USER);
         }
 
         GeneratedConnectorKey generatedKey = ConnectorKeyUtils.generate(CONNECTOR_KEY_PREFIX);
 
-        Connector connector = Connector.builder()
+        App app = App.builder()
                 .userPubId(userPubId)
+                .connectorRegistryId(connectorRegistryId)
                 .name(name)
                 .description(description)
                 .keyHash(generatedKey.secretHash())
                 .keyId(generatedKey.keyId())
-                .type(ConnectorType.OUTBOUND)
                 .triggers(triggers)
                 .tools(tools)
                 .enabled(true)
                 .build();
 
-        Connector saved = connectorRepository.save(connector);
-        log.info("Created outbound connector for user {}: {}", userPubId, saved.getPubId());
+        App saved = appRepository.save(app);
+        log.info("Created app with capabilities for user {}: {}", userPubId, saved.getPubId());
 
         return saved;
     }
 
-    @Transactional
-    public Connector createServerConnector(
-            UUID userPubId,
-            String name,
-            String description,
-            Map<String, Object> triggers,
-            Map<String, Object> tools
-    ) {
-        GeneratedConnectorKey generatedKey = ConnectorKeyUtils.generate(CONNECTOR_KEY_PREFIX);
-
-        Connector connector = Connector.builder()
-                .userPubId(userPubId)
-                .name(name)
-                .description(description)
-                .keyHash(generatedKey.secretHash())
-                .keyId(generatedKey.keyId())
-                .type(ConnectorType.SERVER)
-                .triggers(triggers)
-                .tools(tools)
-                .enabled(true)
-                .build();
-
-        Connector saved = connectorRepository.save(connector);
-        log.info("Created server connector for user {}: {}", userPubId, saved.getPubId());
-
-        return saved;
+    public List<App> getConnectorsForUser(UUID userPubId) {
+        return appRepository.findByUserPubIdNotDeleted(userPubId);
     }
 
-    public List<Connector> getConnectorsForUser(UUID userPubId) {
-        return connectorRepository.findByUserPubIdNotDeleted(userPubId);
-    }
-
-    public Optional<Connector> getConnectorByPubIdForUser(UUID pubId, UUID userPubId) {
-        return connectorRepository.findByPubIdNotDeleted(pubId)
+    public Optional<App> getConnectorByPubIdForUser(UUID pubId, UUID userPubId) {
+        return appRepository.findByPubIdNotDeleted(pubId)
                 .filter(key -> key.getUserPubId().equals(userPubId));
     }
 
     @Transactional
-    public Connector updateConnector(UUID pubId, UUID userPubId, String name, String description, Boolean enabled) {
-        Connector connector = connectorRepository.findByPubIdNotDeleted(pubId)
+    public App updateConnector(UUID pubId, UUID userPubId, String name, String description, Boolean enabled) {
+        App app = appRepository.findByPubIdNotDeleted(pubId)
                 .filter(k -> k.getUserPubId().equals(userPubId))
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found"));
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
-        if (name != null) connector.setName(name);
-        if (description != null) connector.setDescription(description);
-        if (enabled != null) connector.setEnabled(enabled);
+        if (name != null) app.setName(name);
+        if (description != null) app.setDescription(description);
+        if (enabled != null) app.setEnabled(enabled);
 
-        return connectorRepository.save(connector);
+        return appRepository.save(app);
     }
 
     @Transactional
     public void deleteConnector(UUID pubId, UUID userPubId) {
-        Connector connector = connectorRepository.findByPubIdNotDeleted(pubId)
+        App app = appRepository.findByPubIdNotDeleted(pubId)
                 .filter(k -> k.getUserPubId().equals(userPubId))
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found"));
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
-        connectorRepository.softDelete(connector.getId(), LocalDateTime.now());
-        log.info("Soft deleted connector: {}", pubId);
+        appRepository.softDelete(app.getId(), LocalDateTime.now());
+        log.info("Soft deleted app: {}", pubId);
     }
 
     @Transactional
     public ConnectorCreateResult regenerateConnectorKey(UUID pubId, UUID userPubId) {
-        Connector oldConnector = connectorRepository.findByPubIdNotDeleted(pubId)
+        App oldApp = appRepository.findByPubIdNotDeleted(pubId)
                 .filter(k -> k.getUserPubId().equals(userPubId))
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found"));
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
-        connectorRepository.softDelete(oldConnector.getId(), LocalDateTime.now());
+        appRepository.softDelete(oldApp.getId(), LocalDateTime.now());
 
-        return createConnector(userPubId, oldConnector.getName(), oldConnector.getDescription());
+        return createConnector(userPubId, oldApp.getName(), oldApp.getDescription(), oldApp.getConnectorRegistryId());
     }
 
-    public Connector getConnectorByPubId(UUID pubId, UUID userPubId) {
-        return connectorRepository.findByPubIdNotDeleted(pubId)
+    public App getConnectorByPubId(UUID pubId, UUID userPubId) {
+        return appRepository.findByPubIdNotDeleted(pubId)
                 .filter(a -> a.getUserPubId().equals(userPubId))
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found"));
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
     }
 
     @Transactional
     public void disconnectConnector(UUID pubId, UUID userPubId) {
-        Connector connector = connectorRepository.findByPubIdNotDeleted(pubId)
+        App app = appRepository.findByPubIdNotDeleted(pubId)
                 .filter(a -> a.getUserPubId().equals(userPubId))
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found"));
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
-        if (!connector.isLinked()) {
-            throw new BadRequestStatusException("Connector is not linked to any device");
+        if (!app.isLinked()) {
+            throw new BadRequestStatusException("App is not linked to any device");
         }
 
-        connector.disconnect();
-        connectorRepository.save(connector);
-        log.info("Disconnected connector {}", pubId);
+        app.disconnect();
+        appRepository.save(app);
+        log.info("Disconnected app {}", pubId);
     }
 
-    public Connector getConnector() {
+    public App getConnector() {
         UUID connectorPubId = ConnectorSecurityUtils.getConnectorPubId();
-        return connectorRepository.findByPubId(connectorPubId)
-                .orElseThrow(() -> new UnauthorizedStatusException("Connector not found"));
+        return appRepository.findByPubId(connectorPubId)
+                .orElseThrow(() -> new UnauthorizedStatusException("App not found"));
     }
 
-    public Connector getConnector(Authentication authentication) {
+    public App getConnector(Authentication authentication) {
         var principal = ConnectorSecurityUtils.getPrincipal(authentication);
-        return connectorRepository.findByPubId(principal.connectorPubId())
-                .orElseThrow(() -> new UnauthorizedStatusException("Connector not found"));
+        return appRepository.findByPubId(principal.connectorPubId())
+                .orElseThrow(() -> new UnauthorizedStatusException("App not found"));
     }
 
     @Transactional
-    public Connector linkDevice(Authentication authentication, LinkDeviceRequest linkDeviceRequest) {
-        var connector = getConnector(authentication);
+    public App linkDevice(Authentication authentication, LinkDeviceRequest linkDeviceRequest) {
+        var app = getConnector(authentication);
 
         // If already linked to the same device — update capabilities
-        if (connector.isLinked() && connector.getDeviceId().equals(linkDeviceRequest.deviceId())) {
-            connector.setDeviceFeatures(buildDeviceFeatures(linkDeviceRequest));
-            connector.setTriggers(linkDeviceRequest.triggers());
-            connector.setTools(linkDeviceRequest.tools());
-            return connectorRepository.save(connector);
+        if (app.isLinked() && app.getDeviceId().equals(linkDeviceRequest.deviceId())) {
+            app.setInfo(buildDeviceFeatures(linkDeviceRequest));
+            app.setTriggers(linkDeviceRequest.triggers());
+            app.setTools(linkDeviceRequest.tools());
+            return appRepository.save(app);
         }
 
         // If already linked to a different device — conflict
-        if (connector.isLinked()) {
-            log.warn("Connector {} is already linked to device {}", connector.getPubId(), connector.getDeviceId());
+        if (app.isLinked()) {
+            log.warn("App {} is already linked to device {}", app.getPubId(), app.getDeviceId());
             return null;
         }
 
         // Link device
-        connector.setDeviceId(linkDeviceRequest.deviceId());
-        connector.setDeviceFeatures(buildDeviceFeatures(linkDeviceRequest));
-        connector.setTriggers(linkDeviceRequest.triggers());
-        connector.setTools(linkDeviceRequest.tools());
-        connector = connectorRepository.save(connector);
-        log.info("Linked device {} to connector {}", linkDeviceRequest.deviceId(), connector.getPubId());
+        app.setDeviceId(linkDeviceRequest.deviceId());
+        app.setInfo(buildDeviceFeatures(linkDeviceRequest));
+        app.setTriggers(linkDeviceRequest.triggers());
+        app.setTools(linkDeviceRequest.tools());
+        app = appRepository.save(app);
+        log.info("Linked device {} to app {}", linkDeviceRequest.deviceId(), app.getPubId());
 
-        return connector;
+        return app;
     }
 
     private Map<String, Object> buildDeviceFeatures(LinkDeviceRequest request) {

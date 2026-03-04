@@ -5,8 +5,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.security.apikey.ApiKeyPrincipal;
+import ru.agimate.deviceapi.abac.AccessDecision;
+import ru.agimate.deviceapi.abac.AccessEvaluatorService;
+import ru.agimate.deviceapi.abac.AccessRequest;
 import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
-import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
+import ru.agimate.deviceapi.database.repositories.AppRepository;
 
 import java.util.UUID;
 
@@ -16,7 +19,8 @@ import java.util.UUID;
 public class ToolUseAuthorizerService {
 
     private final AgentToolRepository agentToolRepository;
-    private final ConnectorRepository connectorRepository;
+    private final AppRepository appRepository;
+    private final AccessEvaluatorService accessEvaluatorService;
 
     public void authorizeToolUseRequest(ApiKeyPrincipal apiKeyPrincipal, String connectorId, String toolName) {
         validateConnector(UUID.fromString(apiKeyPrincipal.userPubId()), connectorId);
@@ -27,7 +31,7 @@ public class ToolUseAuthorizerService {
         if ("local".equals(connectorId)) {
             return;
         }
-        if (!connectorRepository.existsByPubIdAndUserPubId(UUID.fromString(connectorId), userPubId)) {
+        if (!appRepository.existsByPubIdAndUserPubId(UUID.fromString(connectorId), userPubId)) {
             throw new ForbiddenStatusException("Connector is not accessible for this agent");
         }
     }
@@ -36,5 +40,9 @@ public class ToolUseAuthorizerService {
         if (!agentToolRepository.existsByApiKeyPubIdAndToolName(apiKeyPubId, toolName)) {
             throw new ForbiddenStatusException("Tool '" + toolName + "' is not authorized for this agent");
         }
+    }
+
+    public AccessDecision evaluateAccess(String agentName, String connectorCode, String connectorIdentity, String toolName) {
+        return accessEvaluatorService.evaluate(new AccessRequest(agentName, connectorCode, connectorIdentity, toolName));
     }
 }

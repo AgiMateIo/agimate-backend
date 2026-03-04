@@ -1,7 +1,7 @@
 package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 
 import java.util.Map;
 import java.util.UUID;
@@ -23,8 +23,8 @@ public record UserConnectorDetailResponse(
         @Schema(description = "Device OS")
         String deviceOs,
 
-        @Schema(description = "Device features (deviceName, deviceOs, etc.)")
-        Map<String, Object> deviceFeatures,
+        @Schema(description = "Device info (deviceName, deviceOs, etc.)")
+        Map<String, Object> info,
 
         @Schema(description = "Whether a device is connected to this connector")
         boolean connected,
@@ -35,23 +35,23 @@ public record UserConnectorDetailResponse(
         @Schema(description = "Device tools")
         Map<String, Object> tools
 ) {
-    public static UserConnectorDetailResponse from(Connector connector) {
-        var features = connector.getDeviceFeatures();
-        var deviceName = features != null && features.get("deviceName") != null
-                ? features.get("deviceName").toString() : null;
-        var deviceOs = features != null && features.get("deviceOs") != null
-                ? features.get("deviceOs").toString() : null;
+    public static UserConnectorDetailResponse from(App app) {
+        var info = app.getInfo();
+        var deviceName = info != null && info.get("deviceName") != null
+                ? info.get("deviceName").toString() : null;
+        var deviceOs = info != null && info.get("deviceOs") != null
+                ? info.get("deviceOs").toString() : null;
 
         return new UserConnectorDetailResponse(
-                connector.getPubId(),
-                connector.getName(),
-                connector.getDeviceId(),
+                app.getPubId(),
+                app.getName(),
+                app.getDeviceId(),
                 deviceName,
                 deviceOs,
-                features,
-                connector.isLinked(),
-                connector.getTriggers(),
-                connector.getTools()
+                info,
+                app.isLinked(),
+                app.getTriggers(),
+                app.getTools()
         );
     }
 }

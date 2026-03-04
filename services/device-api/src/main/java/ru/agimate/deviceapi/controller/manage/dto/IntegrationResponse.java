@@ -2,7 +2,7 @@ package ru.agimate.deviceapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.database.entities.Integration;
+import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -24,8 +24,8 @@ public record IntegrationResponse(
         @Schema(description = "Integration name")
         String name,
 
-        @Schema(description = "Associated connector public ID")
-        UUID connectorPubId,
+        @Schema(description = "Associated connector registry ID")
+        Long connectorRegistryId,
 
         @Schema(description = "Whether integration is enabled")
         Boolean enabled,
@@ -38,17 +38,17 @@ public record IntegrationResponse(
         @Schema(description = "Creation timestamp")
         LocalDateTime createdAt
 ) {
-    public static IntegrationResponse from(Integration integration) {
+    public static IntegrationResponse from(IntegrationCredentials integrationCredentials) {
         return new IntegrationResponse(
-                integration.getPubId(),
-                integration.getPlatform().getCode(),
-                integration.getPlatform().getName(),
-                integration.getPlatformIdentifier(),
-                integration.getName(),
-                integration.getConnector().getPubId(),
-                integration.getEnabled(),
-                integration.getLastUsedAt(),
-                integration.getCreatedAt()
+                integrationCredentials.getPubId(),
+                integrationCredentials.getPlatform().getCode(),
+                integrationCredentials.getPlatform().getName(),
+                integrationCredentials.getPlatformIdentifier(),
+                integrationCredentials.getName(),
+                integrationCredentials.getConnectorRegistryId(),
+                integrationCredentials.getEnabled(),
+                integrationCredentials.getLastUsedAt(),
+                integrationCredentials.getCreatedAt()
         );
     }
 }

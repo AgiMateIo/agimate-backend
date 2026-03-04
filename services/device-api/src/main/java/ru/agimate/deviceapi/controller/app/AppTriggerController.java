@@ -37,8 +37,8 @@ public class AppTriggerController {
     ) {
         log.info("Trigger received - {}", triggerRequest.toString());
 
-        var connector = connectorService.getConnector(authentication);
-        triggerRouterService.routeTrigger(connector, triggerRequest);
+        var app = connectorService.getConnector(authentication);
+        triggerRouterService.routeTrigger(app, triggerRequest);
 
         return SuccessResponse.ok(triggerRequest.name());
     }

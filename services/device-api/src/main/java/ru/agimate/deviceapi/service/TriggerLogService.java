@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.controller.manage.dto.TriggerLogResponse;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.repositories.TriggerLogRepository;
 
@@ -33,24 +33,24 @@ public class TriggerLogService {
 
 
     @Transactional
-    public TriggerLog.TriggerLogBuilder getTriggerLogBuilder(Connector connector, TriggerRequest triggerRequest) {
+    public TriggerLog.TriggerLogBuilder getTriggerLogBuilder(App app, TriggerRequest triggerRequest) {
         String linkedDeviceId = null;
-        if (connector.isLinked()) {
-            linkedDeviceId = connector.getDeviceId();
+        if (app.isLinked()) {
+            linkedDeviceId = app.getDeviceId();
             if (!Objects.equals(linkedDeviceId, triggerRequest.deviceId())) {
-                log.warn("Device ID mismatch: request deviceId='{}', linked deviceId='{}', connectorId={}",
-                        triggerRequest.deviceId(), linkedDeviceId, connector.getId());
+                log.warn("Device ID mismatch: request deviceId='{}', linked deviceId='{}', appId={}",
+                        triggerRequest.deviceId(), linkedDeviceId, app.getId());
             }
         } else {
-            log.warn("Trigger from not linked connector: request deviceId='{}', connectorId={}",
-                    triggerRequest.deviceId(), connector.getId());
+            log.warn("Trigger from not linked app: request deviceId='{}', appId={}",
+                    triggerRequest.deviceId(), app.getId());
         }
 
         var triggerData = JsonUtils.fromJsonToMap(triggerRequest.data().toString());
 
         return TriggerLog.builder()
-                .connector(connector)
-                .userPubId(connector.getUserPubId())
+                .app(app)
+                .userPubId(app.getUserPubId())
                 .triggerId(triggerRequest.id())
                 .triggerType(triggerRequest.type())
                 .triggerName(triggerRequest.name())

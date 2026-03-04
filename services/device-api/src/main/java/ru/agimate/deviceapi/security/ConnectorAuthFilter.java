@@ -35,20 +35,20 @@ public class ConnectorAuthFilter extends OncePerRequestFilter {
 
         if (StringUtils.hasText(apiKey)) {
             connectorKeyAuthService.validateKey(apiKey)
-                    .ifPresent(connector -> {
+                    .ifPresent(app -> {
                         var authorities = List.of(new SimpleGrantedAuthority("ROLE_CONNECTOR"));
                         var principal = new ConnectorPrincipal(
-                                connector.getName(),
-                                connector.getPubId(),
-                                connector.getUserPubId()
+                                app.getName(),
+                                app.getPubId(),
+                                app.getUserPubId()
                         );
 
                         SecurityContextHolder.getContext().setAuthentication(
                                 new ConnectorAuthToken(principal, authorities)
                         );
 
-                        log.debug("Connector key authenticated for connector: {} (user: {})",
-                                connector.getName(), connector.getUserPubId());
+                        log.debug("Connector key authenticated for app: {} (user: {})",
+                                app.getName(), app.getUserPubId());
                     });
         }
 

@@ -12,7 +12,7 @@ import ru.agimate.deviceapi.controller.manage.dto.CreateIntegrationRequest;
 import ru.agimate.deviceapi.controller.manage.dto.IntegrationResponse;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateIntegrationCredentialsRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateIntegrationRequest;
-import ru.agimate.deviceapi.integration.IntegrationService;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationService;
 
 import java.util.List;
 import java.util.UUID;
@@ -46,9 +46,9 @@ public class ManageIntegrationController {
             @Valid @RequestBody CreateIntegrationRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var integration = integrationService.createIntegration(
+        var integrationCredentials = integrationService.createIntegration(
                 userPubId, request.platformCode(), request.credentials(), request.name());
-        return SuccessResponse.ok(IntegrationResponse.from(integration));
+        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
     @Operation(summary = "Get integration details")
@@ -58,8 +58,8 @@ public class ManageIntegrationController {
             @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var integration = integrationService.getIntegration(id, userPubId);
-        return SuccessResponse.ok(IntegrationResponse.from(integration));
+        var integrationCredentials = integrationService.getIntegration(id, userPubId);
+        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
     @Operation(summary = "Update integration credentials")
@@ -70,8 +70,8 @@ public class ManageIntegrationController {
             @Valid @RequestBody UpdateIntegrationCredentialsRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var integration = integrationService.updateCredentials(id, userPubId, request.credentials());
-        return SuccessResponse.ok(IntegrationResponse.from(integration));
+        var integrationCredentials = integrationService.updateCredentials(id, userPubId, request.credentials());
+        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
     @Operation(summary = "Update integration settings (enable/disable, name)")
@@ -82,8 +82,8 @@ public class ManageIntegrationController {
             @Valid @RequestBody UpdateIntegrationRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var integration = integrationService.updateIntegration(id, userPubId, request.enabled(), request.name());
-        return SuccessResponse.ok(IntegrationResponse.from(integration));
+        var integrationCredentials = integrationService.updateIntegration(id, userPubId, request.enabled(), request.name());
+        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
     @Operation(summary = "Delete an integration")

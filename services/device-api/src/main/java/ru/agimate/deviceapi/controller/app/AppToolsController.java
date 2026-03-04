@@ -32,10 +32,10 @@ public class AppToolsController {
     ) {
         log.info("Tool result received - {}", toolResultRequest.toString());
 
-        var connector = connectorService.getConnector(authentication);
+        var app = connectorService.getConnector(authentication);
 
         String resultString = JsonUtils.toJson(toolResultRequest.result()).orElse(null);
-        var toolUseLog = toolUseLogService.recordResult(connector, toolResultRequest.id(), resultString, null);
+        var toolUseLog = toolUseLogService.recordResult(app, toolResultRequest.id(), resultString, null);
         connectorApiService.pushToAgent(toolUseLog.getApiKeyPubId().toString(), toolResultRequest);
 
         return SuccessResponse.empty();

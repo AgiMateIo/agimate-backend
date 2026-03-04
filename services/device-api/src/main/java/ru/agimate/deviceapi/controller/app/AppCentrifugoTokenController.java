@@ -15,7 +15,7 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.deviceapi.config.CentrifugoProperties;
 import ru.agimate.deviceapi.controller.app.dto.DeviceChannelTokenRequest;
 import ru.agimate.deviceapi.controller.app.dto.CentrifugoTokenResponse;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.service.ConnectorService;
 import ru.agimate.deviceapi.service.CentrifugoService;
 
@@ -45,9 +45,9 @@ public class AppCentrifugoTokenController {
             Authentication authentication,
             HttpServletRequest request
     ) {
-        Connector connector = connectorService.getConnector(authentication);
+        App app = connectorService.getConnector(authentication);
 
-        if (!connector.isLinked() || !deviceChannelTokenRequest.deviceId().equals(connector.getDeviceId())) {
+        if (!app.isLinked() || !deviceChannelTokenRequest.deviceId().equals(app.getDeviceId())) {
             throw new ForbiddenStatusException("Device is not linked");
         }
 

@@ -1,7 +1,7 @@
 package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 
 import java.util.UUID;
 
@@ -26,22 +26,22 @@ public record UserConnectorResponse(
         boolean connected
 ) {
     @SuppressWarnings("unchecked")
-    public static UserConnectorResponse from(Connector connector) {
+    public static UserConnectorResponse from(App app) {
         String deviceName = null;
         String deviceOs = null;
-        if (connector.getDeviceFeatures() != null) {
-            Object name = connector.getDeviceFeatures().get("deviceName");
+        if (app.getInfo() != null) {
+            Object name = app.getInfo().get("deviceName");
             if (name != null) deviceName = name.toString();
-            Object os = connector.getDeviceFeatures().get("deviceOs");
+            Object os = app.getInfo().get("deviceOs");
             if (os != null) deviceOs = os.toString();
         }
         return new UserConnectorResponse(
-                connector.getPubId(),
-                connector.getName(),
-                connector.getDeviceId(),
+                app.getPubId(),
+                app.getName(),
+                app.getDeviceId(),
                 deviceName,
                 deviceOs,
-                connector.isLinked()
+                app.isLinked()
         );
     }
 }

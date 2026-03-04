@@ -10,7 +10,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.*;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.service.ConnectorService;
 import ru.agimate.deviceapi.service.dto.ConnectorCreateResult;
 
@@ -33,8 +33,8 @@ public class ManageConnectorsController {
             @AuthenticationPrincipal AgimateUserPrincipal principal
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        List<Connector> connectors = connectorService.getConnectorsForUser(userPubId);
-        List<ConnectorResponse> response = connectors.stream()
+        List<App> apps = connectorService.getConnectorsForUser(userPubId);
+        List<ConnectorResponse> response = apps.stream()
                 .map(ConnectorResponse::from)
                 .toList();
         return SuccessResponse.ok(response);
@@ -51,10 +51,11 @@ public class ManageConnectorsController {
         ConnectorCreateResult result = connectorService.createConnector(
                 userPubId,
                 request.name(),
-                request.description()
+                request.description(),
+                request.connectorRegistryId()
         );
         return SuccessResponse.ok(ConnectorCreatedResponse.from(
-                result.connector(),
+                result.app(),
                 result.plaintextKey()
         ));
     }
@@ -66,9 +67,9 @@ public class ManageConnectorsController {
             @PathVariable UUID connectorId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Connector connector = connectorService.getConnectorByPubIdForUser(connectorId, userPubId)
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found"));
-        return SuccessResponse.ok(ConnectorResponse.from(connector));
+        App app = connectorService.getConnectorByPubIdForUser(connectorId, userPubId)
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
+        return SuccessResponse.ok(ConnectorResponse.from(app));
     }
 
     @Operation(summary = "Update a connector")
@@ -79,7 +80,7 @@ public class ManageConnectorsController {
             @Valid @RequestBody UpdateConnectorRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Connector updated = connectorService.updateConnector(
+        App updated = connectorService.updateConnector(
                 connectorId,
                 userPubId,
                 request.name(),
@@ -110,7 +111,7 @@ public class ManageConnectorsController {
         UUID userPubId = UUID.fromString(principal.pubId());
         ConnectorCreateResult result = connectorService.regenerateConnectorKey(connectorId, userPubId);
         return SuccessResponse.ok(ConnectorCreatedResponse.from(
-                result.connector(),
+                result.app(),
                 result.plaintextKey()
         ));
     }
@@ -125,8 +126,8 @@ public class ManageConnectorsController {
             @PathVariable UUID connectorId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var connector = connectorService.getConnectorByPubId(connectorId, userPubId);
-        return SuccessResponse.ok(UserConnectorDetailResponse.from(connector));
+        var app = connectorService.getConnectorByPubId(connectorId, userPubId);
+        return SuccessResponse.ok(UserConnectorDetailResponse.from(app));
     }
 
     @Operation(

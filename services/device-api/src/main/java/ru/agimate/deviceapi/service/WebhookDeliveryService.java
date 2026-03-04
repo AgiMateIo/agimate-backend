@@ -13,7 +13,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.controller.manage.dto.WebhookDeliveryLogResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.deviceapi.database.repositories.WebhookDeliveryLogRepository;
@@ -41,8 +41,8 @@ public class WebhookDeliveryService {
             .build();
 
     @Async
-    public void deliverWebhook(Agent settings, TriggerLogAgent triggerLogAgent, Connector connector, TriggerRequest triggerRequest) {
-        Map<String, Object> payload = buildPayload(triggerRequest, connector);
+    public void deliverWebhook(Agent settings, TriggerLogAgent triggerLogAgent, App app, TriggerRequest triggerRequest) {
+        Map<String, Object> payload = buildPayload(triggerRequest, app);
 
         long startTime = System.currentTimeMillis();
         WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder = WebhookDeliveryLog.builder()
@@ -129,15 +129,15 @@ public class WebhookDeliveryService {
         return logs.map(WebhookDeliveryLogResponse::from);
     }
 
-    private Map<String, Object> buildPayload(TriggerRequest triggerRequest, Connector connector) {
+    private Map<String, Object> buildPayload(TriggerRequest triggerRequest, App app) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("event", triggerRequest.name());
-        payload.put("userId", connector.getUserPubId().toString());
+        payload.put("userId", app.getUserPubId().toString());
         payload.put("timestamp", LocalDateTime.now().toString());
 
         String deviceId = triggerRequest.deviceId();
-        if (deviceId == null && connector.isLinked()) {
-            deviceId = connector.getDeviceId();
+        if (deviceId == null && app.isLinked()) {
+            deviceId = app.getDeviceId();
         }
         if (deviceId != null) {
             payload.put("deviceId", deviceId);

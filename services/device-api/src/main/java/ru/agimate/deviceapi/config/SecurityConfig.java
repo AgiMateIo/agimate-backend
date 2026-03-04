@@ -32,6 +32,7 @@ import ru.agimate.deviceapi.controller.manage.ManageDeviceToolsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceTriggersController;
 import ru.agimate.deviceapi.controller.manage.ManageToolUseLogsController;
 import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
+import ru.agimate.deviceapi.controller.manage.ManageAccessPolicyController;
 import ru.agimate.deviceapi.controller.manage.ManageIntegrationController;
 import ru.agimate.deviceapi.controller.manage.ManagePlatformController;
 import ru.agimate.deviceapi.controller.manage.ManageWebhookDeliveryLogsController;
@@ -115,7 +116,8 @@ public class SecurityConfig {
                 ManageWebhookDeliveryLogsController.PATH + "/**",
                 ManageIntegrationController.PATH + "/**",
                 ManagePlatformController.PATH + "/**",
-                ManageBoardController.PATH + "/**"
+                ManageBoardController.PATH + "/**",
+                ManageAccessPolicyController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

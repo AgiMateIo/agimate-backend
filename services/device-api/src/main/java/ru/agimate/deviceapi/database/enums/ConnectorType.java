@@ -1,7 +1,8 @@
 package ru.agimate.deviceapi.database.enums;
 
 public enum ConnectorType {
-    INBOUND,
-    OUTBOUND,
-    SERVER
+    APP,
+    INTEGRATION,
+    INTERNAL_SERVICE,
+    LOOPBACK
 }

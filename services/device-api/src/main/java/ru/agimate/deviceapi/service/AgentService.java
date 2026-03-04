@@ -16,12 +16,12 @@ import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentTool;
 import ru.agimate.deviceapi.database.entities.AgentTrigger;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.AgentToolRepository;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerRepository;
 import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
-import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
+import ru.agimate.deviceapi.database.repositories.AppRepository;
 
 import java.util.*;
 import java.util.function.Function;
@@ -37,7 +37,7 @@ public class AgentService {
     private final AgentToolRepository agentToolRepository;
     private final AgentTriggerRepository agentTriggerRepository;
     private final AgenticTeamRepository agenticTeamRepository;
-    private final ConnectorRepository connectorRepository;
+    private final AppRepository appRepository;
 
     public List<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId) {
         List<Agent> agents;
@@ -120,12 +120,12 @@ public class AgentService {
 
     @SuppressWarnings("unchecked")
     private Map<String, ToolDefinition> buildToolDefinitionMap(UUID userPubId) {
-        List<Connector> connectors = connectorRepository.findByUserPubIdNotDeleted(userPubId);
+        List<App> apps = appRepository.findByUserPubIdNotDeleted(userPubId);
         Map<String, ToolDefinition> map = new LinkedHashMap<>();
 
-        for (Connector connector : connectors) {
-            if (connector.getTools() == null) continue;
-            for (var entry : connector.getTools().entrySet()) {
+        for (App app : apps) {
+            if (app.getTools() == null) continue;
+            for (var entry : app.getTools().entrySet()) {
                 String toolName = entry.getKey();
                 var value = (Map<String, Object>) entry.getValue();
                 String description = value.getOrDefault("description", "").toString();

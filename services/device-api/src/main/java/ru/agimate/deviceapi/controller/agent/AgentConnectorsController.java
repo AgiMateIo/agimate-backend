@@ -56,13 +56,6 @@ public class AgentConnectorsController {
         return SuccessResponse.ok(triggers);
     }
 
-
-    @GetMapping("/tools/")
-    public SuccessResponse<List<DeviceTriggersResponse>> getAllTools() {
-        // TODO: implement as for triggers
-        return SuccessResponse.ok(null);
-    }
-
     @Operation(
             summary = "Get connector tools",
             description = "Returns available tools for a specific connector"

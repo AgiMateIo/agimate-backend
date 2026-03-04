@@ -6,7 +6,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.Agent;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
@@ -26,11 +26,11 @@ public class TriggerRouterService {
     private final WebhookDeliveryService webhookDeliveryService;
 
     @Async
-    public void routeTrigger(Connector connector, TriggerRequest triggerRequest) {
-        TriggerLog.TriggerLogBuilder triggerLogBuilder = triggerLogService.getTriggerLogBuilder(connector, triggerRequest);
+    public void routeTrigger(App app, TriggerRequest triggerRequest) {
+        TriggerLog.TriggerLogBuilder triggerLogBuilder = triggerLogService.getTriggerLogBuilder(app, triggerRequest);
         TriggerLog triggerLog = triggerLogService.logTrigger(triggerLogBuilder);
         try {
-            UUID userPubId = connector.getUserPubId();
+            UUID userPubId = app.getUserPubId();
 
             List<Agent> agents = agentRepository
                     .findRoutableByUserPubIdAndTriggerName(userPubId, triggerRequest.name());
@@ -52,7 +52,7 @@ public class TriggerRouterService {
                 Agent agent = triggerLogAgent.getAgent();
                 switch (agent.getTriggersTo()) {
                     case "centrifugo" -> routeToCentrifugo(agent, triggerRequest);
-                    case "webhook" -> webhookDeliveryService.deliverWebhook(agent, triggerLogAgent, connector, triggerRequest);
+                    case "webhook" -> webhookDeliveryService.deliverWebhook(agent, triggerLogAgent, app, triggerRequest);
                     default -> log.warn("Unknown triggersTo value '{}' for agent '{}'", agent.getTriggersTo(), agent.getApiKeyPubId());
                 }
             }

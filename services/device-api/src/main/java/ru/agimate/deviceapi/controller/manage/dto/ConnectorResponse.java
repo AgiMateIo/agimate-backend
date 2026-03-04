@@ -2,7 +2,7 @@ package ru.agimate.deviceapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.service.ConnectorService;
 
 import java.time.LocalDateTime;
@@ -37,17 +37,17 @@ public record ConnectorResponse(
         @Schema(description = "Device features")
         Map<String, Object> features
 ) {
-    public static ConnectorResponse from(Connector connector) {
-        String maskedKeyId = ConnectorService.CONNECTOR_KEY_PREFIX + connector.getKeyId().substring(0, 4) + "****";
+    public static ConnectorResponse from(App app) {
+        String maskedKeyId = ConnectorService.CONNECTOR_KEY_PREFIX + app.getKeyId().substring(0, 4) + "****";
         return new ConnectorResponse(
-                connector.getPubId(),
-                connector.getName(),
-                connector.getDescription(),
+                app.getPubId(),
+                app.getName(),
+                app.getDescription(),
                 maskedKeyId,
-                connector.getEnabled(),
-                connector.getCreatedAt(),
-                connector.getUpdatedAt(),
-                connector.getDeviceFeatures()
+                app.getEnabled(),
+                app.getCreatedAt(),
+                app.getUpdatedAt(),
+                app.getInfo()
         );
     }
 }

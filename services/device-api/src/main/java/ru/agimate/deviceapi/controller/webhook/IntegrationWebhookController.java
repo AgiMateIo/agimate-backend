@@ -5,8 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import ru.agimate.deviceapi.database.repositories.IntegrationRepository;
-import ru.agimate.deviceapi.integration.IntegrationPlatformRegistry;
+import ru.agimate.deviceapi.database.repositories.AppRepository;
+import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationPlatformRegistry;
 import ru.agimate.deviceapi.service.TriggerRouterService;
 
 import java.util.UUID;
@@ -19,7 +20,8 @@ public class IntegrationWebhookController {
 
     public static final String PATH = "/webhook/integration";
 
-    private final IntegrationRepository integrationRepository;
+    private final IntegrationCredentialsRepository integrationCredentialsRepository;
+    private final AppRepository appRepository;
     private final IntegrationPlatformRegistry platformRegistry;
     private final TriggerRouterService triggerRouterService;
 
@@ -29,34 +31,43 @@ public class IntegrationWebhookController {
             @RequestBody String rawBody,
             HttpServletRequest request
     ) {
-        var integrationOpt = integrationRepository.findByPubIdNotDeleted(integrationPubId);
+        var integrationOpt = integrationCredentialsRepository.findByPubIdNotDeleted(integrationPubId);
         if (integrationOpt.isEmpty()) {
             log.warn("Webhook received for unknown integration: {}", integrationPubId);
             return ResponseEntity.ok("ok");
         }
 
-        var integration = integrationOpt.get();
-        if (!integration.isActive()) {
+        var integrationCredentials = integrationOpt.get();
+        if (!integrationCredentials.isActive()) {
             log.debug("Webhook received for disabled integration: {}", integrationPubId);
             return ResponseEntity.ok("ok");
         }
 
         // Guard: platform must support webhooks
-        if (!integration.getPlatform().getSupportsWebhooks()) {
+        if (!integrationCredentials.getPlatform().getSupportsWebhooks()) {
             log.warn("Webhook received for non-webhook platform: {}", integrationPubId);
             return ResponseEntity.notFound().build();
         }
 
-        var handler = platformRegistry.getHandler(integration.getPlatform().getCode());
+        var handler = platformRegistry.getHandler(integrationCredentials.getPlatform().getCode());
 
-        if (!handler.validateWebhookRequest(integration, request)) {
+        if (!handler.validateWebhookRequest(integrationCredentials, request)) {
             log.warn("Webhook validation failed for integration: {}", integrationPubId);
             return ResponseEntity.ok("ok");
         }
 
         try {
-            var triggerRequest = handler.normalizeInbound(integration, rawBody);
-            triggerRouterService.routeTrigger(integration.getConnector(), triggerRequest);
+            var triggerRequest = handler.normalizeInbound(integrationCredentials, rawBody);
+            // Find the app associated with this integration's connector registry
+            var app = appRepository.findByPubIdNotDeletedAndActive(integrationCredentials.getUserPubId()).stream()
+                    .filter(a -> integrationCredentials.getConnectorRegistryId().equals(a.getConnectorRegistryId()))
+                    .findFirst()
+                    .orElse(null);
+            if (app != null) {
+                triggerRouterService.routeTrigger(app, triggerRequest);
+            } else {
+                log.warn("No app found for integration {}", integrationPubId);
+            }
         } catch (Exception e) {
             log.error("Failed to process webhook for integration {}: {}", integrationPubId, e.getMessage());
         }
