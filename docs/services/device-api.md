@@ -57,18 +57,18 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 | GET    | `/device/agent/connectors/tools/`               | List all connector tools             |
 | GET    | `/device/agent/connectors/tools/{connectorId}`  | Get connector tools                  |
 
-### Connector Management (JWT)
+### App Management (JWT)
 
-| Method | Path                                                    | Description                          |
-|--------|---------------------------------------------------------|--------------------------------------|
-| GET    | `/device/manage/connectors/`                            | List all connectors                  |
-| POST   | `/device/manage/connectors/`                            | Create new connector                 |
-| GET    | `/device/manage/connectors/{connectorId}`               | Get specific connector               |
-| PUT    | `/device/manage/connectors/{connectorId}`               | Update connector                     |
-| DELETE | `/device/manage/connectors/{connectorId}`               | Delete connector (soft)              |
-| POST   | `/device/manage/connectors/{connectorId}/regenerate`    | Regenerate auth key                  |
-| GET    | `/device/manage/connectors/{connectorId}/detail`        | Get connector detail with device info|
-| POST   | `/device/manage/connectors/{connectorId}/disconnect`    | Disconnect device from connector     |
+| Method | Path                                            | Description                      |
+|--------|-------------------------------------------------|----------------------------------|
+| GET    | `/device/manage/apps/`                          | List all apps                    |
+| POST   | `/device/manage/apps/`                          | Create new app                   |
+| GET    | `/device/manage/apps/{appId}`                   | Get specific app                 |
+| PUT    | `/device/manage/apps/{appId}`                   | Update app                       |
+| DELETE | `/device/manage/apps/{appId}`                   | Delete app (soft)                |
+| POST   | `/device/manage/apps/{appId}/regenerate`        | Regenerate auth key              |
+| GET    | `/device/manage/apps/{appId}/detail`            | Get app detail with device info  |
+| POST   | `/device/manage/apps/{appId}/disconnect`        | Disconnect device from app       |
 
 ### Tool Management (JWT)
 
