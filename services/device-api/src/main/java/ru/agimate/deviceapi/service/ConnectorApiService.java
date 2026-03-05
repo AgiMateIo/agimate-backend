@@ -79,6 +79,18 @@ public class ConnectorApiService {
         return parseTools(app.getTools());
     }
 
+    public List<DeviceTool> getToolsByAppPubIdAndUser(UUID appPubId, UUID userPubId) {
+        var app = appRepository.findByPubIdAndUserPubIdNotDeleted(appPubId, userPubId)
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
+        return parseTools(app.getTools());
+    }
+
+    public List<DeviceTrigger> getTriggersByAppPubIdAndUser(UUID appPubId, UUID userPubId) {
+        var app = appRepository.findByPubIdAndUserPubIdNotDeleted(appPubId, userPubId)
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
+        return parseTriggers(app.getTriggers());
+    }
+
     public void pushToConnector(UUID userPubId, String agentId, String connectorCode, String identity, IToolUse toolUse) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));

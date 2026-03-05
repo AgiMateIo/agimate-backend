@@ -10,16 +10,18 @@ import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceToolsResponse;
 import ru.agimate.deviceapi.service.ConnectorApiService;
 
+import ru.agimate.deviceapi.service.dto.DeviceTool;
+
 import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ManageDeviceToolsController.PATH)
+@RequestMapping(ManageAppToolsController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Device Tools", description = "Manage device tools")
-public class ManageDeviceToolsController {
+public class ManageAppToolsController {
 
-    public static final String PATH = "/manage/tools";
+    public static final String PATH = "/manage/app-tools";
 
     private final ConnectorApiService connectorApiService;
 
@@ -33,6 +35,20 @@ public class ManageDeviceToolsController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         var tools = connectorApiService.getAllConnectorTools(userPubId);
+        return SuccessResponse.ok(tools);
+    }
+
+    @Operation(
+            summary = "Get tools by app",
+            description = "Returns available tools for a specific app"
+    )
+    @GetMapping("/app/{appPubId}")
+    public SuccessResponse<List<DeviceTool>> getToolsByApp(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID appPubId
+    ) {
+        UUID userPubId = UUID.fromString(principal.pubId());
+        var tools = connectorApiService.getToolsByAppPubIdAndUser(appPubId, userPubId);
         return SuccessResponse.ok(tools);
     }
 }
