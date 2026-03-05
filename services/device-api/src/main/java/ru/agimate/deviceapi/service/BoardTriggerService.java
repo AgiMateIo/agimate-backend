@@ -36,10 +36,9 @@ public class BoardTriggerService {
         List<Agent> agents = agentRepository.findByUserPubIdAndAgenticTeamId(userPubId, agenticTeamId);
 
         for (Agent agent : agents) {
-            switch (agent.getTriggersTo()) {
-                case "centrifugo" -> sendToCentrifugo(agent, triggerName, triggerData);
-                case "webhook" -> sendToWebhook(agent, userPubId, triggerName, triggerData);
-                default -> { /* ignore */ }
+            switch (agent.getTriggerDestination()) {
+                case CENTRIFUGO -> sendToCentrifugo(agent, triggerName, triggerData);
+                case WEBHOOK -> sendToWebhook(agent, userPubId, triggerName, triggerData);
             }
         }
     }

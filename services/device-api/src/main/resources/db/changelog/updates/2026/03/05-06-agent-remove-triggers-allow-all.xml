@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="05-06-agent-remove-triggers-allow-all" author="agimate">
+        <!-- Add new trigger_destination column -->
+        <addColumn tableName="agents">
+            <column name="trigger_destination" type="TEXT" defaultValue="CENTRIFUGO">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <!-- Migrate existing data: map old triggers_to values to new enum -->
+        <sql>
+            UPDATE agents SET trigger_destination = UPPER(triggers_to) WHERE triggers_to IN ('centrifugo', 'webhook');
+            UPDATE agents SET trigger_destination = 'CENTRIFUGO' WHERE triggers_to = 'ignore';
+        </sql>
+
+        <!-- Drop old columns -->
+        <dropColumn tableName="agents" columnName="triggers_allow_all"/>
+        <dropColumn tableName="agents" columnName="triggers_to"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.AgentCreatedResponse;
@@ -14,7 +15,6 @@ import ru.agimate.deviceapi.controller.manage.dto.CreateAgentRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentRequest;
 import ru.agimate.deviceapi.service.AgentService;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -29,12 +29,14 @@ public class ManageAgentController {
 
     @Operation(summary = "List agents for the current user")
     @GetMapping("/")
-    public SuccessResponse<List<AgentResponse>> getAgents(
+    public SuccessResponse<Page<AgentResponse>> getAgents(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam(required = false) UUID agenticTeamPubId
+            @RequestParam(required = false) UUID agenticTeamPubId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentService.getAllForUser(userPubId, agenticTeamPubId));
+        return SuccessResponse.ok(agentService.getAllForUser(userPubId, agenticTeamPubId, page, size));
     }
 
     @Operation(summary = "Create an agent")

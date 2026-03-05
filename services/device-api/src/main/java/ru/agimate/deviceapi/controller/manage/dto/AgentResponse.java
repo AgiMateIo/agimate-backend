@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
+import ru.agimate.deviceapi.database.entities.TriggerDestination;
+import ru.agimate.deviceapi.service.AgentService;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -16,20 +18,23 @@ public record AgentResponse(
         @Schema(description = "Agent name")
         String name,
 
+        @Schema(description = "Masked agent key ID")
+        String maskedKeyId,
+
         @Schema(description = "Agent prompt")
         String prompt,
 
-        @Schema(description = "Allow all triggers")
-        boolean triggersAllowAll,
-
-        @Schema(description = "Triggers destination")
-        String triggersTo,
+        @Schema(description = "Trigger destination")
+        TriggerDestination triggerDestination,
 
         @Schema(description = "Webhook URL")
         String webhookUrl,
 
         @Schema(description = "Whether webhook auth header is configured")
         boolean hasWebhookAuth,
+
+        @Schema(description = "Whether the agent is enabled")
+        boolean enabled,
 
         @Schema(description = "Agentic team ID")
         UUID agenticTeamId,
@@ -42,14 +47,16 @@ public record AgentResponse(
         LocalDateTime createdAt
 ) {
     public static AgentResponse from(Agent agent, AgenticTeam team) {
+        String maskedKeyId = AgentService.AGENT_KEY_PREFIX + agent.getKeyId().substring(0, 4) + "****";
         return new AgentResponse(
                 agent.getPubId(),
                 agent.getName(),
+                maskedKeyId,
                 agent.getPrompt(),
-                agent.isTriggersAllowAll(),
-                agent.getTriggersTo(),
+                agent.getTriggerDestination(),
                 agent.getWebhookUrl(),
                 agent.hasWebhookAuth(),
+                agent.isEnabled(),
                 team != null ? team.getPubId() : null,
                 team != null ? team.getName() : null,
                 agent.getCreatedAt()

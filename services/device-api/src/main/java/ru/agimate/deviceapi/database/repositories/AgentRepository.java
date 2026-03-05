@@ -1,5 +1,7 @@
 package ru.agimate.deviceapi.database.repositories;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -15,16 +17,14 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
 
     Optional<Agent> findByKeyId(String keyId);
 
-    List<Agent> findByUserPubId(UUID userPubId);
+    Page<Agent> findByUserPubId(UUID userPubId, Pageable pageable);
 
     @Query("""
-            SELECT a FROM Agent a WHERE a.userPubId = :userPubId AND a.triggersTo <> 'ignore' AND (
-                a.triggersAllowAll = true
-                OR a.pubId IN (
-                    SELECT DISTINCT p.agentPubId FROM AgentTriggerPolicy p
-                    WHERE p.effect = ru.agimate.deviceapi.abac.AccessEffect.ALLOW
-                    AND (p.triggerName IS NULL OR p.triggerName = :triggerName)
-                )
+            SELECT a FROM Agent a WHERE a.userPubId = :userPubId AND a.enabled = true
+            AND a.pubId IN (
+                SELECT DISTINCT p.agentPubId FROM AgentTriggerPolicy p
+                WHERE p.effect = ru.agimate.deviceapi.abac.AccessEffect.ALLOW
+                AND (p.triggerName IS NULL OR p.triggerName = :triggerName)
             )
             """)
     List<Agent> findRoutableByUserPubIdAndTriggerName(
@@ -32,6 +32,8 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
             @Param("triggerName") String triggerName);
 
     List<Agent> findByUserPubIdAndAgenticTeamId(UUID userPubId, Long agenticTeamId);
+
+    Page<Agent> findByUserPubIdAndAgenticTeamId(UUID userPubId, Long agenticTeamId, Pageable pageable);
 
     boolean existsByAgenticTeamId(Long agenticTeamId);
 }

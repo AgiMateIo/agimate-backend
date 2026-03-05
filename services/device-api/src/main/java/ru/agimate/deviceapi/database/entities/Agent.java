@@ -40,19 +40,20 @@ public class Agent extends BaseEntity {
     @Column(name = "prompt", columnDefinition = "TEXT")
     private String prompt;
 
-    @Column(name = "triggers_allow_all", nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "trigger_destination", nullable = false, columnDefinition = "TEXT")
     @Builder.Default
-    private boolean triggersAllowAll = false;
-
-    @Column(name = "triggers_to", nullable = false, columnDefinition = "TEXT")
-    @Builder.Default
-    private String triggersTo = "ignore";
+    private TriggerDestination triggerDestination = TriggerDestination.CENTRIFUGO;
 
     @Column(name = "webhook_url", columnDefinition = "TEXT")
     private String webhookUrl;
 
     @Column(name = "webhook_auth_header", columnDefinition = "TEXT")
     private String webhookAuthHeader;
+
+    @Column(name = "enabled", nullable = false)
+    @Builder.Default
+    private boolean enabled = true;
 
     @Column(name = "agentic_team_id")
     private Long agenticTeamId;

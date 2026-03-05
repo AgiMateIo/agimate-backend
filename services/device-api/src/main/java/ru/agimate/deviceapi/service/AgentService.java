@@ -2,6 +2,8 @@ package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
@@ -18,6 +20,7 @@ import ru.agimate.deviceapi.database.entities.AgentToolPolicy;
 import ru.agimate.deviceapi.database.entities.AgentTriggerPolicy;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
 import ru.agimate.deviceapi.database.entities.App;
+import ru.agimate.deviceapi.database.entities.TriggerDestination;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.AgentToolPolicyRepository;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerPolicyRepository;
@@ -36,7 +39,7 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class AgentService {
 
-    private static final String AGENT_KEY_PREFIX = "agnt";
+    public static final String AGENT_KEY_PREFIX = "agnt";
 
     private final AgentRepository agentRepository;
     private final AgentToolPolicyRepository agentToolPolicyRepository;
@@ -44,17 +47,17 @@ public class AgentService {
     private final AgenticTeamRepository agenticTeamRepository;
     private final AppRepository appRepository;
 
-    public List<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId) {
-        List<Agent> agents;
+    public Page<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId, int page, int size) {
+        Page<Agent> agents;
         if (agenticTeamPubId != null) {
             AgenticTeam team = agenticTeamRepository.findByPubId(agenticTeamPubId)
                     .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
-            agents = agentRepository.findByUserPubIdAndAgenticTeamId(userPubId, team.getId());
+            agents = agentRepository.findByUserPubIdAndAgenticTeamId(userPubId, team.getId(), PageRequest.of(page, size));
         } else {
-            agents = agentRepository.findByUserPubId(userPubId);
+            agents = agentRepository.findByUserPubId(userPubId, PageRequest.of(page, size));
         }
 
-        List<Long> teamIds = agents.stream()
+        List<Long> teamIds = agents.getContent().stream()
                 .map(Agent::getAgenticTeamId)
                 .filter(id -> id != null)
                 .distinct()
@@ -62,12 +65,10 @@ public class AgentService {
         Map<Long, AgenticTeam> teamsById = agenticTeamRepository.findAllById(teamIds).stream()
                 .collect(Collectors.toMap(AgenticTeam::getId, Function.identity()));
 
-        return agents.stream()
-                .map(agent -> {
-                    var team = agent.getAgenticTeamId() != null ? teamsById.get(agent.getAgenticTeamId()) : null;
-                    return AgentResponse.from(agent, team);
-                })
-                .toList();
+        return agents.map(agent -> {
+            var team = agent.getAgenticTeamId() != null ? teamsById.get(agent.getAgenticTeamId()) : null;
+            return AgentResponse.from(agent, team);
+        });
     }
 
     public Agent findByPubId(UUID pubId) {
@@ -156,7 +157,9 @@ public class AgentService {
 
     @Transactional
     public AgentCreateResult create(UUID userPubId, CreateAgentRequest request) {
-        validateWebhookFields(request.triggersTo(), request.webhookUrl());
+        TriggerDestination destination = request.triggerDestination() != null
+                ? request.triggerDestination() : TriggerDestination.CENTRIFUGO;
+        validateWebhookFields(destination, request.webhookUrl());
 
         AgenticTeam team = null;
         if (request.agenticTeamPubId() != null) {
@@ -175,8 +178,7 @@ public class AgentService {
                 .userPubId(userPubId)
                 .name(request.name())
                 .prompt(request.prompt())
-                .triggersAllowAll(request.triggersAllowAll())
-                .triggersTo(request.triggersTo())
+                .triggerDestination(destination)
                 .webhookUrl(request.webhookUrl())
                 .webhookAuthHeader(request.webhookAuthHeader())
                 .agenticTeamId(team != null ? team.getId() : null)
@@ -216,16 +218,20 @@ public class AgentService {
             throw new ForbiddenStatusException("Access denied");
         }
 
-        validateWebhookFields(request.triggersTo(), request.webhookUrl());
+        TriggerDestination destination = request.triggerDestination() != null
+                ? request.triggerDestination() : agent.getTriggerDestination();
+        validateWebhookFields(destination, request.webhookUrl());
 
         if (request.name() != null) {
             agent.setName(request.name());
         }
         agent.setPrompt(request.prompt());
-        agent.setTriggersAllowAll(request.triggersAllowAll());
-        agent.setTriggersTo(request.triggersTo());
+        agent.setTriggerDestination(destination);
         agent.setWebhookUrl(request.webhookUrl());
         agent.setWebhookAuthHeader(request.webhookAuthHeader());
+        if (request.enabled() != null) {
+            agent.setEnabled(request.enabled());
+        }
         agent = agentRepository.save(agent);
 
         var team = resolveTeam(agent.getAgenticTeamId());
@@ -257,9 +263,9 @@ public class AgentService {
         return agenticTeamRepository.findById(agenticTeamId).orElse(null);
     }
 
-    private void validateWebhookFields(String triggersTo, String webhookUrl) {
-        if ("webhook".equals(triggersTo) && (webhookUrl == null || webhookUrl.isBlank())) {
-            throw new BadRequestStatusException("webhookUrl is required when triggersTo is 'webhook'");
+    private void validateWebhookFields(TriggerDestination destination, String webhookUrl) {
+        if (destination == TriggerDestination.WEBHOOK && (webhookUrl == null || webhookUrl.isBlank())) {
+            throw new BadRequestStatusException("webhookUrl is required when triggerDestination is WEBHOOK");
         }
     }
 

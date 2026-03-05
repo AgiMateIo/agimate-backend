@@ -9,6 +9,7 @@ import ru.agimate.deviceapi.abac.TriggerPolicyEvaluatorService;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.App;
+import ru.agimate.deviceapi.database.entities.TriggerDestination;
 import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
@@ -43,7 +44,7 @@ public class TriggerRouterService {
             for (Agent agent : agents) {
                 AccessDecision decision = triggerPolicyEvaluatorService.evaluate(
                         agent.getPubId(), connectorCode, null, triggerRequest.name());
-                if (!agent.isTriggersAllowAll() && !decision.allowed()) {
+                if (!decision.allowed()) {
                     log.debug("Skipping agent '{}' for trigger '{}': {}",
                             agent.getPubId(), triggerRequest.name(), decision.reason());
                     continue;
@@ -52,7 +53,7 @@ public class TriggerRouterService {
                 TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
                         .triggerLog(triggerLog)
                         .agent(agent)
-                        .routedTo(agent.getTriggersTo())
+                        .routedTo(agent.getTriggerDestination().name())
                         .build();
                 triggerLog.getTriggerLogAgents().add(triggerLogAgent);
             }
@@ -63,10 +64,9 @@ public class TriggerRouterService {
             // Now dispatch async deliveries
             for (TriggerLogAgent triggerLogAgent : triggerLog.getTriggerLogAgents()) {
                 Agent agent = triggerLogAgent.getAgent();
-                switch (agent.getTriggersTo()) {
-                    case "centrifugo" -> routeToCentrifugo(agent, triggerRequest);
-                    case "webhook" -> webhookDeliveryService.deliverWebhook(agent, triggerLogAgent, app, triggerRequest);
-                    default -> log.warn("Unknown triggersTo value '{}' for agent '{}'", agent.getTriggersTo(), agent.getPubId());
+                switch (agent.getTriggerDestination()) {
+                    case CENTRIFUGO -> routeToCentrifugo(agent, triggerRequest);
+                    case WEBHOOK -> webhookDeliveryService.deliverWebhook(agent, triggerLogAgent, app, triggerRequest);
                 }
             }
         } catch (Exception e) {

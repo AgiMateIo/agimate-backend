@@ -1,7 +1,7 @@
 package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotNull;
+import ru.agimate.deviceapi.database.entities.TriggerDestination;
 
 @Schema(description = "Request to update an agent")
 public record UpdateAgentRequest(
@@ -11,17 +11,16 @@ public record UpdateAgentRequest(
         @Schema(description = "Agent prompt")
         String prompt,
 
-        @Schema(description = "Allow all triggers")
-        boolean triggersAllowAll,
+        @Schema(description = "Trigger destination: CENTRIFUGO or WEBHOOK")
+        TriggerDestination triggerDestination,
 
-        @NotNull
-        @Schema(description = "Triggers destination: centrifugo, webhook, or ignore")
-        String triggersTo,
-
-        @Schema(description = "Webhook URL (required when triggersTo is 'webhook')")
+        @Schema(description = "Webhook URL (required when triggerDestination is WEBHOOK)")
         String webhookUrl,
 
         @Schema(description = "Webhook authorization header value")
-        String webhookAuthHeader
+        String webhookAuthHeader,
+
+        @Schema(description = "Whether the agent is enabled")
+        Boolean enabled
 ) {
 }

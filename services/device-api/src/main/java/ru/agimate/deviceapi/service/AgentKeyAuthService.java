@@ -49,6 +49,11 @@ public class AgentKeyAuthService {
             return Optional.empty();
         }
 
+        if (!agent.isEnabled()) {
+            log.debug("Agent is disabled: pubId={}", agent.getPubId());
+            return Optional.empty();
+        }
+
         return Optional.of(agent);
     }
 }
