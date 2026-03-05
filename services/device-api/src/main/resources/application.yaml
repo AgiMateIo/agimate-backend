@@ -53,12 +53,6 @@ spring:
       ddl-auto: validate
     show-sql: false
     open-in-view: false
-  grpc:
-    client:
-      channels:
-        user-api:
-          address: "user-api:9090"
-
 micrometer:
   observations:
     annotations:

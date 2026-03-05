@@ -54,9 +54,6 @@ spring:
       ddl-auto: none
     show-sql: false
     open-in-view: false
-  grpc:
-    server:
-      port: 9090
   security:
     oauth2:
       client:

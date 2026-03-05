@@ -43,9 +43,6 @@ dependencies {
     implementation("io.jsonwebtoken:jjwt-impl")
     implementation("io.jsonwebtoken:jjwt-jackson")
 
-    // Spring gRPC Server Support
-    implementation("org.springframework.grpc:spring-grpc-spring-boot-starter")
-
     // Lombok for code generation
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")

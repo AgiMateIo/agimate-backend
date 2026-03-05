@@ -46,9 +46,6 @@ dependencies {
 
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 
-    // Spring gRPC Client Support (for user-api introspect)
-    implementation("org.springframework.grpc:spring-grpc-spring-boot-starter")
-
     // Lombok for code generation
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")

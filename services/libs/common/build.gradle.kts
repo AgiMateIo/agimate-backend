@@ -2,7 +2,6 @@ plugins {
     id("java-library")
     id("org.springframework.boot") apply false
     id("io.spring.dependency-management")
-    id("com.google.protobuf") version "0.9.4"
 }
 
 group = "ru.agimate"
@@ -39,7 +38,6 @@ dependencies {
     compileOnly("io.micrometer:micrometer-core")
     compileOnly("com.squareup.okhttp3:okhttp")
 
-    // Caffeine cache (used by ApiKeyIntrospectService)
     api("com.github.ben-manes.caffeine:caffeine")
 
     implementation("org.springframework.data:spring-data-commons")
@@ -48,12 +46,6 @@ dependencies {
     implementation("commons-io:commons-io")
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-
-    // gRPC and Protobuf dependencies
-    api("io.grpc:grpc-stub:1.62.2")
-    api("io.grpc:grpc-protobuf:1.62.2")
-    api("com.google.protobuf:protobuf-java:3.25.3")
-    api("javax.annotation:javax.annotation-api:1.3.2")
 
     api("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
@@ -76,36 +68,5 @@ tasks.withType<Test> {
 
 tasks.jar {
     enabled = true
-}
-
-// Protobuf configuration
-protobuf {
-    protoc {
-        artifact = "com.google.protobuf:protoc:3.25.3"
-    }
-    plugins {
-        create("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.62.2"
-        }
-    }
-    generateProtoTasks {
-        all().forEach { task ->
-            task.plugins {
-                create("grpc")
-            }
-        }
-    }
-}
-
-// Ensure generated sources are included in compilation
-sourceSets {
-    main {
-        java {
-            srcDirs(
-                "build/generated/source/proto/main/java",
-                "build/generated/source/proto/main/grpc"
-            )
-        }
-    }
 }
 
