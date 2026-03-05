@@ -42,10 +42,10 @@ public class TriggerRouterService {
 
             for (Agent agent : agents) {
                 AccessDecision decision = triggerPolicyEvaluatorService.evaluate(
-                        agent.getApiKeyPubId(), connectorCode, null, triggerRequest.name());
+                        agent.getPubId(), connectorCode, null, triggerRequest.name());
                 if (!agent.isTriggersAllowAll() && !decision.allowed()) {
                     log.debug("Skipping agent '{}' for trigger '{}': {}",
-                            agent.getApiKeyPubId(), triggerRequest.name(), decision.reason());
+                            agent.getPubId(), triggerRequest.name(), decision.reason());
                     continue;
                 }
 
@@ -66,7 +66,7 @@ public class TriggerRouterService {
                 switch (agent.getTriggersTo()) {
                     case "centrifugo" -> routeToCentrifugo(agent, triggerRequest);
                     case "webhook" -> webhookDeliveryService.deliverWebhook(agent, triggerLogAgent, app, triggerRequest);
-                    default -> log.warn("Unknown triggersTo value '{}' for agent '{}'", agent.getTriggersTo(), agent.getApiKeyPubId());
+                    default -> log.warn("Unknown triggersTo value '{}' for agent '{}'", agent.getTriggersTo(), agent.getPubId());
                 }
             }
         } catch (Exception e) {
@@ -83,12 +83,12 @@ public class TriggerRouterService {
             payload.put("deviceId", triggerRequest.deviceId());
             payload.put("occurredAt", triggerRequest.occurredAt());
 
-            String channel = "agent:" + agent.getApiKeyPubId();
+            String channel = "agent:" + agent.getPubId();
             centrifugoService.publishMessage(channel, payload);
             log.debug("Routed trigger '{}' to agent channel '{}'", triggerRequest.name(), channel);
         } catch (Exception e) {
             log.warn("Failed to route trigger '{}' to centrifugo for agent '{}': {}",
-                    triggerRequest.name(), agent.getApiKeyPubId(), e.getMessage());
+                    triggerRequest.name(), agent.getPubId(), e.getMessage());
         }
     }
 }

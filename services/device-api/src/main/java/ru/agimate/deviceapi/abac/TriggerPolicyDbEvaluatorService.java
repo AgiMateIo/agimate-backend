@@ -16,25 +16,25 @@ public class TriggerPolicyDbEvaluatorService {
 
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
 
-    private record CacheKey(UUID apiKeyPubId, String connectorCode, String connectorIdentity, String triggerName) {}
+    private record CacheKey(UUID agentPubId, String connectorCode, String connectorIdentity, String triggerName) {}
 
     private final Cache<CacheKey, AccessDecision> cache = Caffeine.newBuilder()
             .maximumSize(10_000)
             .expireAfterWrite(Duration.ofMinutes(5))
             .build();
 
-    public AccessDecision evaluate(UUID apiKeyPubId, String connectorCode, String connectorIdentity, String triggerName) {
-        var key = new CacheKey(apiKeyPubId, connectorCode, connectorIdentity, triggerName);
-        return cache.get(key, k -> doEvaluate(apiKeyPubId, connectorCode, connectorIdentity, triggerName));
+    public AccessDecision evaluate(UUID agentPubId, String connectorCode, String connectorIdentity, String triggerName) {
+        var key = new CacheKey(agentPubId, connectorCode, connectorIdentity, triggerName);
+        return cache.get(key, k -> doEvaluate(agentPubId, connectorCode, connectorIdentity, triggerName));
     }
 
-    public void invalidateByAgent(UUID apiKeyPubId) {
-        cache.asMap().keySet().removeIf(key -> key.apiKeyPubId().equals(apiKeyPubId));
+    public void invalidateByAgent(UUID agentPubId) {
+        cache.asMap().keySet().removeIf(key -> key.agentPubId().equals(agentPubId));
     }
 
-    private AccessDecision doEvaluate(UUID apiKeyPubId, String connectorCode, String connectorIdentity, String triggerName) {
+    private AccessDecision doEvaluate(UUID agentPubId, String connectorCode, String connectorIdentity, String triggerName) {
         PolicyResolutionResult result = agentTriggerPolicyRepository.resolveAccess(
-                apiKeyPubId, connectorCode, connectorIdentity, triggerName
+                agentPubId, connectorCode, connectorIdentity, triggerName
         );
 
         if (result == null) {

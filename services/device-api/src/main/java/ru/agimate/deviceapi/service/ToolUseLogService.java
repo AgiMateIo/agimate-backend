@@ -36,7 +36,7 @@ public class ToolUseLogService {
                                 IToolUse toolUse, String agentSessionId,
                                 AccessEffect effect, String error) {
         var toolUseLog = ToolUseLog.builder()
-                .apiKeyPubId(agent.getApiKeyPubId())
+                .agentPubId(agent.getPubId())
                 .userPubId(agent.getUserPubId())
                 .connectorCode(connectorCode)
                 .identity(identity)
@@ -80,11 +80,11 @@ public class ToolUseLogService {
     }
 
     @Transactional
-    public ToolUseLog recordOutputByAgent(UUID apiKeyPubId, String toolUseId, String output, String error) {
+    public ToolUseLog recordOutputByAgent(UUID agentPubId, String toolUseId, String output, String error) {
         var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
                 .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
 
-        if (!apiKeyPubId.equals(toolUseLog.getApiKeyPubId())) {
+        if (!agentPubId.equals(toolUseLog.getAgentPubId())) {
             throw new ForbiddenStatusException("ToolUseLog does not belong to this agent");
         }
 
@@ -99,8 +99,8 @@ public class ToolUseLogService {
         return toolUseLogRepository.save(toolUseLog);
     }
 
-    public Page<ToolUseLogResponse> getToolUseLogs(UUID userPubId, UUID apiKeyPubId, int page, int size) {
-        return toolUseLogRepository.findWithFilters(userPubId, apiKeyPubId, PageRequest.of(page, size))
+    public Page<ToolUseLogResponse> getToolUseLogs(UUID userPubId, UUID agentPubId, int page, int size) {
+        return toolUseLogRepository.findWithFilters(userPubId, agentPubId, PageRequest.of(page, size))
                 .map(ToolUseLogResponse::from);
     }
 }

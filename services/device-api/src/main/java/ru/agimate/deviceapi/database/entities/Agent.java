@@ -8,7 +8,7 @@ import ru.agimate.common.util.UUIDUtils;
 import java.util.UUID;
 
 @Entity
-@Table(name = "agents", uniqueConstraints = @UniqueConstraint(columnNames = "api_key_pub_id"))
+@Table(name = "agents", uniqueConstraints = @UniqueConstraint(columnNames = "key_id"))
 @Getter
 @Setter
 @Builder
@@ -25,8 +25,11 @@ public class Agent extends BaseEntity {
     @Builder.Default
     private UUID pubId = UUIDUtils.generateUUIDv8();
 
-    @Column(name = "api_key_pub_id", nullable = false, unique = true)
-    private UUID apiKeyPubId;
+    @Column(name = "key_hash", nullable = false, columnDefinition = "TEXT")
+    private String keyHash;
+
+    @Column(name = "key_id", nullable = false, unique = true, columnDefinition = "TEXT")
+    private String keyId;
 
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;

@@ -64,8 +64,8 @@ public class BoardToolHandler implements ServerSideToolHandler {
 
     @Override
     public Map<String, Object> executeTool(String toolName, Map<String, Object> params,
-                                            UUID apiKeyPubId, UUID userPubId) {
-        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
+                                            UUID agentPubId, UUID userPubId) {
+        Agent agent = agentRepository.findByPubId(agentPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
         if (agent.getAgenticTeamId() == null) {

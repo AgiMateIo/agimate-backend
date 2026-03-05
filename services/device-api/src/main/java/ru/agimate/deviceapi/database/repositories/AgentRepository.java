@@ -13,17 +13,15 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
 
     Optional<Agent> findByPubId(UUID pubId);
 
-    Optional<Agent> findByApiKeyPubId(UUID apiKeyPubId);
+    Optional<Agent> findByKeyId(String keyId);
 
     List<Agent> findByUserPubId(UUID userPubId);
-
-    List<Agent> findByUserPubIdAndTriggersAllowAllTrue(UUID userPubId);
 
     @Query("""
             SELECT a FROM Agent a WHERE a.userPubId = :userPubId AND a.triggersTo <> 'ignore' AND (
                 a.triggersAllowAll = true
-                OR a.apiKeyPubId IN (
-                    SELECT DISTINCT p.apiKeyPubId FROM AgentTriggerPolicy p
+                OR a.pubId IN (
+                    SELECT DISTINCT p.agentPubId FROM AgentTriggerPolicy p
                     WHERE p.effect = ru.agimate.deviceapi.abac.AccessEffect.ALLOW
                     AND (p.triggerName IS NULL OR p.triggerName = :triggerName)
                 )

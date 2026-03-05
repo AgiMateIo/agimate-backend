@@ -32,10 +32,10 @@ public class ManageAgentToolPolicyController {
     @GetMapping("/")
     public SuccessResponse<List<AgentToolPolicyResponse>> getPolicies(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam UUID apiKeyPubId
+            @RequestParam UUID agentPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        List<AgentToolPolicy> policies = agentToolPolicyService.getPoliciesByAgent(userPubId, apiKeyPubId);
+        List<AgentToolPolicy> policies = agentToolPolicyService.getPoliciesByAgent(userPubId, agentPubId);
         List<AgentToolPolicyResponse> response = policies.stream()
                 .map(AgentToolPolicyResponse::from)
                 .toList();
@@ -62,7 +62,7 @@ public class ManageAgentToolPolicyController {
         UUID userPubId = UUID.fromString(principal.pubId());
         AgentToolPolicy policy = agentToolPolicyService.createPolicy(
                 userPubId,
-                request.apiKeyPubId(),
+                request.agentPubId(),
                 request.connectorCode(),
                 request.connectorIdentity(),
                 request.toolName(),

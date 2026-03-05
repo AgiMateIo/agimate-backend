@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="agent-local-keys-add-columns" author="agimate">
+        <addColumn tableName="agents">
+            <column name="key_hash" type="TEXT"/>
+            <column name="key_id" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="agent-local-keys-drop-api-key-pub-id" author="agimate">
+        <dropUniqueConstraint tableName="agents" constraintName="agents_api_key_pub_id_key"/>
+        <dropColumn tableName="agents" columnName="api_key_pub_id"/>
+
+        <addNotNullConstraint tableName="agents" columnName="key_hash"/>
+        <addNotNullConstraint tableName="agents" columnName="key_id"/>
+        <addUniqueConstraint tableName="agents" columnNames="key_id" constraintName="uq_agents_key_id"/>
+    </changeSet>
+
+    <changeSet id="agent-local-keys-rename-policy-columns" author="agimate">
+        <renameColumn tableName="agent_tool_policies" oldColumnName="api_key_pub_id" newColumnName="agent_pub_id"/>
+        <renameColumn tableName="agent_trigger_policies" oldColumnName="api_key_pub_id" newColumnName="agent_pub_id"/>
+        <renameColumn tableName="tool_use_logs" oldColumnName="api_key_pub_id" newColumnName="agent_pub_id"/>
+    </changeSet>
+
+    <changeSet id="agent-local-keys-update-indexes" author="agimate">
+        <sql>
+            DROP INDEX IF EXISTS uq_agent_tool_policies_composite;
+            CREATE UNIQUE INDEX uq_agent_tool_policies_composite
+                ON agent_tool_policies (agent_pub_id, connector_code, connector_identity, tool_name, effect)
+                NULLS NOT DISTINCT;
+
+            DROP INDEX IF EXISTS uq_agent_trigger_policies_composite;
+            CREATE UNIQUE INDEX uq_agent_trigger_policies_composite
+                ON agent_trigger_policies (agent_pub_id, connector_code, connector_identity, trigger_name, effect)
+                NULLS NOT DISTINCT;
+
+            DROP INDEX IF EXISTS idx_tool_use_logs_api_key_pub_id;
+            CREATE INDEX idx_tool_use_logs_agent_pub_id ON tool_use_logs (agent_pub_id);
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -8,11 +8,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.controller.agent.dto.AgentConfigResponse;
+import ru.agimate.deviceapi.security.AgentPrincipal;
 import ru.agimate.deviceapi.service.AgentService;
-
-import java.util.UUID;
 
 @RestController
 @RequestMapping(AgentController.PATH)
@@ -30,9 +28,8 @@ public class AgentController {
     )
     @GetMapping("/settings")
     public SuccessResponse<AgentConfigResponse> getAgentSettings(
-            @AuthenticationPrincipal ApiKeyPrincipal principal
+            @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        UUID apiKeyPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentService.getConfigByApiKeyPubId(apiKeyPubId));
+        return SuccessResponse.ok(agentService.getConfigByPubId(principal.agentPubId()));
     }
 }

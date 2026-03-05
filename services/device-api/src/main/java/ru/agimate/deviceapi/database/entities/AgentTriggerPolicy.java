@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "agent_trigger_policies", uniqueConstraints = @UniqueConstraint(
-        columnNames = {"api_key_pub_id", "connector_code", "connector_identity", "trigger_name", "effect"}
+        columnNames = {"agent_pub_id", "connector_code", "connector_identity", "trigger_name", "effect"}
 ))
 @Getter
 @Setter
@@ -24,8 +24,8 @@ public class AgentTriggerPolicy extends BaseEntity {
     @Builder.Default
     private UUID id = UUIDUtils.generateUUIDv8();
 
-    @Column(name = "api_key_pub_id", nullable = false)
-    private UUID apiKeyPubId;
+    @Column(name = "agent_pub_id", nullable = false)
+    private UUID agentPubId;
 
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;

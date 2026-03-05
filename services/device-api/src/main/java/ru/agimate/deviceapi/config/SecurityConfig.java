@@ -22,7 +22,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.agent.AgentController;
-import ru.agimate.common.security.apikey.ApiKeyAuthenticationFilter;
 import ru.agimate.deviceapi.controller.app.AppRegistrationController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentController;
 import ru.agimate.deviceapi.controller.manage.ManageAgenticTeamController;
@@ -37,6 +36,7 @@ import ru.agimate.deviceapi.controller.manage.ManageAgentTriggerPolicyController
 import ru.agimate.deviceapi.controller.manage.ManageIntegrationController;
 import ru.agimate.deviceapi.controller.manage.ManageWebhookDeliveryLogsController;
 import ru.agimate.deviceapi.controller.webhook.IntegrationWebhookController;
+import ru.agimate.deviceapi.security.AgentAuthFilter;
 import ru.agimate.deviceapi.security.AppAuthFilter;
 import ru.agimate.deviceapi.security.JwtAuthenticationFilter;
 
@@ -54,7 +54,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AppAuthFilter appAuthFilter;
-    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
+    private final AgentAuthFilter agentAuthFilter;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -156,7 +156,7 @@ public class SecurityConfig {
 
         http.authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
                 .userDetailsService(userDetailsService())
-                .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(agentAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -189,8 +189,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public FilterRegistrationBean<ApiKeyAuthenticationFilter> disableApiKeyAuthFilterAutoRegistration() {
-        FilterRegistrationBean<ApiKeyAuthenticationFilter> registration = new FilterRegistrationBean<>(apiKeyAuthenticationFilter);
+    public FilterRegistrationBean<AgentAuthFilter> disableAgentAuthFilterAutoRegistration() {
+        FilterRegistrationBean<AgentAuthFilter> registration = new FilterRegistrationBean<>(agentAuthFilter);
         registration.setEnabled(false);
         return registration;
     }

@@ -12,19 +12,19 @@ import java.util.UUID;
 
 public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy, UUID> {
 
-    List<AgentToolPolicy> findByApiKeyPubId(UUID apiKeyPubId);
+    List<AgentToolPolicy> findByAgentPubId(UUID agentPubId);
 
-    List<AgentToolPolicy> findByUserPubIdAndApiKeyPubId(UUID userPubId, UUID apiKeyPubId);
+    List<AgentToolPolicy> findByUserPubIdAndAgentPubId(UUID userPubId, UUID agentPubId);
 
     @Query(value = """
             SELECT * FROM agent_tool_policies
-            WHERE api_key_pub_id = :apiKeyPubId
+            WHERE agent_pub_id = :agentPubId
               AND (connector_code IS NULL OR connector_code = :connectorCode)
               AND (connector_identity IS NULL OR CAST(:connectorIdentity AS TEXT) IS NULL OR connector_identity = :connectorIdentity)
               AND (tool_name IS NULL OR tool_name = :toolName)
             """, nativeQuery = true)
     List<AgentToolPolicy> findMatchingPolicies(
-            @Param("apiKeyPubId") UUID apiKeyPubId,
+            @Param("agentPubId") UUID agentPubId,
             @Param("connectorCode") String connectorCode,
             @Param("connectorIdentity") String connectorIdentity,
             @Param("toolName") String toolName
@@ -41,7 +41,7 @@ public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy
                         (CASE WHEN tool_name IS NOT NULL THEN 1 ELSE 0 END)
                     ) AS specificity
                 FROM agent_tool_policies
-                WHERE api_key_pub_id = :apiKeyPubId
+                WHERE agent_pub_id = :agentPubId
                   AND (connector_code IS NULL OR connector_code = :connectorCode)
                   AND (connector_identity IS NULL OR CAST(:connectorIdentity AS TEXT) IS NULL OR connector_identity = :connectorIdentity)
                   AND (tool_name IS NULL OR tool_name = :toolName)
@@ -60,13 +60,13 @@ public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy
             LIMIT 1
             """, nativeQuery = true)
     PolicyResolutionResult resolveAccess(
-            @Param("apiKeyPubId") UUID apiKeyPubId,
+            @Param("agentPubId") UUID agentPubId,
             @Param("connectorCode") String connectorCode,
             @Param("connectorIdentity") String connectorIdentity,
             @Param("toolName") String toolName
     );
 
     @Modifying
-    @Query("DELETE FROM AgentToolPolicy p WHERE p.apiKeyPubId = :apiKeyPubId")
-    void deleteByApiKeyPubId(@Param("apiKeyPubId") UUID apiKeyPubId);
+    @Query("DELETE FROM AgentToolPolicy p WHERE p.agentPubId = :agentPubId")
+    void deleteByAgentPubId(@Param("agentPubId") UUID agentPubId);
 }

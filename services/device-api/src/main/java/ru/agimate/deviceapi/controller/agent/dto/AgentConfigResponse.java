@@ -5,10 +5,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
 
-@Schema(description = "Agent configuration for API key")
+@Schema(description = "Agent configuration")
 public record AgentConfigResponse(
-        @Schema(description = "API key public ID")
-        UUID apiKeyPubId,
+        @Schema(description = "Agent public ID")
+        UUID agentPubId,
 
         @Schema(description = "Agent prompt")
         String prompt,

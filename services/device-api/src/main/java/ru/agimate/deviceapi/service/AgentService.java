@@ -23,6 +23,8 @@ import ru.agimate.deviceapi.database.repositories.AgentToolPolicyRepository;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerPolicyRepository;
 import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
+import ru.agimate.deviceapi.util.AppKeyUtils;
+import ru.agimate.deviceapi.util.GeneratedAppKey;
 
 import java.util.*;
 import java.util.function.Function;
@@ -33,6 +35,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AgentService {
+
+    private static final String AGENT_KEY_PREFIX = "agnt";
 
     private final AgentRepository agentRepository;
     private final AgentToolPolicyRepository agentToolPolicyRepository;
@@ -66,24 +70,22 @@ public class AgentService {
                 .toList();
     }
 
-    public Agent findByApiKeyPubId(UUID apiKeyPubId) {
-        return agentRepository.findByApiKeyPubId(apiKeyPubId)
+    public Agent findByPubId(UUID pubId) {
+        return agentRepository.findByPubId(pubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
     }
 
-    public AgentResponse getByApiKeyPubId(UUID apiKeyPubId) {
-        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
-                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
+    public AgentResponse getByPubId(UUID pubId) {
+        Agent agent = findByPubId(pubId);
         var team = resolveTeam(agent.getAgenticTeamId());
         return AgentResponse.from(agent, team);
     }
 
-    public AgentConfigResponse getConfigByApiKeyPubId(UUID apiKeyPubId) {
-        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
-                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
+    public AgentConfigResponse getConfigByPubId(UUID agentPubId) {
+        Agent agent = findByPubId(agentPubId);
 
-        var toolPolicies = agentToolPolicyRepository.findByApiKeyPubId(apiKeyPubId);
-        var triggerPolicies = agentTriggerPolicyRepository.findByApiKeyPubId(apiKeyPubId);
+        var toolPolicies = agentToolPolicyRepository.findByAgentPubId(agentPubId);
+        var triggerPolicies = agentTriggerPolicyRepository.findByAgentPubId(agentPubId);
 
         Set<String> allowedToolNames = toolPolicies.stream()
                 .filter(p -> p.getEffect() == AccessEffect.ALLOW)
@@ -105,18 +107,17 @@ public class AgentService {
                 .toList();
 
         return new AgentConfigResponse(
-                agent.getApiKeyPubId(),
+                agent.getPubId(),
                 agent.getPrompt(),
                 toolDefinitions,
                 triggerNames
         );
     }
 
-    public List<ToolDefinition> getAvailableTools(UUID apiKeyPubId) {
-        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
-                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
+    public List<ToolDefinition> getAvailableTools(UUID agentPubId) {
+        Agent agent = findByPubId(agentPubId);
 
-        var toolPolicies = agentToolPolicyRepository.findByApiKeyPubId(apiKeyPubId);
+        var toolPolicies = agentToolPolicyRepository.findByAgentPubId(agentPubId);
 
         Set<String> allowedToolNames = toolPolicies.stream()
                 .filter(p -> p.getEffect() == AccessEffect.ALLOW)
@@ -154,7 +155,7 @@ public class AgentService {
     }
 
     @Transactional
-    public AgentResponse create(UUID userPubId, CreateAgentRequest request) {
+    public AgentCreateResult create(UUID userPubId, CreateAgentRequest request) {
         validateWebhookFields(request.triggersTo(), request.webhookUrl());
 
         AgenticTeam team = null;
@@ -166,8 +167,11 @@ public class AgentService {
             }
         }
 
+        GeneratedAppKey generatedKey = AppKeyUtils.generate(AGENT_KEY_PREFIX);
+
         Agent agent = Agent.builder()
-                .apiKeyPubId(request.apiKeyPubId())
+                .keyHash(generatedKey.secretHash())
+                .keyId(generatedKey.keyId())
                 .userPubId(userPubId)
                 .name(request.name())
                 .prompt(request.prompt())
@@ -179,13 +183,33 @@ public class AgentService {
                 .build();
         agent = agentRepository.save(agent);
 
-        log.info("Created agent for apiKeyPubId={}, user={}", request.apiKeyPubId(), userPubId);
-        return AgentResponse.from(agent, team);
+        log.info("Created agent pubId={}, user={}", agent.getPubId(), userPubId);
+        return new AgentCreateResult(agent, team, generatedKey.fullKey());
     }
 
     @Transactional
-    public AgentResponse update(UUID apiKeyPubId, UUID userPubId, UpdateAgentRequest request) {
-        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
+    public AgentCreateResult regenerateKey(UUID pubId, UUID userPubId) {
+        Agent agent = agentRepository.findByPubId(pubId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
+
+        if (!agent.getUserPubId().equals(userPubId)) {
+            throw new ForbiddenStatusException("Access denied");
+        }
+
+        GeneratedAppKey generatedKey = AppKeyUtils.generate(AGENT_KEY_PREFIX);
+        agent.setKeyHash(generatedKey.secretHash());
+        agent.setKeyId(generatedKey.keyId());
+        agent = agentRepository.save(agent);
+
+        var team = resolveTeam(agent.getAgenticTeamId());
+
+        log.info("Regenerated key for agent pubId={}", pubId);
+        return new AgentCreateResult(agent, team, generatedKey.fullKey());
+    }
+
+    @Transactional
+    public AgentResponse update(UUID pubId, UUID userPubId, UpdateAgentRequest request) {
+        Agent agent = agentRepository.findByPubId(pubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
         if (!agent.getUserPubId().equals(userPubId)) {
@@ -206,24 +230,24 @@ public class AgentService {
 
         var team = resolveTeam(agent.getAgenticTeamId());
 
-        log.info("Updated agent for apiKeyPubId={}", apiKeyPubId);
+        log.info("Updated agent pubId={}", pubId);
         return AgentResponse.from(agent, team);
     }
 
     @Transactional
-    public void delete(UUID apiKeyPubId, UUID userPubId) {
-        Agent agent = agentRepository.findByApiKeyPubId(apiKeyPubId)
+    public void delete(UUID pubId, UUID userPubId) {
+        Agent agent = agentRepository.findByPubId(pubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
         if (!agent.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");
         }
 
-        agentToolPolicyRepository.deleteByApiKeyPubId(apiKeyPubId);
-        agentTriggerPolicyRepository.deleteByApiKeyPubId(apiKeyPubId);
+        agentToolPolicyRepository.deleteByAgentPubId(agent.getPubId());
+        agentTriggerPolicyRepository.deleteByAgentPubId(agent.getPubId());
         agentRepository.delete(agent);
 
-        log.info("Deleted agent for apiKeyPubId={}", apiKeyPubId);
+        log.info("Deleted agent pubId={}", pubId);
     }
 
     private AgenticTeam resolveTeam(Long agenticTeamId) {
@@ -238,4 +262,6 @@ public class AgentService {
             throw new BadRequestStatusException("webhookUrl is required when triggersTo is 'webhook'");
         }
     }
+
+    public record AgentCreateResult(Agent agent, AgenticTeam team, String plaintextKey) {}
 }

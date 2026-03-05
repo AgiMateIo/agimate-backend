@@ -20,8 +20,8 @@ public class AgentToolPolicyService {
     private final AgentToolPolicyRepository agentToolPolicyRepository;
     private final ToolPolicyEvaluatorService toolPolicyEvaluatorService;
 
-    public List<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID apiKeyPubId) {
-        return agentToolPolicyRepository.findByUserPubIdAndApiKeyPubId(userPubId, apiKeyPubId);
+    public List<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID agentPubId) {
+        return agentToolPolicyRepository.findByUserPubIdAndAgentPubId(userPubId, agentPubId);
     }
 
     public AgentToolPolicy getPolicyById(UUID userPubId, UUID id) {
@@ -32,13 +32,13 @@ public class AgentToolPolicyService {
     }
 
     @Transactional
-    public AgentToolPolicy createPolicy(UUID userPubId, UUID apiKeyPubId, String connectorCode, String connectorIdentity,
+    public AgentToolPolicy createPolicy(UUID userPubId, UUID agentPubId, String connectorCode, String connectorIdentity,
                                         String toolName, AccessEffect effect, Integer priority, String description) {
         validateConstraints(connectorCode, connectorIdentity, toolName);
 
         AgentToolPolicy policy = AgentToolPolicy.builder()
                 .userPubId(userPubId)
-                .apiKeyPubId(apiKeyPubId)
+                .agentPubId(agentPubId)
                 .connectorCode(connectorCode)
                 .connectorIdentity(connectorIdentity)
                 .toolName(toolName)
@@ -48,7 +48,7 @@ public class AgentToolPolicyService {
                 .build();
 
         AgentToolPolicy saved = agentToolPolicyRepository.save(policy);
-        toolPolicyEvaluatorService.invalidateByAgent(apiKeyPubId);
+        toolPolicyEvaluatorService.invalidateByAgent(agentPubId);
         return saved;
     }
 
@@ -72,7 +72,7 @@ public class AgentToolPolicyService {
         }
 
         AgentToolPolicy saved = agentToolPolicyRepository.save(policy);
-        toolPolicyEvaluatorService.invalidateByAgent(policy.getApiKeyPubId());
+        toolPolicyEvaluatorService.invalidateByAgent(policy.getAgentPubId());
         return saved;
     }
 
@@ -80,7 +80,7 @@ public class AgentToolPolicyService {
     public void deletePolicy(UUID userPubId, UUID id) {
         AgentToolPolicy policy = getPolicyById(userPubId, id);
         agentToolPolicyRepository.delete(policy);
-        toolPolicyEvaluatorService.invalidateByAgent(policy.getApiKeyPubId());
+        toolPolicyEvaluatorService.invalidateByAgent(policy.getAgentPubId());
     }
 
     private void validateOwnership(AgentToolPolicy policy, UUID userPubId) {

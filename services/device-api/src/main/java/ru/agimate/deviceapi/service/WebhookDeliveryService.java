@@ -119,10 +119,10 @@ public class WebhookDeliveryService {
     }
 
     @Transactional(readOnly = true)
-    public Page<WebhookDeliveryLogResponse> getDeliveryLogs(UUID userPubId, UUID apiKeyPubId, int page, int size) {
+    public Page<WebhookDeliveryLogResponse> getDeliveryLogs(UUID userPubId, UUID agentPubId, int page, int size) {
         Page<WebhookDeliveryLog> logs;
-        if (apiKeyPubId != null) {
-            logs = webhookDeliveryLogRepository.findByApiKeyPubId(apiKeyPubId, PageRequest.of(page, size));
+        if (agentPubId != null) {
+            logs = webhookDeliveryLogRepository.findByAgentPubId(agentPubId, PageRequest.of(page, size));
         } else {
             logs = webhookDeliveryLogRepository.findByUserPubId(userPubId, PageRequest.of(page, size));
         }

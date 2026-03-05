@@ -18,8 +18,8 @@ public interface ToolUseLogRepository extends JpaRepository<ToolUseLog, Long> {
     @Query("""
             SELECT t FROM ToolUseLog t
             WHERE t.userPubId = :userPubId
-            AND (:apiKeyPubId IS NULL OR t.apiKeyPubId = :apiKeyPubId)
+            AND (:agentPubId IS NULL OR t.agentPubId = :agentPubId)
             ORDER BY t.createdAt DESC
             """)
-    Page<ToolUseLog> findWithFilters(UUID userPubId, UUID apiKeyPubId, Pageable pageable);
+    Page<ToolUseLog> findWithFilters(UUID userPubId, UUID agentPubId, Pageable pageable);
 }

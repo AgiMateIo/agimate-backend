@@ -20,8 +20,8 @@ public class AgentTriggerPolicyService {
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
     private final TriggerPolicyEvaluatorService triggerPolicyEvaluatorService;
 
-    public List<AgentTriggerPolicy> getPoliciesByAgent(UUID userPubId, UUID apiKeyPubId) {
-        return agentTriggerPolicyRepository.findByUserPubIdAndApiKeyPubId(userPubId, apiKeyPubId);
+    public List<AgentTriggerPolicy> getPoliciesByAgent(UUID userPubId, UUID agentPubId) {
+        return agentTriggerPolicyRepository.findByUserPubIdAndAgentPubId(userPubId, agentPubId);
     }
 
     public AgentTriggerPolicy getPolicyById(UUID userPubId, UUID id) {
@@ -32,13 +32,13 @@ public class AgentTriggerPolicyService {
     }
 
     @Transactional
-    public AgentTriggerPolicy createPolicy(UUID userPubId, UUID apiKeyPubId, String connectorCode, String connectorIdentity,
+    public AgentTriggerPolicy createPolicy(UUID userPubId, UUID agentPubId, String connectorCode, String connectorIdentity,
                                            String triggerName, AccessEffect effect, Integer priority, String description) {
         validateConstraints(connectorCode, connectorIdentity, triggerName);
 
         AgentTriggerPolicy policy = AgentTriggerPolicy.builder()
                 .userPubId(userPubId)
-                .apiKeyPubId(apiKeyPubId)
+                .agentPubId(agentPubId)
                 .connectorCode(connectorCode)
                 .connectorIdentity(connectorIdentity)
                 .triggerName(triggerName)
@@ -48,7 +48,7 @@ public class AgentTriggerPolicyService {
                 .build();
 
         AgentTriggerPolicy saved = agentTriggerPolicyRepository.save(policy);
-        triggerPolicyEvaluatorService.invalidateByAgent(apiKeyPubId);
+        triggerPolicyEvaluatorService.invalidateByAgent(agentPubId);
         return saved;
     }
 
@@ -72,7 +72,7 @@ public class AgentTriggerPolicyService {
         }
 
         AgentTriggerPolicy saved = agentTriggerPolicyRepository.save(policy);
-        triggerPolicyEvaluatorService.invalidateByAgent(policy.getApiKeyPubId());
+        triggerPolicyEvaluatorService.invalidateByAgent(policy.getAgentPubId());
         return saved;
     }
 
@@ -80,7 +80,7 @@ public class AgentTriggerPolicyService {
     public void deletePolicy(UUID userPubId, UUID id) {
         AgentTriggerPolicy policy = getPolicyById(userPubId, id);
         agentTriggerPolicyRepository.delete(policy);
-        triggerPolicyEvaluatorService.invalidateByAgent(policy.getApiKeyPubId());
+        triggerPolicyEvaluatorService.invalidateByAgent(policy.getAgentPubId());
     }
 
     private void validateOwnership(AgentTriggerPolicy policy, UUID userPubId) {

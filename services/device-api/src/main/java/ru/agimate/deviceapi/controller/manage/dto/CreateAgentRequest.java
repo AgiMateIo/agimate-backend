@@ -8,10 +8,6 @@ import java.util.UUID;
 @Schema(description = "Request to create an agent")
 public record CreateAgentRequest(
         @NotNull
-        @Schema(description = "API key public ID")
-        UUID apiKeyPubId,
-
-        @NotNull
         @Schema(description = "Agent name")
         String name,
 

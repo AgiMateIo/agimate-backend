@@ -12,19 +12,19 @@ import java.util.UUID;
 
 public interface AgentTriggerPolicyRepository extends JpaRepository<AgentTriggerPolicy, UUID> {
 
-    List<AgentTriggerPolicy> findByApiKeyPubId(UUID apiKeyPubId);
+    List<AgentTriggerPolicy> findByAgentPubId(UUID agentPubId);
 
-    List<AgentTriggerPolicy> findByUserPubIdAndApiKeyPubId(UUID userPubId, UUID apiKeyPubId);
+    List<AgentTriggerPolicy> findByUserPubIdAndAgentPubId(UUID userPubId, UUID agentPubId);
 
     @Query(value = """
             SELECT * FROM agent_trigger_policies
-            WHERE api_key_pub_id = :apiKeyPubId
+            WHERE agent_pub_id = :agentPubId
               AND (connector_code IS NULL OR connector_code = :connectorCode)
               AND (connector_identity IS NULL OR CAST(:connectorIdentity AS TEXT) IS NULL OR connector_identity = :connectorIdentity)
               AND (trigger_name IS NULL OR trigger_name = :triggerName)
             """, nativeQuery = true)
     List<AgentTriggerPolicy> findMatchingPolicies(
-            @Param("apiKeyPubId") UUID apiKeyPubId,
+            @Param("agentPubId") UUID agentPubId,
             @Param("connectorCode") String connectorCode,
             @Param("connectorIdentity") String connectorIdentity,
             @Param("triggerName") String triggerName
@@ -41,7 +41,7 @@ public interface AgentTriggerPolicyRepository extends JpaRepository<AgentTrigger
                         (CASE WHEN trigger_name IS NOT NULL THEN 1 ELSE 0 END)
                     ) AS specificity
                 FROM agent_trigger_policies
-                WHERE api_key_pub_id = :apiKeyPubId
+                WHERE agent_pub_id = :agentPubId
                   AND (connector_code IS NULL OR connector_code = :connectorCode)
                   AND (connector_identity IS NULL OR CAST(:connectorIdentity AS TEXT) IS NULL OR connector_identity = :connectorIdentity)
                   AND (trigger_name IS NULL OR trigger_name = :triggerName)
@@ -60,13 +60,13 @@ public interface AgentTriggerPolicyRepository extends JpaRepository<AgentTrigger
             LIMIT 1
             """, nativeQuery = true)
     PolicyResolutionResult resolveAccess(
-            @Param("apiKeyPubId") UUID apiKeyPubId,
+            @Param("agentPubId") UUID agentPubId,
             @Param("connectorCode") String connectorCode,
             @Param("connectorIdentity") String connectorIdentity,
             @Param("triggerName") String triggerName
     );
 
     @Modifying
-    @Query("DELETE FROM AgentTriggerPolicy p WHERE p.apiKeyPubId = :apiKeyPubId")
-    void deleteByApiKeyPubId(@Param("apiKeyPubId") UUID apiKeyPubId);
+    @Query("DELETE FROM AgentTriggerPolicy p WHERE p.agentPubId = :agentPubId")
+    void deleteByAgentPubId(@Param("agentPubId") UUID agentPubId);
 }

@@ -23,14 +23,14 @@ public class ServerToolExecutorService {
     private final ToolUseLogService toolUseLogService;
 
     @Async
-    public void execute(IToolUse toolUse, UUID apiKeyPubId, UUID userPubId, String agentId) {
+    public void execute(IToolUse toolUse, UUID agentPubId, UUID userPubId, String agentId) {
         var handler = toolRegistry.getHandlerByToolName(toolUse.getName());
 
         try {
             Map<String, Object> result = handler.executeTool(
                     toolUse.getName(),
                     toolUse.getInput(),
-                    apiKeyPubId,
+                    agentPubId,
                     userPubId
             );
 

@@ -2,20 +2,16 @@ package ru.agimate.deviceapi.controller.agent;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.common.security.apikey.ApiKeyPrincipal;
 import ru.agimate.deviceapi.config.CentrifugoProperties;
-import ru.agimate.deviceapi.controller.agent.dto.AgentCentrifugoTokenRequest;
 import ru.agimate.deviceapi.controller.app.dto.CentrifugoTokenResponse;
+import ru.agimate.deviceapi.security.AgentPrincipal;
 import ru.agimate.deviceapi.service.CentrifugoService;
 
 @Slf4j
@@ -39,17 +35,18 @@ public class AgentCentrifugoTokenController {
     )
     @PostMapping("/token")
     public SuccessResponse<CentrifugoTokenResponse> getSubscriptionToken(
-            @AuthenticationPrincipal ApiKeyPrincipal principal
+            @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        String channel = "agent:" + principal.pubId();
+        String agentId = principal.agentPubId().toString();
+        String channel = "agent:" + agentId;
 
         String connectionToken = centrifugoService.generateConnectionToken(
-                principal.pubId(),
+                agentId,
                 TOKEN_EXPIRATION_SECONDS
         );
 
         String subscriptionToken = centrifugoService.generateSubscriptionToken(
-                principal.pubId(),
+                agentId,
                 channel,
                 TOKEN_EXPIRATION_SECONDS
         );
@@ -57,7 +54,7 @@ public class AgentCentrifugoTokenController {
         String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
 
         log.debug("Generated Centrifugo tokens for agent: {}, channel: {}",
-                principal.pubId(), channel);
+                agentId, channel);
 
         return SuccessResponse.ok(new CentrifugoTokenResponse(connectionToken, subscriptionToken, channel, wsUrl));
     }

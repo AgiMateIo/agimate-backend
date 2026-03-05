@@ -13,9 +13,6 @@ public record AgentResponse(
         @Schema(description = "Agent ID")
         UUID id,
 
-        @Schema(description = "API key public ID")
-        UUID apiKeyPubId,
-
         @Schema(description = "Agent name")
         String name,
 
@@ -47,7 +44,6 @@ public record AgentResponse(
     public static AgentResponse from(Agent agent, AgenticTeam team) {
         return new AgentResponse(
                 agent.getPubId(),
-                agent.getApiKeyPubId(),
                 agent.getName(),
                 agent.getPrompt(),
                 agent.isTriggersAllowAll(),

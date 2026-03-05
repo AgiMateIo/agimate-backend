@@ -14,8 +14,8 @@ public record ToolUseLogResponse(
         @Schema(description = "Tool use log ID")
         UUID id,
 
-        @Schema(description = "API key public ID (agent identifier)")
-        UUID apiKeyPubId,
+        @Schema(description = "Agent public ID")
+        UUID agentPubId,
 
         @Schema(description = "Connector code")
         String connectorCode,
@@ -55,7 +55,7 @@ public record ToolUseLogResponse(
     public static ToolUseLogResponse from(ToolUseLog toolUseLog) {
         return new ToolUseLogResponse(
                 toolUseLog.getPubId(),
-                toolUseLog.getApiKeyPubId(),
+                toolUseLog.getAgentPubId(),
                 toolUseLog.getConnectorCode(),
                 toolUseLog.getIdentity(),
                 toolUseLog.getAgentSessionId(),

@@ -8,8 +8,8 @@ import java.util.UUID;
 @Schema(description = "Request to create an agent tool policy")
 public record CreateAgentToolPolicyRequest(
         @NotNull
-        @Schema(description = "API key public ID")
-        UUID apiKeyPubId,
+        @Schema(description = "Agent public ID")
+        UUID agentPubId,
 
         @Schema(description = "Connector code (null = wildcard)")
         String connectorCode,

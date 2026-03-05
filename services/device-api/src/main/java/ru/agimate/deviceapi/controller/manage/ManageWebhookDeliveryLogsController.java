@@ -33,11 +33,11 @@ public class ManageWebhookDeliveryLogsController {
     @GetMapping("/")
     public SuccessResponse<Page<WebhookDeliveryLogResponse>> getDeliveryLogs(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam(required = false) UUID apiKeyPubId,
+            @RequestParam(required = false) UUID agentPubId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(webhookDeliveryService.getDeliveryLogs(userPubId, apiKeyPubId, page, size));
+        return SuccessResponse.ok(webhookDeliveryService.getDeliveryLogs(userPubId, agentPubId, page, size));
     }
 }

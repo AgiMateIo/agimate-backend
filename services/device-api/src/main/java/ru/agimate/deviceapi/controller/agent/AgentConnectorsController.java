@@ -3,14 +3,15 @@ package ru.agimate.deviceapi.controller.agent;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
+import ru.agimate.deviceapi.security.AgentPrincipal;
+import ru.agimate.deviceapi.service.ConnectorApiService;
 import ru.agimate.deviceapi.service.dto.ConnectedDevice;
 import ru.agimate.deviceapi.service.dto.DeviceTool;
 import ru.agimate.deviceapi.service.dto.DeviceTrigger;
-import ru.agimate.common.security.SecurityUtils;
-import ru.agimate.deviceapi.service.ConnectorApiService;
 
 import java.util.List;
 
@@ -29,9 +30,10 @@ public class AgentConnectorsController {
             description = "Returns all connected connectors for the authenticated user"
     )
     @GetMapping("/")
-    public SuccessResponse<List<ConnectedDevice>> getConnectors() {
-        var userPubId = SecurityUtils.getApiKeyUserPubId();
-        var devices = connectorApiService.getConnectors(userPubId);
+    public SuccessResponse<List<ConnectedDevice>> getConnectors(
+            @AuthenticationPrincipal AgentPrincipal principal
+    ) {
+        var devices = connectorApiService.getConnectors(principal.userPubId());
         return SuccessResponse.ok(devices);
     }
 
@@ -40,9 +42,10 @@ public class AgentConnectorsController {
             description = "Returns available triggers for all user's connectors"
     )
     @GetMapping("/triggers/")
-    public SuccessResponse<List<DeviceTriggersResponse>> getAllTriggers() {
-        var userPubId = SecurityUtils.getApiKeyUserPubId();
-        var triggers = connectorApiService.getAllConnectorTriggers(userPubId);
+    public SuccessResponse<List<DeviceTriggersResponse>> getAllTriggers(
+            @AuthenticationPrincipal AgentPrincipal principal
+    ) {
+        var triggers = connectorApiService.getAllConnectorTriggers(principal.userPubId());
         return SuccessResponse.ok(triggers);
     }
 

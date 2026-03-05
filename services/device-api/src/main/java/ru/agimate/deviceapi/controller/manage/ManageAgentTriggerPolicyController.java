@@ -32,10 +32,10 @@ public class ManageAgentTriggerPolicyController {
     @GetMapping("/")
     public SuccessResponse<List<AgentTriggerPolicyResponse>> getPolicies(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam UUID apiKeyPubId
+            @RequestParam UUID agentPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        List<AgentTriggerPolicy> policies = agentTriggerPolicyService.getPoliciesByAgent(userPubId, apiKeyPubId);
+        List<AgentTriggerPolicy> policies = agentTriggerPolicyService.getPoliciesByAgent(userPubId, agentPubId);
         List<AgentTriggerPolicyResponse> response = policies.stream()
                 .map(AgentTriggerPolicyResponse::from)
                 .toList();
@@ -62,7 +62,7 @@ public class ManageAgentTriggerPolicyController {
         UUID userPubId = UUID.fromString(principal.pubId());
         AgentTriggerPolicy policy = agentTriggerPolicyService.createPolicy(
                 userPubId,
-                request.apiKeyPubId(),
+                request.agentPubId(),
                 request.connectorCode(),
                 request.connectorIdentity(),
                 request.triggerName(),

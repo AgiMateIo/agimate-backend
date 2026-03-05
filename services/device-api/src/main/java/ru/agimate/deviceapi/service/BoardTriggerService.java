@@ -52,12 +52,12 @@ public class BoardTriggerService {
             payload.put("triggerData", triggerData);
             payload.put("occurredAt", Instant.now().toString());
 
-            String channel = "agent:" + agent.getApiKeyPubId();
+            String channel = "agent:" + agent.getPubId();
             centrifugoService.publishMessage(channel, payload);
-            log.debug("Board trigger '{}' sent to agent '{}' via centrifugo", triggerName, agent.getApiKeyPubId());
+            log.debug("Board trigger '{}' sent to agent '{}' via centrifugo", triggerName, agent.getPubId());
         } catch (Exception e) {
             log.warn("Failed to send board trigger '{}' to agent '{}' via centrifugo: {}",
-                    triggerName, agent.getApiKeyPubId(), e.getMessage());
+                    triggerName, agent.getPubId(), e.getMessage());
         }
     }
 
@@ -84,11 +84,11 @@ public class BoardTriggerService {
 
             try (Response response = httpClient.newCall(requestBuilder.build()).execute()) {
                 log.debug("Board trigger '{}' sent to agent '{}' via webhook, status={}",
-                        triggerName, agent.getApiKeyPubId(), response.code());
+                        triggerName, agent.getPubId(), response.code());
             }
         } catch (Exception e) {
             log.warn("Failed to send board trigger '{}' to agent '{}' via webhook: {}",
-                    triggerName, agent.getApiKeyPubId(), e.getMessage());
+                    triggerName, agent.getPubId(), e.getMessage());
         }
     }
 }

@@ -33,8 +33,8 @@ public class ToolUseLog extends BaseEntity {
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
 
-    @Column(name = "api_key_pub_id", nullable = false)
-    private UUID apiKeyPubId;
+    @Column(name = "agent_pub_id", nullable = false)
+    private UUID agentPubId;
 
     @Column(name = "connector_code", columnDefinition = "TEXT")
     private String connectorCode;
