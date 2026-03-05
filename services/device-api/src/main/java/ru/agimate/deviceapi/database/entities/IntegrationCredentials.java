@@ -10,8 +10,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "integration_credentials", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_integration_credentials_user_platform",
-                columnNames = {"user_pub_id", "platform_id", "platform_identifier"})
+        @UniqueConstraint(name = "uq_integration_credentials_connector_code",
+                columnNames = {"connector_code"})
 })
 @Getter
 @Setter
@@ -31,10 +31,6 @@ public class IntegrationCredentials extends BaseEntity {
 
     @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
     private String connectorCode;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "platform_id", nullable = false)
-    private Platform platform;
 
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
@@ -67,5 +63,10 @@ public class IntegrationCredentials extends BaseEntity {
 
     public boolean isActive() {
         return enabled && !isDeleted();
+    }
+
+    public String extractPlatformCode() {
+        int idx = connectorCode.indexOf(':');
+        return idx > 0 ? connectorCode.substring(0, idx) : connectorCode;
     }
 }

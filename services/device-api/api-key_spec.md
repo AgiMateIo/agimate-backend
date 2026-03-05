@@ -3,31 +3,36 @@
 ### Формат
 
 ```
-adevZ3h5YWJjZGVмxQ8pJvLmN5rT3sU2vWxYzAbCdEfGhIjKlMnOpQrStUvWxYz
+apikZ3h5YWJjZGVмxQ8pJvLmN5rT3sU2vWxYzAbCdEfGhIjKlMnOpQrStUvWxYz
 ```
 
 **Без разделителей, 64 символа, фиксированные позиции**
 
 ### Компоненты
 
-| Компонент | Описание                                  | Длина        | Позиция  | Пример                 |
-|:----------|:------------------------------------------|:-------------|:---------|:-----------------------|
-| `prefix`  | Префикс сервиса (Agimate)                 | 1            | 0-1      | `a`                    |
-| `type`    | Тип ключа                                 | 3            | 1-4      | `mob`, `api`, `dev`    |
-| `keyid`   | Timestamp + random для поиска в БД        | 12           | 4-16     | `Z3h5YWJjZGVм`         |
-| `payload` | Закодированный secret + checksum          | 48           | 16-64    | `xQ8pJvLm...`          |
+| Компонент  | Описание                           | Длина | Позиция | Пример         |
+|:-----------|:-----------------------------------|:------|:--------|:---------------|
+| `prefix`   | Тип ключа (4 строчные латинские)   | 4     | 0-4     | `apik`, `dvck` |
+| `keyid`    | Timestamp + random для поиска в БД | 12    | 4-16    | `Z3h5YWJjZGVм` |
+| `payload`  | Закодированный secret + checksum   | 48    | 16-64   | `xQ8pJvLm...`  |
+
+### Используемые префиксы
+
+| Префикс | Назначение               |
+|:--------|:-------------------------|
+| `apik`  | Service API key          |
+| `dvck`  | Connector key (device)   |
 
 ### Генерация ключа
 
 ```
-prefix   = "a"                                                → 1 символ
-type     = "dev"                                              → 3 символа (фиксированная)
-keyid    = base64url(unix_timestamp_4bytes || random_5bytes)  → 12 символов
-secret   = random(32 bytes)                                   → 32 байта
-checksum = crc32(prefix || type || keyid || secret)           → 4 байта
-payload  = base64url(secret || checksum)                      → 48 символов
+prefix   = "apik"                                              → 4 символа (строчные латинские)
+keyid    = base64url(unix_timestamp_4bytes || random_5bytes)    → 12 символов
+secret   = random(32 bytes)                                    → 32 байта
+checksum = crc32(prefix || keyid || secret)                    → 4 байта
+payload  = base64url(secret || checksum)                       → 48 символов
 
-Итого: fullKey = prefix + type + keyid + payload              → 64 символа
+Итого: fullKey = prefix + keyid + payload                      → 64 символа
 ```
 
 ### Структура keyid
@@ -48,41 +53,44 @@ keyid (9 байт = 12 символов base64url):
 ### Пример
 
 ```
-adevZ3h5YWJjZGVмxQ8pJvLmN5rT3sU2vWxYzAbCdEfGhIjKlMnOpQrStUvWxYz
-│└─┘└──────────┘└─────────────────────────────────────┘
-││    keyid(12)  payload(48)
-│└ type(3)
-└ prefix(1)
+apikZ3h5YWJjZGVмxQ8pJvLmN5rT3sU2vWxYzAbCdEfGhIjKlMnOpQrStUvWxYz
+└──┘└──────────┘└──────────────────────────────────────────────────┘
+prefix(4) keyid(12)  payload(48)
 ```
 
 ### Валидация на сервере
 
 1. Проверить длину = 64 символа
 2. Извлечь компоненты по позициям:
-   - `prefix` = `substring(0, 1)`
-   - `type` = `substring(1, 4)`
+   - `prefix` = `substring(0, 4)`
    - `keyid` = `substring(4, 16)`
    - `payload` = `substring(16, 64)`
 3. Проверить формат:
-   - `prefix == "a"`
-   - `type` — 3 латинские буквы нижнего регистра
-   - `keyid` — base64url (12 символов)
-   - `payload` — base64url (48 символов)
+   - `prefix` — 4 строчные латинские буквы (`^[a-z]{4}$`)
+   - `keyid` — base64url (`^[A-Za-z0-9_-]+$`, 12 символов)
+   - `payload` — base64url (`^[A-Za-z0-9_-]+$`, 48 символов)
 4. Декодировать `base64url(payload)` → 36 байт
 5. Разделить: `secret` (первые 32 байта) + `checksum` (последние 4 байта)
-6. Пересчитать `crc32(prefix || type || keyid || secret)`
+6. Пересчитать `crc32(prefix || keyid || secret)`
 7. Сравнить с `checksum` → формат валиден ✓
 8. Найти запись по `keyid` в БД
-9. Сравнить `sha256(secret) == stored_hash` → ключ валиден ✓
+9. Сравнить `sha256(secret) == stored_hash` (case-insensitive) → ключ валиден ✓
 
-### Хранение в БД
+### Хранение в БД (service_api_keys)
 
-| Поле           | Тип          | Описание                                           |
-|:---------------|:-------------|:---------------------------------------------------|
-| `key_id`       | VARCHAR(12)  | Уникальный ID (timestamp+random, индекс для поиска)|
-| `secret_hash`  | CHAR(64)     | SHA256 hex hash от secret                          |
-| `user_pub_id`  | UUID         | Владелец ключа                                     |
-| `last_used_at` | TIMESTAMP    | Последнее использование                            |
+| Поле           | Тип          | Описание                                              |
+|:---------------|:-------------|:------------------------------------------------------|
+| `id`           | BIGSERIAL    | Первичный ключ (auto-increment)                       |
+| `pub_id`       | UUID         | Уникальный публичный ID (UUIDv8)                      |
+| `user_pub_id`  | UUID         | Владелец ключа                                        |
+| `name`         | TEXT         | Пользовательское имя ключа                            |
+| `description`  | TEXT         | Описание (nullable)                                   |
+| `key_hash`     | TEXT         | SHA256 hex hash от secret                             |
+| `key_id`       | TEXT         | 12-char base64url ID (индекс для поиска)              |
+| `enabled`      | BOOLEAN      | Включён/выключен (default: true)                      |
+| `deleted_at`   | TIMESTAMP    | Soft delete (nullable)                                |
+| `created_at`   | TIMESTAMP    | Дата создания (NOT NULL, DEFAULT CURRENT_TIMESTAMP)   |
+| `updated_at`   | TIMESTAMP    | Дата обновления (NOT NULL, DEFAULT CURRENT_TIMESTAMP) |
 
 ### Безопасность
 
@@ -95,7 +103,7 @@ adevZ3h5YWJjZGVмxQ8pJvLmN5rT3sU2vWxYzAbCdEfGhIjKlMnOpQrStUvWxYz
 ### Преимущества формата
 
 1. **Простота парсинга** — только `substring()`, без `split()`
-2. **Компактность** — 64 символа (2^6)
+2. **Компактность** — 64 символа
 3. **Фиксированная длина** — всегда ровно 64 символа
-4. **Без разделителей** — base64url может содержать `_`, но это не важно
-5. **Читаемость** — можно визуально определить prefix и type
+4. **Без разделителей** — чистый позиционный формат
+5. **Читаемость** — можно визуально определить тип по prefix

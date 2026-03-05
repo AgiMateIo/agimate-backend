@@ -34,6 +34,21 @@ public class TelegramPlatformHandler implements IntegrationPlatformHandler {
     }
 
     @Override
+    public boolean supportsWebhooks() {
+        return true;
+    }
+
+    @Override
+    public List<String> getCredentialFields() {
+        return List.of("token");
+    }
+
+    @Override
+    public String getPlatformName() {
+        return "Telegram";
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public PlatformValidationResult validateCredentials(Map<String, String> credentials) {
         String token = credentials.get("token");

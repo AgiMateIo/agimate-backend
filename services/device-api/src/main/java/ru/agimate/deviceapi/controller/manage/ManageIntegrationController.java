@@ -9,10 +9,13 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.CreateIntegrationRequest;
+import ru.agimate.deviceapi.controller.manage.dto.IntegrationPlatformInfo;
 import ru.agimate.deviceapi.controller.manage.dto.IntegrationResponse;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateIntegrationCredentialsRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateIntegrationRequest;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationPlatformRegistry;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationService;
+import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 
 import java.util.List;
 import java.util.UUID;
@@ -26,6 +29,16 @@ public class ManageIntegrationController {
     public static final String PATH = "/manage/integrations";
 
     private final IntegrationService integrationService;
+    private final IntegrationPlatformRegistry platformRegistry;
+
+    @Operation(summary = "Get available integration platforms")
+    @GetMapping("/platforms/")
+    public SuccessResponse<List<IntegrationPlatformInfo>> getPlatforms() {
+        var platforms = platformRegistry.getAvailablePlatforms().stream()
+                .map(IntegrationPlatformInfo::from)
+                .toList();
+        return SuccessResponse.ok(platforms);
+    }
 
     @Operation(summary = "Get all integrations for the current user")
     @GetMapping("/")
@@ -34,7 +47,7 @@ public class ManageIntegrationController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         var integrations = integrationService.getIntegrations(userPubId).stream()
-                .map(IntegrationResponse::from)
+                .map(this::toResponse)
                 .toList();
         return SuccessResponse.ok(integrations);
     }
@@ -48,7 +61,7 @@ public class ManageIntegrationController {
         UUID userPubId = UUID.fromString(principal.pubId());
         var integrationCredentials = integrationService.createIntegration(
                 userPubId, request.platformCode(), request.credentials(), request.name());
-        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
+        return SuccessResponse.ok(toResponse(integrationCredentials));
     }
 
     @Operation(summary = "Get integration details")
@@ -59,7 +72,7 @@ public class ManageIntegrationController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         var integrationCredentials = integrationService.getIntegration(id, userPubId);
-        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
+        return SuccessResponse.ok(toResponse(integrationCredentials));
     }
 
     @Operation(summary = "Update integration credentials")
@@ -71,7 +84,7 @@ public class ManageIntegrationController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         var integrationCredentials = integrationService.updateCredentials(id, userPubId, request.credentials());
-        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
+        return SuccessResponse.ok(toResponse(integrationCredentials));
     }
 
     @Operation(summary = "Update integration settings (enable/disable, name)")
@@ -83,7 +96,7 @@ public class ManageIntegrationController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         var integrationCredentials = integrationService.updateIntegration(id, userPubId, request.enabled(), request.name());
-        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
+        return SuccessResponse.ok(toResponse(integrationCredentials));
     }
 
     @Operation(summary = "Delete an integration")
@@ -95,5 +108,10 @@ public class ManageIntegrationController {
         UUID userPubId = UUID.fromString(principal.pubId());
         integrationService.deleteIntegration(id, userPubId);
         return SuccessResponse.empty();
+    }
+
+    private IntegrationResponse toResponse(IntegrationCredentials ic) {
+        var handler = platformRegistry.getHandler(ic.extractPlatformCode());
+        return IntegrationResponse.from(ic, handler);
     }
 }

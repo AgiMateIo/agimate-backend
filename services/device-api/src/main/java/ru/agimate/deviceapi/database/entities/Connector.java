@@ -2,9 +2,13 @@ package ru.agimate.deviceapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.deviceapi.database.enums.ConnectorType;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -32,4 +36,12 @@ public class Connector extends BaseEntity {
 
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "credential_fields", columnDefinition = "JSONB")
+    private List<String> credentialFields;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "features", columnDefinition = "JSONB")
+    private Map<String, Object> features;
 }

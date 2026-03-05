@@ -11,11 +11,9 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
-import ru.agimate.deviceapi.database.entities.Platform;
 import ru.agimate.deviceapi.database.enums.ConnectorType;
 import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
-import ru.agimate.deviceapi.database.repositories.PlatformRepository;
 import ru.agimate.deviceapi.service.ConnectorService;
 
 import java.time.LocalDateTime;
@@ -34,7 +32,6 @@ public class IntegrationService {
 
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
     private final ConnectorRepository connectorRepository;
-    private final PlatformRepository platformRepository;
     private final IntegrationPlatformRegistry platformRegistry;
     private final IntegrationEncryptionService encryptionService;
     private final ConnectorService connectorService;
@@ -46,10 +43,7 @@ public class IntegrationService {
             Map<String, String> credentials,
             String name
     ) {
-        Platform platform = platformRepository.findByCode(platformCode)
-                .orElseThrow(() -> new BadRequestStatusException("Unknown platform: " + platformCode));
-
-        var handler = platformRegistry.getHandler(platform.getCode());
+        var handler = platformRegistry.getHandler(platformCode);
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
@@ -58,30 +52,32 @@ public class IntegrationService {
 
         // Check for duplicate
         integrationCredentialsRepository.findByUserPubIdNotDeleted(userPubId).stream()
-                .filter(i -> i.getPlatform().getCode().equals(platform.getCode())
+                .filter(i -> i.extractPlatformCode().equals(platformCode)
                         && i.getPlatformIdentifier().equals(validationResult.identifier()))
                 .findFirst()
                 .ifPresent(existing -> {
-                    throw new ConflictStatusException("Integration already exists for " + platform.getCode() + ": " + validationResult.identifier());
+                    throw new ConflictStatusException("Integration already exists for " + platformCode + ": " + validationResult.identifier());
                 });
 
         // Create connector entry for this integration
         String connectorName = name != null ? name
                 : validationResult.displayName() != null ? validationResult.displayName()
-                : platform.getCode() + ": " + validationResult.identifier();
+                : platformCode + ": " + validationResult.identifier();
 
         Connector connector = Connector.builder()
                 .code(platformCode + ":" + validationResult.identifier())
                 .type(ConnectorType.INTEGRATION)
                 .name(connectorName)
-                .description("Integration: " + platform.getCode())
+                .description("Integration: " + platformCode)
                 .userPubId(userPubId)
+                .credentialFields(handler.getCredentialFields())
+                .features(Map.of())
                 .build();
         connector = connectorRepository.save(connector);
 
         // Create app with capabilities for this integration
         var app = connectorService.createAppWithCapabilities(
-                userPubId, connectorName, "Integration: " + platform.getCode(),
+                userPubId, connectorName, "Integration: " + platformCode,
                 connector.getCode(),
                 handler.getPredefinedTriggers(), handler.getPredefinedTools()
         );
@@ -90,13 +86,12 @@ public class IntegrationService {
         String encryptedData = encryptionService.encryptCredentials(credentials);
 
         // Generate webhook secret only if platform supports webhooks
-        String webhookSecret = platform.getSupportsWebhooks()
+        String webhookSecret = handler.supportsWebhooks()
                 ? encryptionService.generateSecureToken()
                 : null;
 
         IntegrationCredentials integrationCredentials = IntegrationCredentials.builder()
                 .connectorCode(connector.getCode())
-                .platform(platform)
                 .userPubId(userPubId)
                 .name(name)
                 .platformIdentifier(validationResult.identifier())
@@ -107,7 +102,7 @@ public class IntegrationService {
         integrationCredentials = integrationCredentialsRepository.save(integrationCredentials);
 
         // Setup webhook only if platform supports it
-        if (platform.getSupportsWebhooks()) {
+        if (handler.supportsWebhooks()) {
             String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getPubId();
             try {
                 handler.setupWebhook(integrationCredentials, credentials, webhookUrl);
@@ -120,7 +115,7 @@ public class IntegrationService {
         }
 
         log.info("Created integration {} for user {}: {} ({})",
-                integrationCredentials.getPubId(), userPubId, platform.getCode(), validationResult.identifier());
+                integrationCredentials.getPubId(), userPubId, platformCode, validationResult.identifier());
 
         return integrationCredentials;
     }
@@ -141,7 +136,7 @@ public class IntegrationService {
 
         // Remove webhook if platform supports it
         try {
-            var handler = platformRegistry.getHandler(integrationCredentials.getPlatform().getCode());
+            var handler = platformRegistry.getHandler(integrationCredentials.extractPlatformCode());
             Map<String, String> credentials = encryptionService.decryptCredentials(integrationCredentials.getEncryptedData());
             handler.removeWebhook(credentials);
         } catch (Exception e) {
@@ -155,7 +150,7 @@ public class IntegrationService {
     @Transactional
     public IntegrationCredentials updateCredentials(UUID pubId, UUID userPubId, Map<String, String> credentials) {
         IntegrationCredentials integrationCredentials = getIntegration(pubId, userPubId);
-        var handler = platformRegistry.getHandler(integrationCredentials.getPlatform().getCode());
+        var handler = platformRegistry.getHandler(integrationCredentials.extractPlatformCode());
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
@@ -173,7 +168,7 @@ public class IntegrationService {
         integrationCredentials.setEncryptedData(encryptionService.encryptCredentials(credentials));
 
         // Re-setup webhook if platform supports it
-        if (integrationCredentials.getPlatform().getSupportsWebhooks()) {
+        if (handler.supportsWebhooks()) {
             String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getPubId();
             handler.setupWebhook(integrationCredentials, credentials, webhookUrl);
         }

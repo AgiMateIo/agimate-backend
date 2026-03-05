@@ -43,13 +43,13 @@ public class IntegrationWebhookController {
             return ResponseEntity.ok("ok");
         }
 
+        var handler = platformRegistry.getHandler(integrationCredentials.extractPlatformCode());
+
         // Guard: platform must support webhooks
-        if (!integrationCredentials.getPlatform().getSupportsWebhooks()) {
+        if (!handler.supportsWebhooks()) {
             log.warn("Webhook received for non-webhook platform: {}", integrationPubId);
             return ResponseEntity.notFound().build();
         }
-
-        var handler = platformRegistry.getHandler(integrationCredentials.getPlatform().getCode());
 
         if (!handler.validateWebhookRequest(integrationCredentials, request)) {
             log.warn("Webhook validation failed for integration: {}", integrationPubId);

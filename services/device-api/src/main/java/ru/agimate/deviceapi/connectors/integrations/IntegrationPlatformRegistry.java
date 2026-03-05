@@ -3,6 +3,7 @@ package ru.agimate.deviceapi.connectors.integrations;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -24,5 +25,9 @@ public class IntegrationPlatformRegistry {
             throw new BadRequestStatusException("Unsupported platform: " + platformType);
         }
         return handler;
+    }
+
+    public Collection<IntegrationPlatformHandler> getAvailablePlatforms() {
+        return handlers.values();
     }
 }

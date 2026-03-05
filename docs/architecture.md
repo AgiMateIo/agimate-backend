@@ -52,12 +52,12 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 
 ## Authentication Flows
 
-| Method             | Description                            | Used By                             |
-|--------------------|----------------------------------------|-------------------------------------|
-| **JWT**            | Bearer token authentication for users  | All services (management endpoints) |
-| **API Key**        | Header `X-Api-Key` for agent calls     | device-api                          |
-| **Connector Auth** | Header `X-App-Auth-Key` for connectors/devices | device-api                          |
-| **OAuth2**         | Google/Yandex social login             | user-api                            |
+| Method               | Description                                     | Used By                             |
+|----------------------|-------------------------------------------------|-------------------------------------|
+| **JWT**              | Bearer token authentication for users           | All services (management endpoints) |
+| **API Key**          | Header `X-Api-Key` for agent calls              | device-api                          |
+| **Application Auth** | Header `X-App-Auth-Key` for application/devices | device-api                          |
+| **OAuth2**           | Google/Yandex social login                      | user-api                            |
 
 ### JWT Flow
 - Access tokens returned in response body
@@ -72,11 +72,6 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 | am_device_db     | device-api     | `connectors`, `trigger_logs`, `trigger_log_agents`, `tool_use_logs`, `agents`, `agent_tools`, `agent_triggers`, `webhook_delivery_logs`, `platforms`, `integrations`, `agentic_teams` |
 
 All migrations managed via Liquibase in each service's `src/main/resources/db/changelog/`.
-
-### Migration Best Practices
-- Prefer `TEXT` over `VARCHAR(n)` for string columns
-- Entity `@Column` definitions should match: use `columnDefinition = "TEXT"`
-- Use specific types (`UUID`, `TIMESTAMP`, `BOOLEAN`, `INTEGER`, `BIGINT`) where appropriate
 
 ## Inter-Service Communication
 

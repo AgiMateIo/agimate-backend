@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 
+import java.util.List;
 import java.util.Map;
 
 public interface IntegrationPlatformHandler {
@@ -18,6 +19,20 @@ public interface IntegrationPlatformHandler {
                                     String toolName, Map<String, Object> params);
 
     Map<String, Object> getPredefinedTools();
+
+    // === Optional: platform metadata (defaults) ===
+
+    default boolean supportsWebhooks() {
+        return false;
+    }
+
+    default List<String> getCredentialFields() {
+        return List.of();
+    }
+
+    default String getPlatformName() {
+        return getPlatformCode();
+    }
 
     // === Optional: webhooks (default no-op) ===
 

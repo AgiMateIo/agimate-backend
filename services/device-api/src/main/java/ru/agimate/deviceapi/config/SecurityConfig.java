@@ -35,7 +35,6 @@ import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentToolPolicyController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentTriggerPolicyController;
 import ru.agimate.deviceapi.controller.manage.ManageIntegrationController;
-import ru.agimate.deviceapi.controller.manage.ManagePlatformController;
 import ru.agimate.deviceapi.controller.manage.ManageWebhookDeliveryLogsController;
 import ru.agimate.deviceapi.controller.webhook.IntegrationWebhookController;
 import ru.agimate.deviceapi.security.ConnectorAuthFilter;
@@ -116,7 +115,6 @@ public class SecurityConfig {
                 ManageAgenticTeamController.PATH + "/**",
                 ManageWebhookDeliveryLogsController.PATH + "/**",
                 ManageIntegrationController.PATH + "/**",
-                ManagePlatformController.PATH + "/**",
                 ManageBoardController.PATH + "/**",
                 ManageAgentToolPolicyController.PATH + "/**",
                 ManageAgentTriggerPolicyController.PATH + "/**"

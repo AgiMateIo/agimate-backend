@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Add credential_fields and features columns to connectors -->
+    <changeSet id="add-credential-fields-and-features-to-connectors" author="agimate">
+        <addColumn tableName="connectors">
+            <column name="credential_fields" type="JSONB"/>
+            <column name="features" type="JSONB"/>
+        </addColumn>
+    </changeSet>
+
+    <!-- Backfill existing INTEGRATION connectors from platforms table -->
+    <changeSet id="backfill-connectors-from-platforms" author="agimate">
+        <sql>
+            UPDATE connectors c
+            SET credential_fields = p.credential_fields,
+                features = jsonb_build_object('iconUrl', p.icon_url, 'category', p.category)
+            FROM integration_credentials ic
+            JOIN platforms p ON p.id = ic.platform_id
+            WHERE ic.connector_code = c.code AND ic.deleted_at IS NULL;
+        </sql>
+    </changeSet>
+
+    <!-- Drop platform_id from integration_credentials -->
+    <changeSet id="drop-platform-id-from-integration-credentials" author="agimate">
+        <dropUniqueConstraint tableName="integration_credentials"
+                              constraintName="uq_integration_credentials_user_platform"/>
+
+        <dropForeignKeyConstraint baseTableName="integration_credentials"
+                                  constraintName="fk_integration_credentials_platform"/>
+
+        <dropColumn tableName="integration_credentials" columnName="platform_id"/>
+
+        <addUniqueConstraint tableName="integration_credentials"
+                             columnNames="connector_code"
+                             constraintName="uq_integration_credentials_connector_code"/>
+    </changeSet>
+
+    <!-- Drop platforms table -->
+    <changeSet id="drop-platforms-table" author="agimate">
+        <dropTable tableName="platforms"/>
+    </changeSet>
+
+</databaseChangeLog>
