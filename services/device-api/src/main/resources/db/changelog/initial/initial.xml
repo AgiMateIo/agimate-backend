@@ -51,7 +51,7 @@
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="connector_code" type="TEXT">
@@ -116,7 +116,7 @@
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="code" type="TEXT">
@@ -148,6 +148,7 @@
         </createTable>
 
         <insert tableName="platforms">
+            <column name="pub_id" valueComputed="gen_random_uuid()"/>
             <column name="code" value="telegram"/>
             <column name="name" value="Telegram"/>
             <column name="description" value="Connect a Telegram bot"/>
@@ -165,7 +166,7 @@
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="connector_code" type="TEXT">
@@ -206,10 +207,6 @@
                              columnNames="user_pub_id, platform_id, platform_identifier"
                              constraintName="uq_integration_credentials_user_platform"/>
 
-        <createIndex tableName="integration_credentials" indexName="idx_integration_credentials_user_pub_id">
-            <column name="user_pub_id"/>
-        </createIndex>
-
         <createIndex tableName="integration_credentials" indexName="idx_integration_credentials_connector_code">
             <column name="connector_code"/>
         </createIndex>
@@ -244,10 +241,6 @@
         <addUniqueConstraint tableName="agentic_teams"
                              columnNames="user_pub_id, name"
                              constraintName="uq_agentic_teams_user_pub_id_name"/>
-
-        <createIndex tableName="agentic_teams" indexName="idx_agentic_teams_user_pub_id">
-            <column name="user_pub_id"/>
-        </createIndex>
     </changeSet>
 
     <!-- ===================== -->
@@ -258,7 +251,7 @@
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="api_key_pub_id" type="UUID">
@@ -305,7 +298,7 @@
     <!-- ============================= -->
     <changeSet id="create-agent-tool-policies-table" author="agimate">
         <createTable tableName="agent_tool_policies">
-            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="id" type="UUID">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="api_key_pub_id" type="UUID">
@@ -339,24 +332,16 @@
                 ADD CONSTRAINT chk_agent_tool_policies_tool_requires_connector CHECK (tool_name IS NULL OR connector_code IS NOT NULL);
         </sql>
 
-        <addUniqueConstraint tableName="agent_tool_policies"
-                             columnNames="api_key_pub_id, connector_code, connector_identity, tool_name, effect"
-                             constraintName="uq_agent_tool_policies_composite"/>
-
-        <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_api_key">
-            <column name="api_key_pub_id"/>
-        </createIndex>
+        <sql>
+            CREATE UNIQUE INDEX uq_agent_tool_policies_composite
+                ON agent_tool_policies (api_key_pub_id, connector_code, connector_identity, tool_name, effect)
+                NULLS NOT DISTINCT;
+        </sql>
 
         <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_user_pub_id">
             <column name="user_pub_id"/>
         </createIndex>
 
-        <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_lookup">
-            <column name="api_key_pub_id"/>
-            <column name="connector_code"/>
-            <column name="connector_identity"/>
-            <column name="tool_name"/>
-        </createIndex>
     </changeSet>
 
     <!-- ================================ -->
@@ -364,7 +349,7 @@
     <!-- ================================ -->
     <changeSet id="create-agent-trigger-policies-table" author="agimate">
         <createTable tableName="agent_trigger_policies">
-            <column name="id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="id" type="UUID">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="api_key_pub_id" type="UUID">
@@ -398,24 +383,16 @@
                 ADD CONSTRAINT chk_agent_trigger_policies_trigger_requires_connector CHECK (trigger_name IS NULL OR connector_code IS NOT NULL);
         </sql>
 
-        <addUniqueConstraint tableName="agent_trigger_policies"
-                             columnNames="api_key_pub_id, connector_code, connector_identity, trigger_name, effect"
-                             constraintName="uq_agent_trigger_policies_composite"/>
-
-        <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_api_key">
-            <column name="api_key_pub_id"/>
-        </createIndex>
+        <sql>
+            CREATE UNIQUE INDEX uq_agent_trigger_policies_composite
+                ON agent_trigger_policies (api_key_pub_id, connector_code, connector_identity, trigger_name, effect)
+                NULLS NOT DISTINCT;
+        </sql>
 
         <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_user_pub_id">
             <column name="user_pub_id"/>
         </createIndex>
 
-        <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_lookup">
-            <column name="api_key_pub_id"/>
-            <column name="connector_code"/>
-            <column name="connector_identity"/>
-            <column name="trigger_name"/>
-        </createIndex>
     </changeSet>
 
     <!-- ===================== -->
@@ -426,7 +403,7 @@
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="app_id" type="BIGINT">
@@ -502,10 +479,6 @@
         <addUniqueConstraint tableName="trigger_log_agents"
                              columnNames="trigger_log_id, agent_id"
                              constraintName="uq_trigger_log_agents_log_id_agent_id"/>
-
-        <createIndex tableName="trigger_log_agents" indexName="idx_trigger_log_agents_trigger_log_id">
-            <column name="trigger_log_id"/>
-        </createIndex>
     </changeSet>
 
     <!-- ===================== -->
@@ -562,7 +535,7 @@
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="user_pub_id" type="UUID">
@@ -618,7 +591,7 @@
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="user_pub_id" type="UUID">
@@ -654,7 +627,7 @@
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="board_id" type="BIGINT">
@@ -696,6 +669,13 @@
             </column>
         </createTable>
 
+        <sql>
+            ALTER TABLE board_tasks
+                ADD CONSTRAINT chk_board_tasks_type CHECK (type IN ('EPIC', 'TASK', 'SUBTASK'));
+            ALTER TABLE board_tasks
+                ADD CONSTRAINT chk_board_tasks_status CHECK (status IN ('BACKLOG', 'ANALYTICS', 'TODO', 'IN_PROGRESS', 'BLOCKED', 'REVIEW', 'DONE'));
+        </sql>
+
         <createIndex tableName="board_tasks" indexName="idx_board_tasks_board_id">
             <column name="board_id"/>
         </createIndex>
@@ -721,7 +701,7 @@
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
+            <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
             <column name="board_task_id" type="BIGINT">

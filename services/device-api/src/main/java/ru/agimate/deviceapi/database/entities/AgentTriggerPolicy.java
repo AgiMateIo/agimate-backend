@@ -40,7 +40,7 @@ public class AgentTriggerPolicy extends BaseEntity {
     private String triggerName;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "effect", nullable = false)
+    @Column(name = "effect", nullable = false, columnDefinition = "TEXT")
     private AccessEffect effect;
 
     @Column(name = "priority")

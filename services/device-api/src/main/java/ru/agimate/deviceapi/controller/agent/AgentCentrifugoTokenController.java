@@ -39,20 +39,17 @@ public class AgentCentrifugoTokenController {
     )
     @PostMapping("/token")
     public SuccessResponse<CentrifugoTokenResponse> getSubscriptionToken(
-            @RequestBody @Valid AgentCentrifugoTokenRequest request,
-            @AuthenticationPrincipal ApiKeyPrincipal principal,
-            HttpServletRequest httpRequest
+            @AuthenticationPrincipal ApiKeyPrincipal principal
     ) {
-        String apiKeyPubId = request.apiKeyPubId().toString();
-        String channel = "agent:" + apiKeyPubId;
+        String channel = "agent:" + principal.pubId();
 
         String connectionToken = centrifugoService.generateConnectionToken(
-                apiKeyPubId,
+                principal.pubId(),
                 TOKEN_EXPIRATION_SECONDS
         );
 
         String subscriptionToken = centrifugoService.generateSubscriptionToken(
-                apiKeyPubId,
+                principal.pubId(),
                 channel,
                 TOKEN_EXPIRATION_SECONDS
         );
@@ -60,7 +57,7 @@ public class AgentCentrifugoTokenController {
         String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
 
         log.debug("Generated Centrifugo tokens for agent: {}, channel: {}",
-                apiKeyPubId, channel);
+                principal.pubId(), channel);
 
         return SuccessResponse.ok(new CentrifugoTokenResponse(connectionToken, subscriptionToken, channel, wsUrl));
     }

@@ -56,7 +56,7 @@ public class ToolUseLog extends BaseEntity {
     private String agentSessionId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "access_effect")
+    @Column(name = "access_effect", columnDefinition = "TEXT")
     private AccessEffect accessEffect;
 
     @Column(name = "result_at")

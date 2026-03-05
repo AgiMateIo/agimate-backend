@@ -21,7 +21,7 @@ public class Connector extends BaseEntity {
     private String code;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false)
+    @Column(name = "type", nullable = false, columnDefinition = "TEXT")
     private ConnectorType type;
 
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")

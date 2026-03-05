@@ -40,7 +40,7 @@ public class AgentToolPolicy extends BaseEntity {
     private String toolName;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "effect", nullable = false)
+    @Column(name = "effect", nullable = false, columnDefinition = "TEXT")
     private AccessEffect effect;
 
     @Column(name = "priority")
