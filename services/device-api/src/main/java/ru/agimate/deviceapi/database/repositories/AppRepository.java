@@ -1,5 +1,7 @@
 package ru.agimate.deviceapi.database.repositories;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -25,6 +27,9 @@ public interface AppRepository extends JpaRepository<App, Long> {
 
     @Query("SELECT a FROM App a WHERE a.userPubId = :userPubId AND a.deletedAt IS NULL ORDER BY a.createdAt DESC")
     List<App> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
+
+    @Query("SELECT a FROM App a WHERE a.userPubId = :userPubId AND a.deletedAt IS NULL ORDER BY a.createdAt DESC")
+    Page<App> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId, Pageable pageable);
 
     @Query("SELECT a FROM App a WHERE a.userPubId = :userPubId AND a.deletedAt IS NULL AND (a.deviceId IS NOT NULL OR a.triggers IS NOT NULL OR a.tools IS NOT NULL) ORDER BY a.createdAt DESC")
     List<App> findWithCapabilitiesByUserPubId(@Param("userPubId") UUID userPubId);

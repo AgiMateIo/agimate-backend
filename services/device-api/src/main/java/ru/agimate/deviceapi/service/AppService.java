@@ -2,6 +2,8 @@ package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +23,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -48,7 +49,7 @@ public class AppService {
 
         GeneratedAppKey generatedKey = AppKeyUtils.generate(APP_KEY_PREFIX);
 
-        // todo: check connectorCode by using connector repository
+        // todo: check connectorCode by using connector repository and check coonector.type
 
         App app = App.builder()
                 .userPubId(userPubId)
@@ -100,13 +101,14 @@ public class AppService {
         return saved;
     }
 
-    public List<App> getAppsForUser(UUID userPubId) {
-        return appRepository.findByUserPubIdNotDeleted(userPubId);
+    public Page<App> getAppsForUser(UUID userPubId, int page, int size) {
+        return appRepository.findByUserPubIdNotDeleted(userPubId, PageRequest.of(page, size));
     }
 
-    public Optional<App> getAppByPubIdForUser(UUID pubId, UUID userPubId) {
+    public App getAppByPubId(UUID pubId, UUID userPubId) {
         return appRepository.findByPubIdNotDeleted(pubId)
-                .filter(key -> key.getUserPubId().equals(userPubId));
+                .filter(a -> a.getUserPubId().equals(userPubId))
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
     }
 
     @Transactional
@@ -134,34 +136,18 @@ public class AppService {
 
     @Transactional
     public AppCreateResult regenerateAppKey(UUID pubId, UUID userPubId) {
-        App oldApp = appRepository.findByPubIdNotDeleted(pubId)
+        App app = appRepository.findByPubIdNotDeleted(pubId)
                 .filter(k -> k.getUserPubId().equals(userPubId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
-        appRepository.softDelete(oldApp.getId(), LocalDateTime.now());
+        GeneratedAppKey generatedKey = AppKeyUtils.generate(APP_KEY_PREFIX);
+        app.setKeyHash(generatedKey.secretHash());
+        app.setKeyId(generatedKey.keyId());
 
-        return createApp(userPubId, oldApp.getName(), oldApp.getDescription(), oldApp.getConnectorCode());
-    }
+        App saved = appRepository.save(app);
+        log.info("Regenerated key for app: {}", pubId);
 
-    public App getAppByPubId(UUID pubId, UUID userPubId) {
-        return appRepository.findByPubIdNotDeleted(pubId)
-                .filter(a -> a.getUserPubId().equals(userPubId))
-                .orElseThrow(() -> new NotFoundStatusException("App not found"));
-    }
-
-    @Transactional
-    public void disconnectApp(UUID pubId, UUID userPubId) {
-        App app = appRepository.findByPubIdNotDeleted(pubId)
-                .filter(a -> a.getUserPubId().equals(userPubId))
-                .orElseThrow(() -> new NotFoundStatusException("App not found"));
-
-        if (!app.isLinked()) {
-            throw new BadRequestStatusException("App is not linked to any device");
-        }
-
-        app.disconnect();
-        appRepository.save(app);
-        log.info("Disconnected app {}", pubId);
+        return new AppCreateResult(saved, generatedKey.fullKey());
     }
 
     public App getApp() {

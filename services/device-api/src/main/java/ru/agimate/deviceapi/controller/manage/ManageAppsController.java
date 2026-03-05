@@ -4,17 +4,16 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.*;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.service.AppService;
 import ru.agimate.deviceapi.service.dto.AppCreateResult;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -29,14 +28,14 @@ public class ManageAppsController {
 
     @Operation(summary = "Get all apps for the current user")
     @GetMapping("/")
-    public SuccessResponse<List<AppResponse>> getApps(
-            @AuthenticationPrincipal AgimateUserPrincipal principal
+    public SuccessResponse<Page<AppResponse>> getApps(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        List<App> apps = appService.getAppsForUser(userPubId);
-        List<AppResponse> response = apps.stream()
-                .map(AppResponse::from)
-                .toList();
+        Page<AppResponse> response = appService.getAppsForUser(userPubId, page, size)
+                .map(AppResponse::from);
         return SuccessResponse.ok(response);
     }
 
@@ -60,16 +59,18 @@ public class ManageAppsController {
         ));
     }
 
-    @Operation(summary = "Get a specific app")
+    @Operation(
+            summary = "Get app details",
+            description = "Returns full app information including device features, triggers and tools"
+    )
     @GetMapping("/{appId}")
-    public SuccessResponse<AppResponse> getApp(
+    public SuccessResponse<UserAppDetailResponse> getApp(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID appId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        App app = appService.getAppByPubIdForUser(appId, userPubId)
-                .orElseThrow(() -> new NotFoundStatusException("App not found"));
-        return SuccessResponse.ok(AppResponse.from(app));
+        var app = appService.getAppByPubId(appId, userPubId);
+        return SuccessResponse.ok(UserAppDetailResponse.from(app));
     }
 
     @Operation(summary = "Update an app")
@@ -102,7 +103,7 @@ public class ManageAppsController {
     }
 
     @Operation(summary = "Regenerate an app key",
-               description = "Invalidates the old key and creates a new one with the same settings")
+               description = "Invalidates the old key and creates a new one. The key value is shown ONLY ONCE in the response.")
     @PostMapping("/{appId}/regenerate")
     public SuccessResponse<AppCreatedResponse> regenerateKey(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -114,33 +115,5 @@ public class ManageAppsController {
                 result.app(),
                 result.plaintextKey()
         ));
-    }
-
-    @Operation(
-            summary = "Get app details",
-            description = "Returns full app information including device features, triggers and tools"
-    )
-    @GetMapping("/{appId}/detail")
-    public SuccessResponse<UserAppDetailResponse> getAppDetail(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID appId
-    ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var app = appService.getAppByPubId(appId, userPubId);
-        return SuccessResponse.ok(UserAppDetailResponse.from(app));
-    }
-
-    @Operation(
-            summary = "Disconnect device from app",
-            description = "Removes device link from the specified app"
-    )
-    @PostMapping("/{appId}/disconnect")
-    public SuccessResponse<Void> disconnectApp(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID appId
-    ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        appService.disconnectApp(appId, userPubId);
-        return SuccessResponse.empty();
     }
 }

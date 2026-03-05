@@ -34,7 +34,7 @@ public record AppResponse(
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         LocalDateTime updatedAt,
 
-        @Schema(description = "Device features")
+        @Schema(description = "App features")
         Map<String, Object> features
 ) {
     public static AppResponse from(App app) {
