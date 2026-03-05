@@ -42,6 +42,12 @@ public class AgentToolPolicyService {
                                         String toolName, AccessEffect effect, Integer priority, String description) {
         validateConstraints(connectorCode, connectorIdentity, toolName);
 
+        AgentToolPolicy existing = agentToolPolicyRepository.findByCompositeKey(
+                agentPubId, connectorCode, connectorIdentity, toolName, effect.name());
+        if (existing != null) {
+            throw new BadRequestStatusException("Policy with the same parameters already exists");
+        }
+
         AgentToolPolicy policy = AgentToolPolicy.builder()
                 .userPubId(userPubId)
                 .agentPubId(agentPubId)

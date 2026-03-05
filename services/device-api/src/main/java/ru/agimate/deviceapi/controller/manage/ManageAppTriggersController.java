@@ -41,7 +41,7 @@ public class ManageAppTriggersController {
             summary = "Get triggers by app",
             description = "Returns available triggers for a specific app"
     )
-    @GetMapping("/app/{appPubId}")
+    @GetMapping("/{appPubId}")
     public SuccessResponse<List<DeviceTrigger>> getTriggersByApp(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID appPubId

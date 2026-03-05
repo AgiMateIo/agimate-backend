@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
@@ -15,7 +16,6 @@ import ru.agimate.deviceapi.controller.manage.dto.CreateAgentTriggerPolicyReques
 import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentTriggerPolicyRequest;
 import ru.agimate.deviceapi.database.entities.AgentTriggerPolicy;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -30,15 +30,15 @@ public class ManageAgentTriggerPolicyController {
 
     @Operation(summary = "Get trigger policies for an agent")
     @GetMapping("/")
-    public SuccessResponse<List<AgentTriggerPolicyResponse>> getPolicies(
+    public SuccessResponse<Page<AgentTriggerPolicyResponse>> getPolicies(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam UUID agentPubId
+            @RequestParam UUID agentPubId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        List<AgentTriggerPolicy> policies = agentTriggerPolicyService.getPoliciesByAgent(userPubId, agentPubId);
-        List<AgentTriggerPolicyResponse> response = policies.stream()
-                .map(AgentTriggerPolicyResponse::from)
-                .toList();
+        Page<AgentTriggerPolicyResponse> response = agentTriggerPolicyService.getPoliciesByAgent(userPubId, agentPubId, page, size)
+                .map(AgentTriggerPolicyResponse::from);
         return SuccessResponse.ok(response);
     }
 

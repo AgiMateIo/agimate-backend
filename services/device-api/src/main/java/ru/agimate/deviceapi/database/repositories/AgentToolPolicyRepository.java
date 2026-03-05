@@ -70,6 +70,22 @@ public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy
             @Param("toolName") String toolName
     );
 
+    @Query(value = """
+            SELECT * FROM agent_tool_policies
+            WHERE agent_pub_id = :agentPubId
+              AND connector_code IS NOT DISTINCT FROM CAST(:connectorCode AS TEXT)
+              AND connector_identity IS NOT DISTINCT FROM CAST(:connectorIdentity AS TEXT)
+              AND tool_name IS NOT DISTINCT FROM CAST(:toolName AS TEXT)
+              AND effect = :effect
+            """, nativeQuery = true)
+    AgentToolPolicy findByCompositeKey(
+            @Param("agentPubId") UUID agentPubId,
+            @Param("connectorCode") String connectorCode,
+            @Param("connectorIdentity") String connectorIdentity,
+            @Param("toolName") String toolName,
+            @Param("effect") String effect
+    );
+
     @Modifying
     @Query("DELETE FROM AgentToolPolicy p WHERE p.agentPubId = :agentPubId")
     void deleteByAgentPubId(@Param("agentPubId") UUID agentPubId);

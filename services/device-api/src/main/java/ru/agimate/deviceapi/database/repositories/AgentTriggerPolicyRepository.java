@@ -1,5 +1,7 @@
 package ru.agimate.deviceapi.database.repositories;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +17,8 @@ public interface AgentTriggerPolicyRepository extends JpaRepository<AgentTrigger
     List<AgentTriggerPolicy> findByAgentPubId(UUID agentPubId);
 
     List<AgentTriggerPolicy> findByUserPubIdAndAgentPubId(UUID userPubId, UUID agentPubId);
+
+    Page<AgentTriggerPolicy> findByUserPubIdAndAgentPubId(UUID userPubId, UUID agentPubId, Pageable pageable);
 
     @Query(value = """
             SELECT * FROM agent_trigger_policies
@@ -64,6 +68,22 @@ public interface AgentTriggerPolicyRepository extends JpaRepository<AgentTrigger
             @Param("connectorCode") String connectorCode,
             @Param("connectorIdentity") String connectorIdentity,
             @Param("triggerName") String triggerName
+    );
+
+    @Query(value = """
+            SELECT * FROM agent_trigger_policies
+            WHERE agent_pub_id = :agentPubId
+              AND connector_code IS NOT DISTINCT FROM CAST(:connectorCode AS TEXT)
+              AND connector_identity IS NOT DISTINCT FROM CAST(:connectorIdentity AS TEXT)
+              AND trigger_name IS NOT DISTINCT FROM CAST(:triggerName AS TEXT)
+              AND effect = :effect
+            """, nativeQuery = true)
+    AgentTriggerPolicy findByCompositeKey(
+            @Param("agentPubId") UUID agentPubId,
+            @Param("connectorCode") String connectorCode,
+            @Param("connectorIdentity") String connectorIdentity,
+            @Param("triggerName") String triggerName,
+            @Param("effect") String effect
     );
 
     @Modifying

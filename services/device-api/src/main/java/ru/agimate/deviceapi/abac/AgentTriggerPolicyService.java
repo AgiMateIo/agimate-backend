@@ -1,6 +1,8 @@
 package ru.agimate.deviceapi.abac;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
@@ -24,6 +26,10 @@ public class AgentTriggerPolicyService {
         return agentTriggerPolicyRepository.findByUserPubIdAndAgentPubId(userPubId, agentPubId);
     }
 
+    public Page<AgentTriggerPolicy> getPoliciesByAgent(UUID userPubId, UUID agentPubId, int page, int size) {
+        return agentTriggerPolicyRepository.findByUserPubIdAndAgentPubId(userPubId, agentPubId, PageRequest.of(page, size));
+    }
+
     public AgentTriggerPolicy getPolicyById(UUID userPubId, UUID id) {
         AgentTriggerPolicy policy = agentTriggerPolicyRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent trigger policy not found"));
@@ -35,6 +41,12 @@ public class AgentTriggerPolicyService {
     public AgentTriggerPolicy createPolicy(UUID userPubId, UUID agentPubId, String connectorCode, String connectorIdentity,
                                            String triggerName, AccessEffect effect, Integer priority, String description) {
         validateConstraints(connectorCode, connectorIdentity, triggerName);
+
+        AgentTriggerPolicy existing = agentTriggerPolicyRepository.findByCompositeKey(
+                agentPubId, connectorCode, connectorIdentity, triggerName, effect.name());
+        if (existing != null) {
+            throw new BadRequestStatusException("Policy with the same parameters already exists");
+        }
 
         AgentTriggerPolicy policy = AgentTriggerPolicy.builder()
                 .userPubId(userPubId)

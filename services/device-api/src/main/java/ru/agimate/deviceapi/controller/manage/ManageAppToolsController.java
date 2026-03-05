@@ -42,7 +42,7 @@ public class ManageAppToolsController {
             summary = "Get tools by app",
             description = "Returns available tools for a specific app"
     )
-    @GetMapping("/app/{appPubId}")
+    @GetMapping("/{appPubId}")
     public SuccessResponse<List<DeviceTool>> getToolsByApp(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID appPubId
