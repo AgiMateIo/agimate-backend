@@ -147,8 +147,8 @@ public class AgentToolController {
     ) {
         Agent agent = agentService.findByApiKeyPubId(UUID.fromString(principal.pubId()));
 
-        var toolUseLog = toolUseLogService.recordResultByAgent(
-                agent.getApiKeyPubId(), request.getToolUseId(), request.getResult(), request.getError());
+        var toolUseLog = toolUseLogService.recordOutputByAgent(
+                agent.getApiKeyPubId(), request.getToolUseId(), request.getOutput(), request.getError());
 
         return SuccessResponse.ok(toolUseLog.getToolUseId());
     }

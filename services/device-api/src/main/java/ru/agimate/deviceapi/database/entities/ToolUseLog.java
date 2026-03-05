@@ -49,8 +49,8 @@ public class ToolUseLog extends BaseEntity {
     private String toolName;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "tool_params", columnDefinition = "JSONB")
-    private Map<String, Object> toolParams;
+    @Column(name = "input", columnDefinition = "JSONB")
+    private Map<String, Object> input;
 
     @Column(name = "agent_session_id", columnDefinition = "TEXT")
     private String agentSessionId;
@@ -59,11 +59,11 @@ public class ToolUseLog extends BaseEntity {
     @Column(name = "access_effect", columnDefinition = "TEXT")
     private AccessEffect accessEffect;
 
-    @Column(name = "result_at")
-    private LocalDateTime resultAt;
+    @Column(name = "output_at")
+    private LocalDateTime outputAt;
 
-    @Column(name = "result", columnDefinition = "TEXT")
-    private String result;
+    @Column(name = "output", columnDefinition = "TEXT")
+    private String output;
 
     @Column(name = "error", columnDefinition = "TEXT")
     private String error;

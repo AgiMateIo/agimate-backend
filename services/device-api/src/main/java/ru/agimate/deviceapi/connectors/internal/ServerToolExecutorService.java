@@ -29,12 +29,12 @@ public class ServerToolExecutorService {
         try {
             Map<String, Object> result = handler.executeTool(
                     toolUse.getName(),
-                    toolUse.getParams(),
+                    toolUse.getInput(),
                     apiKeyPubId,
                     userPubId
             );
 
-            toolUseLogService.recordResult(toolUse.getId(), result.toString(), null);
+            toolUseLogService.recordOutput(toolUse.getId(), result.toString(), null);
 
             if (agentId != null) {
                 var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(), result);
@@ -46,7 +46,7 @@ public class ServerToolExecutorService {
             log.error("Failed to execute server tool '{}': {}", toolUse.getName(), e.getMessage());
 
             try {
-                toolUseLogService.recordResult(toolUse.getId(), null, e.getMessage());
+                toolUseLogService.recordOutput(toolUse.getId(), null, e.getMessage());
             } catch (Exception logError) {
                 log.warn("Failed to log server tool error: {}", logError.getMessage());
             }

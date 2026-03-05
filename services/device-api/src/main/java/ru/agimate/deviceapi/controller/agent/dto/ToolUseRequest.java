@@ -32,9 +32,9 @@ public class ToolUseRequest implements IToolUse {
     private String name;
 
     @Schema(
-            description = "Tool parameters"
+            description = "Tool input"
     )
-    private Map<String, Object> params;
+    private Map<String, Object> input;
 
     @Schema(description = "Connector identity for ABAC")
     private String identity;

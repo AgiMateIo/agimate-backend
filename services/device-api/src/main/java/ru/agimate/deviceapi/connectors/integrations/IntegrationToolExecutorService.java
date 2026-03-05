@@ -30,7 +30,7 @@ public class IntegrationToolExecutorService {
 
         try {
             Map<String, Object> result = handler.executeTool(
-                    integrationCredentials, credentials, toolUse.getName(), toolUse.getParams());
+                    integrationCredentials, credentials, toolUse.getName(), toolUse.getInput());
 
             // Update last used timestamp
             integrationCredentialsRepository.updateLastUsedAt(integrationCredentials.getId(), LocalDateTime.now());

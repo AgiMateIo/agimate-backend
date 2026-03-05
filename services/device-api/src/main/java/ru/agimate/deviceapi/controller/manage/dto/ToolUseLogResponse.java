@@ -32,18 +32,18 @@ public record ToolUseLogResponse(
         @Schema(description = "Tool name")
         String toolName,
 
-        @Schema(description = "Tool parameters")
-        Map<String, Object> toolParams,
+        @Schema(description = "Tool input")
+        Map<String, Object> input,
 
         @Schema(description = "Access effect (ALLOW/DENY)")
         AccessEffect accessEffect,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-        @Schema(description = "When the result was received")
-        LocalDateTime resultAt,
+        @Schema(description = "When the output was received")
+        LocalDateTime outputAt,
 
-        @Schema(description = "Tool result")
-        String result,
+        @Schema(description = "Tool output")
+        String output,
 
         @Schema(description = "Tool error")
         String error,
@@ -61,10 +61,10 @@ public record ToolUseLogResponse(
                 toolUseLog.getAgentSessionId(),
                 toolUseLog.getToolUseId(),
                 toolUseLog.getToolName(),
-                toolUseLog.getToolParams(),
+                toolUseLog.getInput(),
                 toolUseLog.getAccessEffect(),
-                toolUseLog.getResultAt(),
-                toolUseLog.getResult(),
+                toolUseLog.getOutputAt(),
+                toolUseLog.getOutput(),
                 toolUseLog.getError(),
                 toolUseLog.getCreatedAt()
         );

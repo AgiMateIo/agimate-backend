@@ -18,8 +18,8 @@ public class AgentToolResultRequest {
     @Schema(description = "Tool use correlation ID")
     private String toolUseId;
 
-    @Schema(description = "Tool execution result")
-    private String result;
+    @Schema(description = "Tool execution output")
+    private String output;
 
     @Schema(description = "Tool execution error")
     private String error;

@@ -42,7 +42,7 @@ public class ToolUseLogService {
                 .identity(identity)
                 .toolUseId(toolUse.getId())
                 .toolName(toolUse.getName())
-                .toolParams(toolUse.getParams())
+                .input(toolUse.getInput())
                 .agentSessionId(agentSessionId)
                 .accessEffect(effect)
                 .error(error)
@@ -52,7 +52,7 @@ public class ToolUseLogService {
     }
 
     @Transactional
-    public ToolUseLog recordResult(App app, String toolUseId, String result, String error) {
+    public ToolUseLog recordOutput(App app, String toolUseId, String output, String error) {
         var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
                 .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
 
@@ -60,27 +60,27 @@ public class ToolUseLogService {
             throw new ForbiddenStatusException("Incorrect device");
         }
 
-        toolUseLog.setResultAt(LocalDateTime.now());
-        toolUseLog.setResult(result);
+        toolUseLog.setOutputAt(LocalDateTime.now());
+        toolUseLog.setOutput(output);
         toolUseLog.setError(error);
 
         return toolUseLogRepository.save(toolUseLog);
     }
 
     @Transactional
-    public ToolUseLog recordResult(String toolUseId, String result, String error) {
+    public ToolUseLog recordOutput(String toolUseId, String output, String error) {
         var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
                 .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
 
-        toolUseLog.setResultAt(LocalDateTime.now());
-        toolUseLog.setResult(result);
+        toolUseLog.setOutputAt(LocalDateTime.now());
+        toolUseLog.setOutput(output);
         toolUseLog.setError(error);
 
         return toolUseLogRepository.save(toolUseLog);
     }
 
     @Transactional
-    public ToolUseLog recordResultByAgent(UUID apiKeyPubId, String toolUseId, String result, String error) {
+    public ToolUseLog recordOutputByAgent(UUID apiKeyPubId, String toolUseId, String output, String error) {
         var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
                 .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
 
@@ -89,11 +89,11 @@ public class ToolUseLogService {
         }
 
         if (toolUseLog.getAccessEffect() != AccessEffect.ALLOW) {
-            throw new ForbiddenStatusException("Cannot record result for denied tool use");
+            throw new ForbiddenStatusException("Cannot record output for denied tool use");
         }
 
-        toolUseLog.setResultAt(LocalDateTime.now());
-        toolUseLog.setResult(result);
+        toolUseLog.setOutputAt(LocalDateTime.now());
+        toolUseLog.setOutput(output);
         toolUseLog.setError(error);
 
         return toolUseLogRepository.save(toolUseLog);

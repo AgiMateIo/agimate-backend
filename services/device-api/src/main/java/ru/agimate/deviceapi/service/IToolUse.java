@@ -5,5 +5,5 @@ import java.util.Map;
 public interface IToolUse {
     String getId();
     String getName();
-    Map<String, Object> getParams();
+    Map<String, Object> getInput();
 }
