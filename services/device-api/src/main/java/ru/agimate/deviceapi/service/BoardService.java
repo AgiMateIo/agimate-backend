@@ -11,7 +11,6 @@ import ru.agimate.deviceapi.controller.manage.dto.*;
 import ru.agimate.deviceapi.database.entities.*;
 import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 import ru.agimate.deviceapi.database.enums.BoardTaskType;
-import ru.agimate.deviceapi.database.enums.ConnectorType;
 import ru.agimate.deviceapi.database.repositories.*;
 
 import java.util.*;
@@ -30,9 +29,6 @@ public class BoardService {
     private final AgenticTeamRepository agenticTeamRepository;
     private final AgentRepository agentRepository;
     private final BoardTriggerService boardTriggerService;
-    private final AppService appService;
-    private final ConnectorRepository connectorRepository;
-    private final ru.agimate.deviceapi.connectors.internal.BoardToolHandler boardToolHandler;
 
     // ---- Board CRUD ----
 
@@ -73,24 +69,6 @@ public class BoardService {
                 .description(request.description())
                 .build();
         board = boardRepository.save(board);
-
-        Connector connector = Connector.builder()
-                .code("board:" + board.getPubId())
-                .type(ConnectorType.INTERNAL_SERVICE)
-                .name("Board")
-                .description("Board tools")
-                .userPubId(userPubId)
-                .build();
-        connector = connectorRepository.save(connector);
-
-        appService.createAppWithCapabilities(
-                userPubId,
-                "Board",
-                "Board tools",
-                connector.getCode(),
-                Map.of(),
-                boardToolHandler.getToolDefinitions()
-        );
 
         log.info("Created board '{}' for agenticTeam={}, user={}", request.name(), team.getPubId(), userPubId);
         return BoardResponse.from(board, team);
