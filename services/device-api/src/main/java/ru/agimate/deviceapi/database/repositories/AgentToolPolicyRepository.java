@@ -1,5 +1,7 @@
 package ru.agimate.deviceapi.database.repositories;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +17,8 @@ public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy
     List<AgentToolPolicy> findByAgentPubId(UUID agentPubId);
 
     List<AgentToolPolicy> findByUserPubIdAndAgentPubId(UUID userPubId, UUID agentPubId);
+
+    Page<AgentToolPolicy> findByUserPubIdAndAgentPubId(UUID userPubId, UUID agentPubId, Pageable pageable);
 
     @Query(value = """
             SELECT * FROM agent_tool_policies

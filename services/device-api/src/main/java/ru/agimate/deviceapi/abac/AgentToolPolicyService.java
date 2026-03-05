@@ -1,6 +1,8 @@
 package ru.agimate.deviceapi.abac;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
@@ -22,6 +24,10 @@ public class AgentToolPolicyService {
 
     public List<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID agentPubId) {
         return agentToolPolicyRepository.findByUserPubIdAndAgentPubId(userPubId, agentPubId);
+    }
+
+    public Page<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID agentPubId, int page, int size) {
+        return agentToolPolicyRepository.findByUserPubIdAndAgentPubId(userPubId, agentPubId, PageRequest.of(page, size));
     }
 
     public AgentToolPolicy getPolicyById(UUID userPubId, UUID id) {
