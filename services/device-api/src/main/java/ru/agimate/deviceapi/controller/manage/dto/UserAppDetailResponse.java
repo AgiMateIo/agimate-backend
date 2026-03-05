@@ -6,13 +6,13 @@ import ru.agimate.deviceapi.database.entities.App;
 import java.util.Map;
 import java.util.UUID;
 
-@Schema(description = "Full connector information including device features, triggers and tools")
-public record UserConnectorDetailResponse(
-        @Schema(description = "Connector public ID")
-        UUID connectorId,
+@Schema(description = "Full app information including device features, triggers and tools")
+public record UserAppDetailResponse(
+        @Schema(description = "App public ID")
+        UUID appId,
 
-        @Schema(description = "Connector name")
-        String connectorName,
+        @Schema(description = "App name")
+        String appName,
 
         @Schema(description = "Device ID")
         String deviceId,
@@ -26,7 +26,7 @@ public record UserConnectorDetailResponse(
         @Schema(description = "Device info (deviceName, deviceOs, etc.)")
         Map<String, Object> info,
 
-        @Schema(description = "Whether a device is connected to this connector")
+        @Schema(description = "Whether a device is connected to this app")
         boolean connected,
 
         @Schema(description = "Device triggers")
@@ -35,14 +35,14 @@ public record UserConnectorDetailResponse(
         @Schema(description = "Device tools")
         Map<String, Object> tools
 ) {
-    public static UserConnectorDetailResponse from(App app) {
+    public static UserAppDetailResponse from(App app) {
         var info = app.getInfo();
         var deviceName = info != null && info.get("deviceName") != null
                 ? info.get("deviceName").toString() : null;
         var deviceOs = info != null && info.get("deviceOs") != null
                 ? info.get("deviceOs").toString() : null;
 
-        return new UserConnectorDetailResponse(
+        return new UserAppDetailResponse(
                 app.getPubId(),
                 app.getName(),
                 app.getDeviceId(),

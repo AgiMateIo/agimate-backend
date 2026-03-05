@@ -5,13 +5,13 @@ import ru.agimate.deviceapi.database.entities.App;
 
 import java.util.UUID;
 
-@Schema(description = "User connector connection information")
-public record UserConnectorResponse(
-        @Schema(description = "Connector public ID")
-        UUID connectorId,
+@Schema(description = "User app connection information")
+public record UserAppResponse(
+        @Schema(description = "App public ID")
+        UUID appId,
 
-        @Schema(description = "Connector name")
-        String connectorName,
+        @Schema(description = "App name")
+        String appName,
 
         @Schema(description = "Linked device ID")
         String linkedDeviceId,
@@ -22,11 +22,11 @@ public record UserConnectorResponse(
         @Schema(description = "Device OS")
         String deviceOs,
 
-        @Schema(description = "Whether a device is connected to this connector")
+        @Schema(description = "Whether a device is connected to this app")
         boolean connected
 ) {
     @SuppressWarnings("unchecked")
-    public static UserConnectorResponse from(App app) {
+    public static UserAppResponse from(App app) {
         String deviceName = null;
         String deviceOs = null;
         if (app.getInfo() != null) {
@@ -35,7 +35,7 @@ public record UserConnectorResponse(
             Object os = app.getInfo().get("deviceOs");
             if (os != null) deviceOs = os.toString();
         }
-        return new UserConnectorResponse(
+        return new UserAppResponse(
                 app.getPubId(),
                 app.getName(),
                 app.getDeviceId(),

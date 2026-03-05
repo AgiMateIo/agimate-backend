@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 
 /**
- * Utility class for connector key generation and validation.
+ * Utility class for app key generation and validation.
  * <p>
  * Key format: {prefix}{keyid}{payload} (no separators, positional)
  * <ul>
@@ -23,7 +23,7 @@ import java.util.zip.CRC32;
  * </ul>
  * Total length: 64 characters (4 + 12 + 48)
  */
-public final class ConnectorKeyUtils {
+public final class AppKeyUtils {
 
     private static final int PREFIX_LENGTH = 4;
 
@@ -44,17 +44,17 @@ public final class ConnectorKeyUtils {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    private ConnectorKeyUtils() {
+    private AppKeyUtils() {
     }
 
     /**
-     * Generate a new connector key with the specified prefix.
+     * Generate a new app key with the specified prefix.
      *
      * @param prefix key prefix (exactly 4 lowercase letters, e.g. "dvck")
      * @return generated key with fullKey, keyId, and secretHash
      * @throws IllegalArgumentException if prefix format is invalid
      */
-    public static GeneratedConnectorKey generate(String prefix) {
+    public static GeneratedAppKey generate(String prefix) {
         if (prefix == null || !PREFIX_PATTERN.matcher(prefix).matches()) {
             throw new IllegalArgumentException("Prefix must be exactly 4 lowercase letters");
         }
@@ -87,20 +87,20 @@ public final class ConnectorKeyUtils {
         // 6. Calculate secretHash = sha256(secret) hex
         String secretHash = hashSecret(secret);
 
-        return new GeneratedConnectorKey(fullKey, keyId, secretHash);
+        return new GeneratedAppKey(fullKey, keyId, secretHash);
     }
 
     /**
-     * Parse a connector key string into its components.
+     * Parse an app key string into its components.
      * <p>
      * Uses simple positional parsing (no separators).
      * Format: {prefix}{keyid}{payload} all parts have fixed lengths.
      *
-     * @param key the full connector key string
+     * @param key the full app key string
      * @return parsed key components
      * @throws IllegalArgumentException if the key format is invalid
      */
-    public static ParsedConnectorKey parse(String key) {
+    public static ParsedAppKey parse(String key) {
         if (key == null || key.isBlank()) {
             throw new IllegalArgumentException("API key cannot be null or empty");
         }
@@ -153,16 +153,16 @@ public final class ConnectorKeyUtils {
         byte[] secret = Arrays.copyOfRange(payloadBytes, 0, SECRET_BYTES);
         byte[] checksum = Arrays.copyOfRange(payloadBytes, SECRET_BYTES, PAYLOAD_BYTES);
 
-        return new ParsedConnectorKey(prefix, keyId, secret, checksum);
+        return new ParsedAppKey(prefix, keyId, secret, checksum);
     }
 
     /**
-     * Verify the CRC32 checksum of a parsed connector key.
+     * Verify the CRC32 checksum of a parsed app key.
      *
-     * @param parsed the parsed connector key
+     * @param parsed the parsed app key
      * @return true if checksum is valid
      */
-    public static boolean verifyChecksum(ParsedConnectorKey parsed) {
+    public static boolean verifyChecksum(ParsedAppKey parsed) {
         byte[] expected = calculateChecksum(parsed.prefix(), parsed.keyId(), parsed.secret());
         return Arrays.equals(expected, parsed.checksum());
     }

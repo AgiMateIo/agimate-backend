@@ -6,8 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
-import ru.agimate.deviceapi.util.ConnectorKeyUtils;
-import ru.agimate.deviceapi.util.ParsedConnectorKey;
+import ru.agimate.deviceapi.util.AppKeyUtils;
+import ru.agimate.deviceapi.util.ParsedAppKey;
 
 import java.util.Optional;
 
@@ -15,7 +15,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(readOnly = true)
-public class ConnectorKeyAuthService {
+public class AppKeyAuthService {
 
     private final AppRepository appRepository;
 
@@ -24,16 +24,16 @@ public class ConnectorKeyAuthService {
             return Optional.empty();
         }
 
-        ParsedConnectorKey parsedKey;
+        ParsedAppKey parsedKey;
         try {
-            parsedKey = ConnectorKeyUtils.parse(apiKey);
+            parsedKey = AppKeyUtils.parse(apiKey);
         } catch (IllegalArgumentException e) {
-            log.debug("Invalid connector key format: {}", e.getMessage());
+            log.debug("Invalid app key format: {}", e.getMessage());
             return Optional.empty();
         }
 
-        if (!ConnectorKeyUtils.verifyChecksum(parsedKey)) {
-            log.debug("Connector key checksum verification failed");
+        if (!AppKeyUtils.verifyChecksum(parsedKey)) {
+            log.debug("App key checksum verification failed");
             return Optional.empty();
         }
 
@@ -44,8 +44,8 @@ public class ConnectorKeyAuthService {
         }
 
         App key = keyOpt.get();
-        if (!ConnectorKeyUtils.verifySecret(parsedKey.secret(), key.getKeyHash())) {
-            log.debug("Connector key secret verification failed");
+        if (!AppKeyUtils.verifySecret(parsedKey.secret(), key.getKeyHash())) {
+            log.debug("App key secret verification failed");
             return Optional.empty();
         }
 

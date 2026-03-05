@@ -30,7 +30,7 @@ public class BoardService {
     private final AgenticTeamRepository agenticTeamRepository;
     private final AgentRepository agentRepository;
     private final BoardTriggerService boardTriggerService;
-    private final ConnectorService connectorService;
+    private final AppService appService;
     private final ConnectorRepository connectorRepository;
     private final ru.agimate.deviceapi.connectors.internal.BoardToolHandler boardToolHandler;
 
@@ -83,7 +83,7 @@ public class BoardService {
                 .build();
         connector = connectorRepository.save(connector);
 
-        connectorService.createAppWithCapabilities(
+        appService.createAppWithCapabilities(
                 userPubId,
                 "Board",
                 "Board tools",

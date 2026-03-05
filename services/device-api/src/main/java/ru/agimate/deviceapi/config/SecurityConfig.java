@@ -27,7 +27,7 @@ import ru.agimate.deviceapi.controller.app.AppRegistrationController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentController;
 import ru.agimate.deviceapi.controller.manage.ManageAgenticTeamController;
 import ru.agimate.deviceapi.controller.manage.ManageBoardController;
-import ru.agimate.deviceapi.controller.manage.ManageConnectorsController;
+import ru.agimate.deviceapi.controller.manage.ManageAppsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceToolsController;
 import ru.agimate.deviceapi.controller.manage.ManageDeviceTriggersController;
 import ru.agimate.deviceapi.controller.manage.ManageToolUseLogsController;
@@ -37,7 +37,7 @@ import ru.agimate.deviceapi.controller.manage.ManageAgentTriggerPolicyController
 import ru.agimate.deviceapi.controller.manage.ManageIntegrationController;
 import ru.agimate.deviceapi.controller.manage.ManageWebhookDeliveryLogsController;
 import ru.agimate.deviceapi.controller.webhook.IntegrationWebhookController;
-import ru.agimate.deviceapi.security.ConnectorAuthFilter;
+import ru.agimate.deviceapi.security.AppAuthFilter;
 import ru.agimate.deviceapi.security.JwtAuthenticationFilter;
 
 import java.nio.charset.StandardCharsets;
@@ -53,7 +53,7 @@ import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final ConnectorAuthFilter connectorAuthFilter;
+    private final AppAuthFilter appAuthFilter;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     @Bean
@@ -106,7 +106,7 @@ public class SecurityConfig {
     @Order(1)
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                ManageConnectorsController.PATH + "/**",
+                ManageAppsController.PATH + "/**",
                 ManageDeviceToolsController.PATH + "/**",
                 ManageDeviceTriggersController.PATH + "/**",
                 ManageTriggerLogsController.PATH + "/**",
@@ -131,7 +131,7 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
-    public SecurityFilterChain deviceAuthKeySecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain appAuthKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
                 AppRegistrationController.PATH + "/**"
         );
@@ -140,7 +140,7 @@ public class SecurityConfig {
 
         http.authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
                 .userDetailsService(userDetailsService())
-                .addFilterBefore(connectorAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(appAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -182,8 +182,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    public FilterRegistrationBean<ConnectorAuthFilter> disableConnectorAuthFilterAutoRegistration() {
-        FilterRegistrationBean<ConnectorAuthFilter> registration = new FilterRegistrationBean<>(connectorAuthFilter);
+    public FilterRegistrationBean<AppAuthFilter> disableAppAuthFilterAutoRegistration() {
+        FilterRegistrationBean<AppAuthFilter> registration = new FilterRegistrationBean<>(appAuthFilter);
         registration.setEnabled(false);
         return registration;
     }

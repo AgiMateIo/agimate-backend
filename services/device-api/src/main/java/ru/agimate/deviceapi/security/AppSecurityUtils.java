@@ -6,27 +6,27 @@ import ru.agimate.common.rest.error.UnauthorizedStatusException;
 
 import java.util.UUID;
 
-public class ConnectorSecurityUtils {
+public class AppSecurityUtils {
 
-    public static UUID getConnectorUserPubId() {
+    public static UUID getAppUserPubId() {
         return getPrincipal().userPubId();
     }
 
-    public static UUID getConnectorPubId() {
-        return getPrincipal().connectorPubId();
+    public static UUID getAppPubId() {
+        return getPrincipal().appPubId();
     }
 
-    public static ConnectorPrincipal getPrincipal() {
+    public static AppPrincipal getPrincipal() {
         return getPrincipal(SecurityContextHolder.getContext().getAuthentication());
     }
 
-    public static ConnectorPrincipal getPrincipal(Authentication authentication) {
+    public static AppPrincipal getPrincipal(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
-            throw new UnauthorizedStatusException("Connector key is not authenticated");
+            throw new UnauthorizedStatusException("App key is not authenticated");
         }
 
-        if (authentication instanceof ConnectorAuthToken connectorAuthToken) {
-            return (ConnectorPrincipal) connectorAuthToken.getPrincipal();
+        if (authentication instanceof AppAuthToken appAuthToken) {
+            return (AppPrincipal) appAuthToken.getPrincipal();
         }
 
         throw new UnauthorizedStatusException("Invalid authentication type");

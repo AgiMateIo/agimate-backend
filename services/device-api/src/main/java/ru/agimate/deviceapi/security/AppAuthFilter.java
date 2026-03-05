@@ -12,7 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
-import ru.agimate.deviceapi.service.ConnectorKeyAuthService;
+import ru.agimate.deviceapi.service.AppKeyAuthService;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,11 +20,11 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class ConnectorAuthFilter extends OncePerRequestFilter {
+public class AppAuthFilter extends OncePerRequestFilter {
 
     private static final String CONNECTOR_AUTH_KEY_HEADER = "X-App-Auth-Key";
 
-    private final ConnectorKeyAuthService connectorKeyAuthService;
+    private final AppKeyAuthService appKeyAuthService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -34,20 +34,20 @@ public class ConnectorAuthFilter extends OncePerRequestFilter {
         String apiKey = request.getHeader(CONNECTOR_AUTH_KEY_HEADER);
 
         if (StringUtils.hasText(apiKey)) {
-            connectorKeyAuthService.validateKey(apiKey)
+            appKeyAuthService.validateKey(apiKey)
                     .ifPresent(app -> {
-                        var authorities = List.of(new SimpleGrantedAuthority("ROLE_CONNECTOR"));
-                        var principal = new ConnectorPrincipal(
+                        var authorities = List.of(new SimpleGrantedAuthority("ROLE_APP"));
+                        var principal = new AppPrincipal(
                                 app.getName(),
                                 app.getPubId(),
                                 app.getUserPubId()
                         );
 
                         SecurityContextHolder.getContext().setAuthentication(
-                                new ConnectorAuthToken(principal, authorities)
+                                new AppAuthToken(principal, authorities)
                         );
 
-                        log.debug("Connector key authenticated for app: {} (user: {})",
+                        log.debug("App key authenticated for app: {} (user: {})",
                                 app.getName(), app.getUserPubId());
                     });
         }

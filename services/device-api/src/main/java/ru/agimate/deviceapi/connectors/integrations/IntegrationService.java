@@ -14,7 +14,7 @@ import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.database.enums.ConnectorType;
 import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
-import ru.agimate.deviceapi.service.ConnectorService;
+import ru.agimate.deviceapi.service.AppService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,7 +34,7 @@ public class IntegrationService {
     private final ConnectorRepository connectorRepository;
     private final IntegrationPlatformRegistry platformRegistry;
     private final IntegrationEncryptionService encryptionService;
-    private final ConnectorService connectorService;
+    private final AppService appService;
 
     @Transactional
     public IntegrationCredentials createIntegration(
@@ -76,7 +76,7 @@ public class IntegrationService {
         connector = connectorRepository.save(connector);
 
         // Create app with capabilities for this integration
-        var app = connectorService.createAppWithCapabilities(
+        var app = appService.createAppWithCapabilities(
                 userPubId, connectorName, "Integration: " + platformCode,
                 connector.getCode(),
                 handler.getPredefinedTriggers(), handler.getPredefinedTools()
@@ -109,7 +109,7 @@ public class IntegrationService {
             } catch (Exception e) {
                 log.error("Failed to setup webhook for integration {}, rolling back", integrationCredentials.getPubId(), e);
                 integrationCredentialsRepository.delete(integrationCredentials);
-                connectorService.deleteConnector(app.getPubId(), userPubId);
+                appService.deleteApp(app.getPubId(), userPubId);
                 throw new BadRequestStatusException("Failed to setup webhook");
             }
         }

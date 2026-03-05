@@ -49,12 +49,6 @@ public class AgentToolController {
             description = "Returns all tool definitions available to the authenticated agent",
             security = @SecurityRequirement(name = "ApiKey")
     )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "List of available tools"
-            )
-    })
     @GetMapping("/")
     public SuccessResponse<List<ToolDefinition>> getAvailableTools(
             @AuthenticationPrincipal ApiKeyPrincipal principal
@@ -68,28 +62,6 @@ public class AgentToolController {
             description = "Sends a tool use request to a specific device via Centrifugo",
             security = @SecurityRequirement(name = "ApiKey")
     )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Tool successfully pushed to device",
-                    content = @Content(schema = @Schema(implementation = SuccessResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Invalid request body",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "Invalid or missing API key",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "403",
-                    description = "Tool use not authorized",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-            )
-    })
     @PostMapping("/call/{connectorCode}")
     public SuccessResponse<String> toolUse(
             @Parameter(description = "Connector code", required = true)
@@ -123,23 +95,6 @@ public class AgentToolController {
             description = "Checks if a tool use request is authorized without pushing to device",
             security = @SecurityRequirement(name = "ApiKey")
     )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Permission check result",
-                    content = @Content(schema = @Schema(implementation = SuccessResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "400",
-                    description = "Invalid request body",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "Invalid or missing API key",
-                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
-            )
-    })
     @PostMapping("/check/{connectorCode}")
     public SuccessResponse<AccessEffect> checkToolUse(
             @Parameter(description = "Connector code", required = true)

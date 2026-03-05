@@ -12,10 +12,10 @@ import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.deviceapi.controller.app.dto.LinkDeviceRequest;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
-import ru.agimate.deviceapi.security.ConnectorSecurityUtils;
-import ru.agimate.deviceapi.service.dto.ConnectorCreateResult;
-import ru.agimate.deviceapi.util.ConnectorKeyUtils;
-import ru.agimate.deviceapi.util.GeneratedConnectorKey;
+import ru.agimate.deviceapi.security.AppSecurityUtils;
+import ru.agimate.deviceapi.service.dto.AppCreateResult;
+import ru.agimate.deviceapi.util.AppKeyUtils;
+import ru.agimate.deviceapi.util.GeneratedAppKey;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -28,25 +28,27 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 @Transactional(readOnly = true)
-public class ConnectorService {
+public class AppService {
 
     private static final int MAX_KEYS_PER_USER = 10;
-    public static final String CONNECTOR_KEY_PREFIX = "dvck";
+    public static final String APP_KEY_PREFIX = "appk";
 
     private final AppRepository appRepository;
 
     @Transactional
-    public ConnectorCreateResult createConnector(UUID userPubId, String name, String description, String connectorCode) {
+    public AppCreateResult createApp(UUID userPubId, String name, String description, String connectorCode) {
         long existingCount = appRepository.countByUserPubIdNotDeleted(userPubId);
         if (existingCount >= MAX_KEYS_PER_USER) {
             throw new ConflictStatusException("Maximum number of connectors reached: " + MAX_KEYS_PER_USER);
         }
 
         if (appRepository.existsByUserPubIdAndName(userPubId, name)) {
-            throw new ConflictStatusException("A connector with this name already exists");
+            throw new ConflictStatusException("An app with this name already exists");
         }
 
-        GeneratedConnectorKey generatedKey = ConnectorKeyUtils.generate(CONNECTOR_KEY_PREFIX);
+        GeneratedAppKey generatedKey = AppKeyUtils.generate(APP_KEY_PREFIX);
+
+        // todo: check connectorCode by using connector repository
 
         App app = App.builder()
                 .userPubId(userPubId)
@@ -61,7 +63,7 @@ public class ConnectorService {
         App saved = appRepository.save(app);
         log.info("Created new app for user {}: {}", userPubId, saved.getPubId());
 
-        return new ConnectorCreateResult(saved, generatedKey.fullKey());
+        return new AppCreateResult(saved, generatedKey.fullKey());
     }
 
     @Transactional
@@ -78,7 +80,7 @@ public class ConnectorService {
             throw new ConflictStatusException("Maximum number of connectors reached: " + MAX_KEYS_PER_USER);
         }
 
-        GeneratedConnectorKey generatedKey = ConnectorKeyUtils.generate(CONNECTOR_KEY_PREFIX);
+        GeneratedAppKey generatedKey = AppKeyUtils.generate(APP_KEY_PREFIX);
 
         App app = App.builder()
                 .userPubId(userPubId)
@@ -98,17 +100,17 @@ public class ConnectorService {
         return saved;
     }
 
-    public List<App> getConnectorsForUser(UUID userPubId) {
+    public List<App> getAppsForUser(UUID userPubId) {
         return appRepository.findByUserPubIdNotDeleted(userPubId);
     }
 
-    public Optional<App> getConnectorByPubIdForUser(UUID pubId, UUID userPubId) {
+    public Optional<App> getAppByPubIdForUser(UUID pubId, UUID userPubId) {
         return appRepository.findByPubIdNotDeleted(pubId)
                 .filter(key -> key.getUserPubId().equals(userPubId));
     }
 
     @Transactional
-    public App updateConnector(UUID pubId, UUID userPubId, String name, String description, Boolean enabled) {
+    public App updateApp(UUID pubId, UUID userPubId, String name, String description, Boolean enabled) {
         App app = appRepository.findByPubIdNotDeleted(pubId)
                 .filter(k -> k.getUserPubId().equals(userPubId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
@@ -121,7 +123,7 @@ public class ConnectorService {
     }
 
     @Transactional
-    public void deleteConnector(UUID pubId, UUID userPubId) {
+    public void deleteApp(UUID pubId, UUID userPubId) {
         App app = appRepository.findByPubIdNotDeleted(pubId)
                 .filter(k -> k.getUserPubId().equals(userPubId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
@@ -131,24 +133,24 @@ public class ConnectorService {
     }
 
     @Transactional
-    public ConnectorCreateResult regenerateConnectorKey(UUID pubId, UUID userPubId) {
+    public AppCreateResult regenerateAppKey(UUID pubId, UUID userPubId) {
         App oldApp = appRepository.findByPubIdNotDeleted(pubId)
                 .filter(k -> k.getUserPubId().equals(userPubId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
         appRepository.softDelete(oldApp.getId(), LocalDateTime.now());
 
-        return createConnector(userPubId, oldApp.getName(), oldApp.getDescription(), oldApp.getConnectorCode());
+        return createApp(userPubId, oldApp.getName(), oldApp.getDescription(), oldApp.getConnectorCode());
     }
 
-    public App getConnectorByPubId(UUID pubId, UUID userPubId) {
+    public App getAppByPubId(UUID pubId, UUID userPubId) {
         return appRepository.findByPubIdNotDeleted(pubId)
                 .filter(a -> a.getUserPubId().equals(userPubId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
     }
 
     @Transactional
-    public void disconnectConnector(UUID pubId, UUID userPubId) {
+    public void disconnectApp(UUID pubId, UUID userPubId) {
         App app = appRepository.findByPubIdNotDeleted(pubId)
                 .filter(a -> a.getUserPubId().equals(userPubId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
@@ -162,21 +164,21 @@ public class ConnectorService {
         log.info("Disconnected app {}", pubId);
     }
 
-    public App getConnector() {
-        UUID connectorPubId = ConnectorSecurityUtils.getConnectorPubId();
-        return appRepository.findByPubId(connectorPubId)
+    public App getApp() {
+        UUID appPubId = AppSecurityUtils.getAppPubId();
+        return appRepository.findByPubId(appPubId)
                 .orElseThrow(() -> new UnauthorizedStatusException("App not found"));
     }
 
-    public App getConnector(Authentication authentication) {
-        var principal = ConnectorSecurityUtils.getPrincipal(authentication);
-        return appRepository.findByPubId(principal.connectorPubId())
+    public App getApp(Authentication authentication) {
+        var principal = AppSecurityUtils.getPrincipal(authentication);
+        return appRepository.findByPubId(principal.appPubId())
                 .orElseThrow(() -> new UnauthorizedStatusException("App not found"));
     }
 
     @Transactional
     public App linkDevice(Authentication authentication, LinkDeviceRequest linkDeviceRequest) {
-        var app = getConnector(authentication);
+        var app = getApp(authentication);
 
         // If already linked to the same device — update capabilities
         if (app.isLinked() && app.getDeviceId().equals(linkDeviceRequest.deviceId())) {

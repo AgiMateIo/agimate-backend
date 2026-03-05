@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
-import ru.agimate.deviceapi.service.ConnectorService;
+import ru.agimate.deviceapi.service.AppService;
 import ru.agimate.deviceapi.service.TriggerRouterService;
 
 @Slf4j
@@ -22,7 +22,7 @@ public class AppTriggerController {
 
     public static final String PATH = AppRegistrationController.PATH + "/trigger";
 
-    private final ConnectorService connectorService;
+    private final AppService appService;
     private final TriggerRouterService triggerRouterService;
 
     @Operation(
@@ -37,7 +37,7 @@ public class AppTriggerController {
     ) {
         log.info("Trigger received - {}", triggerRequest.toString());
 
-        var app = connectorService.getConnector(authentication);
+        var app = appService.getApp(authentication);
         triggerRouterService.routeTrigger(app, triggerRequest);
 
         return SuccessResponse.ok(triggerRequest.name());

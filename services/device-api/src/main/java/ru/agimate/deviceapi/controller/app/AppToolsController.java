@@ -9,7 +9,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.deviceapi.service.ConnectorApiService;
-import ru.agimate.deviceapi.service.ConnectorService;
+import ru.agimate.deviceapi.service.AppService;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
 @Slf4j
@@ -20,7 +20,7 @@ public class AppToolsController {
 
     public static final String PATH = AppRegistrationController.PATH + "/tools";
 
-    private final ConnectorService connectorService;
+    private final AppService appService;
     private final ConnectorApiService connectorApiService;
     private final ToolUseLogService toolUseLogService;
 
@@ -32,7 +32,7 @@ public class AppToolsController {
     ) {
         log.info("Tool result received - {}", toolResultRequest.toString());
 
-        var app = connectorService.getConnector(authentication);
+        var app = appService.getApp(authentication);
 
         String resultString = JsonUtils.toJson(toolResultRequest.result()).orElse(null);
         var toolUseLog = toolUseLogService.recordResult(app, toolResultRequest.id(), resultString, null);

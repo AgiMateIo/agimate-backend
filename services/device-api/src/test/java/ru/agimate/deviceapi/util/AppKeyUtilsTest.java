@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ConnectorKeyUtilsTest {
+class AppKeyUtilsTest {
 
     @Nested
     @DisplayName("generate()")
@@ -15,7 +15,7 @@ class ConnectorKeyUtilsTest {
         @Test
         @DisplayName("generates valid key with given prefix")
         void generate_withPrefix_createsValidKey() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
 
             assertNotNull(generated.fullKey());
             assertNotNull(generated.keyId());
@@ -30,7 +30,7 @@ class ConnectorKeyUtilsTest {
         @Test
         @DisplayName("generates valid key with custom prefix")
         void generate_customPrefix_createsValidKey() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("apik");
+            GeneratedAppKey generated = AppKeyUtils.generate("apik");
 
             assertTrue(generated.fullKey().startsWith("apik"));
             assertEquals(64, generated.fullKey().length());
@@ -39,31 +39,31 @@ class ConnectorKeyUtilsTest {
         @Test
         @DisplayName("generated key passes parse and verify")
         void generate_keyPassesValidation() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
 
-            ParsedConnectorKey parsed = ConnectorKeyUtils.parse(generated.fullKey());
+            ParsedAppKey parsed = AppKeyUtils.parse(generated.fullKey());
 
             assertEquals("dvck", parsed.prefix());
             assertEquals(generated.keyId(), parsed.keyId());
-            assertTrue(ConnectorKeyUtils.verifyChecksum(parsed));
-            assertTrue(ConnectorKeyUtils.verifySecret(parsed.secret(), generated.secretHash()));
+            assertTrue(AppKeyUtils.verifyChecksum(parsed));
+            assertTrue(AppKeyUtils.verifySecret(parsed.secret(), generated.secretHash()));
         }
 
         @Test
         @DisplayName("throws exception for invalid prefix")
         void generate_invalidPrefix_throwsException() {
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.generate("abc")); // too short
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.generate("abcde")); // too long
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.generate("ABCD")); // uppercase
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.generate("abc1")); // contains digit
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.generate(null));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.generate("abc")); // too short
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.generate("abcde")); // too long
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.generate("ABCD")); // uppercase
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.generate("abc1")); // contains digit
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.generate(null));
         }
 
         @Test
         @DisplayName("generates unique keys")
         void generate_multipleKeys_areUnique() {
-            GeneratedConnectorKey key1 = ConnectorKeyUtils.generate("dvck");
-            GeneratedConnectorKey key2 = ConnectorKeyUtils.generate("dvck");
+            GeneratedAppKey key1 = AppKeyUtils.generate("dvck");
+            GeneratedAppKey key2 = AppKeyUtils.generate("dvck");
 
             assertNotEquals(key1.fullKey(), key2.fullKey());
             assertNotEquals(key1.keyId(), key2.keyId());
@@ -73,7 +73,7 @@ class ConnectorKeyUtilsTest {
         @Test
         @DisplayName("key has correct format and length")
         void generate_keyFormat_isCorrect() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
 
             // Verify structure using positional parsing
             String fullKey = generated.fullKey();
@@ -100,8 +100,8 @@ class ConnectorKeyUtilsTest {
         @Test
         @DisplayName("parses valid key correctly")
         void parse_validKey_returnsParsedKey() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("apik");
-            ParsedConnectorKey parsed = ConnectorKeyUtils.parse(generated.fullKey());
+            GeneratedAppKey generated = AppKeyUtils.generate("apik");
+            ParsedAppKey parsed = AppKeyUtils.parse(generated.fullKey());
 
             assertEquals("apik", parsed.prefix());
             assertEquals(generated.keyId(), parsed.keyId());
@@ -112,30 +112,30 @@ class ConnectorKeyUtilsTest {
         @Test
         @DisplayName("throws exception for null or empty key")
         void parse_nullOrEmpty_throwsException() {
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.parse(null));
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.parse(""));
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.parse("   "));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.parse(null));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.parse(""));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.parse("   "));
         }
 
         @Test
         @DisplayName("throws exception for invalid prefix")
         void parse_invalidPrefix_throwsException() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
             // Replace first character with uppercase
             String invalidKey = "DVCK" + generated.fullKey().substring(4);
 
             IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                    () -> ConnectorKeyUtils.parse(invalidKey));
+                    () -> AppKeyUtils.parse(invalidKey));
             assertTrue(ex.getMessage().contains("prefix"));
         }
 
         @Test
         @DisplayName("throws exception for wrong length")
         void parse_wrongLength_throwsException() {
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.parse("dvckshort"));
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.parse("a".repeat(80)));
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.parse("a".repeat(63)));
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.parse("a".repeat(65)));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.parse("dvckshort"));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.parse("a".repeat(80)));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.parse("a".repeat(63)));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.parse("a".repeat(65)));
         }
 
         @Test
@@ -143,18 +143,18 @@ class ConnectorKeyUtilsTest {
         void parse_invalidPrefixFormat_throwsException() {
             // Create a valid-length key but with uppercase prefix
             String invalidPrefixKey = "ABCD" + "a".repeat(12) + "a".repeat(48);
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.parse(invalidPrefixKey));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.parse(invalidPrefixKey));
 
             // Prefix with digit
             String digitPrefix = "abc1" + "a".repeat(12) + "a".repeat(48);
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.parse(digitPrefix));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.parse(digitPrefix));
         }
 
         @Test
         @DisplayName("throws exception for invalid base64url in keyId")
         void parse_invalidKeyId_throwsException() {
             String invalidKeyId = "dvck" + "!!!!!!!!!!" + "aa" + "a".repeat(48);
-            assertThrows(IllegalArgumentException.class, () -> ConnectorKeyUtils.parse(invalidKeyId));
+            assertThrows(IllegalArgumentException.class, () -> AppKeyUtils.parse(invalidKeyId));
         }
     }
 
@@ -165,50 +165,50 @@ class ConnectorKeyUtilsTest {
         @Test
         @DisplayName("returns true for valid checksum")
         void verifyChecksum_validKey_returnsTrue() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
-            ParsedConnectorKey parsed = ConnectorKeyUtils.parse(generated.fullKey());
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
+            ParsedAppKey parsed = AppKeyUtils.parse(generated.fullKey());
 
-            assertTrue(ConnectorKeyUtils.verifyChecksum(parsed));
+            assertTrue(AppKeyUtils.verifyChecksum(parsed));
         }
 
         @Test
         @DisplayName("returns false for tampered secret")
         void verifyChecksum_tamperedSecret_returnsFalse() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
-            ParsedConnectorKey parsed = ConnectorKeyUtils.parse(generated.fullKey());
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
+            ParsedAppKey parsed = AppKeyUtils.parse(generated.fullKey());
 
             // Tamper with secret
             byte[] tamperedSecret = parsed.secret().clone();
             tamperedSecret[0] ^= 0xFF;
 
-            ParsedConnectorKey tampered = new ParsedConnectorKey(
+            ParsedAppKey tampered = new ParsedAppKey(
                     parsed.prefix(),
                     parsed.keyId(),
                     tamperedSecret,
                     parsed.checksum()
             );
 
-            assertFalse(ConnectorKeyUtils.verifyChecksum(tampered));
+            assertFalse(AppKeyUtils.verifyChecksum(tampered));
         }
 
         @Test
         @DisplayName("returns false for tampered checksum")
         void verifyChecksum_tamperedChecksum_returnsFalse() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
-            ParsedConnectorKey parsed = ConnectorKeyUtils.parse(generated.fullKey());
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
+            ParsedAppKey parsed = AppKeyUtils.parse(generated.fullKey());
 
             // Tamper with checksum
             byte[] tamperedChecksum = parsed.checksum().clone();
             tamperedChecksum[0] ^= 0xFF;
 
-            ParsedConnectorKey tampered = new ParsedConnectorKey(
+            ParsedAppKey tampered = new ParsedAppKey(
                     parsed.prefix(),
                     parsed.keyId(),
                     parsed.secret(),
                     tamperedChecksum
             );
 
-            assertFalse(ConnectorKeyUtils.verifyChecksum(tampered));
+            assertFalse(AppKeyUtils.verifyChecksum(tampered));
         }
     }
 
@@ -219,37 +219,37 @@ class ConnectorKeyUtilsTest {
         @Test
         @DisplayName("returns true for matching hash")
         void verifySecret_correctHash_returnsTrue() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
-            ParsedConnectorKey parsed = ConnectorKeyUtils.parse(generated.fullKey());
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
+            ParsedAppKey parsed = AppKeyUtils.parse(generated.fullKey());
 
-            assertTrue(ConnectorKeyUtils.verifySecret(parsed.secret(), generated.secretHash()));
+            assertTrue(AppKeyUtils.verifySecret(parsed.secret(), generated.secretHash()));
         }
 
         @Test
         @DisplayName("returns false for wrong hash")
         void verifySecret_wrongHash_returnsFalse() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
-            ParsedConnectorKey parsed = ConnectorKeyUtils.parse(generated.fullKey());
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
+            ParsedAppKey parsed = AppKeyUtils.parse(generated.fullKey());
 
             String wrongHash = "a".repeat(64);
-            assertFalse(ConnectorKeyUtils.verifySecret(parsed.secret(), wrongHash));
+            assertFalse(AppKeyUtils.verifySecret(parsed.secret(), wrongHash));
         }
 
         @Test
         @DisplayName("returns false for null inputs")
         void verifySecret_nullInputs_returnsFalse() {
-            assertFalse(ConnectorKeyUtils.verifySecret(null, "hash"));
-            assertFalse(ConnectorKeyUtils.verifySecret(new byte[32], null));
-            assertFalse(ConnectorKeyUtils.verifySecret(null, null));
+            assertFalse(AppKeyUtils.verifySecret(null, "hash"));
+            assertFalse(AppKeyUtils.verifySecret(new byte[32], null));
+            assertFalse(AppKeyUtils.verifySecret(null, null));
         }
 
         @Test
         @DisplayName("hash comparison is case insensitive")
         void verifySecret_caseInsensitive() {
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
-            ParsedConnectorKey parsed = ConnectorKeyUtils.parse(generated.fullKey());
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
+            ParsedAppKey parsed = AppKeyUtils.parse(generated.fullKey());
 
-            assertTrue(ConnectorKeyUtils.verifySecret(parsed.secret(), generated.secretHash().toUpperCase()));
+            assertTrue(AppKeyUtils.verifySecret(parsed.secret(), generated.secretHash().toUpperCase()));
         }
     }
 
@@ -265,8 +265,8 @@ class ConnectorKeyUtilsTest {
                 secret[i] = (byte) i;
             }
 
-            String hash1 = ConnectorKeyUtils.hashSecret(secret);
-            String hash2 = ConnectorKeyUtils.hashSecret(secret);
+            String hash1 = AppKeyUtils.hashSecret(secret);
+            String hash2 = AppKeyUtils.hashSecret(secret);
 
             assertEquals(hash1, hash2);
         }
@@ -275,7 +275,7 @@ class ConnectorKeyUtilsTest {
         @DisplayName("produces 64-character hex string")
         void hashSecret_outputFormat() {
             byte[] secret = new byte[32];
-            String hash = ConnectorKeyUtils.hashSecret(secret);
+            String hash = AppKeyUtils.hashSecret(secret);
 
             assertEquals(64, hash.length());
             assertTrue(hash.matches("^[a-f0-9]{64}$"));
@@ -288,7 +288,7 @@ class ConnectorKeyUtilsTest {
             byte[] secret2 = new byte[32];
             secret2[0] = 1;
 
-            assertNotEquals(ConnectorKeyUtils.hashSecret(secret1), ConnectorKeyUtils.hashSecret(secret2));
+            assertNotEquals(AppKeyUtils.hashSecret(secret1), AppKeyUtils.hashSecret(secret2));
         }
     }
 
@@ -300,7 +300,7 @@ class ConnectorKeyUtilsTest {
         @DisplayName("complete key lifecycle")
         void fullWorkflow_generateParseVerify() {
             // 1. Generate key
-            GeneratedConnectorKey generated = ConnectorKeyUtils.generate("dvck");
+            GeneratedAppKey generated = AppKeyUtils.generate("dvck");
 
             // 2. Store keyId and secretHash in DB (simulated)
             String storedKeyId = generated.keyId();
@@ -310,33 +310,33 @@ class ConnectorKeyUtilsTest {
             String clientKey = generated.fullKey();
 
             // 4. Parse the key
-            ParsedConnectorKey parsed = ConnectorKeyUtils.parse(clientKey);
+            ParsedAppKey parsed = AppKeyUtils.parse(clientKey);
 
             // 5. Quick format validation via checksum
-            assertTrue(ConnectorKeyUtils.verifyChecksum(parsed));
+            assertTrue(AppKeyUtils.verifyChecksum(parsed));
 
             // 6. Lookup by keyId
             assertEquals(storedKeyId, parsed.keyId());
 
             // 7. Verify secret against stored hash
-            assertTrue(ConnectorKeyUtils.verifySecret(parsed.secret(), storedSecretHash));
+            assertTrue(AppKeyUtils.verifySecret(parsed.secret(), storedSecretHash));
         }
 
         @Test
         @DisplayName("different prefixes create different keys")
         void fullWorkflow_differentPrefixes() {
-            GeneratedConnectorKey dvckKey = ConnectorKeyUtils.generate("dvck");
-            GeneratedConnectorKey apikKey = ConnectorKeyUtils.generate("apik");
-            GeneratedConnectorKey srvk = ConnectorKeyUtils.generate("srvk");
+            GeneratedAppKey dvckKey = AppKeyUtils.generate("dvck");
+            GeneratedAppKey apikKey = AppKeyUtils.generate("apik");
+            GeneratedAppKey srvk = AppKeyUtils.generate("srvk");
 
             assertTrue(dvckKey.fullKey().startsWith("dvck"));
             assertTrue(apikKey.fullKey().startsWith("apik"));
             assertTrue(srvk.fullKey().startsWith("srvk"));
 
             // All should be valid
-            assertTrue(ConnectorKeyUtils.verifyChecksum(ConnectorKeyUtils.parse(dvckKey.fullKey())));
-            assertTrue(ConnectorKeyUtils.verifyChecksum(ConnectorKeyUtils.parse(apikKey.fullKey())));
-            assertTrue(ConnectorKeyUtils.verifyChecksum(ConnectorKeyUtils.parse(srvk.fullKey())));
+            assertTrue(AppKeyUtils.verifyChecksum(AppKeyUtils.parse(dvckKey.fullKey())));
+            assertTrue(AppKeyUtils.verifyChecksum(AppKeyUtils.parse(apikKey.fullKey())));
+            assertTrue(AppKeyUtils.verifyChecksum(AppKeyUtils.parse(srvk.fullKey())));
         }
     }
 }
