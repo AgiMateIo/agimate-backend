@@ -3,6 +3,7 @@ package ru.agimate.deviceapi.connectors.internal;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -24,6 +25,10 @@ public class ServerSideToolRegistry {
             throw new BadRequestStatusException("Unsupported server tool handler: " + handlerCode);
         }
         return handler;
+    }
+
+    public Collection<ServerSideToolHandler> getAvailableHandlers() {
+        return handlers.values();
     }
 
     public ServerSideToolHandler getHandlerByToolName(String toolName) {

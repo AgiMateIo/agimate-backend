@@ -69,7 +69,6 @@ public class IntegrationService {
                 .type(ConnectorType.INTEGRATION)
                 .name(connectorName)
                 .description("Integration: " + platformCode)
-                .userPubId(userPubId)
                 .credentialFields(handler.getCredentialFields())
                 .features(Map.of())
                 .build();

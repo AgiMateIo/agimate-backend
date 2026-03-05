@@ -9,7 +9,6 @@ import ru.agimate.deviceapi.database.enums.ConnectorType;
 
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Entity
 @Table(name = "connectors")
@@ -33,9 +32,6 @@ public class Connector extends BaseEntity {
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
-
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "credential_fields", columnDefinition = "JSONB")
