@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
@@ -100,7 +101,7 @@ public class ToolUseLogService {
     }
 
     public Page<ToolUseLogResponse> getToolUseLogs(UUID userPubId, UUID agentPubId, int page, int size) {
-        return toolUseLogRepository.findWithFilters(userPubId, agentPubId, PageRequest.of(page, size))
+        return toolUseLogRepository.findWithFilters(userPubId, agentPubId, PageRequest.of(page, size, Sort.by("createdAt").descending()))
                 .map(ToolUseLogResponse::from);
     }
 }

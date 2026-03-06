@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
@@ -25,7 +26,7 @@ public class TriggerLogService {
     private final TriggerLogRepository triggerLogRepository;
 
     public Page<TriggerLogResponse> getTriggerLogs(UUID userPubId, String connectorCode, int page, int size) {
-        return triggerLogRepository.findByUserPubIdWithFilters(userPubId, connectorCode, PageRequest.of(page, size))
+        return triggerLogRepository.findByUserPubIdWithFilters(userPubId, connectorCode, PageRequest.of(page, size, Sort.by("createdAt").descending()))
                 .map(TriggerLogResponse::from);
     }
 
