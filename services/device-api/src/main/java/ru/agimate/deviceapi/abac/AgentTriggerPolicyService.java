@@ -8,7 +8,9 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentTriggerPolicy;
+import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerPolicyRepository;
 
 import java.util.List;
@@ -19,6 +21,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class AgentTriggerPolicyService {
 
+    private final AgentRepository agentRepository;
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
     private final TriggerPolicyEvaluatorService triggerPolicyEvaluatorService;
 
@@ -93,6 +96,11 @@ public class AgentTriggerPolicyService {
         AgentTriggerPolicy policy = getPolicyById(userPubId, id);
         agentTriggerPolicyRepository.delete(policy);
         triggerPolicyEvaluatorService.invalidateByAgent(policy.getAgentPubId());
+    }
+
+    public List<Agent> findAllowedAgents(UUID userPubId, String connectorCode,
+                                         String connectorIdentity, String triggerName) {
+        return agentRepository.findAllowedAgents(userPubId, connectorCode, connectorIdentity, triggerName);
     }
 
     private void validateOwnership(AgentTriggerPolicy policy, UUID userPubId) {
