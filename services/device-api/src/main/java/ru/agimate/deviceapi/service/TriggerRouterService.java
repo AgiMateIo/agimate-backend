@@ -62,8 +62,33 @@ public class TriggerRouterService {
 
     @Async
     public void routeWhTrigger(IntegrationCredentials integration, TriggerRequest triggerRequest) {
-        log.info("new wh trigger {}", triggerRequest);
-        // TODO: implement webhook trigger routing
+        String connectorCode = integration.getConnectorCode();
+        String identity = integration.getPubId().toString();
+        UUID userPubId = integration.getUserPubId();
+
+        TriggerLog triggerLog = triggerLogService.createTriggerLog(userPubId, connectorCode, identity, triggerRequest);
+
+        List<Agent> agents = agentTriggerPolicyService.findAllowedAgents(userPubId, connectorCode, identity, triggerRequest.name());
+
+        for (Agent agent : agents) {
+            TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
+                    .triggerLog(triggerLog)
+                    .agent(agent)
+                    .destination(agent.getTriggerDestination().name())
+                    .build();
+            try {
+                switch (agent.getTriggerDestination()) {
+                    case CENTRIFUGO -> routeToCentrifugo(agent, triggerRequest);
+                    case WEBHOOK -> webhookDeliveryService.deliverWebhook(agent, triggerLogAgent, triggerRequest);
+                }
+            } catch (Exception e) {
+                triggerLogAgent.setError(e.getMessage());
+                log.warn("Failed to route trigger '{}' to agent '{}': {}", triggerRequest.name(), agent.getPubId(), e.getMessage());
+            } finally {
+                triggerLog.getTriggerLogAgents().add(triggerLogAgent);
+            }
+        }
+        triggerLogRepository.save(triggerLog);
     }
 
     private void routeToCentrifugo(Agent agent, TriggerRequest triggerRequest) {
