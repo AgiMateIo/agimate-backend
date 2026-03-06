@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="06-01-refactor-trigger-log" author="agimate">
+        <!-- trigger_logs: drop columns -->
+        <dropIndex tableName="trigger_logs" indexName="idx_trigger_logs_app_id"/>
+        <dropColumn tableName="trigger_logs" columnName="app_id"/>
+        <dropColumn tableName="trigger_logs" columnName="trigger_type"/>
+        <dropColumn tableName="trigger_logs" columnName="trigger_source"/>
+        <dropColumn tableName="trigger_logs" columnName="request_device_id"/>
+        <dropColumn tableName="trigger_logs" columnName="linked_device_id"/>
+
+        <!-- trigger_logs: add connector_code and identity -->
+        <addColumn tableName="trigger_logs">
+            <column name="connector_code" type="TEXT" defaultValue="">
+                <constraints nullable="false"/>
+            </column>
+            <column name="identity" type="TEXT" defaultValue="">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <!-- trigger_logs: rename trigger_data → trigger_input -->
+        <renameColumn tableName="trigger_logs" oldColumnName="trigger_data" newColumnName="trigger_input"/>
+
+        <!-- trigger_logs: make trigger_id NOT NULL -->
+        <addDefaultValue tableName="trigger_logs" columnName="trigger_id" defaultValue=""/>
+        <sql>UPDATE trigger_logs SET trigger_id = '' WHERE trigger_id IS NULL</sql>
+        <addNotNullConstraint tableName="trigger_logs" columnName="trigger_id"/>
+
+        <!-- trigger_logs: add unique constraint -->
+        <addUniqueConstraint tableName="trigger_logs"
+                             columnNames="user_pub_id, connector_code, identity, trigger_name, trigger_id"
+                             constraintName="uq_trigger_logs_user_connector_identity_name_id"/>
+
+        <!-- trigger_log_agents: rename routed_to → destination -->
+        <renameColumn tableName="trigger_log_agents" oldColumnName="routed_to" newColumnName="destination"/>
+
+        <!-- trigger_log_agents: add result and error -->
+        <addColumn tableName="trigger_log_agents">
+            <column name="result" type="TEXT"/>
+            <column name="error" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

@@ -14,7 +14,8 @@ import java.util.Map;
 import java.util.UUID;
 
 @Entity
-@Table(name = "trigger_logs")
+@Table(name = "trigger_logs", uniqueConstraints =
+        @UniqueConstraint(columnNames = {"user_pub_id", "connector_code", "identity", "trigger_name", "trigger_id"}))
 @Getter
 @Setter
 @Builder
@@ -31,37 +32,27 @@ public class TriggerLog extends BaseEntity {
     @Builder.Default
     private UUID pubId = UUIDUtils.generateUUIDv8();
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "app_id", nullable = false)
-    private App app;
-
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
 
-    @Column(name = "trigger_id", columnDefinition = "TEXT")
-    private String triggerId;
+    @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
+    private String connectorCode;
 
-    @Column(name = "trigger_type", columnDefinition = "TEXT")
-    private String triggerType;
+    @Column(name = "identity", nullable = false, columnDefinition = "TEXT")
+    private String identity;
+
+    @Column(name = "trigger_id", nullable = false, columnDefinition = "TEXT")
+    private String triggerId;
 
     @Column(name = "trigger_name", nullable = false, columnDefinition = "TEXT")
     private String triggerName;
-
-    @Column(name = "trigger_source", columnDefinition = "TEXT")
-    private String triggerSource;
-
-    @Column(name = "request_device_id", columnDefinition = "TEXT")
-    private String requestDeviceId;
-
-    @Column(name = "linked_device_id", columnDefinition = "TEXT")
-    private String linkedDeviceId;
 
     @Column(name = "occurred_at")
     private LocalDateTime occurredAt;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "trigger_data", nullable = false, columnDefinition = "JSONB")
-    private Map<String, Object> triggerData;
+    @Column(name = "trigger_input", nullable = false, columnDefinition = "JSONB")
+    private Map<String, Object> triggerInput;
 
     @OneToMany(mappedBy = "triggerLog", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

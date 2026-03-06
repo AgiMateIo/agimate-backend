@@ -38,7 +38,7 @@ public class AppTriggerController {
         log.info("Trigger received - {}", triggerRequest.toString());
 
         var app = appService.getApp(authentication);
-        triggerRouterService.routeTrigger(app, triggerRequest);
+        triggerRouterService.routeAppTrigger(app, triggerRequest);
 
         return SuccessResponse.ok(triggerRequest.name());
     }

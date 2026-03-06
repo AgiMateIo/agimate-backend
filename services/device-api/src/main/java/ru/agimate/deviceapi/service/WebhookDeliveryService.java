@@ -13,7 +13,6 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.controller.manage.dto.WebhookDeliveryLogResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
-import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.deviceapi.database.repositories.WebhookDeliveryLogRepository;
@@ -41,8 +40,8 @@ public class WebhookDeliveryService {
             .build();
 
     @Async
-    public void deliverWebhook(Agent settings, TriggerLogAgent triggerLogAgent, App app, TriggerRequest triggerRequest) {
-        Map<String, Object> payload = buildPayload(triggerRequest, app);
+    public void deliverWebhook(Agent settings, TriggerLogAgent triggerLogAgent, TriggerRequest triggerRequest) {
+        Map<String, Object> payload = buildPayload(triggerRequest, triggerLogAgent.getTriggerLog().getUserPubId());
 
         long startTime = System.currentTimeMillis();
         WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder = WebhookDeliveryLog.builder()
@@ -129,18 +128,14 @@ public class WebhookDeliveryService {
         return logs.map(WebhookDeliveryLogResponse::from);
     }
 
-    private Map<String, Object> buildPayload(TriggerRequest triggerRequest, App app) {
+    private Map<String, Object> buildPayload(TriggerRequest triggerRequest, UUID userPubId) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("event", triggerRequest.name());
-        payload.put("userId", app.getUserPubId().toString());
+        payload.put("userId", userPubId.toString());
         payload.put("timestamp", LocalDateTime.now().toString());
 
-        String deviceId = triggerRequest.deviceId();
-        if (deviceId == null && app.isLinked()) {
-            deviceId = app.getDeviceId();
-        }
-        if (deviceId != null) {
-            payload.put("deviceId", deviceId);
+        if (triggerRequest.deviceId() != null) {
+            payload.put("deviceId", triggerRequest.deviceId());
         }
 
         payload.put("data", JsonUtils.objectToMap(triggerRequest.data()));

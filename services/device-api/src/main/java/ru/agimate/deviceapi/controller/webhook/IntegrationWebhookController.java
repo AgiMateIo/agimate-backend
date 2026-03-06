@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import ru.agimate.deviceapi.database.repositories.AppRepository;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationPlatformRegistry;
 import ru.agimate.deviceapi.service.TriggerRouterService;
@@ -21,7 +20,6 @@ public class IntegrationWebhookController {
     public static final String PATH = "/webhook/integration";
 
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
-    private final AppRepository appRepository;
     private final IntegrationPlatformRegistry platformRegistry;
     private final TriggerRouterService triggerRouterService;
 
@@ -58,18 +56,7 @@ public class IntegrationWebhookController {
 
         try {
             var triggerRequest = handler.normalizeInbound(integrationCredentials, rawBody);
-            // TODO: we should find aproppriate integraion by connectoCode and type=integration
-
-            // Find the app associated with this integration's connector
-            var app = appRepository.findByPubIdNotDeletedAndActive(integrationCredentials.getUserPubId()).stream()
-                    .filter(a -> integrationCredentials.getConnectorCode().equals(a.getConnectorCode()))
-                    .findFirst()
-                    .orElse(null);
-            if (app != null) {
-                triggerRouterService.routeTrigger(app, triggerRequest);
-            } else {
-                log.warn("No app found for integration {}", integrationPubId);
-            }
+            triggerRouterService.routeWhTrigger(integrationCredentials, triggerRequest);
         } catch (Exception e) {
             log.error("Failed to process webhook for integration {}: {}", integrationPubId, e.getMessage());
         }

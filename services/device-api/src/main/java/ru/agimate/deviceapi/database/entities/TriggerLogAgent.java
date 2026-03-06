@@ -27,6 +27,12 @@ public class TriggerLogAgent extends BaseEntity {
     @JoinColumn(name = "agent_id", nullable = false)
     private Agent agent;
 
-    @Column(name = "routed_to", nullable = false, columnDefinition = "TEXT")
-    private String routedTo;
+    @Column(name = "destination", nullable = false, columnDefinition = "TEXT")
+    private String destination;
+
+    @Column(name = "result", columnDefinition = "TEXT")
+    private String result;
+
+    @Column(name = "error", columnDefinition = "TEXT")
+    private String error;
 }
