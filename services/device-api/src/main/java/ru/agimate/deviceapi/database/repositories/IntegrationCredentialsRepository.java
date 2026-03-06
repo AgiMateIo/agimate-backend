@@ -27,6 +27,9 @@ public interface IntegrationCredentialsRepository extends JpaRepository<Integrat
     @Query("SELECT i FROM IntegrationCredentials i WHERE i.pubId = :pubId AND i.userPubId = :userPubId AND i.deletedAt IS NULL")
     Optional<IntegrationCredentials> findByPubIdAndUserPubIdNotDeleted(@Param("pubId") UUID pubId, @Param("userPubId") UUID userPubId);
 
+    boolean existsByConnectorCodeAndUserPubIdAndPlatformIdentifierAndDeletedAtIsNull(
+            String connectorCode, UUID userPubId, String platformIdentifier);
+
     @Modifying
     @Query("UPDATE IntegrationCredentials i SET i.deletedAt = :now WHERE i.id = :id")
     void softDelete(@Param("id") Long id, @Param("now") LocalDateTime now);

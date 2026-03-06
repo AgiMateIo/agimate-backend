@@ -9,8 +9,8 @@ import java.util.Map;
 @Schema(description = "Request to create a new integration")
 public record CreateIntegrationRequest(
         @NotBlank
-        @Schema(description = "Platform code", example = "telegram")
-        String platformCode,
+        @Schema(description = "Connector code", example = "telegram")
+        String connectorCode,
 
         @NotNull
         @Schema(description = "Platform credentials", example = "{\"token\": \"123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11\"}")

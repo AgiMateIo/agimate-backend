@@ -9,13 +9,10 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
-import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.database.enums.ConnectorType;
 import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
-import ru.agimate.deviceapi.service.AppService;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -34,52 +31,29 @@ public class IntegrationService {
     private final ConnectorRepository connectorRepository;
     private final IntegrationPlatformRegistry platformRegistry;
     private final IntegrationEncryptionService encryptionService;
-    private final AppService appService;
 
     @Transactional
     public IntegrationCredentials createIntegration(
             UUID userPubId,
-            String platformCode,
+            String connectorCode,
             Map<String, String> credentials,
             String name
     ) {
-        var handler = platformRegistry.getHandler(platformCode);
+        if (!connectorRepository.existsByCodeAndType(connectorCode, ConnectorType.INTEGRATION)) {
+            throw new BadRequestStatusException("Integration connector not found: " + connectorCode);
+        }
+
+        var handler = platformRegistry.getHandler(connectorCode);
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
             throw new ValidationErrorStatusException(validationResult.errorField(), validationResult.errorMessage());
         }
 
-        // Check for duplicate
-        integrationCredentialsRepository.findByUserPubIdNotDeleted(userPubId).stream()
-                .filter(i -> i.extractPlatformCode().equals(platformCode)
-                        && i.getPlatformIdentifier().equals(validationResult.identifier()))
-                .findFirst()
-                .ifPresent(existing -> {
-                    throw new ConflictStatusException("Integration already exists for " + platformCode + ": " + validationResult.identifier());
-                });
-
-        // Create connector entry for this integration
-        String connectorName = name != null ? name
-                : validationResult.displayName() != null ? validationResult.displayName()
-                : platformCode + ": " + validationResult.identifier();
-
-        Connector connector = Connector.builder()
-                .code(platformCode + ":" + validationResult.identifier())
-                .type(ConnectorType.INTEGRATION)
-                .name(connectorName)
-                .description("Integration: " + platformCode)
-                .credentialFields(handler.getCredentialFields())
-                .features(Map.of())
-                .build();
-        connector = connectorRepository.save(connector);
-
-        // Create app with capabilities for this integration
-        var app = appService.createAppWithCapabilities(
-                userPubId, connectorName, "Integration: " + platformCode,
-                connector.getCode(),
-                handler.getPredefinedTriggers(), handler.getPredefinedTools()
-        );
+        if (integrationCredentialsRepository.existsByConnectorCodeAndUserPubIdAndPlatformIdentifierAndDeletedAtIsNull(
+                connectorCode, userPubId, validationResult.identifier())) {
+            throw new ConflictStatusException("Integration already exists for " + connectorCode + ": " + validationResult.identifier());
+        }
 
         // Encrypt credentials
         String encryptedData = encryptionService.encryptCredentials(credentials);
@@ -90,7 +64,7 @@ public class IntegrationService {
                 : null;
 
         IntegrationCredentials integrationCredentials = IntegrationCredentials.builder()
-                .connectorCode(connector.getCode())
+                .connectorCode(connectorCode)
                 .userPubId(userPubId)
                 .name(name)
                 .platformIdentifier(validationResult.identifier())
@@ -98,23 +72,16 @@ public class IntegrationService {
                 .webhookSecret(webhookSecret)
                 .build();
 
-        integrationCredentials = integrationCredentialsRepository.save(integrationCredentials);
-
-        // Setup webhook only if platform supports it
+        // Setup webhook before save — on failure the transaction rolls back automatically
         if (handler.supportsWebhooks()) {
             String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getPubId();
-            try {
-                handler.setupWebhook(integrationCredentials, credentials, webhookUrl);
-            } catch (Exception e) {
-                log.error("Failed to setup webhook for integration {}, rolling back", integrationCredentials.getPubId(), e);
-                integrationCredentialsRepository.delete(integrationCredentials);
-                appService.deleteApp(app.getPubId(), userPubId);
-                throw new BadRequestStatusException("Failed to setup webhook");
-            }
+            handler.setupWebhook(integrationCredentials, credentials, webhookUrl);
         }
 
+        integrationCredentials = integrationCredentialsRepository.save(integrationCredentials);
+
         log.info("Created integration {} for user {}: {} ({})",
-                integrationCredentials.getPubId(), userPubId, platformCode, validationResult.identifier());
+                integrationCredentials.getPubId(), userPubId, connectorCode, validationResult.identifier());
 
         return integrationCredentials;
     }

@@ -10,8 +10,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "integration_credentials", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_integration_credentials_connector_code",
-                columnNames = {"connector_code"})
+        @UniqueConstraint(name = "uq_integration_credentials_connector_user_identifier",
+                columnNames = {"connector_code", "user_pub_id", "platform_identifier"})
 })
 @Getter
 @Setter
@@ -66,7 +66,6 @@ public class IntegrationCredentials extends BaseEntity {
     }
 
     public String extractPlatformCode() {
-        int idx = connectorCode.indexOf(':');
-        return idx > 0 ? connectorCode.substring(0, idx) : connectorCode;
+        return connectorCode;
     }
 }

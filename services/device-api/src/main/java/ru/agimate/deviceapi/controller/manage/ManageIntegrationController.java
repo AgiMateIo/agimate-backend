@@ -60,7 +60,7 @@ public class ManageIntegrationController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         var integrationCredentials = integrationService.createIntegration(
-                userPubId, request.platformCode(), request.credentials(), request.name());
+                userPubId, request.connectorCode(), request.credentials(), request.name());
         return SuccessResponse.ok(toResponse(integrationCredentials));
     }
 

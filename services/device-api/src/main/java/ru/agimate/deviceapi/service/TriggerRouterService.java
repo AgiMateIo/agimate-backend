@@ -62,6 +62,7 @@ public class TriggerRouterService {
 
     @Async
     public void routeWhTrigger(IntegrationCredentials integration, TriggerRequest triggerRequest) {
+        log.info("new wh trigger {}", triggerRequest);
         // TODO: implement webhook trigger routing
     }
 
