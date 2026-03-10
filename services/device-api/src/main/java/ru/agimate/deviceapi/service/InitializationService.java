@@ -4,7 +4,7 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationPlatformRegistry;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationsRegistry;
 import ru.agimate.deviceapi.connectors.internal.ServerSideToolRegistry;
 import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.enums.ConnectorType;
@@ -16,7 +16,7 @@ import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 public class InitializationService {
 
     private final ConnectorRepository connectorRepository;
-    private final IntegrationPlatformRegistry integrationPlatformRegistry;
+    private final IntegrationsRegistry integrationsRegistry;
     private final ServerSideToolRegistry serverSideToolRegistry;
 
     @PostConstruct
@@ -36,7 +36,7 @@ public class InitializationService {
                 .build());
 
         // 2. INTEGRATION connectors from registry
-        for (var handler : integrationPlatformRegistry.getAvailablePlatforms()) {
+        for (var handler : integrationsRegistry.getAvailablePlatforms()) {
             saveIfAbsent(Connector.builder()
                     .code(handler.getPlatformCode())
                     .type(ConnectorType.INTEGRATION)

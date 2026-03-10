@@ -7,7 +7,7 @@ import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import java.util.List;
 import java.util.Map;
 
-public interface IntegrationPlatformHandler {
+public interface IntegrationHandler {
 
     // === Required ===
 

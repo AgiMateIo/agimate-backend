@@ -29,7 +29,7 @@ public class IntegrationService {
 
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
     private final ConnectorRepository connectorRepository;
-    private final IntegrationPlatformRegistry platformRegistry;
+    private final IntegrationsRegistry platformRegistry;
     private final IntegrationEncryptionService encryptionService;
 
     @Transactional

@@ -1,7 +1,7 @@
 package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationPlatformHandler;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
 
 import java.util.List;
 
@@ -19,7 +19,7 @@ public record IntegrationPlatformInfo(
         @Schema(description = "Whether platform supports webhooks")
         boolean supportsWebhooks
 ) {
-    public static IntegrationPlatformInfo from(IntegrationPlatformHandler handler) {
+    public static IntegrationPlatformInfo from(IntegrationHandler handler) {
         return new IntegrationPlatformInfo(
                 handler.getPlatformCode(),
                 handler.getPlatformName(),

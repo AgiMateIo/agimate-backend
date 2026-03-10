@@ -99,22 +99,20 @@ public class ConnectorApiService {
             case APP -> {
                 var app = appRepository.findByPubIdAndUserPubIdNotDeleted(UUID.fromString(identity), userPubId)
                         .orElseThrow(() -> new NotFoundStatusException("App not found: " + identity));
-                var channel = "device:" + app.getDeviceId();
-                centrifugoService.publishMessage(channel, toolUse);
+                centrifugoService.publishMessage("device:" + app.getDeviceId(), toolUse);
             }
             case INTEGRATION -> {
                 var credentials = integrationCredentialsRepository.findByPubIdAndUserPubIdNotDeleted(UUID.fromString(identity), userPubId)
                         .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found: " + identity));
                 integrationToolExecutorService.execute(credentials, toolUse, agentId);
             }
-            case INTERNAL_SERVICE -> serverToolExecutorService.execute(toolUse, UUID.fromString(agentId), userPubId, agentId);
+            case INTERNAL_SERVICE -> serverToolExecutorService.execute(toolUse, UUID.fromString(agentId), userPubId);
             case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}", connectorCode, toolUse.getName());
         }
     }
 
     public void pushToAgent(String agentId, IToolResult toolResult) {
-        var channel = "agent:" + agentId;
-        centrifugoService.publishMessage(channel, toolResult);
+        centrifugoService.publishMessage("agent:" + agentId, toolResult);
     }
 
     @SuppressWarnings("unchecked")

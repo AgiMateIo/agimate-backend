@@ -18,18 +18,18 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class IntegrationToolExecutorService {
 
-    private final IntegrationPlatformRegistry platformRegistry;
+    private final IntegrationsRegistry integrationsRegistry;
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
     private final CentrifugoService centrifugoService;
     private final IntegrationEncryptionService encryptionService;
 
     @Async
     public void execute(IntegrationCredentials integrationCredentials, IToolUse toolUse, String agentId) {
-        var handler = platformRegistry.getHandler(integrationCredentials.extractPlatformCode());
+        var integrationHandler = integrationsRegistry.getHandler(integrationCredentials.extractPlatformCode());
         Map<String, String> credentials = encryptionService.decryptCredentials(integrationCredentials.getEncryptedData());
 
         try {
-            Map<String, Object> result = handler.executeTool(
+            Map<String, Object> result = integrationHandler.executeTool(
                     integrationCredentials, credentials, toolUse.getName(), toolUse.getInput());
 
             // Update last used timestamp
@@ -55,8 +55,4 @@ public class IntegrationToolExecutorService {
         }
     }
 
-    private String sanitizeErrorMessage(String message) {
-        if (message == null) return "Unknown error";
-        return message.replaceAll("/bot[^/]+/", "/bot****/");
-    }
 }

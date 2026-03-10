@@ -51,8 +51,7 @@ public class BoardTriggerService {
             payload.put("triggerData", triggerData);
             payload.put("occurredAt", Instant.now().toString());
 
-            String channel = "agent:" + agent.getPubId();
-            centrifugoService.publishMessage(channel, payload);
+            centrifugoService.publishMessage("agent:" + agent.getPubId(), payload);
             log.debug("Board trigger '{}' sent to agent '{}' via centrifugo", triggerName, agent.getPubId());
         } catch (Exception e) {
             log.warn("Failed to send board trigger '{}' to agent '{}' via centrifugo: {}",

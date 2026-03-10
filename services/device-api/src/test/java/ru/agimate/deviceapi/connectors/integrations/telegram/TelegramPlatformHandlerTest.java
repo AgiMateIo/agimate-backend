@@ -27,12 +27,12 @@ class TelegramPlatformHandlerTest {
     @Mock
     private TelegramApiClient telegramApiClient;
 
-    private TelegramPlatformHandler handler;
+    private TelegramHandler handler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        handler = new TelegramPlatformHandler(telegramApiClient, objectMapper);
+        handler = new TelegramHandler(telegramApiClient, objectMapper);
     }
 
     @Test

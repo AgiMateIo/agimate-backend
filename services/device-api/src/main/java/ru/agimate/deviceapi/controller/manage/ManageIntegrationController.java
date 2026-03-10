@@ -13,7 +13,7 @@ import ru.agimate.deviceapi.controller.manage.dto.IntegrationPlatformInfo;
 import ru.agimate.deviceapi.controller.manage.dto.IntegrationResponse;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateIntegrationCredentialsRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateIntegrationRequest;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationPlatformRegistry;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationsRegistry;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationService;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 
@@ -29,7 +29,7 @@ public class ManageIntegrationController {
     public static final String PATH = "/manage/integrations";
 
     private final IntegrationService integrationService;
-    private final IntegrationPlatformRegistry platformRegistry;
+    private final IntegrationsRegistry platformRegistry;
 
     @Operation(summary = "Get available integration platforms")
     @GetMapping("/platforms/")

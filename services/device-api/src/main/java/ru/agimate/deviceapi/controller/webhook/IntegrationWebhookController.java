@@ -6,7 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationPlatformRegistry;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationsRegistry;
 import ru.agimate.deviceapi.service.TriggerRouterService;
 
 import java.util.UUID;
@@ -20,7 +20,7 @@ public class IntegrationWebhookController {
     public static final String PATH = "/webhook/integration";
 
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
-    private final IntegrationPlatformRegistry platformRegistry;
+    private final IntegrationsRegistry platformRegistry;
     private final TriggerRouterService triggerRouterService;
 
     @PostMapping("/{integrationPubId}")

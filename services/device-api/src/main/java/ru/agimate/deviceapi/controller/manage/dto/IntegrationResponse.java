@@ -2,7 +2,7 @@ package ru.agimate.deviceapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationPlatformHandler;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 
 import java.time.LocalDateTime;
@@ -39,7 +39,7 @@ public record IntegrationResponse(
         @Schema(description = "Creation timestamp")
         LocalDateTime createdAt
 ) {
-    public static IntegrationResponse from(IntegrationCredentials ic, IntegrationPlatformHandler handler) {
+    public static IntegrationResponse from(IntegrationCredentials ic, IntegrationHandler handler) {
         return new IntegrationResponse(
                 ic.getPubId(),
                 ic.extractPlatformCode(),

@@ -10,16 +10,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
-public class IntegrationPlatformRegistry {
+public class IntegrationsRegistry {
 
-    private final Map<String, IntegrationPlatformHandler> handlers;
+    private final Map<String, IntegrationHandler> handlers;
 
-    public IntegrationPlatformRegistry(List<IntegrationPlatformHandler> handlerList) {
+    public IntegrationsRegistry(List<IntegrationHandler> handlerList) {
         this.handlers = handlerList.stream()
-                .collect(Collectors.toMap(IntegrationPlatformHandler::getPlatformCode, Function.identity()));
+                .collect(Collectors.toMap(IntegrationHandler::getPlatformCode, Function.identity()));
     }
 
-    public IntegrationPlatformHandler getHandler(String platformType) {
+    public IntegrationHandler getHandler(String platformType) {
         var handler = handlers.get(platformType);
         if (handler == null) {
             throw new BadRequestStatusException("Unsupported platform: " + platformType);
@@ -27,7 +27,7 @@ public class IntegrationPlatformRegistry {
         return handler;
     }
 
-    public Collection<IntegrationPlatformHandler> getAvailablePlatforms() {
+    public Collection<IntegrationHandler> getAvailablePlatforms() {
         return handlers.values();
     }
 }

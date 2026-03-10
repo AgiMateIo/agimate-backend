@@ -23,7 +23,7 @@ public class ServerToolExecutorService {
     private final ToolUseLogService toolUseLogService;
 
     @Async
-    public void execute(IToolUse toolUse, UUID agentPubId, UUID userPubId, String agentId) {
+    public void execute(IToolUse toolUse, UUID agentPubId, UUID userPubId) {
         var handler = toolRegistry.getHandlerByToolName(toolUse.getName());
 
         try {
@@ -36,10 +36,8 @@ public class ServerToolExecutorService {
 
             toolUseLogService.recordOutput(toolUse.getId(), result.toString(), null);
 
-            if (agentId != null) {
-                var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(), result);
-                centrifugoService.publishMessage("agent:" + agentId, toolResult);
-            }
+            var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(), result);
+            centrifugoService.publishMessage("agent:" + agentPubId, toolResult);
 
             log.debug("Executed server tool '{}'", toolUse.getName());
         } catch (Exception e) {
@@ -51,11 +49,9 @@ public class ServerToolExecutorService {
                 log.warn("Failed to log server tool error: {}", logError.getMessage());
             }
 
-            if (agentId != null) {
-                var errorResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(),
-                        Map.of("error", "Tool execution failed"));
-                centrifugoService.publishMessage("agent:" + agentId, errorResult);
-            }
+            var errorResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(),
+                    Map.of("error", "Tool execution failed"));
+            centrifugoService.publishMessage("agent:" + agentPubId, errorResult);
         }
     }
 }

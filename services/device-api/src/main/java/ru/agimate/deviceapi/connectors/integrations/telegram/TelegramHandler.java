@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationPlatformHandler;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
 import ru.agimate.deviceapi.connectors.integrations.PlatformValidationResult;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.JsonNode;
@@ -20,7 +20,7 @@ import java.util.*;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class TelegramPlatformHandler implements IntegrationPlatformHandler {
+public class TelegramHandler implements IntegrationHandler {
 
     private static final String PLATFORM_TYPE = "telegram";
     private static final String HEADER_SECRET_TOKEN = "X-Telegram-Bot-Api-Secret-Token";
