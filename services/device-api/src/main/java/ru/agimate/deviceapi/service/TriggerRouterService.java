@@ -97,7 +97,7 @@ public class TriggerRouterService {
         payload.put("triggerName", triggerRequest.name());
         payload.put("triggerData", triggerRequest.data());
         payload.put("deviceId", triggerRequest.deviceId());
-        payload.put("occurredAt", triggerRequest.occurredAt());
+        payload.put("occurredAt", triggerRequest.occurredAt() != null ? triggerRequest.occurredAt().toString() : null);
 
         String channel = "agent:" + agent.getPubId();
         centrifugoService.publishMessage(channel, payload);

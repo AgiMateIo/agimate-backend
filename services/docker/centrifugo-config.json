@@ -1,33 +1,43 @@
 {
-  "token_hmac_secret_key": "change_this_secret_in_production",
-  "api_key": "dev_api_key",
-  "admin_password": "dev_admin_password",
-  "admin_secret": "dev_admin_secret",
-  "allowed_origins": ["*"],
-  "log_level": "debug",
-  "health": true,
-  "presence": true,
-  "join_leave": true,
-  "history_size": 10,
-  "history_ttl": "300s",
-  "namespaces": [
-    {
-      "name": "device",
-      "publish": false,
-      "subscribe_to_publish": false,
-      "presence": true,
-      "join_leave": true,
-      "history_size": 100,
-      "history_ttl": "600s"
+  "client": {
+    "token": {
+      "hmac_secret_key": "change_this_secret_in_production"
     },
-    {
-      "name": "agent",
-      "publish": false,
-      "subscribe_to_publish": false,
-      "presence": true,
-      "join_leave": true,
-      "history_size": 100,
-      "history_ttl": "600s"
-    }
-  ]
+    "allowed_origins": ["*"]
+  },
+  "admin": {
+    "enabled": true,
+    "password": "dev_admin_password",
+    "secret": "dev_admin_secret"
+  },
+  "http_api": {
+    "key": "dev_api_key"
+  },
+  "log_level": "debug",
+  "channel": {
+    "namespaces": [
+      {
+        "name": "device",
+        "allow_subscribe_for_client": false,
+        "allow_publish_for_client": false,
+        "history": {
+          "max_publications": 100,
+          "ttl": "600s"
+        },
+        "force_push_join_leave": false,
+        "force_recovery": false
+      },
+      {
+        "name": "agent",
+        "allow_subscribe_for_client": false,
+        "allow_publish_for_client": false,
+        "history": {
+          "max_publications": 100,
+          "ttl": "600s"
+        },
+        "force_push_join_leave": false,
+        "force_recovery": false
+      }
+    ]
+  }
 }
