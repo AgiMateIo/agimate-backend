@@ -47,36 +47,36 @@ public class AgentToolController {
         return SuccessResponse.ok(agentService.getAvailableTools(principal.agentPubId()));
     }
 
-    @Operation(
-            summary = "Push tool_use to device",
-            description = "Sends a tool use request to a specific device via Centrifugo",
-            security = @SecurityRequirement(name = "ApiKey")
-    )
-    @PostMapping("/call/{connectorCode}")
-    public SuccessResponse<String> toolUse(
-            @Parameter(description = "Connector code", required = true)
-            @PathVariable String connectorCode,
-            @Valid @RequestBody ToolUseRequest toolUseRequest,
-            @AuthenticationPrincipal AgentPrincipal principal
-    ) {
-        return SuccessResponse.ok(
-                agentToolUseService.processToolUse(principal.agentPubId(), connectorCode, toolUseRequest));
-    }
 
     @Operation(
             summary = "Check tool_use permission",
             description = "Checks if a tool use request is authorized without pushing to device",
             security = @SecurityRequirement(name = "ApiKey")
     )
-    @PostMapping("/check/{connectorCode}")
+    @PostMapping("/check")
     public SuccessResponse<AccessEffect> checkToolUse(
             @Parameter(description = "Connector code", required = true)
-            @PathVariable String connectorCode,
             @Valid @RequestBody ToolUseRequest toolUseRequest,
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
         return SuccessResponse.ok(
-                agentToolUseService.checkToolUse(principal.agentPubId(), connectorCode, toolUseRequest));
+                agentToolUseService.checkToolUse(principal.agentPubId(), toolUseRequest));
+    }
+
+
+    @Operation(
+            summary = "Push tool_use to device",
+            description = "Sends a tool use request to a specific device via Centrifugo",
+            security = @SecurityRequirement(name = "ApiKey")
+    )
+    @PostMapping("/call")
+    public SuccessResponse<String> toolUse(
+            @Parameter(description = "Connector code", required = true)
+            @Valid @RequestBody ToolUseRequest toolUseRequest,
+            @AuthenticationPrincipal AgentPrincipal principal
+    ) {
+        return SuccessResponse.ok(
+                agentToolUseService.processToolUse(principal.agentPubId(), toolUseRequest));
     }
 
     @Operation(
@@ -106,7 +106,7 @@ public class AgentToolController {
             @Valid @RequestBody AgentToolResultRequest request,
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        var log = agentToolUseService.saveToolResult(principal.agentPubId(), request.getToolUseId(), request.getOutput(), request.getError());
+        var log = agentToolUseService.saveToolResult(principal.agentPubId(), request);
         return SuccessResponse.ok(log.getToolUseId());
     }
 }

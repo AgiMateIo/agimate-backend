@@ -2,13 +2,18 @@ package ru.agimate.deviceapi.controller.app.dto;
 
 import ru.agimate.deviceapi.service.IToolResult;
 
-import java.util.Map;
 
 public record ToolResultRequest(
         String id,
-        String name,
-        Map<String, Object> result
+        String connectorCode,
+        String output,
+        String error
 ) implements IToolResult {
+
+    @Override
+    public String getConnectorCode() {
+        return connectorCode;
+    }
 
     @Override
     public String getId() {
@@ -16,12 +21,12 @@ public record ToolResultRequest(
     }
 
     @Override
-    public String getName() {
-        return name;
+    public String getOutput() {
+        return output;
     }
 
     @Override
-    public Object getResult() {
-        return result;
+    public String getError() {
+        return error;
     }
 }

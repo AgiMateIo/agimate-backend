@@ -91,23 +91,23 @@ public class ConnectorApiService {
         return parseTriggers(app.getTriggers());
     }
 
-    public void pushToConnector(UUID userPubId, String agentId, String connectorCode, String identity, IToolUse toolUse) {
-        Connector connector = connectorRepository.findById(connectorCode)
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
+    public void pushToConnector(UUID userPubId, String agentId, IToolUse toolUse) {
+        Connector connector = connectorRepository.findById(toolUse.getConnectorCode())
+                .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + toolUse.getConnectorCode()));
 
         switch (connector.getType()) {
             case APP -> {
-                var app = appRepository.findByPubIdAndUserPubIdNotDeleted(UUID.fromString(identity), userPubId)
-                        .orElseThrow(() -> new NotFoundStatusException("App not found: " + identity));
+                var app = appRepository.findByPubIdAndUserPubIdNotDeleted(UUID.fromString(toolUse.getIdentity()), userPubId)
+                        .orElseThrow(() -> new NotFoundStatusException("App not found: " + toolUse.getIdentity()));
                 centrifugoService.publishMessage("device:" + app.getDeviceId(), toolUse);
             }
             case INTEGRATION -> {
-                var credentials = integrationCredentialsRepository.findByPubIdAndUserPubIdNotDeleted(UUID.fromString(identity), userPubId)
-                        .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found: " + identity));
+                var credentials = integrationCredentialsRepository.findByPubIdAndUserPubIdNotDeleted(UUID.fromString(toolUse.getIdentity()), userPubId)
+                        .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found: " + toolUse.getIdentity()));
                 integrationToolExecutorService.execute(credentials, toolUse, agentId);
             }
             case INTERNAL_SERVICE -> serverToolExecutorService.execute(toolUse, UUID.fromString(agentId), userPubId);
-            case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}", connectorCode, toolUse.getName());
+            case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}", toolUse.getConnectorCode(), toolUse.getName());
         }
     }
 

@@ -20,8 +20,11 @@ public class ToolUseRequest implements IToolUse {
     @NotNull(message = "Request id is required")
     private String id;
 
-    @Schema(description = "Agent session identifier")
-    private String agentSessionId;
+    @NotNull(message = "Connector code is required")
+    private String connectorCode;
+
+    @Schema(description = "Connector identity for ABAC")
+    private String identity;
 
     @Schema(
             description = "Full name of tool",
@@ -36,6 +39,7 @@ public class ToolUseRequest implements IToolUse {
     )
     private Map<String, Object> input;
 
-    @Schema(description = "Connector identity for ABAC")
-    private String identity;
+    @Schema(description = "Agent session identifier")
+    private String agentSessionId;
+
 }

@@ -33,14 +33,13 @@ public class ToolUseLogService {
     }
 
     @Transactional
-    public ToolUseLog createLog(Agent agent, String connectorCode, String identity,
-                                IToolUse toolUse, String agentSessionId,
+    public ToolUseLog createLog(Agent agent, IToolUse toolUse, String agentSessionId,
                                 AccessEffect effect, String error) {
         var toolUseLog = ToolUseLog.builder()
                 .agentPubId(agent.getPubId())
                 .userPubId(agent.getUserPubId())
-                .connectorCode(connectorCode)
-                .identity(identity)
+                .connectorCode(toolUse.getConnectorCode())
+                .identity(toolUse.getIdentity())
                 .toolUseId(toolUse.getId())
                 .toolName(toolUse.getName())
                 .input(toolUse.getInput())
@@ -53,37 +52,37 @@ public class ToolUseLogService {
     }
 
     @Transactional
-    public ToolUseLog recordOutput(App app, String toolUseId, String output, String error) {
-        var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
-                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
+    public ToolUseLog recordOutput(App app, IToolResult toolResult) {
+        var toolUseLog = toolUseLogRepository.findByToolUseId(toolResult.getId())
+                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolResult.getId()));
 
         if (!app.getPubId().toString().equals(toolUseLog.getIdentity())) {
             throw new ForbiddenStatusException("Incorrect device");
         }
 
         toolUseLog.setOutputAt(LocalDateTime.now());
-        toolUseLog.setOutput(output);
-        toolUseLog.setError(error);
+        toolUseLog.setOutput(toolResult.getOutput());
+        toolUseLog.setError(toolResult.getError());
 
         return toolUseLogRepository.save(toolUseLog);
     }
 
     @Transactional
-    public ToolUseLog recordOutput(String toolUseId, String output, String error) {
-        var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
-                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
+    public ToolUseLog recordOutput(IToolResult toolResult) {
+        var toolUseLog = toolUseLogRepository.findByToolUseId(toolResult.getId())
+                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolResult.getId()));
 
         toolUseLog.setOutputAt(LocalDateTime.now());
-        toolUseLog.setOutput(output);
-        toolUseLog.setError(error);
+        toolUseLog.setOutput(toolResult.getOutput());
+        toolUseLog.setError(toolResult.getError());
 
         return toolUseLogRepository.save(toolUseLog);
     }
 
     @Transactional
-    public ToolUseLog recordOutputByAgent(UUID agentPubId, String toolUseId, String output, String error) {
-        var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
-                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
+    public ToolUseLog recordOutputByAgent(UUID agentPubId, IToolResult toolResult) {
+        var toolUseLog = toolUseLogRepository.findByToolUseId(toolResult.getId())
+                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolResult.getId()));
 
         if (!agentPubId.equals(toolUseLog.getAgentPubId())) {
             throw new ForbiddenStatusException("ToolUseLog does not belong to this agent");
@@ -94,8 +93,8 @@ public class ToolUseLogService {
         }
 
         toolUseLog.setOutputAt(LocalDateTime.now());
-        toolUseLog.setOutput(output);
-        toolUseLog.setError(error);
+        toolUseLog.setOutput(toolResult.getOutput());
+        toolUseLog.setError(toolResult.getError());
 
         return toolUseLogRepository.save(toolUseLog);
     }

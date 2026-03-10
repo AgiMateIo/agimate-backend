@@ -34,8 +34,7 @@ public class AppToolsController {
 
         var app = appService.getApp(authentication);
 
-        String resultString = JsonUtils.toJson(toolResultRequest.result()).orElse(null);
-        var toolUseLog = toolUseLogService.recordOutput(app, toolResultRequest.id(), resultString, null);
+        var toolUseLog = toolUseLogService.recordOutput(app, toolResultRequest);
         connectorApiService.pushToAgent(toolUseLog.getAgentPubId().toString(), toolResultRequest);
 
         return SuccessResponse.empty();

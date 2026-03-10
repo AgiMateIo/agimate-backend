@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
@@ -37,7 +38,8 @@ public class IntegrationToolExecutorService {
 
             // Push result back to agent
             if (agentId != null) {
-                var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(), result);
+                var toolResult = new ToolResultRequest(
+                        toolUse.getId(), toolUse.getConnectorCode(), JsonUtils.writeValueAsString(result), null);
                 centrifugoService.publishMessage("agent:" + agentId, toolResult);
             }
 
@@ -48,8 +50,8 @@ public class IntegrationToolExecutorService {
 
             // Push generic error to agent (no internal details)
             if (agentId != null) {
-                var errorResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(),
-                        Map.of("error", "Tool execution failed"));
+                var errorResult = new ToolResultRequest(
+                        toolUse.getId(), toolUse.getConnectorCode(), null, "Tool execution failed");
                 centrifugoService.publishMessage("agent:" + agentId, errorResult);
             }
         }

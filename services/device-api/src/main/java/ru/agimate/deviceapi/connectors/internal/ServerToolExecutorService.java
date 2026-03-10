@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
 
 import ru.agimate.deviceapi.service.CentrifugoService;
@@ -34,9 +35,9 @@ public class ServerToolExecutorService {
                     userPubId
             );
 
-            toolUseLogService.recordOutput(toolUse.getId(), result.toString(), null);
 
-            var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(), result);
+            var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getConnectorCode(), JsonUtils.writeValueAsString(result), null);
+            toolUseLogService.recordOutput(toolResult);
             centrifugoService.publishMessage("agent:" + agentPubId, toolResult);
 
             log.debug("Executed server tool '{}'", toolUse.getName());
@@ -44,13 +45,14 @@ public class ServerToolExecutorService {
             log.error("Failed to execute server tool '{}': {}", toolUse.getName(), e.getMessage());
 
             try {
-                toolUseLogService.recordOutput(toolUse.getId(), null, e.getMessage());
+                var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(), null, "Error");
+                toolUseLogService.recordOutput(toolResult);
             } catch (Exception logError) {
                 log.warn("Failed to log server tool error: {}", logError.getMessage());
             }
 
-            var errorResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(),
-                    Map.of("error", "Tool execution failed"));
+            var errorResult = new ToolResultRequest(
+                    toolUse.getId(), toolUse.getName(), null,"Tool execution failed");
             centrifugoService.publishMessage("agent:" + agentPubId, errorResult);
         }
     }

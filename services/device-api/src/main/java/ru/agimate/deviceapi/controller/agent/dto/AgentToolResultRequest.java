@@ -6,17 +6,20 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import ru.agimate.deviceapi.service.IToolResult;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Schema(description = "Request to save tool use result from agent")
-public class AgentToolResultRequest {
+public class AgentToolResultRequest implements IToolResult {
+
+    private String connectorCode;
 
     @NotNull(message = "Tool use ID is required")
     @Schema(description = "Tool use correlation ID")
-    private String toolUseId;
+    private String id;
 
     @Schema(description = "Tool execution output")
     private String output;
