@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import ru.agimate.deviceapi.service.IToolResult;
+import ru.agimate.deviceapi.service.dto.IToolResult;
 
 @Data
 @Builder

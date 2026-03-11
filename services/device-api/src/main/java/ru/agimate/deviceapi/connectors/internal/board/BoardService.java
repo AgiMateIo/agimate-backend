@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.service;
+package ru.agimate.deviceapi.connectors.internal.board;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +12,7 @@ import ru.agimate.deviceapi.database.entities.*;
 import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 import ru.agimate.deviceapi.database.enums.BoardTaskType;
 import ru.agimate.deviceapi.database.repositories.*;
+import ru.agimate.deviceapi.service.BoardTriggerService;
 
 import java.util.*;
 import java.util.function.Function;

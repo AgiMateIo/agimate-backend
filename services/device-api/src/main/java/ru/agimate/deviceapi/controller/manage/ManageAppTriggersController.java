@@ -7,9 +7,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
-import ru.agimate.deviceapi.service.ConnectorApiService;
-import ru.agimate.deviceapi.service.dto.DeviceTrigger;
+import ru.agimate.deviceapi.service.AppApiService;
+import ru.agimate.deviceapi.service.dto.AppTrigger;
 
 import java.util.List;
 import java.util.UUID;
@@ -22,32 +21,19 @@ public class ManageAppTriggersController {
 
     public static final String PATH = "/manage/app-triggers";
 
-    private final ConnectorApiService connectorApiService;
-
-    @Operation(
-            summary = "Get all device triggers",
-            description = "Returns available triggers for all user's devices"
-    )
-    @GetMapping("/")
-    public SuccessResponse<List<DeviceTriggersResponse>> getAllTriggers(
-            @AuthenticationPrincipal AgimateUserPrincipal principal
-    ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var triggers = connectorApiService.getAllConnectorTriggers(userPubId);
-        return SuccessResponse.ok(triggers);
-    }
+    private final AppApiService appApiService;
 
     @Operation(
             summary = "Get triggers by app",
             description = "Returns available triggers for a specific app"
     )
     @GetMapping("/{appPubId}")
-    public SuccessResponse<List<DeviceTrigger>> getTriggersByApp(
+    public SuccessResponse<List<AppTrigger>> getTriggersByApp(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID appPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var triggers = connectorApiService.getTriggersByAppPubIdAndUser(appPubId, userPubId);
+        var triggers = appApiService.getTriggersByAppPubIdAndUser(appPubId, userPubId);
         return SuccessResponse.ok(triggers);
     }
 }

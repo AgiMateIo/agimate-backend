@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.service;
+package ru.agimate.deviceapi.service.dto;
 
 
 public interface IToolResult {

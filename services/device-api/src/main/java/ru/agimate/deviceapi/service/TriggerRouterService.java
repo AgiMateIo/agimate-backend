@@ -1,21 +1,18 @@
 package ru.agimate.deviceapi.service;
 
-import jakarta.persistence.Column;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.abac.AgentTriggerPolicyService;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
-import ru.agimate.deviceapi.database.entities.Agent;
-import ru.agimate.deviceapi.database.entities.App;
-import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
-import ru.agimate.deviceapi.database.entities.TriggerLog;
-import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
+import ru.agimate.deviceapi.database.entities.*;
 import ru.agimate.deviceapi.database.repositories.TriggerLogRepository;
 
-import java.time.LocalDateTime;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service

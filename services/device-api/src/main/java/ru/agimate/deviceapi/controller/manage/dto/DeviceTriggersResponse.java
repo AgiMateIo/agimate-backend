@@ -1,6 +1,6 @@
 package ru.agimate.deviceapi.controller.manage.dto;
 
-import ru.agimate.deviceapi.service.dto.DeviceTrigger;
+import ru.agimate.deviceapi.service.dto.AppTrigger;
 
 import java.util.List;
 
@@ -8,6 +8,6 @@ public record DeviceTriggersResponse(
         String connectorPubId,
         String deviceId,
         String deviceName,
-        List<DeviceTrigger> triggers
+        List<AppTrigger> triggers
 ) {
 }

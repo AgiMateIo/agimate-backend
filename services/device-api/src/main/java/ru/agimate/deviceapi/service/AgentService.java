@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.deviceapi.abac.AccessEffect;
 import ru.agimate.deviceapi.controller.agent.dto.AgentConfigResponse;
 import ru.agimate.deviceapi.controller.agent.dto.ToolDefinition;
@@ -265,7 +266,7 @@ public class AgentService {
 
     private void validateWebhookFields(TriggerDestination destination, String webhookUrl) {
         if (destination == TriggerDestination.WEBHOOK && (webhookUrl == null || webhookUrl.isBlank())) {
-            throw new BadRequestStatusException("webhookUrl is required when triggerDestination is WEBHOOK");
+            throw new ValidationErrorStatusException("webhookUrl", "Webhook url is required when triggerDestination is WEBHOOK");
         }
     }
 

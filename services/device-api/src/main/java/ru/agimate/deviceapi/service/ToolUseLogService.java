@@ -15,6 +15,8 @@ import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.database.repositories.ToolUseLogRepository;
+import ru.agimate.deviceapi.service.dto.IToolResult;
+import ru.agimate.deviceapi.service.dto.IToolUse;
 
 import java.time.LocalDateTime;
 import java.util.Optional;

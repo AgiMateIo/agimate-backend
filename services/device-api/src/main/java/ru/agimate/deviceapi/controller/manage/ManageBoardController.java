@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.*;
-import ru.agimate.deviceapi.service.BoardService;
+import ru.agimate.deviceapi.connectors.internal.board.BoardService;
 
 import java.util.List;
 import java.util.UUID;

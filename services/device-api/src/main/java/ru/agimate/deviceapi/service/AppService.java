@@ -16,6 +16,8 @@ import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
 import ru.agimate.deviceapi.security.AppSecurityUtils;
 import ru.agimate.deviceapi.service.dto.AppCreateResult;
+import ru.agimate.deviceapi.service.dto.AppTool;
+import ru.agimate.deviceapi.service.dto.AppTrigger;
 import ru.agimate.deviceapi.util.AppKeyUtils;
 import ru.agimate.deviceapi.util.GeneratedAppKey;
 
@@ -65,40 +67,6 @@ public class AppService {
         log.info("Created new app for user {}: {}", userPubId, saved.getPubId());
 
         return new AppCreateResult(saved, generatedKey.fullKey());
-    }
-
-    @Transactional
-    public App createAppWithCapabilities(
-            UUID userPubId,
-            String name,
-            String description,
-            String connectorCode,
-            Map<String, Object> triggers,
-            Map<String, Object> tools
-    ) {
-        long existingCount = appRepository.countByUserPubIdNotDeleted(userPubId);
-        if (existingCount >= MAX_KEYS_PER_USER) {
-            throw new ConflictStatusException("Maximum number of connectors reached: " + MAX_KEYS_PER_USER);
-        }
-
-        GeneratedAppKey generatedKey = AppKeyUtils.generate(APP_KEY_PREFIX);
-
-        App app = App.builder()
-                .userPubId(userPubId)
-                .connectorCode(connectorCode)
-                .name(name)
-                .description(description)
-                .keyHash(generatedKey.secretHash())
-                .keyId(generatedKey.keyId())
-                .triggers(triggers)
-                .tools(tools)
-                .enabled(true)
-                .build();
-
-        App saved = appRepository.save(app);
-        log.info("Created app with capabilities for user {}: {}", userPubId, saved.getPubId());
-
-        return saved;
     }
 
     public Page<App> getAppsForUser(UUID userPubId, int page, int size) {
@@ -161,6 +129,50 @@ public class AppService {
         return appRepository.findByPubId(principal.appPubId())
                 .orElseThrow(() -> new UnauthorizedStatusException("App not found"));
     }
+
+    public List<AppTool> getToolsByAppPubIdAndUser(UUID appPubId, UUID userPubId) {
+        var app = appRepository.findByPubIdAndUserPubIdNotDeleted(appPubId, userPubId)
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
+        return parseTools(app.getTools());
+    }
+
+    public List<AppTrigger> getTriggersByAppPubIdAndUser(UUID appPubId, UUID userPubId) {
+        var app = appRepository.findByPubIdAndUserPubIdNotDeleted(appPubId, userPubId)
+                .orElseThrow(() -> new NotFoundStatusException("App not found"));
+        return parseTriggers(app.getTriggers());
+    }
+
+
+    @SuppressWarnings("unchecked")
+    private List<AppTool> parseTools(Map<String, Object> tools) {
+        if (tools == null) return List.of();
+        return tools.entrySet().stream()
+                .map(entry -> {
+                    var value = (Map<String, Object>) entry.getValue();
+                    var description = value.getOrDefault("description", "").toString();
+                    var params = value.get("params") instanceof List<?> list
+                            ? list.stream().map(Object::toString).toList()
+                            : List.<String>of();
+                    return new AppTool(entry.getKey(), description, params);
+                })
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<AppTrigger> parseTriggers(Map<String, Object> triggers) {
+        if (triggers == null) return List.of();
+        return triggers.entrySet().stream()
+                .map(entry -> {
+                    var value = (Map<String, Object>) entry.getValue();
+                    var description = value.getOrDefault("description", "").toString();
+                    var params = value.get("params") instanceof List<?> list
+                            ? list.stream().map(Object::toString).toList()
+                            : List.<String>of();
+                    return new AppTrigger(entry.getKey(), description, params);
+                })
+                .toList();
+    }
+
 
     @Transactional
     public App linkDevice(Authentication authentication, LinkDeviceRequest linkDeviceRequest) {

@@ -9,7 +9,7 @@ import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.deviceapi.service.CentrifugoService;
-import ru.agimate.deviceapi.service.IToolUse;
+import ru.agimate.deviceapi.service.dto.IToolUse;
 
 import java.time.LocalDateTime;
 import java.util.Map;

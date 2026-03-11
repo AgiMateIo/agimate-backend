@@ -1,10 +1,11 @@
-package ru.agimate.deviceapi.connectors.internal;
+package ru.agimate.deviceapi.connectors.internal.board;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.deviceapi.connectors.internal.ServerSideToolHandler;
 import ru.agimate.deviceapi.controller.manage.dto.*;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.Board;
@@ -12,7 +13,6 @@ import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 import ru.agimate.deviceapi.database.enums.BoardTaskType;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.BoardRepository;
-import ru.agimate.deviceapi.service.BoardService;
 
 import java.util.*;
 

@@ -1,6 +1,6 @@
 package ru.agimate.deviceapi.controller.app.dto;
 
-import ru.agimate.deviceapi.service.IToolResult;
+import ru.agimate.deviceapi.service.dto.IToolResult;
 
 
 public record ToolResultRequest(

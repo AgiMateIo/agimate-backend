@@ -7,10 +7,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.deviceapi.controller.manage.dto.DeviceToolsResponse;
-import ru.agimate.deviceapi.service.ConnectorApiService;
+import ru.agimate.deviceapi.service.AppApiService;
 
-import ru.agimate.deviceapi.service.dto.DeviceTool;
+import ru.agimate.deviceapi.service.dto.AppTool;
 
 import java.util.List;
 import java.util.UUID;
@@ -23,32 +22,19 @@ public class ManageAppToolsController {
 
     public static final String PATH = "/manage/app-tools";
 
-    private final ConnectorApiService connectorApiService;
-
-    @Operation(
-            summary = "Get all device tools",
-            description = "Returns available tools for all user's devices"
-    )
-    @GetMapping("/")
-    public SuccessResponse<List<DeviceToolsResponse>> getAllTools(
-            @AuthenticationPrincipal AgimateUserPrincipal principal
-    ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var tools = connectorApiService.getAllConnectorTools(userPubId);
-        return SuccessResponse.ok(tools);
-    }
+    private final AppApiService appApiService;
 
     @Operation(
             summary = "Get tools by app",
             description = "Returns available tools for a specific app"
     )
     @GetMapping("/{appPubId}")
-    public SuccessResponse<List<DeviceTool>> getToolsByApp(
+    public SuccessResponse<List<AppTool>> getToolsByApp(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID appPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var tools = connectorApiService.getToolsByAppPubIdAndUser(appPubId, userPubId);
+        var tools = appApiService.getToolsByAppPubIdAndUser(appPubId, userPubId);
         return SuccessResponse.ok(tools);
     }
 }

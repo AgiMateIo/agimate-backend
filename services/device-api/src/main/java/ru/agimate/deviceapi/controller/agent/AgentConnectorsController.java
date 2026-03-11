@@ -1,19 +1,9 @@
 package ru.agimate.deviceapi.controller.agent;
 
-import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.deviceapi.controller.manage.dto.DeviceTriggersResponse;
-import ru.agimate.deviceapi.security.AgentPrincipal;
-import ru.agimate.deviceapi.service.ConnectorApiService;
-import ru.agimate.deviceapi.service.dto.ConnectedDevice;
-import ru.agimate.deviceapi.service.dto.DeviceTool;
-import ru.agimate.deviceapi.service.dto.DeviceTrigger;
-
-import java.util.List;
+import ru.agimate.deviceapi.service.AppApiService;
 
 @RestController
 @RequestMapping(AgentConnectorsController.PATH)
@@ -23,49 +13,7 @@ public class AgentConnectorsController {
 
     public static final String PATH = AgentController.PATH + "/connectors";
 
-    private final ConnectorApiService connectorApiService;
+    private final AppApiService appApiService;
 
-    @Operation(
-            summary = "Get connected connectors",
-            description = "Returns all connected connectors for the authenticated user"
-    )
-    @GetMapping("/")
-    public SuccessResponse<List<ConnectedDevice>> getConnectors(
-            @AuthenticationPrincipal AgentPrincipal principal
-    ) {
-        var devices = connectorApiService.getConnectors(principal.userPubId());
-        return SuccessResponse.ok(devices);
-    }
 
-    @Operation(
-            summary = "Get all connector triggers",
-            description = "Returns available triggers for all user's connectors"
-    )
-    @GetMapping("/triggers/")
-    public SuccessResponse<List<DeviceTriggersResponse>> getAllTriggers(
-            @AuthenticationPrincipal AgentPrincipal principal
-    ) {
-        var triggers = connectorApiService.getAllConnectorTriggers(principal.userPubId());
-        return SuccessResponse.ok(triggers);
-    }
-
-    @Operation(
-            summary = "Get connector triggers",
-            description = "Returns available triggers for a specific connector"
-    )
-    @GetMapping("/triggers/{connectorId}")
-    public SuccessResponse<List<DeviceTrigger>> getTriggers(@PathVariable String connectorId) {
-        var triggers = connectorApiService.getTriggers(connectorId);
-        return SuccessResponse.ok(triggers);
-    }
-
-    @Operation(
-            summary = "Get connector tools",
-            description = "Returns available tools for a specific connector"
-    )
-    @GetMapping("/tools/{connectorId}")
-    public SuccessResponse<List<DeviceTool>> getTools(@PathVariable String connectorId) {
-        var tools = connectorApiService.getTools(connectorId);
-        return SuccessResponse.ok(tools);
-    }
 }

@@ -6,9 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
-import ru.agimate.deviceapi.service.ConnectorApiService;
+import ru.agimate.deviceapi.service.AppApiService;
 import ru.agimate.deviceapi.service.AppService;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
@@ -21,7 +20,7 @@ public class AppToolsController {
     public static final String PATH = AppRegistrationController.PATH + "/tools";
 
     private final AppService appService;
-    private final ConnectorApiService connectorApiService;
+    private final AppApiService appApiService;
     private final ToolUseLogService toolUseLogService;
 
     @PostMapping("/result")
@@ -35,7 +34,7 @@ public class AppToolsController {
         var app = appService.getApp(authentication);
 
         var toolUseLog = toolUseLogService.recordOutput(app, toolResultRequest);
-        connectorApiService.pushToAgent(toolUseLog.getAgentPubId().toString(), toolResultRequest);
+        appApiService.pushToAgent(toolUseLog.getAgentPubId().toString(), toolResultRequest);
 
         return SuccessResponse.empty();
     }

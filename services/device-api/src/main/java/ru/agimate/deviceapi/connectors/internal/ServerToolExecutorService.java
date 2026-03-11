@@ -8,7 +8,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
 
 import ru.agimate.deviceapi.service.CentrifugoService;
-import ru.agimate.deviceapi.service.IToolUse;
+import ru.agimate.deviceapi.service.dto.IToolUse;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
 import java.util.Map;

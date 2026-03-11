@@ -9,6 +9,7 @@ import ru.agimate.deviceapi.abac.ToolPolicyDbEvaluatorService;
 import ru.agimate.deviceapi.controller.agent.dto.ToolUseRequest;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
+import ru.agimate.deviceapi.service.dto.IToolResult;
 
 import java.util.UUID;
 
@@ -17,7 +18,7 @@ import java.util.UUID;
 public class AgentToolUseService {
 
     private final AgentService agentService;
-    private final ConnectorApiService connectorApiService;
+    private final AppApiService appApiService;
     private final ToolUseLogService toolUseLogService;
     private final ToolPolicyDbEvaluatorService toolPolicyDbEvaluatorService;
 
@@ -35,7 +36,7 @@ public class AgentToolUseService {
         AccessDecision decision = toolPolicyDbEvaluatorService.evaluate(
                 agent.getPubId(), request.getConnectorCode(), request.getIdentity(), request.getName());
 
-        ToolUseLog log = toolUseLogService.createLog(agent, request.getConnectorCode(), request.getIdentity(), request,
+        ToolUseLog log = toolUseLogService.createLog(agent, request,
                 request.getAgentSessionId(), decision.accessEffect(), decision.reason());
 
         return new EvaluationResult(log, decision, false);
@@ -53,7 +54,7 @@ public class AgentToolUseService {
                     "Tool '" + toolUseRequest.getName() + "' is not authorized for this agent: " + result.decision().reason());
         }
 
-        connectorApiService.pushToConnector(
+        appApiService.pushToConnector(
                 result.log().getUserPubId(), agentPubId.toString(), toolUseRequest);
 
         return result.log().getToolUseId();
