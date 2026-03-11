@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.CreateIntegrationRequest;
-import ru.agimate.deviceapi.controller.manage.dto.IntegrationPlatformInfo;
+import ru.agimate.deviceapi.controller.manage.dto.IntegrationInfo;
 import ru.agimate.deviceapi.controller.manage.dto.IntegrationResponse;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateIntegrationCredentialsRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateIntegrationRequest;
@@ -33,9 +33,9 @@ public class ManageIntegrationController {
 
     @Operation(summary = "Get available integration platforms")
     @GetMapping("/platforms/")
-    public SuccessResponse<List<IntegrationPlatformInfo>> getPlatforms() {
+    public SuccessResponse<List<IntegrationInfo>> getPlatforms() {
         var platforms = platformRegistry.getAvailablePlatforms().stream()
-                .map(IntegrationPlatformInfo::from)
+                .map(IntegrationInfo::from)
                 .toList();
         return SuccessResponse.ok(platforms);
     }

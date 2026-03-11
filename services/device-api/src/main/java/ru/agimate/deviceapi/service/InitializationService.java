@@ -38,9 +38,9 @@ public class InitializationService {
         // 2. INTEGRATION connectors from registry
         for (var handler : integrationsRegistry.getAvailablePlatforms()) {
             saveIfAbsent(Connector.builder()
-                    .code(handler.getPlatformCode())
+                    .code(handler.getConnectorCode())
                     .type(ConnectorType.INTEGRATION)
-                    .name(handler.getPlatformName())
+                    .name(handler.getConnectorName())
                     .credentialFields(handler.getCredentialFields())
                     .build());
         }
@@ -48,9 +48,9 @@ public class InitializationService {
         // 3. INTERNAL_SERVICE connectors from registry
         for (var handler : serverSideToolRegistry.getAvailableHandlers()) {
             saveIfAbsent(Connector.builder()
-                    .code(handler.getHandlerCode())
+                    .code(handler.getConnectorCode())
                     .type(ConnectorType.INTERNAL_SERVICE)
-                    .name(handler.getHandlerCode())
+                    .name(handler.getConnectorCode())
                     .build());
         }
 

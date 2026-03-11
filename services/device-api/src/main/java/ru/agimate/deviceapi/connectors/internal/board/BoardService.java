@@ -12,8 +12,10 @@ import ru.agimate.deviceapi.database.entities.*;
 import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 import ru.agimate.deviceapi.database.enums.BoardTaskType;
 import ru.agimate.deviceapi.database.repositories.*;
-import ru.agimate.deviceapi.service.BoardTriggerService;
+import ru.agimate.deviceapi.service.trigger.Trigger;
+import ru.agimate.deviceapi.service.trigger.TriggerEmitterService;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -29,7 +31,7 @@ public class BoardService {
     private final BoardTaskCommentRepository boardTaskCommentRepository;
     private final AgenticTeamRepository agenticTeamRepository;
     private final AgentRepository agentRepository;
-    private final BoardTriggerService boardTriggerService;
+    private final TriggerEmitterService triggerEmitterService;
 
     // ---- Board CRUD ----
 
@@ -162,8 +164,15 @@ public class BoardService {
         if (parentTaskPubId != null) {
             triggerData.put("parentTaskPubId", parentTaskPubId.toString());
         }
-        boardTriggerService.fireTrigger(userPubId, board.getAgenticTeamId(),
-                "trigger.board.task_created", triggerData);
+
+        Trigger trigger = Trigger.createBasic(
+                BoardToolHandler.CONNECTOR_CODE,
+                board.getPubId().toString(),
+                "trigger.board.task_created",
+                triggerData
+        );
+
+        triggerEmitterService.fireTriggerToTeam(userPubId, board.getAgenticTeamId(), trigger);
 
         return BoardTaskResponse.from(task,
                 createdBy.getPubId(),
@@ -191,8 +200,15 @@ public class BoardService {
         triggerData.put("taskPubId", task.getPubId().toString());
         triggerData.put("oldStatus", oldStatus.name());
         triggerData.put("newStatus", request.status().name());
-        boardTriggerService.fireTrigger(userPubId, board.getAgenticTeamId(),
-                "trigger.board.task_status_changed", triggerData);
+
+        Trigger trigger = Trigger.createBasic(
+                BoardToolHandler.CONNECTOR_CODE,
+                board.getPubId().toString(),
+                "trigger.board.task_status_changed",
+                triggerData
+        );
+
+        triggerEmitterService.fireTriggerToTeam(userPubId, board.getAgenticTeamId(), trigger);
 
         Map<Long, Agent> agentsById = resolveAgentsForTasks(List.of(task));
         Map<Long, BoardTask> tasksById = task.getParentTaskId() != null
@@ -251,8 +267,15 @@ public class BoardService {
         triggerData.put("commentPubId", comment.getPubId().toString());
         triggerData.put("agentPubId", agent.getPubId().toString());
         triggerData.put("content", comment.getContent());
-        boardTriggerService.fireTrigger(userPubId, board.getAgenticTeamId(),
-                "trigger.board.task_comment_created", triggerData);
+
+        Trigger trigger = Trigger.createBasic(
+                BoardToolHandler.CONNECTOR_CODE,
+                board.getPubId().toString(),
+                "trigger.board.task_comment_created",
+                triggerData
+        );
+
+        triggerEmitterService.fireTriggerToTeam(userPubId, board.getAgenticTeamId(), trigger);
 
         return BoardTaskCommentResponse.from(comment, agent.getPubId());
     }

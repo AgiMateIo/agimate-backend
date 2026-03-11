@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.service;
+package ru.agimate.deviceapi.service.trigger;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,6 +46,11 @@ public class TriggerLogService {
                 .triggerInput(triggerInput)
                 .build();
 
+        return triggerLogRepository.save(triggerLog);
+    }
+
+    @Transactional
+    public TriggerLog save(TriggerLog triggerLog) {
         return triggerLogRepository.save(triggerLog);
     }
 }

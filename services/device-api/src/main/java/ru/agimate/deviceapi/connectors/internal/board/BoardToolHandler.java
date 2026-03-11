@@ -21,13 +21,15 @@ import java.util.*;
 @RequiredArgsConstructor
 public class BoardToolHandler implements ServerSideToolHandler {
 
+    public static final String CONNECTOR_CODE = "board";
+
     private final BoardService boardService;
     private final AgentRepository agentRepository;
     private final BoardRepository boardRepository;
 
     @Override
-    public String getHandlerCode() {
-        return "board";
+    public String getConnectorCode() {
+        return CONNECTOR_CODE;
     }
 
     @Override

@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.TriggerLogResponse;
-import ru.agimate.deviceapi.service.TriggerLogService;
+import ru.agimate.deviceapi.service.trigger.TriggerLogService;
 
 import java.util.UUID;
 

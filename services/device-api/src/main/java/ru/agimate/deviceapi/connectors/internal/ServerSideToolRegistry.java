@@ -16,7 +16,7 @@ public class ServerSideToolRegistry {
 
     public ServerSideToolRegistry(List<ServerSideToolHandler> handlerList) {
         this.handlers = handlerList.stream()
-                .collect(Collectors.toMap(ServerSideToolHandler::getHandlerCode, Function.identity()));
+                .collect(Collectors.toMap(ServerSideToolHandler::getConnectorCode, Function.identity()));
     }
 
     public ServerSideToolHandler getHandler(String handlerCode) {

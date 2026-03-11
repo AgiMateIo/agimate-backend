@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public interface ServerSideToolHandler {
 
-    String getHandlerCode();
+    String getConnectorCode();
 
     Map<String, Object> getToolDefinitions();
 

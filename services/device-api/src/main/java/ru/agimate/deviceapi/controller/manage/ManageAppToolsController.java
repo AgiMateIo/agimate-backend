@@ -4,11 +4,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.deviceapi.service.AppApiService;
-
+import ru.agimate.deviceapi.service.AppService;
 import ru.agimate.deviceapi.service.dto.AppTool;
 
 import java.util.List;
@@ -22,7 +24,7 @@ public class ManageAppToolsController {
 
     public static final String PATH = "/manage/app-tools";
 
-    private final AppApiService appApiService;
+    private final AppService appService;
 
     @Operation(
             summary = "Get tools by app",
@@ -34,7 +36,7 @@ public class ManageAppToolsController {
             @PathVariable UUID appPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var tools = appApiService.getToolsByAppPubIdAndUser(appPubId, userPubId);
+        var tools = appService.getToolsByAppPubIdAndUser(appPubId, userPubId);
         return SuccessResponse.ok(tools);
     }
 }

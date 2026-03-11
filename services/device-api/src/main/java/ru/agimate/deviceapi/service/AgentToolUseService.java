@@ -18,9 +18,9 @@ import java.util.UUID;
 public class AgentToolUseService {
 
     private final AgentService agentService;
-    private final AppApiService appApiService;
     private final ToolUseLogService toolUseLogService;
     private final ToolPolicyDbEvaluatorService toolPolicyDbEvaluatorService;
+    private final ConnectorService connectorService;
 
     private record EvaluationResult(ToolUseLog log, AccessDecision decision, boolean existing) {}
 
@@ -54,7 +54,7 @@ public class AgentToolUseService {
                     "Tool '" + toolUseRequest.getName() + "' is not authorized for this agent: " + result.decision().reason());
         }
 
-        appApiService.pushToConnector(
+        connectorService.pushToConnector(
                 result.log().getUserPubId(), agentPubId.toString(), toolUseRequest);
 
         return result.log().getToolUseId();

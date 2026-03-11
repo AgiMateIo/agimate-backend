@@ -65,7 +65,4 @@ public class IntegrationCredentials extends BaseEntity {
         return enabled && !isDeleted();
     }
 
-    public String extractPlatformCode() {
-        return connectorCode;
-    }
 }

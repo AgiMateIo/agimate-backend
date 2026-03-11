@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.service.AppApiService;
+import ru.agimate.deviceapi.service.AppService;
 import ru.agimate.deviceapi.service.dto.AppTrigger;
 
 import java.util.List;
@@ -21,7 +22,7 @@ public class ManageAppTriggersController {
 
     public static final String PATH = "/manage/app-triggers";
 
-    private final AppApiService appApiService;
+    private final AppService appService;
 
     @Operation(
             summary = "Get triggers by app",
@@ -33,7 +34,7 @@ public class ManageAppTriggersController {
             @PathVariable UUID appPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var triggers = appApiService.getTriggersByAppPubIdAndUser(appPubId, userPubId);
+        var triggers = appService.getTriggersByAppPubIdAndUser(appPubId, userPubId);
         return SuccessResponse.ok(triggers);
     }
 }

@@ -8,7 +8,7 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
-import ru.agimate.deviceapi.connectors.integrations.PlatformValidationResult;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationValidationResult;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.JsonNode;
 
@@ -22,15 +22,15 @@ import java.util.*;
 @RequiredArgsConstructor
 public class TelegramHandler implements IntegrationHandler {
 
-    private static final String PLATFORM_TYPE = "telegram";
+    public static final String CONNECTOR_CODE = "telegram";
     private static final String HEADER_SECRET_TOKEN = "X-Telegram-Bot-Api-Secret-Token";
 
     private final TelegramApiClient telegramApiClient;
     private final ObjectMapper objectMapper;
 
     @Override
-    public String getPlatformCode() {
-        return PLATFORM_TYPE;
+    public String getConnectorCode() {
+        return CONNECTOR_CODE;
     }
 
     @Override
@@ -44,26 +44,26 @@ public class TelegramHandler implements IntegrationHandler {
     }
 
     @Override
-    public String getPlatformName() {
+    public String getConnectorName() {
         return "Telegram";
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    public PlatformValidationResult validateCredentials(Map<String, String> credentials) {
+    public IntegrationValidationResult validateCredentials(Map<String, String> credentials) {
         String token = credentials.get("token");
         try {
             Map<String, Object> response = telegramApiClient.getMe(token);
             if (!Boolean.TRUE.equals(response.get("ok"))) {
-                return PlatformValidationResult.failure("token", "Telegram API returned error");
+                return IntegrationValidationResult.failure("token", "Telegram API returned error");
             }
             Map<String, Object> result = (Map<String, Object>) response.get("result");
             String username = (String) result.get("username");
             String displayName = "Telegram: @" + username;
-            return PlatformValidationResult.success(username, displayName);
+            return IntegrationValidationResult.success(username, displayName);
         } catch (Exception e) {
             log.warn("Failed to validate Telegram token", e);
-            return PlatformValidationResult.failure("token", "Failed to validate token");
+            return IntegrationValidationResult.failure("token", "Failed to validate token");
         }
     }
 
@@ -160,7 +160,7 @@ public class TelegramHandler implements IntegrationHandler {
                 UUID.randomUUID().toString(),
                 "integration",
                 triggerName,
-                PLATFORM_TYPE,
+                CONNECTOR_CODE,
                 integrationCredentials.getPubId().toString(),
                 Instant.now(),
                 dataNode

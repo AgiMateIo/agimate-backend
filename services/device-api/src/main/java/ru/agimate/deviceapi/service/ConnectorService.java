@@ -1,6 +1,7 @@
 package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationToolExecutorService;
@@ -13,6 +14,7 @@ import ru.agimate.deviceapi.service.dto.IToolUse;
 
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ConnectorService {

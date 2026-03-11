@@ -43,7 +43,7 @@ public record IntegrationResponse(
         return new IntegrationResponse(
                 ic.getPubId(),
                 ic.extractPlatformCode(),
-                handler.getPlatformName(),
+                handler.getConnectorName(),
                 ic.getPlatformIdentifier(),
                 ic.getName(),
                 ic.getConnectorCode(),

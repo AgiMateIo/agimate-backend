@@ -9,36 +9,32 @@ import java.util.Map;
 
 public interface IntegrationHandler {
 
-    // === Required ===
+    String getConnectorCode();
 
-    String getPlatformCode();
-
-    PlatformValidationResult validateCredentials(Map<String, String> credentials);
-
-    Map<String, Object> executeTool(IntegrationCredentials integrationCredentials, Map<String, String> credentials,
-                                    String toolName, Map<String, Object> params);
-
-    Map<String, Object> getPredefinedTools();
-
-    // === Optional: platform metadata (defaults) ===
-
-    default boolean supportsWebhooks() {
-        return false;
+    default String getConnectorName() {
+        return getConnectorCode();
     }
 
     default List<String> getCredentialFields() {
         return List.of();
     }
 
-    default String getPlatformName() {
-        return getPlatformCode();
-    }
-
-    // === Optional: webhooks (default no-op) ===
-
     default Map<String, Object> getPredefinedTriggers() {
         return Map.of();
     }
+
+    Map<String, Object> getPredefinedTools();
+
+    IntegrationValidationResult validateCredentials(Map<String, String> credentials);
+
+    Map<String, Object> executeTool(IntegrationCredentials integrationCredentials, Map<String, String> credentials,
+                                    String toolName, Map<String, Object> params);
+
+
+    default boolean supportsWebhooks() {
+        return false;
+    }
+
 
     default void setupWebhook(IntegrationCredentials integrationCredentials, Map<String, String> credentials, String webhookUrl) {
         // no-op for platforms without webhooks

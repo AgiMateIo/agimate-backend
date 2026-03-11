@@ -7,7 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationsRegistry;
-import ru.agimate.deviceapi.service.TriggerRouterService;
+import ru.agimate.deviceapi.service.trigger.TriggerRouterService;
 
 import java.util.UUID;
 
@@ -20,7 +20,7 @@ public class IntegrationWebhookController {
     public static final String PATH = "/webhook/integration";
 
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
-    private final IntegrationsRegistry platformRegistry;
+    private final IntegrationsRegistry integrationsRegistry;
     private final TriggerRouterService triggerRouterService;
 
     @PostMapping("/{integrationPubId}")
@@ -41,7 +41,7 @@ public class IntegrationWebhookController {
             return ResponseEntity.ok("ok");
         }
 
-        var handler = platformRegistry.getHandler(integrationCredentials.extractPlatformCode());
+        var handler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
 
         // Guard: platform must support webhooks
         if (!handler.supportsWebhooks()) {

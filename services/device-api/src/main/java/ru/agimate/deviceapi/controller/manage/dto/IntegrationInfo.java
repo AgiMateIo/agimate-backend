@@ -6,11 +6,11 @@ import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
 import java.util.List;
 
 @Schema(description = "Integration platform info")
-public record IntegrationPlatformInfo(
-        @Schema(description = "Platform code")
+public record IntegrationInfo(
+        @Schema(description = "Connector code")
         String code,
 
-        @Schema(description = "Platform name")
+        @Schema(description = "Connector name")
         String name,
 
         @Schema(description = "Required credential fields")
@@ -19,10 +19,10 @@ public record IntegrationPlatformInfo(
         @Schema(description = "Whether platform supports webhooks")
         boolean supportsWebhooks
 ) {
-    public static IntegrationPlatformInfo from(IntegrationHandler handler) {
-        return new IntegrationPlatformInfo(
-                handler.getPlatformCode(),
-                handler.getPlatformName(),
+    public static IntegrationInfo from(IntegrationHandler handler) {
+        return new IntegrationInfo(
+                handler.getConnectorCode(),
+                handler.getConnectorName(),
                 handler.getCredentialFields(),
                 handler.supportsWebhooks()
         );

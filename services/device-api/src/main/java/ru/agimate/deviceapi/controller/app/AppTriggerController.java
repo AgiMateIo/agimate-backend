@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.service.AppService;
-import ru.agimate.deviceapi.service.TriggerRouterService;
+import ru.agimate.deviceapi.service.trigger.TriggerRouterService;
 
 @Slf4j
 @RestController
