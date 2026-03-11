@@ -37,21 +37,15 @@ public class BoardService {
 
     public List<BoardResponse> getAllForUser(UUID userPubId) {
         List<Board> boards = boardRepository.findByUserPubId(userPubId);
-        List<Long> teamIds = boards.stream().map(Board::getAgenticTeamId).toList();
-        Map<Long, AgenticTeam> teamsById = agenticTeamRepository.findAllById(teamIds).stream()
-                .collect(Collectors.toMap(AgenticTeam::getId, Function.identity()));
-
         return boards.stream()
-                .map(board -> BoardResponse.from(board, teamsById.get(board.getAgenticTeamId())))
+                .map(board -> BoardResponse.from(board, board.getAgenticTeam()))
                 .toList();
     }
 
     public BoardResponse getByPubId(UUID pubId, UUID userPubId) {
         Board board = findBoardByPubId(pubId);
         validateBoardOwnership(board, userPubId);
-        AgenticTeam team = agenticTeamRepository.findById(board.getAgenticTeamId())
-                .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
-        return BoardResponse.from(board, team);
+        return BoardResponse.from(board, board.getAgenticTeam());
     }
 
     @Transactional
@@ -61,13 +55,13 @@ public class BoardService {
         if (!team.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied to the specified team");
         }
-        if (boardRepository.existsByAgenticTeamId(team.getId())) {
+        if (boardRepository.existsByAgenticTeam(team)) {
             throw new BadRequestStatusException("Board already exists for this agentic team");
         }
 
         Board board = Board.builder()
                 .userPubId(userPubId)
-                .agenticTeamId(team.getId())
+                .agenticTeam(team)
                 .name(request.name())
                 .description(request.description())
                 .build();
@@ -172,7 +166,7 @@ public class BoardService {
                 triggerData
         );
 
-        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeamId(), trigger);
+        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getPubId(), trigger);
 
         return BoardTaskResponse.from(task,
                 createdBy.getPubId(),
@@ -208,7 +202,7 @@ public class BoardService {
                 triggerData
         );
 
-        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeamId(), trigger);
+        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getPubId(), trigger);
 
         Map<Long, Agent> agentsById = resolveAgentsForTasks(List.of(task));
         Map<Long, BoardTask> tasksById = task.getParentTaskId() != null
@@ -275,7 +269,7 @@ public class BoardService {
                 triggerData
         );
 
-        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeamId(), trigger);
+        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getPubId(), trigger);
 
         return BoardTaskCommentResponse.from(comment, agent.getPubId());
     }
@@ -296,7 +290,7 @@ public class BoardService {
     private Agent resolveTeamAgent(Board board, UUID agentPubId) {
         Agent agent = agentRepository.findByPubId(agentPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-        if (agent.getAgenticTeamId() == null || !agent.getAgenticTeamId().equals(board.getAgenticTeamId())) {
+        if (agent.getAgenticTeamId() == null || !agent.getAgenticTeamId().equals(board.getAgenticTeam().getId())) {
             throw new BadRequestStatusException("Agent does not belong to the board's agentic team");
         }
         return agent;

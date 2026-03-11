@@ -8,10 +8,12 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.connectors.internal.ServerSideToolHandler;
 import ru.agimate.deviceapi.controller.manage.dto.*;
 import ru.agimate.deviceapi.database.entities.Agent;
+import ru.agimate.deviceapi.database.entities.AgenticTeam;
 import ru.agimate.deviceapi.database.entities.Board;
 import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 import ru.agimate.deviceapi.database.enums.BoardTaskType;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
+import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.deviceapi.database.repositories.BoardRepository;
 
 import java.util.*;
@@ -25,6 +27,7 @@ public class BoardToolHandler implements ServerSideToolHandler {
 
     private final BoardService boardService;
     private final AgentRepository agentRepository;
+    private final AgenticTeamRepository agenticTeamRepository;
     private final BoardRepository boardRepository;
 
     @Override
@@ -74,7 +77,9 @@ public class BoardToolHandler implements ServerSideToolHandler {
             throw new BadRequestStatusException("Agent is not part of an agentic team");
         }
 
-        Board board = boardRepository.findByAgenticTeamId(agent.getAgenticTeamId())
+        AgenticTeam team = agenticTeamRepository.findById(agent.getAgenticTeamId())
+                .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
+        Board board = boardRepository.findByAgenticTeam(team)
                 .orElseThrow(() -> new NotFoundStatusException("Board not found for agent's team"));
 
         return switch (toolName) {

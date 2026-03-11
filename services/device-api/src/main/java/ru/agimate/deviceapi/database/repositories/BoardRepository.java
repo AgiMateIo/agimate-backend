@@ -1,6 +1,7 @@
 package ru.agimate.deviceapi.database.repositories;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import ru.agimate.deviceapi.database.entities.AgenticTeam;
 import ru.agimate.deviceapi.database.entities.Board;
 
 import java.util.List;
@@ -13,7 +14,7 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
 
     List<Board> findByUserPubId(UUID userPubId);
 
-    boolean existsByAgenticTeamId(Long agenticTeamId);
+    boolean existsByAgenticTeam(AgenticTeam agenticTeam);
 
-    Optional<Board> findByAgenticTeamId(Long agenticTeamId);
+    Optional<Board> findByAgenticTeam(AgenticTeam agenticTeam);
 }

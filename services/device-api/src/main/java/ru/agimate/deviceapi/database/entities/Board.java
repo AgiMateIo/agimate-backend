@@ -28,8 +28,9 @@ public class Board extends BaseEntity {
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
 
-    @Column(name = "agentic_team_id", nullable = false, unique = true)
-    private Long agenticTeamId;
+    @OneToOne
+    @JoinColumn(name = "agentic_team_id", nullable = false, unique = true)
+    private AgenticTeam agenticTeam;
 
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;

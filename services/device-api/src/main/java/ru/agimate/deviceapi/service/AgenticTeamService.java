@@ -89,7 +89,7 @@ public class AgenticTeamService {
             throw new ForbiddenStatusException("Access denied");
         }
 
-        if (boardRepository.existsByAgenticTeamId(team.getId())) {
+        if (boardRepository.existsByAgenticTeam(team)) {
             throw new BadRequestStatusException("Cannot delete team that has a board");
         }
 
