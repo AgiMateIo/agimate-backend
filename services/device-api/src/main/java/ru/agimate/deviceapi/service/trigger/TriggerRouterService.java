@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.abac.AgentTriggerPolicyService;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.*;
@@ -18,23 +19,30 @@ public class TriggerRouterService {
 
     private final TriggerLogService triggerLogService;
     private final AgentTriggerPolicyService agentTriggerPolicyService;
-    private final TriggerEmitterService triggerEmitterService;
+    private final TriggerDeliveryService triggerDeliveryService;
 
     @Async
     public void routeAppTrigger(App app, TriggerRequest triggerRequest) {
-        routeTrigger(app.getUserPubId(), app.getConnectorCode(), app.getPubId().toString(), triggerRequest);
+        Trigger trigger = Trigger.createBasic(
+                app.getConnectorCode(),
+                app.getPubId().toString(),
+                triggerRequest.name(),
+                JsonUtils.fromJsonToMap(triggerRequest.data().toString())
+        );
+        routeTrigger(app.getUserPubId(), trigger);
     }
 
     @Async
-    public void routeWhTrigger(IntegrationCredentials integration, TriggerRequest triggerRequest) {
-        routeTrigger(integration.getUserPubId(), integration.getConnectorCode(), integration.getPubId().toString(), triggerRequest);
+    public void routeWhTrigger(IntegrationCredentials integration, Trigger trigger) {
+        routeTrigger(integration.getUserPubId(), trigger);
     }
 
-    private void routeTrigger(UUID userPubId, String connectorCode, String identity, TriggerRequest triggerRequest) {
-        TriggerLog triggerLog = triggerLogService.createTriggerLog(userPubId, connectorCode, identity, triggerRequest);
 
-        List<Agent> agents = agentTriggerPolicyService.findAllowedAgents(userPubId, connectorCode, identity, triggerRequest.name());
+    public void routeInternalTrigger(UUID userPubId, UUID agenticTeamPubId, Trigger trigger) {
+        TriggerLog triggerLog = triggerLogService.createTriggerLog(userPubId, trigger);
 
+        List<Agent> agents = agentTriggerPolicyService.findAllowedAgentsForTeamId(
+                userPubId, agenticTeamPubId,  trigger.connectorCode(), trigger.identity(), trigger.name());
 
         for (Agent agent : agents) {
             TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
@@ -43,22 +51,32 @@ public class TriggerRouterService {
                     .destination(agent.getTriggerDestination().name())
                     .build();
 
-            Trigger trigger = new Trigger(
-                    triggerLog.getConnectorCode(),
-                    triggerLog.getIdentity(),
-                    triggerLog.getTriggerId(),
-                    triggerLog.getTriggerName(),
-                    triggerLog.getTriggerInput(),
-                    triggerLog.getOccurredAt() == null ? "" : triggerLog.getOccurredAt().toString()
-            );
+            triggerDeliveryService.fireTrigger(agent, triggerLogAgent);
 
-            triggerEmitterService.fireTrigger(agent, trigger);
+            triggerLog.getTriggerLogAgents().add(triggerLogAgent);
+        }
+        triggerLogService.save(triggerLog);
+
+    }
+
+    private void routeTrigger(UUID userPubId, Trigger trigger) {
+        TriggerLog triggerLog = triggerLogService.createTriggerLog(userPubId, trigger);
+
+        List<Agent> agents = agentTriggerPolicyService.findAllowedAgents(
+                userPubId, trigger.connectorCode(), trigger.identity(), trigger.name());
+
+        for (Agent agent : agents) {
+            TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
+                    .triggerLog(triggerLog)
+                    .agent(agent)
+                    .destination(agent.getTriggerDestination().name())
+                    .build();
+
+            triggerDeliveryService.fireTrigger(agent, triggerLogAgent);
 
             triggerLog.getTriggerLogAgents().add(triggerLogAgent);
         }
         triggerLogService.save(triggerLog);
     }
-
-
 
 }

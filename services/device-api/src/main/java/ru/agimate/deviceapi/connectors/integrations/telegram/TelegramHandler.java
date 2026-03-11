@@ -5,16 +5,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationValidationResult;
+import ru.agimate.deviceapi.service.trigger.Trigger;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.JsonNode;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Instant;
 import java.util.*;
 
 @Slf4j
@@ -96,7 +94,7 @@ public class TelegramHandler implements IntegrationHandler {
 
     @Override
     @SuppressWarnings("unchecked")
-    public TriggerRequest normalizeInbound(IntegrationCredentials integrationCredentials, String rawBody) {
+    public Trigger normalizeInbound(IntegrationCredentials integrationCredentials, String rawBody) {
         Map<String, Object> update = objectMapper.readValue(rawBody, Map.class);
 
         String triggerName;
@@ -138,7 +136,6 @@ public class TelegramHandler implements IntegrationHandler {
             } else if (text != null && text.startsWith("/")) {
                 triggerName = "telegram.command_received";
                 triggerData.put("text", text);
-                // Parse command and args
                 String[] parts = text.split("\\s+", 2);
                 triggerData.put("command", parts[0]);
                 if (parts.length > 1) {
@@ -154,17 +151,7 @@ public class TelegramHandler implements IntegrationHandler {
             triggerData.put("raw", update);
         }
 
-        JsonNode dataNode = objectMapper.valueToTree(triggerData);
-
-        return new TriggerRequest(
-                UUID.randomUUID().toString(),
-                "integration",
-                triggerName,
-                CONNECTOR_CODE,
-                integrationCredentials.getPubId().toString(),
-                Instant.now(),
-                dataNode
-        );
+        return Trigger.createBasic(CONNECTOR_CODE, integrationCredentials.getPubId().toString(), triggerName, triggerData);
     }
 
     @Override

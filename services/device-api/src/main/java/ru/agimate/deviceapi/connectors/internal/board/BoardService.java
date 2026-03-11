@@ -13,9 +13,9 @@ import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 import ru.agimate.deviceapi.database.enums.BoardTaskType;
 import ru.agimate.deviceapi.database.repositories.*;
 import ru.agimate.deviceapi.service.trigger.Trigger;
-import ru.agimate.deviceapi.service.trigger.TriggerEmitterService;
+import ru.agimate.deviceapi.service.trigger.TriggerDeliveryService;
+import ru.agimate.deviceapi.service.trigger.TriggerRouterService;
 
-import java.time.Instant;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -31,7 +31,7 @@ public class BoardService {
     private final BoardTaskCommentRepository boardTaskCommentRepository;
     private final AgenticTeamRepository agenticTeamRepository;
     private final AgentRepository agentRepository;
-    private final TriggerEmitterService triggerEmitterService;
+    private final TriggerRouterService triggerRouterService;
 
     // ---- Board CRUD ----
 
@@ -172,7 +172,7 @@ public class BoardService {
                 triggerData
         );
 
-        triggerEmitterService.fireTriggerToTeam(userPubId, board.getAgenticTeamId(), trigger);
+        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeamId(), trigger);
 
         return BoardTaskResponse.from(task,
                 createdBy.getPubId(),
@@ -208,7 +208,7 @@ public class BoardService {
                 triggerData
         );
 
-        triggerEmitterService.fireTriggerToTeam(userPubId, board.getAgenticTeamId(), trigger);
+        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeamId(), trigger);
 
         Map<Long, Agent> agentsById = resolveAgentsForTasks(List.of(task));
         Map<Long, BoardTask> tasksById = task.getParentTaskId() != null
@@ -275,7 +275,7 @@ public class BoardService {
                 triggerData
         );
 
-        triggerEmitterService.fireTriggerToTeam(userPubId, board.getAgenticTeamId(), trigger);
+        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeamId(), trigger);
 
         return BoardTaskCommentResponse.from(comment, agent.getPubId());
     }

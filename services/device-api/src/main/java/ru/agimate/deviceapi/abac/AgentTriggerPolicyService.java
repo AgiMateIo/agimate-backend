@@ -103,6 +103,11 @@ public class AgentTriggerPolicyService {
         return agentRepository.findAllowedAgents(userPubId, connectorCode, connectorIdentity, triggerName);
     }
 
+    public List<Agent> findAllowedAgentsForTeamId(UUID userPubId, UUID teamPubId, String connectorCode,
+                                         String connectorIdentity, String triggerName) {
+        return agentRepository.findAllowedAgentsForTeamId(userPubId, teamPubId, connectorCode, connectorIdentity, triggerName);
+    }
+
     private void validateOwnership(AgentTriggerPolicy policy, UUID userPubId) {
         if (!policy.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");

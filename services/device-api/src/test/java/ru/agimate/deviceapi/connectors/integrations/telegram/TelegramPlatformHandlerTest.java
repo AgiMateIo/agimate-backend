@@ -73,7 +73,6 @@ class TelegramPlatformHandlerTest {
 
             assertEquals("telegram.message_received", result.name());
             assertNotNull(result.data());
-            assertEquals("integration", result.type());
         }
 
         @Test

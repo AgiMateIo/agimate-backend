@@ -1,8 +1,8 @@
 package ru.agimate.deviceapi.connectors.integrations;
 
 import jakarta.servlet.http.HttpServletRequest;
-import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
+import ru.agimate.deviceapi.service.trigger.Trigger;
 
 import java.util.List;
 import java.util.Map;
@@ -44,7 +44,7 @@ public interface IntegrationHandler {
         // no-op
     }
 
-    default TriggerRequest normalizeInbound(IntegrationCredentials integrationCredentials, String rawBody) {
+    default Trigger normalizeInbound(IntegrationCredentials integrationCredentials, String rawBody) {
         throw new UnsupportedOperationException("Platform does not support inbound webhooks");
     }
 

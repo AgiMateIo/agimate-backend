@@ -55,8 +55,8 @@ public class IntegrationWebhookController {
         }
 
         try {
-            var triggerRequest = handler.normalizeInbound(integrationCredentials, rawBody);
-            triggerRouterService.routeWhTrigger(integrationCredentials, triggerRequest);
+            var trigger = handler.normalizeInbound(integrationCredentials, rawBody);
+            triggerRouterService.routeWhTrigger(integrationCredentials, trigger);
         } catch (Exception e) {
             log.error("Failed to process webhook for integration {}: {}", integrationPubId, e.getMessage());
         }

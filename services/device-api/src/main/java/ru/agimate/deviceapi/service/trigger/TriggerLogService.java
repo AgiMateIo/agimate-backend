@@ -7,8 +7,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.common.util.JsonUtils;
-import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.controller.manage.dto.TriggerLogResponse;
 import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.repositories.TriggerLogRepository;
@@ -31,19 +29,20 @@ public class TriggerLogService {
     }
 
     @Transactional
-    public TriggerLog createTriggerLog(UUID userPubId, String connectorCode, String identity, TriggerRequest triggerRequest) {
-        var triggerInput = JsonUtils.fromJsonToMap(triggerRequest.data().toString());
+    public TriggerLog createTriggerLog(UUID userPubId, Trigger trigger) {
+        LocalDateTime occurredAt = null;
+        if (trigger.occurredAt() != null && !trigger.occurredAt().isEmpty()) {
+            occurredAt = LocalDateTime.ofInstant(java.time.Instant.parse(trigger.occurredAt()), ZoneOffset.UTC);
+        }
 
         TriggerLog triggerLog = TriggerLog.builder()
                 .userPubId(userPubId)
-                .connectorCode(connectorCode)
-                .identity(identity)
-                .triggerId(triggerRequest.id() != null ? triggerRequest.id() : "")
-                .triggerName(triggerRequest.name())
-                .occurredAt(triggerRequest.occurredAt() != null
-                        ? LocalDateTime.ofInstant(triggerRequest.occurredAt(), ZoneOffset.UTC)
-                        : null)
-                .triggerInput(triggerInput)
+                .connectorCode(trigger.connectorCode())
+                .identity(trigger.identity())
+                .triggerId(trigger.id() != null ? trigger.id() : "")
+                .triggerName(trigger.name())
+                .occurredAt(occurredAt)
+                .triggerInput(trigger.data())
                 .build();
 
         return triggerLogRepository.save(triggerLog);
