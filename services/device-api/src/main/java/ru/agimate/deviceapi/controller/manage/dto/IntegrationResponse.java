@@ -42,7 +42,7 @@ public record IntegrationResponse(
     public static IntegrationResponse from(IntegrationCredentials ic, IntegrationHandler handler) {
         return new IntegrationResponse(
                 ic.getPubId(),
-                ic.extractPlatformCode(),
+                ic.getConnectorCode(),
                 handler.getConnectorName(),
                 ic.getPlatformIdentifier(),
                 ic.getName(),

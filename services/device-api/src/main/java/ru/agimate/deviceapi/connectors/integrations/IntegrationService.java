@@ -29,7 +29,7 @@ public class IntegrationService {
 
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
     private final ConnectorRepository connectorRepository;
-    private final IntegrationsRegistry platformRegistry;
+    private final IntegrationsRegistry integrationsRegistry;
     private final IntegrationEncryptionService encryptionService;
 
     @Transactional
@@ -43,7 +43,7 @@ public class IntegrationService {
             throw new BadRequestStatusException("Integration connector not found: " + connectorCode);
         }
 
-        var handler = platformRegistry.getHandler(connectorCode);
+        var handler = integrationsRegistry.getHandler(connectorCode);
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
@@ -102,7 +102,7 @@ public class IntegrationService {
 
         // Remove webhook if platform supports it
         try {
-            var handler = platformRegistry.getHandler(integrationCredentials.extractPlatformCode());
+            var handler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
             Map<String, String> credentials = encryptionService.decryptCredentials(integrationCredentials.getEncryptedData());
             handler.removeWebhook(credentials);
         } catch (Exception e) {
@@ -116,7 +116,7 @@ public class IntegrationService {
     @Transactional
     public IntegrationCredentials updateCredentials(UUID pubId, UUID userPubId, Map<String, String> credentials) {
         IntegrationCredentials integrationCredentials = getIntegration(pubId, userPubId);
-        var handler = platformRegistry.getHandler(integrationCredentials.extractPlatformCode());
+        var handler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {

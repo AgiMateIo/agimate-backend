@@ -63,7 +63,6 @@ public class AgentToolController {
                 agentToolUseService.checkToolUse(principal.agentPubId(), toolUseRequest));
     }
 
-
     @Operation(
             summary = "Push tool_use to device",
             description = "Sends a tool use request to a specific device via Centrifugo",

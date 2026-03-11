@@ -17,6 +17,7 @@ import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.deviceapi.database.repositories.WebhookDeliveryLogRepository;
 import ru.agimate.deviceapi.service.trigger.Trigger;
+import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -134,20 +135,10 @@ public class WebhookDeliveryService {
     private Map<String, Object> buildPayload(TriggerLogAgent triggerLogAgent) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("type", "trigger");
-        payload.put("payload", map(triggerLogAgent));
+        payload.put("payload", TriggerMapper.map(triggerLogAgent.getTriggerLog()));
 
         return payload;
     }
 
-    private Trigger map(TriggerLogAgent triggerLogAgent) {
-        TriggerLog triggerLog = triggerLogAgent.getTriggerLog();
-        return new Trigger(
-                triggerLog.getConnectorCode(),
-                triggerLog.getIdentity(),
-                triggerLog.getTriggerId(),
-                triggerLog.getTriggerName(),
-                triggerLog.getTriggerInput(),
-                triggerLog.getOccurredAt() != null ? triggerLog.getOccurredAt().toString() : null
-        );
-    }
+
 }

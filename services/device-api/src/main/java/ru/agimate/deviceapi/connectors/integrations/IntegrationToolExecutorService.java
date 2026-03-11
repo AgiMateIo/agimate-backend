@@ -26,7 +26,7 @@ public class IntegrationToolExecutorService {
 
     @Async
     public void execute(IntegrationCredentials integrationCredentials, IToolUse toolUse, String agentId) {
-        var integrationHandler = integrationsRegistry.getHandler(integrationCredentials.extractPlatformCode());
+        var integrationHandler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
         Map<String, String> credentials = encryptionService.decryptCredentials(integrationCredentials.getEncryptedData());
 
         try {

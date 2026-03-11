@@ -29,12 +29,12 @@ public class ManageIntegrationController {
     public static final String PATH = "/manage/integrations";
 
     private final IntegrationService integrationService;
-    private final IntegrationsRegistry platformRegistry;
+    private final IntegrationsRegistry integrationsRegistry;
 
     @Operation(summary = "Get available integration platforms")
     @GetMapping("/platforms/")
     public SuccessResponse<List<IntegrationInfo>> getPlatforms() {
-        var platforms = platformRegistry.getAvailablePlatforms().stream()
+        var platforms = integrationsRegistry.getAvailablePlatforms().stream()
                 .map(IntegrationInfo::from)
                 .toList();
         return SuccessResponse.ok(platforms);
@@ -111,7 +111,7 @@ public class ManageIntegrationController {
     }
 
     private IntegrationResponse toResponse(IntegrationCredentials ic) {
-        var handler = platformRegistry.getHandler(ic.extractPlatformCode());
+        var handler = integrationsRegistry.getHandler(ic.getConnectorCode());
         return IntegrationResponse.from(ic, handler);
     }
 }

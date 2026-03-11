@@ -8,6 +8,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.abac.AgentTriggerPolicyService;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.*;
+import ru.agimate.deviceapi.database.repositories.TriggerLogAgentRepository;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +21,8 @@ public class TriggerRouterService {
     private final TriggerLogService triggerLogService;
     private final AgentTriggerPolicyService agentTriggerPolicyService;
     private final TriggerDeliveryService triggerDeliveryService;
+
+    private final TriggerLogAgentRepository triggerLogAgentRepository;
 
     @Async
     public void routeAppTrigger(App app, TriggerRequest triggerRequest) {
@@ -44,17 +47,8 @@ public class TriggerRouterService {
         List<Agent> agents = agentTriggerPolicyService.findAllowedAgentsForTeamId(
                 userPubId, agenticTeamPubId,  trigger.connectorCode(), trigger.identity(), trigger.name());
 
-        for (Agent agent : agents) {
-            TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
-                    .triggerLog(triggerLog)
-                    .agent(agent)
-                    .destination(agent.getTriggerDestination().name())
-                    .build();
+        sendTrigger(agents, triggerLog);
 
-            triggerDeliveryService.fireTrigger(agent, triggerLogAgent);
-
-            triggerLog.getTriggerLogAgents().add(triggerLogAgent);
-        }
         triggerLogService.save(triggerLog);
 
     }
@@ -65,6 +59,16 @@ public class TriggerRouterService {
         List<Agent> agents = agentTriggerPolicyService.findAllowedAgents(
                 userPubId, trigger.connectorCode(), trigger.identity(), trigger.name());
 
+        sendTrigger(agents, triggerLog);
+
+        triggerLogService.save(triggerLog);
+    }
+
+    private void sendTrigger(List<Agent> agents, TriggerLog triggerLog) {
+        if (agents.isEmpty()) {
+            log.warn("Ignored trigger {} - {}", triggerLog.getConnectorCode(), triggerLog.getTriggerName());
+        }
+
         for (Agent agent : agents) {
             TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
                     .triggerLog(triggerLog)
@@ -76,7 +80,6 @@ public class TriggerRouterService {
 
             triggerLog.getTriggerLogAgents().add(triggerLogAgent);
         }
-        triggerLogService.save(triggerLog);
     }
 
 }

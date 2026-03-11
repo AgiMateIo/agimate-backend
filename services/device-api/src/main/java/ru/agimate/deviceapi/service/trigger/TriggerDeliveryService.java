@@ -18,18 +18,8 @@ import java.util.*;
 @RequiredArgsConstructor
 public class TriggerDeliveryService {
 
-    private final AgentRepository agentRepository;
     private final CentrifugoService centrifugoService;
     private final WebhookDeliveryService webhookDeliveryService;
-
-    @Async
-    public void fireTriggerToTeam(UUID userPubId, Long agenticTeamId, Trigger trigger) {
-//        List<Agent> agents = agentRepository.findByUserPubIdAndAgenticTeamId(userPubId, agenticTeamId);
-//
-//        for (Agent agent : agents) {
-//            fireTrigger(agent, trigger);
-//        }
-    }
 
     public void fireTrigger(Agent agent, TriggerLogAgent triggerLogAgent) {
         try {
@@ -47,7 +37,7 @@ public class TriggerDeliveryService {
     private void sendToCentrifugo(Agent agent, TriggerLogAgent triggerLogAgent) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("type", "trigger");
-        payload.put("payload", triggerLogAgent.getTriggerLog());
+        payload.put("payload", TriggerMapper.map(triggerLogAgent.getTriggerLog()));
 
         centrifugoService.publishMessage("agent:" + agent.getPubId(), payload);
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo", triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId());
