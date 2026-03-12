@@ -1,12 +1,13 @@
 package ru.agimate.deviceapi.connectors.integrations.telegram;
 
+import dev.langchain4j.agent.tool.P;
+import dev.langchain4j.agent.tool.Tool;
 import jakarta.servlet.http.HttpServletRequest;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
+import ru.agimate.deviceapi.connectors.integrations.BaseIntegrationHandler;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationValidationResult;
 import ru.agimate.deviceapi.service.trigger.Trigger;
 import tools.jackson.databind.ObjectMapper;
@@ -17,14 +18,21 @@ import java.util.*;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
-public class TelegramHandler implements IntegrationHandler {
+public class TelegramHandler extends BaseIntegrationHandler {
 
     public static final String CONNECTOR_CODE = "telegram";
     private static final String HEADER_SECRET_TOKEN = "X-Telegram-Bot-Api-Secret-Token";
 
     private final TelegramApiClient telegramApiClient;
     private final ObjectMapper objectMapper;
+
+    public TelegramHandler(IntegrationEncryptionService encryptionService,
+                           TelegramApiClient telegramApiClient,
+                           ObjectMapper objectMapper) {
+        super(encryptionService);
+        this.telegramApiClient = telegramApiClient;
+        this.objectMapper = objectMapper;
+    }
 
     @Override
     public String getConnectorCode() {
@@ -154,48 +162,69 @@ public class TelegramHandler implements IntegrationHandler {
         return Trigger.createBasic(CONNECTOR_CODE, integrationCredentials.getPubId().toString(), triggerName, triggerData);
     }
 
-    @Override
-    public Map<String, Object> executeTool(IntegrationCredentials integrationCredentials, Map<String, String> credentials,
-                                           String toolName, Map<String, Object> params) {
-        String token = credentials.get("token");
-        return switch (toolName) {
-            case "telegram.send_message" -> {
-                Map<String, Object> apiParams = new LinkedHashMap<>();
-                apiParams.put("chat_id", params.get("chatId"));
-                apiParams.put("text", params.get("text"));
-                if (params.containsKey("parseMode")) apiParams.put("parse_mode", params.get("parseMode"));
-                if (params.containsKey("replyToMessageId")) apiParams.put("reply_to_message_id", params.get("replyToMessageId"));
-                if (params.containsKey("replyMarkup")) apiParams.put("reply_markup", params.get("replyMarkup"));
-                yield telegramApiClient.sendMessage(token, apiParams);
-            }
-            case "telegram.send_photo" -> {
-                Map<String, Object> apiParams = new LinkedHashMap<>();
-                apiParams.put("chat_id", params.get("chatId"));
-                apiParams.put("photo", params.get("photo"));
-                if (params.containsKey("caption")) apiParams.put("caption", params.get("caption"));
-                yield telegramApiClient.sendPhoto(token, apiParams);
-            }
-            case "telegram.edit_message" -> {
-                Map<String, Object> apiParams = new LinkedHashMap<>();
-                apiParams.put("chat_id", params.get("chatId"));
-                apiParams.put("message_id", params.get("messageId"));
-                apiParams.put("text", params.get("text"));
-                yield telegramApiClient.editMessageText(token, apiParams);
-            }
-            case "telegram.delete_message" -> {
-                Map<String, Object> apiParams = new LinkedHashMap<>();
-                apiParams.put("chat_id", params.get("chatId"));
-                apiParams.put("message_id", params.get("messageId"));
-                yield telegramApiClient.deleteMessage(token, apiParams);
-            }
-            case "telegram.answer_callback_query" -> {
-                Map<String, Object> apiParams = new LinkedHashMap<>();
-                apiParams.put("callback_query_id", params.get("callbackQueryId"));
-                if (params.containsKey("text")) apiParams.put("text", params.get("text"));
-                yield telegramApiClient.answerCallbackQuery(token, apiParams);
-            }
-            default -> throw new BadRequestStatusException("Unknown tool: " + toolName);
-        };
+    @Tool(name = "telegram.send_message", value = "Send a text message")
+    public Map<String, Object> toolSendMessage(
+            @P("Target chat ID") String chatId,
+            @P("Message text") String text,
+            @P("Parse mode (HTML, Markdown, MarkdownV2)") String parseMode,
+            @P("ID of message to reply to") String replyToMessageId,
+            @P("Inline keyboard markup as JSON") String replyMarkup) {
+        Map<String, Object> apiParams = new LinkedHashMap<>();
+        apiParams.put("chat_id", chatId);
+        apiParams.put("text", text);
+        if (parseMode != null) apiParams.put("parse_mode", parseMode);
+        if (replyToMessageId != null) apiParams.put("reply_to_message_id", replyToMessageId);
+        if (replyMarkup != null) apiParams.put("reply_markup", replyMarkup);
+        return sendTelegramRequest("sendMessage", apiParams);
+    }
+
+    @Tool(name = "telegram.send_photo", value = "Send a photo")
+    public Map<String, Object> toolSendPhoto(
+            @P("Target chat ID") String chatId,
+            @P("Photo URL or file ID") String photo,
+            @P("Photo caption") String caption) {
+        Map<String, Object> apiParams = new LinkedHashMap<>();
+        apiParams.put("chat_id", chatId);
+        apiParams.put("photo", photo);
+        if (caption != null) apiParams.put("caption", caption);
+        return sendTelegramRequest("sendPhoto", apiParams);
+    }
+
+    @Tool(name = "telegram.edit_message", value = "Edit a message")
+    public Map<String, Object> toolEditMessage(
+            @P("Chat ID") String chatId,
+            @P("Message ID to edit") String messageId,
+            @P("New message text") String text) {
+        Map<String, Object> apiParams = new LinkedHashMap<>();
+        apiParams.put("chat_id", chatId);
+        apiParams.put("message_id", messageId);
+        apiParams.put("text", text);
+        return sendTelegramRequest("editMessageText", apiParams);
+    }
+
+    @Tool(name = "telegram.delete_message", value = "Delete a message")
+    public Map<String, Object> toolDeleteMessage(
+            @P("Chat ID") String chatId,
+            @P("Message ID to delete") String messageId) {
+        Map<String, Object> apiParams = new LinkedHashMap<>();
+        apiParams.put("chat_id", chatId);
+        apiParams.put("message_id", messageId);
+        return sendTelegramRequest("deleteMessage", apiParams);
+    }
+
+    @Tool(name = "telegram.answer_callback_query", value = "Answer a callback query")
+    public Map<String, Object> toolAnswerCallbackQuery(
+            @P("Callback query ID") String callbackQueryId,
+            @P("Response text") String text) {
+        Map<String, Object> apiParams = new LinkedHashMap<>();
+        apiParams.put("callback_query_id", callbackQueryId);
+        if (text != null) apiParams.put("text", text);
+        return sendTelegramRequest("answerCallbackQuery", apiParams);
+    }
+
+    private Map<String, Object> sendTelegramRequest(String method, Map<String, Object> params) {
+        String token = credentials().get("token");
+        return telegramApiClient.sendRequest(method, token, params);
     }
 
     @Override
@@ -222,32 +251,6 @@ public class TelegramHandler implements IntegrationHandler {
                 "params", List.of("callbackQueryId", "data", "chatId", "messageId", "from")
         ));
         return triggers;
-    }
-
-    @Override
-    public Map<String, Object> getPredefinedTools() {
-        Map<String, Object> tools = new LinkedHashMap<>();
-        tools.put("telegram.send_message", Map.of(
-                "description", "Send a text message",
-                "params", List.of("chatId", "text", "parseMode", "replyToMessageId", "replyMarkup")
-        ));
-        tools.put("telegram.send_photo", Map.of(
-                "description", "Send a photo",
-                "params", List.of("chatId", "photo", "caption")
-        ));
-        tools.put("telegram.edit_message", Map.of(
-                "description", "Edit a message",
-                "params", List.of("chatId", "messageId", "text")
-        ));
-        tools.put("telegram.delete_message", Map.of(
-                "description", "Delete a message",
-                "params", List.of("chatId", "messageId")
-        ));
-        tools.put("telegram.answer_callback_query", Map.of(
-                "description", "Answer a callback query",
-                "params", List.of("callbackQueryId", "text")
-        ));
-        return tools;
     }
 
     @Override

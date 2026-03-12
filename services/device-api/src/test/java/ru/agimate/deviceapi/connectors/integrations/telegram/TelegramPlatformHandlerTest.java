@@ -1,5 +1,6 @@
 package ru.agimate.deviceapi.connectors.integrations.telegram;
 
+import dev.langchain4j.agent.tool.ToolSpecification;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -7,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import tools.jackson.databind.ObjectMapper;
 
@@ -27,12 +29,15 @@ class TelegramPlatformHandlerTest {
     @Mock
     private TelegramApiClient telegramApiClient;
 
+    @Mock
+    private IntegrationEncryptionService encryptionService;
+
     private TelegramHandler handler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        handler = new TelegramHandler(telegramApiClient, objectMapper);
+        handler = new TelegramHandler(encryptionService, telegramApiClient, objectMapper);
     }
 
     @Test
@@ -170,38 +175,44 @@ class TelegramPlatformHandlerTest {
         void setUp() {
             integration = IntegrationCredentials.builder()
                     .pubId(UUID.randomUUID())
+                    .encryptedData("encrypted")
                     .build();
+        }
+
+        private void stubDecryption() {
+            when(encryptionService.decryptCredentials("encrypted"))
+                    .thenReturn(Map.of("token", "token123"));
         }
 
         @Test
         @DisplayName("executes send_message")
         @SuppressWarnings("unchecked")
         void sendMessage() {
+            stubDecryption();
             Map<String, Object> expectedResponse = Map.of("ok", true, "result", Map.of("message_id", 1));
-            when(telegramApiClient.sendMessage(eq("token123"), any())).thenReturn(expectedResponse);
+            when(telegramApiClient.sendRequest(eq("sendMessage"), eq("token123"), any())).thenReturn(expectedResponse);
 
             Map<String, Object> params = new LinkedHashMap<>();
-            params.put("chatId", 100);
+            params.put("chatId", "100");
             params.put("text", "Hello");
 
-            var result = handler.executeTool(integration, Map.of("token", "token123"),
-                    "telegram.send_message", params);
+            var result = handler.executeTool(integration, "telegram.send_message", params);
 
             assertEquals(expectedResponse, result);
-            verify(telegramApiClient).sendMessage(eq("token123"), argThat((Map<String, Object> p) ->
-                    p.get("chat_id").equals(100) && p.get("text").equals("Hello")));
+            verify(telegramApiClient).sendRequest(eq("sendMessage"), eq("token123"), argThat((Map<String, Object> p) ->
+                    p.get("chat_id").equals("100") && p.get("text").equals("Hello")));
         }
 
         @Test
         @DisplayName("executes edit_message")
         void editMessage() {
+            stubDecryption();
             Map<String, Object> expectedResponse = Map.of("ok", true);
-            when(telegramApiClient.editMessageText(eq("token123"), any())).thenReturn(expectedResponse);
+            when(telegramApiClient.sendRequest(eq("editMessageText"), eq("token123"), any())).thenReturn(expectedResponse);
 
-            Map<String, Object> params = Map.of("chatId", 100, "messageId", 456, "text", "Updated");
+            Map<String, Object> params = Map.of("chatId", "100", "messageId", "456", "text", "Updated");
 
-            var result = handler.executeTool(integration, Map.of("token", "token123"),
-                    "telegram.edit_message", params);
+            var result = handler.executeTool(integration, "telegram.edit_message", params);
 
             assertEquals(expectedResponse, result);
         }
@@ -209,11 +220,12 @@ class TelegramPlatformHandlerTest {
         @Test
         @DisplayName("executes delete_message")
         void deleteMessage() {
+            stubDecryption();
             Map<String, Object> expectedResponse = Map.of("ok", true);
-            when(telegramApiClient.deleteMessage(eq("token123"), any())).thenReturn(expectedResponse);
+            when(telegramApiClient.sendRequest(eq("deleteMessage"), eq("token123"), any())).thenReturn(expectedResponse);
 
-            var result = handler.executeTool(integration, Map.of("token", "token123"),
-                    "telegram.delete_message", Map.of("chatId", 100, "messageId", 456));
+            var result = handler.executeTool(integration,
+                    "telegram.delete_message", Map.of("chatId", "100", "messageId", "456"));
 
             assertEquals(expectedResponse, result);
         }
@@ -222,8 +234,7 @@ class TelegramPlatformHandlerTest {
         @DisplayName("throws for unknown tool")
         void unknownTool() {
             assertThrows(Exception.class, () ->
-                    handler.executeTool(integration, Map.of("token", "token123"),
-                            "telegram.unknown_tool", Map.of()));
+                    handler.executeTool(integration, "telegram.unknown_tool", Map.of()));
         }
     }
 
@@ -316,15 +327,20 @@ class TelegramPlatformHandlerTest {
         }
 
         @Test
-        @DisplayName("returns predefined tools")
+        @DisplayName("returns predefined tools as ToolSpecification")
         void tools() {
-            var tools = handler.getPredefinedTools();
+            Map<String, ToolSpecification> tools = handler.getPredefinedTools();
 
             assertTrue(tools.containsKey("telegram.send_message"));
             assertTrue(tools.containsKey("telegram.send_photo"));
             assertTrue(tools.containsKey("telegram.edit_message"));
             assertTrue(tools.containsKey("telegram.delete_message"));
             assertTrue(tools.containsKey("telegram.answer_callback_query"));
+
+            ToolSpecification sendMessage = tools.get("telegram.send_message");
+            assertEquals("telegram.send_message", sendMessage.name());
+            assertEquals("Send a text message", sendMessage.description());
+            assertNotNull(sendMessage.parameters());
         }
     }
 }

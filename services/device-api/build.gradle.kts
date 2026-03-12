@@ -44,6 +44,8 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp")
 
+    implementation("dev.langchain4j:langchain4j-core")
+
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 
     // Lombok for code generation
@@ -53,6 +55,10 @@ dependencies {
     // Testing Dependencies
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+}
+
+tasks.withType<JavaCompile> {
+    options.compilerArgs.add("-parameters")
 }
 
 tasks.withType<Test> {

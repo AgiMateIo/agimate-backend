@@ -41,21 +41,21 @@ public class IntegrationWebhookController {
             return ResponseEntity.ok("ok");
         }
 
-        var handler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
+        var integrationHandler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
 
         // Guard: platform must support webhooks
-        if (!handler.supportsWebhooks()) {
+        if (!integrationHandler.supportsWebhooks()) {
             log.warn("Webhook received for non-webhook platform: {}", integrationPubId);
             return ResponseEntity.notFound().build();
         }
 
-        if (!handler.validateWebhookRequest(integrationCredentials, request)) {
+        if (!integrationHandler.validateWebhookRequest(integrationCredentials, request)) {
             log.warn("Webhook validation failed for integration: {}", integrationPubId);
             return ResponseEntity.ok("ok");
         }
 
         try {
-            var trigger = handler.normalizeInbound(integrationCredentials, rawBody);
+            var trigger = integrationHandler.normalizeInbound(integrationCredentials, rawBody);
             triggerRouterService.routeWhTrigger(integrationCredentials, trigger);
         } catch (Exception e) {
             log.error("Failed to process webhook for integration {}: {}", integrationPubId, e.getMessage());

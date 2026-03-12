@@ -1,0 +1,45 @@
+package ru.agimate.deviceapi.controller.agent;
+
+import dev.langchain4j.agent.tool.ToolSpecification;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationsRegistry;
+import ru.agimate.deviceapi.security.AgentPrincipal;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping(AgentToolsController.PATH)
+@RequiredArgsConstructor
+@Tag(name = "Connector Call", description = "Execute connector methods via API Key")
+public class AgentToolsController {
+
+    public static final String PATH = AgentController.PATH + "/tools";
+
+    private final IntegrationsRegistry integrationsRegistry;
+
+    @Operation(
+            summary = "Get available tools",
+            description = "Returns all tool definitions available to the authenticated agent",
+            security = @SecurityRequirement(name = "ApiKey")
+    )
+    @GetMapping("/integrations/{connectorCode}")
+    public SuccessResponse<Map<String, ToolSpecification>> getAvailableTools(
+            @AuthenticationPrincipal AgentPrincipal principal,
+            @PathVariable("connectorCode") String connectorCode) {
+
+        IntegrationHandler handler = integrationsRegistry.getHandler(connectorCode);
+        return SuccessResponse.ok(handler.getPredefinedTools());
+    }
+
+
+}

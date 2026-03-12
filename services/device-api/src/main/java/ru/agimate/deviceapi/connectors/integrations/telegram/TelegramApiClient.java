@@ -48,45 +48,9 @@ public class TelegramApiClient {
     }
 
     @SuppressWarnings("unchecked")
-    public Map<String, Object> sendMessage(String token, Map<String, Object> params) {
+    public Map<String, Object> sendRequest(String method, String token, Map<String, Object> params) {
         return restClient.post()
-                .uri("/bot{token}/sendMessage", token)
-                .body(params)
-                .retrieve()
-                .body(Map.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> sendPhoto(String token, Map<String, Object> params) {
-        return restClient.post()
-                .uri("/bot{token}/sendPhoto", token)
-                .body(params)
-                .retrieve()
-                .body(Map.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> editMessageText(String token, Map<String, Object> params) {
-        return restClient.post()
-                .uri("/bot{token}/editMessageText", token)
-                .body(params)
-                .retrieve()
-                .body(Map.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> deleteMessage(String token, Map<String, Object> params) {
-        return restClient.post()
-                .uri("/bot{token}/deleteMessage", token)
-                .body(params)
-                .retrieve()
-                .body(Map.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    public Map<String, Object> answerCallbackQuery(String token, Map<String, Object> params) {
-        return restClient.post()
-                .uri("/bot{token}/answerCallbackQuery", token)
+                .uri("/bot{token}/{method}", token, method)
                 .body(params)
                 .retrieve()
                 .body(Map.class);

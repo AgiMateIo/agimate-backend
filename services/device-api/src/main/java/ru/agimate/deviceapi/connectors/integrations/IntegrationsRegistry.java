@@ -19,10 +19,10 @@ public class IntegrationsRegistry {
                 .collect(Collectors.toMap(IntegrationHandler::getConnectorCode, Function.identity()));
     }
 
-    public IntegrationHandler getHandler(String platformType) {
-        var handler = handlers.get(platformType);
+    public IntegrationHandler getHandler(String connectorCode) {
+        var handler = handlers.get(connectorCode);
         if (handler == null) {
-            throw new BadRequestStatusException("Unsupported platform: " + platformType);
+            throw new BadRequestStatusException("Unsupported platform: " + connectorCode);
         }
         return handler;
     }

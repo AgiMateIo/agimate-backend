@@ -22,20 +22,19 @@ public class IntegrationToolExecutorService {
     private final IntegrationsRegistry integrationsRegistry;
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
     private final CentrifugoService centrifugoService;
-    private final IntegrationEncryptionService encryptionService;
 
     @Async
     public void execute(IntegrationCredentials integrationCredentials, IToolUse toolUse, String agentId) {
         var integrationHandler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
-        Map<String, String> credentials = encryptionService.decryptCredentials(integrationCredentials.getEncryptedData());
 
         try {
             Map<String, Object> result = integrationHandler.executeTool(
-                    integrationCredentials, credentials, toolUse.getName(), toolUse.getInput());
+                    integrationCredentials, toolUse.getName(), toolUse.getInput());
 
             // Update last used timestamp
             integrationCredentialsRepository.updateLastUsedAt(integrationCredentials.getId(), LocalDateTime.now());
 
+            // todo: user router like trigger router, because it can be agent with webhook
             // Push result back to agent
             if (agentId != null) {
                 var toolResult = new ToolResultRequest(

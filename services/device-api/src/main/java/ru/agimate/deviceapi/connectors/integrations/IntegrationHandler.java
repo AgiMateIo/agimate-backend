@@ -1,5 +1,6 @@
 package ru.agimate.deviceapi.connectors.integrations;
 
+import dev.langchain4j.agent.tool.ToolSpecification;
 import jakarta.servlet.http.HttpServletRequest;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.service.trigger.Trigger;
@@ -23,11 +24,11 @@ public interface IntegrationHandler {
         return Map.of();
     }
 
-    Map<String, Object> getPredefinedTools();
+    Map<String, ToolSpecification> getPredefinedTools();
 
     IntegrationValidationResult validateCredentials(Map<String, String> credentials);
 
-    Map<String, Object> executeTool(IntegrationCredentials integrationCredentials, Map<String, String> credentials,
+    Map<String, Object> executeTool(IntegrationCredentials integrationCredentials,
                                     String toolName, Map<String, Object> params);
 
 

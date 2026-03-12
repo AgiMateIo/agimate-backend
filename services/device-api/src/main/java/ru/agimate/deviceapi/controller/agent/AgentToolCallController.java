@@ -25,10 +25,10 @@ import ru.agimate.deviceapi.service.AgentToolUseService;
 import java.util.List;
 
 @RestController
-@RequestMapping(AgentToolController.PATH)
+@RequestMapping(AgentToolCallController.PATH)
 @RequiredArgsConstructor
-@Tag(name = "Connector Call", description = "Execute connector methods via API Key")
-public class AgentToolController {
+@Tag(name = "Tool Call Controller", description = "Execute connector methods via API Key")
+public class AgentToolCallController {
 
     public static final String PATH = AgentController.PATH + "/tool";
 
