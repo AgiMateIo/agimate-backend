@@ -1,6 +1,8 @@
 package ru.agimate.common.security.jwt;
 
-import org.springframework.security.core.GrantedAuthority;import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import ru.agimate.common.security.UserRole;
 
 import java.security.Principal;
 import java.util.Collection;
@@ -15,6 +17,10 @@ public record AgimateUserPrincipal(
 
     public AgimateUserPrincipal(String pubId) {
         this(pubId, DEFAULT_ROLES);
+    }
+
+    public static AgimateUserPrincipal fromUser(String pubId, UserRole role) {
+        return new AgimateUserPrincipal(pubId, List.of(new SimpleGrantedAuthority(role.toAuthority())));
     }
 
     @Override

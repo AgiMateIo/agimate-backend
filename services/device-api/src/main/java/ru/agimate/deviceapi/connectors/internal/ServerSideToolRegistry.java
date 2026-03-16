@@ -19,10 +19,10 @@ public class ServerSideToolRegistry {
                 .collect(Collectors.toMap(ServerSideToolHandler::getConnectorCode, Function.identity()));
     }
 
-    public ServerSideToolHandler getHandler(String handlerCode) {
-        var handler = handlers.get(handlerCode);
+    public ServerSideToolHandler getHandler(String connectorCode) {
+        var handler = handlers.get(connectorCode);
         if (handler == null) {
-            throw new BadRequestStatusException("Unsupported server tool handler: " + handlerCode);
+            throw new BadRequestStatusException("Unsupported server tool handler: " + connectorCode);
         }
         return handler;
     }

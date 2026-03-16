@@ -44,15 +44,15 @@ public class ServerToolExecutorService {
         } catch (Exception e) {
             log.error("Failed to execute server tool '{}': {}", toolUse.getName(), e.getMessage());
 
+            var errorResult = new ToolResultRequest(
+                    toolUse.getId(), toolUse.getConnectorCode(), null, "Tool execution failed");
+
             try {
-                var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getName(), null, "Error");
-                toolUseLogService.recordOutput(toolResult);
+                toolUseLogService.recordOutput(errorResult);
             } catch (Exception logError) {
                 log.warn("Failed to log server tool error: {}", logError.getMessage());
             }
 
-            var errorResult = new ToolResultRequest(
-                    toolUse.getId(), toolUse.getName(), null,"Tool execution failed");
             centrifugoService.publishMessage("agent:" + agentPubId, errorResult);
         }
     }

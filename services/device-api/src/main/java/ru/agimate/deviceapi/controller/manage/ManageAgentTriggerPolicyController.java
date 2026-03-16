@@ -31,12 +31,12 @@ public class ManageAgentTriggerPolicyController {
     @Operation(summary = "Get trigger policies for an agent")
     @GetMapping("/")
     public SuccessResponse<Page<AgentTriggerPolicyResponse>> getPolicies(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @AuthenticationPrincipal AgimateUserPrincipal userPrincipal,
             @RequestParam UUID agentPubId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userPubId = UUID.fromString(userPrincipal.pubId());
         Page<AgentTriggerPolicyResponse> response = agentTriggerPolicyService.getPoliciesByAgent(userPubId, agentPubId, page, size)
                 .map(AgentTriggerPolicyResponse::from);
         return SuccessResponse.ok(response);
@@ -45,10 +45,10 @@ public class ManageAgentTriggerPolicyController {
     @Operation(summary = "Get a specific agent trigger policy")
     @GetMapping("/{policyId}")
     public SuccessResponse<AgentTriggerPolicyResponse> getPolicy(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @AuthenticationPrincipal AgimateUserPrincipal userPrincipal,
             @PathVariable UUID policyId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userPubId = UUID.fromString(userPrincipal.pubId());
         AgentTriggerPolicy policy = agentTriggerPolicyService.getPolicyById(userPubId, policyId);
         return SuccessResponse.ok(AgentTriggerPolicyResponse.from(policy));
     }
@@ -56,10 +56,10 @@ public class ManageAgentTriggerPolicyController {
     @Operation(summary = "Create an agent trigger policy")
     @PostMapping("/")
     public SuccessResponse<AgentTriggerPolicyResponse> createPolicy(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @AuthenticationPrincipal AgimateUserPrincipal userPrincipal,
             @Valid @RequestBody CreateAgentTriggerPolicyRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userPubId = UUID.fromString(userPrincipal.pubId());
         AgentTriggerPolicy policy = agentTriggerPolicyService.createPolicy(
                 userPubId,
                 request.agentPubId(),
@@ -76,11 +76,11 @@ public class ManageAgentTriggerPolicyController {
     @Operation(summary = "Update an agent trigger policy")
     @PutMapping("/{policyId}")
     public SuccessResponse<AgentTriggerPolicyResponse> updatePolicy(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @AuthenticationPrincipal AgimateUserPrincipal userPrincipal,
             @PathVariable UUID policyId,
             @Valid @RequestBody UpdateAgentTriggerPolicyRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userPubId = UUID.fromString(userPrincipal.pubId());
         AgentTriggerPolicy policy = agentTriggerPolicyService.updatePolicy(
                 userPubId,
                 policyId,
@@ -97,10 +97,10 @@ public class ManageAgentTriggerPolicyController {
     @Operation(summary = "Delete an agent trigger policy")
     @DeleteMapping("/{policyId}")
     public SuccessResponse<Void> deletePolicy(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @AuthenticationPrincipal AgimateUserPrincipal userPrincipal,
             @PathVariable UUID policyId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userPubId = UUID.fromString(userPrincipal.pubId());
         agentTriggerPolicyService.deletePolicy(userPubId, policyId);
         return SuccessResponse.empty();
     }

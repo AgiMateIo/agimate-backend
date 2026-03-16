@@ -9,7 +9,7 @@ import ru.agimate.common.security.jwt.JwtService;
 public class JwtConfig {
 
     @Bean
-    public JwtService jwtUtils(JwtProperties jwtProperties) {
+    public JwtService jwtService(JwtProperties jwtProperties) {
         return new JwtService(jwtProperties);
     }
 }

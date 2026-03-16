@@ -24,12 +24,12 @@ public class RefreshTokenService {
     private final Map<String, Instant> usedRefreshTokens = new ConcurrentHashMap<>();
 
 
-    public boolean isAlreadyUsed(String jti) {
-        return usedRefreshTokens.containsKey(jti);
+    public boolean isAlreadyUsed(String tokenValue) {
+        return usedRefreshTokens.containsKey(tokenValue);
     }
 
-    public void markTokenAsUsed(String jti) {
-        usedRefreshTokens.put(jti, Instant.now());
+    public void markTokenAsUsed(String tokenValue) {
+        usedRefreshTokens.put(tokenValue, Instant.now());
     }
 
 

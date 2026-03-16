@@ -6,7 +6,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentTriggerPolicy;
@@ -23,7 +22,7 @@ public class AgentTriggerPolicyService {
 
     private final AgentRepository agentRepository;
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
-    private final TriggerPolicyEvaluatorService triggerPolicyEvaluatorService;
+    private final TriggerPolicyDbEvaluatorService triggerPolicyEvaluatorService;
 
     public List<AgentTriggerPolicy> getPoliciesByAgent(UUID userPubId, UUID agentPubId) {
         return agentTriggerPolicyRepository.findByUserPubIdAndAgentPubId(userPubId, agentPubId);
@@ -109,17 +108,10 @@ public class AgentTriggerPolicyService {
     }
 
     private void validateOwnership(AgentTriggerPolicy policy, UUID userPubId) {
-        if (!policy.getUserPubId().equals(userPubId)) {
-            throw new ForbiddenStatusException("Access denied");
-        }
+        PolicyValidationUtils.validateOwnership(policy.getUserPubId(), userPubId);
     }
 
     private void validateConstraints(String connectorCode, String connectorIdentity, String triggerName) {
-        if (connectorIdentity != null && connectorCode == null) {
-            throw new BadRequestStatusException("connector_identity requires connector_code to be set");
-        }
-        if (triggerName != null && connectorCode == null) {
-            throw new BadRequestStatusException("trigger_name requires connector_code to be set");
-        }
+        PolicyValidationUtils.validateConstraints(connectorCode, connectorIdentity, triggerName, "trigger_name");
     }
 }

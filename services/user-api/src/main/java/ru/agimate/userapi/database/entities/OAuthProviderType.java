@@ -2,10 +2,7 @@ package ru.agimate.userapi.database.entities;
 
 public enum OAuthProviderType {
     GOOGLE,
-    YANDEX,
-    GITHUB,
-    FACEBOOK,
-    TWITTER;
+    YANDEX;
 
     public static OAuthProviderType fromString(String provider) {
         for (OAuthProviderType type : OAuthProviderType.values()) {

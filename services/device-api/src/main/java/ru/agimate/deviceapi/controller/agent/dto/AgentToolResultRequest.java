@@ -2,28 +2,40 @@ package ru.agimate.deviceapi.controller.agent.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 import ru.agimate.deviceapi.service.dto.IToolResult;
 
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 @Schema(description = "Request to save tool use result from agent")
-public class AgentToolResultRequest implements IToolResult {
+public record AgentToolResultRequest(
+        String connectorCode,
 
-    private String connectorCode;
+        @NotNull(message = "Tool use ID is required")
+        @Schema(description = "Tool use correlation ID")
+        String id,
 
-    @NotNull(message = "Tool use ID is required")
-    @Schema(description = "Tool use correlation ID")
-    private String id;
+        @Schema(description = "Tool execution output")
+        String output,
 
-    @Schema(description = "Tool execution output")
-    private String output;
+        @Schema(description = "Tool execution error")
+        String error
+) implements IToolResult {
 
-    @Schema(description = "Tool execution error")
-    private String error;
+    @Override
+    public String getConnectorCode() {
+        return connectorCode;
+    }
+
+    @Override
+    public String getId() {
+        return id;
+    }
+
+    @Override
+    public String getOutput() {
+        return output;
+    }
+
+    @Override
+    public String getError() {
+        return error;
+    }
 }

@@ -63,35 +63,35 @@ public class ManageAgentController {
     }
 
     @Operation(summary = "Update an agent")
-    @PutMapping("/{id}")
+    @PutMapping("/{agentPubId}")
     public SuccessResponse<AgentResponse> updateAgent(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id,
+            @PathVariable UUID agentPubId,
             @Valid @RequestBody UpdateAgentRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentService.update(id, userPubId, request));
+        return SuccessResponse.ok(agentService.update(agentPubId, userPubId, request));
     }
 
     @Operation(summary = "Delete an agent")
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{agentPubId}")
     public SuccessResponse<Void> deleteAgent(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id
+            @PathVariable UUID agentPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        agentService.delete(id, userPubId);
+        agentService.delete(agentPubId, userPubId);
         return SuccessResponse.empty();
     }
 
     @Operation(summary = "Regenerate agent API key")
-    @PostMapping("/{id}/regenerate")
+    @PostMapping("/{agentPubId}/regenerate")
     public SuccessResponse<AgentCreatedResponse> regenerateKey(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id
+            @PathVariable UUID agentPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var result = agentService.regenerateKey(id, userPubId);
+        var result = agentService.regenerateKey(agentPubId, userPubId);
         return SuccessResponse.ok(new AgentCreatedResponse(
                 AgentResponse.from(result.agent(), result.team()),
                 result.plaintextKey()

@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -23,11 +22,8 @@ import ru.agimate.userapi.database.repositories.UserOAuthAccountRepository;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
 import ru.agimate.userapi.service.UserService;
 
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -72,10 +68,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         UserEntity userEntity = createOrGetUserFromOAuth(oAuth2User, registrationId);
 
         // Generate JWT tokens
-        AgimateUserPrincipal agimateUserPrincipal = new AgimateUserPrincipal(
-                userEntity.getPubId().toString(),
-                List.of(new SimpleGrantedAuthority(userEntity.getRole().toAuthority()))
-        );
+        AgimateUserPrincipal agimateUserPrincipal = AgimateUserPrincipal.fromUser(
+                userEntity.getPubId().toString(), userEntity.getRole());
 
         String refreshTokenId = UUID.randomUUID().toString();
         String refreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, refreshTokenId);
@@ -102,36 +96,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     }
 
     private String getRegistrationId(Authentication authentication) {
-        // Extract registrationId from the OAuth2 authentication details
-        // First, try to get it from the OAuth2AuthenticationToken
-        if (authentication instanceof OAuth2AuthenticationToken) {
-            String registrationId = ((OAuth2AuthenticationToken) authentication).getAuthorizedClientRegistrationId();
+        if (authentication instanceof OAuth2AuthenticationToken oauthToken) {
+            String registrationId = oauthToken.getAuthorizedClientRegistrationId();
             if (registrationId != null) {
                 return registrationId.toLowerCase();
             }
         }
-
-        // For OIDC providers, we can also check the issuer
-        if (authentication.getPrincipal() instanceof OidcUser) {
-            String issuer = ((OidcUser) authentication.getPrincipal()).getIdToken().getIssuer().toString();
-            if (issuer.contains("google")) {
-                return "google";
-            }
-            if (issuer.contains("yandex")) {
-                return "yandex";
-            }
-        }
-
-        // Fallback to checking authorities
-        for (var authority : authentication.getAuthorities()) {
-            String auth = authority.getAuthority();
-            if (auth.startsWith("OAUTH2_")) {
-                return auth.substring(7).toLowerCase(); // OAUTH2_GOOGLE -> google
-            }
-        }
-
-        // If we still can't determine, default to google
-        return "google";
+        throw new IllegalStateException("Unable to determine OAuth2 registration ID from authentication");
     }
 
     public UserEntity createOrGetUserFromOAuth(OAuth2User oAuth2User, String registrationId) {

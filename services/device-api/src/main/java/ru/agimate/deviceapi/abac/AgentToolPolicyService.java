@@ -6,7 +6,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.database.entities.AgentToolPolicy;
 import ru.agimate.deviceapi.database.repositories.AgentToolPolicyRepository;
@@ -20,7 +19,7 @@ import java.util.UUID;
 public class AgentToolPolicyService {
 
     private final AgentToolPolicyRepository agentToolPolicyRepository;
-    private final ToolPolicyEvaluatorService toolPolicyEvaluatorService;
+    private final ToolPolicyDbEvaluatorService toolPolicyEvaluatorService;
 
     public List<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID agentPubId) {
         return agentToolPolicyRepository.findByUserPubIdAndAgentPubId(userPubId, agentPubId);
@@ -96,17 +95,10 @@ public class AgentToolPolicyService {
     }
 
     private void validateOwnership(AgentToolPolicy policy, UUID userPubId) {
-        if (!policy.getUserPubId().equals(userPubId)) {
-            throw new ForbiddenStatusException("Access denied");
-        }
+        PolicyValidationUtils.validateOwnership(policy.getUserPubId(), userPubId);
     }
 
     private void validateConstraints(String connectorCode, String connectorIdentity, String toolName) {
-        if (connectorIdentity != null && connectorCode == null) {
-            throw new BadRequestStatusException("connector_identity requires connector_code to be set");
-        }
-        if (toolName != null && connectorCode == null) {
-            throw new BadRequestStatusException("tool_name requires connector_code to be set");
-        }
+        PolicyValidationUtils.validateConstraints(connectorCode, connectorIdentity, toolName, "tool_name");
     }
 }

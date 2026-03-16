@@ -7,8 +7,6 @@ import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.security.UserRole;
 import ru.agimate.common.util.UUIDUtils;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -37,13 +35,9 @@ public class UserEntity extends BaseEntity {
     private String displayName;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 20)
+    @Column(name = "role", nullable = false, columnDefinition = "TEXT")
     private UserRole role = UserRole.GUEST;
 
-    // Bidirectional relationship with OAuth accounts
-    @OneToMany(mappedBy = "userEntity", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<UserOAuthAccount> oauthAccounts = new ArrayList<>();
-    
     // Constructors
     public UserEntity() {}
     

@@ -16,10 +16,7 @@ import ru.agimate.common.security.jwt.JwtAuthenticationToken;
 import ru.agimate.common.security.jwt.JwtService;
 import ru.agimate.userapi.service.UserService;
 
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-
 import java.io.IOException;
-import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -43,10 +40,8 @@ public class JwtDbAuthenticationFilter extends OncePerRequestFilter {
                     .flatMap(w -> userService.findByPubId(UUID.fromString(w.claims().getSubject())))
                     .ifPresent(userEntity -> SecurityContextHolder.getContext().setAuthentication(
                             new JwtAuthenticationToken(
-                                    new AgimateUserPrincipal(
-                                            userEntity.getPubId().toString(),
-                                            List.of(new SimpleGrantedAuthority(userEntity.getRole().toAuthority()))
-                                    )
+                                    AgimateUserPrincipal.fromUser(
+                                            userEntity.getPubId().toString(), userEntity.getRole())
                             )
                     ));
         }

@@ -24,9 +24,6 @@ import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
 import ru.agimate.userapi.service.UserService;
 
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -60,11 +57,7 @@ public class OAuthController {
     ) {
         OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRequest(request);
 
-        String refreshTokenValue = refreshTokenService.getRefreshTokenFromCookie(request);
-
-        if (refreshTokenValue == null || refreshTokenValue.isEmpty()) {
-            throw new UnauthorizedStatusException("Refresh token not found");
-        }
+        String refreshTokenValue = requireRefreshTokenFromCookie(request);
 
         if (refreshTokenService.isAlreadyUsed(refreshRequest.refreshTokenId())) {
             throw new ForbiddenStatusException("Refresh token already used");
@@ -81,10 +74,8 @@ public class OAuthController {
         UserEntity userEntity = userService.findByPubId(UUID.fromString(subject))
                 .orElseThrow(() -> new BadRequestStatusException("User doesn't exist"));
 
-        var agimateUserPrincipal = new AgimateUserPrincipal(
-                userEntity.getPubId().toString(),
-                List.of(new SimpleGrantedAuthority(userEntity.getRole().toAuthority()))
-        );
+        var agimateUserPrincipal = AgimateUserPrincipal.fromUser(
+                userEntity.getPubId().toString(), userEntity.getRole());
         String newAccessToken = jwtService.generateAccessToken(agimateUserPrincipal);
         String newRefreshTokenId = UUID.randomUUID().toString();
         String newRefreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, newRefreshTokenId);
@@ -105,17 +96,13 @@ public class OAuthController {
             HttpServletRequest request,
             HttpServletResponse response,
             @RequestBody
-            LogoutRequest refreshRequest
+            LogoutRequest logoutRequest
     ) {
         OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRequest(request);
 
-        String refreshTokenValue = refreshTokenService.getRefreshTokenFromCookie(request);
+        String refreshTokenValue = requireRefreshTokenFromCookie(request);
 
-        if (refreshTokenValue == null || refreshTokenValue.isEmpty()) {
-            throw new UnauthorizedStatusException("Refresh token not found");
-        }
-
-        var wrappedJwtOptional = jwtService.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
+        var wrappedJwtOptional = jwtService.extractClaimsFromValidRefreshToken(refreshTokenValue, logoutRequest.refreshTokenId());
         if (wrappedJwtOptional.isEmpty()) {
             refreshTokenService.deleteRefreshTokenCookie(response, resolved.cookieDomain());
             throw new ForbiddenStatusException("Invalid or expired refresh token");
@@ -125,6 +112,14 @@ public class OAuthController {
         refreshTokenService.deleteRefreshTokenCookie(response, resolved.cookieDomain());
 
         return ResponseEntity.ok(SuccessResponse.ok("success"));
+    }
+
+    private String requireRefreshTokenFromCookie(HttpServletRequest request) {
+        String refreshTokenValue = refreshTokenService.getRefreshTokenFromCookie(request);
+        if (refreshTokenValue == null || refreshTokenValue.isEmpty()) {
+            throw new UnauthorizedStatusException("Refresh token not found");
+        }
+        return refreshTokenValue;
     }
 
 }

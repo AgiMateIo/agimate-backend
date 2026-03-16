@@ -162,16 +162,9 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
      * Delete cookie from response
      */
     private void deleteCookie(HttpServletRequest request, HttpServletResponse response, String name) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if (name.equals(cookie.getName())) {
-                    Cookie deletionCookie = new Cookie(name, "");
-                    deletionCookie.setPath("/");
-                    deletionCookie.setMaxAge(0);
-                    response.addCookie(deletionCookie);
-                }
-            }
-        }
+        Cookie deletionCookie = new Cookie(name, "");
+        deletionCookie.setPath("/");
+        deletionCookie.setMaxAge(0);
+        response.addCookie(deletionCookie);
     }
 }
