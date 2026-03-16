@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-connectors-table" author="agimate">
+        <createTable tableName="connectors">
+            <column name="code" type="TEXT">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="type" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="credential_fields" type="JSONB"/>
+            <column name="features" type="JSONB"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE connectors
+                ADD CONSTRAINT chk_connectors_code CHECK (code ~ '^[a-z0-9:\-]{3,128}$');
+            ALTER TABLE connectors
+                ADD CONSTRAINT chk_connectors_type CHECK (type IN ('APP', 'INTEGRATION', 'INTERNAL_SERVICE', 'LOOPBACK'));
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

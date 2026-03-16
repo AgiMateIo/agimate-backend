@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-agent-trigger-policies-table" author="agimate">
+        <createTable tableName="agent_trigger_policies">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="agent_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connector_code" type="TEXT"/>
+            <column name="connector_identity" type="TEXT"/>
+            <column name="trigger_name" type="TEXT"/>
+            <column name="effect" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="priority" type="INTEGER"/>
+            <column name="description" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE agent_trigger_policies
+                ADD CONSTRAINT chk_agent_trigger_policies_effect CHECK (effect IN ('ALLOW', 'DENY'));
+            ALTER TABLE agent_trigger_policies
+                ADD CONSTRAINT chk_agent_trigger_policies_identity_requires_connector CHECK (connector_identity IS NULL OR connector_code IS NOT NULL);
+            ALTER TABLE agent_trigger_policies
+                ADD CONSTRAINT chk_agent_trigger_policies_trigger_requires_connector CHECK (trigger_name IS NULL OR connector_code IS NOT NULL);
+        </sql>
+
+        <sql>
+            CREATE UNIQUE INDEX uq_agent_trigger_policies_composite
+                ON agent_trigger_policies (agent_pub_id, connector_code, connector_identity, trigger_name, effect)
+                NULLS NOT DISTINCT;
+        </sql>
+
+        <createIndex tableName="agent_trigger_policies" indexName="idx_agent_trigger_policies_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

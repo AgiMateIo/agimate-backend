@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-tool-use-logs-table" author="agimate">
+        <createTable tableName="tool_use_logs">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connector_code" type="TEXT"/>
+            <column name="identity" type="TEXT"/>
+            <column name="tool_use_id" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tool_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="input" type="JSONB"/>
+            <column name="agent_session_id" type="TEXT"/>
+            <column name="access_effect" type="TEXT"/>
+            <column name="output_at" type="TIMESTAMP"/>
+            <column name="output" type="TEXT"/>
+            <column name="error" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_agent_pub_id">
+            <column name="agent_pub_id"/>
+        </createIndex>
+
+        <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_created_at">
+            <column name="created_at" descending="true"/>
+        </createIndex>
+
+        <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_tool_use_id">
+            <column name="tool_use_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

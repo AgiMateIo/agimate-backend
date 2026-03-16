@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-trigger-log-agents-table" author="agimate">
+        <createTable tableName="trigger_log_agents">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="trigger_log_id" type="BIGINT">
+                <constraints nullable="false"
+                             foreignKeyName="fk_trigger_log_agents_trigger_log"
+                             references="trigger_logs(id)"/>
+            </column>
+            <column name="agent_id" type="BIGINT">
+                <constraints nullable="false"
+                             foreignKeyName="fk_trigger_log_agents_agent"
+                             references="agents(id)"/>
+            </column>
+            <column name="destination" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="result" type="TEXT"/>
+            <column name="error" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="trigger_log_agents"
+                             columnNames="trigger_log_id, agent_id"
+                             constraintName="uq_trigger_log_agents_log_id_agent_id"/>
+    </changeSet>
+
+</databaseChangeLog>
