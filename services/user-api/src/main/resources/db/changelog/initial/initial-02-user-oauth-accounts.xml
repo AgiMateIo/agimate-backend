@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-user-oauth-accounts-table" author="Eugene Smith">
+        <createTable tableName="user_oauth_accounts">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="oauth_provider" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="provider_user_id" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email" type="TEXT">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="first_name" type="TEXT"/>
+            <column name="last_name" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="user_oauth_accounts"
+                baseColumnNames="user_id"
+                constraintName="fk_user_oauth_accounts_user_id"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <createIndex tableName="user_oauth_accounts" indexName="idx_oauth_accounts_user_id">
+            <column name="user_id"/>
+        </createIndex>
+
+        <addUniqueConstraint tableName="user_oauth_accounts"
+                             columnNames="oauth_provider, provider_user_id"
+                             constraintName="unq_oauth_accounts_provider_user"/>
+    </changeSet>
+
+</databaseChangeLog>
