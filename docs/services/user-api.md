@@ -1,6 +1,6 @@
 # user-api
 
-Authentication service handling OAuth2 login and JWT token management.
+Authentication service handling OAuth2 login, JWT token management, API key management, and waitlist.
 
 ## Configuration
 
@@ -36,39 +36,47 @@ Authentication service handling OAuth2 login and JWT token management.
 
 ## API Endpoints
 
-### User Management (JWT)
+### User Management (JWT — `Authorization: Bearer <jwt>`)
 
-| Method | Path                | Description                    |
-|--------|---------------------|--------------------------------|
-| GET    | `/user/user/{pub_id}` | Get user by public ID          |
-| GET    | `/user/user/me`     | Get current authenticated user |
+| Method | Path                      | Description                    |
+|--------|---------------------------|--------------------------------|
+| GET    | `/user/user/{pub_id}`     | Get user by public ID          |
+| GET    | `/user/user/me`           | Get current authenticated user |
 
-### OAuth2 Authentication
+### OAuth2 Authentication (Public)
 
-| Method | Path                 | Description                       |
-|--------|----------------------|-----------------------------------|
-| POST   | `/user/oauth2/refresh` | Refresh access token              |
-| POST   | `/user/oauth2/logout`  | Logout (invalidate refresh token) |
-| GET    | `/user/oauth2/error`   | OAuth2 error handler              |
+| Method | Path                      | Description                       |
+|--------|---------------------------|-----------------------------------|
+| POST   | `/user/oauth2/refresh`    | Refresh access token              |
+| POST   | `/user/oauth2/logout`     | Logout (invalidate refresh token) |
+
+### API Key Management (JWT — `Authorization: Bearer <jwt>`)
+
+| Method | Path                             | Description                                         |
+|--------|----------------------------------|-----------------------------------------------------|
+| GET    | `/user/manage/api-keys/`         | List all API keys for current user                  |
+| POST   | `/user/manage/api-keys/`         | Create new API key (full key shown only once)       |
+| PUT    | `/user/manage/api-keys/{keyId}`  | Update API key name, description, or enabled status |
+| DELETE | `/user/manage/api-keys/{keyId}`  | Delete API key                                      |
 
 ### API Key Verification (Public)
 
-| Method | Path                    | Description                                      |
-|--------|-------------------------|--------------------------------------------------|
-| POST   | `/user/api-keys/verify` | Verify API key (header `X-Api-Key`), public endpoint |
+| Method | Path                    | Description                                         |
+|--------|-------------------------|-----------------------------------------------------|
+| POST   | `/user/api-keys/verify` | Verify API key validity (header `X-Api-Key`)        |
 
-### Wait List (Public)
+### Waitlist (Public)
 
-| Method | Path              | Description                          |
-|--------|-------------------|--------------------------------------|
-| POST   | `/user/waitlist`  | Join the waitlist (email, name, message) |
+| Method | Path             | Description                             |
+|--------|------------------|-----------------------------------------|
+| POST   | `/user/waitlist` | Submit a waitlist entry (email, name)   |
 
 ### Public
 
-| Method | Path              | Description                 |
-|--------|-------------------|-----------------------------|
-| GET    | `/user/`          | Application info and uptime |
-| GET    | `/user/favicon.ico` | Empty favicon               |
+| Method | Path                  | Description                 |
+|--------|-----------------------|-----------------------------|
+| GET    | `/user/`              | Application info and uptime |
+| GET    | `/user/favicon.ico`   | Empty favicon               |
 
 ## Multi-domain OAuth2 Redirect
 
@@ -89,15 +97,6 @@ APP_OAUTH_FRONTEND_REDIRECT_URL=https://www.agimate.ru/login
 APP_OAUTH_COOKIE_DOMAIN=agimate.ru
 ```
 
-### API Key Management (JWT)
-
-| Method | Path                       | Description        |
-|--------|----------------------------|--------------------|
-| GET    | `/user/manage/api-keys/`   | List all API keys  |
-| POST   | `/user/manage/api-keys/`   | Create new API key |
-| PUT    | `/user/manage/api-keys/{id}` | Update API key     |
-| DELETE | `/user/manage/api-keys/{id}` | Delete API key     |
-
 ## gRPC Endpoints
 
 | RPC              | Description                       | Port |
@@ -108,7 +107,7 @@ APP_OAUTH_COOKIE_DOMAIN=agimate.ru
 
 - `users` — User accounts
 - `user_oauth_accounts` — OAuth2 provider links
-- `service_api_keys` — API keys for connector access
-- `waitlist_entries` — Wait list registrations
+- `service_api_keys` — API keys for connector/agent access
+- `waitlist_entries` — Waitlist registrations
 
 Migrations: `services/user-api/src/main/resources/db/changelog/`

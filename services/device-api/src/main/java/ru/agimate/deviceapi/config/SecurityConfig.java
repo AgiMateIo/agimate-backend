@@ -34,6 +34,8 @@ import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentToolPolicyController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentTriggerPolicyController;
 import ru.agimate.deviceapi.controller.manage.ManageIntegrationController;
+import ru.agimate.deviceapi.controller.manage.ManageSkillController;
+import ru.agimate.deviceapi.controller.manage.ManageSkillFileController;
 import ru.agimate.deviceapi.controller.manage.ManageWebhookDeliveryLogsController;
 import ru.agimate.deviceapi.controller.webhook.IntegrationWebhookController;
 import ru.agimate.deviceapi.security.AgentAuthFilter;
@@ -117,7 +119,9 @@ public class SecurityConfig {
                 ManageIntegrationController.PATH + "/**",
                 ManageBoardController.PATH + "/**",
                 ManageAgentToolPolicyController.PATH + "/**",
-                ManageAgentTriggerPolicyController.PATH + "/**"
+                ManageAgentTriggerPolicyController.PATH + "/**",
+                ManageSkillController.PATH + "/**",
+                ManageSkillFileController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

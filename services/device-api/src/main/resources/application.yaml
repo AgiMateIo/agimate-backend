@@ -48,6 +48,10 @@ spring:
   liquibase:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
   jpa:
     hibernate:
       ddl-auto: validate
@@ -88,6 +92,10 @@ app:
   integration:
     encryption-key: "***REMOVED***"
     webhook-base-url: "http://localhost:8080/device"
+  skill:
+    dir: "./data/skills"
+    max-file-size: 10485760
+    max-files-per-skill: 10
 
 centrifugo:
   enabled: true
