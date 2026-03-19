@@ -11,9 +11,12 @@ import ru.agimate.deviceapi.storage.SkillStorage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Slf4j
 @Service
@@ -106,6 +109,30 @@ public class SkillFileService {
     public List<SkillStorage.FileEntry> listFiles(String skillName, UUID userPubId) {
         String basePath = resolveBasePath(skillName, userPubId);
         return skillStorage.listFiles(basePath);
+    }
+
+    public void writeZip(String skillName, UUID userPubId, OutputStream out) {
+        String basePath = resolveBasePath(skillName, userPubId);
+        List<SkillStorage.FileEntry> files = skillStorage.listFiles(basePath);
+
+        try (ZipOutputStream zos = new ZipOutputStream(out)) {
+            for (SkillStorage.FileEntry entry : files) {
+                if (entry.directory()) {
+                    continue;
+                }
+                try (InputStream is = skillStorage.readFile(basePath, entry.path())) {
+                    if (is == null) {
+                        continue;
+                    }
+                    zos.putNextEntry(new ZipEntry(entry.path()));
+                    is.transferTo(zos);
+                    zos.closeEntry();
+                }
+            }
+        } catch (IOException e) {
+            log.error("Failed to create ZIP for skill '{}' user={}", skillName, userPubId, e);
+            throw new BadRequestStatusException("Failed to create skill archive");
+        }
     }
 
     public void deleteAll(String skillName, UUID userPubId) {

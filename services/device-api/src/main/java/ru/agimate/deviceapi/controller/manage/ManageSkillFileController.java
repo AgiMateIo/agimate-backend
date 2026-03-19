@@ -8,6 +8,7 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,6 +21,8 @@ import ru.agimate.deviceapi.service.SkillFileService;
 import ru.agimate.deviceapi.service.SkillService;
 
 import java.io.InputStream;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.UUID;
@@ -34,6 +37,24 @@ public class ManageSkillFileController {
 
     private final SkillService skillService;
     private final SkillFileService skillFileService;
+
+    @Operation(summary = "Download all skill files as a ZIP archive")
+    @GetMapping("/{pubId}.zip")
+    public ResponseEntity<StreamingResponseBody> downloadZip(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID pubId
+    ) {
+        UUID userPubId = UUID.fromString(principal.pubId());
+        Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
+
+        StreamingResponseBody body = out ->
+                skillFileService.writeZip(skill.getName(), skill.getUserPubId(), out);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + skill.getName() + ".zip\"")
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .body(body);
+    }
 
     @Operation(summary = "List all files in a skill directory")
     @GetMapping("/{pubId}/")
@@ -113,7 +134,8 @@ public class ManageSkillFileController {
         if (idx < 0) {
             return "";
         }
-        return fullPath.substring(idx + prefix.length());
+        String encoded = fullPath.substring(idx + prefix.length());
+        return URLDecoder.decode(encoded, StandardCharsets.UTF_8);
     }
 
     private String getFileName(String relativePath) {
