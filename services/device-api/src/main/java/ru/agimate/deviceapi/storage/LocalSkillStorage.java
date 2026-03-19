@@ -173,6 +173,19 @@ public class LocalSkillStorage implements SkillStorage {
         }
     }
 
+    @Override
+    public long lastModified(String basePath, String relativePath) {
+        Path filePath = resolve(basePath, relativePath);
+        if (!Files.exists(filePath)) {
+            return -1;
+        }
+        try {
+            return Files.getLastModifiedTime(filePath).toMillis();
+        } catch (IOException e) {
+            return -1;
+        }
+    }
+
     private Path resolve(String basePath, String relativePath) {
         Path resolved = rootDir.resolve(basePath).resolve(relativePath).normalize();
         if (!resolved.startsWith(rootDir)) {

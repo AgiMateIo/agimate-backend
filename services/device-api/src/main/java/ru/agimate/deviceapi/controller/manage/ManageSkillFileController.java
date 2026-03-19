@@ -8,7 +8,6 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -40,20 +39,20 @@ public class ManageSkillFileController {
 
     @Operation(summary = "Download all skill files as a ZIP archive")
     @GetMapping("/{pubId}.zip")
-    public ResponseEntity<StreamingResponseBody> downloadZip(
+    public ResponseEntity<InputStreamResource> downloadZip(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID pubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
 
-        StreamingResponseBody body = out ->
-                skillFileService.writeZip(skill.getName(), skill.getUserPubId(), out);
+        InputStream zipStream = skillFileService.getOrCreateZip(
+                skill.getName(), skill.getUserPubId(), skill.getUpdatedAt());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + skill.getName() + ".zip\"")
                 .contentType(MediaType.parseMediaType("application/zip"))
-                .body(body);
+                .body(new InputStreamResource(zipStream));
     }
 
     @Operation(summary = "List all files in a skill directory")
@@ -91,6 +90,7 @@ public class ManageSkillFileController {
         String relativePath = path.isEmpty() ? safeFilename : path + "/" + safeFilename;
 
         skillFileService.uploadFile(skill.getName(), userPubId, relativePath, file);
+        skillService.touchUpdatedAt(pubId, userPubId);
         return SuccessResponse.empty();
     }
 
@@ -124,6 +124,7 @@ public class ManageSkillFileController {
         String relativePath = extractRelativePath(request, pubId);
 
         skillFileService.deleteFile(skill.getName(), userPubId, relativePath);
+        skillService.touchUpdatedAt(pubId, userPubId);
         return SuccessResponse.empty();
     }
 

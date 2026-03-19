@@ -9,10 +9,12 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.storage.SkillStorage;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
@@ -111,11 +113,24 @@ public class SkillFileService {
         return skillStorage.listFiles(basePath);
     }
 
-    public void writeZip(String skillName, UUID userPubId, OutputStream out) {
+    public InputStream getOrCreateZip(String skillName, UUID userPubId, LocalDateTime updatedAt) {
+        String zipParent = resolveZipParentPath(skillName, userPubId);
+        String zipFileName = userPubId + ".zip";
+
+        long cacheModified = skillStorage.lastModified(zipParent, zipFileName);
+        long entityModified = updatedAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
+        if (cacheModified >= entityModified) {
+            log.debug("Serving cached ZIP for skill '{}' user={}", skillName, userPubId);
+            return skillStorage.readFile(zipParent, zipFileName);
+        }
+
+        log.debug("Generating ZIP for skill '{}' user={}", skillName, userPubId);
         String basePath = resolveBasePath(skillName, userPubId);
         List<SkillStorage.FileEntry> files = skillStorage.listFiles(basePath);
 
-        try (ZipOutputStream zos = new ZipOutputStream(out)) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
             for (SkillStorage.FileEntry entry : files) {
                 if (entry.directory()) {
                     continue;
@@ -133,11 +148,21 @@ public class SkillFileService {
             log.error("Failed to create ZIP for skill '{}' user={}", skillName, userPubId, e);
             throw new BadRequestStatusException("Failed to create skill archive");
         }
+
+        byte[] zipBytes = baos.toByteArray();
+        skillStorage.saveFile(zipParent, zipFileName, new ByteArrayInputStream(zipBytes), zipBytes.length);
+
+        return new ByteArrayInputStream(zipBytes);
     }
 
     public void deleteAll(String skillName, UUID userPubId) {
         String basePath = resolveBasePath(skillName, userPubId);
         skillStorage.deleteAll(basePath);
+
+        String zipParent = resolveZipParentPath(skillName, userPubId);
+        String zipFileName = userPubId + ".zip";
+        skillStorage.deleteFile(zipParent, zipFileName);
+
         log.info("Deleted all files for skill '{}' user={}", skillName, userPubId);
     }
 
@@ -154,6 +179,14 @@ public class SkillFileService {
         String uu = userPubIdStr.substring(0, 2);
         String uu2 = userPubIdStr.substring(2, 4);
         return nn + "/" + skillName + "/" + uu + "/" + uu2 + "/" + userPubIdStr;
+    }
+
+    private String resolveZipParentPath(String skillName, UUID userPubId) {
+        String nn = skillName.substring(0, Math.min(2, skillName.length()));
+        String userPubIdStr = userPubId.toString();
+        String uu = userPubIdStr.substring(0, 2);
+        String uu2 = userPubIdStr.substring(2, 4);
+        return nn + "/" + skillName + "/" + uu + "/" + uu2;
     }
 
     private void validateRelativePath(String relativePath) {

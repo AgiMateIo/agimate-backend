@@ -46,4 +46,8 @@ public interface SkillRepository extends JpaRepository<Skill, Long> {
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Skill s SET s.deletedAt = :now WHERE s.id = :id")
     void softDelete(@Param("id") Long id, @Param("now") LocalDateTime now);
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Skill s SET s.updatedAt = :now WHERE s.id = :id AND s.deletedAt IS NULL")
+    void touchUpdatedAt(@Param("id") Long id, @Param("now") LocalDateTime now);
 }

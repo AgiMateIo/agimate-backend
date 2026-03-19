@@ -25,5 +25,11 @@ public interface SkillStorage {
 
     void copyAll(String sourceBasePath, String targetBasePath);
 
+    /**
+     * Returns the last modified time of the file in epoch milliseconds.
+     * Returns -1 if the file does not exist.
+     */
+    long lastModified(String basePath, String relativePath);
+
     record FileEntry(String path, String name, long size, boolean directory) {}
 }

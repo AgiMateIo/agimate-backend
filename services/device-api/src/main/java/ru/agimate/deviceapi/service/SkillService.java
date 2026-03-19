@@ -168,6 +168,12 @@ public class SkillService {
         return SkillResponse.from(clone);
     }
 
+    @Transactional
+    public void touchUpdatedAt(UUID pubId, UUID userPubId) {
+        Skill skill = findOwnedSkill(pubId, userPubId);
+        skillRepository.touchUpdatedAt(skill.getId(), LocalDateTime.now());
+    }
+
     public Skill findOwnedSkill(UUID pubId, UUID userPubId) {
         Skill skill = skillRepository.findByPubIdNotDeleted(pubId)
                 .orElseThrow(() -> new NotFoundStatusException("Skill not found"));
