@@ -65,48 +65,48 @@ public class ManageIntegrationController {
     }
 
     @Operation(summary = "Get integration details")
-    @GetMapping("/{id}")
+    @GetMapping("/{integrationCredentialPubId}")
     public SuccessResponse<IntegrationResponse> getIntegration(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id
+            @PathVariable UUID integrationCredentialPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var integrationCredentials = integrationService.getIntegration(id, userPubId);
+        var integrationCredentials = integrationService.getIntegrationCredentials(integrationCredentialPubId, userPubId);
         return SuccessResponse.ok(toResponse(integrationCredentials));
     }
 
     @Operation(summary = "Update integration credentials")
-    @PutMapping("/{id}/credentials")
+    @PutMapping("/{integrationCredentialPubId}/credentials")
     public SuccessResponse<IntegrationResponse> updateCredentials(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id,
+            @PathVariable UUID integrationCredentialPubId,
             @Valid @RequestBody UpdateIntegrationCredentialsRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var integrationCredentials = integrationService.updateCredentials(id, userPubId, request.credentials());
+        var integrationCredentials = integrationService.updateCredentials(integrationCredentialPubId, userPubId, request.credentials());
         return SuccessResponse.ok(toResponse(integrationCredentials));
     }
 
     @Operation(summary = "Update integration settings (enable/disable, name)")
-    @PatchMapping("/{id}")
+    @PatchMapping("/{integrationCredentialPubId}/")
     public SuccessResponse<IntegrationResponse> updateIntegration(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id,
+            @PathVariable UUID integrationCredentialPubId,
             @Valid @RequestBody UpdateIntegrationRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var integrationCredentials = integrationService.updateIntegration(id, userPubId, request.enabled(), request.name());
+        var integrationCredentials = integrationService.patchIntegration(integrationCredentialPubId, userPubId, request.enabled(), request.name());
         return SuccessResponse.ok(toResponse(integrationCredentials));
     }
 
     @Operation(summary = "Delete an integration")
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{integrationCredentialPubId}")
     public SuccessResponse<Void> deleteIntegration(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id
+            @PathVariable UUID integrationCredentialPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        integrationService.deleteIntegration(id, userPubId);
+        integrationService.deleteIntegration(integrationCredentialPubId, userPubId);
         return SuccessResponse.empty();
     }
 

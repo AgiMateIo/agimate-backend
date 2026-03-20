@@ -90,15 +90,15 @@ public class IntegrationService {
         return integrationCredentialsRepository.findByUserPubIdNotDeleted(userPubId);
     }
 
-    public IntegrationCredentials getIntegration(UUID pubId, UUID userPubId) {
-        return integrationCredentialsRepository.findByPubIdNotDeleted(pubId)
+    public IntegrationCredentials getIntegrationCredentials(UUID integrationCredentialsPubId, UUID userPubId) {
+        return integrationCredentialsRepository.findByPubIdNotDeleted(integrationCredentialsPubId)
                 .filter(i -> i.getUserPubId().equals(userPubId))
                 .orElseThrow(() -> new NotFoundStatusException("Integration not found"));
     }
 
     @Transactional
     public void deleteIntegration(UUID pubId, UUID userPubId) {
-        IntegrationCredentials integrationCredentials = getIntegration(pubId, userPubId);
+        IntegrationCredentials integrationCredentials = getIntegrationCredentials(pubId, userPubId);
 
         // Remove webhook if platform supports it
         try {
@@ -115,7 +115,7 @@ public class IntegrationService {
 
     @Transactional
     public IntegrationCredentials updateCredentials(UUID pubId, UUID userPubId, Map<String, String> credentials) {
-        IntegrationCredentials integrationCredentials = getIntegration(pubId, userPubId);
+        IntegrationCredentials integrationCredentials = getIntegrationCredentials(pubId, userPubId);
         var handler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
 
         var validationResult = handler.validateCredentials(credentials);
@@ -143,8 +143,8 @@ public class IntegrationService {
     }
 
     @Transactional
-    public IntegrationCredentials updateIntegration(UUID pubId, UUID userPubId, Boolean enabled, String name) {
-        IntegrationCredentials integrationCredentials = getIntegration(pubId, userPubId);
+    public IntegrationCredentials patchIntegration(UUID pubId, UUID userPubId, Boolean enabled, String name) {
+        IntegrationCredentials integrationCredentials = getIntegrationCredentials(pubId, userPubId);
 
         if (enabled != null) {
             integrationCredentials.setEnabled(enabled);
