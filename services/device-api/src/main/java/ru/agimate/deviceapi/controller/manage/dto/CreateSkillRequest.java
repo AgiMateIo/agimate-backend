@@ -2,18 +2,12 @@ package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import ru.agimate.deviceapi.database.entities.SkillType;
 
 @Schema(description = "Request to create a skill")
 public record CreateSkillRequest(
         @NotBlank
         @Schema(description = "Content of SKILL.md with frontmatter")
         String skillMd,
-
-        @NotNull
-        @Schema(description = "Skill type")
-        SkillType type,
 
         @Schema(description = "Whether the skill is public", defaultValue = "false")
         Boolean isPublic

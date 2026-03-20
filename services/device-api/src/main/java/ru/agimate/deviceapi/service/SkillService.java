@@ -13,7 +13,6 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.manage.dto.*;
 import ru.agimate.deviceapi.database.entities.Skill;
-import ru.agimate.deviceapi.database.entities.SkillType;
 import ru.agimate.deviceapi.database.repositories.SkillRepository;
 import ru.agimate.deviceapi.util.SkillFrontmatterParser;
 
@@ -51,6 +50,17 @@ public class SkillService {
         return skills.map(SkillResponse::from);
     }
 
+    public Page<SkillResponse> getFeaturedSkills(String search, int page, int size) {
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<Skill> skills;
+        if (search != null && !search.isBlank()) {
+            skills = skillRepository.searchFeaturedNotDeleted(search, pageRequest);
+        } else {
+            skills = skillRepository.findFeaturedNotDeleted(pageRequest);
+        }
+        return skills.map(SkillResponse::from);
+    }
+
     public SkillDetailResponse getSkillDetail(UUID pubId, UUID userPubId) {
         Skill skill = findAccessibleSkill(pubId, userPubId);
         String skillMd = skillFileService.readSkillMd(skill.getName(), skill.getUserPubId());
@@ -68,7 +78,6 @@ public class SkillService {
         Skill skill = Skill.builder()
                 .name(frontmatter.name())
                 .description(frontmatter.description())
-                .type(request.type())
                 .userPubId(userPubId)
                 .isPublic(request.resolveIsPublic())
                 .build();
@@ -81,7 +90,7 @@ public class SkillService {
     }
 
     @Transactional
-    public SkillResponse createFromFile(UUID userPubId, String skillMdContent, SkillType type, boolean isPublic) {
+    public SkillResponse createFromFile(UUID userPubId, String skillMdContent, boolean isPublic) {
         SkillFrontmatterParser.Frontmatter frontmatter = SkillFrontmatterParser.parse(skillMdContent);
 
         if (skillRepository.existsByUserPubIdAndNameNotDeleted(userPubId, frontmatter.name())) {
@@ -91,7 +100,6 @@ public class SkillService {
         Skill skill = Skill.builder()
                 .name(frontmatter.name())
                 .description(frontmatter.description())
-                .type(type)
                 .userPubId(userPubId)
                 .isPublic(isPublic)
                 .build();
@@ -117,7 +125,6 @@ public class SkillService {
         String oldName = skill.getName();
         skill.setName(frontmatter.name());
         skill.setDescription(frontmatter.description());
-        skill.setType(request.type());
         skill.setIsPublic(request.resolveIsPublic());
         skill.setVersion(skill.getVersion() + 1);
         skill = skillRepository.save(skill);
@@ -156,7 +163,6 @@ public class SkillService {
         Skill clone = Skill.builder()
                 .name(source.getName())
                 .description(source.getDescription())
-                .type(source.getType())
                 .userPubId(userPubId)
                 .isPublic(false)
                 .build();

@@ -32,10 +32,6 @@ public class Skill extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false, columnDefinition = "TEXT")
-    private SkillType type;
-
     @Column(name = "version", nullable = false)
     @Builder.Default
     private Integer version = 1;
@@ -46,6 +42,10 @@ public class Skill extends BaseEntity {
     @Column(name = "is_public", nullable = false)
     @Builder.Default
     private Boolean isPublic = false;
+
+    @Column(name = "is_featured", nullable = false)
+    @Builder.Default
+    private Boolean isFeatured = false;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

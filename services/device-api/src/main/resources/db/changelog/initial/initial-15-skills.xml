@@ -17,9 +17,6 @@
                 <constraints nullable="false"/>
             </column>
             <column name="description" type="TEXT"/>
-            <column name="type" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
             <column name="version" type="INTEGER" defaultValueNumeric="1">
                 <constraints nullable="false"/>
             </column>
@@ -27,6 +24,9 @@
                 <constraints nullable="false"/>
             </column>
             <column name="is_public" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_featured" type="BOOLEAN" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>
             <column name="deleted_at" type="TIMESTAMP"/>

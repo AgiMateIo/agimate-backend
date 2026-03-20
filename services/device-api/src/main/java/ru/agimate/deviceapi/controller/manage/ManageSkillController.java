@@ -16,7 +16,6 @@ import ru.agimate.deviceapi.controller.manage.dto.CreateSkillRequest;
 import ru.agimate.deviceapi.controller.manage.dto.SkillDetailResponse;
 import ru.agimate.deviceapi.controller.manage.dto.SkillResponse;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateSkillRequest;
-import ru.agimate.deviceapi.database.entities.SkillType;
 import ru.agimate.deviceapi.service.SkillService;
 
 import java.io.IOException;
@@ -45,7 +44,7 @@ public class ManageSkillController {
         return SuccessResponse.ok(skillService.getMySkills(userPubId, search, page, size));
     }
 
-    @Operation(summary = "List public skills with optional search")
+    @Operation(summary = "List public skills (non-featured) with optional search")
     @GetMapping("/public/")
     public SuccessResponse<Page<SkillResponse>> getPublicSkills(
             @RequestParam(required = false) String search,
@@ -53,6 +52,16 @@ public class ManageSkillController {
             @RequestParam(defaultValue = "20") int size
     ) {
         return SuccessResponse.ok(skillService.getPublicSkills(search, page, size));
+    }
+
+    @Operation(summary = "List featured skills with optional search")
+    @GetMapping("/featured/")
+    public SuccessResponse<Page<SkillResponse>> getFeaturedSkills(
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return SuccessResponse.ok(skillService.getFeaturedSkills(search, page, size));
     }
 
     @Operation(summary = "Get skill details with SKILL.md content")
@@ -80,13 +89,12 @@ public class ManageSkillController {
     public SuccessResponse<SkillResponse> createSkillFromFile(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam("file") MultipartFile file,
-            @RequestParam SkillType type,
             @RequestParam(defaultValue = "false") boolean isPublic
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         try {
             String content = new String(file.getBytes(), StandardCharsets.UTF_8);
-            return SuccessResponse.ok(skillService.createFromFile(userPubId, content, type, isPublic));
+            return SuccessResponse.ok(skillService.createFromFile(userPubId, content, isPublic));
         } catch (IOException e) {
             throw new BadRequestStatusException("Failed to read uploaded file");
         }

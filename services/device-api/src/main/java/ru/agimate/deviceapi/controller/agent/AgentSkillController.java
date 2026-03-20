@@ -4,14 +4,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.deviceapi.controller.manage.dto.SkillResponse;
 import ru.agimate.deviceapi.database.entities.Skill;
 import ru.agimate.deviceapi.security.AgentPrincipal;
 import ru.agimate.deviceapi.service.SkillFileService;
@@ -31,13 +31,24 @@ public class AgentSkillController {
     private final SkillService skillService;
     private final SkillFileService skillFileService;
 
+    @Operation(summary = "List skills belonging to the agent's user")
+    @GetMapping("/")
+    public SuccessResponse<Page<SkillResponse>> getSkills(
+            @AuthenticationPrincipal AgentPrincipal principal,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        return SuccessResponse.ok(skillService.getMySkills(principal.userPubId(), search, page, size));
+    }
+
     @Operation(summary = "Download all skill files as a ZIP archive")
     @GetMapping("/{skillPubId}.zip")
     public ResponseEntity<InputStreamResource> downloadSkillZip(
             @AuthenticationPrincipal AgentPrincipal principal,
             @PathVariable UUID skillPubId
     ) {
-        Skill skill = skillService.findAccessibleSkill(skillPubId, principal.userPubId());
+        Skill skill = skillService.findOwnedSkill(skillPubId, principal.userPubId());
 
         InputStream zipStream = skillFileService.getOrCreateZip(
                 skill.getName(), skill.getUserPubId(), skill.getUpdatedAt());

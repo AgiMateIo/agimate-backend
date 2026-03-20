@@ -31,14 +31,23 @@ public interface SkillRepository extends JpaRepository<Skill, Long> {
             @Param("search") String search,
             Pageable pageable);
 
-    @Query("SELECT s FROM Skill s WHERE s.isPublic = true AND s.deletedAt IS NULL ORDER BY s.createdAt DESC")
+    @Query("SELECT s FROM Skill s WHERE s.isPublic = true AND s.isFeatured = false AND s.deletedAt IS NULL ORDER BY s.createdAt DESC")
     Page<Skill> findPublicNotDeleted(Pageable pageable);
 
-    @Query("SELECT s FROM Skill s WHERE s.isPublic = true AND s.deletedAt IS NULL " +
+    @Query("SELECT s FROM Skill s WHERE s.isPublic = true AND s.isFeatured = false AND s.deletedAt IS NULL " +
             "AND (LOWER(s.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
             "OR LOWER(s.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
             "ORDER BY s.createdAt DESC")
     Page<Skill> searchPublicNotDeleted(@Param("search") String search, Pageable pageable);
+
+    @Query("SELECT s FROM Skill s WHERE s.isPublic = true AND s.isFeatured = true AND s.deletedAt IS NULL ORDER BY s.createdAt DESC")
+    Page<Skill> findFeaturedNotDeleted(Pageable pageable);
+
+    @Query("SELECT s FROM Skill s WHERE s.isPublic = true AND s.isFeatured = true AND s.deletedAt IS NULL " +
+            "AND (LOWER(s.name) LIKE LOWER(CONCAT('%', :search, '%')) " +
+            "OR LOWER(s.description) LIKE LOWER(CONCAT('%', :search, '%'))) " +
+            "ORDER BY s.createdAt DESC")
+    Page<Skill> searchFeaturedNotDeleted(@Param("search") String search, Pageable pageable);
 
     @Query("SELECT COUNT(s) > 0 FROM Skill s WHERE s.userPubId = :userPubId AND s.name = :name AND s.deletedAt IS NULL")
     boolean existsByUserPubIdAndNameNotDeleted(@Param("userPubId") UUID userPubId, @Param("name") String name);
