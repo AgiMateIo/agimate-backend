@@ -32,6 +32,7 @@ public class SkillService {
 
     private final SkillRepository skillRepository;
     private final SkillFileService skillFileService;
+    private final SkillConnectorService skillConnectorService;
 
     public Page<SkillResponse> getMySkills(UUID userPubId, String search, int page, int size) {
         return findSkills(SkillSpecs.ownedBy(userPubId), search, page, size);
@@ -141,6 +142,7 @@ public class SkillService {
         }
 
         skillFileService.copyAll(source.getPubId(), clone.getPubId());
+        skillConnectorService.cloneBindings(source, clone);
 
         log.info("Cloned skill '{}' from pubId={} to pubId={} for user={}", source.getName(), source.getPubId(), clone.getPubId(), userPubId);
         return SkillResponse.from(clone);
