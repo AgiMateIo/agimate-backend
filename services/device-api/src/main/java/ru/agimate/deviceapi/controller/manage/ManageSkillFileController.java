@@ -46,8 +46,7 @@ public class ManageSkillFileController {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
 
-        InputStream zipStream = skillFileService.getOrCreateZip(
-                skill.getName(), skill.getUserPubId(), skill.getUpdatedAt());
+        InputStream zipStream = skillFileService.getOrCreateZip(skill.getPubId(), skill.getUpdatedAt());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + skill.getName() + ".zip\"")
@@ -64,7 +63,7 @@ public class ManageSkillFileController {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
         List<SkillFileEntryResponse> entries = skillFileService
-                .listFiles(skill.getName(), skill.getUserPubId())
+                .listFiles(skill.getPubId())
                 .stream()
                 .map(SkillFileEntryResponse::from)
                 .toList();
@@ -89,7 +88,7 @@ public class ManageSkillFileController {
         String safeFilename = Paths.get(originalFilename).getFileName().toString();
         String relativePath = path.isEmpty() ? safeFilename : path + "/" + safeFilename;
 
-        skillFileService.uploadFile(skill.getName(), userPubId, relativePath, file);
+        skillFileService.uploadFile(skill.getPubId(), relativePath, file);
         skillService.touchUpdatedAt(pubId, userPubId);
         return SuccessResponse.empty();
     }
@@ -105,7 +104,7 @@ public class ManageSkillFileController {
         Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
         String relativePath = extractRelativePath(request, pubId);
 
-        InputStream is = skillFileService.readFile(skill.getName(), skill.getUserPubId(), relativePath);
+        InputStream is = skillFileService.readFile(skill.getPubId(), relativePath);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + getFileName(relativePath) + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
@@ -123,7 +122,7 @@ public class ManageSkillFileController {
         Skill skill = skillService.findOwnedSkill(pubId, userPubId);
         String relativePath = extractRelativePath(request, pubId);
 
-        skillFileService.deleteFile(skill.getName(), userPubId, relativePath);
+        skillFileService.deleteFile(skill.getPubId(), relativePath);
         skillService.touchUpdatedAt(pubId, userPubId);
         return SuccessResponse.empty();
     }

@@ -30,6 +30,9 @@ public record SkillDetailResponse(
         @Schema(description = "Owner user ID")
         UUID userPubId,
 
+        @Schema(description = "Parent skill ID (if cloned)")
+        UUID parentPubId,
+
         @Schema(description = "Content of SKILL.md")
         String skillMd,
 
@@ -50,6 +53,7 @@ public record SkillDetailResponse(
                 skill.getIsPublic(),
                 skill.getIsFeatured(),
                 skill.getUserPubId(),
+                skill.getParentPubId(),
                 skillMd,
                 skill.getCreatedAt(),
                 skill.getUpdatedAt()

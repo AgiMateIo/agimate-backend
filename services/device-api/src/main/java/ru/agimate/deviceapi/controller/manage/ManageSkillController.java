@@ -94,7 +94,7 @@ public class ManageSkillController {
         UUID userPubId = UUID.fromString(principal.pubId());
         try {
             String content = new String(file.getBytes(), StandardCharsets.UTF_8);
-            return SuccessResponse.ok(skillService.createFromFile(userPubId, content, isPublic));
+            return SuccessResponse.ok(skillService.create(userPubId, new CreateSkillRequest(content, isPublic)));
         } catch (IOException e) {
             throw new BadRequestStatusException("Failed to read uploaded file");
         }

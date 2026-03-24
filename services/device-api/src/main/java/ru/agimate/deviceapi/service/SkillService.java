@@ -2,9 +2,11 @@ package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
@@ -14,6 +16,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.manage.dto.*;
 import ru.agimate.deviceapi.database.entities.Skill;
 import ru.agimate.deviceapi.database.repositories.SkillRepository;
+import ru.agimate.deviceapi.database.repositories.SkillSpecs;
 import ru.agimate.deviceapi.util.SkillFrontmatterParser;
 
 import java.time.LocalDateTime;
@@ -25,45 +28,26 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class SkillService {
 
+    private static final int MAX_PAGE_SIZE = 100;
+
     private final SkillRepository skillRepository;
     private final SkillFileService skillFileService;
 
     public Page<SkillResponse> getMySkills(UUID userPubId, String search, int page, int size) {
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<Skill> skills;
-        if (search != null && !search.isBlank()) {
-            skills = skillRepository.searchByUserPubIdNotDeleted(userPubId, search, pageRequest);
-        } else {
-            skills = skillRepository.findByUserPubIdNotDeleted(userPubId, pageRequest);
-        }
-        return skills.map(SkillResponse::from);
+        return findSkills(SkillSpecs.ownedBy(userPubId), search, page, size);
     }
 
     public Page<SkillResponse> getPublicSkills(String search, int page, int size) {
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<Skill> skills;
-        if (search != null && !search.isBlank()) {
-            skills = skillRepository.searchPublicNotDeleted(search, pageRequest);
-        } else {
-            skills = skillRepository.findPublicNotDeleted(pageRequest);
-        }
-        return skills.map(SkillResponse::from);
+        return findSkills(SkillSpecs.publicNotFeatured(), search, page, size);
     }
 
     public Page<SkillResponse> getFeaturedSkills(String search, int page, int size) {
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<Skill> skills;
-        if (search != null && !search.isBlank()) {
-            skills = skillRepository.searchFeaturedNotDeleted(search, pageRequest);
-        } else {
-            skills = skillRepository.findFeaturedNotDeleted(pageRequest);
-        }
-        return skills.map(SkillResponse::from);
+        return findSkills(SkillSpecs.featured(), search, page, size);
     }
 
     public SkillDetailResponse getSkillDetail(UUID pubId, UUID userPubId) {
         Skill skill = findAccessibleSkill(pubId, userPubId);
-        String skillMd = skillFileService.readSkillMd(skill.getName(), skill.getUserPubId());
+        String skillMd = skillFileService.readSkillMd(skill.getPubId());
         return SkillDetailResponse.from(skill, skillMd);
     }
 
@@ -81,33 +65,16 @@ public class SkillService {
                 .userPubId(userPubId)
                 .isPublic(request.resolveIsPublic())
                 .build();
-        skill = skillRepository.save(skill);
 
-        skillFileService.saveSkillMd(skill.getName(), userPubId, request.skillMd());
-
-        log.info("Created skill '{}' for user={}", skill.getName(), userPubId);
-        return SkillResponse.from(skill);
-    }
-
-    @Transactional
-    public SkillResponse createFromFile(UUID userPubId, String skillMdContent, boolean isPublic) {
-        SkillFrontmatterParser.Frontmatter frontmatter = SkillFrontmatterParser.parse(skillMdContent);
-
-        if (skillRepository.existsByUserPubIdAndNameNotDeleted(userPubId, frontmatter.name())) {
+        try {
+            skill = skillRepository.save(skill);
+        } catch (DataIntegrityViolationException e) {
             throw new ConflictStatusException("Skill with name '" + frontmatter.name() + "' already exists");
         }
 
-        Skill skill = Skill.builder()
-                .name(frontmatter.name())
-                .description(frontmatter.description())
-                .userPubId(userPubId)
-                .isPublic(isPublic)
-                .build();
-        skill = skillRepository.save(skill);
+        skillFileService.saveSkillMd(skill.getPubId(), request.skillMd());
 
-        skillFileService.saveSkillMd(skill.getName(), userPubId, skillMdContent);
-
-        log.info("Created skill '{}' from file for user={}", skill.getName(), userPubId);
+        log.info("Created skill '{}' pubId={} for user={}", skill.getName(), skill.getPubId(), userPubId);
         return SkillResponse.from(skill);
     }
 
@@ -122,19 +89,18 @@ public class SkillService {
             throw new ConflictStatusException("Skill with name '" + frontmatter.name() + "' already exists");
         }
 
-        String oldName = skill.getName();
         skill.setName(frontmatter.name());
         skill.setDescription(frontmatter.description());
         skill.setIsPublic(request.resolveIsPublic());
         skill.setVersion(skill.getVersion() + 1);
-        skill = skillRepository.save(skill);
 
-        if (!oldName.equals(frontmatter.name())) {
-            skillFileService.copyAll(oldName, userPubId, frontmatter.name(), userPubId);
-            skillFileService.deleteAll(oldName, userPubId);
+        try {
+            skill = skillRepository.save(skill);
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictStatusException("Skill with name '" + frontmatter.name() + "' already exists");
         }
 
-        skillFileService.saveSkillMd(skill.getName(), userPubId, request.skillMd());
+        skillFileService.saveSkillMd(skill.getPubId(), request.skillMd());
 
         log.info("Updated skill '{}' pubId={} version={}", skill.getName(), pubId, skill.getVersion());
         return SkillResponse.from(skill);
@@ -144,7 +110,7 @@ public class SkillService {
     public void delete(UUID pubId, UUID userPubId) {
         Skill skill = findOwnedSkill(pubId, userPubId);
         skillRepository.softDelete(skill.getId(), LocalDateTime.now());
-        skillFileService.deleteAll(skill.getName(), userPubId);
+        skillFileService.deleteAll(skill.getPubId());
         log.info("Soft-deleted skill '{}' pubId={}", skill.getName(), pubId);
     }
 
@@ -164,13 +130,19 @@ public class SkillService {
                 .name(source.getName())
                 .description(source.getDescription())
                 .userPubId(userPubId)
+                .parentPubId(source.getPubId())
                 .isPublic(false)
                 .build();
-        clone = skillRepository.save(clone);
 
-        skillFileService.copyAll(source.getName(), source.getUserPubId(), clone.getName(), userPubId);
+        try {
+            clone = skillRepository.save(clone);
+        } catch (DataIntegrityViolationException e) {
+            throw new ConflictStatusException("Skill with name '" + source.getName() + "' already exists in your collection");
+        }
 
-        log.info("Cloned skill '{}' from user={} to user={}", source.getName(), source.getUserPubId(), userPubId);
+        skillFileService.copyAll(source.getPubId(), clone.getPubId());
+
+        log.info("Cloned skill '{}' from pubId={} to pubId={} for user={}", source.getName(), source.getPubId(), clone.getPubId(), userPubId);
         return SkillResponse.from(clone);
     }
 
@@ -196,5 +168,18 @@ public class SkillService {
             throw new ForbiddenStatusException("Access denied");
         }
         return skill;
+    }
+
+    private Page<SkillResponse> findSkills(Specification<Skill> filter, String search, int page, int size) {
+        PageRequest pageRequest = buildPageRequest(page, size);
+        Specification<Skill> spec = SkillSpecs.notDeleted().and(filter);
+        if (search != null && !search.isBlank()) {
+            spec = spec.and(SkillSpecs.searchByNameOrDescription(search));
+        }
+        return skillRepository.findAll(spec, pageRequest).map(SkillResponse::from);
+    }
+
+    private PageRequest buildPageRequest(int page, int size) {
+        return PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
     }
 }

@@ -30,6 +30,9 @@ public record SkillResponse(
         @Schema(description = "Owner user ID")
         UUID userPubId,
 
+        @Schema(description = "Parent skill ID (if cloned)")
+        UUID parentPubId,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the skill was created")
         LocalDateTime createdAt,
@@ -47,6 +50,7 @@ public record SkillResponse(
                 skill.getIsPublic(),
                 skill.getIsFeatured(),
                 skill.getUserPubId(),
+                skill.getParentPubId(),
                 skill.getCreatedAt(),
                 skill.getUpdatedAt()
         );

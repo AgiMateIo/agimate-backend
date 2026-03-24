@@ -50,8 +50,7 @@ public class AgentSkillController {
     ) {
         Skill skill = skillService.findOwnedSkill(skillPubId, principal.userPubId());
 
-        InputStream zipStream = skillFileService.getOrCreateZip(
-                skill.getName(), skill.getUserPubId(), skill.getUpdatedAt());
+        InputStream zipStream = skillFileService.getOrCreateZip(skill.getPubId(), skill.getUpdatedAt());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + skill.getName() + ".zip\"")

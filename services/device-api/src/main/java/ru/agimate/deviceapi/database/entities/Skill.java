@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "skills", uniqueConstraints = @UniqueConstraint(columnNames = {"user_pub_id", "name"}))
+@Table(name = "skills")
 @Getter
 @Setter
 @Builder
@@ -46,6 +46,9 @@ public class Skill extends BaseEntity {
     @Column(name = "is_featured", nullable = false)
     @Builder.Default
     private Boolean isFeatured = false;
+
+    @Column(name = "parent_pub_id")
+    private UUID parentPubId;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
