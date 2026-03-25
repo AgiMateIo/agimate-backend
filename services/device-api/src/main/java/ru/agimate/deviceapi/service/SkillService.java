@@ -34,16 +34,16 @@ public class SkillService {
     private final SkillFileService skillFileService;
     private final SkillConnectorService skillConnectorService;
 
-    public Page<SkillResponse> getMySkills(UUID userPubId, String search, int page, int size) {
-        return findSkills(SkillSpecs.ownedBy(userPubId), search, page, size);
+    public Page<SkillResponse> getMySkills(UUID userPubId, String search, String connectorCode, int page, int size) {
+        return findSkills(SkillSpecs.ownedBy(userPubId), search, connectorCode, page, size);
     }
 
-    public Page<SkillResponse> getPublicSkills(String search, int page, int size) {
-        return findSkills(SkillSpecs.publicNotFeatured(), search, page, size);
+    public Page<SkillResponse> getPublicSkills(String search, String connectorCode, int page, int size) {
+        return findSkills(SkillSpecs.publicNotFeatured(), search, connectorCode, page, size);
     }
 
-    public Page<SkillResponse> getFeaturedSkills(String search, int page, int size) {
-        return findSkills(SkillSpecs.featured(), search, page, size);
+    public Page<SkillResponse> getFeaturedSkills(String search, String connectorCode, int page, int size) {
+        return findSkills(SkillSpecs.featured(), search, connectorCode, page, size);
     }
 
     public SkillDetailResponse getSkillDetail(UUID pubId, UUID userPubId) {
@@ -172,11 +172,14 @@ public class SkillService {
         return skill;
     }
 
-    private Page<SkillResponse> findSkills(Specification<Skill> filter, String search, int page, int size) {
+    private Page<SkillResponse> findSkills(Specification<Skill> filter, String search, String connectorCode, int page, int size) {
         PageRequest pageRequest = buildPageRequest(page, size);
         Specification<Skill> spec = SkillSpecs.notDeleted().and(filter);
         if (search != null && !search.isBlank()) {
             spec = spec.and(SkillSpecs.searchByNameOrDescription(search));
+        }
+        if (connectorCode != null && !connectorCode.isBlank()) {
+            spec = spec.and(SkillSpecs.hasConnector(connectorCode));
         }
         return skillRepository.findAll(spec, pageRequest).map(SkillResponse::from);
     }

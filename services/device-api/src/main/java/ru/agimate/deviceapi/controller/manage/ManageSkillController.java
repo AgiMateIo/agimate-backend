@@ -32,36 +32,39 @@ public class ManageSkillController {
 
     private final SkillService skillService;
 
-    @Operation(summary = "List own skills with optional search")
+    @Operation(summary = "List own skills with optional search and connector filter")
     @GetMapping("/")
     public SuccessResponse<Page<SkillResponse>> getMySkills(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String connectorCode,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.getMySkills(userPubId, search, page, size));
+        return SuccessResponse.ok(skillService.getMySkills(userPubId, search, connectorCode, page, size));
     }
 
-    @Operation(summary = "List public skills (non-featured) with optional search")
+    @Operation(summary = "List public skills (non-featured) with optional search and connector filter")
     @GetMapping("/public/")
     public SuccessResponse<Page<SkillResponse>> getPublicSkills(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String connectorCode,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return SuccessResponse.ok(skillService.getPublicSkills(search, page, size));
+        return SuccessResponse.ok(skillService.getPublicSkills(search, connectorCode, page, size));
     }
 
-    @Operation(summary = "List featured skills with optional search")
+    @Operation(summary = "List featured skills with optional search and connector filter")
     @GetMapping("/featured/")
     public SuccessResponse<Page<SkillResponse>> getFeaturedSkills(
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String connectorCode,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return SuccessResponse.ok(skillService.getFeaturedSkills(search, page, size));
+        return SuccessResponse.ok(skillService.getFeaturedSkills(search, connectorCode, page, size));
     }
 
     @Operation(summary = "Get skill details with SKILL.md content")

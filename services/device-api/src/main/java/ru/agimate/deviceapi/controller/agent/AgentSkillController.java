@@ -39,7 +39,7 @@ public class AgentSkillController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return SuccessResponse.ok(skillService.getMySkills(principal.userPubId(), search, page, size));
+        return SuccessResponse.ok(skillService.getMySkills(principal.userPubId(), search, null, page, size));
     }
 
     @Operation(summary = "Download all skill files as a ZIP archive")

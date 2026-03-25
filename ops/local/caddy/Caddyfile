@@ -34,6 +34,23 @@ http://api.agimate.lc:8000 {
 
 
 
+http://localhost:8000 {
+	handle /login/redirect {
+		header Content-Type "text/html; charset=utf-8"
+		respond <<HTML
+			<!DOCTYPE html>
+			<html>
+			<head><title>Redirecting...</title></head>
+			<body>
+			<script>
+				window.location.href = "http://api.agimate.lc:8000/user/login/oauth2/code/yandex" + window.location.search;
+			</script>
+			</body>
+			</html>
+			HTML 200
+	}
+}
+
 http://centrifugo.agimate.lc:8000 {
 	log
 	reverse_proxy localhost:9000

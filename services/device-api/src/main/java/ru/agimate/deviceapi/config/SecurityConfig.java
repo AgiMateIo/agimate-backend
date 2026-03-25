@@ -24,6 +24,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.agent.AgentController;
 import ru.agimate.deviceapi.controller.app.AppRegistrationController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentController;
+import ru.agimate.deviceapi.controller.manage.ManageAgentSkillController;
 import ru.agimate.deviceapi.controller.manage.ManageAgenticTeamController;
 import ru.agimate.deviceapi.controller.manage.ManageBoardController;
 import ru.agimate.deviceapi.controller.manage.ManageAppsController;
@@ -33,6 +34,7 @@ import ru.agimate.deviceapi.controller.manage.ManageToolUseLogsController;
 import ru.agimate.deviceapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentToolPolicyController;
 import ru.agimate.deviceapi.controller.manage.ManageAgentTriggerPolicyController;
+import ru.agimate.deviceapi.controller.manage.ManageConnectorController;
 import ru.agimate.deviceapi.controller.manage.ManageIntegrationController;
 import ru.agimate.deviceapi.controller.manage.ManageSkillController;
 import ru.agimate.deviceapi.controller.manage.ManageSkillFileController;
@@ -114,6 +116,7 @@ public class SecurityConfig {
                 ManageTriggerLogsController.PATH + "/**",
                 ManageToolUseLogsController.PATH + "/**",
                 ManageAgentController.PATH + "/**",
+                ManageAgentSkillController.PATH + "/**",
                 ManageAgenticTeamController.PATH + "/**",
                 ManageWebhookDeliveryLogsController.PATH + "/**",
                 ManageIntegrationController.PATH + "/**",
@@ -121,7 +124,8 @@ public class SecurityConfig {
                 ManageAgentToolPolicyController.PATH + "/**",
                 ManageAgentTriggerPolicyController.PATH + "/**",
                 ManageSkillController.PATH + "/**",
-                ManageSkillFileController.PATH + "/**"
+                ManageSkillFileController.PATH + "/**",
+                ManageConnectorController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);
