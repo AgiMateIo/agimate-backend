@@ -18,6 +18,9 @@ public record AgentSkillResponse(
         @Schema(description = "Skill public ID")
         UUID skillPubId,
 
+        @Schema(description = "Skill name")
+        String skillName,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the binding was created")
         LocalDateTime createdAt,
@@ -26,11 +29,12 @@ public record AgentSkillResponse(
         @Schema(description = "When the binding was last updated")
         LocalDateTime updatedAt
 ) {
-    public static AgentSkillResponse from(AgentSkill agentSkill) {
+    public static AgentSkillResponse from(AgentSkill agentSkill, String skillName) {
         return new AgentSkillResponse(
                 agentSkill.getId(),
                 agentSkill.getAgentPubId(),
                 agentSkill.getSkillPubId(),
+                skillName,
                 agentSkill.getCreatedAt(),
                 agentSkill.getUpdatedAt()
         );

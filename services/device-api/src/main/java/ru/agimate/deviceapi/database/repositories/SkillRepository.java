@@ -9,6 +9,8 @@ import org.springframework.stereotype.Repository;
 import ru.agimate.deviceapi.database.entities.Skill;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,6 +22,9 @@ public interface SkillRepository extends JpaRepository<Skill, Long>, JpaSpecific
 
     @Query("SELECT COUNT(s) > 0 FROM Skill s WHERE s.userPubId = :userPubId AND s.name = :name AND s.deletedAt IS NULL")
     boolean existsByUserPubIdAndNameNotDeleted(@Param("userPubId") UUID userPubId, @Param("name") String name);
+
+    @Query("SELECT s FROM Skill s WHERE s.pubId IN :pubIds AND s.deletedAt IS NULL")
+    List<Skill> findByPubIdInNotDeleted(@Param("pubIds") Collection<UUID> pubIds);
 
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Skill s SET s.deletedAt = :now WHERE s.id = :id")

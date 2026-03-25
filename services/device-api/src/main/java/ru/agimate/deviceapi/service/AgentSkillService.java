@@ -12,11 +12,15 @@ import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.manage.dto.AgentSkillResponse;
 import ru.agimate.deviceapi.database.entities.AgentSkill;
+import ru.agimate.deviceapi.database.entities.Skill;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.AgentSkillRepository;
 import ru.agimate.deviceapi.database.repositories.SkillRepository;
 
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -33,13 +37,24 @@ public class AgentSkillService {
     public Page<AgentSkillResponse> getAgentSkills(UUID agentPubId, UUID userPubId, int page, int size) {
         verifyAgentOwnership(agentPubId, userPubId);
         PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
-        return agentSkillRepository.findByAgentPubId(agentPubId, pageRequest).map(AgentSkillResponse::from);
+        Page<AgentSkill> agentSkills = agentSkillRepository.findByAgentPubId(agentPubId, pageRequest);
+
+        var skillPubIds = agentSkills.getContent().stream()
+                .map(AgentSkill::getSkillPubId)
+                .collect(Collectors.toSet());
+
+        Map<UUID, String> skillNames = skillPubIds.isEmpty()
+                ? Map.of()
+                : skillRepository.findByPubIdInNotDeleted(skillPubIds).stream()
+                        .collect(Collectors.toMap(s -> s.getPubId(), s -> s.getName()));
+
+        return agentSkills.map(as -> AgentSkillResponse.from(as, skillNames.get(as.getSkillPubId())));
     }
 
     @Transactional
     public AgentSkillResponse create(UUID agentPubId, UUID skillPubId, UUID userPubId) {
         verifyAgentOwnership(agentPubId, userPubId);
-        verifySkillOwnership(skillPubId, userPubId);
+        var skill = verifySkillOwnership(skillPubId, userPubId);
 
         AgentSkill agentSkill = AgentSkill.builder()
                 .userPubId(userPubId)
@@ -54,7 +69,7 @@ public class AgentSkillService {
         }
 
         log.info("Bound skill {} to agent {} for user {}", skillPubId, agentPubId, userPubId);
-        return AgentSkillResponse.from(agentSkill);
+        return AgentSkillResponse.from(agentSkill, skill.getName());
     }
 
     @Transactional
@@ -80,11 +95,12 @@ public class AgentSkillService {
         }
     }
 
-    private void verifySkillOwnership(UUID skillPubId, UUID userPubId) {
+    private Skill verifySkillOwnership(UUID skillPubId, UUID userPubId) {
         var skill = skillRepository.findByPubIdNotDeleted(skillPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Skill not found"));
         if (!skill.getUserPubId().equals(userPubId)) {
             throw new NotFoundStatusException("Skill not found");
         }
+        return skill;
     }
 }
