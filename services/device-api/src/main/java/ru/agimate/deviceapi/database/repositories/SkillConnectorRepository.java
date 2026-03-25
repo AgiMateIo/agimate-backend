@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.deviceapi.database.entities.SkillConnector;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,6 +15,9 @@ import java.util.UUID;
 public interface SkillConnectorRepository extends JpaRepository<SkillConnector, UUID> {
 
     List<SkillConnector> findBySkillId(Long skillId);
+
+    @Query("SELECT sc FROM SkillConnector sc WHERE sc.skill.pubId IN :skillPubIds")
+    List<SkillConnector> findBySkillPubIdIn(@Param("skillPubIds") Collection<UUID> skillPubIds);
 
     @Modifying(clearAutomatically = true)
     @Query("DELETE FROM SkillConnector sc WHERE sc.skill.id = :skillId")

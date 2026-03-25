@@ -5,10 +5,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import ru.agimate.deviceapi.database.entities.AgentSkill;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface AgentSkillRepository extends JpaRepository<AgentSkill, UUID> {
+
+    List<AgentSkill> findByAgentPubId(UUID agentPubId);
 
     Page<AgentSkill> findByAgentPubId(UUID agentPubId, Pageable pageable);
 

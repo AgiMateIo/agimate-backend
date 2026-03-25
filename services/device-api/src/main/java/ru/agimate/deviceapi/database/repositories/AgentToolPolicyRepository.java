@@ -86,6 +86,8 @@ public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy
             @Param("effect") String effect
     );
 
+    List<AgentToolPolicy> findByAgentPubIdAndSource(UUID agentPubId, String source);
+
     @Modifying
     @Query("DELETE FROM AgentToolPolicy p WHERE p.agentPubId = :agentPubId")
     void deleteByAgentPubId(@Param("agentPubId") UUID agentPubId);

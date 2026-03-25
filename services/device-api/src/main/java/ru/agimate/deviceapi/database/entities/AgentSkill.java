@@ -29,4 +29,7 @@ public class AgentSkill extends BaseEntity {
 
     @Column(name = "skill_pub_id", nullable = false)
     private UUID skillPubId;
+
+    @Column(name = "installed_skill_version")
+    private Integer installedSkillVersion;
 }

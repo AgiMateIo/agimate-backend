@@ -48,4 +48,7 @@ public class AgentTriggerPolicy extends BaseEntity {
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "source", columnDefinition = "TEXT")
+    private String source;
 }

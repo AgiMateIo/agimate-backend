@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.manage.dto.AgentSkillResponse;
+import ru.agimate.deviceapi.controller.manage.dto.PolicyDiffResponse;
 import ru.agimate.deviceapi.database.entities.AgentSkill;
 import ru.agimate.deviceapi.database.entities.Skill;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
@@ -19,7 +20,6 @@ import ru.agimate.deviceapi.database.repositories.SkillRepository;
 
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,6 +33,7 @@ public class AgentSkillService {
     private final AgentSkillRepository agentSkillRepository;
     private final AgentRepository agentRepository;
     private final SkillRepository skillRepository;
+    private final AgentSkillPolicyService agentSkillPolicyService;
 
     public Page<AgentSkillResponse> getAgentSkills(UUID agentPubId, UUID userPubId, int page, int size) {
         verifyAgentOwnership(agentPubId, userPubId);
@@ -43,12 +44,18 @@ public class AgentSkillService {
                 .map(AgentSkill::getSkillPubId)
                 .collect(Collectors.toSet());
 
-        Map<UUID, String> skillNames = skillPubIds.isEmpty()
+        Map<UUID, Skill> skillMap = skillPubIds.isEmpty()
                 ? Map.of()
                 : skillRepository.findByPubIdInNotDeleted(skillPubIds).stream()
-                        .collect(Collectors.toMap(s -> s.getPubId(), s -> s.getName()));
+                        .collect(Collectors.toMap(Skill::getPubId, s -> s));
 
-        return agentSkills.map(as -> AgentSkillResponse.from(as, skillNames.get(as.getSkillPubId())));
+        return agentSkills.map(as -> {
+            Skill skill = skillMap.get(as.getSkillPubId());
+            String name = skill != null ? skill.getName() : null;
+            boolean needsReinstall = skill != null
+                    && (as.getInstalledSkillVersion() == null || skill.getVersion() > as.getInstalledSkillVersion());
+            return AgentSkillResponse.from(as, name, needsReinstall);
+        });
     }
 
     @Transactional
@@ -60,6 +67,7 @@ public class AgentSkillService {
                 .userPubId(userPubId)
                 .agentPubId(agentPubId)
                 .skillPubId(skillPubId)
+                .installedSkillVersion(skill.getVersion())
                 .build();
 
         try {
@@ -68,8 +76,10 @@ public class AgentSkillService {
             throw new ConflictStatusException("Skill is already bound to this agent");
         }
 
+        agentSkillPolicyService.applyDiff(agentPubId, userPubId);
+
         log.info("Bound skill {} to agent {} for user {}", skillPubId, agentPubId, userPubId);
-        return AgentSkillResponse.from(agentSkill, skill.getName());
+        return AgentSkillResponse.from(agentSkill, skill.getName(), false);
     }
 
     @Transactional
@@ -84,7 +94,52 @@ public class AgentSkillService {
         }
 
         agentSkillRepository.delete(agentSkill);
+        agentSkillPolicyService.applyDiff(agentPubId, userPubId);
+
         log.info("Unbound skill {} from agent {} for user {}", skillPubId, agentPubId, userPubId);
+    }
+
+    @Transactional
+    public void syncPolicies(UUID agentPubId, UUID userPubId) {
+        verifyAgentOwnership(agentPubId, userPubId);
+
+        agentSkillPolicyService.applyDiff(agentPubId, userPubId);
+
+        // Update installedSkillVersion for all skills on this agent
+        var agentSkills = agentSkillRepository.findByAgentPubId(agentPubId);
+        var skillPubIds = agentSkills.stream().map(AgentSkill::getSkillPubId).collect(Collectors.toSet());
+
+        Map<UUID, Integer> skillVersions = skillPubIds.isEmpty()
+                ? Map.of()
+                : skillRepository.findByPubIdInNotDeleted(skillPubIds).stream()
+                        .collect(Collectors.toMap(Skill::getPubId, Skill::getVersion));
+
+        for (AgentSkill as : agentSkills) {
+            Integer currentVersion = skillVersions.get(as.getSkillPubId());
+            if (currentVersion != null) {
+                as.setInstalledSkillVersion(currentVersion);
+            }
+        }
+        agentSkillRepository.saveAll(agentSkills);
+
+        log.info("Synced policies for all skills on agent {} for user {}", agentPubId, userPubId);
+    }
+
+    public PolicyDiffResponse previewPolicyDiff(UUID agentPubId, UUID skillPubId, UUID userPubId, String action) {
+        verifyAgentOwnership(agentPubId, userPubId);
+
+        return switch (action) {
+            case "add" -> {
+                verifySkillOwnership(skillPubId, userPubId);
+                yield agentSkillPolicyService.previewAdd(agentPubId, skillPubId);
+            }
+            case "remove" -> {
+                verifySkillOwnership(skillPubId, userPubId);
+                yield agentSkillPolicyService.previewRemove(agentPubId, skillPubId);
+            }
+            case "sync" -> agentSkillPolicyService.previewSync(agentPubId);
+            default -> throw new IllegalArgumentException("Invalid action: " + action + ". Expected: add, remove, sync");
+        };
     }
 
     private void verifyAgentOwnership(UUID agentPubId, UUID userPubId) {
