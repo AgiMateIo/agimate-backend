@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="reduce-board-task-statuses" author="agimate">
+        <sql>
+            UPDATE board_tasks SET status = 'BACKLOG' WHERE status IN ('ANALYTICS', 'TODO');
+            UPDATE board_tasks SET status = 'IN_PROGRESS' WHERE status = 'BLOCKED';
+
+            ALTER TABLE board_tasks DROP CONSTRAINT chk_board_tasks_status;
+            ALTER TABLE board_tasks
+                ADD CONSTRAINT chk_board_tasks_status CHECK (status IN ('BACKLOG', 'IN_PROGRESS', 'REVIEW', 'DONE'));
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
