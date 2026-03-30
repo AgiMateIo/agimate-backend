@@ -39,9 +39,16 @@ public record SkillResponse(
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the skill was last updated")
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+
+        @Schema(description = "ID of the current user's copy of this skill (in public/featured lists)")
+        UUID myCopyId
 ) {
     public static SkillResponse from(Skill skill) {
+        return from(skill, null);
+    }
+
+    public static SkillResponse from(Skill skill, UUID myCopyId) {
         return new SkillResponse(
                 skill.getPubId(),
                 skill.getName(),
@@ -52,7 +59,8 @@ public record SkillResponse(
                 skill.getUserPubId(),
                 skill.getParentPubId(),
                 skill.getCreatedAt(),
-                skill.getUpdatedAt()
+                skill.getUpdatedAt(),
+                myCopyId
         );
     }
 }

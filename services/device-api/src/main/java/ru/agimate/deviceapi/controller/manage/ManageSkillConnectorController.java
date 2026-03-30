@@ -47,6 +47,7 @@ public class ManageSkillConnectorController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        skillService.requireNotFeaturedClone(skill);
         return SuccessResponse.ok(skillConnectorService.replaceAll(skill, request));
     }
 
@@ -59,6 +60,7 @@ public class ManageSkillConnectorController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        skillService.requireNotFeaturedClone(skill);
         return SuccessResponse.ok(skillConnectorService.addOne(skill, request));
     }
 
@@ -71,6 +73,7 @@ public class ManageSkillConnectorController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        skillService.requireNotFeaturedClone(skill);
         skillConnectorService.delete(skill, id);
         return SuccessResponse.empty();
     }

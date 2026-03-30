@@ -13,6 +13,7 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.deviceapi.controller.error.SkillConflictException;
 import ru.agimate.deviceapi.controller.manage.dto.*;
 import ru.agimate.deviceapi.database.entities.Skill;
 import ru.agimate.deviceapi.database.repositories.SkillRepository;
@@ -20,7 +21,8 @@ import ru.agimate.deviceapi.database.repositories.SkillSpecs;
 import ru.agimate.deviceapi.util.SkillFrontmatterParser;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -38,17 +40,17 @@ public class SkillService {
         return findSkills(SkillSpecs.ownedBy(userPubId), search, connectorCode, page, size);
     }
 
-    public Page<SkillResponse> getPublicSkills(String search, String connectorCode, int page, int size) {
-        return findSkills(SkillSpecs.publicNotFeatured(), search, connectorCode, page, size);
+    public Page<SkillResponse> getPublicSkills(UUID userPubId, String search, String connectorCode, int page, int size) {
+        return findSkillsWithMyCopy(SkillSpecs.publicNotFeatured(), userPubId, search, connectorCode, page, size);
     }
 
-    public Page<SkillResponse> getFeaturedSkills(String search, String connectorCode, int page, int size) {
-        return findSkills(SkillSpecs.featured(), search, connectorCode, page, size);
+    public Page<SkillResponse> getFeaturedSkills(UUID userPubId, String search, String connectorCode, int page, int size) {
+        return findSkillsWithMyCopy(SkillSpecs.featured(), userPubId, search, connectorCode, page, size);
     }
 
     public SkillDetailResponse getSkillDetail(UUID pubId, UUID userPubId) {
         Skill skill = findAccessibleSkill(pubId, userPubId);
-        String skillMd = skillFileService.readSkillMd(skill.getPubId());
+        String skillMd = skillFileService.readSkillMd(resolveFileOwnerPubId(skill));
         return SkillDetailResponse.from(skill, skillMd);
     }
 
@@ -82,6 +84,7 @@ public class SkillService {
     @Transactional
     public SkillResponse update(UUID pubId, UUID userPubId, UpdateSkillRequest request) {
         Skill skill = findOwnedSkill(pubId, userPubId);
+        requireNotFeaturedClone(skill);
 
         SkillFrontmatterParser.Frontmatter frontmatter = SkillFrontmatterParser.parse(request.skillMd());
 
@@ -110,6 +113,7 @@ public class SkillService {
     @Transactional
     public void delete(UUID pubId, UUID userPubId) {
         Skill skill = findOwnedSkill(pubId, userPubId);
+        requireNotFeaturedClone(skill);
         skillRepository.softDelete(skill.getId(), LocalDateTime.now());
         skillFileService.deleteAll(skill.getPubId());
         log.info("Soft-deleted skill '{}' pubId={}", skill.getName(), pubId);
@@ -123,9 +127,13 @@ public class SkillService {
             throw new BadRequestStatusException("Cannot clone your own skill");
         }
 
-        if (skillRepository.existsByUserPubIdAndNameNotDeleted(userPubId, source.getName())) {
-            throw new ConflictStatusException("Skill with name '" + source.getName() + "' already exists in your collection");
-        }
+        skillRepository.findByUserPubIdAndNameNotDeleted(userPubId, source.getName())
+                .ifPresent(existing -> {
+                    throw new SkillConflictException(
+                            "Skill with name '" + source.getName() + "' already exists in your collection",
+                            existing.getPubId()
+                    );
+                });
 
         Skill clone = Skill.builder()
                 .name(source.getName())
@@ -141,7 +149,9 @@ public class SkillService {
             throw new ConflictStatusException("Skill with name '" + source.getName() + "' already exists in your collection");
         }
 
-        skillFileService.copyAll(source.getPubId(), clone.getPubId());
+        if (!source.getIsFeatured()) {
+            skillFileService.copyAll(source.getPubId(), clone.getPubId());
+        }
         skillConnectorService.cloneBindings(source, clone);
 
         log.info("Cloned skill '{}' from pubId={} to pubId={} for user={}", source.getName(), source.getPubId(), clone.getPubId(), userPubId);
@@ -172,7 +182,25 @@ public class SkillService {
         return skill;
     }
 
-    private Page<SkillResponse> findSkills(Specification<Skill> filter, String search, String connectorCode, int page, int size) {
+    public UUID resolveFileOwnerPubId(Skill skill) {
+        if (isFeaturedClone(skill)) {
+            return skill.getParentPubId();
+        }
+        return skill.getPubId();
+    }
+
+    public void requireNotFeaturedClone(Skill skill) {
+        if (isFeaturedClone(skill)) {
+            throw new ForbiddenStatusException("Cannot edit a featured skill clone");
+        }
+    }
+
+    private boolean isFeaturedClone(Skill skill) {
+        return skill.getParentPubId() != null
+                && skillRepository.existsByPubIdAndIsFeaturedTrue(skill.getParentPubId());
+    }
+
+    private Page<Skill> querySkills(Specification<Skill> filter, String search, String connectorCode, int page, int size) {
         PageRequest pageRequest = buildPageRequest(page, size);
         Specification<Skill> spec = SkillSpecs.notDeleted().and(filter);
         if (search != null && !search.isBlank()) {
@@ -181,7 +209,31 @@ public class SkillService {
         if (connectorCode != null && !connectorCode.isBlank()) {
             spec = spec.and(SkillSpecs.hasConnector(connectorCode));
         }
-        return skillRepository.findAll(spec, pageRequest).map(SkillResponse::from);
+        return skillRepository.findAll(spec, pageRequest);
+    }
+
+    private Page<SkillResponse> findSkills(Specification<Skill> filter, String search, String connectorCode, int page, int size) {
+        return querySkills(filter, search, connectorCode, page, size).map(SkillResponse::from);
+    }
+
+    private Page<SkillResponse> findSkillsWithMyCopy(Specification<Skill> filter, UUID userPubId, String search, String connectorCode, int page, int size) {
+        Page<Skill> skills = querySkills(filter, search, connectorCode, page, size);
+        Set<UUID> pubIds = skills.getContent().stream().map(Skill::getPubId).collect(Collectors.toSet());
+        Map<UUID, UUID> myCopyMap = buildMyCopyMap(pubIds, userPubId);
+        return skills.map(skill -> SkillResponse.from(skill, myCopyMap.get(skill.getPubId())));
+    }
+
+    private Map<UUID, UUID> buildMyCopyMap(Set<UUID> parentPubIds, UUID userPubId) {
+        if (parentPubIds.isEmpty()) {
+            return Map.of();
+        }
+        return skillRepository.findMyClonesByParentPubIds(parentPubIds, userPubId)
+                .stream()
+                .collect(Collectors.toMap(
+                        row -> (UUID) row[0],
+                        row -> (UUID) row[1],
+                        (existing, replacement) -> existing
+                ));
     }
 
     private PageRequest buildPageRequest(int page, int size) {

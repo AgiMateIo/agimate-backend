@@ -26,6 +26,15 @@ public interface SkillRepository extends JpaRepository<Skill, Long>, JpaSpecific
     @Query("SELECT s FROM Skill s WHERE s.pubId IN :pubIds AND s.deletedAt IS NULL")
     List<Skill> findByPubIdInNotDeleted(@Param("pubIds") Collection<UUID> pubIds);
 
+    @Query("SELECT s FROM Skill s WHERE s.userPubId = :userPubId AND s.name = :name AND s.deletedAt IS NULL")
+    Optional<Skill> findByUserPubIdAndNameNotDeleted(@Param("userPubId") UUID userPubId, @Param("name") String name);
+
+    @Query("SELECT COUNT(s) > 0 FROM Skill s WHERE s.pubId = :pubId AND s.isFeatured = true AND s.deletedAt IS NULL")
+    boolean existsByPubIdAndIsFeaturedTrue(@Param("pubId") UUID pubId);
+
+    @Query("SELECT s.parentPubId, s.pubId FROM Skill s WHERE s.parentPubId IN :parentPubIds AND s.userPubId = :userPubId AND s.deletedAt IS NULL")
+    List<Object[]> findMyClonesByParentPubIds(@Param("parentPubIds") Collection<UUID> parentPubIds, @Param("userPubId") UUID userPubId);
+
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Skill s SET s.deletedAt = :now WHERE s.id = :id")
     void softDelete(@Param("id") Long id, @Param("now") LocalDateTime now);

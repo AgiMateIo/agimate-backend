@@ -45,8 +45,9 @@ public class ManageSkillFileController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
+        UUID fileOwnerPubId = skillService.resolveFileOwnerPubId(skill);
 
-        InputStream zipStream = skillFileService.getOrCreateZip(skill.getPubId(), skill.getUpdatedAt());
+        InputStream zipStream = skillFileService.getOrCreateZip(fileOwnerPubId, skill.getUpdatedAt());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + skill.getName() + ".zip\"")
@@ -62,8 +63,9 @@ public class ManageSkillFileController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
+        UUID fileOwnerPubId = skillService.resolveFileOwnerPubId(skill);
         List<SkillFileEntryResponse> entries = skillFileService
-                .listFiles(skill.getPubId())
+                .listFiles(fileOwnerPubId)
                 .stream()
                 .map(SkillFileEntryResponse::from)
                 .toList();
@@ -80,6 +82,7 @@ public class ManageSkillFileController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        skillService.requireNotFeaturedClone(skill);
 
         String originalFilename = file.getOriginalFilename();
         if (originalFilename == null || originalFilename.isBlank()) {
@@ -102,9 +105,10 @@ public class ManageSkillFileController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
+        UUID fileOwnerPubId = skillService.resolveFileOwnerPubId(skill);
         String relativePath = extractRelativePath(request, pubId);
 
-        InputStream is = skillFileService.readFile(skill.getPubId(), relativePath);
+        InputStream is = skillFileService.readFile(fileOwnerPubId, relativePath);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + getFileName(relativePath) + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
@@ -120,6 +124,7 @@ public class ManageSkillFileController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        skillService.requireNotFeaturedClone(skill);
         String relativePath = extractRelativePath(request, pubId);
 
         skillFileService.deleteFile(skill.getPubId(), relativePath);
