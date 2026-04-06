@@ -11,9 +11,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.deviceapi.controller.manage.dto.SkillResponse;
+import ru.agimate.deviceapi.controller.manage.dto.AgentSkillResponse;
 import ru.agimate.deviceapi.database.entities.Skill;
 import ru.agimate.deviceapi.security.AgentPrincipal;
+import ru.agimate.deviceapi.service.AgentSkillService;
 import ru.agimate.deviceapi.service.SkillFileService;
 import ru.agimate.deviceapi.service.SkillService;
 
@@ -30,16 +31,16 @@ public class AgentSkillController {
 
     private final SkillService skillService;
     private final SkillFileService skillFileService;
+    private final AgentSkillService agentSkillService;
 
-    @Operation(summary = "List skills belonging to the agent's user")
+    @Operation(summary = "List skills assigned to this agent")
     @GetMapping("/")
-    public SuccessResponse<Page<SkillResponse>> getSkills(
+    public SuccessResponse<Page<AgentSkillResponse>> getSkills(
             @AuthenticationPrincipal AgentPrincipal principal,
-            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return SuccessResponse.ok(skillService.getMySkills(principal.userPubId(), search, null, page, size));
+        return SuccessResponse.ok(agentSkillService.getAgentSkills(principal.agentPubId(), principal.userPubId(), page, size));
     }
 
     @Operation(summary = "Download all skill files as a ZIP archive")
@@ -48,7 +49,7 @@ public class AgentSkillController {
             @AuthenticationPrincipal AgentPrincipal principal,
             @PathVariable UUID skillPubId
     ) {
-        Skill skill = skillService.findOwnedSkill(skillPubId, principal.userPubId());
+        Skill skill = agentSkillService.findAssignedSkill(principal.agentPubId(), skillPubId, principal.userPubId());
         UUID fileOwnerPubId = skillService.resolveFileOwnerPubId(skill);
 
         InputStream zipStream = skillFileService.getOrCreateZip(fileOwnerPubId, skill.getUpdatedAt());

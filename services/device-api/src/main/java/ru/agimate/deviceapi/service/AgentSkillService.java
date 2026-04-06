@@ -142,6 +142,13 @@ public class AgentSkillService {
         };
     }
 
+    public Skill findAssignedSkill(UUID agentPubId, UUID skillPubId, UUID userPubId) {
+        agentSkillRepository.findByAgentPubIdAndSkillPubId(agentPubId, skillPubId)
+                .orElseThrow(() -> new NotFoundStatusException("Skill not found"));
+
+        return verifySkillOwnership(skillPubId, userPubId);
+    }
+
     private void verifyAgentOwnership(UUID agentPubId, UUID userPubId) {
         var agent = agentRepository.findByPubId(agentPubId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));

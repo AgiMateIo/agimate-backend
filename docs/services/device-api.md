@@ -62,6 +62,8 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 | GET    | `/device/agent/connectors/triggers/{connectorId}` | Get connector triggers               |
 | GET    | `/device/agent/connectors/tools/`                 | List all connector tools (stub)      |
 | GET    | `/device/agent/connectors/tools/{connectorId}`    | Get connector tools                  |
+| GET    | `/device/agent/skills/`                            | List agent's skills (paginated)      |
+| GET    | `/device/agent/skills/{skillPubId}.zip`            | Download skill files as ZIP          |
 
 ### App Management (JWT)
 
