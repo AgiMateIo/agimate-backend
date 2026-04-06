@@ -69,6 +69,11 @@ public class AgentToolUseService {
         return result.decision().accessEffect();
     }
 
+    /** Get tool use log for agent */
+    public ToolUseLog getToolUseLog(UUID agentPubId, String toolUseId) {
+        return toolUseLogService.findByToolUseIdForAgent(toolUseId, agentPubId);
+    }
+
     /** Save tool result from agent */
     public ToolUseLog saveToolResult(UUID agentPubId, IToolResult toolResult) {
         return toolUseLogService.recordOutputByAgent(agentPubId, toolResult);

@@ -101,6 +101,17 @@ public class ToolUseLogService {
         return toolUseLogRepository.save(toolUseLog);
     }
 
+    public ToolUseLog findByToolUseIdForAgent(String toolUseId, UUID agentPubId) {
+        var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
+                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
+
+        if (!agentPubId.equals(toolUseLog.getAgentPubId())) {
+            throw new ForbiddenStatusException("ToolUseLog does not belong to this agent");
+        }
+
+        return toolUseLog;
+    }
+
     public Page<ToolUseLogResponse> getToolUseLogs(UUID userPubId, UUID agentPubId, int page, int size) {
         return toolUseLogRepository.findWithFilters(userPubId, agentPubId, PageRequest.of(page, size, Sort.by("createdAt").descending()))
                 .map(ToolUseLogResponse::from);

@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
@@ -76,6 +77,46 @@ public class AgentToolCallController {
     ) {
         return SuccessResponse.ok(
                 agentToolUseService.processToolUse(principal.agentPubId(), toolUseRequest));
+    }
+
+    @Operation(
+            summary = "Get tool_use result",
+            description = "Returns the tool use output if execution completed successfully, error if failed, or 204 if result is not yet available.",
+            security = @SecurityRequirement(name = "ApiKey")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Execution completed (output or error)",
+                    content = @Content(schema = @Schema(oneOf = {SuccessResponse.class, ErrorResponse.class}))
+            ),
+            @ApiResponse(
+                    responseCode = "204",
+                    description = "Result not yet available",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Tool use log not found",
+                    content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+            )
+    })
+    @GetMapping("/result/{toolUseId}")
+    public ResponseEntity<?> getToolResult(
+            @PathVariable String toolUseId,
+            @AuthenticationPrincipal AgentPrincipal principal
+    ) {
+        var log = agentToolUseService.getToolUseLog(principal.agentPubId(), toolUseId);
+
+        if (log.getOutputAt() == null) {
+            return ResponseEntity.noContent().build();
+        }
+
+        if (log.getError() != null) {
+            return ResponseEntity.ok(new ErrorResponse(log.getError()));
+        }
+
+        return ResponseEntity.ok(SuccessResponse.ok(log.getOutput()));
     }
 
     @Operation(
