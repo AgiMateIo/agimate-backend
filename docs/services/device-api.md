@@ -78,6 +78,14 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 | GET    | `/device/manage/apps/{appId}/detail`            | Get app detail with device info  |
 | POST   | `/device/manage/apps/{appId}/disconnect`        | Disconnect device from app       |
 
+### Connector Catalog (JWT)
+
+> For full request/response schemas see [device-api-manage-connectors.md](device-api-manage-connectors.md).
+
+| Method | Path                           | Description                                                                   |
+|--------|--------------------------------|-------------------------------------------------------------------------------|
+| GET    | `/device/manage/connectors/`   | List connectors (paginated, filter by `type`, search by `name`/`description`) |
+
 ### Tool Management (JWT)
 
 | Method | Path                        | Description              |

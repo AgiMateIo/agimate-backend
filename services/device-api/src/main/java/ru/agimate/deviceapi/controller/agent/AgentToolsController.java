@@ -9,13 +9,16 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import dev.langchain4j.agent.tool.ToolSpecification;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
+import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationsRegistry;
-import ru.agimate.deviceapi.connectors.internal.ServerSideToolHandler;
 import ru.agimate.deviceapi.connectors.internal.ServerSideToolRegistry;
 import ru.agimate.deviceapi.controller.agent.dto.ToolSpecificationMapper;
 import ru.agimate.deviceapi.controller.agent.dto.ToolSpecificationResponse;
+import ru.agimate.deviceapi.database.entities.Connector;
+import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.security.AgentPrincipal;
 
 import java.util.LinkedHashMap;
@@ -31,42 +34,31 @@ public class AgentToolsController {
 
     private final IntegrationsRegistry integrationsRegistry;
     private final ServerSideToolRegistry serverSideToolRegistry;
+    private final ConnectorRepository connectorRepository;
 
     @Operation(
-            summary = "Get available tools",
-            description = "Returns all tool definitions available to the authenticated agent",
+            summary = "Get available tools for a connector",
+            description = "Returns tool definitions for the given connector code. " +
+                    "Tool source (integration vs internal service) is resolved from the connector's type.",
             security = @SecurityRequirement(name = "ApiKey")
     )
-    @GetMapping("/integrations/{connectorCode}")
-    public SuccessResponse<Map<String, ToolSpecificationResponse>> getIntegrationTools(
+    @GetMapping("/{connectorCode}")
+    public SuccessResponse<Map<String, ToolSpecificationResponse>> getTools(
             @AuthenticationPrincipal AgentPrincipal principal,
             @PathVariable("connectorCode") String connectorCode) {
 
-        IntegrationHandler handler = integrationsRegistry.getHandler(connectorCode);
+        Connector connector = connectorRepository.findById(connectorCode)
+                .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
+
+        Map<String, ToolSpecification> tools = switch (connector.getType()) {
+            case INTEGRATION -> integrationsRegistry.getHandler(connectorCode).getPredefinedTools();
+            case INTERNAL_SERVICE -> serverSideToolRegistry.getHandler(connectorCode).getToolDefinitions();
+            case APP, LOOPBACK -> throw new BadRequestStatusException(
+                    "Connector type " + connector.getType() + " does not expose static tool definitions");
+        };
 
         Map<String, ToolSpecificationResponse> result = new LinkedHashMap<>();
-        handler.getPredefinedTools().forEach((name, spec) ->
-                result.put(name, ToolSpecificationMapper.toResponse(spec)));
+        tools.forEach((name, spec) -> result.put(name, ToolSpecificationMapper.toResponse(spec)));
         return SuccessResponse.ok(result);
     }
-
-    @Operation(
-            summary = "Get available tools",
-            description = "Returns all tool definitions available to the authenticated agent",
-            security = @SecurityRequirement(name = "ApiKey")
-    )
-    @GetMapping("/internal/{connectorCode}")
-    public SuccessResponse<Map<String, ToolSpecificationResponse>> getInternalTools(
-            @AuthenticationPrincipal AgentPrincipal principal,
-            @PathVariable("connectorCode") String connectorCode) {
-
-        ServerSideToolHandler handler = serverSideToolRegistry.getHandler(connectorCode);
-
-        Map<String, ToolSpecificationResponse> result = new LinkedHashMap<>();
-        handler.getToolDefinitions().forEach((name, spec) ->
-                result.put(name, ToolSpecificationMapper.toResponse(spec)));
-        return SuccessResponse.ok(result);
-    }
-
-
 }

@@ -25,7 +25,7 @@ public class SkillFrontmatterParser {
         }
 
         int firstNewline = trimmed.indexOf('\n');
-        int secondDelimiter = trimmed.indexOf("\n" + FRONTMATTER_DELIMITER, firstNewline);
+        int secondDelimiter = trimmed.indexOf("\n" + FRONTMATTER_DELIMITER, firstNewline + 1);
         if (secondDelimiter < 0) {
             throw new BadRequestStatusException("SKILL.md frontmatter is not closed (missing second ---)");
         }
