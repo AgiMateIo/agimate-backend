@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
+import ru.agimate.deviceapi.controller.manage.dto.AgentSummaryResponse;
 import ru.agimate.deviceapi.controller.manage.dto.CreateSkillRequest;
 import ru.agimate.deviceapi.controller.manage.dto.SkillDetailResponse;
 import ru.agimate.deviceapi.controller.manage.dto.SkillResponse;
@@ -79,6 +80,19 @@ public class ManageSkillController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         return SuccessResponse.ok(skillService.getSkillDetail(pubId, userPubId));
+    }
+
+    @Operation(summary = "List user's agents that use this skill, with optional name/prompt search")
+    @GetMapping("/{pubId}/agents/")
+    public SuccessResponse<Page<AgentSummaryResponse>> getSkillAgents(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID pubId,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        UUID userPubId = UUID.fromString(principal.pubId());
+        return SuccessResponse.ok(skillService.getSkillAgents(pubId, userPubId, search, page, size));
     }
 
     @Operation(summary = "Create skill from JSON with SKILL.md content")

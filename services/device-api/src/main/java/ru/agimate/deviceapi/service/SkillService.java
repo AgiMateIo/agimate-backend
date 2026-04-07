@@ -16,6 +16,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.controller.error.SkillConflictException;
 import ru.agimate.deviceapi.controller.manage.dto.*;
 import ru.agimate.deviceapi.database.entities.Skill;
+import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.SkillRepository;
 import ru.agimate.deviceapi.database.repositories.SkillSpecs;
 import ru.agimate.deviceapi.util.SkillFrontmatterParser;
@@ -35,6 +36,7 @@ public class SkillService {
     private final SkillRepository skillRepository;
     private final SkillFileService skillFileService;
     private final SkillConnectorService skillConnectorService;
+    private final AgentRepository agentRepository;
 
     public Page<SkillResponse> getMySkills(UUID userPubId, String search, String connectorCode, int page, int size) {
         return findSkills(SkillSpecs.ownedBy(userPubId), search, connectorCode, page, size);
@@ -52,6 +54,14 @@ public class SkillService {
         Skill skill = findAccessibleSkill(pubId, userPubId);
         String skillMd = skillFileService.readSkillMd(resolveFileOwnerPubId(skill));
         return SkillDetailResponse.from(skill, skillMd);
+    }
+
+    public Page<AgentSummaryResponse> getSkillAgents(UUID pubId, UUID userPubId, String search, int page, int size) {
+        findAccessibleSkill(pubId, userPubId);
+        String normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
+        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("name").ascending());
+        return agentRepository.findBySkillPubId(pubId, userPubId, normalizedSearch, pageRequest)
+                .map(AgentSummaryResponse::from);
     }
 
     @Transactional

@@ -86,6 +86,23 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 |--------|--------------------------------|-------------------------------------------------------------------------------|
 | GET    | `/device/manage/connectors/`   | List connectors (paginated, filter by `type`, search by `name`/`description`) |
 
+### Skill Management (JWT)
+
+> For full request/response schemas see [device-api-manage-skills.md](device-api-manage-skills.md).
+
+| Method | Path                                            | Description                                                |
+|--------|-------------------------------------------------|------------------------------------------------------------|
+| GET    | `/device/manage/skills/`                        | List own skills (search, connector filter, pagination)     |
+| GET    | `/device/manage/skills/public/`                 | List public non-featured skills                             |
+| GET    | `/device/manage/skills/featured/`               | List featured skills                                        |
+| GET    | `/device/manage/skills/{pubId}`                 | Get skill detail with `SKILL.md` content                    |
+| GET    | `/device/manage/skills/{pubId}/agents/`         | List my agents that use this skill (paginated, search)      |
+| POST   | `/device/manage/skills/`                        | Create skill from JSON                                      |
+| POST   | `/device/manage/skills/upload`                  | Create skill from uploaded `SKILL.md` file                  |
+| PUT    | `/device/manage/skills/{pubId}`                 | Update skill (bumps version)                                |
+| DELETE | `/device/manage/skills/{pubId}`                 | Soft-delete skill                                           |
+| POST   | `/device/manage/skills/{pubId}/clone`           | Clone a public/featured skill into the user's collection    |
+
 ### Tool Management (JWT)
 
 | Method | Path                        | Description              |
