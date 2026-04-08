@@ -16,7 +16,7 @@ public interface SkillConnectorRepository extends JpaRepository<SkillConnector, 
 
     List<SkillConnector> findBySkillId(Long skillId);
 
-    @Query("SELECT sc FROM SkillConnector sc WHERE sc.skill.pubId IN :skillPubIds")
+    @Query("SELECT sc FROM SkillConnector sc JOIN FETCH sc.skill s WHERE s.pubId IN :skillPubIds")
     List<SkillConnector> findBySkillPubIdIn(@Param("skillPubIds") Collection<UUID> skillPubIds);
 
     @Modifying(clearAutomatically = true)

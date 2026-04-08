@@ -11,7 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.deviceapi.controller.manage.dto.AgentSkillResponse;
+import ru.agimate.deviceapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.deviceapi.database.entities.Skill;
 import ru.agimate.deviceapi.security.AgentPrincipal;
 import ru.agimate.deviceapi.service.AgentSkillService;
@@ -35,12 +35,12 @@ public class AgentSkillController {
 
     @Operation(summary = "List skills assigned to this agent")
     @GetMapping("/")
-    public SuccessResponse<Page<AgentSkillResponse>> getSkills(
+    public SuccessResponse<Page<AgentSkillWithConnectorsResponse>> getSkills(
             @AuthenticationPrincipal AgentPrincipal principal,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return SuccessResponse.ok(agentSkillService.getAgentSkills(principal.agentPubId(), principal.userPubId(), page, size));
+        return SuccessResponse.ok(agentSkillService.getAgentSkillsWithConnectors(principal.agentPubId(), principal.userPubId(), page, size));
     }
 
     @Operation(summary = "Download all skill files as a ZIP archive")

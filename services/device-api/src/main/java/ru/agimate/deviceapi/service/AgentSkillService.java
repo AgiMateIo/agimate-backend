@@ -10,14 +10,20 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.deviceapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.deviceapi.controller.manage.dto.AgentSkillResponse;
 import ru.agimate.deviceapi.controller.manage.dto.PolicyDiffResponse;
+import ru.agimate.deviceapi.controller.manage.dto.SkillConnectorResponse;
 import ru.agimate.deviceapi.database.entities.AgentSkill;
 import ru.agimate.deviceapi.database.entities.Skill;
+import ru.agimate.deviceapi.database.entities.SkillConnector;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.AgentSkillRepository;
 import ru.agimate.deviceapi.database.repositories.SkillRepository;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -56,6 +62,35 @@ public class AgentSkillService {
                     && (as.getInstalledSkillVersion() == null || skill.getVersion() > as.getInstalledSkillVersion());
             return AgentSkillResponse.from(as, name, needsReinstall);
         });
+    }
+
+    public Page<AgentSkillWithConnectorsResponse> getAgentSkillsWithConnectors(UUID agentPubId, UUID userPubId, int page, int size) {
+        verifyAgentOwnership(agentPubId, userPubId);
+        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
+        Page<UUID> skillPubIdsPage = agentSkillRepository.findSkillPubIdsByAgentPubId(agentPubId, pageRequest);
+
+        List<UUID> skillPubIds = skillPubIdsPage.getContent();
+        Map<UUID, String> nameByPubId = new HashMap<>();
+        Map<UUID, List<SkillConnectorResponse>> connectorsByPubId = new HashMap<>();
+
+        if (!skillPubIds.isEmpty()) {
+            for (Object[] row : skillRepository.findNamesAndConnectorsByPubIdIn(skillPubIds)) {
+                UUID pubId = (UUID) row[0];
+                String name = (String) row[1];
+                SkillConnector sc = (SkillConnector) row[2];
+                nameByPubId.putIfAbsent(pubId, name);
+                List<SkillConnectorResponse> bucket = connectorsByPubId.computeIfAbsent(pubId, k -> new ArrayList<>());
+                if (sc != null) {
+                    bucket.add(SkillConnectorResponse.from(sc));
+                }
+            }
+        }
+
+        return skillPubIdsPage.map(pubId -> new AgentSkillWithConnectorsResponse(
+                pubId,
+                nameByPubId.get(pubId),
+                connectorsByPubId.getOrDefault(pubId, List.of())
+        ));
     }
 
     @Transactional

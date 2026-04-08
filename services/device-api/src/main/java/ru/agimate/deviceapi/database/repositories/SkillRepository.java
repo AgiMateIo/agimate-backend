@@ -26,6 +26,14 @@ public interface SkillRepository extends JpaRepository<Skill, Long>, JpaSpecific
     @Query("SELECT s FROM Skill s WHERE s.pubId IN :pubIds AND s.deletedAt IS NULL")
     List<Skill> findByPubIdInNotDeleted(@Param("pubIds") Collection<UUID> pubIds);
 
+    @Query("""
+            SELECT s.pubId, s.name, sc
+            FROM Skill s
+            LEFT JOIN SkillConnector sc ON sc.skill = s
+            WHERE s.pubId IN :pubIds AND s.deletedAt IS NULL
+            """)
+    List<Object[]> findNamesAndConnectorsByPubIdIn(@Param("pubIds") Collection<UUID> pubIds);
+
     @Query("SELECT s FROM Skill s WHERE s.userPubId = :userPubId AND s.name = :name AND s.deletedAt IS NULL")
     Optional<Skill> findByUserPubIdAndNameNotDeleted(@Param("userPubId") UUID userPubId, @Param("name") String name);
 
