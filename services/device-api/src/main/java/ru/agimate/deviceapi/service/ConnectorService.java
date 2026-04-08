@@ -39,7 +39,7 @@ public class ConnectorService {
             case APP -> {
                 var app = appRepository.findByPubIdAndUserPubIdNotDeleted(UUID.fromString(toolUse.getIdentity()), userPubId)
                         .orElseThrow(() -> new NotFoundStatusException("App not found: " + toolUse.getIdentity()));
-                centrifugoService.publishMessage("device:" + app.getDeviceId(), toolUse);
+                centrifugoService.publishMessage("device:" + app.getDeviceId(), "toolUse", toolUse);
             }
             case INTEGRATION -> {
                 var credentials = integrationCredentialsRepository.findByPubIdAndUserPubIdNotDeleted(UUID.fromString(toolUse.getIdentity()), userPubId)

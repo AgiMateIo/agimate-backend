@@ -39,7 +39,7 @@ public class IntegrationToolExecutorService {
             if (agentId != null) {
                 var toolResult = new ToolResultRequest(
                         toolUse.getId(), toolUse.getConnectorCode(), JsonUtils.writeValueAsString(result), null);
-                centrifugoService.publishMessage("agent:" + agentId, toolResult);
+                centrifugoService.publishMessage("agent:" + agentId, "toolResult", toolResult);
             }
 
             log.debug("Executed tool '{}' for integration {}", toolUse.getName(), integrationCredentials.getPubId());
@@ -51,7 +51,7 @@ public class IntegrationToolExecutorService {
             if (agentId != null) {
                 var errorResult = new ToolResultRequest(
                         toolUse.getId(), toolUse.getConnectorCode(), null, "Tool execution failed");
-                centrifugoService.publishMessage("agent:" + agentId, errorResult);
+                centrifugoService.publishMessage("agent:" + agentId, "toolResult", errorResult);
             }
         }
     }

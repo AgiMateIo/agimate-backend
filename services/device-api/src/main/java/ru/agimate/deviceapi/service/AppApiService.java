@@ -14,7 +14,7 @@ public class AppApiService {
 
 
     public void pushToAgent(String agentId, IToolResult toolResult) {
-        centrifugoService.publishMessage("agent:" + agentId, toolResult);
+        centrifugoService.publishMessage("agent:" + agentId, "toolResult", toolResult);
     }
 
 

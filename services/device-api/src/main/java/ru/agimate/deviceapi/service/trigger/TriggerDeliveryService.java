@@ -10,6 +10,7 @@ import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.service.CentrifugoService;
 import ru.agimate.deviceapi.service.WebhookDeliveryService;
+import ru.agimate.deviceapi.service.dto.CentrifugoMessage;
 
 import java.util.*;
 
@@ -35,11 +36,12 @@ public class TriggerDeliveryService {
     }
 
     private void sendToCentrifugo(Agent agent, TriggerLogAgent triggerLogAgent) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("type", "trigger");
-        payload.put("payload", TriggerMapper.map(triggerLogAgent.getTriggerLog()));
 
-        centrifugoService.publishMessage("agent:" + agent.getPubId(), payload);
+        centrifugoService.publishMessage(
+                "agent:" + agent.getPubId(),
+                "trigger",
+                TriggerMapper.map(triggerLogAgent.getTriggerLog())
+        );
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo", triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId());
     }
 

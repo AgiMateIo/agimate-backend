@@ -38,7 +38,7 @@ public class ServerToolExecutorService {
 
             var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getConnectorCode(), JsonUtils.writeValueAsString(result), null);
             toolUseLogService.recordOutput(toolResult);
-            centrifugoService.publishMessage("agent:" + agentPubId, toolResult);
+            centrifugoService.publishMessage("agent:" + agentPubId, "toolResult", toolResult);
 
             log.debug("Executed server tool '{}'", toolUse.getName());
         } catch (Exception e) {
@@ -53,7 +53,7 @@ public class ServerToolExecutorService {
                 log.warn("Failed to log server tool error: {}", logError.getMessage());
             }
 
-            centrifugoService.publishMessage("agent:" + agentPubId, errorResult);
+            centrifugoService.publishMessage("agent:" + agentPubId, "toolResult", errorResult);
         }
     }
 }

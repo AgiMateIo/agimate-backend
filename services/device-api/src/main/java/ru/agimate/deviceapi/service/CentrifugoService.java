@@ -8,6 +8,8 @@ import org.opensolutionlab.httpclients.clients.CentrifugoClient;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.ServiceUnavailableStatusException;
 import ru.agimate.deviceapi.config.CentrifugoProperties;
+import ru.agimate.deviceapi.service.dto.CentrifugoMessage;
+import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -32,7 +34,9 @@ public class CentrifugoService {
      * @param data    The message data (will be serialized to JSON)
      * @throws ServiceUnavailableStatusException if Centrifugo is unavailable or publishing fails
      */
-    public void publishMessage(String channel, Object data) {
+    public void publishMessage(String channel, String type, Object data) {
+        var centrifugoMessage = new CentrifugoMessage(type, data);
+
         if (!centrifugoProperties.isEnabled()) {
             log.warn("Centrifugo is disabled, skipping publish to channel: {}", channel);
             return;
@@ -41,7 +45,7 @@ public class CentrifugoService {
         try {
             log.debug("Publishing message to Centrifugo channel: {}", channel);
 
-            centrifugoClient.publish(channel, data);
+            centrifugoClient.publish(channel, centrifugoMessage);
 
             log.info("Successfully published message to channel: {}", channel);
         } catch (Exception e) {
