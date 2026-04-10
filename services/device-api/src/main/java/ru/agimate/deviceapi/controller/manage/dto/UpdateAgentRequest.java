@@ -8,6 +8,9 @@ public record UpdateAgentRequest(
         @Schema(description = "Agent name")
         String name,
 
+        @Schema(description = "Agent description")
+        String description,
+
         @Schema(description = "Agent prompt")
         String prompt,
 

@@ -13,6 +13,9 @@ public record AgentSummaryResponse(
         @Schema(description = "Agent name")
         String name,
 
+        @Schema(description = "Agent description")
+        String description,
+
         @Schema(description = "Agent prompt")
         String prompt,
 
@@ -23,6 +26,7 @@ public record AgentSummaryResponse(
         return new AgentSummaryResponse(
                 agent.getPubId(),
                 agent.getName(),
+                agent.getDescription(),
                 agent.getPrompt(),
                 agent.isEnabled()
         );

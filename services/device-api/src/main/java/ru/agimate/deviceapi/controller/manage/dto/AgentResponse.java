@@ -18,6 +18,9 @@ public record AgentResponse(
         @Schema(description = "Agent name")
         String name,
 
+        @Schema(description = "Agent description")
+        String description,
+
         @Schema(description = "Masked agent key ID")
         String maskedKeyId,
 
@@ -51,6 +54,7 @@ public record AgentResponse(
         return new AgentResponse(
                 agent.getPubId(),
                 agent.getName(),
+                agent.getDescription(),
                 maskedKeyId,
                 agent.getPrompt(),
                 agent.getTriggerDestination(),

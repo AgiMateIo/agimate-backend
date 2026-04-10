@@ -178,6 +178,7 @@ public class AgentService {
                 .keyId(generatedKey.keyId())
                 .userPubId(userPubId)
                 .name(request.name())
+                .description(request.description())
                 .prompt(request.prompt())
                 .triggerDestination(destination)
                 .webhookUrl(request.webhookUrl())
@@ -226,6 +227,7 @@ public class AgentService {
         if (request.name() != null) {
             agent.setName(request.name());
         }
+        agent.setDescription(request.description());
         agent.setPrompt(request.prompt());
         agent.setTriggerDestination(destination);
         agent.setWebhookUrl(request.webhookUrl());

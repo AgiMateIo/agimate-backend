@@ -37,6 +37,9 @@ public class Agent extends BaseEntity {
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
 
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
     @Column(name = "prompt", columnDefinition = "TEXT")
     private String prompt;
 
