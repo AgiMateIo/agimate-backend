@@ -5,6 +5,7 @@ import io.jsonwebtoken.Jwts;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.opensolutionlab.httpclients.clients.CentrifugoClient;
+import org.opensolutionlab.httpclients.models.requests.publication.PublishRequest;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.ServiceUnavailableStatusException;
 import ru.agimate.deviceapi.config.CentrifugoProperties;
@@ -46,6 +47,43 @@ public class CentrifugoService {
             log.debug("Publishing message to Centrifugo channel: {}", channel);
 
             centrifugoClient.publish(channel, centrifugoMessage);
+
+            log.info("Successfully published message to channel: {}", channel);
+        } catch (Exception e) {
+            log.error("Failed to publish message to Centrifugo channel '{}': {}",
+                    channel, e.getMessage(), e);
+            throw new ServiceUnavailableStatusException(
+                    "Failed to publish message to real-time service: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Publishes a message to a Centrifugo channel with tags for server-side subscription filtering.
+     *
+     * @param channel The channel name
+     * @param type    The message type
+     * @param data    The message data (will be serialized to JSON)
+     * @param tags    Tags for subscription filtering (key-value pairs)
+     * @throws ServiceUnavailableStatusException if Centrifugo is unavailable or publishing fails
+     */
+    public void publishMessage(String channel, String type, Object data, Map<String, String> tags) {
+        var centrifugoMessage = new CentrifugoMessage(type, data);
+
+        if (!centrifugoProperties.isEnabled()) {
+            log.warn("Centrifugo is disabled, skipping publish to channel: {}", channel);
+            return;
+        }
+
+        try {
+            log.debug("Publishing message to Centrifugo channel: {}, tags: {}", channel, tags);
+
+            PublishRequest<CentrifugoMessage> request = PublishRequest.<CentrifugoMessage>builder()
+                    .channel(channel)
+                    .data(centrifugoMessage)
+                    .tags(tags)
+                    .build();
+
+            centrifugoClient.publish(request);
 
             log.info("Successfully published message to channel: {}", channel);
         } catch (Exception e) {

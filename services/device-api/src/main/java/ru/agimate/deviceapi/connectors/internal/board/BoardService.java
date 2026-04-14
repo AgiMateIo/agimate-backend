@@ -12,6 +12,11 @@ import ru.agimate.deviceapi.database.entities.*;
 import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 import ru.agimate.deviceapi.database.enums.BoardTaskType;
 import ru.agimate.deviceapi.database.repositories.*;
+import ru.agimate.deviceapi.service.CentrifugoService;
+import ru.agimate.deviceapi.service.dto.board.BoardEventType;
+import ru.agimate.deviceapi.service.dto.board.BoardTaskCommentCreatedEvent;
+import ru.agimate.deviceapi.service.dto.board.BoardTaskCreatedEvent;
+import ru.agimate.deviceapi.service.dto.board.BoardTaskStatusChangedEvent;
 import ru.agimate.deviceapi.service.trigger.Trigger;
 import ru.agimate.deviceapi.service.trigger.TriggerDeliveryService;
 import ru.agimate.deviceapi.service.trigger.TriggerRouterService;
@@ -32,6 +37,7 @@ public class BoardService {
     private final AgenticTeamRepository agenticTeamRepository;
     private final AgentRepository agentRepository;
     private final TriggerRouterService triggerRouterService;
+    private final CentrifugoService centrifugoService;
 
     // ---- Board CRUD ----
 
@@ -168,6 +174,19 @@ public class BoardService {
 
         triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getPubId(), trigger);
 
+        publishBoardEvent(userPubId, board.getPubId(), BoardEventType.TASK_CREATED,
+                new BoardTaskCreatedEvent(
+                        board.getPubId(),
+                        task.getPubId(),
+                        task.getType(),
+                        task.getStatus(),
+                        task.getTitle(),
+                        task.getDescription(),
+                        createdBy.getPubId(),
+                        assignee != null ? assignee.getPubId() : null,
+                        parentTaskPubId
+                ));
+
         return BoardTaskResponse.from(task,
                 createdBy.getPubId(),
                 assignee != null ? assignee.getPubId() : null,
@@ -203,6 +222,14 @@ public class BoardService {
         );
 
         triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getPubId(), trigger);
+
+        publishBoardEvent(userPubId, board.getPubId(), BoardEventType.TASK_STATUS_CHANGED,
+                new BoardTaskStatusChangedEvent(
+                        board.getPubId(),
+                        task.getPubId(),
+                        oldStatus,
+                        request.status()
+                ));
 
         Map<Long, Agent> agentsById = resolveAgentsForTasks(List.of(task));
         Map<Long, BoardTask> tasksById = task.getParentTaskId() != null
@@ -271,10 +298,32 @@ public class BoardService {
 
         triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getPubId(), trigger);
 
+        publishBoardEvent(userPubId, board.getPubId(), BoardEventType.COMMENT_CREATED,
+                new BoardTaskCommentCreatedEvent(
+                        board.getPubId(),
+                        task.getPubId(),
+                        comment.getPubId(),
+                        agent.getPubId(),
+                        comment.getContent()
+                ));
+
         return BoardTaskCommentResponse.from(comment, agent.getPubId());
     }
 
     // ---- Helpers ----
+
+    private void publishBoardEvent(UUID userPubId, UUID boardPubId, String eventType, Object eventData) {
+        String channel = "user:" + userPubId;
+        Map<String, String> tags = Map.of(
+                "entity", "board.task",
+                "boardId", boardPubId.toString()
+        );
+        try {
+            centrifugoService.publishMessage(channel, eventType, eventData, tags);
+        } catch (Exception e) {
+            log.warn("Failed to publish board event '{}' to user channel: {}", eventType, e.getMessage());
+        }
+    }
 
     private Board findBoardByPubId(UUID pubId) {
         return boardRepository.findByPubId(pubId)

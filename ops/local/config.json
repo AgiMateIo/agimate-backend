@@ -4,7 +4,7 @@
       "hmac_secret_key": "***REMOVED***",
       "ecdsa_public_key": "-----BEGIN PUBLIC KEY-----\n***REMOVED***\n-----END PUBLIC KEY-----"
     },
-    "allowed_origins": []
+    "allowed_origins": ["*"]
   },
   "admin": {
     "enabled": true,
@@ -31,6 +31,18 @@
         "name": "agent",
         "allow_subscribe_for_client": false,
         "allow_publish_for_client": false,
+        "history": {
+          "max_publications": 100,
+          "ttl": "600s"
+        },
+        "force_push_join_leave": false,
+        "force_recovery": false
+      },
+      {
+        "name": "user",
+        "allow_subscribe_for_client": false,
+        "allow_publish_for_client": false,
+        "allow_tags_filter": true,
         "history": {
           "max_publications": 100,
           "ttl": "600s"

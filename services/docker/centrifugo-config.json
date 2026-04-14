@@ -37,6 +37,18 @@
         },
         "force_push_join_leave": false,
         "force_recovery": false
+      },
+      {
+        "name": "user",
+        "allow_subscribe_for_client": false,
+        "allow_publish_for_client": false,
+        "allow_tags_filter": true,
+        "history": {
+          "max_publications": 100,
+          "ttl": "600s"
+        },
+        "force_push_join_leave": false,
+        "force_recovery": false
       }
     ]
   }
