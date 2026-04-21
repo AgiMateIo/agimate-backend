@@ -12,6 +12,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.deviceapi.abac.AccessEffect;
 import ru.agimate.deviceapi.controller.agent.dto.AgentConfigResponse;
+import ru.agimate.deviceapi.controller.agent.dto.AgentContextResponse;
 import ru.agimate.deviceapi.controller.agent.dto.ToolDefinition;
 import ru.agimate.deviceapi.controller.manage.dto.AgentResponse;
 import ru.agimate.deviceapi.controller.manage.dto.CreateAgentRequest;
@@ -114,6 +115,42 @@ public class AgentService {
                 toolDefinitions,
                 triggerNames
         );
+    }
+
+    public AgentContextResponse getContextByPubId(UUID agentPubId) {
+        Agent agent = findByPubId(agentPubId);
+
+        AgentContextResponse.Self self = new AgentContextResponse.Self(
+                agent.getPubId(),
+                agent.getName(),
+                agent.getDescription(),
+                agent.getPrompt()
+        );
+
+        AgentContextResponse.Team team = null;
+        List<AgentContextResponse.TeamAgent> teamAgents = List.of();
+
+        if (agent.getAgenticTeamId() != null) {
+            AgenticTeam teamEntity = agenticTeamRepository.findById(agent.getAgenticTeamId()).orElse(null);
+            if (teamEntity != null) {
+                team = new AgentContextResponse.Team(
+                        teamEntity.getPubId(),
+                        teamEntity.getName(),
+                        teamEntity.getDescription()
+                );
+                teamAgents = agentRepository
+                        .findByUserPubIdAndAgenticTeamId(agent.getUserPubId(), teamEntity.getId())
+                        .stream()
+                        .map(a -> new AgentContextResponse.TeamAgent(
+                                a.getPubId(),
+                                a.getName(),
+                                a.getDescription()
+                        ))
+                        .toList();
+            }
+        }
+
+        return new AgentContextResponse(self, team, teamAgents);
     }
 
     public List<ToolDefinition> getAvailableTools(UUID agentPubId) {

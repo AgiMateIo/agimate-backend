@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.deviceapi.controller.agent.dto.AgentConfigResponse;
+import ru.agimate.deviceapi.controller.agent.dto.AgentContextResponse;
 import ru.agimate.deviceapi.security.AgentPrincipal;
 import ru.agimate.deviceapi.service.AgentService;
 
@@ -31,5 +32,16 @@ public class AgentController {
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
         return SuccessResponse.ok(agentService.getConfigByPubId(principal.agentPubId()));
+    }
+
+    @Operation(
+            summary = "Get agent context",
+            description = "Returns information about the agent, its team, and teammates"
+    )
+    @GetMapping("/context")
+    public SuccessResponse<AgentContextResponse> getAgentContext(
+            @AuthenticationPrincipal AgentPrincipal principal
+    ) {
+        return SuccessResponse.ok(agentService.getContextByPubId(principal.agentPubId()));
     }
 }
