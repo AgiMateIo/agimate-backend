@@ -132,9 +132,9 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 
 | Method | Path                                       | Description                   |
 |--------|--------------------------------------------|-------------------------------|
-| GET    | `/device/manage/agents/`                   | List agents                   |
+| GET    | `/device/manage/agents/`                   | List agents (paginated; optional `?agenticTeamPubId=`, `?search=` by name/description). Each item includes `skills: [{pubId, name}]` for quick navigation to the skill page |
 | POST   | `/device/manage/agents/`                   | Create agent                  |
-| GET    | `/device/manage/agents/{apiKeyPubId}`      | Get agent                     |
+| GET    | `/device/manage/agents/{apiKeyPubId}`      | Get agent (includes `skills: [{pubId, name}]`) |
 | PUT    | `/device/manage/agents/{apiKeyPubId}`      | Update agent                  |
 | DELETE | `/device/manage/agents/{apiKeyPubId}`      | Delete agent                  |
 
@@ -179,6 +179,8 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 | PATCH  | `/device/manage/integrations/credentials/{credentialId}/`        | Update integration settings (enabled, name)                    |
 | PUT    | `/device/manage/integrations/credentials/{credentialId}/secret`  | Update integration secret (credential values)                  |
 | DELETE | `/device/manage/integrations/credentials/{credentialId}`         | Delete integration credentials                                 |
+| GET    | `/device/manage/integrations/tools/?connectorCode={code}`        | List predefined tools exposed by an integration connector      |
+| GET    | `/device/manage/integrations/triggers/?connectorCode={code}`     | List predefined triggers exposed by an integration connector   |
 
 ### Integration Webhooks (Public)
 

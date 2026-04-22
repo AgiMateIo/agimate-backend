@@ -15,6 +15,7 @@ import ru.agimate.deviceapi.controller.agent.dto.AgentConfigResponse;
 import ru.agimate.deviceapi.controller.agent.dto.AgentContextResponse;
 import ru.agimate.deviceapi.controller.agent.dto.ToolDefinition;
 import ru.agimate.deviceapi.controller.manage.dto.AgentResponse;
+import ru.agimate.deviceapi.controller.manage.dto.AgentSkillSummary;
 import ru.agimate.deviceapi.controller.manage.dto.CreateAgentRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentRequest;
 import ru.agimate.deviceapi.database.entities.Agent;
@@ -24,6 +25,7 @@ import ru.agimate.deviceapi.database.entities.AgenticTeam;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.TriggerDestination;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
+import ru.agimate.deviceapi.database.repositories.AgentSkillRepository;
 import ru.agimate.deviceapi.database.repositories.AgentToolPolicyRepository;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerPolicyRepository;
 import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
@@ -46,18 +48,20 @@ public class AgentService {
     private final AgentRepository agentRepository;
     private final AgentToolPolicyRepository agentToolPolicyRepository;
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
+    private final AgentSkillRepository agentSkillRepository;
     private final AgenticTeamRepository agenticTeamRepository;
     private final AppRepository appRepository;
 
-    public Page<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId, int page, int size) {
-        Page<Agent> agents;
+    public Page<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId, String search, int page, int size) {
+        Long agenticTeamId = null;
         if (agenticTeamPubId != null) {
             AgenticTeam team = agenticTeamRepository.findByPubId(agenticTeamPubId)
                     .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
-            agents = agentRepository.findByUserPubIdAndAgenticTeamId(userPubId, team.getId(), PageRequest.of(page, size));
-        } else {
-            agents = agentRepository.findByUserPubId(userPubId, PageRequest.of(page, size));
+            agenticTeamId = team.getId();
         }
+        String normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
+        Page<Agent> agents = agentRepository.searchForUser(
+                userPubId, agenticTeamId, normalizedSearch, PageRequest.of(page, size));
 
         List<Long> teamIds = agents.getContent().stream()
                 .map(Agent::getAgenticTeamId)
@@ -67,10 +71,29 @@ public class AgentService {
         Map<Long, AgenticTeam> teamsById = agenticTeamRepository.findAllById(teamIds).stream()
                 .collect(Collectors.toMap(AgenticTeam::getId, Function.identity()));
 
+        List<UUID> agentPubIds = agents.getContent().stream().map(Agent::getPubId).toList();
+        Map<UUID, List<AgentSkillSummary>> skillsByAgent = loadSkillSummaries(agentPubIds);
+
         return agents.map(agent -> {
             var team = agent.getAgenticTeamId() != null ? teamsById.get(agent.getAgenticTeamId()) : null;
-            return AgentResponse.from(agent, team);
+            var skills = skillsByAgent.getOrDefault(agent.getPubId(), List.of());
+            return AgentResponse.from(agent, team, skills);
         });
+    }
+
+    private Map<UUID, List<AgentSkillSummary>> loadSkillSummaries(Collection<UUID> agentPubIds) {
+        if (agentPubIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, List<AgentSkillSummary>> result = new HashMap<>();
+        for (Object[] row : agentSkillRepository.findSkillSummariesByAgentPubIdIn(agentPubIds)) {
+            UUID agentPubId = (UUID) row[0];
+            UUID skillPubId = (UUID) row[1];
+            String skillName = (String) row[2];
+            result.computeIfAbsent(agentPubId, k -> new ArrayList<>())
+                    .add(new AgentSkillSummary(skillPubId, skillName));
+        }
+        return result;
     }
 
     public Agent findByPubId(UUID pubId) {
@@ -81,7 +104,8 @@ public class AgentService {
     public AgentResponse getByPubId(UUID pubId) {
         Agent agent = findByPubId(pubId);
         var team = resolveTeam(agent.getAgenticTeamId());
-        return AgentResponse.from(agent, team);
+        var skills = loadSkillSummaries(List.of(pubId)).getOrDefault(pubId, List.of());
+        return AgentResponse.from(agent, team, skills);
     }
 
     public AgentConfigResponse getConfigByPubId(UUID agentPubId) {
@@ -275,9 +299,10 @@ public class AgentService {
         agent = agentRepository.save(agent);
 
         var team = resolveTeam(agent.getAgenticTeamId());
+        var skills = loadSkillSummaries(List.of(pubId)).getOrDefault(pubId, List.of());
 
         log.info("Updated agent pubId={}", pubId);
-        return AgentResponse.from(agent, team);
+        return AgentResponse.from(agent, team, skills);
     }
 
     @Transactional

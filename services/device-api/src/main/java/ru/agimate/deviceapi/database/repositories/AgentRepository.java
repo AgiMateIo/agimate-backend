@@ -20,6 +20,20 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
     Page<Agent> findByUserPubId(UUID userPubId, Pageable pageable);
 
     @Query("""
+            SELECT a FROM Agent a
+            WHERE a.userPubId = :userPubId
+              AND (:agenticTeamId IS NULL OR a.agenticTeamId = :agenticTeamId)
+              AND (CAST(:search AS string) IS NULL
+                   OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
+                   OR LOWER(a.description) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
+            """)
+    Page<Agent> searchForUser(
+            @Param("userPubId") UUID userPubId,
+            @Param("agenticTeamId") Long agenticTeamId,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query("""
             SELECT a FROM Agent a WHERE a.userPubId = :userPubId AND a.enabled = true
             AND a.pubId IN (
                 SELECT DISTINCT p.agentPubId FROM AgentTriggerPolicy p

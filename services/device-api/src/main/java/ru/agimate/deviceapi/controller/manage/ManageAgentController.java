@@ -32,11 +32,12 @@ public class ManageAgentController {
     public SuccessResponse<Page<AgentResponse>> getAgents(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) UUID agenticTeamPubId,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentService.getAllForUser(userPubId, agenticTeamPubId, page, size));
+        return SuccessResponse.ok(agentService.getAllForUser(userPubId, agenticTeamPubId, search, page, size));
     }
 
     @Operation(summary = "Create an agent")

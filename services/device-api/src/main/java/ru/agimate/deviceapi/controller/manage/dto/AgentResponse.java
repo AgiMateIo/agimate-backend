@@ -8,6 +8,7 @@ import ru.agimate.deviceapi.database.entities.TriggerDestination;
 import ru.agimate.deviceapi.service.AgentService;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Schema(description = "Agent response")
@@ -45,11 +46,14 @@ public record AgentResponse(
         @Schema(description = "Agentic team name")
         String agenticTeamName,
 
+        @Schema(description = "Skills bound to this agent")
+        List<AgentSkillSummary> skills,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the agent was created")
         LocalDateTime createdAt
 ) {
-    public static AgentResponse from(Agent agent, AgenticTeam team) {
+    public static AgentResponse from(Agent agent, AgenticTeam team, List<AgentSkillSummary> skills) {
         String maskedKeyId = AgentService.AGENT_KEY_PREFIX + agent.getKeyId().substring(0, 4) + "****";
         return new AgentResponse(
                 agent.getPubId(),
@@ -63,11 +67,16 @@ public record AgentResponse(
                 agent.isEnabled(),
                 team != null ? team.getPubId() : null,
                 team != null ? team.getName() : null,
+                skills != null ? skills : List.of(),
                 agent.getCreatedAt()
         );
     }
 
+    public static AgentResponse from(Agent agent, AgenticTeam team) {
+        return from(agent, team, List.of());
+    }
+
     public static AgentResponse from(Agent agent) {
-        return from(agent, null);
+        return from(agent, null, List.of());
     }
 }
