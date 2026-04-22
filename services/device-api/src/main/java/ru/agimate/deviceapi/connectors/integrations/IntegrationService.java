@@ -90,6 +90,13 @@ public class IntegrationService {
         return integrationCredentialsRepository.findByUserPubIdNotDeleted(userPubId);
     }
 
+    public List<IntegrationCredentials> getIntegrations(UUID userPubId, String connectorCode) {
+        if (connectorCode == null || connectorCode.isBlank()) {
+            return getIntegrations(userPubId);
+        }
+        return integrationCredentialsRepository.findByUserPubIdAndConnectorCodeNotDeleted(userPubId, connectorCode);
+    }
+
     public IntegrationCredentials getIntegrationCredentials(UUID integrationCredentialsPubId, UUID userPubId) {
         return integrationCredentialsRepository.findByPubIdNotDeleted(integrationCredentialsPubId)
                 .filter(i -> i.getUserPubId().equals(userPubId))

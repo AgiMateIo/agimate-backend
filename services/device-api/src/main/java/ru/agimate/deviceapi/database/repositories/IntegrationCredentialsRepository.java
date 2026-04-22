@@ -21,6 +21,17 @@ public interface IntegrationCredentialsRepository extends JpaRepository<Integrat
     @Query("SELECT i FROM IntegrationCredentials i WHERE i.userPubId = :userPubId AND i.deletedAt IS NULL ORDER BY i.createdAt DESC")
     List<IntegrationCredentials> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
 
+    @Query("""
+            SELECT i FROM IntegrationCredentials i
+            WHERE i.userPubId = :userPubId
+              AND i.connectorCode = :connectorCode
+              AND i.deletedAt IS NULL
+            ORDER BY i.createdAt DESC
+            """)
+    List<IntegrationCredentials> findByUserPubIdAndConnectorCodeNotDeleted(
+            @Param("userPubId") UUID userPubId,
+            @Param("connectorCode") String connectorCode);
+
     @Query("SELECT i FROM IntegrationCredentials i WHERE i.connectorCode = :connectorCode AND i.deletedAt IS NULL")
     Optional<IntegrationCredentials> findByConnectorCode(@Param("connectorCode") String connectorCode);
 

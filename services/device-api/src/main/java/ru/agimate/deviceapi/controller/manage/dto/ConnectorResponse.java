@@ -16,14 +16,28 @@ public record ConnectorResponse(
         String name,
 
         @Schema(description = "Connector description")
-        String description
+        String description,
+
+        @Schema(description = "Integration-specific metadata; populated only when type=INTEGRATION and a handler is registered", nullable = true)
+        IntegrationMeta integrationMeta
 ) {
     public static ConnectorResponse from(Connector connector) {
         return new ConnectorResponse(
                 connector.getCode(),
                 connector.getType(),
                 connector.getName(),
-                connector.getDescription()
+                connector.getDescription(),
+                null
+        );
+    }
+
+    public static ConnectorResponse from(Connector connector, IntegrationMeta integrationMeta) {
+        return new ConnectorResponse(
+                connector.getCode(),
+                connector.getType(),
+                connector.getName(),
+                connector.getDescription(),
+                integrationMeta
         );
     }
 }

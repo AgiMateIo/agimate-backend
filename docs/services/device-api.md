@@ -82,9 +82,10 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 
 > For full request/response schemas see [device-api-manage-connectors.md](device-api-manage-connectors.md).
 
-| Method | Path                           | Description                                                                   |
-|--------|--------------------------------|-------------------------------------------------------------------------------|
-| GET    | `/device/manage/connectors/`   | List connectors (paginated, filter by `type`, search by `name`/`description`) |
+| Method | Path                                 | Description                                                                   |
+|--------|--------------------------------------|-------------------------------------------------------------------------------|
+| GET    | `/device/manage/connectors/`         | List connectors (paginated, filter by `type`, search by `name`/`description`) |
+| GET    | `/device/manage/connectors/{code}`   | Get connector by code (includes `integrationMeta` when `type=INTEGRATION`)    |
 
 ### Skill Management (JWT)
 
@@ -168,21 +169,16 @@ Device API for connector registration, tool delivery, trigger submission, and AI
 
 ### Integration Management (JWT)
 
-| Method | Path                                              | Description                     |
-|--------|---------------------------------------------------|---------------------------------|
-| GET    | `/device/manage/integrations/`                    | List all integrations           |
-| POST   | `/device/manage/integrations/`                    | Create integration              |
-| GET    | `/device/manage/integrations/{id}`                | Get integration details         |
-| PUT    | `/device/manage/integrations/{id}/credentials`    | Update integration credentials  |
-| PATCH  | `/device/manage/integrations/{id}`                | Update integration settings     |
-| DELETE | `/device/manage/integrations/{id}`                | Delete integration              |
+> For full request/response schemas see [device-api-manage-integrations.md](device-api-manage-integrations.md).
 
-### Platform Management (JWT)
-
-| Method | Path                                 | Description              |
-|--------|--------------------------------------|--------------------------|
-| GET    | `/device/manage/platforms/`          | List all platforms       |
-| GET    | `/device/manage/platforms/{code}`    | Get platform by code     |
+| Method | Path                                                             | Description                                                    |
+|--------|------------------------------------------------------------------|----------------------------------------------------------------|
+| GET    | `/device/manage/integrations/credentials/`                       | List integration credentials (optional `?connectorCode=`)      |
+| POST   | `/device/manage/integrations/credentials/`                       | Create integration credentials                                 |
+| GET    | `/device/manage/integrations/credentials/{credentialId}`         | Get integration credentials details                            |
+| PATCH  | `/device/manage/integrations/credentials/{credentialId}/`        | Update integration settings (enabled, name)                    |
+| PUT    | `/device/manage/integrations/credentials/{credentialId}/secret`  | Update integration secret (credential values)                  |
+| DELETE | `/device/manage/integrations/credentials/{credentialId}`         | Delete integration credentials                                 |
 
 ### Integration Webhooks (Public)
 
@@ -224,7 +220,7 @@ device-api integrates with Centrifugo for real-time messaging:
 
 ## Integration Flow (Telegram, etc.)
 
-1. User creates integration via `POST /manage/integrations/` with platform token
+1. User creates integration via `POST /manage/integrations/credentials/` with platform token
    - Token validated against platform API (e.g., Telegram getMe)
    - Outbound Connector created with predefined triggers/tools
    - Token encrypted (AES-GCM) and stored

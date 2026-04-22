@@ -8,14 +8,11 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationService;
 import ru.agimate.deviceapi.controller.manage.dto.CreateIntegrationRequest;
-import ru.agimate.deviceapi.controller.manage.dto.IntegrationInfo;
 import ru.agimate.deviceapi.controller.manage.dto.IntegrationResponse;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateIntegrationCredentialsRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateIntegrationRequest;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationsRegistry;
-import ru.agimate.deviceapi.connectors.integrations.IntegrationService;
-import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 
 import java.util.List;
 import java.util.UUID;
@@ -23,95 +20,81 @@ import java.util.UUID;
 @RestController
 @RequestMapping(ManageIntegrationController.PATH)
 @RequiredArgsConstructor
-@Tag(name = "Integrations", description = "Manage platform integrations")
+@Tag(name = "Integrations", description = "Manage user integration credentials")
 public class ManageIntegrationController {
 
     public static final String PATH = "/manage/integrations";
 
     private final IntegrationService integrationService;
-    private final IntegrationsRegistry integrationsRegistry;
 
-    @Operation(summary = "Get available integration platforms")
-    @GetMapping("/platforms/")
-    public SuccessResponse<List<IntegrationInfo>> getPlatforms() {
-        var platforms = integrationsRegistry.getAvailablePlatforms().stream()
-                .map(IntegrationInfo::from)
-                .toList();
-        return SuccessResponse.ok(platforms);
-    }
-
-    @Operation(summary = "Get all integrations for the current user")
-    @GetMapping("/")
-    public SuccessResponse<List<IntegrationResponse>> getIntegrations(
-            @AuthenticationPrincipal AgimateUserPrincipal principal
+    @Operation(summary = "List integration credentials, optionally filtered by connectorCode")
+    @GetMapping("/credentials/")
+    public SuccessResponse<List<IntegrationResponse>> listCredentials(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @RequestParam(required = false) String connectorCode
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var integrations = integrationService.getIntegrations(userPubId).stream()
-                .map(this::toResponse)
+        var integrations = integrationService.getIntegrations(userPubId, connectorCode).stream()
+                .map(IntegrationResponse::from)
                 .toList();
         return SuccessResponse.ok(integrations);
     }
 
-    @Operation(summary = "Create a new integration")
-    @PostMapping("/")
-    public SuccessResponse<IntegrationResponse> createIntegration(
+    @Operation(summary = "Create new integration credentials")
+    @PostMapping("/credentials/")
+    public SuccessResponse<IntegrationResponse> createCredentials(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody CreateIntegrationRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         var integrationCredentials = integrationService.createIntegration(
                 userPubId, request.connectorCode(), request.credentials(), request.name());
-        return SuccessResponse.ok(toResponse(integrationCredentials));
+        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
-    @Operation(summary = "Get integration details")
-    @GetMapping("/{integrationCredentialPubId}")
-    public SuccessResponse<IntegrationResponse> getIntegration(
+    @Operation(summary = "Get integration credentials details")
+    @GetMapping("/credentials/{credentialId}")
+    public SuccessResponse<IntegrationResponse> getCredentials(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID integrationCredentialPubId
+            @PathVariable UUID credentialId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var integrationCredentials = integrationService.getIntegrationCredentials(integrationCredentialPubId, userPubId);
-        return SuccessResponse.ok(toResponse(integrationCredentials));
-    }
-
-    @Operation(summary = "Update integration credentials")
-    @PutMapping("/{integrationCredentialPubId}/credentials")
-    public SuccessResponse<IntegrationResponse> updateCredentials(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID integrationCredentialPubId,
-            @Valid @RequestBody UpdateIntegrationCredentialsRequest request
-    ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var integrationCredentials = integrationService.updateCredentials(integrationCredentialPubId, userPubId, request.credentials());
-        return SuccessResponse.ok(toResponse(integrationCredentials));
+        var integrationCredentials = integrationService.getIntegrationCredentials(credentialId, userPubId);
+        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
     @Operation(summary = "Update integration settings (enable/disable, name)")
-    @PatchMapping("/{integrationCredentialPubId}/")
-    public SuccessResponse<IntegrationResponse> updateIntegration(
+    @PatchMapping("/credentials/{credentialId}/")
+    public SuccessResponse<IntegrationResponse> updateCredentials(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID integrationCredentialPubId,
+            @PathVariable UUID credentialId,
             @Valid @RequestBody UpdateIntegrationRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var integrationCredentials = integrationService.patchIntegration(integrationCredentialPubId, userPubId, request.enabled(), request.name());
-        return SuccessResponse.ok(toResponse(integrationCredentials));
+        var integrationCredentials = integrationService.patchIntegration(credentialId, userPubId, request.enabled(), request.name());
+        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
-    @Operation(summary = "Delete an integration")
-    @DeleteMapping("/{integrationCredentialPubId}")
-    public SuccessResponse<Void> deleteIntegration(
+    @Operation(summary = "Update integration secret (credential values)")
+    @PutMapping("/credentials/{credentialId}/secret")
+    public SuccessResponse<IntegrationResponse> updateSecret(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID integrationCredentialPubId
+            @PathVariable UUID credentialId,
+            @Valid @RequestBody UpdateIntegrationCredentialsRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        integrationService.deleteIntegration(integrationCredentialPubId, userPubId);
-        return SuccessResponse.empty();
+        var integrationCredentials = integrationService.updateCredentials(credentialId, userPubId, request.credentials());
+        return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
-    private IntegrationResponse toResponse(IntegrationCredentials ic) {
-        var handler = integrationsRegistry.getHandler(ic.getConnectorCode());
-        return IntegrationResponse.from(ic, handler);
+    @Operation(summary = "Delete integration credentials")
+    @DeleteMapping("/credentials/{credentialId}")
+    public SuccessResponse<Void> deleteCredentials(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID credentialId
+    ) {
+        UUID userPubId = UUID.fromString(principal.pubId());
+        integrationService.deleteIntegration(credentialId, userPubId);
+        return SuccessResponse.empty();
     }
 }

@@ -6,6 +6,7 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -25,6 +26,10 @@ public class IntegrationsRegistry {
             throw new BadRequestStatusException("Unsupported platform: " + connectorCode);
         }
         return handler;
+    }
+
+    public Optional<IntegrationHandler> findHandler(String connectorCode) {
+        return Optional.ofNullable(handlers.get(connectorCode));
     }
 
     public Collection<IntegrationHandler> getAvailablePlatforms() {
