@@ -3,12 +3,15 @@ package ru.agimate.deviceapi.connectors.integrations;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
+import ru.agimate.deviceapi.connectors.integrations.events.IntegrationCreatedEvent;
+import ru.agimate.deviceapi.connectors.integrations.events.IntegrationDeletedEvent;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.database.enums.ConnectorType;
 import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
@@ -31,6 +34,7 @@ public class IntegrationService {
     private final ConnectorRepository connectorRepository;
     private final IntegrationsRegistry integrationsRegistry;
     private final IntegrationEncryptionService encryptionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public IntegrationCredentials createIntegration(
@@ -83,6 +87,9 @@ public class IntegrationService {
         log.info("Created integration {} for user {}: {} ({})",
                 integrationCredentials.getPubId(), userPubId, connectorCode, validationResult.identifier());
 
+        eventPublisher.publishEvent(new IntegrationCreatedEvent(
+                integrationCredentials.getPubId(), connectorCode));
+
         return integrationCredentials;
     }
 
@@ -118,6 +125,9 @@ public class IntegrationService {
 
         integrationCredentialsRepository.softDelete(integrationCredentials.getId(), LocalDateTime.now());
         log.info("Deleted integration {}", pubId);
+
+        eventPublisher.publishEvent(new IntegrationDeletedEvent(
+                integrationCredentials.getPubId(), integrationCredentials.getConnectorCode()));
     }
 
     @Transactional
@@ -153,13 +163,28 @@ public class IntegrationService {
     public IntegrationCredentials patchIntegration(UUID pubId, UUID userPubId, Boolean enabled, String name) {
         IntegrationCredentials integrationCredentials = getIntegrationCredentials(pubId, userPubId);
 
-        if (enabled != null) {
+        boolean enabledChanged = false;
+        Boolean previousEnabled = integrationCredentials.getEnabled();
+        if (enabled != null && !enabled.equals(previousEnabled)) {
             integrationCredentials.setEnabled(enabled);
+            enabledChanged = true;
         }
         if (name != null) {
             integrationCredentials.setName(name);
         }
 
-        return integrationCredentialsRepository.save(integrationCredentials);
+        IntegrationCredentials saved = integrationCredentialsRepository.save(integrationCredentials);
+
+        if (enabledChanged) {
+            if (Boolean.TRUE.equals(enabled)) {
+                eventPublisher.publishEvent(new IntegrationCreatedEvent(
+                        saved.getPubId(), saved.getConnectorCode()));
+            } else {
+                eventPublisher.publishEvent(new IntegrationDeletedEvent(
+                        saved.getPubId(), saved.getConnectorCode()));
+            }
+        }
+
+        return saved;
     }
 }

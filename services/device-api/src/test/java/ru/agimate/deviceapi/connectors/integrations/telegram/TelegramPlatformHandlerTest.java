@@ -37,7 +37,7 @@ class TelegramPlatformHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new TelegramHandler(encryptionService, telegramApiClient, objectMapper);
+        handler = new TelegramHandler(encryptionService, telegramApiClient, objectMapper, "webhook");
     }
 
     @Test

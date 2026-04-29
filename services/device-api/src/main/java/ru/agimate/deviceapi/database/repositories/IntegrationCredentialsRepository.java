@@ -35,6 +35,14 @@ public interface IntegrationCredentialsRepository extends JpaRepository<Integrat
     @Query("SELECT i FROM IntegrationCredentials i WHERE i.connectorCode = :connectorCode AND i.deletedAt IS NULL")
     Optional<IntegrationCredentials> findByConnectorCode(@Param("connectorCode") String connectorCode);
 
+    @Query("""
+            SELECT i FROM IntegrationCredentials i
+            WHERE i.connectorCode = :connectorCode
+              AND i.enabled = true
+              AND i.deletedAt IS NULL
+            """)
+    List<IntegrationCredentials> findActiveByConnectorCode(@Param("connectorCode") String connectorCode);
+
     @Query("SELECT i FROM IntegrationCredentials i WHERE i.pubId = :pubId AND i.userPubId = :userPubId AND i.deletedAt IS NULL")
     Optional<IntegrationCredentials> findByPubIdAndUserPubIdNotDeleted(@Param("pubId") UUID pubId, @Param("userPubId") UUID userPubId);
 

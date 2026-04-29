@@ -4,6 +4,7 @@ import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.connectors.integrations.BaseIntegrationHandler;
@@ -21,17 +22,22 @@ import java.util.*;
 public class TelegramHandler extends BaseIntegrationHandler {
 
     public static final String CONNECTOR_CODE = "telegram";
+    public static final String MODE_WEBHOOK = "webhook";
+    public static final String MODE_POLLING = "polling";
     private static final String HEADER_SECRET_TOKEN = "X-Telegram-Bot-Api-Secret-Token";
 
     private final TelegramApiClient telegramApiClient;
     private final ObjectMapper objectMapper;
+    private final String mode;
 
     public TelegramHandler(IntegrationEncryptionService encryptionService,
                            TelegramApiClient telegramApiClient,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper,
+                           @Value("${app.integration.telegram.mode:webhook}") String mode) {
         super(encryptionService);
         this.telegramApiClient = telegramApiClient;
         this.objectMapper = objectMapper;
+        this.mode = mode;
     }
 
     @Override
@@ -39,9 +45,13 @@ public class TelegramHandler extends BaseIntegrationHandler {
         return CONNECTOR_CODE;
     }
 
+    public boolean isPollingMode() {
+        return MODE_POLLING.equalsIgnoreCase(mode);
+    }
+
     @Override
     public boolean supportsWebhooks() {
-        return true;
+        return !isPollingMode();
     }
 
     @Override

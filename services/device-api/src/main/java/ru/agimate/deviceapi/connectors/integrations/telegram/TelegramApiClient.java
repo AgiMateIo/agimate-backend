@@ -1,9 +1,12 @@
 package ru.agimate.deviceapi.connectors.integrations.telegram;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
@@ -11,11 +14,20 @@ import java.util.Map;
 public class TelegramApiClient {
 
     private static final String BASE_URL = "https://api.telegram.org";
+    private static final Duration LONG_POLL_READ_TIMEOUT = Duration.ofSeconds(25);
 
     private final RestClient restClient;
+    private final RestClient longPollClient;
 
     public TelegramApiClient() {
         this.restClient = RestClient.builder().baseUrl(BASE_URL).build();
+
+        SimpleClientHttpRequestFactory longPollFactory = new SimpleClientHttpRequestFactory();
+        longPollFactory.setReadTimeout(LONG_POLL_READ_TIMEOUT);
+        this.longPollClient = RestClient.builder()
+                .baseUrl(BASE_URL)
+                .requestFactory(longPollFactory)
+                .build();
     }
 
     @SuppressWarnings("unchecked")
@@ -52,6 +64,18 @@ public class TelegramApiClient {
         return restClient.post()
                 .uri("/bot{token}/{method}", token, method)
                 .body(params)
+                .retrieve()
+                .body(Map.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getUpdates(String token, Long offset, int timeoutSec) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (offset != null) body.put("offset", offset);
+        body.put("timeout", timeoutSec);
+        return longPollClient.post()
+                .uri("/bot{token}/getUpdates", token)
+                .body(body)
                 .retrieve()
                 .body(Map.class);
     }

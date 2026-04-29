@@ -27,6 +27,5 @@ public class DeviceApiApplication {
                 DeviceApiApplication.class,
                 args
         );
-
     }
 }
