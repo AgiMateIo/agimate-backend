@@ -9,6 +9,7 @@ import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.deviceapi.service.AgentDeliveryService;
+import ru.agimate.deviceapi.service.ToolUseLogService;
 import ru.agimate.deviceapi.service.dto.ToolUsePayload;
 
 import java.time.LocalDateTime;
@@ -23,6 +24,7 @@ public class IntegrationToolExecutorService {
     private final IntegrationsRegistry integrationsRegistry;
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
     private final AgentDeliveryService agentDeliveryService;
+    private final ToolUseLogService toolUseLogService;
 
     @Async
     public void execute(IntegrationCredentials integrationCredentials, ToolUsePayload toolUse, UUID agentPubId) {
@@ -34,9 +36,12 @@ public class IntegrationToolExecutorService {
 
             integrationCredentialsRepository.updateLastUsedAt(integrationCredentials.getId(), LocalDateTime.now());
 
+            var toolResult = new ToolResultRequest(
+                    toolUse.id(), toolUse.connectorCode(), JsonUtils.writeValueAsString(result), null);
+            toolUseLogService.recordOutput(toolResult);
+
             if (agentPubId != null) {
-                agentDeliveryService.deliverToolResult(agentPubId, new ToolResultRequest(
-                        toolUse.id(), toolUse.connectorCode(), JsonUtils.writeValueAsString(result), null));
+                agentDeliveryService.deliverToolResult(agentPubId, toolResult);
             }
 
             log.debug("Executed tool '{}' for integration {}", toolUse.name(), integrationCredentials.getPubId());
@@ -44,9 +49,17 @@ public class IntegrationToolExecutorService {
             log.error("Failed to execute tool '{}' for integration {}: {}",
                     toolUse.name(), integrationCredentials.getPubId(), e.getMessage());
 
+            var errorResult = new ToolResultRequest(
+                    toolUse.id(), toolUse.connectorCode(), null, "Tool execution failed");
+
+            try {
+                toolUseLogService.recordOutput(errorResult);
+            } catch (Exception logError) {
+                log.warn("Failed to log integration tool error: {}", logError.getMessage());
+            }
+
             if (agentPubId != null) {
-                agentDeliveryService.deliverToolResult(agentPubId, new ToolResultRequest(
-                        toolUse.id(), toolUse.connectorCode(), null, "Tool execution failed"));
+                agentDeliveryService.deliverToolResult(agentPubId, errorResult);
             }
         }
     }
