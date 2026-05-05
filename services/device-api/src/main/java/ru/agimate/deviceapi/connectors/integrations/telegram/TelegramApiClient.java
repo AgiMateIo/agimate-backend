@@ -1,9 +1,11 @@
 package ru.agimate.deviceapi.connectors.integrations.telegram;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import ru.agimate.common.util.JsonUtils;
 
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -30,53 +32,58 @@ public class TelegramApiClient {
                 .build();
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> getMe(String token) {
-        return restClient.get()
+        String body = restClient.get()
                 .uri("/bot{token}/getMe", token)
+                .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
-                .body(Map.class);
+                .body(String.class);
+        return JsonUtils.fromJsonToMap(body);
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> setWebhook(String token, String url, String secretToken) {
-        return restClient.post()
+        String body = restClient.post()
                 .uri("/bot{token}/setWebhook", token)
+                .accept(MediaType.APPLICATION_JSON)
                 .body(Map.of(
                         "url", url,
                         "secret_token", secretToken
                 ))
                 .retrieve()
-                .body(Map.class);
+                .body(String.class);
+        return JsonUtils.fromJsonToMap(body);
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> deleteWebhook(String token) {
-        return restClient.post()
+        String body = restClient.post()
                 .uri("/bot{token}/deleteWebhook", token)
+                .accept(MediaType.APPLICATION_JSON)
                 .body(Map.of())
                 .retrieve()
-                .body(Map.class);
+                .body(String.class);
+        return JsonUtils.fromJsonToMap(body);
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> sendRequest(String method, String token, Map<String, Object> params) {
-        return restClient.post()
+        String body = restClient.post()
                 .uri("/bot{token}/{method}", token, method)
+                .accept(MediaType.APPLICATION_JSON)
                 .body(params)
                 .retrieve()
-                .body(Map.class);
+                .body(String.class);
+        return JsonUtils.fromJsonToMap(body);
     }
 
-    @SuppressWarnings("unchecked")
     public Map<String, Object> getUpdates(String token, Long offset, int timeoutSec) {
         Map<String, Object> body = new LinkedHashMap<>();
         if (offset != null) body.put("offset", offset);
         body.put("timeout", timeoutSec);
-        return longPollClient.post()
+        String response = longPollClient.post()
                 .uri("/bot{token}/getUpdates", token)
+                .accept(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()
-                .body(Map.class);
+                .body(String.class);
+        return JsonUtils.fromJsonToMap(response);
     }
 }
