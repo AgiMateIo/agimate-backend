@@ -29,8 +29,8 @@ public class ToolUseLogService {
 
     private final ToolUseLogRepository toolUseLogRepository;
 
-    public Optional<ToolUseLog> findByToolUseIdAndUserPubId(String toolUseId, UUID userPubId) {
-        return toolUseLogRepository.findByToolUseIdAndUserPubId(toolUseId, userPubId);
+    public Optional<ToolUseLog> findByToolUseIdAndAgentPubId(String toolUseId, UUID agentPubId) {
+        return toolUseLogRepository.findByToolUseIdAndAgentPubId(toolUseId, agentPubId);
     }
 
     @Transactional

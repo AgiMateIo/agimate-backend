@@ -14,7 +14,10 @@ import java.util.Map;
 import java.util.UUID;
 
 @Entity
-@Table(name = "tool_use_logs")
+@Table(name = "tool_use_logs", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_tool_use_logs_agent_pub_id_tool_use_id",
+                columnNames = {"agent_pub_id", "tool_use_id"})
+})
 @Getter
 @Setter
 @Builder

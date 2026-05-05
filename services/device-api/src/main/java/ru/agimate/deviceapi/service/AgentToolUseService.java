@@ -1,6 +1,7 @@
 package ru.agimate.deviceapi.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
@@ -34,20 +35,31 @@ public class AgentToolUseService {
     private EvaluationResult evaluate(UUID agentPubId, ToolUseRequest request) {
         Agent agent = agentService.findByPubId(agentPubId);
 
-        var existing = toolUseLogService.findByToolUseIdAndUserPubId(request.getId(), agent.getUserPubId());
+        var existing = toolUseLogService.findByToolUseIdAndAgentPubId(request.getId(), agent.getPubId());
         if (existing.isPresent()) {
-            return JsonUtils.jsonEquals(existing.get().getInput(), request.getInput())
-                    ? new EvaluationResult.Replay(existing.get())
-                    : new EvaluationResult.InputConflict(existing.get());
+            return classifyExisting(existing.get(), request);
         }
 
         AccessDecision decision = toolPolicyDbEvaluatorService.evaluate(
                 agent.getPubId(), request.getConnectorCode(), request.getIdentity(), request.getName());
 
-        ToolUseLog log = toolUseLogService.createLog(agent, request,
-                request.getAgentSessionId(), decision.accessEffect(), decision.reason());
+        try {
+            ToolUseLog log = toolUseLogService.createLog(agent, request,
+                    request.getAgentSessionId(), decision.accessEffect(), decision.reason());
+            return new EvaluationResult.Created(log, decision);
+        } catch (DataIntegrityViolationException e) {
+            // Concurrent insert with the same (agent_pub_id, tool_use_id) — race lost.
+            // Re-read and treat as replay or input conflict.
+            var raced = toolUseLogService.findByToolUseIdAndAgentPubId(request.getId(), agent.getPubId())
+                    .orElseThrow(() -> e);
+            return classifyExisting(raced, request);
+        }
+    }
 
-        return new EvaluationResult.Created(log, decision);
+    private EvaluationResult classifyExisting(ToolUseLog existing, ToolUseRequest request) {
+        return JsonUtils.jsonEquals(existing.getInput(), request.getInput())
+                ? new EvaluationResult.Replay(existing)
+                : new EvaluationResult.InputConflict(existing);
     }
 
     /** Evaluate + enforce permission + push to connector */
