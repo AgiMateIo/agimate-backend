@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.service;
+package ru.agimate.deviceapi.service.centrifugo;
 
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -9,8 +9,6 @@ import org.opensolutionlab.httpclients.models.requests.publication.PublishReques
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.ServiceUnavailableStatusException;
 import ru.agimate.deviceapi.config.CentrifugoProperties;
-import ru.agimate.deviceapi.service.dto.CentrifugoMessage;
-import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -92,18 +90,6 @@ public class CentrifugoService {
             throw new ServiceUnavailableStatusException(
                     "Failed to publish message to real-time service: " + e.getMessage(), e);
         }
-    }
-
-    /**
-     * Creates a test message with current timestamp.
-     *
-     * @return A map containing type and timestamp
-     */
-    public Map<String, Object> createTestMessage() {
-        Map<String, Object> message = new HashMap<>();
-        message.put("type", "test");
-        message.put("timestamp", System.currentTimeMillis());
-        return message;
     }
 
     /**

@@ -8,7 +8,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
-import ru.agimate.deviceapi.service.CentrifugoService;
+import ru.agimate.deviceapi.service.centrifugo.CentrifugoService;
 import ru.agimate.deviceapi.service.dto.IToolUse;
 
 import java.time.LocalDateTime;
@@ -34,7 +34,7 @@ public class IntegrationToolExecutorService {
             // Update last used timestamp
             integrationCredentialsRepository.updateLastUsedAt(integrationCredentials.getId(), LocalDateTime.now());
 
-            // todo: user router like trigger router, because it can be agent with webhook
+            // todo: use router like trigger router, because it can be agent with webhook
             // Push result back to agent
             if (agentId != null) {
                 var toolResult = new ToolResultRequest(

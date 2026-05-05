@@ -16,6 +16,7 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -159,6 +160,33 @@ public class JsonUtils {
 
     public static Map<String, Object> objectToMap(Object obj) {
         return MAPPER.convertValue(obj, MAP_TYPE_REFERENCE);
+    }
+
+    private static final Comparator<JsonNode> NUMERIC_AWARE_LEAF_COMPARATOR = (a, b) -> {
+        if (a.equals(b)) {
+            return 0;
+        }
+        if (a.isNumber() && b.isNumber()) {
+            return a.decimalValue().compareTo(b.decimalValue());
+        }
+        return 1;
+    };
+
+    /**
+     * Deep equality for arbitrary JSON-like values that tolerates numeric type drift
+     * after a JSONB round-trip (e.g. Integer vs Long vs BigDecimal of the same value).
+     * Object key order does not matter; array order does.
+     */
+    public static boolean jsonEquals(Object a, Object b) {
+        if (a == b) {
+            return true;
+        }
+        if (a == null || b == null) {
+            return false;
+        }
+        JsonNode na = MAPPER.valueToTree(a);
+        JsonNode nb = MAPPER.valueToTree(b);
+        return na.equals(NUMERIC_AWARE_LEAF_COMPARATOR, nb);
     }
 
     public static Map<String, Object> loadJsonIntoMap(File jsonFile) {

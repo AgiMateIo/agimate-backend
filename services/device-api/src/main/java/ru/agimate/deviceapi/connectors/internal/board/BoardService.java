@@ -12,13 +12,12 @@ import ru.agimate.deviceapi.database.entities.*;
 import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 import ru.agimate.deviceapi.database.enums.BoardTaskType;
 import ru.agimate.deviceapi.database.repositories.*;
-import ru.agimate.deviceapi.service.CentrifugoService;
+import ru.agimate.deviceapi.service.centrifugo.CentrifugoService;
 import ru.agimate.deviceapi.service.dto.board.BoardEventType;
 import ru.agimate.deviceapi.service.dto.board.BoardTaskCommentCreatedEvent;
 import ru.agimate.deviceapi.service.dto.board.BoardTaskCreatedEvent;
 import ru.agimate.deviceapi.service.dto.board.BoardTaskStatusChangedEvent;
 import ru.agimate.deviceapi.service.trigger.Trigger;
-import ru.agimate.deviceapi.service.trigger.TriggerDeliveryService;
 import ru.agimate.deviceapi.service.trigger.TriggerRouterService;
 
 import java.util.*;

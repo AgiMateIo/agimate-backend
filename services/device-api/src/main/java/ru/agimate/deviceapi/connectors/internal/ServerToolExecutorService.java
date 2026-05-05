@@ -7,7 +7,7 @@ import org.springframework.stereotype.Service;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
 
-import ru.agimate.deviceapi.service.CentrifugoService;
+import ru.agimate.deviceapi.service.centrifugo.CentrifugoService;
 import ru.agimate.deviceapi.service.dto.IToolUse;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 

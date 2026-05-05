@@ -18,7 +18,6 @@ import ru.agimate.deviceapi.database.repositories.ToolUseLogRepository;
 import ru.agimate.deviceapi.service.dto.IToolResult;
 import ru.agimate.deviceapi.service.dto.IToolUse;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -55,65 +54,56 @@ public class ToolUseLogService {
 
     @Transactional
     public ToolUseLog recordOutput(App app, IToolResult toolResult) {
-        var toolUseLog = toolUseLogRepository.findByToolUseId(toolResult.getId())
-                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolResult.getId()));
+        var toolUseLog = getByToolUseId(toolResult.getId());
 
         if (!app.getPubId().toString().equals(toolUseLog.getIdentity())) {
             throw new ForbiddenStatusException("Incorrect device");
         }
 
-        toolUseLog.setOutputAt(LocalDateTime.now());
-        toolUseLog.setOutput(toolResult.getOutput());
-        toolUseLog.setError(toolResult.getError());
-
+        toolUseLog.applyResult(toolResult);
         return toolUseLogRepository.save(toolUseLog);
     }
 
     @Transactional
     public ToolUseLog recordOutput(IToolResult toolResult) {
-        var toolUseLog = toolUseLogRepository.findByToolUseId(toolResult.getId())
-                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolResult.getId()));
+        var toolUseLog = getByToolUseId(toolResult.getId());
 
-        toolUseLog.setOutputAt(LocalDateTime.now());
-        toolUseLog.setOutput(toolResult.getOutput());
-        toolUseLog.setError(toolResult.getError());
-
+        toolUseLog.applyResult(toolResult);
         return toolUseLogRepository.save(toolUseLog);
     }
 
     @Transactional
     public ToolUseLog recordOutputByAgent(UUID agentPubId, IToolResult toolResult) {
-        var toolUseLog = toolUseLogRepository.findByToolUseId(toolResult.getId())
-                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolResult.getId()));
-
-        if (!agentPubId.equals(toolUseLog.getAgentPubId())) {
-            throw new ForbiddenStatusException("ToolUseLog does not belong to this agent");
-        }
+        var toolUseLog = getByToolUseId(toolResult.getId());
+        verifyOwnedByAgent(toolUseLog, agentPubId);
 
         if (toolUseLog.getAccessEffect() != AccessEffect.ALLOW) {
             throw new ForbiddenStatusException("Cannot record output for denied tool use");
         }
 
-        toolUseLog.setOutputAt(LocalDateTime.now());
-        toolUseLog.setOutput(toolResult.getOutput());
-        toolUseLog.setError(toolResult.getError());
-
+        toolUseLog.applyResult(toolResult);
         return toolUseLogRepository.save(toolUseLog);
     }
 
     public ToolUseLog findByToolUseIdForAgent(String toolUseId, UUID agentPubId) {
-        var toolUseLog = toolUseLogRepository.findByToolUseId(toolUseId)
-                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
-
-        if (!agentPubId.equals(toolUseLog.getAgentPubId())) {
-            throw new ForbiddenStatusException("ToolUseLog does not belong to this agent");
-        }
-
+        var toolUseLog = getByToolUseId(toolUseId);
+        verifyOwnedByAgent(toolUseLog, agentPubId);
         return toolUseLog;
     }
 
     public Page<ToolUseLogResponse> getToolUseLogs(UUID userPubId, UUID agentPubId, int page, int size) {
         return toolUseLogRepository.findWithFilters(userPubId, agentPubId, PageRequest.of(page, size, Sort.by("createdAt").descending()))
                 .map(ToolUseLogResponse::from);
+    }
+
+    private ToolUseLog getByToolUseId(String toolUseId) {
+        return toolUseLogRepository.findByToolUseId(toolUseId)
+                .orElseThrow(() -> new NotFoundStatusException("ToolUseLog", toolUseId));
+    }
+
+    private void verifyOwnedByAgent(ToolUseLog toolUseLog, UUID agentPubId) {
+        if (!agentPubId.equals(toolUseLog.getAgentPubId())) {
+            throw new ForbiddenStatusException("ToolUseLog does not belong to this agent");
+        }
     }
 }

@@ -7,6 +7,7 @@ import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.deviceapi.abac.AccessEffect;
+import ru.agimate.deviceapi.service.dto.IToolResult;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -67,4 +68,10 @@ public class ToolUseLog extends BaseEntity {
 
     @Column(name = "error", columnDefinition = "TEXT")
     private String error;
+
+    public void applyResult(IToolResult toolResult) {
+        this.outputAt = LocalDateTime.now();
+        this.output = toolResult.getOutput();
+        this.error = toolResult.getError();
+    }
 }

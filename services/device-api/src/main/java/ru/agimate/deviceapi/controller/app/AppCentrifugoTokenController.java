@@ -17,7 +17,7 @@ import ru.agimate.deviceapi.controller.app.dto.DeviceChannelTokenRequest;
 import ru.agimate.deviceapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.service.AppService;
-import ru.agimate.deviceapi.service.CentrifugoService;
+import ru.agimate.deviceapi.service.centrifugo.CentrifugoService;
 
 @Slf4j
 @RestController

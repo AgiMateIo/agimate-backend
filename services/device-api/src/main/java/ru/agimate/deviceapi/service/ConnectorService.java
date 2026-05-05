@@ -10,6 +10,7 @@ import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
 import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
+import ru.agimate.deviceapi.service.centrifugo.CentrifugoService;
 import ru.agimate.deviceapi.service.dto.IToolUse;
 
 import java.util.UUID;

@@ -12,7 +12,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.config.CentrifugoProperties;
 import ru.agimate.deviceapi.controller.app.dto.CentrifugoTokenResponse;
-import ru.agimate.deviceapi.service.CentrifugoService;
+import ru.agimate.deviceapi.service.centrifugo.CentrifugoService;
 
 @Slf4j
 @RestController

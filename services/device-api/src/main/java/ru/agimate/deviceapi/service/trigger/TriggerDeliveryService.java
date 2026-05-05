@@ -2,17 +2,11 @@ package ru.agimate.deviceapi.service.trigger;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.*;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
-import ru.agimate.deviceapi.database.repositories.AgentRepository;
-import ru.agimate.deviceapi.service.CentrifugoService;
+import ru.agimate.deviceapi.service.centrifugo.CentrifugoService;
 import ru.agimate.deviceapi.service.WebhookDeliveryService;
-import ru.agimate.deviceapi.service.dto.CentrifugoMessage;
-
-import java.util.*;
 
 @Slf4j
 @Service
