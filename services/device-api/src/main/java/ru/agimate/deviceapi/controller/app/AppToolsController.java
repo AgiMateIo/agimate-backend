@@ -7,7 +7,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
-import ru.agimate.deviceapi.service.AppApiService;
+import ru.agimate.deviceapi.service.AgentDeliveryService;
 import ru.agimate.deviceapi.service.AppService;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
@@ -20,7 +20,7 @@ public class AppToolsController {
     public static final String PATH = AppRegistrationController.PATH + "/tools";
 
     private final AppService appService;
-    private final AppApiService appApiService;
+    private final AgentDeliveryService agentDeliveryService;
     private final ToolUseLogService toolUseLogService;
 
     @PostMapping("/result")
@@ -34,7 +34,7 @@ public class AppToolsController {
         var app = appService.getApp(authentication);
 
         var toolUseLog = toolUseLogService.recordOutput(app, toolResultRequest);
-        appApiService.pushToAgent(toolUseLog.getAgentPubId().toString(), toolResultRequest);
+        agentDeliveryService.deliverToolResult(toolUseLog.getAgentPubId(), toolResultRequest);
 
         return SuccessResponse.empty();
     }

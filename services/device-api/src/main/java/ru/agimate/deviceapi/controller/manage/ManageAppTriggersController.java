@@ -7,7 +7,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.deviceapi.service.AppApiService;
 import ru.agimate.deviceapi.service.AppService;
 import ru.agimate.deviceapi.service.dto.AppTrigger;
 

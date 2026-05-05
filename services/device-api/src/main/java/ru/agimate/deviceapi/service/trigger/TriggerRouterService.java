@@ -9,6 +9,7 @@ import ru.agimate.deviceapi.abac.AgentTriggerPolicyService;
 import ru.agimate.deviceapi.controller.app.dto.TriggerRequest;
 import ru.agimate.deviceapi.database.entities.*;
 import ru.agimate.deviceapi.database.repositories.TriggerLogAgentRepository;
+import ru.agimate.deviceapi.service.AgentDeliveryService;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,7 +21,7 @@ public class TriggerRouterService {
 
     private final TriggerLogService triggerLogService;
     private final AgentTriggerPolicyService agentTriggerPolicyService;
-    private final TriggerDeliveryService triggerDeliveryService;
+    private final AgentDeliveryService agentDeliveryService;
 
     private final TriggerLogAgentRepository triggerLogAgentRepository;
 
@@ -76,7 +77,7 @@ public class TriggerRouterService {
                     .destination(agent.getTriggerDestination().name())
                     .build();
 
-            triggerDeliveryService.fireTrigger(agent, triggerLogAgent);
+            agentDeliveryService.deliverTrigger(agent, triggerLogAgent);
 
             triggerLog.getTriggerLogAgents().add(triggerLogAgent);
         }

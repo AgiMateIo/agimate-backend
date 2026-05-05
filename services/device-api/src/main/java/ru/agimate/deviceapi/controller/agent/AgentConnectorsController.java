@@ -3,7 +3,6 @@ package ru.agimate.deviceapi.controller.agent;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-import ru.agimate.deviceapi.service.AppApiService;
 
 @RestController
 @RequestMapping(AgentConnectorsController.PATH)
@@ -12,8 +11,5 @@ import ru.agimate.deviceapi.service.AppApiService;
 public class AgentConnectorsController {
 
     public static final String PATH = AgentController.PATH + "/connectors";
-
-    private final AppApiService appApiService;
-
 
 }

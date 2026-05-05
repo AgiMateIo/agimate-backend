@@ -6,9 +6,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.app.dto.ToolResultRequest;
-
-import ru.agimate.deviceapi.service.centrifugo.CentrifugoService;
-import ru.agimate.deviceapi.service.dto.IToolUse;
+import ru.agimate.deviceapi.service.AgentDeliveryService;
+import ru.agimate.deviceapi.service.dto.ToolUsePayload;
 import ru.agimate.deviceapi.service.ToolUseLogService;
 
 import java.util.Map;
@@ -20,32 +19,31 @@ import java.util.UUID;
 public class ServerToolExecutorService {
 
     private final ServerSideToolRegistry toolRegistry;
-    private final CentrifugoService centrifugoService;
+    private final AgentDeliveryService agentDeliveryService;
     private final ToolUseLogService toolUseLogService;
 
     @Async
-    public void execute(IToolUse toolUse, UUID agentPubId, UUID userPubId) {
-        var handler = toolRegistry.getHandlerByToolName(toolUse.getName());
+    public void execute(ToolUsePayload toolUse, UUID agentPubId, UUID userPubId) {
+        var handler = toolRegistry.getHandlerByToolName(toolUse.name());
 
         try {
             Map<String, Object> result = handler.executeTool(
-                    toolUse.getName(),
-                    toolUse.getInput(),
+                    toolUse.name(),
+                    toolUse.input(),
                     agentPubId,
                     userPubId
             );
 
-
-            var toolResult = new ToolResultRequest(toolUse.getId(), toolUse.getConnectorCode(), JsonUtils.writeValueAsString(result), null);
+            var toolResult = new ToolResultRequest(toolUse.id(), toolUse.connectorCode(), JsonUtils.writeValueAsString(result), null);
             toolUseLogService.recordOutput(toolResult);
-            centrifugoService.publishMessage("agent:" + agentPubId, "toolResult", toolResult);
+            agentDeliveryService.deliverToolResult(agentPubId, toolResult);
 
-            log.debug("Executed server tool '{}'", toolUse.getName());
+            log.debug("Executed server tool '{}'", toolUse.name());
         } catch (Exception e) {
-            log.error("Failed to execute server tool '{}': {}", toolUse.getName(), e.getMessage());
+            log.error("Failed to execute server tool '{}': {}", toolUse.name(), e.getMessage());
 
             var errorResult = new ToolResultRequest(
-                    toolUse.getId(), toolUse.getConnectorCode(), null, "Tool execution failed");
+                    toolUse.id(), toolUse.connectorCode(), null, "Tool execution failed");
 
             try {
                 toolUseLogService.recordOutput(errorResult);
@@ -53,7 +51,7 @@ public class ServerToolExecutorService {
                 log.warn("Failed to log server tool error: {}", logError.getMessage());
             }
 
-            centrifugoService.publishMessage("agent:" + agentPubId, "toolResult", errorResult);
+            agentDeliveryService.deliverToolResult(agentPubId, errorResult);
         }
     }
 }

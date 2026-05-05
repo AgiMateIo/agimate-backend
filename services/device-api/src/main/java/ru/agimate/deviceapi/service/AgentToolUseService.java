@@ -60,7 +60,7 @@ public class AgentToolUseService {
                     throw new ForbiddenStatusException(
                             "Tool '" + request.getName() + "' is not authorized for this agent: " + decision.reason());
                 }
-                connectorService.pushToConnector(log.getUserPubId(), agentPubId.toString(), request);
+                connectorService.pushToConnector(log);
                 yield log.getToolUseId();
             }
         };

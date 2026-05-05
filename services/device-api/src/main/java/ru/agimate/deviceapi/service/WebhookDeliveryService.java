@@ -12,11 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.manage.dto.WebhookDeliveryLogResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
-import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.deviceapi.database.repositories.WebhookDeliveryLogRepository;
-import ru.agimate.deviceapi.service.trigger.Trigger;
+import ru.agimate.deviceapi.service.dto.IToolResult;
 import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
 import java.io.IOException;
@@ -45,15 +44,25 @@ public class WebhookDeliveryService {
 
     @Async
     public void deliverWebhook(Agent agent, TriggerLogAgent triggerLogAgent) {
-        Map<String, Object> payload = buildPayload(triggerLogAgent);
-
-        long startTime = System.currentTimeMillis();
+        Map<String, Object> payload = buildEnvelope("trigger", TriggerMapper.map(triggerLogAgent.getTriggerLog()));
         WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder = WebhookDeliveryLog.builder()
                 .triggerLogAgent(triggerLogAgent)
                 .requestUrl(agent.getWebhookUrl())
                 .requestPayload(payload)
                 .deliveredAt(LocalDateTime.now());
 
+        sendWebhook(agent, payload, logBuilder);
+        saveDeliveryLog(logBuilder.build());
+    }
+
+    @Async
+    public void deliverToolResult(Agent agent, IToolResult toolResult) {
+        Map<String, Object> payload = buildEnvelope("toolResult", toolResult);
+        sendWebhook(agent, payload, null);
+    }
+
+    private void sendWebhook(Agent agent, Map<String, Object> payload, WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder) {
+        long startTime = System.currentTimeMillis();
         try {
             String jsonPayload = JsonUtils.writeValueAsString(payload);
             RequestBody body = RequestBody.create(jsonPayload, JSON_MEDIA_TYPE);
@@ -68,11 +77,9 @@ public class WebhookDeliveryService {
                 requestBuilder.header("Authorization", agent.getWebhookAuthHeader());
             }
 
-            Request request = requestBuilder.build();
+            log.debug("Delivering webhook to {} (type={})", agent.getWebhookUrl(), payload.get("type"));
 
-            log.debug("Delivering webhook to {} for trigger '{}'", agent.getWebhookUrl(), triggerLogAgent.getTriggerLog().getTriggerName());
-
-            try (Response response = httpClient.newCall(request).execute()) {
+            try (Response response = httpClient.newCall(requestBuilder.build()).execute()) {
                 long duration = System.currentTimeMillis() - startTime;
                 String responseBody = response.body() != null ? response.body().string() : "";
 
@@ -80,10 +87,12 @@ public class WebhookDeliveryService {
                     responseBody = responseBody.substring(0, MAX_RESPONSE_BODY_LENGTH) + "... (truncated)";
                 }
 
-                logBuilder
-                        .responseStatusCode(response.code())
-                        .responseBody(responseBody)
-                        .durationMs(duration);
+                if (logBuilder != null) {
+                    logBuilder
+                            .responseStatusCode(response.code())
+                            .responseBody(responseBody)
+                            .durationMs(duration);
+                }
 
                 if (response.isSuccessful()) {
                     log.info("Webhook delivered successfully: {} ({}ms, status: {})",
@@ -93,23 +102,19 @@ public class WebhookDeliveryService {
                             agent.getWebhookUrl(), duration, response.code());
                 }
             }
-
         } catch (IOException e) {
             long duration = System.currentTimeMillis() - startTime;
-            logBuilder
-                    .errorMessage(e.getMessage())
-                    .durationMs(duration);
+            if (logBuilder != null) {
+                logBuilder.errorMessage(e.getMessage()).durationMs(duration);
+            }
             log.error("Failed to deliver webhook to {}: {}", agent.getWebhookUrl(), e.getMessage());
-
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
-            logBuilder
-                    .errorMessage(e.getMessage())
-                    .durationMs(duration);
+            if (logBuilder != null) {
+                logBuilder.errorMessage(e.getMessage()).durationMs(duration);
+            }
             log.error("Unexpected error delivering webhook to {}: {}", agent.getWebhookUrl(), e.getMessage(), e);
         }
-
-        saveDeliveryLog(logBuilder.build());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -132,12 +137,11 @@ public class WebhookDeliveryService {
         return logs.map(WebhookDeliveryLogResponse::from);
     }
 
-    private Map<String, Object> buildPayload(TriggerLogAgent triggerLogAgent) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("type", "trigger");
-        payload.put("payload", TriggerMapper.map(triggerLogAgent.getTriggerLog()));
-
-        return payload;
+    private Map<String, Object> buildEnvelope(String type, Object payloadObj) {
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("type", type);
+        envelope.put("payload", payloadObj);
+        return envelope;
     }
 
 
