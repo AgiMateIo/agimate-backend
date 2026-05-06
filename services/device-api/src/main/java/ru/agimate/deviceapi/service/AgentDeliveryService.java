@@ -18,6 +18,7 @@ public class AgentDeliveryService {
 
     private final CentrifugoService centrifugoService;
     private final WebhookDeliveryService webhookDeliveryService;
+    private final DbosDeliveryService dbosDeliveryService;
     private final AgentService agentService;
 
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent) {
@@ -25,6 +26,7 @@ public class AgentDeliveryService {
             switch (agent.getTriggerDestination()) {
                 case CENTRIFUGO -> sendTriggerToCentrifugo(agent, triggerLogAgent);
                 case WEBHOOK -> sendTriggerToWebhook(agent, triggerLogAgent);
+                case GENERIC -> sendTriggerToGeneric(agent, triggerLogAgent);
             }
         } catch (Exception e) {
             triggerLogAgent.setError(e.getMessage());
@@ -39,6 +41,7 @@ public class AgentDeliveryService {
             switch (agent.getTriggerDestination()) {
                 case CENTRIFUGO -> sendToolResultToCentrifugo(agent, toolResult);
                 case WEBHOOK -> sendToolResultToWebhook(agent, toolResult);
+                case GENERIC -> sendToolResultToGeneric(agent, toolResult);
             }
         } catch (Exception e) {
             log.warn("Failed to deliver tool result '{}' to agent '{}' via {}: {}",
@@ -69,5 +72,16 @@ public class AgentDeliveryService {
 //         disabled temporary
 //        webhookDeliveryService.deliverToolResult(agent, toolResult);
         log.warn("Tool result '{}' do not sent to '{}' via webhook - it's disabled", toolResult.getId(), agent.getPubId());
+    }
+
+    private void sendTriggerToGeneric(Agent agent, TriggerLogAgent triggerLogAgent) {
+        dbosDeliveryService.deliverTrigger(agent, triggerLogAgent);
+        log.debug("Trigger '{}' sent to agent '{}' via generic (DBOS)",
+                triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId());
+    }
+
+    private void sendToolResultToGeneric(Agent agent, IToolResult toolResult) {
+        log.warn("Tool result '{}' do not sent to '{}' via generic (DBOS) - it's disabled",
+                toolResult.getId(), agent.getPubId());
     }
 }

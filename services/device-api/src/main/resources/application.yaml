@@ -97,6 +97,19 @@ app:
     max-file-size: 10485760
     max-files-per-skill: 10
 
+dbos:
+  enabled: false
+  system-database:
+    url: "jdbc:postgresql://localhost:5432/dbos"
+    username: "dbos_app"
+    password: ""
+    schema: "dbos"
+  queue:
+    name: "agent_events"
+  workflow:
+    name: "handle_event"
+    class-name: "agent_worker.workflows"
+
 centrifugo:
   enabled: true
   url: "http://localhost"
