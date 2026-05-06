@@ -27,11 +27,11 @@ public class DbosDeliveryService {
         }
         AgentEvent event = AgentEventMapper.from(agent, triggerLogAgent);
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
-                        props.getWorkflow().getClassName(),
-                        props.getWorkflow().getName(),
-                        props.getQueue().getName())
+                props.getWorkflow().getName(),
+                null, //props.getWorkflow().getClassName(),
+                props.getQueue().getName()
+        )
                 .withSerialization(SerializationStrategy.PORTABLE)
-                .withDeduplicationId(event.eventId())
                 .withQueuePartitionKey(event.agentId());
         client.enqueueWorkflow(options, new Object[]{event});
         log.debug("Trigger '{}' enqueued to DBOS queue '{}' for agent '{}' (eventId={})",
