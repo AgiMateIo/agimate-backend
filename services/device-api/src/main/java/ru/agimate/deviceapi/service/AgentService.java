@@ -18,6 +18,7 @@ import ru.agimate.deviceapi.controller.manage.dto.AgentResponse;
 import ru.agimate.deviceapi.controller.manage.dto.AgentSkillSummary;
 import ru.agimate.deviceapi.controller.manage.dto.CreateAgentRequest;
 import ru.agimate.deviceapi.controller.manage.dto.UpdateAgentRequest;
+import ru.agimate.deviceapi.controller.manage.dto.llm.AgentLlmResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentToolPolicy;
 import ru.agimate.deviceapi.database.entities.AgentTriggerPolicy;
@@ -51,6 +52,7 @@ public class AgentService {
     private final AgentSkillRepository agentSkillRepository;
     private final AgenticTeamRepository agenticTeamRepository;
     private final AppRepository appRepository;
+    private final AgentLlmService agentLlmService;
 
     public Page<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId, String search, int page, int size) {
         Long agenticTeamId = null;
@@ -73,11 +75,13 @@ public class AgentService {
 
         List<UUID> agentPubIds = agents.getContent().stream().map(Agent::getPubId).toList();
         Map<UUID, List<AgentSkillSummary>> skillsByAgent = loadSkillSummaries(agentPubIds);
+        Map<UUID, List<AgentLlmResponse>> llmsByAgent = agentLlmService.listForAgents(agentPubIds);
 
         return agents.map(agent -> {
             var team = agent.getAgenticTeamId() != null ? teamsById.get(agent.getAgenticTeamId()) : null;
             var skills = skillsByAgent.getOrDefault(agent.getPubId(), List.of());
-            return AgentResponse.from(agent, team, skills);
+            var llms = llmsByAgent.getOrDefault(agent.getPubId(), List.of());
+            return AgentResponse.from(agent, team, skills, llms);
         });
     }
 
@@ -105,7 +109,8 @@ public class AgentService {
         Agent agent = findByPubId(pubId);
         var team = resolveTeam(agent.getAgenticTeamId());
         var skills = loadSkillSummaries(List.of(pubId)).getOrDefault(pubId, List.of());
-        return AgentResponse.from(agent, team, skills);
+        var llms = agentLlmService.listForAgents(List.of(pubId)).getOrDefault(pubId, List.of());
+        return AgentResponse.from(agent, team, skills, llms);
     }
 
     public AgentConfigResponse getConfigByPubId(UUID agentPubId) {
@@ -300,9 +305,10 @@ public class AgentService {
 
         var team = resolveTeam(agent.getAgenticTeamId());
         var skills = loadSkillSummaries(List.of(pubId)).getOrDefault(pubId, List.of());
+        var llms = agentLlmService.listForAgents(List.of(pubId)).getOrDefault(pubId, List.of());
 
         log.info("Updated agent pubId={}", pubId);
-        return AgentResponse.from(agent, team, skills);
+        return AgentResponse.from(agent, team, skills, llms);
     }
 
     @Transactional
