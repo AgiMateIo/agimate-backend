@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
-import ru.agimate.deviceapi.database.entities.TriggerDestination;
+import ru.agimate.deviceapi.database.entities.AgentType;
 import ru.agimate.deviceapi.service.AgentService;
 
 import java.time.LocalDateTime;
@@ -28,8 +28,8 @@ public record AgentResponse(
         @Schema(description = "Agent prompt")
         String prompt,
 
-        @Schema(description = "Trigger destination")
-        TriggerDestination triggerDestination,
+        @Schema(description = "Agent type")
+        AgentType type,
 
         @Schema(description = "Webhook URL")
         String webhookUrl,
@@ -61,7 +61,7 @@ public record AgentResponse(
                 agent.getDescription(),
                 maskedKeyId,
                 agent.getPrompt(),
-                agent.getTriggerDestination(),
+                agent.getType(),
                 agent.getWebhookUrl(),
                 agent.hasWebhookAuth(),
                 agent.isEnabled(),

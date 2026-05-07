@@ -44,9 +44,9 @@ public class Agent extends BaseEntity {
     private String prompt;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "trigger_destination", nullable = false, columnDefinition = "TEXT")
+    @Column(name = "type", nullable = false, columnDefinition = "TEXT")
     @Builder.Default
-    private TriggerDestination triggerDestination = TriggerDestination.CENTRIFUGO;
+    private AgentType type = AgentType.CENTRIFUGO;
 
     @Column(name = "webhook_url", columnDefinition = "TEXT")
     private String webhookUrl;

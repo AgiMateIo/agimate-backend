@@ -1,7 +1,7 @@
 package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.database.entities.TriggerDestination;
+import ru.agimate.deviceapi.database.entities.AgentType;
 
 @Schema(description = "Request to update an agent")
 public record UpdateAgentRequest(
@@ -14,10 +14,10 @@ public record UpdateAgentRequest(
         @Schema(description = "Agent prompt")
         String prompt,
 
-        @Schema(description = "Trigger destination: CENTRIFUGO or WEBHOOK")
-        TriggerDestination triggerDestination,
+        @Schema(description = "Agent type: CENTRIFUGO, WEBHOOK or GENERIC")
+        AgentType type,
 
-        @Schema(description = "Webhook URL (required when triggerDestination is WEBHOOK)")
+        @Schema(description = "Webhook URL (required when type is WEBHOOK)")
         String webhookUrl,
 
         @Schema(description = "Webhook authorization header value")

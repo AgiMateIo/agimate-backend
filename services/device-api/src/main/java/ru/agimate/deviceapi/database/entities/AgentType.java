@@ -1,6 +1,6 @@
 package ru.agimate.deviceapi.database.entities;
 
-public enum TriggerDestination {
+public enum AgentType {
     CENTRIFUGO,
     WEBHOOK,
     GENERIC

@@ -74,7 +74,7 @@ public class TriggerRouterService {
             TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
                     .triggerLog(triggerLog)
                     .agent(agent)
-                    .destination(agent.getTriggerDestination().name())
+                    .destination(agent.getType().name())
                     .build();
 
             agentDeliveryService.deliverTrigger(agent, triggerLogAgent);

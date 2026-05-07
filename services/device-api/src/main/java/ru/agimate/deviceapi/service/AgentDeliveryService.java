@@ -23,7 +23,7 @@ public class AgentDeliveryService {
 
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent) {
         try {
-            switch (agent.getTriggerDestination()) {
+            switch (agent.getType()) {
                 case CENTRIFUGO -> sendTriggerToCentrifugo(agent, triggerLogAgent);
                 case WEBHOOK -> sendTriggerToWebhook(agent, triggerLogAgent);
                 case GENERIC -> sendTriggerToGeneric(agent, triggerLogAgent);
@@ -31,21 +31,21 @@ public class AgentDeliveryService {
         } catch (Exception e) {
             triggerLogAgent.setError(e.getMessage());
             log.warn("Failed to send trigger '{}' to agent '{}' via {}: {}",
-                    triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId(), agent.getTriggerDestination(), e.getMessage());
+                    triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId(), agent.getType(), e.getMessage());
         }
     }
 
     public void deliverToolResult(UUID agentPubId, IToolResult toolResult) {
         Agent agent = agentService.findByPubId(agentPubId);
         try {
-            switch (agent.getTriggerDestination()) {
+            switch (agent.getType()) {
                 case CENTRIFUGO -> sendToolResultToCentrifugo(agent, toolResult);
                 case WEBHOOK -> sendToolResultToWebhook(agent, toolResult);
                 case GENERIC -> sendToolResultToGeneric(agent, toolResult);
             }
         } catch (Exception e) {
             log.warn("Failed to deliver tool result '{}' to agent '{}' via {}: {}",
-                    toolResult.getId(), agent.getPubId(), agent.getTriggerDestination(), e.getMessage());
+                    toolResult.getId(), agent.getPubId(), agent.getType(), e.getMessage());
         }
     }
 

@@ -23,7 +23,7 @@ import ru.agimate.deviceapi.database.entities.AgentToolPolicy;
 import ru.agimate.deviceapi.database.entities.AgentTriggerPolicy;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
 import ru.agimate.deviceapi.database.entities.App;
-import ru.agimate.deviceapi.database.entities.TriggerDestination;
+import ru.agimate.deviceapi.database.entities.AgentType;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.AgentSkillRepository;
 import ru.agimate.deviceapi.database.repositories.AgentToolPolicyRepository;
@@ -219,9 +219,9 @@ public class AgentService {
 
     @Transactional
     public AgentCreateResult create(UUID userPubId, CreateAgentRequest request) {
-        TriggerDestination destination = request.triggerDestination() != null
-                ? request.triggerDestination() : TriggerDestination.CENTRIFUGO;
-        validateWebhookFields(destination, request.webhookUrl());
+        AgentType type = request.type() != null
+                ? request.type() : AgentType.CENTRIFUGO;
+        validateWebhookFields(type, request.webhookUrl());
 
         AgenticTeam team = null;
         if (request.agenticTeamPubId() != null) {
@@ -241,7 +241,7 @@ public class AgentService {
                 .name(request.name())
                 .description(request.description())
                 .prompt(request.prompt())
-                .triggerDestination(destination)
+                .type(type)
                 .webhookUrl(request.webhookUrl())
                 .webhookAuthHeader(request.webhookAuthHeader())
                 .agenticTeamId(team != null ? team.getId() : null)
@@ -281,16 +281,16 @@ public class AgentService {
             throw new ForbiddenStatusException("Access denied");
         }
 
-        TriggerDestination destination = request.triggerDestination() != null
-                ? request.triggerDestination() : agent.getTriggerDestination();
-        validateWebhookFields(destination, request.webhookUrl());
+        AgentType type = request.type() != null
+                ? request.type() : agent.getType();
+        validateWebhookFields(type, request.webhookUrl());
 
         if (request.name() != null) {
             agent.setName(request.name());
         }
         agent.setDescription(request.description());
         agent.setPrompt(request.prompt());
-        agent.setTriggerDestination(destination);
+        agent.setType(type);
         agent.setWebhookUrl(request.webhookUrl());
         agent.setWebhookAuthHeader(request.webhookAuthHeader());
         if (request.enabled() != null) {
@@ -328,9 +328,9 @@ public class AgentService {
         return agenticTeamRepository.findById(agenticTeamId).orElse(null);
     }
 
-    private void validateWebhookFields(TriggerDestination destination, String webhookUrl) {
-        if (destination == TriggerDestination.WEBHOOK && (webhookUrl == null || webhookUrl.isBlank())) {
-            throw new ValidationErrorStatusException("webhookUrl", "Webhook url is required when triggerDestination is WEBHOOK");
+    private void validateWebhookFields(AgentType type, String webhookUrl) {
+        if (type == AgentType.WEBHOOK && (webhookUrl == null || webhookUrl.isBlank())) {
+            throw new ValidationErrorStatusException("webhookUrl", "Webhook url is required when type is WEBHOOK");
         }
     }
 
