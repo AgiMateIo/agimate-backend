@@ -25,10 +25,16 @@ public class OpenAiCompatibleModelDiscovery implements LlmModelDiscoveryStrategy
             throw new BadRequestStatusException("base_url is required for OPENAI_COMPATIBLE provider");
         }
 
-        return LlmDiscoveryHttp.client(provider.getBaseUrl()).get()
-                .uri("/v1/models")
+        String baseUrl = stripTrailingSlash(provider.getBaseUrl());
+
+        return LlmDiscoveryHttp.client(baseUrl).get()
+                .uri("/models")
                 .accept(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + decryptedApiKey)
                 .exchange((req, res) -> LlmDiscoveryHttp.extractIds(res, "data", "id"));
+    }
+
+    private static String stripTrailingSlash(String url) {
+        return url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
     }
 }
