@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package ru.agimate.worker.v1;
+
+option java_multiple_files = true;
+option java_package = "ru.agimate.worker.v1";
+option java_outer_classname = "AgentRuntimeProto";
+
+service AgentRuntime {
+  rpc GetAgentSpec(GetAgentSpecRequest) returns (AgentSpec);
+  rpc GetSkill(GetSkillRequest) returns (SkillSpec);
+  rpc GetTeamContext(GetTeamContextRequest) returns (TeamContext);
+  rpc GetLlmCredentials(GetLlmCredentialsRequest) returns (LlmCredentials);
+  rpc GetKnowledgeSection(GetKnowledgeSectionRequest) returns (KnowledgeSection);
+}
+
+message GetAgentSpecRequest {
+  string workflow_id = 1;
+  string agent_id = 2;
+  string agent_version = 3;
+}
+
+message AgentSkillRef {
+  string skill_id = 1;
+  string version = 2;
+}
+
+message AgentSpec {
+  string agent_id = 1;
+  string name = 2;
+  string agent_type = 3;
+  string system_prompt = 4;
+  repeated AgentSkillRef skills = 5;
+  string team_id = 6;
+  string llm_id = 7;
+}
+
+message GetSkillRequest {
+  string workflow_id = 1;
+  string skill_id = 2;
+  string version = 3;
+}
+
+message SkillSpec {
+  string skill_id = 1;
+  string version = 2;
+  string name = 3;
+  string description = 4;
+  bytes definition_json = 5;
+}
+
+message GetTeamContextRequest {
+  string workflow_id = 1;
+  string team_id = 2;
+}
+
+message TeamContext {
+  string team_id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string member_agent_ids = 4;
+}
+
+message GetLlmCredentialsRequest {
+  string workflow_id = 1;
+  string agent_id = 2;
+}
+
+message LlmCredentials {
+  string provider_type = 1;
+  string base_url = 2;
+  string api_key = 3;
+  string model = 4;
+}
+
+message GetKnowledgeSectionRequest {
+  string workflow_id = 1;
+  string agent_id = 2;
+  string section_id = 3;
+}
+
+message KnowledgeSection {
+  string section_id = 1;
+  bytes content = 2;
+}

@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package ru.agimate.worker.v1;
+
+option java_multiple_files = true;
+option java_package = "ru.agimate.worker.v1";
+option java_outer_classname = "ToolGatewayProto";
+
+service ToolGateway {
+  rpc ExecuteTool(ExecuteToolRequest) returns (ExecuteToolResponse);
+  rpc ExecuteToolStream(ExecuteToolRequest) returns (stream ToolEvent);
+  rpc ExecuteToolBatch(ExecuteToolBatchRequest) returns (ExecuteToolBatchResponse);
+  rpc ExecuteToolAsync(ExecuteToolRequest) returns (ExecuteToolAsyncAck);
+}
+
+message ExecuteToolRequest {
+  string workflow_id = 1;
+  string agent_id = 2;
+  string tool_name = 3;
+  bytes args_json = 4;
+  string tool_call_id = 5;
+  string connector_code = 6;
+  string identity = 7;
+  string agent_session_id = 8;
+}
+
+message ExecuteToolResponse {
+  bool success = 1;
+  bytes result_json = 2;
+  string error = 3;
+}
+
+message ToolEvent {
+  string event_type = 1;
+  bytes payload = 2;
+}
+
+message ExecuteToolBatchRequest {
+  repeated ExecuteToolRequest requests = 1;
+}
+
+message ExecuteToolBatchResponse {
+  repeated ExecuteToolResponse responses = 1;
+}
+
+message ExecuteToolAsyncAck {
+  string tool_call_id = 1;
+}

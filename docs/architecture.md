@@ -9,11 +9,12 @@ graph TB
         MobileApp[Mobile App]
         External[External Systems]
         Agents[AI Agents]
+        Workers[Generic Workers]
     end
 
     subgraph "Services"
         UserAPI[user-api<br/>:8080/user/]
-        DeviceAPI[device-api<br/>:8080/device]
+        DeviceAPI[device-api<br/>:8080/device + :9091 gRPC TLS]
     end
 
     subgraph "Databases"
@@ -30,6 +31,7 @@ graph TB
     MobileApp --> DeviceAPI
     Agents --> DeviceAPI
     Agents --> Centrifugo
+    Workers -.->|gRPC :9091| DeviceAPI
 
     UserAPI --> UserDB
     DeviceAPI --> DeviceDB
@@ -52,12 +54,13 @@ Shared library containing exception hierarchy, REST response wrappers (`SuccessR
 
 ## Authentication Flows
 
-| Method               | Description                                     | Used By                             |
-|----------------------|-------------------------------------------------|-------------------------------------|
-| **JWT**              | Bearer token authentication for users           | All services (management endpoints) |
-| **API Key**          | Header `X-Api-Key` for agent calls              | device-api                          |
-| **Application Auth** | Header `X-App-Auth-Key` for application/devices | device-api                          |
-| **OAuth2**           | Google/Yandex social login                      | user-api                            |
+| Method               | Description                                                  | Used By                             |
+|----------------------|--------------------------------------------------------------|-------------------------------------|
+| **JWT**              | Bearer token authentication for users                        | All services (management endpoints) |
+| **API Key**          | Header `X-Api-Key` for agent calls                           | device-api                          |
+| **Application Auth** | Header `X-App-Auth-Key` for application/devices              | device-api                          |
+| **Worker Pool Key**  | gRPC `authorization: Bearer wrkp...`, hash stored in config  | device-api gRPC `:9091`             |
+| **OAuth2**           | Google/Yandex social login                                   | user-api                            |
 
 ### JWT Flow
 - Access tokens returned in response body

@@ -31,6 +31,17 @@
 | `CENTRIFUGO_PRIVATEKEY` | Centrifugo JWT signing private key     |
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT verification public key |
 
+### Generic Worker gRPC (device-api)
+
+| Variable                                | Description                                                       |
+|-----------------------------------------|-------------------------------------------------------------------|
+| `GRPC_SERVER_ENABLED`                   | Enable gRPC server (`true`/`false`)                               |
+| `GRPC_SERVER_PORT`                      | gRPC server port (default `9091`)                                 |
+| `GRPC_SERVER_SECURITY_ENABLED`          | Enable TLS (must be `true` in production)                         |
+| `GRPC_SERVER_SECURITY_CERTIFICATECHAIN` | Path to PEM certificate chain                                     |
+| `GRPC_SERVER_SECURITY_PRIVATEKEY`       | Path to PEM private key                                           |
+| `WORKER_POOLS_AUTHKEYS_0`, ..._N        | Worker pool authkeys, one per pool. See `device-api-grpc-worker`. |
+
 ## Key Generation
 
 ### JWT Keys (ES256)
@@ -53,11 +64,12 @@ Centrifugo uses the same ES256 key format as JWT. Generate using the JWT key gen
 
 ## Ports
 
-| Port | Service              | Purpose                                   |
-|------|----------------------|-------------------------------------------|
-| 8080 | All                  | HTTP API                                  |
-| 8088 | All                  | Management (health, metrics, prometheus)  |
-| 9090 | user-api             | gRPC server for internal s2s interactions |
+| Port | Service              | Purpose                                       |
+|------|----------------------|-----------------------------------------------|
+| 8080 | All                  | HTTP API                                      |
+| 8088 | All                  | Management (health, metrics, prometheus)      |
+| 9090 | user-api             | gRPC server for internal s2s interactions     |
+| 9091 | device-api           | gRPC server for Generic Worker protocol (TLS) |
 
 ## Spring Profiles
 

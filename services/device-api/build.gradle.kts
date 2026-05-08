@@ -2,7 +2,11 @@ plugins {
     java
     id("org.springframework.boot")
     id("io.spring.dependency-management")
+    id("com.google.protobuf") version "0.9.4"
 }
+
+val grpcVersion = "1.68.1"
+val protobufVersion = "3.25.5"
 
 group = "ru.agimate.deviceapi"
 version = findProperty("buildVersion") ?: "0.1.0"
@@ -50,6 +54,14 @@ dependencies {
 
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 
+    // gRPC for worker protocol
+    implementation("io.grpc:grpc-netty-shaded:$grpcVersion")
+    implementation("io.grpc:grpc-protobuf:$grpcVersion")
+    implementation("io.grpc:grpc-stub:$grpcVersion")
+    implementation("io.grpc:grpc-services:$grpcVersion")
+    implementation("com.google.protobuf:protobuf-java:$protobufVersion")
+    compileOnly("org.apache.tomcat:annotations-api:6.0.53")
+
     // Lombok for code generation
     compileOnly("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")
@@ -57,6 +69,26 @@ dependencies {
     // Testing Dependencies
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("io.grpc:grpc-inprocess:$grpcVersion")
+    testImplementation("io.grpc:grpc-testing:$grpcVersion")
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:$protobufVersion"
+    }
+    plugins {
+        create("grpc") {
+            artifact = "io.grpc:protoc-gen-grpc-java:$grpcVersion"
+        }
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.plugins {
+                create("grpc")
+            }
+        }
+    }
 }
 
 tasks.withType<JavaCompile> {
@@ -65,6 +97,9 @@ tasks.withType<JavaCompile> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    listOf("generate.worker.authkey").forEach { key ->
+        System.getProperty(key)?.let { systemProperty(key, it) }
+    }
 }
 
 springBoot {

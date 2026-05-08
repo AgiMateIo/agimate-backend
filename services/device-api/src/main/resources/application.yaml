@@ -118,3 +118,15 @@ centrifugo:
   api-key: ""
   privateKey: ""
   publicKey: ""
+
+grpc:
+  server:
+    enabled: false
+    port: 9091
+    security:
+      enabled: false
+      certificate-chain: ""
+      private-key: ""
+
+worker-pools:
+  authkeys: []

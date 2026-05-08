@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package ru.agimate.worker.v1;
+
+option java_multiple_files = true;
+option java_package = "ru.agimate.worker.v1";
+option java_outer_classname = "WorkerControlProto";
+
+import "google/protobuf/timestamp.proto";
+
+service WorkerControl {
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+  google.protobuf.Timestamp server_time = 2;
+  string pool_id = 3;
+}
