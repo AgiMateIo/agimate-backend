@@ -52,4 +52,7 @@ public interface AppRepository extends JpaRepository<App, Long> {
 
     @Query("SELECT a FROM App a WHERE a.pubId = :pubId AND a.userPubId = :userPubId AND a.deletedAt IS NULL")
     Optional<App> findByPubIdAndUserPubIdNotDeleted(@Param("pubId") UUID pubId, @Param("userPubId") UUID userPubId);
+
+    @Query("SELECT a FROM App a WHERE a.pubId IN :pubIds AND a.deletedAt IS NULL")
+    List<App> findAllByPubIdInNotDeleted(@Param("pubIds") java.util.Collection<UUID> pubIds);
 }
