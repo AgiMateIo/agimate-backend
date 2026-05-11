@@ -24,10 +24,15 @@ public record ChannelResponse(
         String replyIdentityName,
         String replyToolName,
         Map<String, Object> replyToolParams,
+        @Schema(description = "Optional input filter stored on the linked AgentTriggerPolicy; null if no filter is configured")
+        Map<String, Object> inputFilter,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static ChannelResponse from(Channel c, String triggerIdentityName, String replyIdentityName) {
+    public static ChannelResponse from(Channel c,
+                                       String triggerIdentityName,
+                                       String replyIdentityName,
+                                       Map<String, Object> inputFilter) {
         return new ChannelResponse(
                 c.getPubId(),
                 c.getAgentPubId(),
@@ -42,12 +47,13 @@ public record ChannelResponse(
                 replyIdentityName,
                 c.getReplyToolName(),
                 c.getReplyToolParams(),
+                inputFilter,
                 c.getCreatedAt(),
                 c.getUpdatedAt()
         );
     }
 
     public static ChannelResponse from(Channel c) {
-        return from(c, null, null);
+        return from(c, null, null, null);
     }
 }

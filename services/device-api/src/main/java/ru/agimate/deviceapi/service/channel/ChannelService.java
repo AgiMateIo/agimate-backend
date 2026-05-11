@@ -92,12 +92,25 @@ public class ChannelService {
             return List.of();
         }
         Map<UUID, String> nameByPubId = resolveIdentityNames(channels);
+        Map<Long, Map<String, Object>> inputFilterByChannelId = resolveInputFilters(channels);
         return channels.stream()
                 .map(c -> ChannelResponse.from(
                         c,
                         nameByPubId.get(tryParseUuid(c.getTriggerIdentity())),
-                        nameByPubId.get(tryParseUuid(c.getReplyIdentity()))))
+                        nameByPubId.get(tryParseUuid(c.getReplyIdentity())),
+                        inputFilterByChannelId.get(c.getId())))
                 .toList();
+    }
+
+    private Map<Long, Map<String, Object>> resolveInputFilters(List<Channel> channels) {
+        List<Long> ids = channels.stream().map(Channel::getId).toList();
+        Map<Long, Map<String, Object>> result = new HashMap<>();
+        for (AgentTriggerPolicy p : agentTriggerPolicyRepository.findByChannelIdIn(ids)) {
+            if (p.getChannelId() != null && p.getInputFilter() != null) {
+                result.put(p.getChannelId(), p.getInputFilter());
+            }
+        }
+        return result;
     }
 
     private Map<UUID, String> resolveIdentityNames(List<Channel> channels) {

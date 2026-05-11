@@ -89,6 +89,8 @@ public interface AgentTriggerPolicyRepository extends JpaRepository<AgentTrigger
 
     List<AgentTriggerPolicy> findByAgentPubIdAndSource(UUID agentPubId, String source);
 
+    List<AgentTriggerPolicy> findByChannelIdIn(java.util.Collection<Long> channelIds);
+
     @Modifying
     @Query("DELETE FROM AgentTriggerPolicy p WHERE p.agentPubId = :agentPubId")
     void deleteByAgentPubId(@Param("agentPubId") UUID agentPubId);
