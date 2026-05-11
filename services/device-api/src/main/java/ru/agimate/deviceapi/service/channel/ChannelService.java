@@ -11,6 +11,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.deviceapi.abac.AccessEffect;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationsRegistry;
+import ru.agimate.deviceapi.controller.manage.dto.channel.ChannelResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentTriggerPolicy;
 import ru.agimate.deviceapi.database.entities.App;
@@ -25,6 +26,8 @@ import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.database.repositories.IntegrationCredentialsRepository;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -67,6 +70,10 @@ public class ChannelService {
         return channelRepository.findByUserPubIdAndDeletedAtIsNullOrderByCreatedAtDesc(userPubId);
     }
 
+    public List<Channel> listForUserAndAgent(UUID userPubId, UUID agentPubId) {
+        return channelRepository.findByUserPubIdAndAgentPubIdAndDeletedAtIsNullOrderByCreatedAtDesc(userPubId, agentPubId);
+    }
+
     public List<Channel> listForAgent(UUID agentPubId) {
         return channelRepository.findByAgentPubIdAndDeletedAtIsNullOrderByCreatedAtDesc(agentPubId);
     }
@@ -74,6 +81,55 @@ public class ChannelService {
     public Optional<Channel> findActiveByTriggerKey(UUID userPubId, UUID agentPubId,
                                                     String connectorCode, String identity, String triggerName) {
         return channelRepository.findActiveByTriggerKey(userPubId, agentPubId, connectorCode, identity, triggerName);
+    }
+
+    public ChannelResponse toResponse(Channel channel) {
+        return toResponses(List.of(channel)).get(0);
+    }
+
+    public List<ChannelResponse> toResponses(List<Channel> channels) {
+        if (channels.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, String> nameByPubId = resolveIdentityNames(channels);
+        return channels.stream()
+                .map(c -> ChannelResponse.from(
+                        c,
+                        nameByPubId.get(tryParseUuid(c.getTriggerIdentity())),
+                        nameByPubId.get(tryParseUuid(c.getReplyIdentity()))))
+                .toList();
+    }
+
+    private Map<UUID, String> resolveIdentityNames(List<Channel> channels) {
+        Set<UUID> identityIds = new HashSet<>();
+        for (Channel c : channels) {
+            UUID t = tryParseUuid(c.getTriggerIdentity());
+            if (t != null) identityIds.add(t);
+            UUID r = tryParseUuid(c.getReplyIdentity());
+            if (r != null) identityIds.add(r);
+        }
+        if (identityIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, String> result = new HashMap<>();
+        for (App app : appRepository.findAllByPubIdInNotDeleted(identityIds)) {
+            result.put(app.getPubId(), app.getName());
+        }
+        for (IntegrationCredentials i : integrationCredentialsRepository.findAllByPubIdInNotDeleted(identityIds)) {
+            String name = i.getName() != null && !i.getName().isBlank()
+                    ? i.getName() : i.getPlatformIdentifier();
+            result.put(i.getPubId(), name);
+        }
+        return result;
+    }
+
+    private static UUID tryParseUuid(String value) {
+        if (value == null) return null;
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     @Transactional

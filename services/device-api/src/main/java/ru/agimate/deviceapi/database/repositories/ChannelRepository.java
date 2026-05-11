@@ -19,6 +19,8 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
 
     List<Channel> findByAgentPubIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID agentPubId);
 
+    List<Channel> findByUserPubIdAndAgentPubIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userPubId, UUID agentPubId);
+
     @Query("""
             SELECT c FROM Channel c
             WHERE c.userPubId = :userPubId

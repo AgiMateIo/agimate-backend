@@ -34,16 +34,17 @@ public class ManageChannelController {
     private final ChannelSessionService channelSessionService;
     private final ChannelSessionMessageRepository channelSessionMessageRepository;
 
-    @Operation(summary = "List channels for the current user")
+    @Operation(summary = "List channels for the current user (optionally filtered by agent)")
     @GetMapping("/")
     public SuccessResponse<List<ChannelResponse>> list(
-            @AuthenticationPrincipal AgimateUserPrincipal principal
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @RequestParam(required = false) UUID agentPubId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        List<ChannelResponse> response = channelService.listForUser(userPubId).stream()
-                .map(ChannelResponse::from)
-                .toList();
-        return SuccessResponse.ok(response);
+        var channels = agentPubId != null
+                ? channelService.listForUserAndAgent(userPubId, agentPubId)
+                : channelService.listForUser(userPubId);
+        return SuccessResponse.ok(channelService.toResponses(channels));
     }
 
     @Operation(summary = "Get channel by pubId")
@@ -54,7 +55,7 @@ public class ManageChannelController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Channel channel = channelService.getByPubId(userPubId, pubId);
-        return SuccessResponse.ok(ChannelResponse.from(channel));
+        return SuccessResponse.ok(channelService.toResponse(channel));
     }
 
     @Operation(summary = "Create a channel")
@@ -77,7 +78,7 @@ public class ManageChannelController {
                 request.replyToolParams(),
                 request.inputFilter()
         ));
-        return SuccessResponse.ok(ChannelResponse.from(channel));
+        return SuccessResponse.ok(channelService.toResponse(channel));
     }
 
     @Operation(summary = "Update a channel")
@@ -95,7 +96,7 @@ public class ManageChannelController {
                 request.inputFilter(),
                 request.clearInputFilter()
         ));
-        return SuccessResponse.ok(ChannelResponse.from(channel));
+        return SuccessResponse.ok(channelService.toResponse(channel));
     }
 
     @Operation(summary = "Soft delete a channel")
