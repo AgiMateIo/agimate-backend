@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-channels-table" author="agimate">
+        <createTable tableName="channels">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="user_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_pub_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_connector_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_identity" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_message_field" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reply_connector_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reply_identity" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reply_tool_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reply_tool_params" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="channels"
+                                 baseColumnNames="agent_pub_id"
+                                 constraintName="fk_channels_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="pub_id"
+                                 onDelete="CASCADE"/>
+
+        <createIndex tableName="channels" indexName="idx_channels_user_pub_id">
+            <column name="user_pub_id"/>
+        </createIndex>
+        <createIndex tableName="channels" indexName="idx_channels_agent_pub_id">
+            <column name="agent_pub_id"/>
+        </createIndex>
+
+        <sql>
+            CREATE UNIQUE INDEX uq_channels_user_agent_trigger
+                ON channels (user_pub_id, agent_pub_id, trigger_connector_code, trigger_identity, trigger_name)
+                WHERE deleted_at IS NULL;
+        </sql>
+    </changeSet>
+
+    <changeSet id="create-channel-sessions-table" author="agimate">
+        <createTable tableName="channel_sessions">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="channel_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="TEXT"/>
+            <column name="last_message_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="closed_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="channel_sessions"
+                                 baseColumnNames="channel_id"
+                                 constraintName="fk_channel_sessions_channel"
+                                 referencedTableName="channels"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <createIndex tableName="channel_sessions" indexName="idx_channel_sessions_channel_id">
+            <column name="channel_id"/>
+        </createIndex>
+        <createIndex tableName="channel_sessions" indexName="idx_channel_sessions_channel_active">
+            <column name="channel_id"/>
+            <column name="last_message_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="create-channel-session-messages-table" author="agimate">
+        <createTable tableName="channel_session_messages">
+            <column name="id" type="BIGSERIAL" autoIncrement="true">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="session_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="direction" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="message" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_input" type="JSONB"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="channel_session_messages"
+                                 baseColumnNames="session_id"
+                                 constraintName="fk_channel_session_messages_session"
+                                 referencedTableName="channel_sessions"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <sql>
+            ALTER TABLE channel_session_messages
+                ADD CONSTRAINT chk_channel_session_messages_direction CHECK (direction IN ('IN', 'OUT'));
+        </sql>
+
+        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_session_id">
+            <column name="session_id"/>
+            <column name="created_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

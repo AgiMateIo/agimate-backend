@@ -28,6 +28,7 @@ import ru.agimate.deviceapi.controller.manage.ManageAgentSkillController;
 import ru.agimate.deviceapi.controller.manage.ManageAgenticTeamController;
 import ru.agimate.deviceapi.controller.manage.ManageBoardController;
 import ru.agimate.deviceapi.controller.manage.ManageCentrifugoTokenController;
+import ru.agimate.deviceapi.controller.manage.ManageChannelController;
 import ru.agimate.deviceapi.controller.manage.ManageAppsController;
 import ru.agimate.deviceapi.controller.manage.ManageAppToolsController;
 import ru.agimate.deviceapi.controller.manage.ManageAppTriggersController;
@@ -129,7 +130,8 @@ public class SecurityConfig {
                 ManageSkillFileController.PATH + "/**",
                 ManageConnectorController.PATH + "/**",
                 ManageCentrifugoTokenController.PATH + "/**",
-                ManageLlmProviderController.PATH + "/**"
+                ManageLlmProviderController.PATH + "/**",
+                ManageChannelController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

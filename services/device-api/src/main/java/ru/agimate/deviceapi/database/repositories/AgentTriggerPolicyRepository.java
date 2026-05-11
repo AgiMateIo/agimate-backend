@@ -42,7 +42,8 @@ public interface AgentTriggerPolicyRepository extends JpaRepository<AgentTrigger
                     COALESCE(priority,
                         (CASE WHEN connector_code IS NOT NULL THEN 1 ELSE 0 END) +
                         (CASE WHEN connector_identity IS NOT NULL THEN 1 ELSE 0 END) +
-                        (CASE WHEN trigger_name IS NOT NULL THEN 1 ELSE 0 END)
+                        (CASE WHEN trigger_name IS NOT NULL THEN 1 ELSE 0 END) +
+                        (CASE WHEN input_filter IS NOT NULL THEN 1 ELSE 0 END)
                     ) AS specificity
                 FROM agent_trigger_policies
                 WHERE agent_pub_id = :agentPubId

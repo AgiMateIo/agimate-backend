@@ -11,6 +11,7 @@ import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.service.dto.AgentEvent;
 import ru.agimate.deviceapi.service.trigger.AgentEventMapper;
+import ru.agimate.deviceapi.service.trigger.ChannelContext;
 
 @Slf4j
 @Service
@@ -21,11 +22,15 @@ public class DbosDeliveryService {
     private final DbosProperties props;
 
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent) {
+        deliverTrigger(agent, triggerLogAgent, null);
+    }
+
+    public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
         DBOSClient client = clientProvider.getIfAvailable();
         if (client == null) {
             throw new IllegalStateException("GENERIC delivery is not configured (dbos.enabled=false)");
         }
-        AgentEvent event = AgentEventMapper.from(agent, triggerLogAgent);
+        AgentEvent event = AgentEventMapper.from(agent, triggerLogAgent, channelContext);
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 props.getWorkflow().getName(),
                 null, //props.getWorkflow().getClassName(),

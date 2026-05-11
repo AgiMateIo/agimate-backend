@@ -7,6 +7,7 @@ import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.service.centrifugo.CentrifugoService;
 import ru.agimate.deviceapi.service.dto.IToolResult;
+import ru.agimate.deviceapi.service.trigger.ChannelContext;
 import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
 import java.util.UUID;
@@ -22,11 +23,15 @@ public class AgentDeliveryService {
     private final AgentService agentService;
 
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent) {
+        deliverTrigger(agent, triggerLogAgent, null);
+    }
+
+    public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
         try {
             switch (agent.getType()) {
-                case CENTRIFUGO -> sendTriggerToCentrifugo(agent, triggerLogAgent);
-                case WEBHOOK -> sendTriggerToWebhook(agent, triggerLogAgent);
-                case GENERIC -> sendTriggerToGeneric(agent, triggerLogAgent);
+                case CENTRIFUGO -> sendTriggerToCentrifugo(agent, triggerLogAgent, channelContext);
+                case WEBHOOK -> sendTriggerToWebhook(agent, triggerLogAgent, channelContext);
+                case GENERIC -> sendTriggerToGeneric(agent, triggerLogAgent, channelContext);
             }
         } catch (Exception e) {
             triggerLogAgent.setError(e.getMessage());
@@ -49,17 +54,17 @@ public class AgentDeliveryService {
         }
     }
 
-    private void sendTriggerToCentrifugo(Agent agent, TriggerLogAgent triggerLogAgent) {
+    private void sendTriggerToCentrifugo(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
         centrifugoService.publishMessage(
                 "agent:" + agent.getPubId(),
                 "trigger",
-                TriggerMapper.map(triggerLogAgent.getTriggerLog())
+                TriggerMapper.map(triggerLogAgent.getTriggerLog(), channelContext)
         );
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo", triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId());
     }
 
-    private void sendTriggerToWebhook(Agent agent, TriggerLogAgent triggerLogAgent) {
-        webhookDeliveryService.deliverWebhook(agent, triggerLogAgent);
+    private void sendTriggerToWebhook(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
+        webhookDeliveryService.deliverWebhook(agent, triggerLogAgent, channelContext);
         log.debug("Trigger '{}' sent to agent '{}' via webhook", triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId());
     }
 
@@ -74,8 +79,8 @@ public class AgentDeliveryService {
         log.warn("Tool result '{}' do not sent to '{}' via webhook - it's disabled", toolResult.getId(), agent.getPubId());
     }
 
-    private void sendTriggerToGeneric(Agent agent, TriggerLogAgent triggerLogAgent) {
-        dbosDeliveryService.deliverTrigger(agent, triggerLogAgent);
+    private void sendTriggerToGeneric(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
+        dbosDeliveryService.deliverTrigger(agent, triggerLogAgent, channelContext);
         log.debug("Trigger '{}' sent to agent '{}' via generic (DBOS)",
                 triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId());
     }

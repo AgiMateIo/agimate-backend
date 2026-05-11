@@ -2,10 +2,13 @@ package ru.agimate.deviceapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.deviceapi.abac.AccessEffect;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -51,4 +54,11 @@ public class AgentTriggerPolicy extends BaseEntity {
 
     @Column(name = "source", columnDefinition = "TEXT")
     private String source;
+
+    @Column(name = "channel_id")
+    private Long channelId;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "input_filter", columnDefinition = "JSONB")
+    private Map<String, Object> inputFilter;
 }

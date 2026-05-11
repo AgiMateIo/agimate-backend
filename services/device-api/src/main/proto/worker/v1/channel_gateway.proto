@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package ru.agimate.worker.v1;
+
+option java_multiple_files = true;
+option java_package = "ru.agimate.worker.v1";
+option java_outer_classname = "ChannelGatewayProto";
+
+service ChannelGateway {
+  rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse);
+  rpc SendChannelMessage(SendChannelMessageRequest) returns (SendChannelMessageResponse);
+}
+
+message ListChannelsRequest {
+  string agent_id = 1;
+}
+
+message ChannelDescriptor {
+  string channel_id = 1;
+  string name = 2;
+  string reply_connector_code = 3;
+  string reply_tool_name = 4;
+}
+
+message ListChannelsResponse {
+  repeated ChannelDescriptor channels = 1;
+}
+
+message SendChannelMessageRequest {
+  string agent_id = 1;
+  string channel_id = 2;
+  string session_id = 3;
+  string text = 4;
+  string tool_call_id = 5;
+}
+
+message SendChannelMessageResponse {
+  string session_id = 1;
+  string tool_call_id = 2;
+  string tool_use_id = 3;
+}

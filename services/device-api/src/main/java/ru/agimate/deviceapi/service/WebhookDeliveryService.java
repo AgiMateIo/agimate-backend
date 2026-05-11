@@ -16,6 +16,7 @@ import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.deviceapi.database.repositories.WebhookDeliveryLogRepository;
 import ru.agimate.deviceapi.service.dto.IToolResult;
+import ru.agimate.deviceapi.service.trigger.ChannelContext;
 import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
 import java.io.IOException;
@@ -44,7 +45,12 @@ public class WebhookDeliveryService {
 
     @Async
     public void deliverWebhook(Agent agent, TriggerLogAgent triggerLogAgent) {
-        Map<String, Object> payload = buildEnvelope("trigger", TriggerMapper.map(triggerLogAgent.getTriggerLog()));
+        deliverWebhook(agent, triggerLogAgent, null);
+    }
+
+    @Async
+    public void deliverWebhook(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
+        Map<String, Object> payload = buildEnvelope("trigger", TriggerMapper.map(triggerLogAgent.getTriggerLog(), channelContext));
         WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder = WebhookDeliveryLog.builder()
                 .triggerLogAgent(triggerLogAgent)
                 .requestUrl(agent.getWebhookUrl())
