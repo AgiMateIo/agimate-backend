@@ -6,6 +6,7 @@ import lombok.experimental.UtilityClass;
 import ru.agimate.deviceapi.controller.agent.dto.ToolSpecificationResponse.JsonSchemaResponse;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @UtilityClass
@@ -17,6 +18,33 @@ public class ToolSpecificationMapper {
                 spec.description(),
                 mapSchema(spec.parameters())
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, ToolSpecificationResponse> fromAppTools(Map<String, Object> rawTools) {
+        Map<String, ToolSpecificationResponse> result = new LinkedHashMap<>();
+        if (rawTools == null) return result;
+        for (var entry : rawTools.entrySet()) {
+            String name = entry.getKey();
+            Map<String, Object> value = (Map<String, Object>) entry.getValue();
+            result.put(name, fromAppToolEntry(name, value));
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static ToolSpecificationResponse fromAppToolEntry(String name, Map<String, Object> value) {
+        String description = value.getOrDefault("description", "").toString();
+        List<String> params = value.get("params") instanceof List<?> list
+                ? list.stream().map(Object::toString).toList()
+                : List.of();
+        LinkedHashMap<String, JsonSchemaResponse> properties = new LinkedHashMap<>();
+        for (String p : params) {
+            properties.put(p, new JsonSchemaResponse("string", null, null, null, null, null));
+        }
+        JsonSchemaResponse parameters = new JsonSchemaResponse(
+                "object", null, properties, List.copyOf(params), null, null);
+        return new ToolSpecificationResponse(name, description, parameters);
     }
 
     private static JsonSchemaResponse mapSchema(JsonSchemaElement element) {
