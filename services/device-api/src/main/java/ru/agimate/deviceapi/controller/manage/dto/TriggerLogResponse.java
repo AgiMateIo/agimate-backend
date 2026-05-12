@@ -2,6 +2,7 @@ package ru.agimate.deviceapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.projections.TriggerLogWithAgentsCountProjection;
 
 import java.time.LocalDateTime;
@@ -50,6 +51,21 @@ public record TriggerLogResponse(
                 projection.getTriggerInput(),
                 projection.getCreatedAt(),
                 projection.getAgentsCount()
+        );
+    }
+
+    public static TriggerLogResponse from(TriggerLog entity) {
+        long agentsCount = entity.getTriggerLogAgents() == null ? 0 : entity.getTriggerLogAgents().size();
+        return new TriggerLogResponse(
+                entity.getPubId(),
+                entity.getConnectorCode(),
+                entity.getIdentity(),
+                entity.getTriggerId(),
+                entity.getTriggerName(),
+                entity.getOccurredAt(),
+                entity.getTriggerInput(),
+                entity.getCreatedAt(),
+                agentsCount
         );
     }
 }
