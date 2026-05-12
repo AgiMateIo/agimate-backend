@@ -69,28 +69,48 @@ public class AgentSkillService {
         PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
         Page<UUID> skillPubIdsPage = agentSkillRepository.findSkillPubIdsByAgentPubId(agentPubId, pageRequest);
 
-        List<UUID> skillPubIds = skillPubIdsPage.getContent();
+        Map<UUID, AgentSkillWithConnectorsResponse> resolved = resolveSkillsByPubId(skillPubIdsPage.getContent());
+
+        return skillPubIdsPage.map(pubId -> resolved.getOrDefault(pubId,
+                new AgentSkillWithConnectorsResponse(pubId, null, null, List.of())));
+    }
+
+    /**
+     * Aggregate skill name/description and attached connectors for the given pubIds.
+     * Caller is responsible for any authorization — this method has no ownership check.
+     * Soft-deleted skills are filtered out at the JPQL level.
+     */
+    public Map<UUID, AgentSkillWithConnectorsResponse> resolveSkillsByPubId(List<UUID> skillPubIds) {
+        if (skillPubIds.isEmpty()) {
+            return Map.of();
+        }
         Map<UUID, String> nameByPubId = new HashMap<>();
+        Map<UUID, String> descriptionByPubId = new HashMap<>();
         Map<UUID, List<SkillConnectorResponse>> connectorsByPubId = new HashMap<>();
 
-        if (!skillPubIds.isEmpty()) {
-            for (Object[] row : skillRepository.findNamesAndConnectorsByPubIdIn(skillPubIds)) {
-                UUID pubId = (UUID) row[0];
-                String name = (String) row[1];
-                SkillConnector sc = (SkillConnector) row[2];
-                nameByPubId.putIfAbsent(pubId, name);
-                List<SkillConnectorResponse> bucket = connectorsByPubId.computeIfAbsent(pubId, k -> new ArrayList<>());
-                if (sc != null) {
-                    bucket.add(SkillConnectorResponse.from(sc));
-                }
+        for (Object[] row : skillRepository.findNamesAndConnectorsByPubIdIn(skillPubIds)) {
+            UUID pubId = (UUID) row[0];
+            String name = (String) row[1];
+            String description = (String) row[2];
+            SkillConnector sc = (SkillConnector) row[3];
+            nameByPubId.putIfAbsent(pubId, name);
+            descriptionByPubId.putIfAbsent(pubId, description);
+            List<SkillConnectorResponse> bucket = connectorsByPubId.computeIfAbsent(pubId, k -> new ArrayList<>());
+            if (sc != null) {
+                bucket.add(SkillConnectorResponse.from(sc));
             }
         }
 
-        return skillPubIdsPage.map(pubId -> new AgentSkillWithConnectorsResponse(
-                pubId,
-                nameByPubId.get(pubId),
-                connectorsByPubId.getOrDefault(pubId, List.of())
-        ));
+        Map<UUID, AgentSkillWithConnectorsResponse> result = new HashMap<>();
+        for (UUID pubId : nameByPubId.keySet()) {
+            result.put(pubId, new AgentSkillWithConnectorsResponse(
+                    pubId,
+                    nameByPubId.get(pubId),
+                    descriptionByPubId.get(pubId),
+                    connectorsByPubId.getOrDefault(pubId, List.of())
+            ));
+        }
+        return result;
     }
 
     @Transactional

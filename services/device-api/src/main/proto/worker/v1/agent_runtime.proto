@@ -8,10 +8,10 @@ option java_outer_classname = "AgentRuntimeProto";
 
 service AgentRuntime {
   rpc GetAgentSpec(GetAgentSpecRequest) returns (AgentSpec);
+  rpc GetSkills(GetSkillsRequest) returns (GetSkillsResponse);
   rpc GetSkill(GetSkillRequest) returns (SkillSpec);
   rpc GetTeamContext(GetTeamContextRequest) returns (TeamContext);
   rpc GetLlmCredentials(GetLlmCredentialsRequest) returns (LlmCredentials);
-  rpc GetKnowledgeSection(GetKnowledgeSectionRequest) returns (KnowledgeSection);
 }
 
 message GetAgentSpecRequest {
@@ -20,19 +20,34 @@ message GetAgentSpecRequest {
   string agent_version = 3;
 }
 
-message AgentSkillRef {
-  string skill_id = 1;
-  string version = 2;
-}
-
 message AgentSpec {
   string agent_id = 1;
   string name = 2;
   string agent_type = 3;
   string system_prompt = 4;
-  repeated AgentSkillRef skills = 5;
-  string team_id = 6;
-  string llm_id = 7;
+}
+
+message GetSkillsRequest {
+  string workflow_id = 1;
+  string agent_id = 2;
+}
+
+message SkillConnectorRef {
+  string id = 1;
+  string connector_code = 2;
+  string type = 3;
+  string name = 4;
+}
+
+message SkillRef {
+  string skill_id = 1;
+  string name = 2;
+  string description = 3;
+  repeated SkillConnectorRef connectors = 4;
+}
+
+message GetSkillsResponse {
+  repeated SkillRef skills = 1;
 }
 
 message GetSkillRequest {
@@ -54,11 +69,17 @@ message GetTeamContextRequest {
   string team_id = 2;
 }
 
+message TeamMember {
+  string pub_id = 1;
+  string name = 2;
+  string description = 3;
+}
+
 message TeamContext {
   string team_id = 1;
   string name = 2;
   string description = 3;
-  repeated string member_agent_ids = 4;
+  repeated TeamMember members = 4;
 }
 
 message GetLlmCredentialsRequest {
@@ -71,15 +92,4 @@ message LlmCredentials {
   string base_url = 2;
   string api_key = 3;
   string model = 4;
-}
-
-message GetKnowledgeSectionRequest {
-  string workflow_id = 1;
-  string agent_id = 2;
-  string section_id = 3;
-}
-
-message KnowledgeSection {
-  string section_id = 1;
-  bytes content = 2;
 }

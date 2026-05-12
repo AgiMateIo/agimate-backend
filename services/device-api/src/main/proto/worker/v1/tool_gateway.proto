@@ -7,10 +7,10 @@ option java_package = "ru.agimate.worker.v1";
 option java_outer_classname = "ToolGatewayProto";
 
 service ToolGateway {
-  rpc ExecuteTool(ExecuteToolRequest) returns (ExecuteToolResponse);
-  rpc ExecuteToolStream(ExecuteToolRequest) returns (stream ToolEvent);
-  rpc ExecuteToolBatch(ExecuteToolBatchRequest) returns (ExecuteToolBatchResponse);
   rpc ExecuteToolAsync(ExecuteToolRequest) returns (ExecuteToolAsyncAck);
+  rpc GetToolResult(GetToolResultRequest) returns (GetToolResultResponse);
+  rpc GetConnectorTools(GetConnectorToolsRequest) returns (GetConnectorToolsResponse);
+  rpc ListAgentTools(ListAgentToolsRequest) returns (ListAgentToolsResponse);
 }
 
 message ExecuteToolRequest {
@@ -24,25 +24,52 @@ message ExecuteToolRequest {
   string agent_session_id = 8;
 }
 
-message ExecuteToolResponse {
-  bool success = 1;
-  bytes result_json = 2;
+message ExecuteToolAsyncAck {
+  string tool_call_id = 1;
+}
+
+message GetToolResultRequest {
+  string agent_id = 1;
+  string tool_call_id = 2;
+}
+
+message GetToolResultResponse {
+  ToolResultStatus status = 1;
+  bytes output_json = 2;
   string error = 3;
 }
 
-message ToolEvent {
-  string event_type = 1;
-  bytes payload = 2;
+enum ToolResultStatus {
+  TOOL_RESULT_STATUS_UNSPECIFIED = 0;
+  TOOL_RESULT_STATUS_PENDING = 1;
+  TOOL_RESULT_STATUS_SUCCESS = 2;
+  TOOL_RESULT_STATUS_ERROR = 3;
 }
 
-message ExecuteToolBatchRequest {
-  repeated ExecuteToolRequest requests = 1;
+message GetConnectorToolsRequest {
+  string connector_code = 1;
 }
 
-message ExecuteToolBatchResponse {
-  repeated ExecuteToolResponse responses = 1;
+message ConnectorToolSpec {
+  string name = 1;
+  string description = 2;
+  bytes parameters_json_schema = 3;
 }
 
-message ExecuteToolAsyncAck {
-  string tool_call_id = 1;
+message GetConnectorToolsResponse {
+  repeated ConnectorToolSpec tools = 1;
+}
+
+message ListAgentToolsRequest {
+  string agent_id = 1;
+}
+
+message AgentToolDef {
+  string name = 1;
+  string description = 2;
+  bytes parameters_json_schema = 3;
+}
+
+message ListAgentToolsResponse {
+  repeated AgentToolDef tools = 1;
 }

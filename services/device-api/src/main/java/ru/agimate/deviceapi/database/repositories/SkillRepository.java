@@ -27,7 +27,7 @@ public interface SkillRepository extends JpaRepository<Skill, Long>, JpaSpecific
     List<Skill> findByPubIdInNotDeleted(@Param("pubIds") Collection<UUID> pubIds);
 
     @Query("""
-            SELECT s.pubId, s.name, sc
+            SELECT s.pubId, s.name, s.description, sc
             FROM Skill s
             LEFT JOIN SkillConnector sc ON sc.skill = s
             WHERE s.pubId IN :pubIds AND s.deletedAt IS NULL

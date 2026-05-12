@@ -55,9 +55,7 @@ public class AgentDeliveryService {
     }
 
     private void sendTriggerToCentrifugo(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
-        centrifugoService.publishMessage(
-                "agent:" + agent.getPubId(),
-                "trigger",
+        centrifugoService.publishMessage("agent:" + agent.getPubId(), "trigger",
                 TriggerMapper.map(triggerLogAgent.getTriggerLog(), channelContext)
         );
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo", triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId());

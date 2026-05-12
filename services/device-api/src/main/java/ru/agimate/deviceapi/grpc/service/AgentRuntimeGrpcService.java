@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationEncryptionService;
+import ru.agimate.deviceapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
+import ru.agimate.deviceapi.controller.manage.dto.SkillConnectorResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentLlm;
 import ru.agimate.deviceapi.database.entities.AgentSkill;
@@ -23,18 +25,21 @@ import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.deviceapi.database.repositories.LlmProviderRepository;
 import ru.agimate.deviceapi.database.repositories.SkillRepository;
 import ru.agimate.deviceapi.grpc.auth.WorkerPoolContextHolder;
+import ru.agimate.deviceapi.service.AgentSkillService;
 import ru.agimate.worker.v1.AgentRuntimeGrpc;
-import ru.agimate.worker.v1.AgentSkillRef;
 import ru.agimate.worker.v1.AgentSpec;
 import ru.agimate.worker.v1.GetAgentSpecRequest;
-import ru.agimate.worker.v1.GetKnowledgeSectionRequest;
 import ru.agimate.worker.v1.GetLlmCredentialsRequest;
 import ru.agimate.worker.v1.GetSkillRequest;
+import ru.agimate.worker.v1.GetSkillsRequest;
+import ru.agimate.worker.v1.GetSkillsResponse;
 import ru.agimate.worker.v1.GetTeamContextRequest;
-import ru.agimate.worker.v1.KnowledgeSection;
 import ru.agimate.worker.v1.LlmCredentials;
+import ru.agimate.worker.v1.SkillConnectorRef;
+import ru.agimate.worker.v1.SkillRef;
 import ru.agimate.worker.v1.SkillSpec;
 import ru.agimate.worker.v1.TeamContext;
+import ru.agimate.worker.v1.TeamMember;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -56,6 +61,7 @@ public class AgentRuntimeGrpcService extends AgentRuntimeGrpc.AgentRuntimeImplBa
     private final AgentLlmRepository agentLlmRepository;
     private final LlmProviderRepository llmProviderRepository;
     private final IntegrationEncryptionService encryptionService;
+    private final AgentSkillService agentSkillService;
 
     @Override
     public void getAgentSpec(GetAgentSpecRequest request, StreamObserver<AgentSpec> responseObserver) {
@@ -69,27 +75,59 @@ public class AgentRuntimeGrpcService extends AgentRuntimeGrpc.AgentRuntimeImplBa
                 return;
             }
 
-            List<AgentSkill> skillBindings = agentSkillRepository.findByAgentPubId(agentId);
-            AgentSpec.Builder builder = AgentSpec.newBuilder()
+            AgentSpec spec = AgentSpec.newBuilder()
                     .setAgentId(agent.getPubId().toString())
                     .setName(nullToEmpty(agent.getName()))
                     .setAgentType(agent.getType() == null ? "" : agent.getType().name())
-                    .setSystemPrompt(nullToEmpty(agent.getPrompt()));
-            for (AgentSkill bind : skillBindings) {
-                builder.addSkills(AgentSkillRef.newBuilder()
-                        .setSkillId(bind.getSkillPubId().toString())
-                        .setVersion(bind.getInstalledSkillVersion() == null
-                                ? "" : Integer.toString(bind.getInstalledSkillVersion()))
-                        .build());
-            }
-            if (agent.getAgenticTeamId() != null) {
-                agenticTeamRepository.findById(agent.getAgenticTeamId())
-                        .ifPresent(team -> builder.setTeamId(team.getPubId().toString()));
-            }
-            agentLlmRepository.findAllByAgentPubIdOrderByName(agentId).stream().findFirst()
-                    .ifPresent(llm -> builder.setLlmId(llm.getPubId().toString()));
+                    .setSystemPrompt(nullToEmpty(agent.getPrompt()))
+                    .build();
 
             log.debug("issued AgentSpec pool={} agent={}", WorkerPoolContextHolder.current().poolId(), agentId);
+            responseObserver.onNext(spec);
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            handleError(e, responseObserver);
+        }
+    }
+
+    @Override
+    public void getSkills(GetSkillsRequest request, StreamObserver<GetSkillsResponse> responseObserver) {
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            Agent agent = agentRepository.findByPubId(agentId)
+                    .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
+            if (!agent.isEnabled()) {
+                responseObserver.onError(Status.FAILED_PRECONDITION
+                        .withDescription("Agent is disabled").asRuntimeException());
+                return;
+            }
+
+            List<UUID> skillPubIds = agentSkillRepository.findByAgentPubId(agentId).stream()
+                    .map(AgentSkill::getSkillPubId)
+                    .toList();
+            Map<UUID, AgentSkillWithConnectorsResponse> resolved =
+                    agentSkillService.resolveSkillsByPubId(skillPubIds);
+
+            GetSkillsResponse.Builder builder = GetSkillsResponse.newBuilder();
+            for (UUID skillPubId : skillPubIds) {
+                AgentSkillWithConnectorsResponse skill = resolved.get(skillPubId);
+                if (skill == null) {
+                    continue;
+                }
+                SkillRef.Builder skillBuilder = SkillRef.newBuilder()
+                        .setSkillId(skillPubId.toString())
+                        .setName(nullToEmpty(skill.skillName()))
+                        .setDescription(nullToEmpty(skill.description()));
+                for (SkillConnectorResponse connector : skill.connectors()) {
+                    skillBuilder.addConnectors(SkillConnectorRef.newBuilder()
+                            .setId(connector.id() == null ? "" : connector.id().toString())
+                            .setConnectorCode(nullToEmpty(connector.connectorCode()))
+                            .setType(connector.type() == null ? "" : connector.type().name())
+                            .setName(nullToEmpty(connector.name()))
+                            .build());
+                }
+                builder.addSkills(skillBuilder.build());
+            }
             responseObserver.onNext(builder.build());
             responseObserver.onCompleted();
         } catch (Exception e) {
@@ -141,16 +179,19 @@ public class AgentRuntimeGrpcService extends AgentRuntimeGrpc.AgentRuntimeImplBa
             AgenticTeam team = agenticTeamRepository.findByPubId(teamId)
                     .orElseThrow(() -> new NotFoundStatusException("Team not found: " + teamId));
 
-            List<UUID> memberIds = agentRepository
-                    .findByUserPubIdAndAgenticTeamId(team.getUserPubId(), team.getId())
-                    .stream().map(Agent::getPubId).toList();
+            List<Agent> members = agentRepository
+                    .findByUserPubIdAndAgenticTeamId(team.getUserPubId(), team.getId());
 
             TeamContext.Builder builder = TeamContext.newBuilder()
                     .setTeamId(team.getPubId().toString())
                     .setName(nullToEmpty(team.getName()))
                     .setDescription(nullToEmpty(team.getDescription()));
-            for (UUID memberId : memberIds) {
-                builder.addMemberAgentIds(memberId.toString());
+            for (Agent member : members) {
+                builder.addMembers(TeamMember.newBuilder()
+                        .setPubId(member.getPubId().toString())
+                        .setName(nullToEmpty(member.getName()))
+                        .setDescription(nullToEmpty(member.getDescription()))
+                        .build());
             }
             responseObserver.onNext(builder.build());
             responseObserver.onCompleted();
@@ -197,12 +238,6 @@ public class AgentRuntimeGrpcService extends AgentRuntimeGrpc.AgentRuntimeImplBa
         } catch (Exception e) {
             handleError(e, responseObserver);
         }
-    }
-
-    @Override
-    public void getKnowledgeSection(GetKnowledgeSectionRequest request, StreamObserver<KnowledgeSection> responseObserver) {
-        responseObserver.onError(Status.UNIMPLEMENTED
-                .withDescription("Knowledge Base is not implemented yet").asRuntimeException());
     }
 
     private static UUID parseUuid(String value, String field) {

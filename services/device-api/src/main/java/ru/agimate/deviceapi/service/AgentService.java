@@ -14,6 +14,7 @@ import ru.agimate.deviceapi.abac.AccessEffect;
 import ru.agimate.deviceapi.controller.agent.dto.AgentConfigResponse;
 import ru.agimate.deviceapi.controller.agent.dto.AgentContextResponse;
 import ru.agimate.deviceapi.controller.agent.dto.ToolDefinition;
+import ru.agimate.deviceapi.service.dto.AgentToolSpec;
 import ru.agimate.deviceapi.controller.manage.dto.AgentResponse;
 import ru.agimate.deviceapi.controller.manage.dto.AgentSkillSummary;
 import ru.agimate.deviceapi.controller.manage.dto.CreateAgentRequest;
@@ -199,6 +200,47 @@ public class AgentService {
                 .map(name -> toolDefinitionMap.getOrDefault(name,
                         new ToolDefinition(name, null, null)))
                 .toList();
+    }
+
+    /**
+     * Same selection as {@link #getAvailableTools} but exposes the raw JSON Schema
+     * stored under {@code App.tools[name].parameters} (convention key).
+     */
+    public List<AgentToolSpec> getAvailableToolSpecs(UUID agentPubId) {
+        Agent agent = findByPubId(agentPubId);
+
+        var toolPolicies = agentToolPolicyRepository.findByAgentPubId(agentPubId);
+
+        Set<String> allowedToolNames = toolPolicies.stream()
+                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
+                .map(AgentToolPolicy::getToolName)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<String, AgentToolSpec> specMap = buildToolSpecMap(agent.getUserPubId());
+
+        return allowedToolNames.stream()
+                .map(name -> specMap.getOrDefault(name, new AgentToolSpec(name, null, null)))
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, AgentToolSpec> buildToolSpecMap(UUID userPubId) {
+        List<App> apps = appRepository.findByUserPubIdNotDeleted(userPubId);
+        Map<String, AgentToolSpec> map = new LinkedHashMap<>();
+
+        for (App app : apps) {
+            if (app.getTools() == null) continue;
+            for (var entry : app.getTools().entrySet()) {
+                String toolName = entry.getKey();
+                var value = (Map<String, Object>) entry.getValue();
+                String description = value.getOrDefault("description", "").toString();
+                Object parameters = value.get("parameters");
+                map.put(toolName, new AgentToolSpec(toolName, description, parameters));
+            }
+        }
+
+        return map;
     }
 
     @SuppressWarnings("unchecked")

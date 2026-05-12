@@ -14,6 +14,9 @@ public record AgentSkillWithConnectorsResponse(
         @Schema(description = "Skill name")
         String skillName,
 
+        @Schema(description = "Skill description")
+        String description,
+
         @Schema(description = "Connectors attached to this skill")
         List<SkillConnectorResponse> connectors
 ) {

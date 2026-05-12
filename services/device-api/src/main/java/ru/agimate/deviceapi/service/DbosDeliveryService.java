@@ -9,9 +9,10 @@ import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.config.DbosProperties;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
-import ru.agimate.deviceapi.service.dto.AgentEvent;
-import ru.agimate.deviceapi.service.trigger.AgentEventMapper;
+import ru.agimate.deviceapi.service.dto.AgentMessage;
 import ru.agimate.deviceapi.service.trigger.ChannelContext;
+import ru.agimate.deviceapi.service.trigger.Trigger;
+import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
 @Slf4j
 @Service
@@ -30,19 +31,20 @@ public class DbosDeliveryService {
         if (client == null) {
             throw new IllegalStateException("GENERIC delivery is not configured (dbos.enabled=false)");
         }
-        AgentEvent event = AgentEventMapper.from(agent, triggerLogAgent, channelContext);
+        String agentId = agent.getPubId().toString();
+        Trigger trigger = TriggerMapper.map(triggerLogAgent.getTriggerLog());
+        AgentMessage<Trigger> message = new AgentMessage<>(agentId, "trigger", channelContext, trigger);
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 props.getWorkflow().getName(),
                 null, //props.getWorkflow().getClassName(),
                 props.getQueue().getName()
         )
                 .withSerialization(SerializationStrategy.PORTABLE)
-                .withQueuePartitionKey(event.agentId());
-        client.enqueueWorkflow(options, new Object[]{event});
-        log.debug("Trigger '{}' enqueued to DBOS queue '{}' for agent '{}' (eventId={})",
+                .withQueuePartitionKey(agentId);
+        client.enqueueWorkflow(options, new Object[]{message});
+        log.debug("Trigger '{}' enqueued to DBOS queue '{}' for agent '{}'",
                 triggerLogAgent.getTriggerLog().getTriggerName(),
                 props.getQueue().getName(),
-                agent.getPubId(),
-                event.eventId());
+                agentId);
     }
 }
