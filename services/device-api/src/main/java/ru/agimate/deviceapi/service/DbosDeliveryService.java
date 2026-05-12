@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.config.DbosProperties;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
+import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.deviceapi.service.dto.AgentMessage;
 import ru.agimate.deviceapi.service.trigger.ChannelContext;
 import ru.agimate.deviceapi.service.trigger.Trigger;
@@ -21,6 +22,7 @@ public class DbosDeliveryService {
 
     private final ObjectProvider<DBOSClient> clientProvider;
     private final DbosProperties props;
+    private final AgenticTeamRepository agenticTeamRepository;
 
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent) {
         deliverTrigger(agent, triggerLogAgent, null);
@@ -32,8 +34,12 @@ public class DbosDeliveryService {
             throw new IllegalStateException("GENERIC delivery is not configured (dbos.enabled=false)");
         }
         String agentId = agent.getPubId().toString();
+        String teamId = agent.getAgenticTeamId() == null ? null
+                : agenticTeamRepository.findById(agent.getAgenticTeamId())
+                        .map(t -> t.getPubId().toString())
+                        .orElse(null);
         Trigger trigger = TriggerMapper.map(triggerLogAgent.getTriggerLog());
-        AgentMessage<Trigger> message = new AgentMessage<>(agentId, "trigger", channelContext, trigger);
+        AgentMessage<Trigger> message = new AgentMessage<>(agentId, teamId, "trigger", channelContext, trigger);
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 props.getWorkflow().getName(),
                 null, //props.getWorkflow().getClassName(),

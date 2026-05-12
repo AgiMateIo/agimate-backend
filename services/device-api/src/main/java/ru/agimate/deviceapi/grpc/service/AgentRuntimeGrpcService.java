@@ -26,6 +26,7 @@ import ru.agimate.deviceapi.database.repositories.LlmProviderRepository;
 import ru.agimate.deviceapi.database.repositories.SkillRepository;
 import ru.agimate.deviceapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.deviceapi.service.AgentSkillService;
+import ru.agimate.deviceapi.service.SkillFileService;
 import ru.agimate.worker.v1.AgentRuntimeGrpc;
 import ru.agimate.worker.v1.AgentSpec;
 import ru.agimate.worker.v1.GetAgentSpecRequest;
@@ -62,6 +63,7 @@ public class AgentRuntimeGrpcService extends AgentRuntimeGrpc.AgentRuntimeImplBa
     private final LlmProviderRepository llmProviderRepository;
     private final IntegrationEncryptionService encryptionService;
     private final AgentSkillService agentSkillService;
+    private final SkillFileService skillFileService;
 
     @Override
     public void getAgentSpec(GetAgentSpecRequest request, StreamObserver<AgentSpec> responseObserver) {
@@ -75,11 +77,19 @@ public class AgentRuntimeGrpcService extends AgentRuntimeGrpc.AgentRuntimeImplBa
                 return;
             }
 
+            String teamPubId = "";
+            if (agent.getAgenticTeamId() != null) {
+                teamPubId = agenticTeamRepository.findById(agent.getAgenticTeamId())
+                        .map(t -> t.getPubId().toString())
+                        .orElse("");
+            }
+
             AgentSpec spec = AgentSpec.newBuilder()
                     .setAgentId(agent.getPubId().toString())
                     .setName(nullToEmpty(agent.getName()))
                     .setAgentType(agent.getType() == null ? "" : agent.getType().name())
                     .setSystemPrompt(nullToEmpty(agent.getPrompt()))
+                    .setTeamId(teamPubId)
                     .build();
 
             log.debug("issued AgentSpec pool={} agent={}", WorkerPoolContextHolder.current().poolId(), agentId);
@@ -158,12 +168,20 @@ public class AgentRuntimeGrpcService extends AgentRuntimeGrpc.AgentRuntimeImplBa
                     "version", skill.getVersion()
             )).getBytes(StandardCharsets.UTF_8);
 
+            String skillMd;
+            try {
+                skillMd = skillFileService.readSkillMd(skill.getPubId());
+            } catch (NotFoundStatusException e) {
+                skillMd = "";
+            }
+
             SkillSpec response = SkillSpec.newBuilder()
                     .setSkillId(skill.getPubId().toString())
                     .setVersion(Integer.toString(skill.getVersion()))
                     .setName(nullToEmpty(skill.getName()))
                     .setDescription(nullToEmpty(skill.getDescription()))
                     .setDefinitionJson(ByteString.copyFrom(definitionJson))
+                    .setSkillMd(skillMd)
                     .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();

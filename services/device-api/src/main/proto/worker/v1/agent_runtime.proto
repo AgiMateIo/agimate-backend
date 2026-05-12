@@ -25,6 +25,7 @@ message AgentSpec {
   string name = 2;
   string agent_type = 3;
   string system_prompt = 4;
+  string team_id = 5;
 }
 
 message GetSkillsRequest {
@@ -62,6 +63,7 @@ message SkillSpec {
   string name = 3;
   string description = 4;
   bytes definition_json = 5;
+  string skill_md = 6;
 }
 
 message GetTeamContextRequest {
