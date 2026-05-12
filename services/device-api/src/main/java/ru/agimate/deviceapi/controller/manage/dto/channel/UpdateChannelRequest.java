@@ -19,5 +19,5 @@ public record UpdateChannelRequest(
         Map<String, Object> inputFilter,
 
         @Schema(description = "Set true together with inputFilter=null to remove the existing filter")
-        boolean clearInputFilter
+        Boolean clearInputFilter
 ) {}

@@ -13,12 +13,14 @@ import ru.agimate.deviceapi.connectors.integrations.IntegrationHandler;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationsRegistry;
 import ru.agimate.deviceapi.controller.manage.dto.channel.ChannelResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
+import ru.agimate.deviceapi.database.entities.AgentToolPolicy;
 import ru.agimate.deviceapi.database.entities.AgentTriggerPolicy;
 import ru.agimate.deviceapi.database.entities.App;
 import ru.agimate.deviceapi.database.entities.Channel;
 import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.entities.IntegrationCredentials;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
+import ru.agimate.deviceapi.database.repositories.AgentToolPolicyRepository;
 import ru.agimate.deviceapi.database.repositories.AgentTriggerPolicyRepository;
 import ru.agimate.deviceapi.database.repositories.AppRepository;
 import ru.agimate.deviceapi.database.repositories.ChannelRepository;
@@ -47,6 +49,7 @@ public class ChannelService {
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
     private final IntegrationsRegistry integrationsRegistry;
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
+    private final AgentToolPolicyRepository agentToolPolicyRepository;
 
     public Channel getByPubId(UUID userPubId, UUID pubId) {
         Channel channel = channelRepository.findByPubIdAndDeletedAtIsNull(pubId)
@@ -172,6 +175,14 @@ public class ChannelService {
                     "Conflicting agent trigger policy already linked to another channel");
         }
 
+        AgentToolPolicy existingToolPolicy = agentToolPolicyRepository.findByCompositeKey(
+                data.agentPubId(), data.replyConnectorCode(), data.replyIdentity(),
+                data.replyToolName(), AccessEffect.ALLOW.name());
+        if (existingToolPolicy != null && existingToolPolicy.getChannelId() != null) {
+            throw new ConflictStatusException(
+                    "Conflicting agent tool policy already linked to another channel");
+        }
+
         Channel channel = Channel.builder()
                 .userPubId(userPubId)
                 .agentPubId(data.agentPubId())
@@ -204,6 +215,23 @@ public class ChannelService {
                     .inputFilter(data.inputFilter())
                     .build();
             agentTriggerPolicyRepository.save(policy);
+        }
+
+        if (existingToolPolicy != null) {
+            existingToolPolicy.setChannelId(channel.getId());
+            agentToolPolicyRepository.save(existingToolPolicy);
+        } else {
+            AgentToolPolicy toolPolicy = AgentToolPolicy.builder()
+                    .userPubId(userPubId)
+                    .agentPubId(data.agentPubId())
+                    .connectorCode(data.replyConnectorCode())
+                    .connectorIdentity(data.replyIdentity())
+                    .toolName(data.replyToolName())
+                    .effect(AccessEffect.ALLOW)
+                    .source("channel:" + channel.getPubId())
+                    .channelId(channel.getId())
+                    .build();
+            agentToolPolicyRepository.save(toolPolicy);
         }
 
         log.info("Created channel pubId={} for agent={} user={}", channel.getPubId(), data.agentPubId(), userPubId);
@@ -242,9 +270,11 @@ public class ChannelService {
     @Transactional
     public void delete(UUID userPubId, UUID pubId) {
         Channel channel = getByPubId(userPubId, pubId);
+        agentTriggerPolicyRepository.deleteByChannelId(channel.getId());
+        agentToolPolicyRepository.deleteByChannelId(channel.getId());
         channel.setDeletedAt(LocalDateTime.now());
         channelRepository.save(channel);
-        log.info("Soft-deleted channel pubId={}", pubId);
+        log.info("Soft-deleted channel pubId={} (trigger/tool policies hard-deleted)", pubId);
     }
 
     private void validateMessageField(String messageField) {

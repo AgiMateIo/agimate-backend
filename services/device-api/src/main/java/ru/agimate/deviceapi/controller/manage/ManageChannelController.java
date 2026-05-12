@@ -94,7 +94,7 @@ public class ManageChannelController {
                 request.triggerMessageField(),
                 request.replyToolParams(),
                 request.inputFilter(),
-                request.clearInputFilter()
+                Boolean.TRUE.equals(request.clearInputFilter())
         ));
         return SuccessResponse.ok(channelService.toResponse(channel));
     }

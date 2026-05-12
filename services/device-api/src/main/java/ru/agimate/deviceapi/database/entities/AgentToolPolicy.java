@@ -51,4 +51,7 @@ public class AgentToolPolicy extends BaseEntity {
 
     @Column(name = "source", columnDefinition = "TEXT")
     private String source;
+
+    @Column(name = "channel_id")
+    private Long channelId;
 }

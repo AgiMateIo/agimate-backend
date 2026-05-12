@@ -91,4 +91,8 @@ public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy
     @Modifying
     @Query("DELETE FROM AgentToolPolicy p WHERE p.agentPubId = :agentPubId")
     void deleteByAgentPubId(@Param("agentPubId") UUID agentPubId);
+
+    @Modifying
+    @Query("DELETE FROM AgentToolPolicy p WHERE p.channelId = :channelId")
+    void deleteByChannelId(@Param("channelId") Long channelId);
 }
