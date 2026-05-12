@@ -18,6 +18,7 @@ import ru.agimate.deviceapi.service.channel.InputFilterEvaluator;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -55,6 +56,12 @@ public class TriggerRouterService {
     public void routeInternalTrigger(UUID userPubId, UUID agenticTeamPubId, Trigger trigger) {
         TriggerLog triggerLog = triggerLogService.createTriggerLog(userPubId, trigger);
 
+        if (isBlockingProbe(trigger.data())) {
+            log.info("Internal trigger contains discovery probe (block mode) - skipping agent routing for user={}", userPubId);
+            triggerLogService.save(triggerLog);
+            return;
+        }
+
         List<Agent> agents = agentTriggerPolicyService.findAllowedAgentsForTeamId(
                 userPubId, agenticTeamPubId,  trigger.connectorCode(), trigger.identity(), trigger.name());
 
@@ -67,12 +74,27 @@ public class TriggerRouterService {
     private void routeTrigger(UUID userPubId, Trigger trigger) {
         TriggerLog triggerLog = triggerLogService.createTriggerLog(userPubId, trigger);
 
+        if (isBlockingProbe(trigger.data())) {
+            log.info("Trigger contains discovery probe (block mode) - skipping agent routing for user={}", userPubId);
+            triggerLogService.save(triggerLog);
+            return;
+        }
+
         List<Agent> agents = agentTriggerPolicyService.findAllowedAgents(
                 userPubId, trigger.connectorCode(), trigger.identity(), trigger.name());
 
         sendTrigger(agents, triggerLog, trigger);
 
         triggerLogService.save(triggerLog);
+    }
+
+    private boolean isBlockingProbe(Map<String, Object> data) {
+        if (data == null || data.isEmpty()) {
+            return false;
+        }
+        return JsonUtils.toJson(data)
+                .map(s -> s.contains("agm-probe-block-"))
+                .orElse(false);
     }
 
     private void sendTrigger(List<Agent> agents, TriggerLog triggerLog, Trigger trigger) {

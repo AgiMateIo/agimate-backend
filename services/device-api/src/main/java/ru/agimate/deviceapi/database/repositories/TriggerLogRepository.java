@@ -4,9 +4,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import ru.agimate.deviceapi.database.entities.TriggerLog;
 import ru.agimate.deviceapi.database.projections.TriggerLogWithAgentsCountProjection;
 
+import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface TriggerLogRepository extends JpaRepository<TriggerLog, Long> {
@@ -21,4 +24,26 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, Long> {
             AND (:connectorCode IS NULL OR t.connectorCode = :connectorCode)
             """)
     Page<TriggerLogWithAgentsCountProjection> findByUserPubIdWithFilters(UUID userPubId, String connectorCode, Pageable pageable);
+
+    @Query(value = """
+            SELECT tl.pub_id AS pubId,
+                   tl.connector_code AS connectorCode,
+                   tl.identity AS identity,
+                   tl.trigger_id AS triggerId,
+                   tl.trigger_name AS triggerName,
+                   tl.occurred_at AS occurredAt,
+                   tl.trigger_input AS triggerInput,
+                   tl.created_at AS createdAt,
+                   (SELECT COUNT(*) FROM trigger_log_agents tla WHERE tla.trigger_log_id = tl.id) AS agentsCount
+            FROM trigger_logs tl
+            WHERE tl.user_pub_id = :userPubId
+              AND tl.created_at >= :since
+              AND tl.trigger_input::text ILIKE CONCAT('%', :code, '%')
+            ORDER BY tl.created_at ASC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<TriggerLogWithAgentsCountProjection> findFirstByUserAndPayloadContaining(
+            @Param("userPubId") UUID userPubId,
+            @Param("code") String code,
+            @Param("since") LocalDateTime since);
 }
