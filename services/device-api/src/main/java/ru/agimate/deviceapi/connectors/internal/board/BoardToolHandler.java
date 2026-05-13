@@ -60,10 +60,22 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
             @P("Task description") String description,
             @P("Parent task public ID") String parentTaskPubId,
             @P("Assignee agent public ID") String assigneeAgentPubId) {
+        if (type == null || type.isBlank()) {
+            throw new BadRequestStatusException("Parameter 'type' is required (EPIC, TASK, SUBTASK)");
+        }
+        if (title == null || title.isBlank()) {
+            throw new BadRequestStatusException("Parameter 'title' is required");
+        }
+
         Agent agent = resolveAgent();
         Board board = resolveBoard(agent);
 
-        BoardTaskType taskType = BoardTaskType.valueOf(type.toUpperCase());
+        BoardTaskType taskType;
+        try {
+            taskType = BoardTaskType.valueOf(type.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestStatusException("Invalid task type: '" + type + "'. Allowed: EPIC, TASK, SUBTASK");
+        }
         UUID parentId = parentTaskPubId != null ? UUID.fromString(parentTaskPubId) : null;
         UUID assigneeId = assigneeAgentPubId != null ? UUID.fromString(assigneeAgentPubId) : null;
 
@@ -77,10 +89,22 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
     public Map<String, Object> changeTaskStatus(
             @P("Task public ID") String taskPubId,
             @P("New status") String status) {
+        if (taskPubId == null || taskPubId.isBlank()) {
+            throw new BadRequestStatusException("Parameter 'taskPubId' is required");
+        }
+        if (status == null || status.isBlank()) {
+            throw new BadRequestStatusException("Parameter 'status' is required");
+        }
+
         Agent agent = resolveAgent();
 
         UUID taskId = UUID.fromString(taskPubId);
-        BoardTaskStatus taskStatus = BoardTaskStatus.valueOf(status.toUpperCase());
+        BoardTaskStatus taskStatus;
+        try {
+            taskStatus = BoardTaskStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestStatusException("Invalid status: '" + status + "'");
+        }
 
         var request = new UpdateBoardTaskStatusRequest(taskStatus, agent.getPubId());
         var result = boardService.changeTaskStatus(taskId, userPubId(), request);
