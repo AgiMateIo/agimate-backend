@@ -4,9 +4,9 @@ import com.google.protobuf.Timestamp;
 import io.grpc.stub.StreamObserver;
 import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.grpc.auth.WorkerPoolContextHolder;
-import ru.agimate.worker.v1.HealthCheckRequest;
-import ru.agimate.worker.v1.HealthCheckResponse;
-import ru.agimate.worker.v1.WorkerControlGrpc;
+import ru.agimate.agentworker.HealthCheckRequest;
+import ru.agimate.agentworker.HealthCheckResponse;
+import ru.agimate.agentworker.WorkerControlGrpc;
 
 import java.time.Instant;
 

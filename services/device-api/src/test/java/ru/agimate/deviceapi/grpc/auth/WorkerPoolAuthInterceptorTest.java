@@ -17,9 +17,9 @@ import org.junit.jupiter.api.Test;
 import ru.agimate.deviceapi.config.WorkerPoolProperties;
 import ru.agimate.deviceapi.util.AppKeyUtils;
 import ru.agimate.deviceapi.util.GeneratedAppKey;
-import ru.agimate.worker.v1.HealthCheckRequest;
-import ru.agimate.worker.v1.HealthCheckResponse;
-import ru.agimate.worker.v1.WorkerControlGrpc;
+import ru.agimate.agentworker.HealthCheckRequest;
+import ru.agimate.agentworker.HealthCheckResponse;
+import ru.agimate.agentworker.WorkerControlGrpc;
 
 import java.io.IOException;
 import java.time.Instant;

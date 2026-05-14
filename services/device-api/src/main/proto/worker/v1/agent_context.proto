@@ -1,12 +1,12 @@
 syntax = "proto3";
 
-package ru.agimate.worker.v1;
+package ru.agimate.agentworker;
 
 option java_multiple_files = true;
-option java_package = "ru.agimate.worker.v1";
-option java_outer_classname = "AgentRuntimeProto";
+option java_package = "ru.agimate.agentworker";
+option java_outer_classname = "AgentContextProto";
 
-service AgentRuntime {
+service AgentContext {
   rpc GetAgentSpec(GetAgentSpecRequest) returns (AgentSpec);
   rpc GetSkills(GetSkillsRequest) returns (GetSkillsResponse);
   rpc GetSkill(GetSkillRequest) returns (SkillSpec);

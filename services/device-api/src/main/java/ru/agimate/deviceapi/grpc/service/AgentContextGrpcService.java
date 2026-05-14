@@ -27,20 +27,20 @@ import ru.agimate.deviceapi.database.repositories.SkillRepository;
 import ru.agimate.deviceapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.deviceapi.service.AgentSkillService;
 import ru.agimate.deviceapi.service.SkillFileService;
-import ru.agimate.worker.v1.AgentRuntimeGrpc;
-import ru.agimate.worker.v1.AgentSpec;
-import ru.agimate.worker.v1.GetAgentSpecRequest;
-import ru.agimate.worker.v1.GetLlmCredentialsRequest;
-import ru.agimate.worker.v1.GetSkillRequest;
-import ru.agimate.worker.v1.GetSkillsRequest;
-import ru.agimate.worker.v1.GetSkillsResponse;
-import ru.agimate.worker.v1.GetTeamContextRequest;
-import ru.agimate.worker.v1.LlmCredentials;
-import ru.agimate.worker.v1.SkillConnectorRef;
-import ru.agimate.worker.v1.SkillRef;
-import ru.agimate.worker.v1.SkillSpec;
-import ru.agimate.worker.v1.TeamContext;
-import ru.agimate.worker.v1.TeamMember;
+import ru.agimate.agentworker.AgentContextGrpc;
+import ru.agimate.agentworker.AgentSpec;
+import ru.agimate.agentworker.GetAgentSpecRequest;
+import ru.agimate.agentworker.GetLlmCredentialsRequest;
+import ru.agimate.agentworker.GetSkillRequest;
+import ru.agimate.agentworker.GetSkillsRequest;
+import ru.agimate.agentworker.GetSkillsResponse;
+import ru.agimate.agentworker.GetTeamContextRequest;
+import ru.agimate.agentworker.LlmCredentials;
+import ru.agimate.agentworker.SkillConnectorRef;
+import ru.agimate.agentworker.SkillRef;
+import ru.agimate.agentworker.SkillSpec;
+import ru.agimate.agentworker.TeamContext;
+import ru.agimate.agentworker.TeamMember;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -51,7 +51,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 @Slf4j
-public class AgentRuntimeGrpcService extends AgentRuntimeGrpc.AgentRuntimeImplBase {
+public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBase {
 
     private static final String API_KEY_FIELD = "api_key";
 
@@ -284,7 +284,7 @@ public class AgentRuntimeGrpcService extends AgentRuntimeGrpc.AgentRuntimeImplBa
             observer.onError(Status.NOT_FOUND.withDescription(e.getMessage()).asRuntimeException());
             return;
         }
-        log.error("AgentRuntime RPC failed", e);
+        log.error("AgentContext RPC failed", e);
         observer.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
     }
 }

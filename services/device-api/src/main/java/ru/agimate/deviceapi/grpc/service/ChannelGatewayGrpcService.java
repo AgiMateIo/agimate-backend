@@ -12,12 +12,12 @@ import ru.agimate.deviceapi.database.entities.Channel;
 import ru.agimate.deviceapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.deviceapi.service.channel.ChannelMessageOutboundService;
 import ru.agimate.deviceapi.service.channel.ChannelService;
-import ru.agimate.worker.v1.ChannelDescriptor;
-import ru.agimate.worker.v1.ChannelGatewayGrpc;
-import ru.agimate.worker.v1.ListChannelsRequest;
-import ru.agimate.worker.v1.ListChannelsResponse;
-import ru.agimate.worker.v1.SendChannelMessageRequest;
-import ru.agimate.worker.v1.SendChannelMessageResponse;
+import ru.agimate.agentworker.ChannelDescriptor;
+import ru.agimate.agentworker.ChannelGatewayGrpc;
+import ru.agimate.agentworker.ListChannelsRequest;
+import ru.agimate.agentworker.ListChannelsResponse;
+import ru.agimate.agentworker.SendChannelMessageRequest;
+import ru.agimate.agentworker.SendChannelMessageResponse;
 
 import java.util.List;
 import java.util.UUID;
