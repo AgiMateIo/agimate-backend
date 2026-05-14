@@ -10,7 +10,8 @@ public record Trigger(
         String id,
         String name,
         Map<String, Object> data,
-        String occurredAt
+        String occurredAt,
+        TriggerAudience audience
 ) {
 
     public static Trigger createBasic(String connectorCode, String identity, String name, Map<String, Object> data) {
@@ -20,7 +21,21 @@ public record Trigger(
                 UUID.randomUUID().toString(),
                 name,
                 data,
-                Instant.now().toString()
+                Instant.now().toString(),
+                null
+        );
+    }
+
+    public static Trigger createWithAudience(String connectorCode, String identity, String name,
+                                             Map<String, Object> data, TriggerAudience audience) {
+        return new Trigger(
+                connectorCode,
+                identity,
+                UUID.randomUUID().toString(),
+                name,
+                data,
+                Instant.now().toString(),
+                audience
         );
     }
 }

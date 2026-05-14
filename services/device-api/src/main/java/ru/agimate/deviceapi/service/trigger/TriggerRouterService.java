@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -65,10 +66,30 @@ public class TriggerRouterService {
         List<Agent> agents = agentTriggerPolicyService.findAllowedAgentsForTeamId(
                 userPubId, agenticTeamPubId,  trigger.connectorCode(), trigger.identity(), trigger.name());
 
+        agents = applyAudience(agents, trigger.audience());
+
         sendTrigger(agents, triggerLog, trigger);
 
         triggerLogService.save(triggerLog);
 
+    }
+
+    private List<Agent> applyAudience(List<Agent> agents, TriggerAudience audience) {
+        if (audience == null) {
+            return agents;
+        }
+        if (audience.actorAgentPubId() != null) {
+            agents = agents.stream()
+                    .filter(a -> !a.getPubId().equals(audience.actorAgentPubId()))
+                    .toList();
+        }
+        if (audience.targetAgentPubIds() != null && !audience.targetAgentPubIds().isEmpty()) {
+            Set<UUID> allowed = Set.copyOf(audience.targetAgentPubIds());
+            agents = agents.stream()
+                    .filter(a -> allowed.contains(a.getPubId()))
+                    .toList();
+        }
+        return agents;
     }
 
     private void routeTrigger(UUID userPubId, Trigger trigger) {

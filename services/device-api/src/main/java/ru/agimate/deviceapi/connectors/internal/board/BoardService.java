@@ -18,6 +18,7 @@ import ru.agimate.deviceapi.service.dto.board.BoardTaskCommentCreatedEvent;
 import ru.agimate.deviceapi.service.dto.board.BoardTaskCreatedEvent;
 import ru.agimate.deviceapi.service.dto.board.BoardTaskStatusChangedEvent;
 import ru.agimate.deviceapi.service.trigger.Trigger;
+import ru.agimate.deviceapi.service.trigger.TriggerAudience;
 import ru.agimate.deviceapi.service.trigger.TriggerRouterService;
 
 import java.util.*;
@@ -164,11 +165,17 @@ public class BoardService {
             triggerData.put("parentTaskPubId", parentTaskPubId.toString());
         }
 
-        Trigger trigger = Trigger.createBasic(
+        TriggerAudience audience = new TriggerAudience(
+                createdBy.getPubId(),
+                assignee != null ? List.of(assignee.getPubId()) : List.of()
+        );
+
+        Trigger trigger = Trigger.createWithAudience(
                 BoardToolHandler.CONNECTOR_CODE,
                 board.getPubId().toString(),
                 "trigger.board.task_created",
-                triggerData
+                triggerData,
+                audience
         );
 
         triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getPubId(), trigger);
@@ -213,11 +220,18 @@ public class BoardService {
         triggerData.put("oldStatus", oldStatus.name());
         triggerData.put("newStatus", request.status().name());
 
-        Trigger trigger = Trigger.createBasic(
+        Map<Long, Agent> agentsById = resolveAgentsForTasks(List.of(task));
+        TriggerAudience audience = new TriggerAudience(
+                request.agentPubId(),
+                resolveTaskParticipantPubIds(task, agentsById)
+        );
+
+        Trigger trigger = Trigger.createWithAudience(
                 BoardToolHandler.CONNECTOR_CODE,
                 board.getPubId().toString(),
                 "trigger.board.task_status_changed",
-                triggerData
+                triggerData,
+                audience
         );
 
         triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getPubId(), trigger);
@@ -230,7 +244,6 @@ public class BoardService {
                         request.status()
                 ));
 
-        Map<Long, Agent> agentsById = resolveAgentsForTasks(List.of(task));
         Map<Long, BoardTask> tasksById = task.getParentTaskId() != null
                 ? boardTaskRepository.findById(task.getParentTaskId())
                     .map(p -> Map.of(p.getId(), p)).orElse(Map.of())
@@ -288,11 +301,18 @@ public class BoardService {
         triggerData.put("agentPubId", agent.getPubId().toString());
         triggerData.put("content", comment.getContent());
 
-        Trigger trigger = Trigger.createBasic(
+        Map<Long, Agent> agentsById = resolveAgentsForTasks(List.of(task));
+        TriggerAudience audience = new TriggerAudience(
+                agent.getPubId(),
+                resolveTaskParticipantPubIds(task, agentsById)
+        );
+
+        Trigger trigger = Trigger.createWithAudience(
                 BoardToolHandler.CONNECTOR_CODE,
                 board.getPubId().toString(),
                 "trigger.board.task_comment_created",
-                triggerData
+                triggerData,
+                audience
         );
 
         triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getPubId(), trigger);
@@ -354,6 +374,21 @@ public class BoardService {
         }
         return agentRepository.findAllById(agentIds).stream()
                 .collect(Collectors.toMap(Agent::getId, Function.identity()));
+    }
+
+    private List<UUID> resolveTaskParticipantPubIds(BoardTask task, Map<Long, Agent> agentsById) {
+        Set<UUID> pubIds = new LinkedHashSet<>();
+        Agent createdBy = agentsById.get(task.getCreatedByAgentId());
+        if (createdBy != null) {
+            pubIds.add(createdBy.getPubId());
+        }
+        if (task.getAssigneeAgentId() != null) {
+            Agent assignee = agentsById.get(task.getAssigneeAgentId());
+            if (assignee != null) {
+                pubIds.add(assignee.getPubId());
+            }
+        }
+        return List.copyOf(pubIds);
     }
 
     private BoardTaskResponse toBoardTaskResponse(BoardTask task, Map<Long, Agent> agentsById, Map<Long, BoardTask> tasksById) {

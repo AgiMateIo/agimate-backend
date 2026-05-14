@@ -20,7 +20,8 @@ public class TriggerMapper {
                 triggerLog.getTriggerId(),
                 triggerLog.getTriggerName(),
                 withChannel(triggerLog.getTriggerInput(), channelContext),
-                triggerLog.getOccurredAt() != null ? triggerLog.getOccurredAt().toString() : null
+                triggerLog.getOccurredAt() != null ? triggerLog.getOccurredAt().toString() : null,
+                null
         );
     }
 
