@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.service;
+package ru.agimate.deviceapi.service.delivery;
 
 import dev.dbos.transact.DBOSClient;
 import dev.dbos.transact.workflow.SerializationStrategy;
@@ -8,6 +8,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.config.DbosProperties;
 import ru.agimate.deviceapi.database.entities.Agent;
+import ru.agimate.deviceapi.database.entities.AgentType;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.deviceapi.service.dto.AgentMessage;
@@ -18,16 +19,18 @@ import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DbosDeliveryService {
+public class DbosDeliveryService implements AgentDeliveryHandler {
 
     private final ObjectProvider<DBOSClient> clientProvider;
     private final DbosProperties props;
     private final AgenticTeamRepository agenticTeamRepository;
 
-    public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent) {
-        deliverTrigger(agent, triggerLogAgent, null);
+    @Override
+    public AgentType getAgentType() {
+        return AgentType.GENERIC;
     }
 
+    @Override
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
         DBOSClient client = clientProvider.getIfAvailable();
         if (client == null) {

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.deviceapi.controller.manage.dto.WebhookDeliveryLogResponse;
-import ru.agimate.deviceapi.service.WebhookDeliveryService;
+import ru.agimate.deviceapi.service.delivery.WebhookDeliveryService;
 
 import java.util.UUID;
 

@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.service;
+package ru.agimate.deviceapi.service.delivery;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,10 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.manage.dto.WebhookDeliveryLogResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
+import ru.agimate.deviceapi.database.entities.AgentType;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.deviceapi.database.repositories.WebhookDeliveryLogRepository;
-import ru.agimate.deviceapi.service.dto.IToolResult;
 import ru.agimate.deviceapi.service.trigger.ChannelContext;
 import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class WebhookDeliveryService {
+public class WebhookDeliveryService implements AgentDeliveryHandler {
 
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
     private static final int MAX_RESPONSE_BODY_LENGTH = 10000;
@@ -43,13 +43,14 @@ public class WebhookDeliveryService {
             .followRedirects(true)
             .build();
 
-    @Async
-    public void deliverWebhook(Agent agent, TriggerLogAgent triggerLogAgent) {
-        deliverWebhook(agent, triggerLogAgent, null);
+    @Override
+    public AgentType getAgentType() {
+        return AgentType.WEBHOOK;
     }
 
+    @Override
     @Async
-    public void deliverWebhook(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
+    public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
         Map<String, Object> payload = buildEnvelope("trigger", TriggerMapper.map(triggerLogAgent.getTriggerLog(), channelContext));
         WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder = WebhookDeliveryLog.builder()
                 .triggerLogAgent(triggerLogAgent)
@@ -59,12 +60,6 @@ public class WebhookDeliveryService {
 
         sendWebhook(agent, payload, logBuilder);
         saveDeliveryLog(logBuilder.build());
-    }
-
-    @Async
-    public void deliverToolResult(Agent agent, IToolResult toolResult) {
-        Map<String, Object> payload = buildEnvelope("toolResult", toolResult);
-        sendWebhook(agent, payload, null);
     }
 
     private void sendWebhook(Agent agent, Map<String, Object> payload, WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder) {
