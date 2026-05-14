@@ -51,7 +51,7 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
     @Override
     @Async
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
-        Map<String, Object> payload = buildEnvelope("trigger", TriggerMapper.map(triggerLogAgent.getTriggerLog(), channelContext));
+        Map<String, Object> payload = buildEnvelope("trigger", TriggerMapper.map(triggerLogAgent, channelContext));
         WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder = WebhookDeliveryLog.builder()
                 .triggerLogAgent(triggerLogAgent)
                 .requestUrl(agent.getWebhookUrl())

@@ -3,6 +3,9 @@ package ru.agimate.deviceapi.database.entities;
 import jakarta.persistence.*;
 import lombok.*;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.common.util.UUIDUtils;
+
+import java.util.UUID;
 
 @Entity
 @Table(name = "trigger_log_agents", uniqueConstraints =
@@ -18,6 +21,10 @@ public class TriggerLogAgent extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
     private Long id;
+
+    @Column(name = "pub_id", unique = true, nullable = false)
+    @Builder.Default
+    private UUID pubId = UUIDUtils.generateUUIDv8();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "trigger_log_id", nullable = false)

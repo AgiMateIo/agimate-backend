@@ -7,8 +7,8 @@ import java.util.UUID;
 public record Trigger(
         String connectorCode,
         String identity,
-        String id,
         String name,
+        String id,
         Map<String, Object> data,
         String occurredAt,
         TriggerAudience audience
@@ -18,8 +18,7 @@ public record Trigger(
         return new Trigger(
                 connectorCode,
                 identity,
-                UUID.randomUUID().toString(),
-                name,
+                name, UUID.randomUUID().toString(),
                 data,
                 Instant.now().toString(),
                 null
@@ -31,8 +30,7 @@ public record Trigger(
         return new Trigger(
                 connectorCode,
                 identity,
-                UUID.randomUUID().toString(),
-                name,
+                name, UUID.randomUUID().toString(),
                 data,
                 Instant.now().toString(),
                 audience

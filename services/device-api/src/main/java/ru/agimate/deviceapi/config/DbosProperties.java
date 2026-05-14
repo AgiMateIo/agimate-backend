@@ -35,6 +35,5 @@ public class DbosProperties {
     @Setter
     public static class Workflow {
         private String name;
-        private String className;
     }
 }

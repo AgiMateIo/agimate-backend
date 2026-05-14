@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="alter-trigger-log-agents-add-pub-id" author="agimate">
+        <addColumn tableName="trigger_log_agents">
+            <column name="pub_id" type="UUID"/>
+        </addColumn>
+
+        <sql>UPDATE trigger_log_agents SET pub_id = gen_random_uuid() WHERE pub_id IS NULL</sql>
+
+        <addNotNullConstraint tableName="trigger_log_agents" columnName="pub_id"/>
+
+        <addUniqueConstraint tableName="trigger_log_agents"
+                             columnNames="pub_id"
+                             constraintName="uq_trigger_log_agents_pub_id"/>
+    </changeSet>
+
+</databaseChangeLog>

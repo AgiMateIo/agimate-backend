@@ -26,7 +26,7 @@ public class CentrifugoDeliveryService implements AgentDeliveryHandler {
     @Override
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
         centrifugoService.publishMessage(agentChannel(agent), "trigger",
-                TriggerMapper.map(triggerLogAgent.getTriggerLog(), channelContext));
+                TriggerMapper.map(triggerLogAgent, channelContext));
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo",
                 triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId());
     }
