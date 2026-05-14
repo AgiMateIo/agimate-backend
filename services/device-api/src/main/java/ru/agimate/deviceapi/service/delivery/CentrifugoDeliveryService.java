@@ -7,8 +7,10 @@ import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentType;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.service.centrifugo.CentrifugoService;
+import ru.agimate.deviceapi.service.dto.AgentMessage;
 import ru.agimate.deviceapi.service.dto.IToolResult;
 import ru.agimate.deviceapi.service.trigger.ChannelContext;
+import ru.agimate.deviceapi.service.trigger.Trigger;
 import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
 @Slf4j
@@ -25,15 +27,19 @@ public class CentrifugoDeliveryService implements AgentDeliveryHandler {
 
     @Override
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
-        centrifugoService.publishMessage(agentChannel(agent), "trigger",
-                TriggerMapper.map(triggerLogAgent, channelContext));
+        String agentId = agent.getPubId().toString();
+        Trigger trigger = TriggerMapper.map(triggerLogAgent);
+        AgentMessage<Trigger> message = new AgentMessage<>(agentId, "trigger", channelContext, trigger);
+        centrifugoService.publish(agentChannel(agent), message);
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo",
                 triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId());
     }
 
     @Override
     public void deliverToolResult(Agent agent, IToolResult toolResult) {
-        centrifugoService.publishMessage(agentChannel(agent), "toolResult", toolResult);
+        String agentId = agent.getPubId().toString();
+        AgentMessage<IToolResult> message = new AgentMessage<>(agentId, "toolResult", null, toolResult);
+        centrifugoService.publish(agentChannel(agent), message);
         log.debug("Tool result '{}' sent to agent '{}' via centrifugo", toolResult.getId(), agent.getPubId());
     }
 

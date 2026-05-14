@@ -16,12 +16,13 @@ import ru.agimate.deviceapi.database.entities.AgentType;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.deviceapi.database.repositories.WebhookDeliveryLogRepository;
+import ru.agimate.deviceapi.service.dto.AgentMessage;
 import ru.agimate.deviceapi.service.trigger.ChannelContext;
+import ru.agimate.deviceapi.service.trigger.Trigger;
 import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -51,21 +52,22 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
     @Override
     @Async
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
-        Map<String, Object> payload = buildEnvelope("trigger", TriggerMapper.map(triggerLogAgent, channelContext));
+        Trigger trigger = TriggerMapper.map(triggerLogAgent);
+        AgentMessage<Trigger> message = new AgentMessage<>(agent.getPubId().toString(), "trigger", channelContext, trigger);
         WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder = WebhookDeliveryLog.builder()
                 .triggerLogAgent(triggerLogAgent)
                 .requestUrl(agent.getWebhookUrl())
-                .requestPayload(payload)
+                .requestPayload(JsonUtils.objectToMap(message))
                 .deliveredAt(LocalDateTime.now());
 
-        sendWebhook(agent, payload, logBuilder);
+        sendWebhook(agent, message, logBuilder);
         saveDeliveryLog(logBuilder.build());
     }
 
-    private void sendWebhook(Agent agent, Map<String, Object> payload, WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder) {
+    private void sendWebhook(Agent agent, AgentMessage<?> message, WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder) {
         long startTime = System.currentTimeMillis();
         try {
-            String jsonPayload = JsonUtils.writeValueAsString(payload);
+            String jsonPayload = JsonUtils.writeValueAsString(message);
             RequestBody body = RequestBody.create(jsonPayload, JSON_MEDIA_TYPE);
 
             Request.Builder requestBuilder = new Request.Builder()
@@ -78,7 +80,7 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
                 requestBuilder.header("Authorization", agent.getWebhookAuthHeader());
             }
 
-            log.debug("Delivering webhook to {} (type={})", agent.getWebhookUrl(), payload.get("type"));
+            log.debug("Delivering webhook to {} (type={})", agent.getWebhookUrl(), message.type());
 
             try (Response response = httpClient.newCall(requestBuilder.build()).execute()) {
                 long duration = System.currentTimeMillis() - startTime;
@@ -137,13 +139,5 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
         }
         return logs.map(WebhookDeliveryLogResponse::from);
     }
-
-    private Map<String, Object> buildEnvelope(String type, Object payloadObj) {
-        Map<String, Object> envelope = new LinkedHashMap<>();
-        envelope.put("type", type);
-        envelope.put("payload", payloadObj);
-        return envelope;
-    }
-
 
 }

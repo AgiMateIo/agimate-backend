@@ -38,7 +38,7 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         }
         String agentId = agent.getPubId().toString();
         Trigger trigger = TriggerMapper.map(triggerLogAgent);
-        AgentMessage<Trigger> message = new AgentMessage<>(agentId,"trigger", channelContext, trigger);
+        AgentMessage<Trigger> message = new AgentMessage<>(agentId, "trigger", channelContext, trigger);
 
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 props.getWorkflow().getName(),

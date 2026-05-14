@@ -34,8 +34,14 @@ public class CentrifugoService {
      * @throws ServiceUnavailableStatusException if Centrifugo is unavailable or publishing fails
      */
     public void publishMessage(String channel, String type, Object data) {
-        var centrifugoMessage = new CentrifugoMessage(type, data);
+        publish(channel, new CentrifugoMessage(type, data));
+    }
 
+    /**
+     * Publishes raw data to a Centrifugo channel without wrapping it into CentrifugoMessage.
+     * Used when the caller already owns the wire envelope (e.g. {@link ru.agimate.deviceapi.service.dto.AgentMessage}).
+     */
+    public void publish(String channel, Object data) {
         if (!centrifugoProperties.isEnabled()) {
             log.warn("Centrifugo is disabled, skipping publish to channel: {}", channel);
             return;
@@ -44,7 +50,7 @@ public class CentrifugoService {
         try {
             log.debug("Publishing message to Centrifugo channel: {}", channel);
 
-            centrifugoClient.publish(channel, centrifugoMessage);
+            centrifugoClient.publish(channel, data);
 
             log.info("Successfully published message to channel: {}", channel);
         } catch (Exception e) {
