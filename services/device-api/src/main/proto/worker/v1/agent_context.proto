@@ -12,6 +12,8 @@ service AgentContext {
   rpc GetSkill(GetSkillRequest) returns (SkillSpec);
   rpc GetTeamContext(GetTeamContextRequest) returns (TeamContext);
   rpc GetLlmCredentials(GetLlmCredentialsRequest) returns (LlmCredentials);
+  rpc GetConnectorTools(GetConnectorToolsRequest) returns (GetConnectorToolsResponse);
+  rpc ListAgentTools(ListAgentToolsRequest) returns (ListAgentToolsResponse);
 }
 
 message GetAgentSpecRequest {
@@ -94,4 +96,32 @@ message LlmCredentials {
   string base_url = 2;
   string api_key = 3;
   string model = 4;
+}
+
+message GetConnectorToolsRequest {
+  string connector_code = 1;
+}
+
+message ConnectorToolSpec {
+  string name = 1;
+  string description = 2;
+  bytes parameters_json_schema = 3;
+}
+
+message GetConnectorToolsResponse {
+  repeated ConnectorToolSpec tools = 1;
+}
+
+message ListAgentToolsRequest {
+  string agent_id = 1;
+}
+
+message AgentToolDef {
+  string name = 1;
+  string description = 2;
+  bytes parameters_json_schema = 3;
+}
+
+message ListAgentToolsResponse {
+  repeated AgentToolDef tools = 1;
 }

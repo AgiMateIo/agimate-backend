@@ -1,40 +1,57 @@
 package ru.agimate.deviceapi.grpc.service;
 
 import com.google.protobuf.ByteString;
+import dev.langchain4j.agent.tool.ToolSpecification;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.connectors.integrations.IntegrationEncryptionService;
+import ru.agimate.deviceapi.connectors.integrations.IntegrationsRegistry;
+import ru.agimate.deviceapi.connectors.internal.ServerSideToolRegistry;
 import ru.agimate.deviceapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
+import ru.agimate.deviceapi.controller.agent.dto.ToolSpecificationMapper;
+import ru.agimate.deviceapi.controller.agent.dto.ToolSpecificationResponse;
 import ru.agimate.deviceapi.controller.manage.dto.SkillConnectorResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentLlm;
 import ru.agimate.deviceapi.database.entities.AgentSkill;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
+import ru.agimate.deviceapi.database.entities.Connector;
 import ru.agimate.deviceapi.database.entities.LlmProvider;
 import ru.agimate.deviceapi.database.entities.Skill;
 import ru.agimate.deviceapi.database.repositories.AgentLlmRepository;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.AgentSkillRepository;
 import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
+import ru.agimate.deviceapi.database.repositories.ConnectorRepository;
 import ru.agimate.deviceapi.database.repositories.LlmProviderRepository;
 import ru.agimate.deviceapi.database.repositories.SkillRepository;
 import ru.agimate.deviceapi.grpc.auth.WorkerPoolContextHolder;
+import ru.agimate.deviceapi.service.AgentService;
 import ru.agimate.deviceapi.service.AgentSkillService;
 import ru.agimate.deviceapi.service.SkillFileService;
+import ru.agimate.deviceapi.service.dto.AgentToolSpec;
 import ru.agimate.agentworker.AgentContextGrpc;
 import ru.agimate.agentworker.AgentSpec;
+import ru.agimate.agentworker.AgentToolDef;
+import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.GetAgentSpecRequest;
+import ru.agimate.agentworker.GetConnectorToolsRequest;
+import ru.agimate.agentworker.GetConnectorToolsResponse;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetSkillRequest;
 import ru.agimate.agentworker.GetSkillsRequest;
 import ru.agimate.agentworker.GetSkillsResponse;
 import ru.agimate.agentworker.GetTeamContextRequest;
+import ru.agimate.agentworker.ListAgentToolsRequest;
+import ru.agimate.agentworker.ListAgentToolsResponse;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.SkillConnectorRef;
 import ru.agimate.agentworker.SkillRef;
@@ -61,8 +78,12 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final AgenticTeamRepository agenticTeamRepository;
     private final AgentLlmRepository agentLlmRepository;
     private final LlmProviderRepository llmProviderRepository;
+    private final ConnectorRepository connectorRepository;
     private final IntegrationEncryptionService encryptionService;
+    private final IntegrationsRegistry integrationsRegistry;
+    private final ServerSideToolRegistry serverSideToolRegistry;
     private final AgentSkillService agentSkillService;
+    private final AgentService agentService;
     private final SkillFileService skillFileService;
 
     @Override
@@ -258,6 +279,77 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
         }
     }
 
+    @Override
+    public void getConnectorTools(GetConnectorToolsRequest request, StreamObserver<GetConnectorToolsResponse> responseObserver) {
+        String poolId = WorkerPoolContextHolder.current().poolId();
+        try {
+            String connectorCode = request.getConnectorCode();
+            if (connectorCode.isEmpty()) {
+                throw Status.INVALID_ARGUMENT.withDescription("connector_code is required").asRuntimeException();
+            }
+
+            Connector connector = connectorRepository.findById(connectorCode)
+                    .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
+
+            Map<String, ToolSpecification> tools = switch (connector.getType()) {
+                case INTEGRATION -> integrationsRegistry.getHandler(connectorCode).getPredefinedTools();
+                case INTERNAL_SERVICE -> serverSideToolRegistry.getHandler(connectorCode).getToolDefinitions();
+                case APP, LOOPBACK -> throw new BadRequestStatusException(
+                        "Connector type " + connector.getType() + " does not expose static tool definitions");
+            };
+
+            GetConnectorToolsResponse.Builder builder = GetConnectorToolsResponse.newBuilder();
+            tools.forEach((name, spec) -> {
+                ToolSpecificationResponse dto = ToolSpecificationMapper.toResponse(spec);
+                ConnectorToolSpec.Builder toolBuilder = ConnectorToolSpec.newBuilder()
+                        .setName(dto.name() != null ? dto.name() : name);
+                if (dto.description() != null) {
+                    toolBuilder.setDescription(dto.description());
+                }
+                if (dto.parameters() != null) {
+                    String json = JsonUtils.writeValueAsString(dto.parameters());
+                    toolBuilder.setParametersJsonSchema(
+                            ByteString.copyFrom(json.getBytes(StandardCharsets.UTF_8)));
+                }
+                builder.addTools(toolBuilder.build());
+            });
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("AgentContext.GetConnectorTools failed pool={} connector={}",
+                    poolId, request.getConnectorCode(), e);
+            handleError(e, responseObserver);
+        }
+    }
+
+    @Override
+    public void listAgentTools(ListAgentToolsRequest request, StreamObserver<ListAgentToolsResponse> responseObserver) {
+        String poolId = WorkerPoolContextHolder.current().poolId();
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            ListAgentToolsResponse.Builder builder = ListAgentToolsResponse.newBuilder();
+            for (AgentToolSpec spec : agentService.getAvailableToolSpecs(agentId)) {
+                AgentToolDef.Builder toolBuilder = AgentToolDef.newBuilder()
+                        .setName(spec.name());
+                if (spec.description() != null) {
+                    toolBuilder.setDescription(spec.description());
+                }
+                if (spec.parametersJsonSchema() != null) {
+                    String json = JsonUtils.writeValueAsString(spec.parametersJsonSchema());
+                    toolBuilder.setParametersJsonSchema(
+                            ByteString.copyFrom(json.getBytes(StandardCharsets.UTF_8)));
+                }
+                builder.addTools(toolBuilder.build());
+            }
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("AgentContext.ListAgentTools failed pool={} agent={}",
+                    poolId, request.getAgentId(), e);
+            handleError(e, responseObserver);
+        }
+    }
+
     private static UUID parseUuid(String value, String field) {
         if (value == null || value.isBlank()) {
             throw Status.INVALID_ARGUMENT
@@ -282,6 +374,10 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
         }
         if (e instanceof NotFoundStatusException) {
             observer.onError(Status.NOT_FOUND.withDescription(e.getMessage()).asRuntimeException());
+            return;
+        }
+        if (e instanceof BadRequestStatusException || e instanceof ValidationErrorStatusException) {
+            observer.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asRuntimeException());
             return;
         }
         log.error("AgentContext RPC failed", e);

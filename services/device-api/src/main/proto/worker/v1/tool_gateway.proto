@@ -9,28 +9,26 @@ option java_outer_classname = "ToolGatewayProto";
 service ToolGateway {
   rpc ExecuteToolAsync(ExecuteToolRequest) returns (ExecuteToolAsyncAck);
   rpc GetToolResult(GetToolResultRequest) returns (GetToolResultResponse);
-  rpc GetConnectorTools(GetConnectorToolsRequest) returns (GetConnectorToolsResponse);
-  rpc ListAgentTools(ListAgentToolsRequest) returns (ListAgentToolsResponse);
 }
 
 message ExecuteToolRequest {
-  string workflow_id = 1;
-  string agent_id = 2;
-  string tool_name = 3;
-  bytes args_json = 4;
-  string tool_call_id = 5;
-  string connector_code = 6;
-  string identity = 7;
+  string tool_use_id = 1;
+  string connector_code = 2;
+  string identity = 3;
+  string tool_name = 4;
+  bytes input = 5;
+  string agent_id = 6;
+  string workflow_id = 7;
   string agent_session_id = 8;
 }
 
 message ExecuteToolAsyncAck {
-  string tool_call_id = 1;
+  string tool_use_id = 1;
 }
 
 message GetToolResultRequest {
   string agent_id = 1;
-  string tool_call_id = 2;
+  string tool_use_id = 2;
 }
 
 message GetToolResultResponse {
@@ -44,32 +42,4 @@ enum ToolResultStatus {
   TOOL_RESULT_STATUS_PENDING = 1;
   TOOL_RESULT_STATUS_SUCCESS = 2;
   TOOL_RESULT_STATUS_ERROR = 3;
-}
-
-message GetConnectorToolsRequest {
-  string connector_code = 1;
-}
-
-message ConnectorToolSpec {
-  string name = 1;
-  string description = 2;
-  bytes parameters_json_schema = 3;
-}
-
-message GetConnectorToolsResponse {
-  repeated ConnectorToolSpec tools = 1;
-}
-
-message ListAgentToolsRequest {
-  string agent_id = 1;
-}
-
-message AgentToolDef {
-  string name = 1;
-  string description = 2;
-  bytes parameters_json_schema = 3;
-}
-
-message ListAgentToolsResponse {
-  repeated AgentToolDef tools = 1;
 }

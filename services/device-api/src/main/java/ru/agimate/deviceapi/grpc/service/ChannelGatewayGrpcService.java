@@ -71,7 +71,6 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
 
             SendChannelMessageResponse response = SendChannelMessageResponse.newBuilder()
                     .setSessionId(result.session().getPubId().toString())
-                    .setToolCallId(result.toolUseLog().getToolUseId())
                     .setToolUseId(result.toolUseLog().getPubId().toString())
                     .build();
 

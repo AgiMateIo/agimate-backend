@@ -36,6 +36,5 @@ message SendChannelMessageRequest {
 
 message SendChannelMessageResponse {
   string session_id = 1;
-  string tool_call_id = 2;
-  string tool_use_id = 3;
+  string tool_use_id = 2;
 }
