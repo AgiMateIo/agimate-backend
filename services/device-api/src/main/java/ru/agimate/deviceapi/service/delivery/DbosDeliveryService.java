@@ -40,16 +40,19 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         Trigger trigger = TriggerMapper.map(triggerLogAgent);
         AgentMessage<Trigger> message = new AgentMessage<>(agentId, "trigger", channelContext, trigger);
 
+        DbosProperties.Workflow workflow = props.getWorkflow();
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
-                props.getWorkflow().getName(),
-                props.getQueue().getName()
+                workflow.getName(),
+                workflow.getClassName(),
+                workflow.getQueueName()
         )
+                .withInstanceName(workflow.getInstanceName())
                 .withSerialization(SerializationStrategy.PORTABLE)
                 .withQueuePartitionKey(agentId);
         client.enqueueWorkflow(options, new Object[]{message});
         log.debug("Trigger '{}' enqueued to DBOS queue '{}' for agent '{}'",
                 triggerLogAgent.getTriggerLog().getTriggerName(),
-                props.getQueue().getName(),
+                workflow.getQueueName(),
                 agentId);
     }
 }

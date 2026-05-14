@@ -13,7 +13,6 @@ public class DbosProperties {
 
     private boolean enabled;
     private SystemDatabase systemDatabase = new SystemDatabase();
-    private Queue queue = new Queue();
     private Workflow workflow = new Workflow();
 
     @Getter
@@ -27,13 +26,10 @@ public class DbosProperties {
 
     @Getter
     @Setter
-    public static class Queue {
-        private String name;
-    }
-
-    @Getter
-    @Setter
     public static class Workflow {
+        private String queueName;
         private String name;
+        private String className;
+        private String instanceName;
     }
 }

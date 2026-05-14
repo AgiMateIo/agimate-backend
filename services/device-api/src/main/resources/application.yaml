@@ -104,11 +104,11 @@ dbos:
     username: "dbos_app"
     password: ""
     schema: "dbos"
-  queue:
-    name: "agent_events"
   workflow:
-    name: "handle_event"
-    class-name: "agent_worker.workflows"
+    queue-name: "triggers"
+    name: "start_agent"
+    class-name: "AgentWorkflow"
+    instance-name: "default"
 
 centrifugo:
   enabled: true
