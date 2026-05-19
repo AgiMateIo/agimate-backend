@@ -177,7 +177,12 @@ public class TriggerRouterService {
             return null;
         }
         var inboundResult = channelMessageInboundService.process(channel, trigger);
-        return new ChannelContext(channel.getPubId(), inboundResult.session().getPubId());
+        return new ChannelContext(
+                channel.getPubId(),
+                inboundResult.session().getPubId(),
+                channel.getName(),
+                channel.getTriggerMessageField()
+        );
     }
 
 }

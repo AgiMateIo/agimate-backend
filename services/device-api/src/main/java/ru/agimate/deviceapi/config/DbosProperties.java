@@ -13,7 +13,7 @@ public class DbosProperties {
 
     private boolean enabled;
     private SystemDatabase systemDatabase = new SystemDatabase();
-    private Workflow workflow = new Workflow();
+    private Workflows workflows = new Workflows();
 
     @Getter
     @Setter
@@ -22,6 +22,13 @@ public class DbosProperties {
         private String username;
         private String password;
         private String schema = "dbos";
+    }
+
+    @Getter
+    @Setter
+    public static class Workflows {
+        private Workflow triggerWorkflow = new Workflow();
+        private Workflow channelWorkflow = new Workflow();
     }
 
     @Getter

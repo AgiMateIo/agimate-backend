@@ -38,9 +38,18 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         }
         String agentId = agent.getPubId().toString();
         Trigger trigger = TriggerMapper.map(triggerLogAgent);
-        AgentMessage<Trigger> message = new AgentMessage<>(agentId, "trigger", channelContext, trigger);
 
-        DbosProperties.Workflow workflow = props.getWorkflow();
+        DbosProperties.Workflow workflow;
+        String type;
+        if (channelContext != null) {
+            workflow = props.getWorkflows().getChannelWorkflow();
+            type = "channel_message";
+        } else {
+            workflow = props.getWorkflows().getTriggerWorkflow();
+            type = "trigger";
+        }
+        AgentMessage<Trigger> message = new AgentMessage<>(agentId, type, channelContext, trigger);
+
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 workflow.getName(),
                 workflow.getClassName(),
@@ -50,7 +59,8 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
                 .withSerialization(SerializationStrategy.PORTABLE)
                 .withQueuePartitionKey(agentId);
         client.enqueueWorkflow(options, new Object[]{message});
-        log.debug("Trigger '{}' enqueued to DBOS queue '{}' for agent '{}'",
+        log.debug("{} '{}' enqueued to DBOS queue '{}' for agent '{}'",
+                type,
                 triggerLogAgent.getTriggerLog().getTriggerName(),
                 workflow.getQueueName(),
                 agentId);
