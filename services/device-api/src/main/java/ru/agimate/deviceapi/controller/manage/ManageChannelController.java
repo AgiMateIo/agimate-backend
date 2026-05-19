@@ -136,6 +136,7 @@ public class ManageChannelController {
         List<ChannelSessionMessageResponse> response = channelSessionMessageRepository
                 .findBySessionIdOrderByCreatedAtAsc(session.getId())
                 .stream()
+                .filter(m -> m.getMessage() != null)
                 .map(ChannelSessionMessageResponse::from)
                 .toList();
         return SuccessResponse.ok(response);

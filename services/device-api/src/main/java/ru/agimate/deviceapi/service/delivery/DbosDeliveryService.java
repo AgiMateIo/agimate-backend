@@ -10,7 +10,6 @@ import ru.agimate.deviceapi.config.DbosProperties;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgentType;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
-import ru.agimate.deviceapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.deviceapi.service.dto.AgentMessage;
 import ru.agimate.deviceapi.service.trigger.ChannelContext;
 import ru.agimate.deviceapi.service.trigger.Trigger;
@@ -23,7 +22,6 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
 
     private final ObjectProvider<DBOSClient> clientProvider;
     private final DbosProperties props;
-    private final AgenticTeamRepository agenticTeamRepository;
 
     @Override
     public AgentType getAgentType() {
@@ -48,7 +46,8 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
             workflow = props.getWorkflows().getTriggerWorkflow();
             type = "trigger";
         }
-        AgentMessage<Trigger> message = new AgentMessage<>(agentId, type, channelContext, trigger);
+        String runId = triggerLogAgent.getPubId().toString();
+        AgentMessage<Trigger> message = new AgentMessage<>(agentId, runId, type, channelContext, trigger);
 
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 workflow.getName(),
@@ -57,6 +56,7 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         )
                 .withInstanceName(workflow.getInstanceName())
                 .withSerialization(SerializationStrategy.PORTABLE)
+                .withWorkflowId(runId)
                 .withQueuePartitionKey(agentId);
         client.enqueueWorkflow(options, new Object[]{message});
         log.debug("{} '{}' enqueued to DBOS queue '{}' for agent '{}'",

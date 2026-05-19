@@ -29,7 +29,8 @@ public class CentrifugoDeliveryService implements AgentDeliveryHandler {
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
         String agentId = agent.getPubId().toString();
         Trigger trigger = TriggerMapper.map(triggerLogAgent);
-        AgentMessage<Trigger> message = new AgentMessage<>(agentId, "trigger", channelContext, trigger);
+        AgentMessage<Trigger> message = new AgentMessage<>(
+                agentId, triggerLogAgent.getPubId().toString(), "trigger", channelContext, trigger);
         centrifugoService.publish(agentChannel(agent), message);
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo",
                 triggerLogAgent.getTriggerLog().getTriggerName(), agent.getPubId());
@@ -38,7 +39,7 @@ public class CentrifugoDeliveryService implements AgentDeliveryHandler {
     @Override
     public void deliverToolResult(Agent agent, IToolResult toolResult) {
         String agentId = agent.getPubId().toString();
-        AgentMessage<IToolResult> message = new AgentMessage<>(agentId, "toolResult", null, toolResult);
+        AgentMessage<IToolResult> message = new AgentMessage<>(agentId, null, "toolResult", null, toolResult);
         centrifugoService.publish(agentChannel(agent), message);
         log.debug("Tool result '{}' sent to agent '{}' via centrifugo", toolResult.getId(), agent.getPubId());
     }

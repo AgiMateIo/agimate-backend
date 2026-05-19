@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="truncate-channel-session-messages-before-restructure" author="agimate">
+        <sql>TRUNCATE TABLE channel_session_messages</sql>
+    </changeSet>
+
+    <changeSet id="drop-channel-session-messages-direction" author="agimate">
+        <sql>ALTER TABLE channel_session_messages DROP CONSTRAINT chk_channel_session_messages_direction</sql>
+        <dropColumn tableName="channel_session_messages" columnName="direction"/>
+    </changeSet>
+
+    <changeSet id="channel-session-messages-message-nullable" author="agimate">
+        <dropNotNullConstraint tableName="channel_session_messages" columnName="message" columnDataType="TEXT"/>
+    </changeSet>
+
+    <changeSet id="channel-session-messages-add-model-stream-columns" author="agimate">
+        <addColumn tableName="channel_session_messages">
+            <column name="agent_id" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="run_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="turn_idx" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="message_json" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="input_tokens" type="INTEGER"/>
+            <column name="output_tokens" type="INTEGER"/>
+            <column name="cache_read_tokens" type="INTEGER"/>
+            <column name="cache_write_tokens" type="INTEGER"/>
+            <column name="model_name" type="TEXT"/>
+            <column name="provider_name" type="TEXT"/>
+        </addColumn>
+
+        <sql>
+            ALTER TABLE channel_session_messages
+                ADD CONSTRAINT chk_channel_session_messages_kind CHECK (kind IN ('REQUEST', 'RESPONSE'))
+        </sql>
+
+        <addForeignKeyConstraint baseTableName="channel_session_messages"
+                                 baseColumnNames="agent_id"
+                                 constraintName="fk_channel_session_messages_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"/>
+
+        <addUniqueConstraint tableName="channel_session_messages"
+                             columnNames="session_id, turn_idx"
+                             constraintName="uq_channel_session_messages_session_turn"/>
+
+        <createIndex tableName="channel_session_messages"
+                     indexName="idx_channel_session_messages_agent_created_at">
+            <column name="agent_id"/>
+            <column name="created_at"/>
+        </createIndex>
+
+        <createIndex tableName="channel_session_messages"
+                     indexName="idx_channel_session_messages_session_run">
+            <column name="session_id"/>
+            <column name="run_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

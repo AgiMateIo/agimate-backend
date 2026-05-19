@@ -9,7 +9,6 @@ import ru.agimate.deviceapi.abac.AccessEffect;
 import ru.agimate.deviceapi.database.entities.Channel;
 import ru.agimate.deviceapi.database.entities.ChannelSession;
 import ru.agimate.deviceapi.database.entities.ChannelSessionMessage;
-import ru.agimate.deviceapi.database.entities.MessageDirection;
 import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import ru.agimate.deviceapi.database.repositories.ChannelRepository;
 import ru.agimate.deviceapi.database.repositories.ChannelSessionMessageRepository;
@@ -33,7 +32,7 @@ public class ChannelMessageOutboundService {
     private final ToolUseLogRepository toolUseLogRepository;
     private final ConnectorService connectorService;
 
-    public record OutboundResult(ChannelSession session, ChannelSessionMessage message, ToolUseLog toolUseLog) {}
+    public record OutboundResult(ChannelSession session, ToolUseLog toolUseLog) {}
 
     @Transactional
     public OutboundResult send(UUID agentPubId, UUID channelPubId, UUID sessionPubIdOrNull,
@@ -51,20 +50,12 @@ public class ChannelMessageOutboundService {
         Map<String, Object> renderedParams = PlaceholderRenderer.render(
                 channel.getReplyToolParams(), text, triggerInput);
 
-        ChannelSessionMessage outMessage = ChannelSessionMessage.builder()
-                .sessionId(session.getId())
-                .direction(MessageDirection.OUT)
-                .message(text != null ? text : "")
-                .build();
-        ChannelSessionMessage savedMessage = channelSessionMessageRepository.save(outMessage);
-        channelSessionService.bumpLastMessageAt(session);
-
         ToolUseLog toolUseLog = upsertToolUseLog(channel, toolCallId, renderedParams);
         connectorService.pushToConnector(toolUseLog);
 
-        log.info("Sent OUT message pubId={} session={} channel={} via tool={}",
-                savedMessage.getPubId(), session.getPubId(), channel.getPubId(), channel.getReplyToolName());
-        return new OutboundResult(session, savedMessage, toolUseLog);
+        log.info("Dispatched OUT message session={} channel={} via tool={}",
+                session.getPubId(), channel.getPubId(), channel.getReplyToolName());
+        return new OutboundResult(session, toolUseLog);
     }
 
     private ChannelSession resolveSession(Channel channel, UUID sessionPubIdOrNull) {
@@ -81,7 +72,7 @@ public class ChannelMessageOutboundService {
 
     private Map<String, Object> lookupLastInboundTrigger(ChannelSession session) {
         return channelSessionMessageRepository
-                .findFirstBySessionIdAndDirectionOrderByCreatedAtDesc(session.getId(), MessageDirection.IN)
+                .findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(session.getId())
                 .map(ChannelSessionMessage::getTriggerInput)
                 .orElse(Map.of());
     }

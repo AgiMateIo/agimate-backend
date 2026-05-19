@@ -53,7 +53,12 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
     @Async
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
         Trigger trigger = TriggerMapper.map(triggerLogAgent);
-        AgentMessage<Trigger> message = new AgentMessage<>(agent.getPubId().toString(), "trigger", channelContext, trigger);
+        AgentMessage<Trigger> message = new AgentMessage<>(
+                agent.getPubId().toString(),
+                triggerLogAgent.getPubId().toString(),
+                "trigger",
+                channelContext,
+                trigger);
         WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder = WebhookDeliveryLog.builder()
                 .triggerLogAgent(triggerLogAgent)
                 .requestUrl(agent.getWebhookUrl())

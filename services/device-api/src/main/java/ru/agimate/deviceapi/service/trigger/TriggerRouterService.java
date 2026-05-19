@@ -13,7 +13,7 @@ import ru.agimate.deviceapi.database.repositories.AgentTriggerPolicyRepository;
 import ru.agimate.deviceapi.database.repositories.ChannelRepository;
 import ru.agimate.deviceapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.deviceapi.service.AgentDeliveryService;
-import ru.agimate.deviceapi.service.channel.ChannelMessageInboundService;
+import ru.agimate.deviceapi.service.channel.ChannelSessionService;
 import ru.agimate.deviceapi.service.channel.InputFilterEvaluator;
 
 import java.util.Comparator;
@@ -35,7 +35,7 @@ public class TriggerRouterService {
     private final TriggerLogAgentRepository triggerLogAgentRepository;
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
     private final ChannelRepository channelRepository;
-    private final ChannelMessageInboundService channelMessageInboundService;
+    private final ChannelSessionService channelSessionService;
 
     @Async
     public void routeAppTrigger(App app, TriggerRequest triggerRequest) {
@@ -133,7 +133,7 @@ public class TriggerRouterService {
             ChannelContext channelContext = null;
             AgentTriggerPolicy policy = bestPolicy.get();
             if (policy.getChannelId() != null) {
-                channelContext = processChannelInbound(policy.getChannelId(), trigger);
+                channelContext = processChannelInbound(policy.getChannelId());
             }
 
             TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
@@ -170,16 +170,16 @@ public class TriggerRouterService {
         return spec;
     }
 
-    private ChannelContext processChannelInbound(Long channelId, Trigger trigger) {
+    private ChannelContext processChannelInbound(Long channelId) {
         Channel channel = channelRepository.findById(channelId).orElse(null);
         if (channel == null || channel.getDeletedAt() != null) {
             log.warn("Channel id={} not found or deleted; treating as no-channel route", channelId);
             return null;
         }
-        var inboundResult = channelMessageInboundService.process(channel, trigger);
+        ChannelSession session = channelSessionService.findOrCreateActive(channel, null);
         return new ChannelContext(
                 channel.getPubId(),
-                inboundResult.session().getPubId(),
+                session.getPubId(),
                 channel.getName(),
                 channel.getTriggerMessageField()
         );
