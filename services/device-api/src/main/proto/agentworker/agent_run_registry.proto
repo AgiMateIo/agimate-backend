@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package ru.agimate.agentworker;
+
+import "google/protobuf/timestamp.proto";
+
+option java_multiple_files = true;
+option java_package = "ru.agimate.agentworker";
+option java_outer_classname = "AgentRunRegistryProto";
+
+// Active-run registry, backed by the trigger_log_agents table.
+//
+// Invariant: exactly one active (RUNNING) run per session_pub_id, enforced by a
+// partial unique index. There is no separate workflow_id: run_id IS the DBOS
+// workflow id, so to STEER/INTERRUPT the active run the worker addresses the
+// workflow whose id == run_id.
+//
+// INTERRUPT note: because the slot is a partial unique index (not a PK upsert),
+// a new run cannot go RUNNING while the pre-empted run is still RUNNING. The
+// take-over must first move the old run out of RUNNING (CANCELLED) before the
+// new run's RegisterRun; otherwise RegisterRun is rejected (ABORTED).
+service AgentRunRegistry {
+  rpc RegisterRun (RegisterRunRequest) returns (RegisterRunResponse);
+  rpc GetActiveRun (GetActiveRunRequest) returns (GetActiveRunResponse);
+  rpc ReleaseRun (ReleaseRunRequest) returns (ReleaseRunResponse);
+}
+
+message ActiveRun {
+  string agent_pub_id = 1;
+  string session_pub_id = 2;
+  string run_id = 3; // == DBOS workflow id
+  google.protobuf.Timestamp acquired_at = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+message RegisterRunRequest {
+  string agent_pub_id = 1;
+  string session_pub_id = 2;
+  string run_id = 3;
+  int32 ttl_seconds = 4; // server default if 0 (~3600)
+}
+message RegisterRunResponse {
+  ActiveRun active_run = 1;
+}
+
+message GetActiveRunRequest {
+  string session_pub_id = 1;
+}
+message GetActiveRunResponse {
+  bool active = 1;          // false if no row or expires_at <= now
+  ActiveRun active_run = 2; // populated only when active = true
+}
+
+message ReleaseRunRequest {
+  string session_pub_id = 1;
+  string run_id = 2;
+}
+message ReleaseRunResponse {
+  bool released = 1;
+}

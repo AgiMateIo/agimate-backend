@@ -5,6 +5,7 @@ import lombok.*;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -42,4 +43,25 @@ public class TriggerLogAgent extends BaseEntity {
 
     @Column(name = "error", columnDefinition = "TEXT")
     private String error;
+
+    /**
+     * Channel session this run writes to, or {@code null} for non-channel runs
+     * (e.g. WEBHOOK/CENTRIFUGO delivery). Set by the backend at trigger routing.
+     */
+    @Column(name = "session_pub_id")
+    private UUID sessionPubId;
+
+    /**
+     * Run lifecycle for the active-run registry. The single-writer-per-session
+     * invariant is enforced at the DB level by a partial unique index on
+     * {@code (session_pub_id) WHERE status = 'RUNNING'}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private RunStatus status = RunStatus.ENQUEUED;
+
+    /** TTL backstop on a dead run; set when the run goes RUNNING, no heartbeat. */
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
 }

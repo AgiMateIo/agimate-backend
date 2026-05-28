@@ -140,6 +140,7 @@ public class TriggerRouterService {
                     .triggerLog(triggerLog)
                     .agent(agent)
                     .destination(agent.getType().name())
+                    .sessionPubId(channelContext != null ? channelContext.channelSessionPubId() : null)
                     .build();
 
             agentDeliveryService.deliverTrigger(agent, triggerLogAgent, channelContext);
