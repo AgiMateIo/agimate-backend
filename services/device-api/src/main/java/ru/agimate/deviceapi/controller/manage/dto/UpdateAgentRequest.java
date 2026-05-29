@@ -1,7 +1,7 @@
 package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.database.entities.AgentType;
+import ru.agimate.deviceapi.database.enums.AgentType;
 
 @Schema(description = "Request to update an agent")
 public record UpdateAgentRequest(

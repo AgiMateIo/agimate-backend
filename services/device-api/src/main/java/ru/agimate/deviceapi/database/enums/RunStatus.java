@@ -1,4 +1,6 @@
-package ru.agimate.deviceapi.database.entities;
+package ru.agimate.deviceapi.database.enums;
+
+import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 
 /**
  * Lifecycle of an agent run (a {@link TriggerLogAgent} row).

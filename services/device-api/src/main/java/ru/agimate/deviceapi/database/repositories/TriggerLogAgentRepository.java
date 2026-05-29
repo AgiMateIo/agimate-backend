@@ -4,7 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import ru.agimate.deviceapi.database.entities.RunStatus;
+import ru.agimate.deviceapi.database.enums.RunStatus;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 
 import java.time.LocalDateTime;

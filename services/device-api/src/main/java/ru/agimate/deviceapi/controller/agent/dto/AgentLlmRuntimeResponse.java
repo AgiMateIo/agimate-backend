@@ -1,7 +1,7 @@
 package ru.agimate.deviceapi.controller.agent.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.deviceapi.database.entities.LlmProviderType;
+import ru.agimate.deviceapi.database.enums.LlmProviderType;
 
 @Schema(description = "LLM credentials returned to the agent at runtime")
 public record AgentLlmRuntimeResponse(

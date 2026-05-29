@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.deviceapi.controller.manage.dto.llm.AgentLlmResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.AgenticTeam;
-import ru.agimate.deviceapi.database.entities.AgentType;
+import ru.agimate.deviceapi.database.enums.AgentType;
 import ru.agimate.deviceapi.service.AgentService;
 
 import java.time.LocalDateTime;

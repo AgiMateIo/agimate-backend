@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.util.UUIDUtils;
+import ru.agimate.deviceapi.database.enums.RunStatus;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

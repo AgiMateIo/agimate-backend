@@ -1,4 +1,4 @@
-package ru.agimate.deviceapi.database.entities;
+package ru.agimate.deviceapi.database.enums;
 
 public enum LlmProviderType {
     OPENAI,

@@ -4,7 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.deviceapi.database.entities.LlmProvider;
-import ru.agimate.deviceapi.database.entities.LlmProviderType;
+import ru.agimate.deviceapi.database.enums.LlmProviderType;
 
 import java.util.List;
 import java.util.Map;

@@ -3,7 +3,7 @@ package ru.agimate.deviceapi.controller.manage.dto.llm;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import ru.agimate.deviceapi.database.entities.LlmProviderType;
+import ru.agimate.deviceapi.database.enums.LlmProviderType;
 
 @Schema(description = "Request to create an LLM provider configuration")
 public record CreateLlmProviderRequest(

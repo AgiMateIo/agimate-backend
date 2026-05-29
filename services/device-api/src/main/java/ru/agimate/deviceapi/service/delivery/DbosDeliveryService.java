@@ -8,7 +8,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.config.DbosProperties;
 import ru.agimate.deviceapi.database.entities.Agent;
-import ru.agimate.deviceapi.database.entities.AgentType;
+import ru.agimate.deviceapi.database.enums.AgentType;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.service.dto.AgentMessage;
 import ru.agimate.deviceapi.service.trigger.ChannelContext;

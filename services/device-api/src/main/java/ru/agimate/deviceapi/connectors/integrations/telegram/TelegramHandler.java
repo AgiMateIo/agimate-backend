@@ -163,6 +163,10 @@ public class TelegramHandler extends BaseIntegrationHandler {
                 triggerName = "telegram.message_received";
                 triggerData.put("text", text);
             }
+        } else if (update.containsKey("channel_post")) {
+            log.debug("Unsupported Telegram update type, keys: {}", update.keySet());
+            triggerName = "telegram.channel_post";
+            triggerData.put("raw", update);
         } else {
             log.debug("Unsupported Telegram update type, keys: {}", update.keySet());
             triggerName = "telegram.unknown";

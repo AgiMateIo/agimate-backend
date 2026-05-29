@@ -2,7 +2,7 @@ package ru.agimate.deviceapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
-import ru.agimate.deviceapi.database.entities.AgentType;
+import ru.agimate.deviceapi.database.enums.AgentType;
 
 import java.util.UUID;
 

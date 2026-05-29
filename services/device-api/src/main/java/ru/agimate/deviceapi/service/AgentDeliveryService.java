@@ -3,7 +3,7 @@ package ru.agimate.deviceapi.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.deviceapi.database.entities.Agent;
-import ru.agimate.deviceapi.database.entities.AgentType;
+import ru.agimate.deviceapi.database.enums.AgentType;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.service.delivery.AgentDeliveryHandler;
 import ru.agimate.deviceapi.service.dto.IToolResult;

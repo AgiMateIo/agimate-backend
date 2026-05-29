@@ -12,7 +12,7 @@ import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.Channel;
 import ru.agimate.deviceapi.database.entities.ChannelSession;
 import ru.agimate.deviceapi.database.entities.ChannelSessionMessage;
-import ru.agimate.deviceapi.database.entities.ChannelSessionMessageKind;
+import ru.agimate.deviceapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.deviceapi.database.repositories.AgentRepository;
 import ru.agimate.deviceapi.database.repositories.ChannelRepository;
 import ru.agimate.deviceapi.database.repositories.ChannelSessionMessageRepository;

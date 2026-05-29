@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.deviceapi.database.entities.RunStatus;
+import ru.agimate.deviceapi.database.enums.RunStatus;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.repositories.TriggerLogAgentRepository;
 

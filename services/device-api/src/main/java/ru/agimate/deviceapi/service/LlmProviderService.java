@@ -14,7 +14,7 @@ import ru.agimate.deviceapi.controller.manage.dto.llm.LlmProviderResponse;
 import ru.agimate.deviceapi.controller.manage.dto.llm.RefreshModelsResponse;
 import ru.agimate.deviceapi.controller.manage.dto.llm.UpdateLlmProviderRequest;
 import ru.agimate.deviceapi.database.entities.LlmProvider;
-import ru.agimate.deviceapi.database.entities.LlmProviderType;
+import ru.agimate.deviceapi.database.enums.LlmProviderType;
 import ru.agimate.deviceapi.database.repositories.LlmProviderRepository;
 import ru.agimate.deviceapi.service.llm.LlmModelDiscoveryService;
 

@@ -3,7 +3,7 @@ package ru.agimate.deviceapi.controller.manage.dto.llm;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.deviceapi.database.entities.LlmProvider;
-import ru.agimate.deviceapi.database.entities.LlmProviderType;
+import ru.agimate.deviceapi.database.enums.LlmProviderType;
 
 import java.time.LocalDateTime;
 import java.util.List;

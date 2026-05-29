@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.controller.manage.dto.WebhookDeliveryLogResponse;
 import ru.agimate.deviceapi.database.entities.Agent;
-import ru.agimate.deviceapi.database.entities.AgentType;
+import ru.agimate.deviceapi.database.enums.AgentType;
 import ru.agimate.deviceapi.database.entities.TriggerLogAgent;
 import ru.agimate.deviceapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.deviceapi.database.repositories.WebhookDeliveryLogRepository;
@@ -23,7 +23,6 @@ import ru.agimate.deviceapi.service.trigger.TriggerMapper;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 

@@ -20,7 +20,7 @@ import ru.agimate.agentworker.MessageKind;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.deviceapi.database.entities.ChannelSessionMessage;
-import ru.agimate.deviceapi.database.entities.ChannelSessionMessageKind;
+import ru.agimate.deviceapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.deviceapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.deviceapi.service.channel.AgentSessionMessagesService;
 
