@@ -5,10 +5,19 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
+    <!--
+      trigger_log_agents doubles as the active-run registry (AgentRunRegistry).
+      Each row is an agent run; pub_id is the canonical run_id (== DBOS workflow_id).
+      The single-writer-per-session invariant is enforced by a partial unique index
+      on (session_pub_id) WHERE status = 'RUNNING'.
+    -->
     <changeSet id="create-trigger-log-agents-table" author="agimate">
         <createTable tableName="trigger_log_agents">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="pub_id" type="UUID">
+                <constraints nullable="false" unique="true"/>
             </column>
             <column name="trigger_log_id" type="BIGINT">
                 <constraints nullable="false"
@@ -25,6 +34,11 @@
             </column>
             <column name="result" type="TEXT"/>
             <column name="error" type="TEXT"/>
+            <column name="session_pub_id" type="UUID"/>
+            <column name="status" type="TEXT" defaultValue="ENQUEUED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
@@ -36,6 +50,19 @@
         <addUniqueConstraint tableName="trigger_log_agents"
                              columnNames="trigger_log_id, agent_id"
                              constraintName="uq_trigger_log_agents_log_id_agent_id"/>
+
+        <sql>
+            ALTER TABLE trigger_log_agents
+                ADD CONSTRAINT chk_trigger_log_agents_status
+                CHECK (status IN ('ENQUEUED', 'RUNNING', 'DONE', 'FAILED', 'CANCELLED'));
+        </sql>
+
+        <!-- Single active writer per session: at most one RUNNING run per session. -->
+        <sql>
+            CREATE UNIQUE INDEX uq_trigger_log_agents_active_session
+                ON trigger_log_agents (session_pub_id)
+                WHERE session_pub_id IS NOT NULL AND status = 'RUNNING';
+        </sql>
     </changeSet>
 
 </databaseChangeLog>

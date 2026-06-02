@@ -5,31 +5,22 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <changeSet id="create-skills-table" author="agimate">
-        <createTable tableName="skills">
+    <changeSet id="create-channel-sessions-table" author="agimate">
+        <createTable tableName="channel_sessions">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
-            <column name="name" type="TEXT">
+            <column name="channel_id" type="BIGINT">
                 <constraints nullable="false"/>
             </column>
-            <column name="description" type="TEXT"/>
-            <column name="version" type="INTEGER" defaultValueNumeric="1">
+            <column name="title" type="TEXT"/>
+            <column name="last_message_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
-            <column name="user_pub_id" type="UUID">
-                <constraints nullable="false"/>
-            </column>
-            <column name="is_public" type="BOOLEAN" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
-            <column name="is_featured" type="BOOLEAN" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
-            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="closed_at" type="TIMESTAMP"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
@@ -38,9 +29,20 @@
             </column>
         </createTable>
 
-        <addUniqueConstraint tableName="skills"
-                             columnNames="user_pub_id, name"
-                             constraintName="uq_skills_user_pub_id_name"/>
+        <addForeignKeyConstraint baseTableName="channel_sessions"
+                                 baseColumnNames="channel_id"
+                                 constraintName="fk_channel_sessions_channel"
+                                 referencedTableName="channels"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <createIndex tableName="channel_sessions" indexName="idx_channel_sessions_channel_id">
+            <column name="channel_id"/>
+        </createIndex>
+        <createIndex tableName="channel_sessions" indexName="idx_channel_sessions_channel_active">
+            <column name="channel_id"/>
+            <column name="last_message_at" descending="true"/>
+        </createIndex>
     </changeSet>
 
 </databaseChangeLog>

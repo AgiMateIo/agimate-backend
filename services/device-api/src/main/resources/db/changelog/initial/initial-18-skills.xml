@@ -5,40 +5,32 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <changeSet id="create-agents-table" author="agimate">
-        <createTable tableName="agents">
+    <changeSet id="create-skills-table" author="agimate">
+        <createTable tableName="skills">
             <column name="id" type="BIGSERIAL" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="pub_id" type="UUID">
                 <constraints nullable="false" unique="true"/>
             </column>
-            <column name="user_pub_id" type="UUID">
-                <constraints nullable="false"/>
-            </column>
-            <column name="name" type="TEXT" defaultValue="Unnamed Agent">
+            <column name="parent_pub_id" type="UUID"/>
+            <column name="name" type="TEXT">
                 <constraints nullable="false"/>
             </column>
             <column name="description" type="TEXT"/>
-            <column name="prompt" type="TEXT"/>
-            <column name="key_hash" type="TEXT">
+            <column name="version" type="INTEGER" defaultValueNumeric="1">
                 <constraints nullable="false"/>
             </column>
-            <column name="key_id" type="TEXT">
-                <constraints nullable="false" unique="true"/>
-            </column>
-            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+            <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="type" type="TEXT" defaultValue="CENTRIFUGO">
+            <column name="is_public" type="BOOLEAN" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>
-            <column name="webhook_url" type="TEXT"/>
-            <column name="webhook_auth_header" type="TEXT"/>
-            <column name="agentic_team_id" type="BIGINT">
-                <constraints foreignKeyName="fk_agents_agentic_team"
-                             references="agentic_teams(id)"/>
+            <column name="is_featured" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
             </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
@@ -47,13 +39,8 @@
             </column>
         </createTable>
 
-        <createIndex tableName="agents" indexName="idx_agents_user_pub_id">
-            <column name="user_pub_id"/>
-        </createIndex>
-
-        <createIndex tableName="agents" indexName="idx_agents_agentic_team_id">
-            <column name="agentic_team_id"/>
-        </createIndex>
+        <!-- Unique name per user among non-deleted skills (soft-delete aware). -->
+        <sql>CREATE UNIQUE INDEX uq_skills_user_name_active ON skills (user_pub_id, name) WHERE deleted_at IS NULL</sql>
     </changeSet>
 
 </databaseChangeLog>

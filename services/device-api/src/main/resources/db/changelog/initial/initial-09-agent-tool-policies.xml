@@ -24,6 +24,8 @@
             </column>
             <column name="priority" type="INTEGER"/>
             <column name="description" type="TEXT"/>
+            <column name="source" type="TEXT"/>
+            <column name="channel_id" type="BIGINT"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
@@ -47,8 +49,18 @@
                 NULLS NOT DISTINCT;
         </sql>
 
+        <addForeignKeyConstraint baseTableName="agent_tool_policies"
+                                 baseColumnNames="channel_id"
+                                 constraintName="fk_agent_tool_policies_channel"
+                                 referencedTableName="channels"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
         <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_user_pub_id">
             <column name="user_pub_id"/>
+        </createIndex>
+        <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_channel_id">
+            <column name="channel_id"/>
         </createIndex>
     </changeSet>
 
