@@ -26,6 +26,12 @@ public class TelegramHandler extends BaseIntegrationHandler {
     public static final String MODE_POLLING = "polling";
     private static final String HEADER_SECRET_TOKEN = "X-Telegram-Bot-Api-Secret-Token";
 
+    /** Telegram's hard limit for a single sendMessage/editMessageText text (UTF-16 code units, == String.length()). */
+    static final int MAX_MESSAGE_LENGTH = 4096;
+
+    /** Telegram's hard limit for a media caption (sendPhoto and friends). */
+    static final int MAX_CAPTION_LENGTH = 1024;
+
     private final TelegramApiClient telegramApiClient;
     private final ObjectMapper objectMapper;
     private final String mode;
@@ -183,13 +189,68 @@ public class TelegramHandler extends BaseIntegrationHandler {
             @P("Parse mode (HTML, Markdown, MarkdownV2)") String parseMode,
             @P("ID of message to reply to") String replyToMessageId,
             @P("Inline keyboard markup as JSON") String replyMarkup) {
-        Map<String, Object> apiParams = new LinkedHashMap<>();
-        apiParams.put("chat_id", chatId);
-        apiParams.put("text", text);
-        if (parseMode != null) apiParams.put("parse_mode", parseMode);
-        if (replyToMessageId != null) apiParams.put("reply_to_message_id", replyToMessageId);
-        if (replyMarkup != null) apiParams.put("reply_markup", replyMarkup);
-        return sendTelegramRequest("sendMessage", apiParams);
+        List<String> chunks = splitMessage(text == null ? "" : text, MAX_MESSAGE_LENGTH);
+        Map<String, Object> lastResponse = null;
+        for (int i = 0; i < chunks.size(); i++) {
+            Map<String, Object> apiParams = new LinkedHashMap<>();
+            apiParams.put("chat_id", chatId);
+            apiParams.put("text", chunks.get(i));
+            if (parseMode != null) apiParams.put("parse_mode", parseMode);
+            // Reply only to the first chunk; the inline keyboard belongs on the last one.
+            if (replyToMessageId != null && i == 0) apiParams.put("reply_to_message_id", replyToMessageId);
+            if (replyMarkup != null && i == chunks.size() - 1) apiParams.put("reply_markup", replyMarkup);
+            lastResponse = sendTelegramRequest("sendMessage", apiParams);
+        }
+        return lastResponse;
+    }
+
+    /**
+     * Splits {@code text} into chunks of at most {@code limit} characters so each fits a single
+     * Telegram message. Prefers to break on a newline, then on whitespace, and only hard-cuts when
+     * a single run has no such boundary — keeping all content across messages.
+     * <p>
+     * Note: a split can fall inside an HTML/MarkdownV2 entity that spans the boundary; breaking on
+     * line boundaries first makes that rare, but very long pre-formatted blocks are not entity-safe.
+     */
+    /**
+     * Truncates {@code text} to at most {@code limit} characters, appending an ellipsis when cut.
+     * Used where the content cannot be split across messages (a single caption or an edited message).
+     */
+    static String truncate(String text, int limit) {
+        if (text == null || text.length() <= limit) {
+            return text;
+        }
+        return text.substring(0, limit - 1) + "…";
+    }
+
+    static List<String> splitMessage(String text, int limit) {
+        List<String> chunks = new ArrayList<>();
+        if (text.length() <= limit) {
+            chunks.add(text);
+            return chunks;
+        }
+        int pos = 0;
+        int len = text.length();
+        while (pos < len) {
+            if (len - pos <= limit) {
+                chunks.add(text.substring(pos));
+                break;
+            }
+            int window = pos + limit;
+            int splitAt = text.lastIndexOf('\n', window - 1);
+            if (splitAt <= pos) {
+                splitAt = text.lastIndexOf(' ', window - 1);
+            }
+            if (splitAt <= pos) {
+                // No newline/space within the window — hard cut at the limit.
+                chunks.add(text.substring(pos, window));
+                pos = window;
+            } else {
+                chunks.add(text.substring(pos, splitAt));
+                pos = splitAt + 1; // drop the boundary newline/space
+            }
+        }
+        return chunks;
     }
 
     @Tool(name = "telegram.send_photo", value = "Send a photo")
@@ -200,7 +261,7 @@ public class TelegramHandler extends BaseIntegrationHandler {
         Map<String, Object> apiParams = new LinkedHashMap<>();
         apiParams.put("chat_id", chatId);
         apiParams.put("photo", photo);
-        if (caption != null) apiParams.put("caption", caption);
+        if (caption != null) apiParams.put("caption", truncate(caption, MAX_CAPTION_LENGTH));
         return sendTelegramRequest("sendPhoto", apiParams);
     }
 
@@ -212,7 +273,7 @@ public class TelegramHandler extends BaseIntegrationHandler {
         Map<String, Object> apiParams = new LinkedHashMap<>();
         apiParams.put("chat_id", chatId);
         apiParams.put("message_id", messageId);
-        apiParams.put("text", text);
+        apiParams.put("text", truncate(text, MAX_MESSAGE_LENGTH));
         return sendTelegramRequest("editMessageText", apiParams);
     }
 
