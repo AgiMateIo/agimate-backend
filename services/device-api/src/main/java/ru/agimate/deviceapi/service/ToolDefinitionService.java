@@ -58,7 +58,7 @@ public class ToolDefinitionService {
         if (identity == null) {
             throw new BadRequestStatusException("identity is required for APP connectors");
         }
-        App app = appRepository.findByPubIdAndUserPubIdNotDeleted(identity, userPubId)
+        App app = appRepository.findByIdAndUserPubIdNotDeleted(identity, userPubId)
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
         if (!Objects.equals(app.getConnectorCode(), connectorCode)) {
             throw new BadRequestStatusException("App does not belong to connector " + connectorCode);

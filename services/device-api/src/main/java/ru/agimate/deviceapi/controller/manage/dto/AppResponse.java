@@ -12,7 +12,7 @@ import java.util.UUID;
 @Schema(description = "App information (without the actual key)")
 public record AppResponse(
         @Schema(description = "Public ID of the app")
-        UUID pubId,
+        UUID id,
 
         @Schema(description = "App name/label", example = "My Home Device")
         String name,
@@ -40,7 +40,7 @@ public record AppResponse(
     public static AppResponse from(App app) {
         String maskedKeyId = AppService.APP_KEY_PREFIX + app.getKeyId().substring(0, 4) + "****";
         return new AppResponse(
-                app.getPubId(),
+                app.getId(),
                 app.getName(),
                 app.getDescription(),
                 maskedKeyId,

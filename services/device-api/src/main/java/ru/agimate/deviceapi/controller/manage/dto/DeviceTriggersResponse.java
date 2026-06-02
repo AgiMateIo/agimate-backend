@@ -5,7 +5,7 @@ import ru.agimate.deviceapi.service.dto.AppTrigger;
 import java.util.List;
 
 public record DeviceTriggersResponse(
-        String connectorPubId,
+        String connectorId,
         String deviceId,
         String deviceName,
         List<AppTrigger> triggers

@@ -24,7 +24,7 @@ public class AppAuthToken implements Authentication {
 
     @Override
     public Object getCredentials() {
-        return principal.appPubId();
+        return principal.appId();
     }
 
     @Override

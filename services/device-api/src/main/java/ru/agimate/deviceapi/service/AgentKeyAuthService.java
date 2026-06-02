@@ -50,7 +50,7 @@ public class AgentKeyAuthService {
         }
 
         if (!agent.isEnabled()) {
-            log.debug("Agent is disabled: pubId={}", agent.getPubId());
+            log.debug("Agent is disabled: id={}", agent.getId());
             return Optional.empty();
         }
 

@@ -8,15 +8,12 @@ import ru.agimate.deviceapi.database.entities.ChannelSession;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ChannelSessionRepository extends JpaRepository<ChannelSession, Long> {
+public interface ChannelSessionRepository extends JpaRepository<ChannelSession, UUID> {
 
-    Optional<ChannelSession> findByPubId(UUID pubId);
-
-    List<ChannelSession> findByChannelIdOrderByLastMessageAtDesc(Long channelId);
+    List<ChannelSession> findByChannelIdOrderByLastMessageAtDesc(UUID channelId);
 
     @Query("""
             SELECT s FROM ChannelSession s
@@ -26,7 +23,7 @@ public interface ChannelSessionRepository extends JpaRepository<ChannelSession, 
             ORDER BY s.lastMessageAt DESC
             """)
     List<ChannelSession> findActive(
-            @Param("channelId") Long channelId,
+            @Param("channelId") UUID channelId,
             @Param("threshold") LocalDateTime threshold
     );
 }

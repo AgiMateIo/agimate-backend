@@ -43,7 +43,7 @@ public record UserAppDetailResponse(
                 ? info.get("deviceOs").toString() : null;
 
         return new UserAppDetailResponse(
-                app.getPubId(),
+                app.getId(),
                 app.getName(),
                 app.getDeviceId(),
                 deviceName,

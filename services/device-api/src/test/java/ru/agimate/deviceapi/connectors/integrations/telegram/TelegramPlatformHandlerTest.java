@@ -55,7 +55,7 @@ class TelegramPlatformHandlerTest {
         @BeforeEach
         void setUp() {
             integration = IntegrationCredentials.builder()
-                    .pubId(UUID.randomUUID())
+                    .id(UUID.randomUUID())
                     .build();
         }
 
@@ -174,7 +174,7 @@ class TelegramPlatformHandlerTest {
         @BeforeEach
         void setUp() {
             integration = IntegrationCredentials.builder()
-                    .pubId(UUID.randomUUID())
+                    .id(UUID.randomUUID())
                     .encryptedData("encrypted")
                     .build();
         }

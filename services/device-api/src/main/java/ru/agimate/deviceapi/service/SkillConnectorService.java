@@ -53,7 +53,7 @@ public class SkillConnectorService {
             throw new ConflictStatusException("Duplicate connector binding in request");
         }
 
-        log.info("Replaced connector bindings for skill pubId={}, count={}", skill.getPubId(), saved.size());
+        log.info("Replaced connector bindings for skill id={}, count={}", skill.getId(), saved.size());
         return saved.stream().map(SkillConnectorResponse::from).toList();
     }
 
@@ -70,7 +70,7 @@ public class SkillConnectorService {
             throw new ConflictStatusException("Connector binding already exists");
         }
 
-        log.info("Added connector binding for skill pubId={}: {}:{}", skill.getPubId(), request.connectorCode(), request.type());
+        log.info("Added connector binding for skill id={}: {}:{}", skill.getId(), request.connectorCode(), request.type());
         return SkillConnectorResponse.from(entity);
     }
 
@@ -84,7 +84,7 @@ public class SkillConnectorService {
         }
 
         skillConnectorRepository.delete(binding);
-        log.info("Deleted connector binding {} from skill pubId={}", connectorSkillId, skill.getPubId());
+        log.info("Deleted connector binding {} from skill id={}", connectorSkillId, skill.getId());
     }
 
     @Transactional
@@ -102,7 +102,7 @@ public class SkillConnectorService {
                 .toList();
 
         skillConnectorRepository.saveAll(clonedBindings);
-        log.info("Cloned {} connector bindings from skill pubId={} to pubId={}", clonedBindings.size(), source.getPubId(), target.getPubId());
+        log.info("Cloned {} connector bindings from skill id={} to id={}", clonedBindings.size(), source.getId(), target.getId());
     }
 
     private void validate(SkillConnectorRequest request) {

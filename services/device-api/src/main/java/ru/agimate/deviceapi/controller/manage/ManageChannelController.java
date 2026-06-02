@@ -38,23 +38,23 @@ public class ManageChannelController {
     @GetMapping("/")
     public SuccessResponse<List<ChannelResponse>> list(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam(required = false) UUID agentPubId
+            @RequestParam(required = false) UUID agentId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var channels = agentPubId != null
-                ? channelService.listForUserAndAgent(userPubId, agentPubId)
+        var channels = agentId != null
+                ? channelService.listForUserAndAgent(userPubId, agentId)
                 : channelService.listForUser(userPubId);
         return SuccessResponse.ok(channelService.toResponses(channels));
     }
 
-    @Operation(summary = "Get channel by pubId")
-    @GetMapping("/{pubId}")
+    @Operation(summary = "Get channel by id")
+    @GetMapping("/{id}")
     public SuccessResponse<ChannelResponse> get(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Channel channel = channelService.getByPubId(userPubId, pubId);
+        Channel channel = channelService.getById(userPubId, id);
         return SuccessResponse.ok(channelService.toResponse(channel));
     }
 
@@ -66,7 +66,7 @@ public class ManageChannelController {
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
         Channel channel = channelService.create(userPubId, new ChannelService.CreateChannelData(
-                request.agentPubId(),
+                request.agentId(),
                 request.name(),
                 request.triggerConnectorCode(),
                 request.triggerIdentity(),
@@ -82,14 +82,14 @@ public class ManageChannelController {
     }
 
     @Operation(summary = "Update a channel")
-    @PatchMapping("/{pubId}")
+    @PatchMapping("/{id}")
     public SuccessResponse<ChannelResponse> update(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
+            @PathVariable UUID id,
             @Valid @RequestBody UpdateChannelRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Channel channel = channelService.update(userPubId, pubId, new ChannelService.UpdateChannelData(
+        Channel channel = channelService.update(userPubId, id, new ChannelService.UpdateChannelData(
                 request.name(),
                 request.triggerMessageField(),
                 request.replyToolParams(),
@@ -100,24 +100,24 @@ public class ManageChannelController {
     }
 
     @Operation(summary = "Soft delete a channel")
-    @DeleteMapping("/{pubId}")
+    @DeleteMapping("/{id}")
     public SuccessResponse<Void> delete(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        channelService.delete(userPubId, pubId);
+        channelService.delete(userPubId, id);
         return SuccessResponse.empty();
     }
 
     @Operation(summary = "List sessions of a channel")
-    @GetMapping("/{pubId}/sessions/")
+    @GetMapping("/{id}/sessions/")
     public SuccessResponse<List<ChannelSessionResponse>> listSessions(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Channel channel = channelService.getByPubId(userPubId, pubId);
+        Channel channel = channelService.getById(userPubId, id);
         List<ChannelSessionResponse> response = channelSessionService.listByChannelId(channel.getId()).stream()
                 .map(ChannelSessionResponse::from)
                 .toList();
@@ -125,13 +125,13 @@ public class ManageChannelController {
     }
 
     @Operation(summary = "List messages of a session")
-    @GetMapping("/sessions/{sessionPubId}/messages/")
+    @GetMapping("/sessions/{sessionId}/messages/")
     public SuccessResponse<List<ChannelSessionMessageResponse>> listSessionMessages(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID sessionPubId
+            @PathVariable UUID sessionId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        ChannelSession session = channelSessionService.getByPubId(sessionPubId);
+        ChannelSession session = channelSessionService.getById(sessionId);
         channelService.getByIdForUser(userPubId, session.getChannelId());
         List<ChannelSessionMessageResponse> response = channelSessionMessageRepository
                 .findBySessionIdOrderByCreatedAtAsc(session.getId())
@@ -143,15 +143,15 @@ public class ManageChannelController {
     }
 
     @Operation(summary = "Close a channel session")
-    @PostMapping("/sessions/{sessionPubId}/close")
+    @PostMapping("/sessions/{sessionId}/close")
     public SuccessResponse<ChannelSessionResponse> closeSession(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID sessionPubId
+            @PathVariable UUID sessionId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        ChannelSession session = channelSessionService.getByPubId(sessionPubId);
+        ChannelSession session = channelSessionService.getById(sessionId);
         channelService.getByIdForUser(userPubId, session.getChannelId());
-        ChannelSession closed = channelSessionService.close(sessionPubId);
+        ChannelSession closed = channelSessionService.close(sessionId);
         return SuccessResponse.ok(ChannelSessionResponse.from(closed));
     }
 }

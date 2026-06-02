@@ -9,15 +9,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface LlmProviderRepository extends JpaRepository<LlmProvider, Long> {
+public interface LlmProviderRepository extends JpaRepository<LlmProvider, UUID> {
 
     List<LlmProvider> findAllByUserPubIdOrderByCreatedAtDesc(UUID userPubId);
 
-    Optional<LlmProvider> findByPubIdAndUserPubId(UUID pubId, UUID userPubId);
+    Optional<LlmProvider> findByIdAndUserPubId(UUID id, UUID userPubId);
 
-    Optional<LlmProvider> findByPubId(UUID pubId);
-
-    List<LlmProvider> findAllByPubIdIn(List<UUID> pubIds);
+    List<LlmProvider> findAllByIdIn(List<UUID> ids);
 
     boolean existsByUserPubIdAndName(UUID userPubId, String name);
 }

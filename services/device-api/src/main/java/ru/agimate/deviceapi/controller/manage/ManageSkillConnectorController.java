@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/manage/skills/{pubId}/connectors")
+@RequestMapping("/manage/skills/{id}/connectors")
 @RequiredArgsConstructor
 @Tag(name = "Skill Connectors", description = "Manage skill-connector bindings")
 public class ManageSkillConnectorController {
@@ -31,10 +31,10 @@ public class ManageSkillConnectorController {
     @GetMapping("/")
     public SuccessResponse<List<SkillConnectorResponse>> getAll(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        Skill skill = skillService.findOwnedSkill(id, userPubId);
         return SuccessResponse.ok(skillConnectorService.getAll(skill));
     }
 
@@ -42,11 +42,11 @@ public class ManageSkillConnectorController {
     @PutMapping("/")
     public SuccessResponse<List<SkillConnectorResponse>> replaceAll(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
+            @PathVariable UUID id,
             @Valid @RequestBody ReplaceSkillConnectorsRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        Skill skill = skillService.findOwnedSkill(id, userPubId);
         skillService.requireNotFeaturedClone(skill);
         return SuccessResponse.ok(skillConnectorService.replaceAll(skill, request));
     }
@@ -55,26 +55,26 @@ public class ManageSkillConnectorController {
     @PostMapping("/")
     public SuccessResponse<SkillConnectorResponse> addOne(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
+            @PathVariable UUID id,
             @Valid @RequestBody SkillConnectorRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        Skill skill = skillService.findOwnedSkill(id, userPubId);
         skillService.requireNotFeaturedClone(skill);
         return SuccessResponse.ok(skillConnectorService.addOne(skill, request));
     }
 
     @Operation(summary = "Delete a connector binding from a skill")
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{connectorId}")
     public SuccessResponse<Void> delete(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
-            @PathVariable UUID id
+            @PathVariable UUID id,
+            @PathVariable UUID connectorId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        Skill skill = skillService.findOwnedSkill(id, userPubId);
         skillService.requireNotFeaturedClone(skill);
-        skillConnectorService.delete(skill, id);
+        skillConnectorService.delete(skill, connectorId);
         return SuccessResponse.empty();
     }
 }

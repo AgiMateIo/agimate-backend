@@ -23,20 +23,20 @@ public class ServerToolExecutorService {
     private final ToolUseLogService toolUseLogService;
 
     @Async
-    public void execute(ToolUsePayload toolUse, UUID agentPubId, UUID userPubId) {
+    public void execute(ToolUsePayload toolUse, UUID agentId, UUID userPubId) {
         var handler = toolRegistry.getHandlerByToolName(toolUse.name());
 
         try {
             Map<String, Object> result = handler.executeTool(
                     toolUse.name(),
                     toolUse.input(),
-                    agentPubId,
+                    agentId,
                     userPubId
             );
 
             var toolResult = new ToolResultRequest(toolUse.id(), toolUse.connectorCode(), JsonUtils.writeValueAsString(result), null);
             toolUseLogService.recordOutput(toolResult);
-            agentDeliveryService.deliverToolResult(agentPubId, toolResult);
+            agentDeliveryService.deliverToolResult(agentId, toolResult);
 
             log.debug("Executed server tool '{}'", toolUse.name());
         } catch (Exception e) {
@@ -51,7 +51,7 @@ public class ServerToolExecutorService {
                 log.warn("Failed to log server tool error: {}", logError.getMessage());
             }
 
-            agentDeliveryService.deliverToolResult(agentPubId, errorResult);
+            agentDeliveryService.deliverToolResult(agentId, errorResult);
         }
     }
 }

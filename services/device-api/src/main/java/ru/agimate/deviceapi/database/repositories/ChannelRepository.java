@@ -11,20 +11,20 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ChannelRepository extends JpaRepository<Channel, Long> {
+public interface ChannelRepository extends JpaRepository<Channel, UUID> {
 
-    Optional<Channel> findByPubIdAndDeletedAtIsNull(UUID pubId);
+    Optional<Channel> findByIdAndDeletedAtIsNull(UUID id);
 
     List<Channel> findByUserPubIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userPubId);
 
-    List<Channel> findByAgentPubIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID agentPubId);
+    List<Channel> findByAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID agentId);
 
-    List<Channel> findByUserPubIdAndAgentPubIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userPubId, UUID agentPubId);
+    List<Channel> findByUserPubIdAndAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userPubId, UUID agentId);
 
     @Query("""
             SELECT c FROM Channel c
             WHERE c.userPubId = :userPubId
-              AND c.agentPubId = :agentPubId
+              AND c.agentId = :agentId
               AND c.triggerConnectorCode = :connectorCode
               AND c.triggerIdentity = :identity
               AND c.triggerName = :triggerName
@@ -32,7 +32,7 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
             """)
     Optional<Channel> findActiveByTriggerKey(
             @Param("userPubId") UUID userPubId,
-            @Param("agentPubId") UUID agentPubId,
+            @Param("agentId") UUID agentId,
             @Param("connectorCode") String connectorCode,
             @Param("identity") String identity,
             @Param("triggerName") String triggerName

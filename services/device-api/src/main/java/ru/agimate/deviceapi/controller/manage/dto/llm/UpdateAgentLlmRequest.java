@@ -10,7 +10,7 @@ import java.util.UUID;
 public record UpdateAgentLlmRequest(
         @NotNull
         @Schema(description = "LLM provider public ID")
-        UUID llmProviderPubId,
+        UUID llmProviderId,
 
         @NotBlank
         @Schema(description = "Model name")

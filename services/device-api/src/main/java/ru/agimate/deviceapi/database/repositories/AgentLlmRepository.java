@@ -9,13 +9,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface AgentLlmRepository extends JpaRepository<AgentLlm, Long> {
+public interface AgentLlmRepository extends JpaRepository<AgentLlm, UUID> {
 
-    List<AgentLlm> findAllByAgentPubIdOrderByName(UUID agentPubId);
+    List<AgentLlm> findAllByAgentIdOrderByName(UUID agentId);
 
-    List<AgentLlm> findAllByAgentPubIdInOrderByAgentPubIdAscNameAsc(List<UUID> agentPubIds);
+    List<AgentLlm> findAllByAgentIdInOrderByAgentIdAscNameAsc(List<UUID> agentIds);
 
-    Optional<AgentLlm> findByAgentPubIdAndName(UUID agentPubId, String name);
+    Optional<AgentLlm> findByAgentIdAndName(UUID agentId, String name);
 
-    boolean existsByAgentPubIdAndName(UUID agentPubId, String name);
+    boolean existsByAgentIdAndName(UUID agentId, String name);
 }

@@ -9,17 +9,17 @@ import ru.agimate.deviceapi.database.entities.ToolUseLog;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface ToolUseLogRepository extends JpaRepository<ToolUseLog, Long> {
+public interface ToolUseLogRepository extends JpaRepository<ToolUseLog, UUID> {
 
     Optional<ToolUseLog> findByToolUseId(String toolUseId);
 
-    Optional<ToolUseLog> findByToolUseIdAndAgentPubId(String toolUseId, UUID agentPubId);
+    Optional<ToolUseLog> findByToolUseIdAndAgentId(String toolUseId, UUID agentId);
 
     @Query("""
             SELECT t FROM ToolUseLog t
             WHERE t.userPubId = :userPubId
-            AND (:agentPubId IS NULL OR t.agentPubId = :agentPubId)
+            AND (:agentId IS NULL OR t.agentId = :agentId)
             ORDER BY t.createdAt DESC
             """)
-    Page<ToolUseLog> findWithFilters(UUID userPubId, UUID agentPubId, Pageable pageable);
+    Page<ToolUseLog> findWithFilters(UUID userPubId, UUID agentId, Pageable pageable);
 }

@@ -40,14 +40,14 @@ public class SkillFileService {
         this.maxFilesPerSkill = maxFilesPerSkill;
     }
 
-    public void saveSkillMd(UUID skillPubId, String content) {
-        String basePath = resolveBasePath(skillPubId);
+    public void saveSkillMd(UUID skillId, String content) {
+        String basePath = resolveBasePath(skillId);
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         skillStorage.saveFile(basePath, SKILL_MD, new ByteArrayInputStream(bytes), bytes.length);
     }
 
-    public String readSkillMd(UUID skillPubId) {
-        String basePath = resolveBasePath(skillPubId);
+    public String readSkillMd(UUID skillId) {
+        String basePath = resolveBasePath(skillId);
         try (InputStream is = skillStorage.readFile(basePath, SKILL_MD)) {
             if (is == null) {
                 throw new NotFoundStatusException("SKILL.md not found");
@@ -58,14 +58,14 @@ public class SkillFileService {
         }
     }
 
-    public void uploadFile(UUID skillPubId, String relativePath, MultipartFile file) {
+    public void uploadFile(UUID skillId, String relativePath, MultipartFile file) {
         validateRelativePath(relativePath);
 
         if (file.getSize() > maxFileSize) {
             throw new BadRequestStatusException("File size exceeds maximum of " + (maxFileSize / 1024 / 1024) + "MB");
         }
 
-        String basePath = resolveBasePath(skillPubId);
+        String basePath = resolveBasePath(skillId);
 
         if (!SKILL_MD.equals(relativePath) && !skillStorage.exists(basePath, relativePath)) {
             int currentCount = skillStorage.countFiles(basePath);
@@ -76,15 +76,15 @@ public class SkillFileService {
 
         try {
             skillStorage.saveFile(basePath, relativePath, file.getInputStream(), file.getSize());
-            log.info("Uploaded file '{}' for skill pubId={}", relativePath, skillPubId);
+            log.info("Uploaded file '{}' for skill id={}", relativePath, skillId);
         } catch (IOException e) {
             throw new BadRequestStatusException("Failed to read uploaded file");
         }
     }
 
-    public InputStream readFile(UUID skillPubId, String relativePath) {
+    public InputStream readFile(UUID skillId, String relativePath) {
         validateRelativePath(relativePath);
-        String basePath = resolveBasePath(skillPubId);
+        String basePath = resolveBasePath(skillId);
         InputStream is = skillStorage.readFile(basePath, relativePath);
         if (is == null) {
             throw new NotFoundStatusException("File not found: " + relativePath);
@@ -92,41 +92,41 @@ public class SkillFileService {
         return is;
     }
 
-    public void deleteFile(UUID skillPubId, String relativePath) {
+    public void deleteFile(UUID skillId, String relativePath) {
         validateRelativePath(relativePath);
 
         if (SKILL_MD.equals(relativePath)) {
             throw new BadRequestStatusException("Cannot delete SKILL.md");
         }
 
-        String basePath = resolveBasePath(skillPubId);
+        String basePath = resolveBasePath(skillId);
         if (!skillStorage.exists(basePath, relativePath)) {
             throw new NotFoundStatusException("File not found: " + relativePath);
         }
 
         skillStorage.deleteFile(basePath, relativePath);
-        log.info("Deleted file '{}' from skill pubId={}", relativePath, skillPubId);
+        log.info("Deleted file '{}' from skill id={}", relativePath, skillId);
     }
 
-    public List<SkillStorage.FileEntry> listFiles(UUID skillPubId) {
-        String basePath = resolveBasePath(skillPubId);
+    public List<SkillStorage.FileEntry> listFiles(UUID skillId) {
+        String basePath = resolveBasePath(skillId);
         return skillStorage.listFiles(basePath);
     }
 
-    public InputStream getOrCreateZip(UUID skillPubId, LocalDateTime updatedAt) {
-        String zipParent = resolveZipParentPath(skillPubId);
-        String zipFileName = skillPubId + ".zip";
+    public InputStream getOrCreateZip(UUID skillId, LocalDateTime updatedAt) {
+        String zipParent = resolveZipParentPath(skillId);
+        String zipFileName = skillId + ".zip";
 
         long cacheModified = skillStorage.lastModified(zipParent, zipFileName);
         long entityModified = updatedAt.toInstant(ZoneOffset.UTC).toEpochMilli();
 
         if (cacheModified >= entityModified) {
-            log.debug("Serving cached ZIP for skill pubId={}", skillPubId);
+            log.debug("Serving cached ZIP for skill id={}", skillId);
             return skillStorage.readFile(zipParent, zipFileName);
         }
 
-        log.debug("Generating ZIP for skill pubId={}", skillPubId);
-        String basePath = resolveBasePath(skillPubId);
+        log.debug("Generating ZIP for skill id={}", skillId);
+        String basePath = resolveBasePath(skillId);
         List<SkillStorage.FileEntry> files = skillStorage.listFiles(basePath);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -145,7 +145,7 @@ public class SkillFileService {
                 }
             }
         } catch (IOException e) {
-            log.error("Failed to create ZIP for skill pubId={}", skillPubId, e);
+            log.error("Failed to create ZIP for skill id={}", skillId, e);
             throw new BadRequestStatusException("Failed to create skill archive");
         }
 
@@ -155,34 +155,34 @@ public class SkillFileService {
         return new ByteArrayInputStream(zipBytes);
     }
 
-    public void deleteAll(UUID skillPubId) {
-        String basePath = resolveBasePath(skillPubId);
+    public void deleteAll(UUID skillId) {
+        String basePath = resolveBasePath(skillId);
         skillStorage.deleteAll(basePath);
 
-        String zipParent = resolveZipParentPath(skillPubId);
-        String zipFileName = skillPubId + ".zip";
+        String zipParent = resolveZipParentPath(skillId);
+        String zipFileName = skillId + ".zip";
         skillStorage.deleteFile(zipParent, zipFileName);
 
-        log.info("Deleted all files for skill pubId={}", skillPubId);
+        log.info("Deleted all files for skill id={}", skillId);
     }
 
-    public void copyAll(UUID sourcePubId, UUID targetPubId) {
-        String sourcePath = resolveBasePath(sourcePubId);
-        String targetPath = resolveBasePath(targetPubId);
+    public void copyAll(UUID sourceId, UUID targetId) {
+        String sourcePath = resolveBasePath(sourceId);
+        String targetPath = resolveBasePath(targetId);
         skillStorage.copyAll(sourcePath, targetPath);
     }
 
-    String resolveBasePath(UUID skillPubId) {
-        String pubIdStr = skillPubId.toString();
-        String p1 = pubIdStr.substring(0, 2);
-        String p2 = pubIdStr.substring(2, 4);
-        return p1 + "/" + p2 + "/" + pubIdStr;
+    String resolveBasePath(UUID skillId) {
+        String idStr = skillId.toString();
+        String p1 = idStr.substring(0, 2);
+        String p2 = idStr.substring(2, 4);
+        return p1 + "/" + p2 + "/" + idStr;
     }
 
-    private String resolveZipParentPath(UUID skillPubId) {
-        String pubIdStr = skillPubId.toString();
-        String p1 = pubIdStr.substring(0, 2);
-        String p2 = pubIdStr.substring(2, 4);
+    private String resolveZipParentPath(UUID skillId) {
+        String idStr = skillId.toString();
+        String p1 = idStr.substring(0, 2);
+        String p2 = idStr.substring(2, 4);
         return p1 + "/" + p2;
     }
 

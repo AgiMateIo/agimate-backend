@@ -32,12 +32,12 @@ public class ManageAgentTriggerPolicyController {
     @GetMapping("/")
     public SuccessResponse<Page<AgentTriggerPolicyResponse>> getPolicies(
             @AuthenticationPrincipal AgimateUserPrincipal userPrincipal,
-            @RequestParam UUID agentPubId,
+            @RequestParam UUID agentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(userPrincipal.pubId());
-        Page<AgentTriggerPolicyResponse> response = agentTriggerPolicyService.getPoliciesByAgent(userPubId, agentPubId, page, size)
+        Page<AgentTriggerPolicyResponse> response = agentTriggerPolicyService.getPoliciesByAgent(userPubId, agentId, page, size)
                 .map(AgentTriggerPolicyResponse::from);
         return SuccessResponse.ok(response);
     }
@@ -62,7 +62,7 @@ public class ManageAgentTriggerPolicyController {
         UUID userPubId = UUID.fromString(userPrincipal.pubId());
         AgentTriggerPolicy policy = agentTriggerPolicyService.createPolicy(
                 userPubId,
-                request.agentPubId(),
+                request.agentId(),
                 request.connectorCode(),
                 request.connectorIdentity(),
                 request.triggerName(),

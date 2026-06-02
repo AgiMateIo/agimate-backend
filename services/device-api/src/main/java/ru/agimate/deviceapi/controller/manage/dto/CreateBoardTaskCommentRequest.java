@@ -11,7 +11,7 @@ import java.util.UUID;
 public record CreateBoardTaskCommentRequest(
         @NotNull
         @Schema(description = "Agent who creates the comment (must be in the board's agentic team)")
-        UUID agentPubId,
+        UUID agentId,
 
         @NotBlank
         @Size(min = 1, max = 5000)

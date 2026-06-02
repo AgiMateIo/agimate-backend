@@ -7,11 +7,8 @@
 
     <changeSet id="create-agents-table" author="agimate">
         <createTable tableName="agents">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
@@ -35,7 +32,7 @@
             </column>
             <column name="webhook_url" type="TEXT"/>
             <column name="webhook_auth_header" type="TEXT"/>
-            <column name="agentic_team_id" type="BIGINT">
+            <column name="agentic_team_id" type="UUID">
                 <constraints foreignKeyName="fk_agents_agentic_team"
                              references="agentic_teams(id)"/>
             </column>

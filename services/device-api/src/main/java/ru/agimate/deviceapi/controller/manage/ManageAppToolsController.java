@@ -30,13 +30,13 @@ public class ManageAppToolsController {
             summary = "Get tools by app",
             description = "Returns available tools for a specific app"
     )
-    @GetMapping("/{appPubId}")
+    @GetMapping("/{appId}")
     public SuccessResponse<List<AppTool>> getToolsByApp(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID appPubId
+            @PathVariable UUID appId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var tools = appService.getToolsByAppPubIdAndUser(appPubId, userPubId);
+        var tools = appService.getToolsByAppIdAndUser(appId, userPubId);
         return SuccessResponse.ok(tools);
     }
 }

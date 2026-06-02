@@ -7,11 +7,8 @@
 
     <changeSet id="create-apps-table" author="agimate">
         <createTable tableName="apps">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="connector_code" type="TEXT">
                 <constraints nullable="false"

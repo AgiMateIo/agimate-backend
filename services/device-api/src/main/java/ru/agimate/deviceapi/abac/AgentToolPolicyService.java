@@ -21,12 +21,12 @@ public class AgentToolPolicyService {
     private final AgentToolPolicyRepository agentToolPolicyRepository;
     private final ToolPolicyDbEvaluatorService toolPolicyEvaluatorService;
 
-    public List<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID agentPubId) {
-        return agentToolPolicyRepository.findByUserPubIdAndAgentPubId(userPubId, agentPubId);
+    public List<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID agentId) {
+        return agentToolPolicyRepository.findByUserPubIdAndAgentId(userPubId, agentId);
     }
 
-    public Page<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID agentPubId, int page, int size) {
-        return agentToolPolicyRepository.findByUserPubIdAndAgentPubId(userPubId, agentPubId, PageRequest.of(page, size));
+    public Page<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID agentId, int page, int size) {
+        return agentToolPolicyRepository.findByUserPubIdAndAgentId(userPubId, agentId, PageRequest.of(page, size));
     }
 
     public AgentToolPolicy getPolicyById(UUID userPubId, UUID id) {
@@ -37,19 +37,19 @@ public class AgentToolPolicyService {
     }
 
     @Transactional
-    public AgentToolPolicy createPolicy(UUID userPubId, UUID agentPubId, String connectorCode, String connectorIdentity,
+    public AgentToolPolicy createPolicy(UUID userPubId, UUID agentId, String connectorCode, String connectorIdentity,
                                         String toolName, AccessEffect effect, Integer priority, String description) {
         validateConstraints(connectorCode, connectorIdentity, toolName);
 
         AgentToolPolicy existing = agentToolPolicyRepository.findByCompositeKey(
-                agentPubId, connectorCode, connectorIdentity, toolName, effect.name());
+                agentId, connectorCode, connectorIdentity, toolName, effect.name());
         if (existing != null) {
             throw new BadRequestStatusException("Policy with the same parameters already exists");
         }
 
         AgentToolPolicy policy = AgentToolPolicy.builder()
                 .userPubId(userPubId)
-                .agentPubId(agentPubId)
+                .agentId(agentId)
                 .connectorCode(connectorCode)
                 .connectorIdentity(connectorIdentity)
                 .toolName(toolName)
@@ -59,7 +59,7 @@ public class AgentToolPolicyService {
                 .build();
 
         AgentToolPolicy saved = agentToolPolicyRepository.save(policy);
-        toolPolicyEvaluatorService.invalidateByAgent(agentPubId);
+        toolPolicyEvaluatorService.invalidateByAgent(agentId);
         return saved;
     }
 
@@ -83,7 +83,7 @@ public class AgentToolPolicyService {
         }
 
         AgentToolPolicy saved = agentToolPolicyRepository.save(policy);
-        toolPolicyEvaluatorService.invalidateByAgent(policy.getAgentPubId());
+        toolPolicyEvaluatorService.invalidateByAgent(policy.getAgentId());
         return saved;
     }
 
@@ -91,7 +91,7 @@ public class AgentToolPolicyService {
     public void deletePolicy(UUID userPubId, UUID id) {
         AgentToolPolicy policy = getPolicyById(userPubId, id);
         agentToolPolicyRepository.delete(policy);
-        toolPolicyEvaluatorService.invalidateByAgent(policy.getAgentPubId());
+        toolPolicyEvaluatorService.invalidateByAgent(policy.getAgentId());
     }
 
     private void validateOwnership(AgentToolPolicy policy, UUID userPubId) {

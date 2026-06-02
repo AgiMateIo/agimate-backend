@@ -4,8 +4,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import ru.agimate.deviceapi.database.entities.BoardTaskComment;
 
 import java.util.List;
+import java.util.UUID;
 
-public interface BoardTaskCommentRepository extends JpaRepository<BoardTaskComment, Long> {
+public interface BoardTaskCommentRepository extends JpaRepository<BoardTaskComment, UUID> {
 
-    List<BoardTaskComment> findByBoardTaskIdOrderByCreatedAtAsc(Long boardTaskId);
+    List<BoardTaskComment> findByBoardTaskIdOrderByCreatedAtAsc(UUID boardTaskId);
 }

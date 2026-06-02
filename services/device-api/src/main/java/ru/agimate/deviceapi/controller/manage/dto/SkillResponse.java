@@ -31,7 +31,7 @@ public record SkillResponse(
         UUID userPubId,
 
         @Schema(description = "Parent skill ID (if cloned)")
-        UUID parentPubId,
+        UUID parentId,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the skill was created")
@@ -50,14 +50,14 @@ public record SkillResponse(
 
     public static SkillResponse from(Skill skill, UUID myCopyId) {
         return new SkillResponse(
-                skill.getPubId(),
+                skill.getId(),
                 skill.getName(),
                 skill.getDescription(),
                 skill.getVersion(),
                 skill.getIsPublic(),
                 skill.getIsFeatured(),
                 skill.getUserPubId(),
-                skill.getParentPubId(),
+                skill.getParentId(),
                 skill.getCreatedAt(),
                 skill.getUpdatedAt(),
                 myCopyId

@@ -73,26 +73,26 @@ public class ManageSkillController {
     }
 
     @Operation(summary = "Get skill details with SKILL.md content")
-    @GetMapping("/{pubId}")
+    @GetMapping("/{id}")
     public SuccessResponse<SkillDetailResponse> getSkillDetail(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.getSkillDetail(pubId, userPubId));
+        return SuccessResponse.ok(skillService.getSkillDetail(id, userPubId));
     }
 
     @Operation(summary = "List user's agents that use this skill, with optional name/prompt search")
-    @GetMapping("/{pubId}/agents/")
+    @GetMapping("/{id}/agents/")
     public SuccessResponse<Page<AgentSummaryResponse>> getSkillAgents(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
+            @PathVariable UUID id,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.getSkillAgents(pubId, userPubId, search, page, size));
+        return SuccessResponse.ok(skillService.getSkillAgents(id, userPubId, search, page, size));
     }
 
     @Operation(summary = "Create skill from JSON with SKILL.md content")
@@ -122,34 +122,34 @@ public class ManageSkillController {
     }
 
     @Operation(summary = "Update skill")
-    @PutMapping("/{pubId}")
+    @PutMapping("/{id}")
     public SuccessResponse<SkillResponse> updateSkill(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
+            @PathVariable UUID id,
             @Valid @RequestBody UpdateSkillRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.update(pubId, userPubId, request));
+        return SuccessResponse.ok(skillService.update(id, userPubId, request));
     }
 
     @Operation(summary = "Delete skill (soft delete)")
-    @DeleteMapping("/{pubId}")
+    @DeleteMapping("/{id}")
     public SuccessResponse<Void> deleteSkill(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        skillService.delete(pubId, userPubId);
+        skillService.delete(id, userPubId);
         return SuccessResponse.empty();
     }
 
     @Operation(summary = "Clone a public skill to own collection")
-    @PostMapping("/{pubId}/clone")
+    @PostMapping("/{id}/clone")
     public SuccessResponse<SkillResponse> cloneSkill(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.clone(pubId, userPubId));
+        return SuccessResponse.ok(skillService.clone(id, userPubId));
     }
 }

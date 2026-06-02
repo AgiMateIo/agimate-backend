@@ -11,7 +11,7 @@ import java.util.UUID;
 public record CreateBoardRequest(
         @NotNull
         @Schema(description = "Agentic team public ID")
-        UUID agenticTeamPubId,
+        UUID agenticTeamId,
 
         @NotBlank
         @Size(min = 1, max = 200)

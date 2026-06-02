@@ -34,7 +34,7 @@ public record IntegrationResponse(
 ) {
     public static IntegrationResponse from(IntegrationCredentials ic) {
         return new IntegrationResponse(
-                ic.getPubId(),
+                ic.getId(),
                 ic.getConnectorCode(),
                 ic.getPlatformIdentifier(),
                 ic.getName(),

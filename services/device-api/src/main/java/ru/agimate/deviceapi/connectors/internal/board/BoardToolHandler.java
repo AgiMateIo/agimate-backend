@@ -49,7 +49,7 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
     @Tool(name = "board.get_tasks", value = "Get all tasks from the board grouped by status")
     public Map<String, Object> getTasks() {
         Board board = resolveBoard(resolveAgent());
-        var result = boardService.getTasksByStatus(board.getPubId(), userPubId());
+        var result = boardService.getTasksByStatus(board.getId(), userPubId());
         return Map.of("tasks", result);
     }
 
@@ -58,8 +58,8 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
             @P("Task type (EPIC, TASK, SUBTASK)") String type,
             @P("Task title") String title,
             @P("Task description") String description,
-            @P("Parent task public ID") String parentTaskPubId,
-            @P("Assignee agent public ID") String assigneeAgentPubId) {
+            @P("Parent task public ID") String parentTaskId,
+            @P("Assignee agent public ID") String assigneeAgentId) {
         if (type == null || type.isBlank()) {
             throw new BadRequestStatusException("Parameter 'type' is required (EPIC, TASK, SUBTASK)");
         }
@@ -76,21 +76,21 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
         } catch (IllegalArgumentException e) {
             throw new BadRequestStatusException("Invalid task type: '" + type + "'. Allowed: EPIC, TASK, SUBTASK");
         }
-        UUID parentId = parentTaskPubId != null ? UUID.fromString(parentTaskPubId) : null;
-        UUID assigneeId = assigneeAgentPubId != null ? UUID.fromString(assigneeAgentPubId) : null;
+        UUID parentId = parentTaskId != null ? UUID.fromString(parentTaskId) : null;
+        UUID assigneeId = assigneeAgentId != null ? UUID.fromString(assigneeAgentId) : null;
 
         var request = new CreateBoardTaskRequest(taskType, title, description,
-                agent.getPubId(), assigneeId, parentId);
-        var result = boardService.createTask(board.getPubId(), userPubId(), request);
+                agent.getId(), assigneeId, parentId);
+        var result = boardService.createTask(board.getId(), userPubId(), request);
         return Map.of("task", result);
     }
 
     @Tool(name = "board.change_task_status", value = "Change the status of a task")
     public Map<String, Object> changeTaskStatus(
-            @P("Task public ID") String taskPubId,
+            @P("Task public ID") String taskId,
             @P("New status") String status) {
-        if (taskPubId == null || taskPubId.isBlank()) {
-            throw new BadRequestStatusException("Parameter 'taskPubId' is required");
+        if (taskId == null || taskId.isBlank()) {
+            throw new BadRequestStatusException("Parameter 'taskId' is required");
         }
         if (status == null || status.isBlank()) {
             throw new BadRequestStatusException("Parameter 'status' is required");
@@ -98,7 +98,7 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
 
         Agent agent = resolveAgent();
 
-        UUID taskId = UUID.fromString(taskPubId);
+        UUID taskUuid = UUID.fromString(taskId);
         BoardTaskStatus taskStatus;
         try {
             taskStatus = BoardTaskStatus.valueOf(status.toUpperCase());
@@ -106,33 +106,33 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
             throw new BadRequestStatusException("Invalid status: '" + status + "'");
         }
 
-        var request = new UpdateBoardTaskStatusRequest(taskStatus, agent.getPubId());
-        var result = boardService.changeTaskStatus(taskId, userPubId(), request);
+        var request = new UpdateBoardTaskStatusRequest(taskStatus, agent.getId());
+        var result = boardService.changeTaskStatus(taskUuid, userPubId(), request);
         return Map.of("task", result);
     }
 
     @Tool(name = "board.get_comments", value = "Get comments for a task")
     public Map<String, Object> getComments(
-            @P("Task public ID") String taskPubId) {
-        UUID taskId = UUID.fromString(taskPubId);
-        var result = boardService.getComments(taskId, userPubId());
+            @P("Task public ID") String taskId) {
+        UUID taskUuid = UUID.fromString(taskId);
+        var result = boardService.getComments(taskUuid, userPubId());
         return Map.of("comments", result);
     }
 
     @Tool(name = "board.create_comment", value = "Create a comment on a task")
     public Map<String, Object> createComment(
-            @P("Task public ID") String taskPubId,
+            @P("Task public ID") String taskId,
             @P("Comment content") String content) {
         Agent agent = resolveAgent();
 
-        UUID taskId = UUID.fromString(taskPubId);
-        var request = new CreateBoardTaskCommentRequest(agent.getPubId(), content);
-        var result = boardService.createComment(taskId, userPubId(), request);
+        UUID taskUuid = UUID.fromString(taskId);
+        var request = new CreateBoardTaskCommentRequest(agent.getId(), content);
+        var result = boardService.createComment(taskUuid, userPubId(), request);
         return Map.of("comment", result);
     }
 
     private Agent resolveAgent() {
-        return agentRepository.findByPubId(agentPubId())
+        return agentRepository.findById(agentId())
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
     }
 

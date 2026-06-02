@@ -9,6 +9,6 @@ import java.util.UUID;
 public record CreateAgentSkillRequest(
         @NotNull
         @Schema(description = "Skill public ID to bind")
-        UUID skillPubId
+        UUID skillId
 ) {
 }

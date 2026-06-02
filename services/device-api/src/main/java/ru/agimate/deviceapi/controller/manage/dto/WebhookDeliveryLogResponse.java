@@ -33,7 +33,7 @@ public record WebhookDeliveryLogResponse(
 ) {
     public static WebhookDeliveryLogResponse from(WebhookDeliveryLog log) {
         return new WebhookDeliveryLogResponse(
-                log.getPubId(),
+                log.getId(),
                 log.getRequestUrl(),
                 log.getResponseStatusCode(),
                 log.getErrorMessage(),

@@ -62,7 +62,7 @@ public class TelegramPollingService {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onCreated(IntegrationCreatedEvent event) {
         if (!TelegramHandler.CONNECTOR_CODE.equals(event.connectorCode())) return;
-        integrationCredentialsRepository.findByPubIdNotDeleted(event.integrationPubId())
+        integrationCredentialsRepository.findByIdNotDeleted(event.integrationId())
                 .filter(IntegrationCredentials::isActive)
                 .ifPresent(this::start);
     }
@@ -70,40 +70,40 @@ public class TelegramPollingService {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onDeleted(IntegrationDeletedEvent event) {
         if (!TelegramHandler.CONNECTOR_CODE.equals(event.connectorCode())) return;
-        stop(event.integrationPubId());
+        stop(event.integrationId());
     }
 
     private synchronized void start(IntegrationCredentials credentials) {
-        UUID pubId = credentials.getPubId();
-        if (workers.containsKey(pubId)) {
-            log.debug("Polling worker already running for {}", pubId);
+        UUID id = credentials.getId();
+        if (workers.containsKey(id)) {
+            log.debug("Polling worker already running for {}", id);
             return;
         }
         String token;
         try {
             token = encryptionService.decryptCredentials(credentials.getEncryptedData()).get("token");
         } catch (Exception e) {
-            log.error("Failed to decrypt token for integration {}: {}", pubId, e.getMessage());
+            log.error("Failed to decrypt token for integration {}: {}", id, e.getMessage());
             return;
         }
         if (token == null || token.isBlank()) {
-            log.warn("Integration {} has no token, skipping", pubId);
+            log.warn("Integration {} has no token, skipping", id);
             return;
         }
 
         PollingWorker worker = new PollingWorker(credentials, token);
-        workers.put(pubId, worker);
+        workers.put(id, worker);
         Thread thread = threadFactory.newThread(worker);
         worker.setThread(thread);
         thread.start();
-        log.info("Started Telegram polling worker for integration {}", pubId);
+        log.info("Started Telegram polling worker for integration {}", id);
     }
 
-    private synchronized void stop(UUID pubId) {
-        PollingWorker worker = workers.remove(pubId);
+    private synchronized void stop(UUID id) {
+        PollingWorker worker = workers.remove(id);
         if (worker != null) {
             worker.stop();
-            log.info("Stopped Telegram polling worker for integration {}", pubId);
+            log.info("Stopped Telegram polling worker for integration {}", id);
         }
     }
 
@@ -131,23 +131,23 @@ public class TelegramPollingService {
 
         @Override
         public void run() {
-            UUID pubId = credentials.getPubId();
+            UUID id = credentials.getId();
             try {
                 telegramApiClient.deleteWebhook(token);
             } catch (Exception e) {
-                log.warn("Failed to delete webhook before polling for {}: {}", pubId, e.getMessage());
+                log.warn("Failed to delete webhook before polling for {}: {}", id, e.getMessage());
             }
 
             while (running) {
                 try {
                     Map<String, Object> response = telegramApiClient.getUpdates(token, offset, LONG_POLL_TIMEOUT_SEC);
                     if (!Boolean.TRUE.equals(response.get("ok"))) {
-                        log.warn("Telegram getUpdates failed for {}: {}", pubId, response.get("description"));
+                        log.warn("Telegram getUpdates failed for {}: {}", id, response.get("description"));
                         sleepBackoff(BACKOFF_MS);
                         continue;
                     }
                     if (inConflict) {
-                        log.info("Telegram polling slot recovered for integration {}", pubId);
+                        log.info("Telegram polling slot recovered for integration {}", id);
                         inConflict = false;
                     }
                     @SuppressWarnings("unchecked")
@@ -165,19 +165,19 @@ public class TelegramPollingService {
                         log.warn("Telegram returned 409 for integration {} — another getUpdates is in flight " +
                                         "(another process with the same bot token, or a leftover session). " +
                                         "Backing off {}s until the slot is released.",
-                                pubId, CONFLICT_BACKOFF_MS / 1000);
+                                id, CONFLICT_BACKOFF_MS / 1000);
                         inConflict = true;
                     } else {
-                        log.debug("Telegram 409 still active for {}", pubId);
+                        log.debug("Telegram 409 still active for {}", id);
                     }
                     sleepBackoff(CONFLICT_BACKOFF_MS);
                 } catch (Exception e) {
                     if (!running) break;
-                    log.error("Polling error for integration {}: {}", pubId, e.getMessage());
+                    log.error("Polling error for integration {}: {}", id, e.getMessage());
                     sleepBackoff(BACKOFF_MS);
                 }
             }
-            log.debug("Polling loop exited for {}", pubId);
+            log.debug("Polling loop exited for {}", id);
         }
 
         private void dispatch(Map<String, Object> update) {
@@ -187,7 +187,7 @@ public class TelegramPollingService {
                 triggerRouterService.routeWhTrigger(credentials, trigger);
             } catch (Exception e) {
                 log.error("Failed to dispatch update for integration {}: {}",
-                        credentials.getPubId(), e.getMessage());
+                        credentials.getId(), e.getMessage());
             }
         }
 

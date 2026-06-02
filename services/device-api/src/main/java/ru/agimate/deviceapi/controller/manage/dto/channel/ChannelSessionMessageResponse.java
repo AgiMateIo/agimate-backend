@@ -8,14 +8,14 @@ import java.util.UUID;
 
 @Schema(description = "Single channel session message")
 public record ChannelSessionMessageResponse(
-        UUID pubId,
+        UUID id,
         String direction,
         String message,
         LocalDateTime createdAt
 ) {
     public static ChannelSessionMessageResponse from(ChannelSessionMessage m) {
         return new ChannelSessionMessageResponse(
-                m.getPubId(),
+                m.getId(),
                 m.getTriggerInput() != null ? "IN" : "OUT",
                 m.getMessage(),
                 m.getCreatedAt()

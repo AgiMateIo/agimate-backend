@@ -69,7 +69,7 @@ public class ManageAppsController {
             @PathVariable UUID appId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var app = appService.getAppByPubId(appId, userPubId);
+        var app = appService.getAppById(appId, userPubId);
         return SuccessResponse.ok(UserAppDetailResponse.from(app));
     }
 

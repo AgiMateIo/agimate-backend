@@ -7,11 +7,8 @@
 
     <changeSet id="create-trigger-logs-table" author="agimate">
         <createTable tableName="trigger_logs">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>

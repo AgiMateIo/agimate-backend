@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public record AgentPrincipal(
         String name,
-        UUID agentPubId,
+        UUID agentId,
         UUID userPubId
 ) implements Principal {
 

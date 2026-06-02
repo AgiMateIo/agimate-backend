@@ -14,12 +14,12 @@ import java.util.UUID;
 @Repository
 public interface SkillConnectorRepository extends JpaRepository<SkillConnector, UUID> {
 
-    List<SkillConnector> findBySkillId(Long skillId);
+    List<SkillConnector> findBySkillId(UUID skillId);
 
-    @Query("SELECT sc FROM SkillConnector sc JOIN FETCH sc.skill s WHERE s.pubId IN :skillPubIds")
-    List<SkillConnector> findBySkillPubIdIn(@Param("skillPubIds") Collection<UUID> skillPubIds);
+    @Query("SELECT sc FROM SkillConnector sc JOIN FETCH sc.skill s WHERE s.id IN :skillIds")
+    List<SkillConnector> findBySkillIdIn(@Param("skillIds") Collection<UUID> skillIds);
 
     @Modifying(clearAutomatically = true)
     @Query("DELETE FROM SkillConnector sc WHERE sc.skill.id = :skillId")
-    void deleteBySkillId(@Param("skillId") Long skillId);
+    void deleteBySkillId(@Param("skillId") UUID skillId);
 }

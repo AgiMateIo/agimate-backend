@@ -34,8 +34,8 @@ public class AgenticTeamService {
                 .toList();
     }
 
-    public AgenticTeamResponse getByPubId(UUID pubId, UUID userPubId) {
-        AgenticTeam team = agenticTeamRepository.findByPubId(pubId)
+    public AgenticTeamResponse getById(UUID id, UUID userPubId) {
+        AgenticTeam team = agenticTeamRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
         if (!team.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");
@@ -61,8 +61,8 @@ public class AgenticTeamService {
     }
 
     @Transactional
-    public AgenticTeamResponse update(UUID pubId, UUID userPubId, UpdateAgenticTeamRequest request) {
-        AgenticTeam team = agenticTeamRepository.findByPubId(pubId)
+    public AgenticTeamResponse update(UUID id, UUID userPubId, UpdateAgenticTeamRequest request) {
+        AgenticTeam team = agenticTeamRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
         if (!team.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");
@@ -77,13 +77,13 @@ public class AgenticTeamService {
         team.setDescription(request.description());
         team = agenticTeamRepository.save(team);
 
-        log.info("Updated agentic team pubId={}", pubId);
+        log.info("Updated agentic team id={}", id);
         return AgenticTeamResponse.from(team);
     }
 
     @Transactional
-    public void delete(UUID pubId, UUID userPubId) {
-        AgenticTeam team = agenticTeamRepository.findByPubId(pubId)
+    public void delete(UUID id, UUID userPubId) {
+        AgenticTeam team = agenticTeamRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
         if (!team.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");
@@ -98,6 +98,6 @@ public class AgenticTeamService {
         }
 
         agenticTeamRepository.delete(team);
-        log.info("Deleted agentic team pubId={}", pubId);
+        log.info("Deleted agentic team id={}", id);
     }
 }

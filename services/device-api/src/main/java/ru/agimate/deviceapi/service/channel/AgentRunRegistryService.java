@@ -31,34 +31,34 @@ public class AgentRunRegistryService {
 
     /** Immutable view of the active run, materialized inside the transaction. */
     public record ActiveRunView(
-            UUID agentPubId,
-            UUID sessionPubId,
+            UUID agentId,
+            UUID sessionId,
             UUID runId,
             LocalDateTime acquiredAt,
             LocalDateTime expiresAt
     ) {}
 
     @Transactional
-    public ActiveRunView registerRun(UUID sessionPubId, UUID runId, int ttlSeconds) {
+    public ActiveRunView registerRun(UUID sessionId, UUID runId, int ttlSeconds) {
         int ttl = ttlSeconds > 0 ? ttlSeconds : DEFAULT_TTL_SECONDS;
         LocalDateTime acquiredAt = LocalDateTime.now();
         LocalDateTime expiresAt = acquiredAt.plusSeconds(ttl);
 
-        int updated = triggerLogAgentRepository.markRunning(runId, sessionPubId, expiresAt, acquiredAt);
+        int updated = triggerLogAgentRepository.markRunning(runId, sessionId, expiresAt, acquiredAt);
         if (updated == 0) {
             throw new NotFoundStatusException("Run not found: " + runId);
         }
 
-        TriggerLogAgent run = triggerLogAgentRepository.findByPubId(runId)
+        TriggerLogAgent run = triggerLogAgentRepository.findById(runId)
                 .orElseThrow(() -> new NotFoundStatusException("Run not found: " + runId));
         log.debug("RegisterRun session={} run={} agent={} expiresAt={}",
-                sessionPubId, runId, run.getAgent().getPubId(), expiresAt);
+                sessionId, runId, run.getAgent().getId(), expiresAt);
         return toView(run);
     }
 
-    public Optional<ActiveRunView> getActiveRun(UUID sessionPubId) {
+    public Optional<ActiveRunView> getActiveRun(UUID sessionId) {
         return triggerLogAgentRepository
-                .findActiveBySession(sessionPubId, LocalDateTime.now())
+                .findActiveBySession(sessionId, LocalDateTime.now())
                 .map(this::toView);
     }
 
@@ -71,9 +71,9 @@ public class AgentRunRegistryService {
 
     private ActiveRunView toView(TriggerLogAgent run) {
         return new ActiveRunView(
-                run.getAgent().getPubId(),
-                run.getSessionPubId(),
-                run.getPubId(),
+                run.getAgent().getId(),
+                run.getSessionId(),
+                run.getId(),
                 run.getUpdatedAt(),
                 run.getExpiresAt()
         );

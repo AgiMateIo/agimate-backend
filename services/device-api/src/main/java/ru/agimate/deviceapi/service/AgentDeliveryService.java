@@ -39,17 +39,17 @@ public class AgentDeliveryService {
             triggerLogAgent.setError(e.getMessage());
             log.warn("Failed to send trigger '{}' to agent '{}' via {}: {}",
                     triggerLogAgent.getTriggerLog().getTriggerName(),
-                    agent.getPubId(), agent.getType(), e.getMessage());
+                    agent.getId(), agent.getType(), e.getMessage());
         }
     }
 
-    public void deliverToolResult(UUID agentPubId, IToolResult toolResult) {
-        Agent agent = agentService.findByPubId(agentPubId);
+    public void deliverToolResult(UUID agentId, IToolResult toolResult) {
+        Agent agent = agentService.findById(agentId);
         try {
             handlers.get(agent.getType()).deliverToolResult(agent, toolResult);
         } catch (Exception e) {
             log.warn("Failed to deliver tool result '{}' to agent '{}' via {}: {}",
-                    toolResult.getId(), agent.getPubId(), agent.getType(), e.getMessage());
+                    toolResult.getId(), agent.getId(), agent.getType(), e.getMessage());
         }
     }
 }

@@ -8,7 +8,7 @@ import java.util.UUID;
 @Schema(description = "Agent configuration")
 public record AgentConfigResponse(
         @Schema(description = "Agent public ID")
-        UUID agentPubId,
+        UUID agentId,
 
         @Schema(description = "Agent prompt")
         String prompt,

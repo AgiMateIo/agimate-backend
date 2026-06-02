@@ -22,7 +22,7 @@ import java.util.UUID;
 @Tag(name = "Agent LLM bindings", description = "Manage agent ↔ LLM provider bindings")
 public class ManageAgentLlmController {
 
-    public static final String PATH = "/manage/agents/{agentPubId}/llms";
+    public static final String PATH = "/manage/agents/{agentId}/llms";
 
     private final AgentLlmService agentLlmService;
 
@@ -30,44 +30,44 @@ public class ManageAgentLlmController {
     @GetMapping("/")
     public SuccessResponse<List<AgentLlmResponse>> list(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId
+            @PathVariable UUID agentId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentLlmService.listForAgent(agentPubId, userPubId));
+        return SuccessResponse.ok(agentLlmService.listForAgent(agentId, userPubId));
     }
 
     @Operation(summary = "Create an LLM binding for the agent")
     @PostMapping("/")
     public SuccessResponse<AgentLlmResponse> create(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId,
+            @PathVariable UUID agentId,
             @Valid @RequestBody CreateAgentLlmRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentLlmService.create(agentPubId, userPubId, request));
+        return SuccessResponse.ok(agentLlmService.create(agentId, userPubId, request));
     }
 
     @Operation(summary = "Replace the LLM binding identified by its name")
     @PutMapping("/{name}")
     public SuccessResponse<AgentLlmResponse> replace(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId,
+            @PathVariable UUID agentId,
             @PathVariable String name,
             @Valid @RequestBody UpdateAgentLlmRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentLlmService.replace(agentPubId, userPubId, name, request));
+        return SuccessResponse.ok(agentLlmService.replace(agentId, userPubId, name, request));
     }
 
     @Operation(summary = "Delete the LLM binding identified by its name")
     @DeleteMapping("/{name}")
     public SuccessResponse<Void> delete(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId,
+            @PathVariable UUID agentId,
             @PathVariable String name
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        agentLlmService.delete(agentPubId, userPubId, name);
+        agentLlmService.delete(agentId, userPubId, name);
         return SuccessResponse.empty();
     }
 }

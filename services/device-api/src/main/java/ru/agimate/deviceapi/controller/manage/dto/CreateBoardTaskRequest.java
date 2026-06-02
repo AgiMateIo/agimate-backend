@@ -25,11 +25,11 @@ public record CreateBoardTaskRequest(
 
         @NotNull
         @Schema(description = "Agent who creates the task (must be in the board's agentic team)")
-        UUID createdByAgentPubId,
+        UUID createdByAgentId,
 
         @Schema(description = "Agent assigned to the task (must be in the board's agentic team)")
-        UUID assigneeAgentPubId,
+        UUID assigneeAgentId,
 
         @Schema(description = "Parent task public ID (for hierarchy: epic -> task -> subtask)")
-        UUID parentTaskPubId
+        UUID parentTaskId
 ) {}

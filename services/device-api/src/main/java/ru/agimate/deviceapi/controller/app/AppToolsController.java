@@ -34,7 +34,7 @@ public class AppToolsController {
         var app = appService.getApp(authentication);
 
         var toolUseLog = toolUseLogService.recordOutput(app, toolResultRequest);
-        agentDeliveryService.deliverToolResult(toolUseLog.getAgentPubId(), toolResultRequest);
+        agentDeliveryService.deliverToolResult(toolUseLog.getAgentId(), toolResultRequest);
 
         return SuccessResponse.empty();
     }

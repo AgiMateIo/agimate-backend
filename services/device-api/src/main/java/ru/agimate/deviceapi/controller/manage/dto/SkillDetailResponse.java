@@ -31,7 +31,7 @@ public record SkillDetailResponse(
         UUID userPubId,
 
         @Schema(description = "Parent skill ID (if cloned)")
-        UUID parentPubId,
+        UUID parentId,
 
         @Schema(description = "Content of SKILL.md")
         String skillMd,
@@ -46,14 +46,14 @@ public record SkillDetailResponse(
 ) {
     public static SkillDetailResponse from(Skill skill, String skillMd) {
         return new SkillDetailResponse(
-                skill.getPubId(),
+                skill.getId(),
                 skill.getName(),
                 skill.getDescription(),
                 skill.getVersion(),
                 skill.getIsPublic(),
                 skill.getIsFeatured(),
                 skill.getUserPubId(),
-                skill.getParentPubId(),
+                skill.getParentId(),
                 skillMd,
                 skill.getCreatedAt(),
                 skill.getUpdatedAt()

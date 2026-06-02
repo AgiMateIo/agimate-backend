@@ -15,15 +15,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface AppRepository extends JpaRepository<App, Long> {
+public interface AppRepository extends JpaRepository<App, UUID> {
 
-    Optional<App> findByPubId(UUID pubId);
-
-    @Query("SELECT a FROM App a WHERE a.pubId = :pubId AND a.deletedAt IS NULL")
-    Optional<App> findByPubIdNotDeleted(@Param("pubId") UUID pubId);
+    @Query("SELECT a FROM App a WHERE a.id = :id AND a.deletedAt IS NULL")
+    Optional<App> findByIdNotDeleted(@Param("id") UUID id);
 
     @Query("SELECT a FROM App a WHERE a.userPubId = :userPubId AND a.deletedAt IS NULL AND a.enabled = true")
-    List<App> findByPubIdNotDeletedAndActive(@Param("userPubId") UUID userPubId);
+    List<App> findByUserPubIdNotDeletedAndActive(@Param("userPubId") UUID userPubId);
 
     @Query("SELECT a FROM App a WHERE a.userPubId = :userPubId AND a.deletedAt IS NULL ORDER BY a.createdAt DESC")
     List<App> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
@@ -42,17 +40,17 @@ public interface AppRepository extends JpaRepository<App, Long> {
 
     @Modifying
     @Query("UPDATE App a SET a.deletedAt = :now WHERE a.id = :id")
-    void softDelete(@Param("id") Long id, @Param("now") LocalDateTime now);
+    void softDelete(@Param("id") UUID id, @Param("now") LocalDateTime now);
 
     @Query("SELECT COUNT(a) > 0 FROM App a WHERE a.userPubId = :userPubId AND a.name = :name AND a.deletedAt IS NULL")
     boolean existsByUserPubIdAndName(@Param("userPubId") UUID userPubId, @Param("name") String name);
 
-    @Query("SELECT COUNT(a) > 0 FROM App a WHERE a.pubId = :pubId AND a.userPubId = :userPubId AND a.deletedAt IS NULL")
-    boolean existsByPubIdAndUserPubId(@Param("pubId") UUID pubId, @Param("userPubId") UUID userPubId);
+    @Query("SELECT COUNT(a) > 0 FROM App a WHERE a.id = :id AND a.userPubId = :userPubId AND a.deletedAt IS NULL")
+    boolean existsByIdAndUserPubId(@Param("id") UUID id, @Param("userPubId") UUID userPubId);
 
-    @Query("SELECT a FROM App a WHERE a.pubId = :pubId AND a.userPubId = :userPubId AND a.deletedAt IS NULL")
-    Optional<App> findByPubIdAndUserPubIdNotDeleted(@Param("pubId") UUID pubId, @Param("userPubId") UUID userPubId);
+    @Query("SELECT a FROM App a WHERE a.id = :id AND a.userPubId = :userPubId AND a.deletedAt IS NULL")
+    Optional<App> findByIdAndUserPubIdNotDeleted(@Param("id") UUID id, @Param("userPubId") UUID userPubId);
 
-    @Query("SELECT a FROM App a WHERE a.pubId IN :pubIds AND a.deletedAt IS NULL")
-    List<App> findAllByPubIdInNotDeleted(@Param("pubIds") java.util.Collection<UUID> pubIds);
+    @Query("SELECT a FROM App a WHERE a.id IN :ids AND a.deletedAt IS NULL")
+    List<App> findAllByIdInNotDeleted(@Param("ids") java.util.Collection<UUID> ids);
 }

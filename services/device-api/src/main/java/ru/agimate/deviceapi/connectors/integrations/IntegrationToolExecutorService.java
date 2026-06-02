@@ -27,7 +27,7 @@ public class IntegrationToolExecutorService {
     private final ToolUseLogService toolUseLogService;
 
     @Async
-    public void execute(IntegrationCredentials integrationCredentials, ToolUsePayload toolUse, UUID agentPubId) {
+    public void execute(IntegrationCredentials integrationCredentials, ToolUsePayload toolUse, UUID agentId) {
         var integrationHandler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
 
         try {
@@ -40,14 +40,14 @@ public class IntegrationToolExecutorService {
                     toolUse.id(), toolUse.connectorCode(), JsonUtils.writeValueAsString(result), null);
             toolUseLogService.recordOutput(toolResult);
 
-            if (agentPubId != null) {
-                agentDeliveryService.deliverToolResult(agentPubId, toolResult);
+            if (agentId != null) {
+                agentDeliveryService.deliverToolResult(agentId, toolResult);
             }
 
-            log.debug("Executed tool '{}' for integration {}", toolUse.name(), integrationCredentials.getPubId());
+            log.debug("Executed tool '{}' for integration {}", toolUse.name(), integrationCredentials.getId());
         } catch (Exception e) {
             log.error("Failed to execute tool '{}' for integration {}: {}",
-                    toolUse.name(), integrationCredentials.getPubId(), e.getMessage());
+                    toolUse.name(), integrationCredentials.getId(), e.getMessage());
 
             var errorResult = new ToolResultRequest(
                     toolUse.id(), toolUse.connectorCode(), null, "Tool execution failed");
@@ -58,8 +58,8 @@ public class IntegrationToolExecutorService {
                 log.warn("Failed to log integration tool error: {}", logError.getMessage());
             }
 
-            if (agentPubId != null) {
-                agentDeliveryService.deliverToolResult(agentPubId, errorResult);
+            if (agentId != null) {
+                agentDeliveryService.deliverToolResult(agentId, errorResult);
             }
         }
     }

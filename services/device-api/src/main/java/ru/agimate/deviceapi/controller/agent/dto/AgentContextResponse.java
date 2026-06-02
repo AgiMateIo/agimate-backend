@@ -19,7 +19,7 @@ public record AgentContextResponse(
 
     @Schema(description = "Current agent info")
     public record Self(
-            @Schema(description = "Agent public ID") UUID pubId,
+            @Schema(description = "Agent public ID") UUID id,
             @Schema(description = "Agent name") String name,
             @Schema(description = "Agent description") String description,
             @Schema(description = "Agent prompt") String prompt
@@ -27,14 +27,14 @@ public record AgentContextResponse(
 
     @Schema(description = "Agentic team info")
     public record Team(
-            @Schema(description = "Team public ID") UUID pubId,
+            @Schema(description = "Team public ID") UUID id,
             @Schema(description = "Team name") String name,
             @Schema(description = "Team description") String description
     ) {}
 
     @Schema(description = "Team agent short info")
     public record TeamAgent(
-            @Schema(description = "Agent public ID") UUID pubId,
+            @Schema(description = "Agent public ID") UUID id,
             @Schema(description = "Agent name") String name,
             @Schema(description = "Agent description") String description
     ) {}

@@ -5,7 +5,7 @@ import java.util.UUID;
 
 // TODO: пересмотреть это решение с Audience и сделать его универасальным для всех типов триггеров и сообщений для всех типов агентов.
 public record TriggerAudience(
-        UUID actorAgentPubId,
-        List<UUID> targetAgentPubIds
+        UUID actorAgentId,
+        List<UUID> targetAgentIds
 ) {
 }

@@ -28,7 +28,7 @@ public record AgenticTeamResponse(
 ) {
     public static AgenticTeamResponse from(AgenticTeam team) {
         return new AgenticTeamResponse(
-                team.getPubId(),
+                team.getId(),
                 team.getName(),
                 team.getDescription(),
                 team.getCreatedAt(),

@@ -108,11 +108,11 @@ public class AgentRunRegistryGrpcService extends AgentRunRegistryGrpc.AgentRunRe
     private static ActiveRun toProto(AgentRunRegistryService.ActiveRunView view) {
         ActiveRun.Builder b = ActiveRun.newBuilder()
                 .setRunId(view.runId().toString());
-        if (view.agentPubId() != null) {
-            b.setAgentPubId(view.agentPubId().toString());
+        if (view.agentId() != null) {
+            b.setAgentPubId(view.agentId().toString());
         }
-        if (view.sessionPubId() != null) {
-            b.setSessionPubId(view.sessionPubId().toString());
+        if (view.sessionId() != null) {
+            b.setSessionPubId(view.sessionId().toString());
         }
         if (view.acquiredAt() != null) {
             b.setAcquiredAt(toProtoTimestamp(view.acquiredAt()));

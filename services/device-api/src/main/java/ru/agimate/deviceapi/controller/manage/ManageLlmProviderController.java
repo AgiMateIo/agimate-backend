@@ -46,45 +46,45 @@ public class ManageLlmProviderController {
         return SuccessResponse.ok(llmProviderService.create(userPubId, request));
     }
 
-    @Operation(summary = "Get an LLM provider by pubId")
-    @GetMapping("/{pubId}")
+    @Operation(summary = "Get an LLM provider by id")
+    @GetMapping("/{id}")
     public SuccessResponse<LlmProviderResponse> get(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(llmProviderService.getForUser(pubId, userPubId));
+        return SuccessResponse.ok(llmProviderService.getForUser(id, userPubId));
     }
 
     @Operation(summary = "Update an LLM provider (partial)")
-    @PatchMapping("/{pubId}")
+    @PatchMapping("/{id}")
     public SuccessResponse<LlmProviderResponse> update(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
+            @PathVariable UUID id,
             @Valid @RequestBody UpdateLlmProviderRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(llmProviderService.update(pubId, userPubId, request));
+        return SuccessResponse.ok(llmProviderService.update(id, userPubId, request));
     }
 
     @Operation(summary = "Delete an LLM provider (cascades to agent bindings)")
-    @DeleteMapping("/{pubId}")
+    @DeleteMapping("/{id}")
     public SuccessResponse<Void> delete(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        llmProviderService.delete(pubId, userPubId);
+        llmProviderService.delete(id, userPubId);
         return SuccessResponse.empty();
     }
 
     @Operation(summary = "Refresh available models from the provider")
-    @PostMapping("/{pubId}/refresh-models")
+    @PostMapping("/{id}/refresh-models")
     public SuccessResponse<RefreshModelsResponse> refreshModels(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(llmProviderService.refreshModels(pubId, userPubId));
+        return SuccessResponse.ok(llmProviderService.refreshModels(id, userPubId));
     }
 }

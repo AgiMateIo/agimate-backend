@@ -14,21 +14,21 @@ import java.util.UUID;
 
 public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy, UUID> {
 
-    List<AgentToolPolicy> findByAgentPubId(UUID agentPubId);
+    List<AgentToolPolicy> findByAgentId(UUID agentId);
 
-    List<AgentToolPolicy> findByUserPubIdAndAgentPubId(UUID userPubId, UUID agentPubId);
+    List<AgentToolPolicy> findByUserPubIdAndAgentId(UUID userPubId, UUID agentId);
 
-    Page<AgentToolPolicy> findByUserPubIdAndAgentPubId(UUID userPubId, UUID agentPubId, Pageable pageable);
+    Page<AgentToolPolicy> findByUserPubIdAndAgentId(UUID userPubId, UUID agentId, Pageable pageable);
 
     @Query(value = """
             SELECT * FROM agent_tool_policies
-            WHERE agent_pub_id = :agentPubId
+            WHERE agent_id = :agentId
               AND (connector_code IS NULL OR connector_code = :connectorCode)
               AND (connector_identity IS NULL OR CAST(:connectorIdentity AS TEXT) IS NULL OR connector_identity = :connectorIdentity)
               AND (tool_name IS NULL OR tool_name = :toolName)
             """, nativeQuery = true)
     List<AgentToolPolicy> findMatchingPolicies(
-            @Param("agentPubId") UUID agentPubId,
+            @Param("agentId") UUID agentId,
             @Param("connectorCode") String connectorCode,
             @Param("connectorIdentity") String connectorIdentity,
             @Param("toolName") String toolName
@@ -45,7 +45,7 @@ public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy
                         (CASE WHEN tool_name IS NOT NULL THEN 1 ELSE 0 END)
                     ) AS specificity
                 FROM agent_tool_policies
-                WHERE agent_pub_id = :agentPubId
+                WHERE agent_id = :agentId
                   AND (connector_code IS NULL OR connector_code = :connectorCode)
                   AND (connector_identity IS NULL OR CAST(:connectorIdentity AS TEXT) IS NULL OR connector_identity = :connectorIdentity)
                   AND (tool_name IS NULL OR tool_name = :toolName)
@@ -64,7 +64,7 @@ public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy
             LIMIT 1
             """, nativeQuery = true)
     PolicyResolutionResult resolveAccess(
-            @Param("agentPubId") UUID agentPubId,
+            @Param("agentId") UUID agentId,
             @Param("connectorCode") String connectorCode,
             @Param("connectorIdentity") String connectorIdentity,
             @Param("toolName") String toolName
@@ -72,27 +72,27 @@ public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy
 
     @Query(value = """
             SELECT * FROM agent_tool_policies
-            WHERE agent_pub_id = :agentPubId
+            WHERE agent_id = :agentId
               AND connector_code IS NOT DISTINCT FROM CAST(:connectorCode AS TEXT)
               AND connector_identity IS NOT DISTINCT FROM CAST(:connectorIdentity AS TEXT)
               AND tool_name IS NOT DISTINCT FROM CAST(:toolName AS TEXT)
               AND effect = :effect
             """, nativeQuery = true)
     AgentToolPolicy findByCompositeKey(
-            @Param("agentPubId") UUID agentPubId,
+            @Param("agentId") UUID agentId,
             @Param("connectorCode") String connectorCode,
             @Param("connectorIdentity") String connectorIdentity,
             @Param("toolName") String toolName,
             @Param("effect") String effect
     );
 
-    List<AgentToolPolicy> findByAgentPubIdAndSource(UUID agentPubId, String source);
+    List<AgentToolPolicy> findByAgentIdAndSource(UUID agentId, String source);
 
     @Modifying
-    @Query("DELETE FROM AgentToolPolicy p WHERE p.agentPubId = :agentPubId")
-    void deleteByAgentPubId(@Param("agentPubId") UUID agentPubId);
+    @Query("DELETE FROM AgentToolPolicy p WHERE p.agentId = :agentId")
+    void deleteByAgentId(@Param("agentId") UUID agentId);
 
     @Modifying
     @Query("DELETE FROM AgentToolPolicy p WHERE p.channelId = :channelId")
-    void deleteByChannelId(@Param("channelId") Long channelId);
+    void deleteByChannelId(@Param("channelId") UUID channelId);
 }

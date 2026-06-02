@@ -53,8 +53,8 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
     public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
         Trigger trigger = TriggerMapper.map(triggerLogAgent);
         AgentMessage<Trigger> message = new AgentMessage<>(
-                agent.getPubId().toString(),
-                triggerLogAgent.getPubId().toString(),
+                agent.getId().toString(),
+                triggerLogAgent.getId().toString(),
                 "trigger",
                 channelContext,
                 trigger);
@@ -134,10 +134,10 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
     }
 
     @Transactional(readOnly = true)
-    public Page<WebhookDeliveryLogResponse> getDeliveryLogs(UUID userPubId, UUID agentPubId, int page, int size) {
+    public Page<WebhookDeliveryLogResponse> getDeliveryLogs(UUID userPubId, UUID agentId, int page, int size) {
         Page<WebhookDeliveryLog> logs;
-        if (agentPubId != null) {
-            logs = webhookDeliveryLogRepository.findByAgentPubId(agentPubId, PageRequest.of(page, size));
+        if (agentId != null) {
+            logs = webhookDeliveryLogRepository.findByAgentId(agentId, PageRequest.of(page, size));
         } else {
             logs = webhookDeliveryLogRepository.findByUserPubId(userPubId, PageRequest.of(page, size));
         }

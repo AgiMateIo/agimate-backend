@@ -30,11 +30,11 @@ public class ManageToolUseLogsController {
     @GetMapping("/")
     public SuccessResponse<Page<ToolUseLogResponse>> getToolUseLogs(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam(required = false) UUID agentPubId,
+            @RequestParam(required = false) UUID agentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(toolUseLogService.getToolUseLogs(userPubId, agentPubId, page, size));
+        return SuccessResponse.ok(toolUseLogService.getToolUseLogs(userPubId, agentId, page, size));
     }
 }

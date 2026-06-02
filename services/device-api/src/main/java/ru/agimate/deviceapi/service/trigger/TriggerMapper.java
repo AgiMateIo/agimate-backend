@@ -13,7 +13,7 @@ public class TriggerMapper {
                 triggerLog.getConnectorCode(),
                 triggerLog.getIdentity(),
                 triggerLog.getTriggerName(),
-                triggerLogAgent.getPubId().toString(),
+                triggerLogAgent.getId().toString(),
                 triggerLog.getTriggerInput(),
                 triggerLog.getOccurredAt() != null ? triggerLog.getOccurredAt().toString() : null,
                 null

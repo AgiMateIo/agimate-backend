@@ -24,7 +24,7 @@ public class AgentAuthToken implements Authentication {
 
     @Override
     public Object getCredentials() {
-        return principal.agentPubId();
+        return principal.agentId();
     }
 
     @Override

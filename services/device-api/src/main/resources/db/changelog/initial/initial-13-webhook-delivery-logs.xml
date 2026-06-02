@@ -7,13 +7,10 @@
 
     <changeSet id="create-webhook-delivery-logs-table" author="agimate">
         <createTable tableName="webhook_delivery_logs">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
-            </column>
-            <column name="trigger_log_agent_id" type="BIGINT">
+            <column name="trigger_log_agent_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_webhook_delivery_logs_trigger_log_agent"
                              references="trigger_log_agents(id)"/>

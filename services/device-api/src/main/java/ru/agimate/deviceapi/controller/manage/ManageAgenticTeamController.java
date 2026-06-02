@@ -36,13 +36,13 @@ public class ManageAgenticTeamController {
     }
 
     @Operation(summary = "Get agentic team by ID")
-    @GetMapping("/{pubId}")
+    @GetMapping("/{id}")
     public SuccessResponse<AgenticTeamResponse> getAgenticTeam(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agenticTeamService.getByPubId(pubId, userPubId));
+        return SuccessResponse.ok(agenticTeamService.getById(id, userPubId));
     }
 
     @Operation(summary = "Create agentic team")
@@ -56,24 +56,24 @@ public class ManageAgenticTeamController {
     }
 
     @Operation(summary = "Update agentic team")
-    @PutMapping("/{pubId}")
+    @PutMapping("/{id}")
     public SuccessResponse<AgenticTeamResponse> updateAgenticTeam(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
+            @PathVariable UUID id,
             @Valid @RequestBody UpdateAgenticTeamRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agenticTeamService.update(pubId, userPubId, request));
+        return SuccessResponse.ok(agenticTeamService.update(id, userPubId, request));
     }
 
     @Operation(summary = "Delete agentic team")
-    @DeleteMapping("/{pubId}")
+    @DeleteMapping("/{id}")
     public SuccessResponse<Void> deleteAgenticTeam(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        agenticTeamService.delete(pubId, userPubId);
+        agenticTeamService.delete(id, userPubId);
         return SuccessResponse.empty();
     }
 }

@@ -7,13 +7,10 @@
 
     <changeSet id="create-board-tasks-table" author="agimate">
         <createTable tableName="board_tasks">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
-            </column>
-            <column name="board_id" type="BIGINT">
+            <column name="board_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_board_tasks_board"
                              references="boards(id)"/>
@@ -21,7 +18,7 @@
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="parent_task_id" type="BIGINT">
+            <column name="parent_task_id" type="UUID">
                 <constraints foreignKeyName="fk_board_tasks_parent"
                              references="board_tasks(id)"/>
             </column>
@@ -35,12 +32,12 @@
                 <constraints nullable="false"/>
             </column>
             <column name="description" type="TEXT"/>
-            <column name="created_by_agent_id" type="BIGINT">
+            <column name="created_by_agent_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_board_tasks_created_by_agent"
                              references="agents(id)"/>
             </column>
-            <column name="assignee_agent_id" type="BIGINT">
+            <column name="assignee_agent_id" type="UUID">
                 <constraints foreignKeyName="fk_board_tasks_assignee_agent"
                              references="agents(id)"/>
             </column>

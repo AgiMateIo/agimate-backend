@@ -34,13 +34,13 @@ public class ManageBoardController {
     }
 
     @Operation(summary = "Get board by ID")
-    @GetMapping("/{pubId}")
+    @GetMapping("/{id}")
     public SuccessResponse<BoardResponse> getBoard(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.getByPubId(pubId, userPubId));
+        return SuccessResponse.ok(boardService.getById(id, userPubId));
     }
 
     @Operation(summary = "Create a board for an agentic team")
@@ -54,55 +54,55 @@ public class ManageBoardController {
     }
 
     @Operation(summary = "Get board tasks grouped by status")
-    @GetMapping("/{boardPubId}/tasks/")
+    @GetMapping("/{boardId}/tasks/")
     public SuccessResponse<BoardTasksByStatusResponse> getTasksByStatus(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID boardPubId
+            @PathVariable UUID boardId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.getTasksByStatus(boardPubId, userPubId));
+        return SuccessResponse.ok(boardService.getTasksByStatus(boardId, userPubId));
     }
 
     @Operation(summary = "Create a task on the board")
-    @PostMapping("/{boardPubId}/tasks/")
+    @PostMapping("/{boardId}/tasks/")
     public SuccessResponse<BoardTaskResponse> createTask(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID boardPubId,
+            @PathVariable UUID boardId,
             @Valid @RequestBody CreateBoardTaskRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.createTask(boardPubId, userPubId, request));
+        return SuccessResponse.ok(boardService.createTask(boardId, userPubId, request));
     }
 
     @Operation(summary = "Change task status")
-    @PatchMapping("/tasks/{taskPubId}/status")
+    @PatchMapping("/tasks/{taskId}/status")
     public SuccessResponse<BoardTaskResponse> changeTaskStatus(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID taskPubId,
+            @PathVariable UUID taskId,
             @Valid @RequestBody UpdateBoardTaskStatusRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.changeTaskStatus(taskPubId, userPubId, request));
+        return SuccessResponse.ok(boardService.changeTaskStatus(taskId, userPubId, request));
     }
 
     @Operation(summary = "Get comments for a task")
-    @GetMapping("/tasks/{taskPubId}/comments/")
+    @GetMapping("/tasks/{taskId}/comments/")
     public SuccessResponse<List<BoardTaskCommentResponse>> getComments(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID taskPubId
+            @PathVariable UUID taskId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.getComments(taskPubId, userPubId));
+        return SuccessResponse.ok(boardService.getComments(taskId, userPubId));
     }
 
     @Operation(summary = "Create a comment on a task")
-    @PostMapping("/tasks/{taskPubId}/comments/")
+    @PostMapping("/tasks/{taskId}/comments/")
     public SuccessResponse<BoardTaskCommentResponse> createComment(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID taskPubId,
+            @PathVariable UUID taskId,
             @Valid @RequestBody CreateBoardTaskCommentRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.createComment(taskPubId, userPubId, request));
+        return SuccessResponse.ok(boardService.createComment(taskId, userPubId, request));
     }
 }

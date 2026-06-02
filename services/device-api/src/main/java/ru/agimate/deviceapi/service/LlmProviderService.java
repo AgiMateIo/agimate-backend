@@ -41,12 +41,12 @@ public class LlmProviderService {
                 .toList();
     }
 
-    public LlmProviderResponse getForUser(UUID pubId, UUID userPubId) {
-        return LlmProviderResponse.from(requireOwned(pubId, userPubId));
+    public LlmProviderResponse getForUser(UUID id, UUID userPubId) {
+        return LlmProviderResponse.from(requireOwned(id, userPubId));
     }
 
-    public LlmProvider requireOwned(UUID pubId, UUID userPubId) {
-        LlmProvider provider = llmProviderRepository.findByPubIdAndUserPubId(pubId, userPubId)
+    public LlmProvider requireOwned(UUID id, UUID userPubId) {
+        LlmProvider provider = llmProviderRepository.findByIdAndUserPubId(id, userPubId)
                 .orElseThrow(() -> new NotFoundStatusException("LLM provider not found"));
         if (!provider.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");
@@ -72,14 +72,14 @@ public class LlmProviderService {
                 .build();
         provider = llmProviderRepository.save(provider);
 
-        log.info("Created LLM provider pubId={}, user={}, type={}",
-                provider.getPubId(), userPubId, provider.getProviderType());
+        log.info("Created LLM provider id={}, user={}, type={}",
+                provider.getId(), userPubId, provider.getProviderType());
         return LlmProviderResponse.from(provider);
     }
 
     @Transactional
-    public LlmProviderResponse update(UUID pubId, UUID userPubId, UpdateLlmProviderRequest request) {
-        LlmProvider provider = requireOwned(pubId, userPubId);
+    public LlmProviderResponse update(UUID id, UUID userPubId, UpdateLlmProviderRequest request) {
+        LlmProvider provider = requireOwned(id, userPubId);
 
         if (request.name() != null && !request.name().equals(provider.getName())) {
             if (llmProviderRepository.existsByUserPubIdAndName(userPubId, request.name())) {
@@ -101,20 +101,20 @@ public class LlmProviderService {
         }
 
         provider = llmProviderRepository.save(provider);
-        log.info("Updated LLM provider pubId={}", pubId);
+        log.info("Updated LLM provider id={}", id);
         return LlmProviderResponse.from(provider);
     }
 
     @Transactional
-    public void delete(UUID pubId, UUID userPubId) {
-        LlmProvider provider = requireOwned(pubId, userPubId);
+    public void delete(UUID id, UUID userPubId) {
+        LlmProvider provider = requireOwned(id, userPubId);
         llmProviderRepository.delete(provider);
-        log.info("Deleted LLM provider pubId={}", pubId);
+        log.info("Deleted LLM provider id={}", id);
     }
 
     @Transactional
-    public RefreshModelsResponse refreshModels(UUID pubId, UUID userPubId) {
-        LlmProvider provider = requireOwned(pubId, userPubId);
+    public RefreshModelsResponse refreshModels(UUID id, UUID userPubId) {
+        LlmProvider provider = requireOwned(id, userPubId);
         String apiKey = decryptApiKey(provider);
         List<String> models = modelDiscoveryService.discover(provider, apiKey);
 
@@ -122,7 +122,7 @@ public class LlmProviderService {
         provider.setModelsRefreshedAt(LocalDateTime.now());
         provider = llmProviderRepository.save(provider);
 
-        log.info("Refreshed {} models for LLM provider pubId={}", models.size(), pubId);
+        log.info("Refreshed {} models for LLM provider id={}", models.size(), id);
         return new RefreshModelsResponse(provider.getAvailableModels(), provider.getModelsRefreshedAt());
     }
 

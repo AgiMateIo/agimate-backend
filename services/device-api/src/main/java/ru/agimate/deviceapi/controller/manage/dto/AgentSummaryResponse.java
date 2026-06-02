@@ -24,7 +24,7 @@ public record AgentSummaryResponse(
 ) {
     public static AgentSummaryResponse from(Agent agent) {
         return new AgentSummaryResponse(
-                agent.getPubId(),
+                agent.getId(),
                 agent.getName(),
                 agent.getDescription(),
                 agent.getPrompt(),

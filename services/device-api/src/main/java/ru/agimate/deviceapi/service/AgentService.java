@@ -54,70 +54,68 @@ public class AgentService {
     private final AppRepository appRepository;
     private final AgentLlmService agentLlmService;
 
-    public Page<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamPubId, String search, int page, int size) {
-        Long agenticTeamId = null;
-        if (agenticTeamPubId != null) {
-            AgenticTeam team = agenticTeamRepository.findByPubId(agenticTeamPubId)
+    public Page<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamId, String search, int page, int size) {
+        if (agenticTeamId != null) {
+            agenticTeamRepository.findById(agenticTeamId)
                     .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
-            agenticTeamId = team.getId();
         }
         String normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
         Page<Agent> agents = agentRepository.searchForUser(
                 userPubId, agenticTeamId, normalizedSearch, PageRequest.of(page, size));
 
-        List<Long> teamIds = agents.getContent().stream()
+        List<UUID> teamIds = agents.getContent().stream()
                 .map(Agent::getAgenticTeamId)
                 .filter(id -> id != null)
                 .distinct()
                 .toList();
-        Map<Long, AgenticTeam> teamsById = agenticTeamRepository.findAllById(teamIds).stream()
+        Map<UUID, AgenticTeam> teamsById = agenticTeamRepository.findAllById(teamIds).stream()
                 .collect(Collectors.toMap(AgenticTeam::getId, Function.identity()));
 
-        List<UUID> agentPubIds = agents.getContent().stream().map(Agent::getPubId).toList();
-        Map<UUID, List<AgentSkillSummary>> skillsByAgent = loadSkillSummaries(agentPubIds);
-        Map<UUID, List<AgentLlmResponse>> llmsByAgent = agentLlmService.listForAgents(agentPubIds);
+        List<UUID> agentIds = agents.getContent().stream().map(Agent::getId).toList();
+        Map<UUID, List<AgentSkillSummary>> skillsByAgent = loadSkillSummaries(agentIds);
+        Map<UUID, List<AgentLlmResponse>> llmsByAgent = agentLlmService.listForAgents(agentIds);
 
         return agents.map(agent -> {
             var team = agent.getAgenticTeamId() != null ? teamsById.get(agent.getAgenticTeamId()) : null;
-            var skills = skillsByAgent.getOrDefault(agent.getPubId(), List.of());
-            var llms = llmsByAgent.getOrDefault(agent.getPubId(), List.of());
+            var skills = skillsByAgent.getOrDefault(agent.getId(), List.of());
+            var llms = llmsByAgent.getOrDefault(agent.getId(), List.of());
             return AgentResponse.from(agent, team, skills, llms);
         });
     }
 
-    private Map<UUID, List<AgentSkillSummary>> loadSkillSummaries(Collection<UUID> agentPubIds) {
-        if (agentPubIds.isEmpty()) {
+    private Map<UUID, List<AgentSkillSummary>> loadSkillSummaries(Collection<UUID> agentIds) {
+        if (agentIds.isEmpty()) {
             return Map.of();
         }
         Map<UUID, List<AgentSkillSummary>> result = new HashMap<>();
-        for (Object[] row : agentSkillRepository.findSkillSummariesByAgentPubIdIn(agentPubIds)) {
-            UUID agentPubId = (UUID) row[0];
-            UUID skillPubId = (UUID) row[1];
+        for (Object[] row : agentSkillRepository.findSkillSummariesByAgentIdIn(agentIds)) {
+            UUID agentId = (UUID) row[0];
+            UUID skillId = (UUID) row[1];
             String skillName = (String) row[2];
-            result.computeIfAbsent(agentPubId, k -> new ArrayList<>())
-                    .add(new AgentSkillSummary(skillPubId, skillName));
+            result.computeIfAbsent(agentId, k -> new ArrayList<>())
+                    .add(new AgentSkillSummary(skillId, skillName));
         }
         return result;
     }
 
-    public Agent findByPubId(UUID pubId) {
-        return agentRepository.findByPubId(pubId)
+    public Agent findById(UUID id) {
+        return agentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
     }
 
-    public AgentResponse getByPubId(UUID pubId) {
-        Agent agent = findByPubId(pubId);
+    public AgentResponse getById(UUID id) {
+        Agent agent = findById(id);
         var team = resolveTeam(agent.getAgenticTeamId());
-        var skills = loadSkillSummaries(List.of(pubId)).getOrDefault(pubId, List.of());
-        var llms = agentLlmService.listForAgents(List.of(pubId)).getOrDefault(pubId, List.of());
+        var skills = loadSkillSummaries(List.of(id)).getOrDefault(id, List.of());
+        var llms = agentLlmService.listForAgents(List.of(id)).getOrDefault(id, List.of());
         return AgentResponse.from(agent, team, skills, llms);
     }
 
-    public AgentConfigResponse getConfigByPubId(UUID agentPubId) {
-        Agent agent = findByPubId(agentPubId);
+    public AgentConfigResponse getConfigById(UUID agentId) {
+        Agent agent = findById(agentId);
 
-        var toolPolicies = agentToolPolicyRepository.findByAgentPubId(agentPubId);
-        var triggerPolicies = agentTriggerPolicyRepository.findByAgentPubId(agentPubId);
+        var toolPolicies = agentToolPolicyRepository.findByAgentId(agentId);
+        var triggerPolicies = agentTriggerPolicyRepository.findByAgentId(agentId);
 
         Set<String> allowedToolNames = toolPolicies.stream()
                 .filter(p -> p.getEffect() == AccessEffect.ALLOW)
@@ -139,18 +137,18 @@ public class AgentService {
                 .toList();
 
         return new AgentConfigResponse(
-                agent.getPubId(),
+                agent.getId(),
                 agent.getPrompt(),
                 toolDefinitions,
                 triggerNames
         );
     }
 
-    public AgentContextResponse getContextByPubId(UUID agentPubId) {
-        Agent agent = findByPubId(agentPubId);
+    public AgentContextResponse getContextById(UUID agentId) {
+        Agent agent = findById(agentId);
 
         AgentContextResponse.Self self = new AgentContextResponse.Self(
-                agent.getPubId(),
+                agent.getId(),
                 agent.getName(),
                 agent.getDescription(),
                 agent.getPrompt()
@@ -163,7 +161,7 @@ public class AgentService {
             AgenticTeam teamEntity = agenticTeamRepository.findById(agent.getAgenticTeamId()).orElse(null);
             if (teamEntity != null) {
                 team = new AgentContextResponse.Team(
-                        teamEntity.getPubId(),
+                        teamEntity.getId(),
                         teamEntity.getName(),
                         teamEntity.getDescription()
                 );
@@ -171,7 +169,7 @@ public class AgentService {
                         .findByUserPubIdAndAgenticTeamId(agent.getUserPubId(), teamEntity.getId())
                         .stream()
                         .map(a -> new AgentContextResponse.TeamAgent(
-                                a.getPubId(),
+                                a.getId(),
                                 a.getName(),
                                 a.getDescription()
                         ))
@@ -182,10 +180,10 @@ public class AgentService {
         return new AgentContextResponse(self, team, teamAgents);
     }
 
-    public List<ToolDefinition> getAvailableTools(UUID agentPubId) {
-        Agent agent = findByPubId(agentPubId);
+    public List<ToolDefinition> getAvailableTools(UUID agentId) {
+        Agent agent = findById(agentId);
 
-        var toolPolicies = agentToolPolicyRepository.findByAgentPubId(agentPubId);
+        var toolPolicies = agentToolPolicyRepository.findByAgentId(agentId);
 
         Set<String> allowedToolNames = toolPolicies.stream()
                 .filter(p -> p.getEffect() == AccessEffect.ALLOW)
@@ -205,10 +203,10 @@ public class AgentService {
      * Same selection as {@link #getAvailableTools} but exposes the raw JSON Schema
      * stored under {@code App.tools[name].parameters} (convention key).
      */
-    public List<AgentToolSpec> getAvailableToolSpecs(UUID agentPubId) {
-        Agent agent = findByPubId(agentPubId);
+    public List<AgentToolSpec> getAvailableToolSpecs(UUID agentId) {
+        Agent agent = findById(agentId);
 
-        var toolPolicies = agentToolPolicyRepository.findByAgentPubId(agentPubId);
+        var toolPolicies = agentToolPolicyRepository.findByAgentId(agentId);
 
         Set<String> allowedToolNames = toolPolicies.stream()
                 .filter(p -> p.getEffect() == AccessEffect.ALLOW)
@@ -270,8 +268,8 @@ public class AgentService {
         validateWebhookFields(type, request.webhookUrl());
 
         AgenticTeam team = null;
-        if (request.agenticTeamPubId() != null) {
-            team = agenticTeamRepository.findByPubId(request.agenticTeamPubId())
+        if (request.agenticTeamId() != null) {
+            team = agenticTeamRepository.findById(request.agenticTeamId())
                     .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
             if (!team.getUserPubId().equals(userPubId)) {
                 throw new ForbiddenStatusException("Access denied to the specified team");
@@ -294,13 +292,13 @@ public class AgentService {
                 .build();
         agent = agentRepository.save(agent);
 
-        log.info("Created agent pubId={}, user={}", agent.getPubId(), userPubId);
+        log.info("Created agent id={}, user={}", agent.getId(), userPubId);
         return new AgentCreateResult(agent, team, generatedKey.fullKey());
     }
 
     @Transactional
-    public AgentCreateResult regenerateKey(UUID pubId, UUID userPubId) {
-        Agent agent = agentRepository.findByPubId(pubId)
+    public AgentCreateResult regenerateKey(UUID id, UUID userPubId) {
+        Agent agent = agentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
         if (!agent.getUserPubId().equals(userPubId)) {
@@ -314,13 +312,13 @@ public class AgentService {
 
         var team = resolveTeam(agent.getAgenticTeamId());
 
-        log.info("Regenerated key for agent pubId={}", pubId);
+        log.info("Regenerated key for agent id={}", id);
         return new AgentCreateResult(agent, team, generatedKey.fullKey());
     }
 
     @Transactional
-    public AgentResponse update(UUID pubId, UUID userPubId, UpdateAgentRequest request) {
-        Agent agent = agentRepository.findByPubId(pubId)
+    public AgentResponse update(UUID id, UUID userPubId, UpdateAgentRequest request) {
+        Agent agent = agentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
         if (!agent.getUserPubId().equals(userPubId)) {
@@ -345,30 +343,30 @@ public class AgentService {
         agent = agentRepository.save(agent);
 
         var team = resolveTeam(agent.getAgenticTeamId());
-        var skills = loadSkillSummaries(List.of(pubId)).getOrDefault(pubId, List.of());
-        var llms = agentLlmService.listForAgents(List.of(pubId)).getOrDefault(pubId, List.of());
+        var skills = loadSkillSummaries(List.of(id)).getOrDefault(id, List.of());
+        var llms = agentLlmService.listForAgents(List.of(id)).getOrDefault(id, List.of());
 
-        log.info("Updated agent pubId={}", pubId);
+        log.info("Updated agent id={}", id);
         return AgentResponse.from(agent, team, skills, llms);
     }
 
     @Transactional
-    public void delete(UUID pubId, UUID userPubId) {
-        Agent agent = agentRepository.findByPubId(pubId)
+    public void delete(UUID id, UUID userPubId) {
+        Agent agent = agentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
         if (!agent.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");
         }
 
-        agentToolPolicyRepository.deleteByAgentPubId(agent.getPubId());
-        agentTriggerPolicyRepository.deleteByAgentPubId(agent.getPubId());
+        agentToolPolicyRepository.deleteByAgentId(agent.getId());
+        agentTriggerPolicyRepository.deleteByAgentId(agent.getId());
         agentRepository.delete(agent);
 
-        log.info("Deleted agent pubId={}", pubId);
+        log.info("Deleted agent id={}", id);
     }
 
-    private AgenticTeam resolveTeam(Long agenticTeamId) {
+    private AgenticTeam resolveTeam(UUID agenticTeamId) {
         if (agenticTeamId == null) {
             return null;
         }

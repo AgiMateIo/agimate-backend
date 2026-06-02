@@ -2,15 +2,16 @@ package ru.agimate.deviceapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
-import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.deviceapi.abac.AccessEffect;
 
 import java.util.UUID;
 
 @Entity
 @Table(name = "agent_tool_policies", uniqueConstraints = @UniqueConstraint(
-        columnNames = {"agent_pub_id", "connector_code", "connector_identity", "tool_name", "effect"}
+        columnNames = {"agent_id", "connector_code", "connector_identity", "tool_name", "effect"}
 ))
 @Getter
 @Setter
@@ -20,12 +21,13 @@ import java.util.UUID;
 public class AgentToolPolicy extends BaseEntity {
 
     @Id
-    @Column(name = "id")
-    @Builder.Default
-    private UUID id = UUIDUtils.generateUUIDv8();
+    @Generated
+    @ColumnDefault("uuidv7()")
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
-    @Column(name = "agent_pub_id", nullable = false)
-    private UUID agentPubId;
+    @Column(name = "agent_id", nullable = false)
+    private UUID agentId;
 
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
@@ -53,5 +55,5 @@ public class AgentToolPolicy extends BaseEntity {
     private String source;
 
     @Column(name = "channel_id")
-    private Long channelId;
+    private UUID channelId;
 }

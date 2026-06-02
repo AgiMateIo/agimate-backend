@@ -42,7 +42,7 @@ public record TriggerLogResponse(
 ) {
     public static TriggerLogResponse from(TriggerLogWithAgentsCountProjection projection) {
         return new TriggerLogResponse(
-                projection.getPubId(),
+                projection.getId(),
                 projection.getConnectorCode(),
                 projection.getIdentity(),
                 projection.getTriggerId(),
@@ -57,7 +57,7 @@ public record TriggerLogResponse(
     public static TriggerLogResponse from(TriggerLog entity) {
         long agentsCount = entity.getTriggerLogAgents() == null ? 0 : entity.getTriggerLogAgents().size();
         return new TriggerLogResponse(
-                entity.getPubId(),
+                entity.getId(),
                 entity.getConnectorCode(),
                 entity.getIdentity(),
                 entity.getTriggerId(),

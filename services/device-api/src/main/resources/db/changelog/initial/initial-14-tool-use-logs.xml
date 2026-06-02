@@ -7,16 +7,13 @@
 
     <changeSet id="create-tool-use-logs-table" author="agimate">
         <createTable tableName="tool_use_logs">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="agent_pub_id" type="UUID">
+            <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="connector_code" type="TEXT"/>
@@ -42,15 +39,15 @@
         </createTable>
 
         <addUniqueConstraint tableName="tool_use_logs"
-                             columnNames="agent_pub_id, tool_use_id"
-                             constraintName="uq_tool_use_logs_agent_pub_id_tool_use_id"/>
+                             columnNames="agent_id, tool_use_id"
+                             constraintName="uq_tool_use_logs_agent_id_tool_use_id"/>
 
         <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_user_pub_id">
             <column name="user_pub_id"/>
         </createIndex>
 
-        <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_agent_pub_id">
-            <column name="agent_pub_id"/>
+        <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_agent_id">
+            <column name="agent_id"/>
         </createIndex>
 
         <createIndex tableName="tool_use_logs" indexName="idx_tool_use_logs_created_at">

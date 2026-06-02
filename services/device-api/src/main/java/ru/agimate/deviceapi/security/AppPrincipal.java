@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public record AppPrincipal(
         String name,
-        UUID appPubId,
+        UUID appId,
         UUID userPubId
 ) implements Principal {
 

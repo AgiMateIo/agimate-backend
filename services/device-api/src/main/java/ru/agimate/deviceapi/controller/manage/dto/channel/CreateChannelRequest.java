@@ -11,7 +11,7 @@ import java.util.UUID;
 public record CreateChannelRequest(
         @NotNull
         @Schema(description = "Agent public ID")
-        UUID agentPubId,
+        UUID agentId,
 
         @NotBlank
         @Schema(description = "Channel display name")
@@ -22,7 +22,7 @@ public record CreateChannelRequest(
         String triggerConnectorCode,
 
         @NotBlank
-        @Schema(description = "Connector identity (App.pubId or IntegrationCredentials.pubId)")
+        @Schema(description = "Connector identity (App.id or IntegrationCredentials.id)")
         String triggerIdentity,
 
         @NotBlank

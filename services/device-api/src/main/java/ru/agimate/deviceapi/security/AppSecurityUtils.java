@@ -12,8 +12,8 @@ public class AppSecurityUtils {
         return getPrincipal().userPubId();
     }
 
-    public static UUID getAppPubId() {
-        return getPrincipal().appPubId();
+    public static UUID getAppId() {
+        return getPrincipal().appId();
     }
 
     public static AppPrincipal getPrincipal() {

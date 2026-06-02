@@ -50,17 +50,17 @@ public class SkillService {
         return findSkillsWithMyCopy(SkillSpecs.featured(), userPubId, search, connectorCode, page, size);
     }
 
-    public SkillDetailResponse getSkillDetail(UUID pubId, UUID userPubId) {
-        Skill skill = findAccessibleSkill(pubId, userPubId);
-        String skillMd = skillFileService.readSkillMd(resolveFileOwnerPubId(skill));
+    public SkillDetailResponse getSkillDetail(UUID id, UUID userPubId) {
+        Skill skill = findAccessibleSkill(id, userPubId);
+        String skillMd = skillFileService.readSkillMd(resolveFileOwnerId(skill));
         return SkillDetailResponse.from(skill, skillMd);
     }
 
-    public Page<AgentSummaryResponse> getSkillAgents(UUID pubId, UUID userPubId, String search, int page, int size) {
-        findAccessibleSkill(pubId, userPubId);
+    public Page<AgentSummaryResponse> getSkillAgents(UUID id, UUID userPubId, String search, int page, int size) {
+        findAccessibleSkill(id, userPubId);
         String normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
         PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("name").ascending());
-        return agentRepository.findBySkillPubId(pubId, userPubId, normalizedSearch, pageRequest)
+        return agentRepository.findBySkillId(id, userPubId, normalizedSearch, pageRequest)
                 .map(AgentSummaryResponse::from);
     }
 
@@ -85,15 +85,15 @@ public class SkillService {
             throw new ConflictStatusException("Skill with name '" + frontmatter.name() + "' already exists");
         }
 
-        skillFileService.saveSkillMd(skill.getPubId(), request.skillMd());
+        skillFileService.saveSkillMd(skill.getId(), request.skillMd());
 
-        log.info("Created skill '{}' pubId={} for user={}", skill.getName(), skill.getPubId(), userPubId);
+        log.info("Created skill '{}' id={} for user={}", skill.getName(), skill.getId(), userPubId);
         return SkillResponse.from(skill);
     }
 
     @Transactional
-    public SkillResponse update(UUID pubId, UUID userPubId, UpdateSkillRequest request) {
-        Skill skill = findOwnedSkill(pubId, userPubId);
+    public SkillResponse update(UUID id, UUID userPubId, UpdateSkillRequest request) {
+        Skill skill = findOwnedSkill(id, userPubId);
         requireNotFeaturedClone(skill);
 
         SkillFrontmatterParser.Frontmatter frontmatter = SkillFrontmatterParser.parse(request.skillMd());
@@ -114,24 +114,24 @@ public class SkillService {
             throw new ConflictStatusException("Skill with name '" + frontmatter.name() + "' already exists");
         }
 
-        skillFileService.saveSkillMd(skill.getPubId(), request.skillMd());
+        skillFileService.saveSkillMd(skill.getId(), request.skillMd());
 
-        log.info("Updated skill '{}' pubId={} version={}", skill.getName(), pubId, skill.getVersion());
+        log.info("Updated skill '{}' id={} version={}", skill.getName(), id, skill.getVersion());
         return SkillResponse.from(skill);
     }
 
     @Transactional
-    public void delete(UUID pubId, UUID userPubId) {
-        Skill skill = findOwnedSkill(pubId, userPubId);
+    public void delete(UUID id, UUID userPubId) {
+        Skill skill = findOwnedSkill(id, userPubId);
         requireNotFeaturedClone(skill);
         skillRepository.softDelete(skill.getId(), LocalDateTime.now());
-        skillFileService.deleteAll(skill.getPubId());
-        log.info("Soft-deleted skill '{}' pubId={}", skill.getName(), pubId);
+        skillFileService.deleteAll(skill.getId());
+        log.info("Soft-deleted skill '{}' id={}", skill.getName(), id);
     }
 
     @Transactional
-    public SkillResponse clone(UUID pubId, UUID userPubId) {
-        Skill source = findAccessibleSkill(pubId, userPubId);
+    public SkillResponse clone(UUID id, UUID userPubId) {
+        Skill source = findAccessibleSkill(id, userPubId);
 
         if (source.getUserPubId().equals(userPubId)) {
             throw new BadRequestStatusException("Cannot clone your own skill");
@@ -141,7 +141,7 @@ public class SkillService {
                 .ifPresent(existing -> {
                     throw new SkillConflictException(
                             "Skill with name '" + source.getName() + "' already exists in your collection",
-                            existing.getPubId()
+                            existing.getId()
                     );
                 });
 
@@ -149,7 +149,7 @@ public class SkillService {
                 .name(source.getName())
                 .description(source.getDescription())
                 .userPubId(userPubId)
-                .parentPubId(source.getPubId())
+                .parentId(source.getId())
                 .isPublic(false)
                 .build();
 
@@ -160,22 +160,22 @@ public class SkillService {
         }
 
         if (!source.getIsFeatured()) {
-            skillFileService.copyAll(source.getPubId(), clone.getPubId());
+            skillFileService.copyAll(source.getId(), clone.getId());
         }
         skillConnectorService.cloneBindings(source, clone);
 
-        log.info("Cloned skill '{}' from pubId={} to pubId={} for user={}", source.getName(), source.getPubId(), clone.getPubId(), userPubId);
+        log.info("Cloned skill '{}' from id={} to id={} for user={}", source.getName(), source.getId(), clone.getId(), userPubId);
         return SkillResponse.from(clone);
     }
 
     @Transactional
-    public void touchUpdatedAt(UUID pubId, UUID userPubId) {
-        Skill skill = findOwnedSkill(pubId, userPubId);
+    public void touchUpdatedAt(UUID id, UUID userPubId) {
+        Skill skill = findOwnedSkill(id, userPubId);
         skillRepository.touchUpdatedAt(skill.getId(), LocalDateTime.now());
     }
 
-    public Skill findOwnedSkill(UUID pubId, UUID userPubId) {
-        Skill skill = skillRepository.findByPubIdNotDeleted(pubId)
+    public Skill findOwnedSkill(UUID id, UUID userPubId) {
+        Skill skill = skillRepository.findByIdNotDeleted(id)
                 .orElseThrow(() -> new NotFoundStatusException("Skill not found"));
         if (!skill.getUserPubId().equals(userPubId)) {
             throw new ForbiddenStatusException("Access denied");
@@ -183,8 +183,8 @@ public class SkillService {
         return skill;
     }
 
-    public Skill findAccessibleSkill(UUID pubId, UUID userPubId) {
-        Skill skill = skillRepository.findByPubIdNotDeleted(pubId)
+    public Skill findAccessibleSkill(UUID id, UUID userPubId) {
+        Skill skill = skillRepository.findByIdNotDeleted(id)
                 .orElseThrow(() -> new NotFoundStatusException("Skill not found"));
         if (!skill.getUserPubId().equals(userPubId) && !skill.getIsPublic()) {
             throw new ForbiddenStatusException("Access denied");
@@ -192,11 +192,11 @@ public class SkillService {
         return skill;
     }
 
-    public UUID resolveFileOwnerPubId(Skill skill) {
+    public UUID resolveFileOwnerId(Skill skill) {
         if (isFeaturedClone(skill)) {
-            return skill.getParentPubId();
+            return skill.getParentId();
         }
-        return skill.getPubId();
+        return skill.getId();
     }
 
     public void requireNotFeaturedClone(Skill skill) {
@@ -206,8 +206,8 @@ public class SkillService {
     }
 
     private boolean isFeaturedClone(Skill skill) {
-        return skill.getParentPubId() != null
-                && skillRepository.existsByPubIdAndIsFeaturedTrue(skill.getParentPubId());
+        return skill.getParentId() != null
+                && skillRepository.existsByIdAndIsFeaturedTrue(skill.getParentId());
     }
 
     private Page<Skill> querySkills(Specification<Skill> filter, String search, String connectorCode, int page, int size) {
@@ -228,16 +228,16 @@ public class SkillService {
 
     private Page<SkillResponse> findSkillsWithMyCopy(Specification<Skill> filter, UUID userPubId, String search, String connectorCode, int page, int size) {
         Page<Skill> skills = querySkills(filter, search, connectorCode, page, size);
-        Set<UUID> pubIds = skills.getContent().stream().map(Skill::getPubId).collect(Collectors.toSet());
-        Map<UUID, UUID> myCopyMap = buildMyCopyMap(pubIds, userPubId);
-        return skills.map(skill -> SkillResponse.from(skill, myCopyMap.get(skill.getPubId())));
+        Set<UUID> ids = skills.getContent().stream().map(Skill::getId).collect(Collectors.toSet());
+        Map<UUID, UUID> myCopyMap = buildMyCopyMap(ids, userPubId);
+        return skills.map(skill -> SkillResponse.from(skill, myCopyMap.get(skill.getId())));
     }
 
-    private Map<UUID, UUID> buildMyCopyMap(Set<UUID> parentPubIds, UUID userPubId) {
-        if (parentPubIds.isEmpty()) {
+    private Map<UUID, UUID> buildMyCopyMap(Set<UUID> parentIds, UUID userPubId) {
+        if (parentIds.isEmpty()) {
             return Map.of();
         }
-        return skillRepository.findMyClonesByParentPubIds(parentPubIds, userPubId)
+        return skillRepository.findMyClonesByParentIds(parentIds, userPubId)
                 .stream()
                 .collect(Collectors.toMap(
                         row -> (UUID) row[0],

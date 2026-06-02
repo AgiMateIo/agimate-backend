@@ -14,7 +14,7 @@ public record CreateAgentLlmRequest(
 
         @NotNull
         @Schema(description = "LLM provider public ID")
-        UUID llmProviderPubId,
+        UUID llmProviderId,
 
         @NotBlank
         @Schema(description = "Model name (must exist in provider's availableModels if list is non-empty)")

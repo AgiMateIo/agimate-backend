@@ -31,7 +31,7 @@ public class AgentController {
     public SuccessResponse<AgentConfigResponse> getAgentSettings(
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        return SuccessResponse.ok(agentService.getConfigByPubId(principal.agentPubId()));
+        return SuccessResponse.ok(agentService.getConfigById(principal.agentId()));
     }
 
     @Operation(
@@ -42,6 +42,6 @@ public class AgentController {
     public SuccessResponse<AgentContextResponse> getAgentContext(
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        return SuccessResponse.ok(agentService.getContextByPubId(principal.agentPubId()));
+        return SuccessResponse.ok(agentService.getContextById(principal.agentId()));
     }
 }

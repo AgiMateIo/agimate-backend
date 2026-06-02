@@ -6,14 +6,14 @@ import ru.agimate.deviceapi.database.enums.BoardTaskType;
 import java.util.UUID;
 
 public record BoardTaskCreatedEvent(
-        UUID boardPubId,
-        UUID taskPubId,
+        UUID boardId,
+        UUID taskId,
         BoardTaskType type,
         BoardTaskStatus status,
         String title,
         String description,
-        UUID createdByAgentPubId,
-        UUID assigneeAgentPubId,
-        UUID parentTaskPubId
+        UUID createdByAgentId,
+        UUID assigneeAgentId,
+        UUID parentTaskId
 ) {
 }

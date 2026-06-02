@@ -16,25 +16,25 @@ public class ToolPolicyDbEvaluatorService {
 
     private final AgentToolPolicyRepository agentToolPolicyRepository;
 
-    private record CacheKey(UUID agentPubId, String connectorCode, String connectorIdentity, String toolName) {}
+    private record CacheKey(UUID agentId, String connectorCode, String connectorIdentity, String toolName) {}
 
     private final Cache<CacheKey, AccessDecision> cache = Caffeine.newBuilder()
             .maximumSize(10_000)
             .expireAfterWrite(Duration.ofMinutes(5))
             .build();
 
-    public AccessDecision evaluate(UUID agentPubId, String connectorCode, String connectorIdentity, String toolName) {
-        var key = new CacheKey(agentPubId, connectorCode, connectorIdentity, toolName);
-        return cache.get(key, k -> doEvaluate(agentPubId, connectorCode, connectorIdentity, toolName));
+    public AccessDecision evaluate(UUID agentId, String connectorCode, String connectorIdentity, String toolName) {
+        var key = new CacheKey(agentId, connectorCode, connectorIdentity, toolName);
+        return cache.get(key, k -> doEvaluate(agentId, connectorCode, connectorIdentity, toolName));
     }
 
-    public void invalidateByAgent(UUID agentPubId) {
-        cache.asMap().keySet().removeIf(key -> key.agentPubId().equals(agentPubId));
+    public void invalidateByAgent(UUID agentId) {
+        cache.asMap().keySet().removeIf(key -> key.agentId().equals(agentId));
     }
 
-    private AccessDecision doEvaluate(UUID agentPubId, String connectorCode, String connectorIdentity, String toolName) {
+    private AccessDecision doEvaluate(UUID agentId, String connectorCode, String connectorIdentity, String toolName) {
         PolicyResolutionResult result = agentToolPolicyRepository.resolveAccess(
-                agentPubId, connectorCode, connectorIdentity, toolName
+                agentId, connectorCode, connectorIdentity, toolName
         );
 
         if (result == null) {

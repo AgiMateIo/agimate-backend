@@ -40,19 +40,19 @@ public class AgentSkillController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return SuccessResponse.ok(agentSkillService.getAgentSkillsWithConnectors(principal.agentPubId(), principal.userPubId(), page, size));
+        return SuccessResponse.ok(agentSkillService.getAgentSkillsWithConnectors(principal.agentId(), principal.userPubId(), page, size));
     }
 
     @Operation(summary = "Download all skill files as a ZIP archive")
-    @GetMapping("/{skillPubId}.zip")
+    @GetMapping("/{skillId}.zip")
     public ResponseEntity<InputStreamResource> downloadSkillZip(
             @AuthenticationPrincipal AgentPrincipal principal,
-            @PathVariable UUID skillPubId
+            @PathVariable UUID skillId
     ) {
-        Skill skill = agentSkillService.findAssignedSkill(principal.agentPubId(), skillPubId, principal.userPubId());
-        UUID fileOwnerPubId = skillService.resolveFileOwnerPubId(skill);
+        Skill skill = agentSkillService.findAssignedSkill(principal.agentId(), skillId, principal.userPubId());
+        UUID fileOwnerId = skillService.resolveFileOwnerId(skill);
 
-        InputStream zipStream = skillFileService.getOrCreateZip(fileOwnerPubId, skill.getUpdatedAt());
+        InputStream zipStream = skillFileService.getOrCreateZip(fileOwnerId, skill.getUpdatedAt());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + skill.getName() + ".zip\"")

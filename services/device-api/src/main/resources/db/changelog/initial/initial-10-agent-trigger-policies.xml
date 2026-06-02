@@ -7,10 +7,10 @@
 
     <changeSet id="create-agent-trigger-policies-table" author="agimate">
         <createTable tableName="agent_trigger_policies">
-            <column name="id" type="UUID">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="agent_pub_id" type="UUID">
+            <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="user_pub_id" type="UUID">
@@ -25,7 +25,7 @@
             <column name="priority" type="INTEGER"/>
             <column name="description" type="TEXT"/>
             <column name="source" type="TEXT"/>
-            <column name="channel_id" type="BIGINT"/>
+            <column name="channel_id" type="UUID"/>
             <column name="input_filter" type="JSONB"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
@@ -46,7 +46,7 @@
 
         <sql>
             CREATE UNIQUE INDEX uq_agent_trigger_policies_composite
-                ON agent_trigger_policies (agent_pub_id, connector_code, connector_identity, trigger_name, effect)
+                ON agent_trigger_policies (agent_id, connector_code, connector_identity, trigger_name, effect)
                 NULLS NOT DISTINCT;
         </sql>
 

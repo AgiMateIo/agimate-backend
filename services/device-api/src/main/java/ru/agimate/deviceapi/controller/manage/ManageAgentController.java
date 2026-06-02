@@ -31,13 +31,13 @@ public class ManageAgentController {
     @GetMapping("/")
     public SuccessResponse<Page<AgentResponse>> getAgents(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam(required = false) UUID agenticTeamPubId,
+            @RequestParam(required = false) UUID agenticTeamId,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentService.getAllForUser(userPubId, agenticTeamPubId, search, page, size));
+        return SuccessResponse.ok(agentService.getAllForUser(userPubId, agenticTeamId, search, page, size));
     }
 
     @Operation(summary = "Create an agent")
@@ -54,45 +54,45 @@ public class ManageAgentController {
         ));
     }
 
-    @Operation(summary = "Get agent by pubId")
-    @GetMapping("/{agentPubId}")
+    @Operation(summary = "Get agent by id")
+    @GetMapping("/{agentId}")
     public SuccessResponse<AgentResponse> getAgentById(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId
+            @PathVariable UUID agentId
     ) {
-        return SuccessResponse.ok(agentService.getByPubId(agentPubId));
+        return SuccessResponse.ok(agentService.getById(agentId));
     }
 
     @Operation(summary = "Update an agent")
-    @PutMapping("/{agentPubId}")
+    @PutMapping("/{agentId}")
     public SuccessResponse<AgentResponse> updateAgent(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId,
+            @PathVariable UUID agentId,
             @Valid @RequestBody UpdateAgentRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentService.update(agentPubId, userPubId, request));
+        return SuccessResponse.ok(agentService.update(agentId, userPubId, request));
     }
 
     @Operation(summary = "Delete an agent")
-    @DeleteMapping("/{agentPubId}")
+    @DeleteMapping("/{agentId}")
     public SuccessResponse<Void> deleteAgent(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId
+            @PathVariable UUID agentId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        agentService.delete(agentPubId, userPubId);
+        agentService.delete(agentId, userPubId);
         return SuccessResponse.empty();
     }
 
     @Operation(summary = "Regenerate agent API key")
-    @PostMapping("/{agentPubId}/regenerate")
+    @PostMapping("/{agentId}/regenerate")
     public SuccessResponse<AgentCreatedResponse> regenerateKey(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId
+            @PathVariable UUID agentId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var result = agentService.regenerateKey(agentPubId, userPubId);
+        var result = agentService.regenerateKey(agentId, userPubId);
         return SuccessResponse.ok(new AgentCreatedResponse(
                 AgentResponse.from(result.agent(), result.team()),
                 result.plaintextKey()

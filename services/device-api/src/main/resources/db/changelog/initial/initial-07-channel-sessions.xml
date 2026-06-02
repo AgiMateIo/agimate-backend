@@ -7,13 +7,10 @@
 
     <changeSet id="create-channel-sessions-table" author="agimate">
         <createTable tableName="channel_sessions">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
-            </column>
-            <column name="channel_id" type="BIGINT">
+            <column name="channel_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="title" type="TEXT"/>

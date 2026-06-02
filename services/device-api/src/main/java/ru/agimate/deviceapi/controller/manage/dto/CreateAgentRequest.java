@@ -28,6 +28,6 @@ public record CreateAgentRequest(
         String webhookAuthHeader,
 
         @Schema(description = "Agentic team public ID")
-        UUID agenticTeamPubId
+        UUID agenticTeamId
 ) {
 }

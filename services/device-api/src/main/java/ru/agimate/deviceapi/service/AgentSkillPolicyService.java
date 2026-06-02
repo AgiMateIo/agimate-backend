@@ -37,39 +37,39 @@ public class AgentSkillPolicyService {
     private final ToolPolicyDbEvaluatorService toolPolicyEvaluatorService;
     private final TriggerPolicyDbEvaluatorService triggerPolicyEvaluatorService;
 
-    public PolicyDiffResponse previewAdd(UUID agentPubId, UUID skillPubId) {
-        Set<UUID> desiredSkillPubIds = getCurrentSkillPubIds(agentPubId);
-        desiredSkillPubIds.add(skillPubId);
-        return computeDiff(agentPubId, desiredSkillPubIds);
+    public PolicyDiffResponse previewAdd(UUID agentId, UUID skillId) {
+        Set<UUID> desiredSkillIds = getCurrentSkillIds(agentId);
+        desiredSkillIds.add(skillId);
+        return computeDiff(agentId, desiredSkillIds);
     }
 
-    public PolicyDiffResponse previewRemove(UUID agentPubId, UUID skillPubId) {
-        Set<UUID> desiredSkillPubIds = getCurrentSkillPubIds(agentPubId);
-        desiredSkillPubIds.remove(skillPubId);
-        return computeDiff(agentPubId, desiredSkillPubIds);
+    public PolicyDiffResponse previewRemove(UUID agentId, UUID skillId) {
+        Set<UUID> desiredSkillIds = getCurrentSkillIds(agentId);
+        desiredSkillIds.remove(skillId);
+        return computeDiff(agentId, desiredSkillIds);
     }
 
-    public PolicyDiffResponse previewSync(UUID agentPubId) {
-        Set<UUID> desiredSkillPubIds = getCurrentSkillPubIds(agentPubId);
-        return computeDiff(agentPubId, desiredSkillPubIds);
+    public PolicyDiffResponse previewSync(UUID agentId) {
+        Set<UUID> desiredSkillIds = getCurrentSkillIds(agentId);
+        return computeDiff(agentId, desiredSkillIds);
     }
 
     @Transactional
-    public void applyDiff(UUID agentPubId, UUID userPubId) {
-        Set<UUID> desiredSkillPubIds = getCurrentSkillPubIds(agentPubId);
-        PolicyDiffResponse diff = computeDiff(agentPubId, desiredSkillPubIds);
-        executeDiff(agentPubId, userPubId, diff);
+    public void applyDiff(UUID agentId, UUID userPubId) {
+        Set<UUID> desiredSkillIds = getCurrentSkillIds(agentId);
+        PolicyDiffResponse diff = computeDiff(agentId, desiredSkillIds);
+        executeDiff(agentId, userPubId, diff);
     }
 
-    private PolicyDiffResponse computeDiff(UUID agentPubId, Set<UUID> desiredSkillPubIds) {
+    private PolicyDiffResponse computeDiff(UUID agentId, Set<UUID> desiredSkillIds) {
         // Build desired policy set from skill connectors
-        Set<PolicyKey> desiredPolicies = buildDesiredPolicies(desiredSkillPubIds);
+        Set<PolicyKey> desiredPolicies = buildDesiredPolicies(desiredSkillIds);
 
         // Load existing source="skill" policies
-        Set<PolicyKey> existingSkillPolicies = loadExistingSkillPolicies(agentPubId);
+        Set<PolicyKey> existingSkillPolicies = loadExistingSkillPolicies(agentId);
 
         // Also load ALL existing policies to avoid duplicating manual ones
-        Set<PolicyKey> allExistingPolicies = loadAllExistingAllowPolicies(agentPubId);
+        Set<PolicyKey> allExistingPolicies = loadAllExistingAllowPolicies(agentId);
 
         // To add: desired but not yet existing (among ALL policies)
         List<PolicyDiffEntry> toAdd = desiredPolicies.stream()
@@ -92,28 +92,28 @@ public class AgentSkillPolicyService {
         return new PolicyDiffResponse(toAdd, toRemove);
     }
 
-    private void executeDiff(UUID agentPubId, UUID userPubId, PolicyDiffResponse diff) {
+    private void executeDiff(UUID agentId, UUID userPubId, PolicyDiffResponse diff) {
         for (PolicyDiffEntry entry : diff.policiesToAdd()) {
-            createPolicy(agentPubId, userPubId, entry);
+            createPolicy(agentId, userPubId, entry);
         }
 
         for (PolicyDiffEntry entry : diff.policiesToRemove()) {
-            removePolicy(agentPubId, entry);
+            removePolicy(agentId, entry);
         }
 
         if (!diff.policiesToAdd().isEmpty() || !diff.policiesToRemove().isEmpty()) {
-            toolPolicyEvaluatorService.invalidateByAgent(agentPubId);
-            triggerPolicyEvaluatorService.invalidateByAgent(agentPubId);
-            log.info("Applied policy diff for agent {}: +{} -{}", agentPubId,
+            toolPolicyEvaluatorService.invalidateByAgent(agentId);
+            triggerPolicyEvaluatorService.invalidateByAgent(agentId);
+            log.info("Applied policy diff for agent {}: +{} -{}", agentId,
                     diff.policiesToAdd().size(), diff.policiesToRemove().size());
         }
     }
 
-    private void createPolicy(UUID agentPubId, UUID userPubId, PolicyDiffEntry entry) {
+    private void createPolicy(UUID agentId, UUID userPubId, PolicyDiffEntry entry) {
         if ("TOOL".equals(entry.policyType())) {
             AgentToolPolicy policy = AgentToolPolicy.builder()
                     .userPubId(userPubId)
-                    .agentPubId(agentPubId)
+                    .agentId(agentId)
                     .connectorCode(entry.connectorCode())
                     .toolName(entry.name())
                     .effect(AccessEffect.ALLOW)
@@ -124,7 +124,7 @@ public class AgentSkillPolicyService {
         } else {
             AgentTriggerPolicy policy = AgentTriggerPolicy.builder()
                     .userPubId(userPubId)
-                    .agentPubId(agentPubId)
+                    .agentId(agentId)
                     .connectorCode(entry.connectorCode())
                     .triggerName(entry.name())
                     .effect(AccessEffect.ALLOW)
@@ -135,28 +135,28 @@ public class AgentSkillPolicyService {
         }
     }
 
-    private void removePolicy(UUID agentPubId, PolicyDiffEntry entry) {
+    private void removePolicy(UUID agentId, PolicyDiffEntry entry) {
         if ("TOOL".equals(entry.policyType())) {
             AgentToolPolicy policy = agentToolPolicyRepository.findByCompositeKey(
-                    agentPubId, entry.connectorCode(), null, entry.name(), AccessEffect.ALLOW.name());
+                    agentId, entry.connectorCode(), null, entry.name(), AccessEffect.ALLOW.name());
             if (policy != null && SOURCE_SKILL.equals(policy.getSource())) {
                 agentToolPolicyRepository.delete(policy);
             }
         } else {
             AgentTriggerPolicy policy = agentTriggerPolicyRepository.findByCompositeKey(
-                    agentPubId, entry.connectorCode(), null, entry.name(), AccessEffect.ALLOW.name());
+                    agentId, entry.connectorCode(), null, entry.name(), AccessEffect.ALLOW.name());
             if (policy != null && SOURCE_SKILL.equals(policy.getSource())) {
                 agentTriggerPolicyRepository.delete(policy);
             }
         }
     }
 
-    private Set<PolicyKey> buildDesiredPolicies(Set<UUID> skillPubIds) {
-        if (skillPubIds.isEmpty()) {
+    private Set<PolicyKey> buildDesiredPolicies(Set<UUID> skillIds) {
+        if (skillIds.isEmpty()) {
             return Set.of();
         }
 
-        List<SkillConnector> connectors = skillConnectorRepository.findBySkillPubIdIn(skillPubIds);
+        List<SkillConnector> connectors = skillConnectorRepository.findBySkillIdIn(skillIds);
         Set<PolicyKey> desired = new HashSet<>();
 
         for (SkillConnector sc : connectors) {
@@ -172,35 +172,35 @@ public class AgentSkillPolicyService {
         return desired;
     }
 
-    private Set<PolicyKey> loadExistingSkillPolicies(UUID agentPubId) {
+    private Set<PolicyKey> loadExistingSkillPolicies(UUID agentId) {
         Set<PolicyKey> existing = new HashSet<>();
 
-        agentToolPolicyRepository.findByAgentPubIdAndSource(agentPubId, SOURCE_SKILL)
+        agentToolPolicyRepository.findByAgentIdAndSource(agentId, SOURCE_SKILL)
                 .forEach(p -> existing.add(new PolicyKey("TOOL", p.getConnectorCode(), p.getToolName())));
 
-        agentTriggerPolicyRepository.findByAgentPubIdAndSource(agentPubId, SOURCE_SKILL)
+        agentTriggerPolicyRepository.findByAgentIdAndSource(agentId, SOURCE_SKILL)
                 .forEach(p -> existing.add(new PolicyKey("TRIGGER", p.getConnectorCode(), p.getTriggerName())));
 
         return existing;
     }
 
-    private Set<PolicyKey> loadAllExistingAllowPolicies(UUID agentPubId) {
+    private Set<PolicyKey> loadAllExistingAllowPolicies(UUID agentId) {
         Set<PolicyKey> existing = new HashSet<>();
 
-        agentToolPolicyRepository.findByAgentPubId(agentPubId).stream()
+        agentToolPolicyRepository.findByAgentId(agentId).stream()
                 .filter(p -> p.getEffect() == AccessEffect.ALLOW)
                 .forEach(p -> existing.add(new PolicyKey("TOOL", p.getConnectorCode(), p.getToolName())));
 
-        agentTriggerPolicyRepository.findByAgentPubId(agentPubId).stream()
+        agentTriggerPolicyRepository.findByAgentId(agentId).stream()
                 .filter(p -> p.getEffect() == AccessEffect.ALLOW)
                 .forEach(p -> existing.add(new PolicyKey("TRIGGER", p.getConnectorCode(), p.getTriggerName())));
 
         return existing;
     }
 
-    private Set<UUID> getCurrentSkillPubIds(UUID agentPubId) {
-        return agentSkillRepository.findByAgentPubId(agentPubId).stream()
-                .map(AgentSkill::getSkillPubId)
+    private Set<UUID> getCurrentSkillIds(UUID agentId) {
+        return agentSkillRepository.findByAgentId(agentId).stream()
+                .map(AgentSkill::getSkillId)
                 .collect(Collectors.toCollection(HashSet::new));
     }
 

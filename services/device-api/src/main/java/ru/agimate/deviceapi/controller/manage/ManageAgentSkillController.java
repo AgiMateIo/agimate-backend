@@ -22,7 +22,7 @@ import java.util.UUID;
 @Tag(name = "Agent Skills", description = "Manage agent-skill bindings and auto-managed policies")
 public class ManageAgentSkillController {
 
-    public static final String PATH = "/manage/agents/{agentPubId}/skills";
+    public static final String PATH = "/manage/agents/{agentId}/skills";
 
     private final AgentSkillService agentSkillService;
 
@@ -30,57 +30,57 @@ public class ManageAgentSkillController {
     @GetMapping("/")
     public SuccessResponse<Page<AgentSkillResponse>> getAgentSkills(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId,
+            @PathVariable UUID agentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentSkillService.getAgentSkills(agentPubId, userPubId, page, size));
+        return SuccessResponse.ok(agentSkillService.getAgentSkills(agentId, userPubId, page, size));
     }
 
     @Operation(summary = "Bind a skill to an agent (also creates ALLOW policies from skill connectors)")
     @PostMapping("/")
     public SuccessResponse<AgentSkillResponse> createAgentSkill(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId,
+            @PathVariable UUID agentId,
             @Valid @RequestBody CreateAgentSkillRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentSkillService.create(agentPubId, request.skillPubId(), userPubId));
+        return SuccessResponse.ok(agentSkillService.create(agentId, request.skillId(), userPubId));
     }
 
     @Operation(summary = "Unbind a skill from an agent (also removes unused skill-sourced policies)")
-    @DeleteMapping("/{skillPubId}")
+    @DeleteMapping("/{skillId}")
     public SuccessResponse<Void> deleteAgentSkill(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId,
-            @PathVariable UUID skillPubId
+            @PathVariable UUID agentId,
+            @PathVariable UUID skillId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        agentSkillService.delete(agentPubId, skillPubId, userPubId);
+        agentSkillService.delete(agentId, skillId, userPubId);
         return SuccessResponse.empty();
     }
 
     @Operation(summary = "Preview policy changes for add, remove, or sync action")
-    @GetMapping("/{skillPubId}/policy-diff")
+    @GetMapping("/{skillId}/policy-diff")
     public SuccessResponse<PolicyDiffResponse> previewPolicyDiff(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId,
-            @PathVariable UUID skillPubId,
+            @PathVariable UUID agentId,
+            @PathVariable UUID skillId,
             @RequestParam String action
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentSkillService.previewPolicyDiff(agentPubId, skillPubId, userPubId, action));
+        return SuccessResponse.ok(agentSkillService.previewPolicyDiff(agentId, skillId, userPubId, action));
     }
 
     @Operation(summary = "Re-sync all skill-sourced policies for the agent")
     @PostMapping("/sync-policies")
     public SuccessResponse<Void> syncPolicies(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentPubId
+            @PathVariable UUID agentId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        agentSkillService.syncPolicies(agentPubId, userPubId);
+        agentSkillService.syncPolicies(agentId, userPubId);
         return SuccessResponse.empty();
     }
 }

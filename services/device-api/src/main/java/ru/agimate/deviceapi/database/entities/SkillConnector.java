@@ -2,8 +2,9 @@ package ru.agimate.deviceapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
-import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.deviceapi.database.enums.SkillConnectorType;
 
 import java.util.UUID;
@@ -18,9 +19,10 @@ import java.util.UUID;
 public class SkillConnector extends BaseEntity {
 
     @Id
-    @Column(name = "id")
-    @Builder.Default
-    private UUID id = UUIDUtils.generateUUIDv8();
+    @Generated
+    @ColumnDefault("uuidv7()")
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "skill_id", nullable = false)

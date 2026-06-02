@@ -41,7 +41,7 @@ public class TriggerRouterService {
     public void routeAppTrigger(App app, TriggerRequest triggerRequest) {
         Trigger trigger = Trigger.createBasic(
                 app.getConnectorCode(),
-                app.getPubId().toString(),
+                app.getId().toString(),
                 triggerRequest.name(),
                 JsonUtils.fromJsonToMap(triggerRequest.data().toString())
         );
@@ -54,7 +54,7 @@ public class TriggerRouterService {
     }
 
 
-    public void routeInternalTrigger(UUID userPubId, UUID agenticTeamPubId, Trigger trigger) {
+    public void routeInternalTrigger(UUID userPubId, UUID agenticTeamId, Trigger trigger) {
         TriggerLog triggerLog = triggerLogService.createTriggerLog(userPubId, trigger);
 
         if (isBlockingProbe(trigger.data())) {
@@ -64,7 +64,7 @@ public class TriggerRouterService {
         }
 
         List<Agent> agents = agentTriggerPolicyService.findAllowedAgentsForTeamId(
-                userPubId, agenticTeamPubId,  trigger.connectorCode(), trigger.identity(), trigger.name());
+                userPubId, agenticTeamId,  trigger.connectorCode(), trigger.identity(), trigger.name());
 
         agents = applyAudience(agents, trigger.audience());
 
@@ -78,15 +78,15 @@ public class TriggerRouterService {
         if (audience == null) {
             return agents;
         }
-        if (audience.actorAgentPubId() != null) {
+        if (audience.actorAgentId() != null) {
             agents = agents.stream()
-                    .filter(a -> !a.getPubId().equals(audience.actorAgentPubId()))
+                    .filter(a -> !a.getId().equals(audience.actorAgentId()))
                     .toList();
         }
-        if (audience.targetAgentPubIds() != null && !audience.targetAgentPubIds().isEmpty()) {
-            Set<UUID> allowed = Set.copyOf(audience.targetAgentPubIds());
+        if (audience.targetAgentIds() != null && !audience.targetAgentIds().isEmpty()) {
+            Set<UUID> allowed = Set.copyOf(audience.targetAgentIds());
             agents = agents.stream()
-                    .filter(a -> allowed.contains(a.getPubId()))
+                    .filter(a -> allowed.contains(a.getId()))
                     .toList();
         }
         return agents;
@@ -126,7 +126,7 @@ public class TriggerRouterService {
         for (Agent agent : agents) {
             Optional<AgentTriggerPolicy> bestPolicy = selectMatchingAllowPolicy(agent, trigger);
             if (bestPolicy.isEmpty()) {
-                log.debug("Skipping agent {} - no policy matched after input_filter check", agent.getPubId());
+                log.debug("Skipping agent {} - no policy matched after input_filter check", agent.getId());
                 continue;
             }
 
@@ -140,7 +140,7 @@ public class TriggerRouterService {
                     .triggerLog(triggerLog)
                     .agent(agent)
                     .destination(agent.getType().name())
-                    .sessionPubId(channelContext != null ? channelContext.channelSessionPubId() : null)
+                    .sessionId(channelContext != null ? channelContext.channelSessionId() : null)
                     .build();
 
             agentDeliveryService.deliverTrigger(agent, triggerLogAgent, channelContext);
@@ -151,7 +151,7 @@ public class TriggerRouterService {
 
     private Optional<AgentTriggerPolicy> selectMatchingAllowPolicy(Agent agent, Trigger trigger) {
         List<AgentTriggerPolicy> matching = agentTriggerPolicyRepository.findMatchingPolicies(
-                agent.getPubId(), trigger.connectorCode(), trigger.identity(), trigger.name());
+                agent.getId(), trigger.connectorCode(), trigger.identity(), trigger.name());
 
         return matching.stream()
                 .filter(p -> p.getEffect() == AccessEffect.ALLOW)
@@ -171,7 +171,7 @@ public class TriggerRouterService {
         return spec;
     }
 
-    private ChannelContext processChannelInbound(Long channelId) {
+    private ChannelContext processChannelInbound(UUID channelId) {
         Channel channel = channelRepository.findById(channelId).orElse(null);
         if (channel == null || channel.getDeletedAt() != null) {
             log.warn("Channel id={} not found or deleted; treating as no-channel route", channelId);
@@ -179,8 +179,8 @@ public class TriggerRouterService {
         }
         ChannelSession session = channelSessionService.findOrCreateActive(channel, null);
         return new ChannelContext(
-                channel.getPubId(),
-                session.getPubId(),
+                channel.getId(),
+                session.getId(),
                 channel.getName(),
                 channel.getTriggerMessageField()
         );

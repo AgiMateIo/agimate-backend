@@ -7,10 +7,10 @@
 
     <changeSet id="create-skill-connectors-table" author="agimate">
         <createTable tableName="skill_connectors">
-            <column name="id" type="UUID">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="skill_id" type="BIGINT">
+            <column name="skill_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_skill_connectors_skill"
                              references="skills(id)"

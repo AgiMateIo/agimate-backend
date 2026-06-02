@@ -14,21 +14,21 @@ import java.util.UUID;
 
 public interface AgentSkillRepository extends JpaRepository<AgentSkill, UUID> {
 
-    List<AgentSkill> findByAgentPubId(UUID agentPubId);
+    List<AgentSkill> findByAgentId(UUID agentId);
 
-    Page<AgentSkill> findByAgentPubId(UUID agentPubId, Pageable pageable);
+    Page<AgentSkill> findByAgentId(UUID agentId, Pageable pageable);
 
-    @Query("SELECT a.skillPubId FROM AgentSkill a WHERE a.agentPubId = :agentPubId")
-    Page<UUID> findSkillPubIdsByAgentPubId(@Param("agentPubId") UUID agentPubId, Pageable pageable);
+    @Query("SELECT a.skillId FROM AgentSkill a WHERE a.agentId = :agentId")
+    Page<UUID> findSkillIdsByAgentId(@Param("agentId") UUID agentId, Pageable pageable);
 
-    Optional<AgentSkill> findByAgentPubIdAndSkillPubId(UUID agentPubId, UUID skillPubId);
+    Optional<AgentSkill> findByAgentIdAndSkillId(UUID agentId, UUID skillId);
 
     @Query("""
-            SELECT a.agentPubId, s.pubId, s.name
+            SELECT a.agentId, s.id, s.name
             FROM AgentSkill a
-            JOIN Skill s ON s.pubId = a.skillPubId
-            WHERE a.agentPubId IN :agentPubIds AND s.deletedAt IS NULL
+            JOIN Skill s ON s.id = a.skillId
+            WHERE a.agentId IN :agentIds AND s.deletedAt IS NULL
             ORDER BY s.name
             """)
-    List<Object[]> findSkillSummariesByAgentPubIdIn(@Param("agentPubIds") Collection<UUID> agentPubIds);
+    List<Object[]> findSkillSummariesByAgentIdIn(@Param("agentIds") Collection<UUID> agentIds);
 }

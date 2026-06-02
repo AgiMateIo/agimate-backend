@@ -9,7 +9,7 @@ import java.util.UUID;
 public record CreateAgentToolPolicyRequest(
         @NotNull
         @Schema(description = "Agent public ID")
-        UUID agentPubId,
+        UUID agentId,
 
         @Schema(description = "Connector code (null = wildcard)")
         String connectorCode,

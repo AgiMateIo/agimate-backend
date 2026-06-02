@@ -7,16 +7,13 @@
 
     <changeSet id="create-boards-table" author="agimate">
         <createTable tableName="boards">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="agentic_team_id" type="BIGINT">
+            <column name="agentic_team_id" type="UUID">
                 <constraints nullable="false" unique="true"
                              foreignKeyName="fk_boards_agentic_team"
                              references="agentic_teams(id)"/>

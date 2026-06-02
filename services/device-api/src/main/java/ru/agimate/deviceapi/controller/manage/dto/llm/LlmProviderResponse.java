@@ -12,7 +12,7 @@ import java.util.UUID;
 @Schema(description = "LLM provider configuration (api_key never exposed)")
 public record LlmProviderResponse(
         @Schema(description = "Public ID")
-        UUID pubId,
+        UUID id,
 
         @Schema(description = "Human-readable name")
         String name,
@@ -42,7 +42,7 @@ public record LlmProviderResponse(
 ) {
     public static LlmProviderResponse from(LlmProvider provider) {
         return new LlmProviderResponse(
-                provider.getPubId(),
+                provider.getId(),
                 provider.getName(),
                 provider.getProviderType(),
                 provider.getBaseUrl(),

@@ -12,5 +12,5 @@ public interface ServerSideToolHandler {
     Map<String, ToolSpecification> getToolDefinitions();
 
     Map<String, Object> executeTool(String toolName, Map<String, Object> params,
-                                     UUID agentPubId, UUID userPubId);
+                                     UUID agentId, UUID userPubId);
 }

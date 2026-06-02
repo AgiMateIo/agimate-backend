@@ -38,16 +38,16 @@ public class ManageSkillFileController {
     private final SkillFileService skillFileService;
 
     @Operation(summary = "Download all skill files as a ZIP archive")
-    @GetMapping("/{pubId}.zip")
+    @GetMapping("/{id}.zip")
     public ResponseEntity<InputStreamResource> downloadZip(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
-        UUID fileOwnerPubId = skillService.resolveFileOwnerPubId(skill);
+        Skill skill = skillService.findAccessibleSkill(id, userPubId);
+        UUID fileOwnerId = skillService.resolveFileOwnerId(skill);
 
-        InputStream zipStream = skillFileService.getOrCreateZip(fileOwnerPubId, skill.getUpdatedAt());
+        InputStream zipStream = skillFileService.getOrCreateZip(fileOwnerId, skill.getUpdatedAt());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + skill.getName() + ".zip\"")
@@ -56,16 +56,16 @@ public class ManageSkillFileController {
     }
 
     @Operation(summary = "List all files in a skill directory")
-    @GetMapping("/{pubId}/")
+    @GetMapping("/{id}/")
     public SuccessResponse<List<SkillFileEntryResponse>> listFiles(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId
+            @PathVariable UUID id
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
-        UUID fileOwnerPubId = skillService.resolveFileOwnerPubId(skill);
+        Skill skill = skillService.findAccessibleSkill(id, userPubId);
+        UUID fileOwnerId = skillService.resolveFileOwnerId(skill);
         List<SkillFileEntryResponse> entries = skillFileService
-                .listFiles(fileOwnerPubId)
+                .listFiles(fileOwnerId)
                 .stream()
                 .map(SkillFileEntryResponse::from)
                 .toList();
@@ -73,15 +73,15 @@ public class ManageSkillFileController {
     }
 
     @Operation(summary = "Upload a file to a skill directory")
-    @PostMapping(value = "/{pubId}/", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/{id}/", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public SuccessResponse<Void> uploadFile(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
+            @PathVariable UUID id,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "path", defaultValue = "") String path
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        Skill skill = skillService.findOwnedSkill(id, userPubId);
         skillService.requireNotFeaturedClone(skill);
 
         String originalFilename = file.getOriginalFilename();
@@ -91,24 +91,24 @@ public class ManageSkillFileController {
         String safeFilename = Paths.get(originalFilename).getFileName().toString();
         String relativePath = path.isEmpty() ? safeFilename : path + "/" + safeFilename;
 
-        skillFileService.uploadFile(skill.getPubId(), relativePath, file);
-        skillService.touchUpdatedAt(pubId, userPubId);
+        skillFileService.uploadFile(skill.getId(), relativePath, file);
+        skillService.touchUpdatedAt(id, userPubId);
         return SuccessResponse.empty();
     }
 
     @Operation(summary = "Download a file from a skill directory")
-    @GetMapping("/{pubId}/**")
+    @GetMapping("/{id}/**")
     public ResponseEntity<InputStreamResource> downloadFile(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
+            @PathVariable UUID id,
             HttpServletRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findAccessibleSkill(pubId, userPubId);
-        UUID fileOwnerPubId = skillService.resolveFileOwnerPubId(skill);
-        String relativePath = extractRelativePath(request, pubId);
+        Skill skill = skillService.findAccessibleSkill(id, userPubId);
+        UUID fileOwnerId = skillService.resolveFileOwnerId(skill);
+        String relativePath = extractRelativePath(request, id);
 
-        InputStream is = skillFileService.readFile(fileOwnerPubId, relativePath);
+        InputStream is = skillFileService.readFile(fileOwnerId, relativePath);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + getFileName(relativePath) + "\"")
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
@@ -116,25 +116,25 @@ public class ManageSkillFileController {
     }
 
     @Operation(summary = "Delete a file from a skill directory")
-    @DeleteMapping("/{pubId}/**")
+    @DeleteMapping("/{id}/**")
     public SuccessResponse<Void> deleteFile(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID pubId,
+            @PathVariable UUID id,
             HttpServletRequest request
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(pubId, userPubId);
+        Skill skill = skillService.findOwnedSkill(id, userPubId);
         skillService.requireNotFeaturedClone(skill);
-        String relativePath = extractRelativePath(request, pubId);
+        String relativePath = extractRelativePath(request, id);
 
-        skillFileService.deleteFile(skill.getPubId(), relativePath);
-        skillService.touchUpdatedAt(pubId, userPubId);
+        skillFileService.deleteFile(skill.getId(), relativePath);
+        skillService.touchUpdatedAt(id, userPubId);
         return SuccessResponse.empty();
     }
 
-    private String extractRelativePath(HttpServletRequest request, UUID pubId) {
+    private String extractRelativePath(HttpServletRequest request, UUID id) {
         String fullPath = request.getRequestURI();
-        String prefix = PATH + "/" + pubId + "/";
+        String prefix = PATH + "/" + id + "/";
         int idx = fullPath.indexOf(prefix);
         if (idx < 0) {
             return "";

@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.deviceapi.database.entities.Agent;
 import ru.agimate.deviceapi.database.entities.Channel;
 import ru.agimate.deviceapi.database.entities.ChannelSession;
@@ -47,18 +46,18 @@ public class AgentSessionMessagesService {
     public record AppendResult(List<Integer> assignedTurnIndices) {}
 
     @Transactional
-    public AppendResult append(UUID agentPubId,
-                               UUID sessionPubId,
+    public AppendResult append(UUID agentId,
+                               UUID sessionId,
                                UUID runId,
                                int startingTurnIdx,
                                List<AppendMessage> messages) {
-        Agent agent = agentRepository.findByPubId(agentPubId)
+        Agent agent = agentRepository.findById(agentId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-        ChannelSession session = channelSessionRepository.findByPubId(sessionPubId)
+        ChannelSession session = channelSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new NotFoundStatusException("Channel session not found"));
         Channel channel = channelRepository.findById(session.getChannelId())
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
-        if (!agentPubId.equals(channel.getAgentPubId())) {
+        if (!agentId.equals(channel.getAgentId())) {
             throw new NotFoundStatusException("Channel session does not belong to this agent");
         }
 
@@ -81,7 +80,6 @@ public class AgentSessionMessagesService {
 
             // Idempotent insert: a replayed/retried run keeps its assigned turn_idx without failing.
             int inserted = channelSessionMessageRepository.insertIgnoreConflict(
-                    UUIDUtils.generateUUIDv8(),
                     session.getId(),
                     agent.getId(),
                     runId,
@@ -105,20 +103,20 @@ public class AgentSessionMessagesService {
         if (anyInserted) {
             channelSessionService.bumpLastMessageAt(session);
             log.debug("Appended {} message(s) to session={} agent={} run={}",
-                    messages.size(), session.getPubId(), agentPubId, runId);
+                    messages.size(), session.getId(), agentId, runId);
         }
         return new AppendResult(assigned);
     }
 
-    public List<ChannelSessionMessage> getHistory(UUID agentPubId,
-                                                  UUID sessionPubId,
+    public List<ChannelSessionMessage> getHistory(UUID agentId,
+                                                  UUID sessionId,
                                                   int lastN,
                                                   int sinceTurn) {
-        ChannelSession session = channelSessionRepository.findByPubId(sessionPubId)
+        ChannelSession session = channelSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new NotFoundStatusException("Channel session not found"));
         Channel channel = channelRepository.findById(session.getChannelId())
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
-        if (!agentPubId.equals(channel.getAgentPubId())) {
+        if (!agentId.equals(channel.getAgentId())) {
             throw new NotFoundStatusException("Channel session does not belong to this agent");
         }
         if (sinceTurn > 0) {

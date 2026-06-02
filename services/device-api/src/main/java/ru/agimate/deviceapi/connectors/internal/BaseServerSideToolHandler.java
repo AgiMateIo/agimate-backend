@@ -18,8 +18,8 @@ public abstract class BaseServerSideToolHandler implements ServerSideToolHandler
 
     private static final ThreadLocal<ServerSideToolContext> CONTEXT = new ThreadLocal<>();
 
-    protected UUID agentPubId() {
-        return CONTEXT.get().agentPubId();
+    protected UUID agentId() {
+        return CONTEXT.get().agentId();
     }
 
     protected UUID userPubId() {
@@ -37,8 +37,8 @@ public abstract class BaseServerSideToolHandler implements ServerSideToolHandler
     @Override
     @SuppressWarnings("unchecked")
     public Map<String, Object> executeTool(String toolName, Map<String, Object> params,
-                                           UUID agentPubId, UUID userPubId) {
-        CONTEXT.set(new ServerSideToolContext(agentPubId, userPubId));
+                                           UUID agentId, UUID userPubId) {
+        CONTEXT.set(new ServerSideToolContext(agentId, userPubId));
         try {
             Method method = findToolMethod(toolName);
             Object[] args = buildMethodArgs(method, params);
@@ -80,5 +80,5 @@ public abstract class BaseServerSideToolHandler implements ServerSideToolHandler
         return value;
     }
 
-    private record ServerSideToolContext(UUID agentPubId, UUID userPubId) {}
+    private record ServerSideToolContext(UUID agentId, UUID userPubId) {}
 }

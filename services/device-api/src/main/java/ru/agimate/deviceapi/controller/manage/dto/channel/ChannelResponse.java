@@ -9,8 +9,8 @@ import java.util.UUID;
 
 @Schema(description = "Channel binding between a trigger and reply tool")
 public record ChannelResponse(
-        UUID pubId,
-        UUID agentPubId,
+        UUID id,
+        UUID agentId,
         String name,
         String triggerConnectorCode,
         String triggerIdentity,
@@ -34,8 +34,8 @@ public record ChannelResponse(
                                        String replyIdentityName,
                                        Map<String, Object> inputFilter) {
         return new ChannelResponse(
-                c.getPubId(),
-                c.getAgentPubId(),
+                c.getId(),
+                c.getAgentId(),
                 c.getName(),
                 c.getTriggerConnectorCode(),
                 c.getTriggerIdentity(),

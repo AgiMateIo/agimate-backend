@@ -2,13 +2,14 @@ package ru.agimate.deviceapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
-import ru.agimate.common.util.UUIDUtils;
 
 import java.util.UUID;
 
 @Entity
-@Table(name = "board_task_comments", uniqueConstraints = @UniqueConstraint(columnNames = "pub_id"))
+@Table(name = "board_task_comments")
 @Getter
 @Setter
 @Builder
@@ -17,22 +18,19 @@ import java.util.UUID;
 public class BoardTaskComment extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
-
-    @Column(name = "pub_id", unique = true, nullable = false)
-    @Builder.Default
-    private UUID pubId = UUIDUtils.generateUUIDv8();
+    @Generated
+    @ColumnDefault("uuidv7()")
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
     @Column(name = "board_task_id", nullable = false)
-    private Long boardTaskId;
+    private UUID boardTaskId;
 
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
 
     @Column(name = "agent_id", nullable = false)
-    private Long agentId;
+    private UUID agentId;
 
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;

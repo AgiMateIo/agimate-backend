@@ -13,10 +13,10 @@ public record AgentSkillResponse(
         UUID id,
 
         @Schema(description = "Agent public ID")
-        UUID agentPubId,
+        UUID agentId,
 
         @Schema(description = "Skill public ID")
-        UUID skillPubId,
+        UUID skillId,
 
         @Schema(description = "Skill name")
         String skillName,
@@ -35,8 +35,8 @@ public record AgentSkillResponse(
     public static AgentSkillResponse from(AgentSkill agentSkill, String skillName, boolean needsReinstall) {
         return new AgentSkillResponse(
                 agentSkill.getId(),
-                agentSkill.getAgentPubId(),
-                agentSkill.getSkillPubId(),
+                agentSkill.getAgentId(),
+                agentSkill.getSkillId(),
                 skillName,
                 needsReinstall,
                 agentSkill.getCreatedAt(),

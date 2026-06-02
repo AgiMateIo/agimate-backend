@@ -7,11 +7,8 @@
 
     <changeSet id="create-llm-providers-table" author="agimate">
         <createTable tableName="llm_providers">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>

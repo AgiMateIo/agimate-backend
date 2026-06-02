@@ -8,7 +8,7 @@ import java.util.UUID;
 
 @Schema(description = "Channel session (12h sliding window)")
 public record ChannelSessionResponse(
-        UUID pubId,
+        UUID id,
         String title,
         LocalDateTime lastMessageAt,
         LocalDateTime closedAt,
@@ -16,7 +16,7 @@ public record ChannelSessionResponse(
 ) {
     public static ChannelSessionResponse from(ChannelSession s) {
         return new ChannelSessionResponse(
-                s.getPubId(),
+                s.getId(),
                 s.getTitle(),
                 s.getLastMessageAt(),
                 s.getClosedAt(),

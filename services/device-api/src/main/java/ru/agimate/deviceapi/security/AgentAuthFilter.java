@@ -39,7 +39,7 @@ public class AgentAuthFilter extends OncePerRequestFilter {
                         var authorities = List.of(new SimpleGrantedAuthority("ROLE_AGENT"));
                         var principal = new AgentPrincipal(
                                 agent.getName(),
-                                agent.getPubId(),
+                                agent.getId(),
                                 agent.getUserPubId()
                         );
 

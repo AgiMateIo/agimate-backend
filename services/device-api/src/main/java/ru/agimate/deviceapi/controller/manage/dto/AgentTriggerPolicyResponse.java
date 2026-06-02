@@ -9,7 +9,7 @@ import java.util.UUID;
 @Schema(description = "Agent trigger policy response")
 public record AgentTriggerPolicyResponse(
         UUID id,
-        UUID agentPubId,
+        UUID agentId,
         UUID userPubId,
         String connectorCode,
         String connectorIdentity,
@@ -23,7 +23,7 @@ public record AgentTriggerPolicyResponse(
     public static AgentTriggerPolicyResponse from(AgentTriggerPolicy policy) {
         return new AgentTriggerPolicyResponse(
                 policy.getId(),
-                policy.getAgentPubId(),
+                policy.getAgentId(),
                 policy.getUserPubId(),
                 policy.getConnectorCode(),
                 policy.getConnectorIdentity(),

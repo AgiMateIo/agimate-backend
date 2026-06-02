@@ -32,12 +32,12 @@ public class ManageAgentToolPolicyController {
     @GetMapping("/")
     public SuccessResponse<Page<AgentToolPolicyResponse>> getPolicies(
             @AuthenticationPrincipal AgimateUserPrincipal userPrincipal,
-            @RequestParam UUID agentPubId,
+            @RequestParam UUID agentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userPubId = UUID.fromString(userPrincipal.pubId());
-        Page<AgentToolPolicyResponse> response = agentToolPolicyService.getPoliciesByAgent(userPubId, agentPubId, page, size)
+        Page<AgentToolPolicyResponse> response = agentToolPolicyService.getPoliciesByAgent(userPubId, agentId, page, size)
                 .map(AgentToolPolicyResponse::from);
         return SuccessResponse.ok(response);
     }
@@ -62,7 +62,7 @@ public class ManageAgentToolPolicyController {
         UUID userPubId = UUID.fromString(userPrincipal.pubId());
         AgentToolPolicy policy = agentToolPolicyService.createPolicy(
                 userPubId,
-                request.agentPubId(),
+                request.agentId(),
                 request.connectorCode(),
                 request.connectorIdentity(),
                 request.toolName(),

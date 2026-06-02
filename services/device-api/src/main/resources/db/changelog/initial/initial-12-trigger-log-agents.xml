@@ -7,24 +7,21 @@
 
     <!--
       trigger_log_agents doubles as the active-run registry (AgentRunRegistry).
-      Each row is an agent run; pub_id is the canonical run_id (== DBOS workflow_id).
+      Each row is an agent run; id is the canonical run_id (== DBOS workflow_id).
       The single-writer-per-session invariant is enforced by a partial unique index
-      on (session_pub_id) WHERE status = 'RUNNING'.
+      on (session_id) WHERE status = 'RUNNING'.
     -->
     <changeSet id="create-trigger-log-agents-table" author="agimate">
         <createTable tableName="trigger_log_agents">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
-            </column>
-            <column name="trigger_log_id" type="BIGINT">
+            <column name="trigger_log_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_trigger_log_agents_trigger_log"
                              references="trigger_logs(id)"/>
             </column>
-            <column name="agent_id" type="BIGINT">
+            <column name="agent_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_trigger_log_agents_agent"
                              references="agents(id)"/>
@@ -34,7 +31,7 @@
             </column>
             <column name="result" type="TEXT"/>
             <column name="error" type="TEXT"/>
-            <column name="session_pub_id" type="UUID"/>
+            <column name="session_id" type="UUID"/>
             <column name="status" type="TEXT" defaultValue="ENQUEUED">
                 <constraints nullable="false"/>
             </column>
@@ -60,8 +57,8 @@
         <!-- Single active writer per session: at most one RUNNING run per session. -->
         <sql>
             CREATE UNIQUE INDEX uq_trigger_log_agents_active_session
-                ON trigger_log_agents (session_pub_id)
-                WHERE session_pub_id IS NOT NULL AND status = 'RUNNING';
+                ON trigger_log_agents (session_id)
+                WHERE session_id IS NOT NULL AND status = 'RUNNING';
         </sql>
     </changeSet>
 

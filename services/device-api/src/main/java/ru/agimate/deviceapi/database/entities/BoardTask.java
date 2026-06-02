@@ -2,15 +2,16 @@ package ru.agimate.deviceapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
-import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 import ru.agimate.deviceapi.database.enums.BoardTaskType;
 
 import java.util.UUID;
 
 @Entity
-@Table(name = "board_tasks", uniqueConstraints = @UniqueConstraint(columnNames = "pub_id"))
+@Table(name = "board_tasks")
 @Getter
 @Setter
 @Builder
@@ -19,22 +20,19 @@ import java.util.UUID;
 public class BoardTask extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
-
-    @Column(name = "pub_id", unique = true, nullable = false)
-    @Builder.Default
-    private UUID pubId = UUIDUtils.generateUUIDv8();
+    @Generated
+    @ColumnDefault("uuidv7()")
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
     @Column(name = "board_id", nullable = false)
-    private Long boardId;
+    private UUID boardId;
 
     @Column(name = "user_pub_id", nullable = false)
     private UUID userPubId;
 
     @Column(name = "parent_task_id")
-    private Long parentTaskId;
+    private UUID parentTaskId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, columnDefinition = "TEXT")
@@ -52,8 +50,8 @@ public class BoardTask extends BaseEntity {
     private String description;
 
     @Column(name = "created_by_agent_id", nullable = false)
-    private Long createdByAgentId;
+    private UUID createdByAgentId;
 
     @Column(name = "assignee_agent_id")
-    private Long assigneeAgentId;
+    private UUID assigneeAgentId;
 }

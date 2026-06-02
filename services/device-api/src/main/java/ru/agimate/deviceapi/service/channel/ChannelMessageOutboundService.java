@@ -35,16 +35,16 @@ public class ChannelMessageOutboundService {
     public record OutboundResult(ChannelSession session, ToolUseLog toolUseLog) {}
 
     @Transactional
-    public OutboundResult send(UUID agentPubId, UUID channelPubId, UUID sessionPubIdOrNull,
+    public OutboundResult send(UUID agentId, UUID channelId, UUID sessionIdOrNull,
                                String text, String toolCallId) {
-        Channel channel = channelRepository.findByPubIdAndDeletedAtIsNull(channelPubId)
+        Channel channel = channelRepository.findByIdAndDeletedAtIsNull(channelId)
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
 
-        if (!agentPubId.equals(channel.getAgentPubId())) {
+        if (!agentId.equals(channel.getAgentId())) {
             throw new NotFoundStatusException("Channel not found for this agent");
         }
 
-        ChannelSession session = resolveSession(channel, sessionPubIdOrNull);
+        ChannelSession session = resolveSession(channel, sessionIdOrNull);
         Map<String, Object> triggerInput = lookupLastInboundTrigger(session);
 
         Map<String, Object> renderedParams = PlaceholderRenderer.render(
@@ -54,13 +54,13 @@ public class ChannelMessageOutboundService {
         connectorService.pushToConnector(toolUseLog);
 
         log.info("Dispatched OUT message session={} channel={} via tool={}",
-                session.getPubId(), channel.getPubId(), channel.getReplyToolName());
+                session.getId(), channel.getId(), channel.getReplyToolName());
         return new OutboundResult(session, toolUseLog);
     }
 
-    private ChannelSession resolveSession(Channel channel, UUID sessionPubIdOrNull) {
-        if (sessionPubIdOrNull != null) {
-            ChannelSession session = channelSessionRepository.findByPubId(sessionPubIdOrNull)
+    private ChannelSession resolveSession(Channel channel, UUID sessionIdOrNull) {
+        if (sessionIdOrNull != null) {
+            ChannelSession session = channelSessionRepository.findById(sessionIdOrNull)
                     .orElseThrow(() -> new NotFoundStatusException("Channel session not found"));
             if (!session.getChannelId().equals(channel.getId())) {
                 throw new NotFoundStatusException("Channel session does not belong to this channel");
@@ -82,13 +82,13 @@ public class ChannelMessageOutboundService {
                 ? toolCallId : UUID.randomUUID().toString();
 
         Optional<ToolUseLog> existing = toolUseLogRepository
-                .findByToolUseIdAndAgentPubId(effectiveToolCallId, channel.getAgentPubId());
+                .findByToolUseIdAndAgentId(effectiveToolCallId, channel.getAgentId());
         if (existing.isPresent()) {
             return existing.get();
         }
 
         ToolUseLog log = ToolUseLog.builder()
-                .agentPubId(channel.getAgentPubId())
+                .agentId(channel.getAgentId())
                 .userPubId(channel.getUserPubId())
                 .connectorCode(channel.getReplyConnectorCode())
                 .identity(channel.getReplyIdentity())

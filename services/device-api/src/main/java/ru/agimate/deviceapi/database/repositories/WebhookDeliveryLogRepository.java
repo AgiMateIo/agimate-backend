@@ -8,7 +8,7 @@ import ru.agimate.deviceapi.database.entities.WebhookDeliveryLog;
 
 import java.util.UUID;
 
-public interface WebhookDeliveryLogRepository extends JpaRepository<WebhookDeliveryLog, Long> {
+public interface WebhookDeliveryLogRepository extends JpaRepository<WebhookDeliveryLog, UUID> {
 
     @Query("""
             SELECT w FROM WebhookDeliveryLog w
@@ -22,8 +22,8 @@ public interface WebhookDeliveryLogRepository extends JpaRepository<WebhookDeliv
     @Query("""
             SELECT w FROM WebhookDeliveryLog w
             JOIN w.triggerLogAgent tla
-            WHERE tla.agent.pubId = :agentPubId
+            WHERE tla.agent.id = :agentId
             ORDER BY w.deliveredAt DESC
             """)
-    Page<WebhookDeliveryLog> findByAgentPubId(UUID agentPubId, Pageable pageable);
+    Page<WebhookDeliveryLog> findByAgentId(UUID agentId, Pageable pageable);
 }

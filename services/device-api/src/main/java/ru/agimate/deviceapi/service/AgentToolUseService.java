@@ -32,25 +32,25 @@ public class AgentToolUseService {
     }
 
     /** Idempotency check + ABAC evaluate + create log */
-    private EvaluationResult evaluate(UUID agentPubId, ToolUseRequest request) {
-        Agent agent = agentService.findByPubId(agentPubId);
+    private EvaluationResult evaluate(UUID agentId, ToolUseRequest request) {
+        Agent agent = agentService.findById(agentId);
 
-        var existing = toolUseLogService.findByToolUseIdAndAgentPubId(request.getId(), agent.getPubId());
+        var existing = toolUseLogService.findByToolUseIdAndAgentId(request.getId(), agent.getId());
         if (existing.isPresent()) {
             return classifyExisting(existing.get(), request);
         }
 
         AccessDecision decision = toolPolicyDbEvaluatorService.evaluate(
-                agent.getPubId(), request.getConnectorCode(), request.getIdentity(), request.getName());
+                agent.getId(), request.getConnectorCode(), request.getIdentity(), request.getName());
 
         try {
             ToolUseLog log = toolUseLogService.createLog(agent, request,
                     request.getAgentSessionId(), decision.accessEffect(), decision.reason());
             return new EvaluationResult.Created(log, decision);
         } catch (DataIntegrityViolationException e) {
-            // Concurrent insert with the same (agent_pub_id, tool_use_id) — race lost.
+            // Concurrent insert with the same (agent_id, tool_use_id) — race lost.
             // Re-read and treat as replay or input conflict.
-            var raced = toolUseLogService.findByToolUseIdAndAgentPubId(request.getId(), agent.getPubId())
+            var raced = toolUseLogService.findByToolUseIdAndAgentId(request.getId(), agent.getId())
                     .orElseThrow(() -> e);
             return classifyExisting(raced, request);
         }
@@ -63,8 +63,8 @@ public class AgentToolUseService {
     }
 
     /** Evaluate + enforce permission + push to connector */
-    public String processToolUse(UUID agentPubId, ToolUseRequest request) {
-        return switch (evaluate(agentPubId, request)) {
+    public String processToolUse(UUID agentId, ToolUseRequest request) {
+        return switch (evaluate(agentId, request)) {
             case EvaluationResult.Replay(var log) -> log.getToolUseId();
             case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());
             case EvaluationResult.Created(var log, var decision) -> {
@@ -79,8 +79,8 @@ public class AgentToolUseService {
     }
 
     /** Evaluate permission without execution */
-    public AccessEffect checkToolUse(UUID agentPubId, ToolUseRequest request) {
-        return switch (evaluate(agentPubId, request)) {
+    public AccessEffect checkToolUse(UUID agentId, ToolUseRequest request) {
+        return switch (evaluate(agentId, request)) {
             case EvaluationResult.Replay(var log) -> log.getAccessEffect();
             case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());
             case EvaluationResult.Created(var log, var decision) -> decision.accessEffect();
@@ -93,12 +93,12 @@ public class AgentToolUseService {
     }
 
     /** Get tool use log for agent */
-    public ToolUseLog getToolUseLog(UUID agentPubId, String toolUseId) {
-        return toolUseLogService.findByToolUseIdForAgent(toolUseId, agentPubId);
+    public ToolUseLog getToolUseLog(UUID agentId, String toolUseId) {
+        return toolUseLogService.findByToolUseIdForAgent(toolUseId, agentId);
     }
 
     /** Save tool result from agent */
-    public ToolUseLog saveToolResult(UUID agentPubId, IToolResult toolResult) {
-        return toolUseLogService.recordOutputByAgent(agentPubId, toolResult);
+    public ToolUseLog saveToolResult(UUID agentId, IToolResult toolResult) {
+        return toolUseLogService.recordOutputByAgent(agentId, toolResult);
     }
 }

@@ -7,16 +7,13 @@
 
     <changeSet id="create-channel-session-messages-table" author="agimate">
         <createTable tableName="channel_session_messages">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
-            </column>
-            <column name="session_id" type="BIGINT">
+            <column name="session_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="agent_id" type="BIGINT">
+            <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="run_id" type="UUID">

@@ -7,16 +7,16 @@
 
     <changeSet id="create-agent-skills-table" author="agimate">
         <createTable tableName="agent_skills">
-            <column name="id" type="UUID">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="agent_pub_id" type="UUID">
+            <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="skill_pub_id" type="UUID">
+            <column name="skill_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="installed_skill_version" type="INTEGER"/>
@@ -29,7 +29,7 @@
         </createTable>
 
         <addUniqueConstraint tableName="agent_skills"
-                             columnNames="agent_pub_id, skill_pub_id"
+                             columnNames="agent_id, skill_id"
                              constraintName="uq_agent_skills_agent_skill"/>
 
         <createIndex tableName="agent_skills" indexName="idx_agent_skills_user_pub_id">

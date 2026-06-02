@@ -16,6 +16,6 @@ public interface AgentDeliveryHandler {
     default void deliverToolResult(Agent agent, IToolResult toolResult) {
         LoggerFactory.getLogger(getClass()).warn(
                 "Tool result '{}' not delivered to agent '{}' via {} - handler does not support tool results",
-                toolResult.getId(), agent.getPubId(), getAgentType());
+                toolResult.getId(), agent.getId(), getAgentType());
     }
 }

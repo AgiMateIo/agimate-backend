@@ -5,8 +5,8 @@ import ru.agimate.deviceapi.database.enums.BoardTaskStatus;
 import java.util.UUID;
 
 public record BoardTaskStatusChangedEvent(
-        UUID boardPubId,
-        UUID taskPubId,
+        UUID boardId,
+        UUID taskId,
         BoardTaskStatus oldStatus,
         BoardTaskStatus newStatus
 ) {

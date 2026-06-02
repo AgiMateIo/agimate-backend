@@ -7,16 +7,13 @@
 
     <changeSet id="create-channels-table" author="agimate">
         <createTable tableName="channels">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="agent_pub_id" type="UUID">
+            <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT">
@@ -56,22 +53,22 @@
         </createTable>
 
         <addForeignKeyConstraint baseTableName="channels"
-                                 baseColumnNames="agent_pub_id"
+                                 baseColumnNames="agent_id"
                                  constraintName="fk_channels_agent"
                                  referencedTableName="agents"
-                                 referencedColumnNames="pub_id"
+                                 referencedColumnNames="id"
                                  onDelete="CASCADE"/>
 
         <createIndex tableName="channels" indexName="idx_channels_user_pub_id">
             <column name="user_pub_id"/>
         </createIndex>
-        <createIndex tableName="channels" indexName="idx_channels_agent_pub_id">
-            <column name="agent_pub_id"/>
+        <createIndex tableName="channels" indexName="idx_channels_agent_id">
+            <column name="agent_id"/>
         </createIndex>
 
         <sql>
             CREATE UNIQUE INDEX uq_channels_user_agent_trigger
-                ON channels (user_pub_id, agent_pub_id, trigger_connector_code, trigger_identity, trigger_name)
+                ON channels (user_pub_id, agent_id, trigger_connector_code, trigger_identity, trigger_name)
                 WHERE deleted_at IS NULL;
         </sql>
     </changeSet>

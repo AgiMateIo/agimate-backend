@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public interface TriggerLogWithAgentsCountProjection {
-    UUID getPubId();
+    UUID getId();
     String getConnectorCode();
     String getIdentity();
     String getTriggerId();

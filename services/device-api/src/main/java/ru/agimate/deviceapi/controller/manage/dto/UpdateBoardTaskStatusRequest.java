@@ -14,5 +14,5 @@ public record UpdateBoardTaskStatusRequest(
 
         @NotNull
         @Schema(description = "Agent who changes the status (must be in the board's agentic team)")
-        UUID agentPubId
+        UUID agentId
 ) {}

@@ -23,21 +23,21 @@ public class IntegrationWebhookController {
     private final IntegrationsRegistry integrationsRegistry;
     private final TriggerRouterService triggerRouterService;
 
-    @PostMapping("/{integrationPubId}")
+    @PostMapping("/{integrationId}")
     public ResponseEntity<String> handleWebhook(
-            @PathVariable UUID integrationPubId,
+            @PathVariable UUID integrationId,
             @RequestBody String rawBody,
             HttpServletRequest request
     ) {
-        var integrationOpt = integrationCredentialsRepository.findByPubIdNotDeleted(integrationPubId);
+        var integrationOpt = integrationCredentialsRepository.findByIdNotDeleted(integrationId);
         if (integrationOpt.isEmpty()) {
-            log.warn("Webhook received for unknown integration: {}", integrationPubId);
+            log.warn("Webhook received for unknown integration: {}", integrationId);
             return ResponseEntity.ok("ok");
         }
 
         var integrationCredentials = integrationOpt.get();
         if (!integrationCredentials.isActive()) {
-            log.debug("Webhook received for disabled integration: {}", integrationPubId);
+            log.debug("Webhook received for disabled integration: {}", integrationId);
             return ResponseEntity.ok("ok");
         }
 
@@ -45,12 +45,12 @@ public class IntegrationWebhookController {
 
         // Guard: platform must support webhooks
         if (!integrationHandler.supportsWebhooks()) {
-            log.warn("Webhook received for non-webhook platform: {}", integrationPubId);
+            log.warn("Webhook received for non-webhook platform: {}", integrationId);
             return ResponseEntity.notFound().build();
         }
 
         if (!integrationHandler.validateWebhookRequest(integrationCredentials, request)) {
-            log.warn("Webhook validation failed for integration: {}", integrationPubId);
+            log.warn("Webhook validation failed for integration: {}", integrationId);
             return ResponseEntity.ok("ok");
         }
 
@@ -58,7 +58,7 @@ public class IntegrationWebhookController {
             var trigger = integrationHandler.normalizeInbound(integrationCredentials, rawBody);
             triggerRouterService.routeWhTrigger(integrationCredentials, trigger);
         } catch (Exception e) {
-            log.error("Failed to process webhook for integration {}: {}", integrationPubId, e.getMessage());
+            log.error("Failed to process webhook for integration {}: {}", integrationId, e.getMessage());
         }
 
         return ResponseEntity.ok("ok");

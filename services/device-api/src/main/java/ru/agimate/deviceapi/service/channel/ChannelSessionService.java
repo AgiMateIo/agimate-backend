@@ -25,12 +25,12 @@ public class ChannelSessionService {
 
     private final ChannelSessionRepository channelSessionRepository;
 
-    public ChannelSession getByPubId(UUID pubId) {
-        return channelSessionRepository.findByPubId(pubId)
+    public ChannelSession getById(UUID id) {
+        return channelSessionRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Channel session not found"));
     }
 
-    public List<ChannelSession> listByChannelId(Long channelId) {
+    public List<ChannelSession> listByChannelId(UUID channelId) {
         return channelSessionRepository.findByChannelIdOrderByLastMessageAtDesc(channelId);
     }
 
@@ -47,7 +47,7 @@ public class ChannelSessionService {
                 .lastMessageAt(LocalDateTime.now())
                 .build();
         ChannelSession saved = channelSessionRepository.save(session);
-        log.info("Created new channel session pubId={} for channel pubId={}", saved.getPubId(), channel.getPubId());
+        log.info("Created new channel session id={} for channel id={}", saved.getId(), channel.getId());
         return saved;
     }
 
@@ -58,8 +58,8 @@ public class ChannelSessionService {
     }
 
     @Transactional
-    public ChannelSession close(UUID pubId) {
-        ChannelSession session = getByPubId(pubId);
+    public ChannelSession close(UUID id) {
+        ChannelSession session = getById(id);
         if (session.getClosedAt() == null) {
             session.setClosedAt(LocalDateTime.now());
             channelSessionRepository.save(session);

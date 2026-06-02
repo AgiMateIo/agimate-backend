@@ -7,11 +7,8 @@
 
     <changeSet id="create-agentic-teams-table" author="agimate">
         <createTable tableName="agentic_teams">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="name" type="TEXT">
                 <constraints nullable="false"/>

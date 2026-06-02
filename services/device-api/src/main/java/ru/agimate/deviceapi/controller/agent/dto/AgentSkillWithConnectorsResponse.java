@@ -9,7 +9,7 @@ import java.util.UUID;
 @Schema(description = "Skill assigned to the agent with attached connectors")
 public record AgentSkillWithConnectorsResponse(
         @Schema(description = "Skill public ID")
-        UUID skillPubId,
+        UUID skillId,
 
         @Schema(description = "Skill name")
         String skillName,

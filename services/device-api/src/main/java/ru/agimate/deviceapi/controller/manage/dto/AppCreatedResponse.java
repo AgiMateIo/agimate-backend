@@ -10,7 +10,7 @@ import java.util.UUID;
 @Schema(description = "Response when a new app is created (includes the actual key)")
 public record AppCreatedResponse(
         @Schema(description = "Public ID of the app")
-        UUID pubId,
+        UUID id,
 
         @Schema(description = "App name/label")
         String name,
@@ -31,7 +31,7 @@ public record AppCreatedResponse(
 ) {
     public static AppCreatedResponse from(App app, String plaintextKey) {
         return new AppCreatedResponse(
-                app.getPubId(),
+                app.getId(),
                 app.getName(),
                 plaintextKey,
                 app.getDescription(),

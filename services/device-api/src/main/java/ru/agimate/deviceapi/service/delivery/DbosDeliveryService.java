@@ -34,7 +34,7 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         if (client == null) {
             throw new IllegalStateException("GENERIC delivery is not configured (dbos.enabled=false)");
         }
-        String agentId = agent.getPubId().toString();
+        String agentId = agent.getId().toString();
         Trigger trigger = TriggerMapper.map(triggerLogAgent);
 
         DbosProperties.Workflow workflow;
@@ -46,7 +46,7 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
             workflow = props.getWorkflows().getTriggerWorkflow();
             type = "trigger";
         }
-        String runId = triggerLogAgent.getPubId().toString();
+        String runId = triggerLogAgent.getId().toString();
         AgentMessage<Trigger> message = new AgentMessage<>(agentId, runId, type, channelContext, trigger);
 
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(

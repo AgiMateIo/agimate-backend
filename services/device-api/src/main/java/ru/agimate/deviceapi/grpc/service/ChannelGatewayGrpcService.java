@@ -40,7 +40,7 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
             ListChannelsResponse.Builder responseBuilder = ListChannelsResponse.newBuilder();
             for (Channel channel : channels) {
                 responseBuilder.addChannels(ChannelDescriptor.newBuilder()
-                        .setChannelId(channel.getPubId().toString())
+                        .setChannelId(channel.getId().toString())
                         .setName(channel.getName())
                         .setReplyConnectorCode(channel.getReplyConnectorCode())
                         .setReplyToolName(channel.getReplyToolName())
@@ -70,12 +70,12 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
             var result = channelMessageOutboundService.send(agentId, channelId, sessionId, text, toolCallId);
 
             SendChannelMessageResponse response = SendChannelMessageResponse.newBuilder()
-                    .setSessionId(result.session().getPubId().toString())
-                    .setToolUseId(result.toolUseLog().getPubId().toString())
+                    .setSessionId(result.session().getId().toString())
+                    .setToolUseId(result.toolUseLog().getId().toString())
                     .build();
 
             log.info("ChannelGateway.SendChannelMessage pool={} agent={} channel={} session={}",
-                    poolId, agentId, channelId, result.session().getPubId());
+                    poolId, agentId, channelId, result.session().getId());
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (ForbiddenStatusException e) {

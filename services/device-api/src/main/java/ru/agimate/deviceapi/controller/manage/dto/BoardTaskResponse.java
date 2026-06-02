@@ -12,7 +12,7 @@ import java.util.UUID;
 @Schema(description = "Board task information")
 public record BoardTaskResponse(
         @Schema(description = "Task public ID")
-        UUID pubId,
+        UUID id,
 
         @Schema(description = "Task type")
         BoardTaskType type,
@@ -27,13 +27,13 @@ public record BoardTaskResponse(
         String description,
 
         @Schema(description = "Created by agent public ID")
-        UUID createdByAgentPubId,
+        UUID createdByAgentId,
 
         @Schema(description = "Assignee agent public ID")
-        UUID assigneeAgentPubId,
+        UUID assigneeAgentId,
 
         @Schema(description = "Parent task public ID")
-        UUID parentTaskPubId,
+        UUID parentTaskId,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "Creation timestamp")
@@ -43,16 +43,16 @@ public record BoardTaskResponse(
         @Schema(description = "Last update timestamp")
         LocalDateTime updatedAt
 ) {
-    public static BoardTaskResponse from(BoardTask task, UUID createdByAgentPubId, UUID assigneeAgentPubId, UUID parentTaskPubId) {
+    public static BoardTaskResponse from(BoardTask task, UUID createdByAgentId, UUID assigneeAgentId, UUID parentTaskId) {
         return new BoardTaskResponse(
-                task.getPubId(),
+                task.getId(),
                 task.getType(),
                 task.getStatus(),
                 task.getTitle(),
                 task.getDescription(),
-                createdByAgentPubId,
-                assigneeAgentPubId,
-                parentTaskPubId,
+                createdByAgentId,
+                assigneeAgentId,
+                parentTaskId,
                 task.getCreatedAt(),
                 task.getUpdatedAt()
         );

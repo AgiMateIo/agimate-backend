@@ -37,7 +37,7 @@ public class AgentCentrifugoTokenController {
     public SuccessResponse<CentrifugoTokenResponse> getSubscriptionToken(
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        String agentId = principal.agentPubId().toString();
+        String agentId = principal.agentId().toString();
         String channel = "agent:" + agentId;
 
         String connectionToken = centrifugoService.generateConnectionToken(

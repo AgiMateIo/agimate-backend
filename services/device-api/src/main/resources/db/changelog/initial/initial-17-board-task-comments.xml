@@ -7,13 +7,10 @@
 
     <changeSet id="create-board-task-comments-table" author="agimate">
         <createTable tableName="board_task_comments">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
-            </column>
-            <column name="board_task_id" type="BIGINT">
+            <column name="board_task_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_board_task_comments_task"
                              references="board_tasks(id)"/>
@@ -21,7 +18,7 @@
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="agent_id" type="BIGINT">
+            <column name="agent_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_board_task_comments_agent"
                              references="agents(id)"/>

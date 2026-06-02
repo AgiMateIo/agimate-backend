@@ -16,7 +16,7 @@ public record AgentLlmResponse(
         String model,
 
         @Schema(description = "LLM provider public ID")
-        UUID llmProviderPubId,
+        UUID llmProviderId,
 
         @Schema(description = "LLM provider human-readable name")
         String llmProviderName,
@@ -28,7 +28,7 @@ public record AgentLlmResponse(
         return new AgentLlmResponse(
                 binding.getName(),
                 binding.getModel(),
-                binding.getLlmProviderPubId(),
+                binding.getLlmProviderId(),
                 provider != null ? provider.getName() : null,
                 provider != null ? provider.getProviderType() : null
         );

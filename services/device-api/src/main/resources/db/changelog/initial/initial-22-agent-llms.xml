@@ -7,19 +7,16 @@
 
     <changeSet id="create-agent-llms-table" author="agimate">
         <createTable tableName="agent_llms">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="pub_id" type="UUID">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="user_pub_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="agent_pub_id" type="UUID">
+            <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="llm_provider_pub_id" type="UUID">
+            <column name="llm_provider_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT">
@@ -37,28 +34,28 @@
         </createTable>
 
         <addUniqueConstraint tableName="agent_llms"
-                             columnNames="agent_pub_id, name"
+                             columnNames="agent_id, name"
                              constraintName="uq_agent_llms_agent_name"/>
 
         <addForeignKeyConstraint baseTableName="agent_llms"
-                                 baseColumnNames="agent_pub_id"
+                                 baseColumnNames="agent_id"
                                  constraintName="fk_agent_llms_agent"
                                  referencedTableName="agents"
-                                 referencedColumnNames="pub_id"
+                                 referencedColumnNames="id"
                                  onDelete="CASCADE"/>
 
         <addForeignKeyConstraint baseTableName="agent_llms"
-                                 baseColumnNames="llm_provider_pub_id"
+                                 baseColumnNames="llm_provider_id"
                                  constraintName="fk_agent_llms_llm_provider"
                                  referencedTableName="llm_providers"
-                                 referencedColumnNames="pub_id"
+                                 referencedColumnNames="id"
                                  onDelete="CASCADE"/>
 
         <createIndex tableName="agent_llms" indexName="idx_agent_llms_user_pub_id">
             <column name="user_pub_id"/>
         </createIndex>
-        <createIndex tableName="agent_llms" indexName="idx_agent_llms_llm_provider_pub_id">
-            <column name="llm_provider_pub_id"/>
+        <createIndex tableName="agent_llms" indexName="idx_agent_llms_llm_provider_id">
+            <column name="llm_provider_id"/>
         </createIndex>
     </changeSet>
 

@@ -9,7 +9,7 @@ import java.util.UUID;
 @Schema(description = "Agent tool policy response")
 public record AgentToolPolicyResponse(
         UUID id,
-        UUID agentPubId,
+        UUID agentId,
         UUID userPubId,
         String connectorCode,
         String connectorIdentity,
@@ -23,7 +23,7 @@ public record AgentToolPolicyResponse(
     public static AgentToolPolicyResponse from(AgentToolPolicy policy) {
         return new AgentToolPolicyResponse(
                 policy.getId(),
-                policy.getAgentPubId(),
+                policy.getAgentId(),
                 policy.getUserPubId(),
                 policy.getConnectorCode(),
                 policy.getConnectorIdentity(),

@@ -179,7 +179,7 @@ public class TelegramHandler extends BaseIntegrationHandler {
             triggerData.put("raw", update);
         }
 
-        return Trigger.createBasic(CONNECTOR_CODE, integrationCredentials.getPubId().toString(), triggerName, triggerData);
+        return Trigger.createBasic(CONNECTOR_CODE, integrationCredentials.getId().toString(), triggerName, triggerData);
     }
 
     @Tool(name = "telegram.send_message", value = "Send a text message")

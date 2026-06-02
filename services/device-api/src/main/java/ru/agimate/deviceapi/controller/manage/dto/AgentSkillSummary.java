@@ -7,7 +7,7 @@ import java.util.UUID;
 @Schema(description = "Short reference to a skill bound to an agent")
 public record AgentSkillSummary(
         @Schema(description = "Skill public ID")
-        UUID pubId,
+        UUID id,
 
         @Schema(description = "Skill name")
         String name

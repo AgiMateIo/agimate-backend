@@ -33,7 +33,7 @@ public class AgentLlmController {
     public SuccessResponse<List<AgentLlmRuntimeResponse>> list(
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        return SuccessResponse.ok(agentLlmService.runtimeForAgent(principal.agentPubId()));
+        return SuccessResponse.ok(agentLlmService.runtimeForAgent(principal.agentId()));
     }
 
     @Operation(
@@ -45,6 +45,6 @@ public class AgentLlmController {
             @AuthenticationPrincipal AgentPrincipal principal,
             @PathVariable String name
     ) {
-        return SuccessResponse.ok(agentLlmService.runtimeForAgentByName(principal.agentPubId(), name));
+        return SuccessResponse.ok(agentLlmService.runtimeForAgentByName(principal.agentId(), name));
     }
 }

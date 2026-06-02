@@ -90,7 +90,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     public void getAgentSpec(GetAgentSpecRequest request, StreamObserver<AgentSpec> responseObserver) {
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            Agent agent = agentRepository.findByPubId(agentId)
+            Agent agent = agentRepository.findById(agentId)
                     .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
             if (!agent.isEnabled()) {
                 responseObserver.onError(Status.FAILED_PRECONDITION
@@ -101,12 +101,12 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             String teamPubId = "";
             if (agent.getAgenticTeamId() != null) {
                 teamPubId = agenticTeamRepository.findById(agent.getAgenticTeamId())
-                        .map(t -> t.getPubId().toString())
+                        .map(t -> t.getId().toString())
                         .orElse("");
             }
 
             AgentSpec spec = AgentSpec.newBuilder()
-                    .setAgentId(agent.getPubId().toString())
+                    .setAgentId(agent.getId().toString())
                     .setName(nullToEmpty(agent.getName()))
                     .setAgentType(agent.getType() == null ? "" : agent.getType().name())
                     .setSystemPrompt(nullToEmpty(agent.getPrompt()))
@@ -125,7 +125,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     public void getSkills(GetSkillsRequest request, StreamObserver<GetSkillsResponse> responseObserver) {
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            Agent agent = agentRepository.findByPubId(agentId)
+            Agent agent = agentRepository.findById(agentId)
                     .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
             if (!agent.isEnabled()) {
                 responseObserver.onError(Status.FAILED_PRECONDITION
@@ -133,11 +133,11 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                 return;
             }
 
-            List<UUID> skillPubIds = agentSkillRepository.findByAgentPubId(agentId).stream()
-                    .map(AgentSkill::getSkillPubId)
+            List<UUID> skillPubIds = agentSkillRepository.findByAgentId(agentId).stream()
+                    .map(AgentSkill::getSkillId)
                     .toList();
             Map<UUID, AgentSkillWithConnectorsResponse> resolved =
-                    agentSkillService.resolveSkillsByPubId(skillPubIds);
+                    agentSkillService.resolveSkillsById(skillPubIds);
 
             GetSkillsResponse.Builder builder = GetSkillsResponse.newBuilder();
             for (UUID skillPubId : skillPubIds) {
@@ -170,7 +170,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     public void getSkill(GetSkillRequest request, StreamObserver<SkillSpec> responseObserver) {
         try {
             UUID skillId = parseUuid(request.getSkillId(), "skill_id");
-            Skill skill = skillRepository.findByPubIdNotDeleted(skillId)
+            Skill skill = skillRepository.findByIdNotDeleted(skillId)
                     .orElseThrow(() -> new NotFoundStatusException("Skill not found: " + skillId));
 
             int requestedVersion = request.getVersion().isEmpty() ? skill.getVersion()
@@ -191,13 +191,13 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
 
             String skillMd;
             try {
-                skillMd = skillFileService.readSkillMd(skill.getPubId());
+                skillMd = skillFileService.readSkillMd(skill.getId());
             } catch (NotFoundStatusException e) {
                 skillMd = "";
             }
 
             SkillSpec response = SkillSpec.newBuilder()
-                    .setSkillId(skill.getPubId().toString())
+                    .setSkillId(skill.getId().toString())
                     .setVersion(Integer.toString(skill.getVersion()))
                     .setName(nullToEmpty(skill.getName()))
                     .setDescription(nullToEmpty(skill.getDescription()))
@@ -215,19 +215,19 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     public void getTeamContext(GetTeamContextRequest request, StreamObserver<TeamContext> responseObserver) {
         try {
             UUID teamId = parseUuid(request.getTeamId(), "team_id");
-            AgenticTeam team = agenticTeamRepository.findByPubId(teamId)
+            AgenticTeam team = agenticTeamRepository.findById(teamId)
                     .orElseThrow(() -> new NotFoundStatusException("Team not found: " + teamId));
 
             List<Agent> members = agentRepository
                     .findByUserPubIdAndAgenticTeamId(team.getUserPubId(), team.getId());
 
             TeamContext.Builder builder = TeamContext.newBuilder()
-                    .setTeamId(team.getPubId().toString())
+                    .setTeamId(team.getId().toString())
                     .setName(nullToEmpty(team.getName()))
                     .setDescription(nullToEmpty(team.getDescription()));
             for (Agent member : members) {
                 builder.addMembers(TeamMember.newBuilder()
-                        .setPubId(member.getPubId().toString())
+                        .setPubId(member.getId().toString())
                         .setName(nullToEmpty(member.getName()))
                         .setDescription(nullToEmpty(member.getDescription()))
                         .build());
@@ -243,13 +243,13 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     public void getLlmCredentials(GetLlmCredentialsRequest request, StreamObserver<LlmCredentials> responseObserver) {
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            AgentLlm llmBinding = agentLlmRepository.findAllByAgentPubIdOrderByName(agentId).stream()
+            AgentLlm llmBinding = agentLlmRepository.findAllByAgentIdOrderByName(agentId).stream()
                     .findFirst()
                     .orElseThrow(() -> new NotFoundStatusException(
                             "No LLM binding for agent: " + agentId));
-            LlmProvider provider = llmProviderRepository.findByPubId(llmBinding.getLlmProviderPubId())
+            LlmProvider provider = llmProviderRepository.findById(llmBinding.getLlmProviderId())
                     .orElseThrow(() -> new NotFoundStatusException(
-                            "LLM provider not found: " + llmBinding.getLlmProviderPubId()));
+                            "LLM provider not found: " + llmBinding.getLlmProviderId()));
             if (!provider.isEnabled()) {
                 responseObserver.onError(Status.FAILED_PRECONDITION
                         .withDescription("LLM provider disabled").asRuntimeException());

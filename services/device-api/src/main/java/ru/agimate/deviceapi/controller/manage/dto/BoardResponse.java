@@ -11,7 +11,7 @@ import java.util.UUID;
 @Schema(description = "Board information")
 public record BoardResponse(
         @Schema(description = "Board public ID")
-        UUID pubId,
+        UUID id,
 
         @Schema(description = "Board name")
         String name,
@@ -20,7 +20,7 @@ public record BoardResponse(
         String description,
 
         @Schema(description = "Agentic team public ID")
-        UUID agenticTeamPubId,
+        UUID agenticTeamId,
 
         @Schema(description = "Agentic team name")
         String agenticTeamName,
@@ -35,10 +35,10 @@ public record BoardResponse(
 ) {
     public static BoardResponse from(Board board, AgenticTeam team) {
         return new BoardResponse(
-                board.getPubId(),
+                board.getId(),
                 board.getName(),
                 board.getDescription(),
-                team.getPubId(),
+                team.getId(),
                 team.getName(),
                 board.getCreatedAt(),
                 board.getUpdatedAt()

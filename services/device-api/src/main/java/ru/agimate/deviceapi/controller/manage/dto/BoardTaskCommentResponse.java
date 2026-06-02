@@ -10,10 +10,10 @@ import java.util.UUID;
 @Schema(description = "Board task comment information")
 public record BoardTaskCommentResponse(
         @Schema(description = "Comment public ID")
-        UUID pubId,
+        UUID id,
 
         @Schema(description = "Agent public ID")
-        UUID agentPubId,
+        UUID agentId,
 
         @Schema(description = "Comment content")
         String content,
@@ -22,10 +22,10 @@ public record BoardTaskCommentResponse(
         @Schema(description = "Creation timestamp")
         LocalDateTime createdAt
 ) {
-    public static BoardTaskCommentResponse from(BoardTaskComment comment, UUID agentPubId) {
+    public static BoardTaskCommentResponse from(BoardTaskComment comment, UUID agentId) {
         return new BoardTaskCommentResponse(
-                comment.getPubId(),
-                agentPubId,
+                comment.getId(),
+                agentId,
                 comment.getContent(),
                 comment.getCreatedAt()
         );

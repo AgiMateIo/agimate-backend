@@ -11,9 +11,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent, Long> {
-
-    Optional<TriggerLogAgent> findByPubId(UUID pubId);
+public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent, UUID> {
 
     /**
      * RegisterRun: the worker acquires the session writer slot for an existing run row.
@@ -24,13 +22,13 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
     @Query("""
             UPDATE TriggerLogAgent t
             SET t.status = ru.agimate.deviceapi.database.enums.RunStatus.RUNNING,
-                t.sessionPubId = :sessionPubId,
+                t.sessionId = :sessionId,
                 t.expiresAt = :expiresAt,
                 t.updatedAt = :acquiredAt
-            WHERE t.pubId = :runId
+            WHERE t.id = :runId
             """)
     int markRunning(@Param("runId") UUID runId,
-                    @Param("sessionPubId") UUID sessionPubId,
+                    @Param("sessionId") UUID sessionId,
                     @Param("expiresAt") LocalDateTime expiresAt,
                     @Param("acquiredAt") LocalDateTime acquiredAt);
 
@@ -40,11 +38,11 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
      */
     @Query("""
             SELECT t FROM TriggerLogAgent t
-            WHERE t.sessionPubId = :sessionPubId
+            WHERE t.sessionId = :sessionId
               AND t.status = ru.agimate.deviceapi.database.enums.RunStatus.RUNNING
               AND t.expiresAt > :now
             """)
-    Optional<TriggerLogAgent> findActiveBySession(@Param("sessionPubId") UUID sessionPubId,
+    Optional<TriggerLogAgent> findActiveBySession(@Param("sessionId") UUID sessionId,
                                                   @Param("now") LocalDateTime now);
 
     /**
@@ -55,7 +53,7 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
     @Query("""
             UPDATE TriggerLogAgent t
             SET t.status = :terminalStatus
-            WHERE t.pubId = :runId
+            WHERE t.id = :runId
               AND t.status = ru.agimate.deviceapi.database.enums.RunStatus.RUNNING
             """)
     int releaseOwn(@Param("runId") UUID runId,

@@ -39,7 +39,7 @@ public class AppAuthFilter extends OncePerRequestFilter {
                         var authorities = List.of(new SimpleGrantedAuthority("ROLE_APP"));
                         var principal = new AppPrincipal(
                                 app.getName(),
-                                app.getPubId(),
+                                app.getId(),
                                 app.getUserPubId()
                         );
 

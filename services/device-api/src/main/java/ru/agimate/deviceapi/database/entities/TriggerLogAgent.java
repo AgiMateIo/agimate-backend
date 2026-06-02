@@ -2,8 +2,9 @@ package ru.agimate.deviceapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
-import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.deviceapi.database.enums.RunStatus;
 
 import java.time.LocalDateTime;
@@ -20,13 +21,10 @@ import java.util.UUID;
 public class TriggerLogAgent extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
-
-    @Column(name = "pub_id", unique = true, nullable = false)
-    @Builder.Default
-    private UUID pubId = UUIDUtils.generateUUIDv8();
+    @Generated
+    @ColumnDefault("uuidv7()")
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "trigger_log_id", nullable = false)
@@ -49,13 +47,13 @@ public class TriggerLogAgent extends BaseEntity {
      * Channel session this run writes to, or {@code null} for non-channel runs
      * (e.g. WEBHOOK/CENTRIFUGO delivery). Set by the backend at trigger routing.
      */
-    @Column(name = "session_pub_id")
-    private UUID sessionPubId;
+    @Column(name = "session_id")
+    private UUID sessionId;
 
     /**
      * Run lifecycle for the active-run registry. The single-writer-per-session
      * invariant is enforced at the DB level by a partial unique index on
-     * {@code (session_pub_id) WHERE status = 'RUNNING'}.
+     * {@code (session_id) WHERE status = 'RUNNING'}.
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "TEXT")

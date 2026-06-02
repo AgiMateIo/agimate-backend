@@ -27,13 +27,13 @@ public class ManageAppTriggersController {
             summary = "Get triggers by app",
             description = "Returns available triggers for a specific app"
     )
-    @GetMapping("/{appPubId}")
+    @GetMapping("/{appId}")
     public SuccessResponse<List<AppTrigger>> getTriggersByApp(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID appPubId
+            @PathVariable UUID appId
     ) {
         UUID userPubId = UUID.fromString(principal.pubId());
-        var triggers = appService.getTriggersByAppPubIdAndUser(appPubId, userPubId);
+        var triggers = appService.getTriggersByAppIdAndUser(appId, userPubId);
         return SuccessResponse.ok(triggers);
     }
 }

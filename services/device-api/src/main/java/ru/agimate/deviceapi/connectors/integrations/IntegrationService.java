@@ -78,17 +78,17 @@ public class IntegrationService {
 
         // Setup webhook before save — on failure the transaction rolls back automatically
         if (handler.supportsWebhooks()) {
-            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getPubId();
+            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getId();
             handler.setupWebhook(integrationCredentials, credentials, webhookUrl);
         }
 
         integrationCredentials = integrationCredentialsRepository.save(integrationCredentials);
 
         log.info("Created integration {} for user {}: {} ({})",
-                integrationCredentials.getPubId(), userPubId, connectorCode, validationResult.identifier());
+                integrationCredentials.getId(), userPubId, connectorCode, validationResult.identifier());
 
         eventPublisher.publishEvent(new IntegrationCreatedEvent(
-                integrationCredentials.getPubId(), connectorCode));
+                integrationCredentials.getId(), connectorCode));
 
         return integrationCredentials;
     }
@@ -104,15 +104,15 @@ public class IntegrationService {
         return integrationCredentialsRepository.findByUserPubIdAndConnectorCodeNotDeleted(userPubId, connectorCode);
     }
 
-    public IntegrationCredentials getIntegrationCredentials(UUID integrationCredentialsPubId, UUID userPubId) {
-        return integrationCredentialsRepository.findByPubIdNotDeleted(integrationCredentialsPubId)
+    public IntegrationCredentials getIntegrationCredentials(UUID integrationCredentialsId, UUID userPubId) {
+        return integrationCredentialsRepository.findByIdNotDeleted(integrationCredentialsId)
                 .filter(i -> i.getUserPubId().equals(userPubId))
                 .orElseThrow(() -> new NotFoundStatusException("Integration not found"));
     }
 
     @Transactional
-    public void deleteIntegration(UUID pubId, UUID userPubId) {
-        IntegrationCredentials integrationCredentials = getIntegrationCredentials(pubId, userPubId);
+    public void deleteIntegration(UUID id, UUID userPubId) {
+        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userPubId);
 
         // Remove webhook if platform supports it
         try {
@@ -120,19 +120,19 @@ public class IntegrationService {
             Map<String, String> credentials = encryptionService.decryptCredentials(integrationCredentials.getEncryptedData());
             handler.removeWebhook(credentials);
         } catch (Exception e) {
-            log.warn("Failed to remove webhook for integration {}: {}", pubId, e.getMessage());
+            log.warn("Failed to remove webhook for integration {}: {}", id, e.getMessage());
         }
 
         integrationCredentialsRepository.softDelete(integrationCredentials.getId(), LocalDateTime.now());
-        log.info("Deleted integration {}", pubId);
+        log.info("Deleted integration {}", id);
 
         eventPublisher.publishEvent(new IntegrationDeletedEvent(
-                integrationCredentials.getPubId(), integrationCredentials.getConnectorCode()));
+                integrationCredentials.getId(), integrationCredentials.getConnectorCode()));
     }
 
     @Transactional
-    public IntegrationCredentials updateCredentials(UUID pubId, UUID userPubId, Map<String, String> credentials) {
-        IntegrationCredentials integrationCredentials = getIntegrationCredentials(pubId, userPubId);
+    public IntegrationCredentials updateCredentials(UUID id, UUID userPubId, Map<String, String> credentials) {
+        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userPubId);
         var handler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
 
         var validationResult = handler.validateCredentials(credentials);
@@ -152,7 +152,7 @@ public class IntegrationService {
 
         // Re-setup webhook if platform supports it
         if (handler.supportsWebhooks()) {
-            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getPubId();
+            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getId();
             handler.setupWebhook(integrationCredentials, credentials, webhookUrl);
         }
 
@@ -160,8 +160,8 @@ public class IntegrationService {
     }
 
     @Transactional
-    public IntegrationCredentials patchIntegration(UUID pubId, UUID userPubId, Boolean enabled, String name) {
-        IntegrationCredentials integrationCredentials = getIntegrationCredentials(pubId, userPubId);
+    public IntegrationCredentials patchIntegration(UUID id, UUID userPubId, Boolean enabled, String name) {
+        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userPubId);
 
         boolean enabledChanged = false;
         Boolean previousEnabled = integrationCredentials.getEnabled();
@@ -178,10 +178,10 @@ public class IntegrationService {
         if (enabledChanged) {
             if (Boolean.TRUE.equals(enabled)) {
                 eventPublisher.publishEvent(new IntegrationCreatedEvent(
-                        saved.getPubId(), saved.getConnectorCode()));
+                        saved.getId(), saved.getConnectorCode()));
             } else {
                 eventPublisher.publishEvent(new IntegrationDeletedEvent(
-                        saved.getPubId(), saved.getConnectorCode()));
+                        saved.getId(), saved.getConnectorCode()));
             }
         }
 

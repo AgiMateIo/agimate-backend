@@ -45,7 +45,7 @@ public class AgentToolCallController {
     public SuccessResponse<List<ToolDefinition>> getAvailableTools(
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        return SuccessResponse.ok(agentService.getAvailableTools(principal.agentPubId()));
+        return SuccessResponse.ok(agentService.getAvailableTools(principal.agentId()));
     }
 
 
@@ -61,7 +61,7 @@ public class AgentToolCallController {
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
         return SuccessResponse.ok(
-                agentToolUseService.checkToolUse(principal.agentPubId(), toolUseRequest));
+                agentToolUseService.checkToolUse(principal.agentId(), toolUseRequest));
     }
 
     @Operation(
@@ -76,7 +76,7 @@ public class AgentToolCallController {
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
         return SuccessResponse.ok(
-                agentToolUseService.processToolUse(principal.agentPubId(), toolUseRequest));
+                agentToolUseService.processToolUse(principal.agentId(), toolUseRequest));
     }
 
     @Operation(
@@ -106,7 +106,7 @@ public class AgentToolCallController {
             @PathVariable String toolUseId,
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        var log = agentToolUseService.getToolUseLog(principal.agentPubId(), toolUseId);
+        var log = agentToolUseService.getToolUseLog(principal.agentId(), toolUseId);
 
         if (log.getOutputAt() == null) {
             return ResponseEntity.noContent().build();
@@ -146,7 +146,7 @@ public class AgentToolCallController {
             @Valid @RequestBody AgentToolResultRequest request,
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        var log = agentToolUseService.saveToolResult(principal.agentPubId(), request);
+        var log = agentToolUseService.saveToolResult(principal.agentId(), request);
         return SuccessResponse.ok(log.getToolUseId());
     }
 }

@@ -63,7 +63,7 @@ public record AgentResponse(
                                      List<AgentLlmResponse> llms) {
         String maskedKeyId = AgentService.AGENT_KEY_PREFIX + agent.getKeyId().substring(0, 4) + "****";
         return new AgentResponse(
-                agent.getPubId(),
+                agent.getId(),
                 agent.getName(),
                 agent.getDescription(),
                 maskedKeyId,
@@ -72,7 +72,7 @@ public record AgentResponse(
                 agent.getWebhookUrl(),
                 agent.hasWebhookAuth(),
                 agent.isEnabled(),
-                team != null ? team.getPubId() : null,
+                team != null ? team.getId() : null,
                 team != null ? team.getName() : null,
                 skills != null ? skills : List.of(),
                 llms != null ? llms : List.of(),

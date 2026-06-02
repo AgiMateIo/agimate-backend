@@ -30,7 +30,7 @@ public class ManageToolsController {
     @Operation(
             summary = "Get available tools for a connector",
             description = "Returns tool definitions for the given connector. " +
-                    "For APP connectors the `identity` query parameter (App pubId) is required."
+                    "For APP connectors the `identity` query parameter (App id) is required."
     )
     @GetMapping("/{connectorCode}/")
     public SuccessResponse<Map<String, ToolSpecificationResponse>> getTools(

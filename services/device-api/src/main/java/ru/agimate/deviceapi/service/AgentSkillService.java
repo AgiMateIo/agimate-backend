@@ -41,22 +41,22 @@ public class AgentSkillService {
     private final SkillRepository skillRepository;
     private final AgentSkillPolicyService agentSkillPolicyService;
 
-    public Page<AgentSkillResponse> getAgentSkills(UUID agentPubId, UUID userPubId, int page, int size) {
-        verifyAgentOwnership(agentPubId, userPubId);
+    public Page<AgentSkillResponse> getAgentSkills(UUID agentId, UUID userPubId, int page, int size) {
+        verifyAgentOwnership(agentId, userPubId);
         PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
-        Page<AgentSkill> agentSkills = agentSkillRepository.findByAgentPubId(agentPubId, pageRequest);
+        Page<AgentSkill> agentSkills = agentSkillRepository.findByAgentId(agentId, pageRequest);
 
-        var skillPubIds = agentSkills.getContent().stream()
-                .map(AgentSkill::getSkillPubId)
+        var skillIds = agentSkills.getContent().stream()
+                .map(AgentSkill::getSkillId)
                 .collect(Collectors.toSet());
 
-        Map<UUID, Skill> skillMap = skillPubIds.isEmpty()
+        Map<UUID, Skill> skillMap = skillIds.isEmpty()
                 ? Map.of()
-                : skillRepository.findByPubIdInNotDeleted(skillPubIds).stream()
-                        .collect(Collectors.toMap(Skill::getPubId, s -> s));
+                : skillRepository.findByIdInNotDeleted(skillIds).stream()
+                        .collect(Collectors.toMap(Skill::getId, s -> s));
 
         return agentSkills.map(as -> {
-            Skill skill = skillMap.get(as.getSkillPubId());
+            Skill skill = skillMap.get(as.getSkillId());
             String name = skill != null ? skill.getName() : null;
             boolean needsReinstall = skill != null
                     && (as.getInstalledSkillVersion() == null || skill.getVersion() > as.getInstalledSkillVersion());
@@ -64,64 +64,64 @@ public class AgentSkillService {
         });
     }
 
-    public Page<AgentSkillWithConnectorsResponse> getAgentSkillsWithConnectors(UUID agentPubId, UUID userPubId, int page, int size) {
-        verifyAgentOwnership(agentPubId, userPubId);
+    public Page<AgentSkillWithConnectorsResponse> getAgentSkillsWithConnectors(UUID agentId, UUID userPubId, int page, int size) {
+        verifyAgentOwnership(agentId, userPubId);
         PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
-        Page<UUID> skillPubIdsPage = agentSkillRepository.findSkillPubIdsByAgentPubId(agentPubId, pageRequest);
+        Page<UUID> skillIdsPage = agentSkillRepository.findSkillIdsByAgentId(agentId, pageRequest);
 
-        Map<UUID, AgentSkillWithConnectorsResponse> resolved = resolveSkillsByPubId(skillPubIdsPage.getContent());
+        Map<UUID, AgentSkillWithConnectorsResponse> resolved = resolveSkillsById(skillIdsPage.getContent());
 
-        return skillPubIdsPage.map(pubId -> resolved.getOrDefault(pubId,
-                new AgentSkillWithConnectorsResponse(pubId, null, null, List.of())));
+        return skillIdsPage.map(id -> resolved.getOrDefault(id,
+                new AgentSkillWithConnectorsResponse(id, null, null, List.of())));
     }
 
     /**
-     * Aggregate skill name/description and attached connectors for the given pubIds.
+     * Aggregate skill name/description and attached connectors for the given ids.
      * Caller is responsible for any authorization — this method has no ownership check.
      * Soft-deleted skills are filtered out at the JPQL level.
      */
-    public Map<UUID, AgentSkillWithConnectorsResponse> resolveSkillsByPubId(List<UUID> skillPubIds) {
-        if (skillPubIds.isEmpty()) {
+    public Map<UUID, AgentSkillWithConnectorsResponse> resolveSkillsById(List<UUID> skillIds) {
+        if (skillIds.isEmpty()) {
             return Map.of();
         }
-        Map<UUID, String> nameByPubId = new HashMap<>();
-        Map<UUID, String> descriptionByPubId = new HashMap<>();
-        Map<UUID, List<SkillConnectorResponse>> connectorsByPubId = new HashMap<>();
+        Map<UUID, String> nameById = new HashMap<>();
+        Map<UUID, String> descriptionById = new HashMap<>();
+        Map<UUID, List<SkillConnectorResponse>> connectorsById = new HashMap<>();
 
-        for (Object[] row : skillRepository.findNamesAndConnectorsByPubIdIn(skillPubIds)) {
-            UUID pubId = (UUID) row[0];
+        for (Object[] row : skillRepository.findNamesAndConnectorsByIdIn(skillIds)) {
+            UUID id = (UUID) row[0];
             String name = (String) row[1];
             String description = (String) row[2];
             SkillConnector sc = (SkillConnector) row[3];
-            nameByPubId.putIfAbsent(pubId, name);
-            descriptionByPubId.putIfAbsent(pubId, description);
-            List<SkillConnectorResponse> bucket = connectorsByPubId.computeIfAbsent(pubId, k -> new ArrayList<>());
+            nameById.putIfAbsent(id, name);
+            descriptionById.putIfAbsent(id, description);
+            List<SkillConnectorResponse> bucket = connectorsById.computeIfAbsent(id, k -> new ArrayList<>());
             if (sc != null) {
                 bucket.add(SkillConnectorResponse.from(sc));
             }
         }
 
         Map<UUID, AgentSkillWithConnectorsResponse> result = new HashMap<>();
-        for (UUID pubId : nameByPubId.keySet()) {
-            result.put(pubId, new AgentSkillWithConnectorsResponse(
-                    pubId,
-                    nameByPubId.get(pubId),
-                    descriptionByPubId.get(pubId),
-                    connectorsByPubId.getOrDefault(pubId, List.of())
+        for (UUID id : nameById.keySet()) {
+            result.put(id, new AgentSkillWithConnectorsResponse(
+                    id,
+                    nameById.get(id),
+                    descriptionById.get(id),
+                    connectorsById.getOrDefault(id, List.of())
             ));
         }
         return result;
     }
 
     @Transactional
-    public AgentSkillResponse create(UUID agentPubId, UUID skillPubId, UUID userPubId) {
-        verifyAgentOwnership(agentPubId, userPubId);
-        var skill = verifySkillOwnership(skillPubId, userPubId);
+    public AgentSkillResponse create(UUID agentId, UUID skillId, UUID userPubId) {
+        verifyAgentOwnership(agentId, userPubId);
+        var skill = verifySkillOwnership(skillId, userPubId);
 
         AgentSkill agentSkill = AgentSkill.builder()
                 .userPubId(userPubId)
-                .agentPubId(agentPubId)
-                .skillPubId(skillPubId)
+                .agentId(agentId)
+                .skillId(skillId)
                 .installedSkillVersion(skill.getVersion())
                 .build();
 
@@ -131,17 +131,17 @@ public class AgentSkillService {
             throw new ConflictStatusException("Skill is already bound to this agent");
         }
 
-        agentSkillPolicyService.applyDiff(agentPubId, userPubId);
+        agentSkillPolicyService.applyDiff(agentId, userPubId);
 
-        log.info("Bound skill {} to agent {} for user {}", skillPubId, agentPubId, userPubId);
+        log.info("Bound skill {} to agent {} for user {}", skillId, agentId, userPubId);
         return AgentSkillResponse.from(agentSkill, skill.getName(), false);
     }
 
     @Transactional
-    public void delete(UUID agentPubId, UUID skillPubId, UUID userPubId) {
-        verifyAgentOwnership(agentPubId, userPubId);
+    public void delete(UUID agentId, UUID skillId, UUID userPubId) {
+        verifyAgentOwnership(agentId, userPubId);
 
-        AgentSkill agentSkill = agentSkillRepository.findByAgentPubIdAndSkillPubId(agentPubId, skillPubId)
+        AgentSkill agentSkill = agentSkillRepository.findByAgentIdAndSkillId(agentId, skillId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent-skill binding not found"));
 
         if (!agentSkill.getUserPubId().equals(userPubId)) {
@@ -149,71 +149,71 @@ public class AgentSkillService {
         }
 
         agentSkillRepository.delete(agentSkill);
-        agentSkillPolicyService.applyDiff(agentPubId, userPubId);
+        agentSkillPolicyService.applyDiff(agentId, userPubId);
 
-        log.info("Unbound skill {} from agent {} for user {}", skillPubId, agentPubId, userPubId);
+        log.info("Unbound skill {} from agent {} for user {}", skillId, agentId, userPubId);
     }
 
     @Transactional
-    public void syncPolicies(UUID agentPubId, UUID userPubId) {
-        verifyAgentOwnership(agentPubId, userPubId);
+    public void syncPolicies(UUID agentId, UUID userPubId) {
+        verifyAgentOwnership(agentId, userPubId);
 
-        agentSkillPolicyService.applyDiff(agentPubId, userPubId);
+        agentSkillPolicyService.applyDiff(agentId, userPubId);
 
         // Update installedSkillVersion for all skills on this agent
-        var agentSkills = agentSkillRepository.findByAgentPubId(agentPubId);
-        var skillPubIds = agentSkills.stream().map(AgentSkill::getSkillPubId).collect(Collectors.toSet());
+        var agentSkills = agentSkillRepository.findByAgentId(agentId);
+        var skillIds = agentSkills.stream().map(AgentSkill::getSkillId).collect(Collectors.toSet());
 
-        Map<UUID, Integer> skillVersions = skillPubIds.isEmpty()
+        Map<UUID, Integer> skillVersions = skillIds.isEmpty()
                 ? Map.of()
-                : skillRepository.findByPubIdInNotDeleted(skillPubIds).stream()
-                        .collect(Collectors.toMap(Skill::getPubId, Skill::getVersion));
+                : skillRepository.findByIdInNotDeleted(skillIds).stream()
+                        .collect(Collectors.toMap(Skill::getId, Skill::getVersion));
 
         for (AgentSkill as : agentSkills) {
-            Integer currentVersion = skillVersions.get(as.getSkillPubId());
+            Integer currentVersion = skillVersions.get(as.getSkillId());
             if (currentVersion != null) {
                 as.setInstalledSkillVersion(currentVersion);
             }
         }
         agentSkillRepository.saveAll(agentSkills);
 
-        log.info("Synced policies for all skills on agent {} for user {}", agentPubId, userPubId);
+        log.info("Synced policies for all skills on agent {} for user {}", agentId, userPubId);
     }
 
-    public PolicyDiffResponse previewPolicyDiff(UUID agentPubId, UUID skillPubId, UUID userPubId, String action) {
-        verifyAgentOwnership(agentPubId, userPubId);
+    public PolicyDiffResponse previewPolicyDiff(UUID agentId, UUID skillId, UUID userPubId, String action) {
+        verifyAgentOwnership(agentId, userPubId);
 
         return switch (action) {
             case "add" -> {
-                verifySkillOwnership(skillPubId, userPubId);
-                yield agentSkillPolicyService.previewAdd(agentPubId, skillPubId);
+                verifySkillOwnership(skillId, userPubId);
+                yield agentSkillPolicyService.previewAdd(agentId, skillId);
             }
             case "remove" -> {
-                verifySkillOwnership(skillPubId, userPubId);
-                yield agentSkillPolicyService.previewRemove(agentPubId, skillPubId);
+                verifySkillOwnership(skillId, userPubId);
+                yield agentSkillPolicyService.previewRemove(agentId, skillId);
             }
-            case "sync" -> agentSkillPolicyService.previewSync(agentPubId);
+            case "sync" -> agentSkillPolicyService.previewSync(agentId);
             default -> throw new IllegalArgumentException("Invalid action: " + action + ". Expected: add, remove, sync");
         };
     }
 
-    public Skill findAssignedSkill(UUID agentPubId, UUID skillPubId, UUID userPubId) {
-        agentSkillRepository.findByAgentPubIdAndSkillPubId(agentPubId, skillPubId)
+    public Skill findAssignedSkill(UUID agentId, UUID skillId, UUID userPubId) {
+        agentSkillRepository.findByAgentIdAndSkillId(agentId, skillId)
                 .orElseThrow(() -> new NotFoundStatusException("Skill not found"));
 
-        return verifySkillOwnership(skillPubId, userPubId);
+        return verifySkillOwnership(skillId, userPubId);
     }
 
-    private void verifyAgentOwnership(UUID agentPubId, UUID userPubId) {
-        var agent = agentRepository.findByPubId(agentPubId)
+    private void verifyAgentOwnership(UUID agentId, UUID userPubId) {
+        var agent = agentRepository.findById(agentId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
         if (!agent.getUserPubId().equals(userPubId)) {
             throw new NotFoundStatusException("Agent not found");
         }
     }
 
-    private Skill verifySkillOwnership(UUID skillPubId, UUID userPubId) {
-        var skill = skillRepository.findByPubIdNotDeleted(skillPubId)
+    private Skill verifySkillOwnership(UUID skillId, UUID userPubId) {
+        var skill = skillRepository.findByIdNotDeleted(skillId)
                 .orElseThrow(() -> new NotFoundStatusException("Skill not found"));
         if (!skill.getUserPubId().equals(userPubId)) {
             throw new NotFoundStatusException("Skill not found");
