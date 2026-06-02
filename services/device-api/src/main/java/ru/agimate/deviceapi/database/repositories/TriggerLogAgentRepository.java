@@ -23,7 +23,7 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE TriggerLogAgent t
-            SET t.status = ru.agimate.deviceapi.database.entities.RunStatus.RUNNING,
+            SET t.status = ru.agimate.deviceapi.database.enums.RunStatus.RUNNING,
                 t.sessionPubId = :sessionPubId,
                 t.expiresAt = :expiresAt,
                 t.updatedAt = :acquiredAt
@@ -41,7 +41,7 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
     @Query("""
             SELECT t FROM TriggerLogAgent t
             WHERE t.sessionPubId = :sessionPubId
-              AND t.status = ru.agimate.deviceapi.database.entities.RunStatus.RUNNING
+              AND t.status = ru.agimate.deviceapi.database.enums.RunStatus.RUNNING
               AND t.expiresAt > :now
             """)
     Optional<TriggerLogAgent> findActiveBySession(@Param("sessionPubId") UUID sessionPubId,
@@ -56,7 +56,7 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
             UPDATE TriggerLogAgent t
             SET t.status = :terminalStatus
             WHERE t.pubId = :runId
-              AND t.status = ru.agimate.deviceapi.database.entities.RunStatus.RUNNING
+              AND t.status = ru.agimate.deviceapi.database.enums.RunStatus.RUNNING
             """)
     int releaseOwn(@Param("runId") UUID runId,
                    @Param("terminalStatus") RunStatus terminalStatus);
