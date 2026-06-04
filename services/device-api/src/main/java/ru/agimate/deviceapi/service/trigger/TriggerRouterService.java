@@ -142,6 +142,9 @@ public class TriggerRouterService {
                     .destination(agent.getType().name())
                     .sessionId(channelContext != null ? channelContext.channelSessionId() : null)
                     .build();
+            // Persist before delivery so the DB-generated id (the canonical run_id == DBOS
+            // workflow id) is populated; delivery and the run registry rely on this id.
+            triggerLogAgent = triggerLogAgentRepository.save(triggerLogAgent);
 
             agentDeliveryService.deliverTrigger(agent, triggerLogAgent, channelContext);
 
