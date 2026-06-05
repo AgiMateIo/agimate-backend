@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import ru.agimate.common.rest.BaseErrorHandlerControllerAdvice;
 import ru.agimate.common.rest.ErrorResponse;
+import ru.agimate.common.security.SecurityUtils;
 
 /**
  * Extension of the base error handler to include user-api specific error handling,
@@ -44,7 +45,8 @@ public class UserApiErrorHandlerControllerAdvice extends BaseErrorHandlerControl
             HttpServletRequest request,
             HttpServletResponse response) {
 
-        log.warn("Access denied on {} {}: {}", request.getMethod(), request.getRequestURL(), ex.getMessage());
-        return new ErrorResponse("Access denied. Insufficient permissions.");
+        log.warn("Access denied on {} {} for role={}: {}",
+                request.getMethod(), request.getRequestURL(), SecurityUtils.describeCurrentRoles(), ex.getMessage());
+        return new ErrorResponse(SecurityUtils.accessDeniedMessage());
     }
 }
