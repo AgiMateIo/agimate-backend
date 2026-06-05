@@ -23,7 +23,7 @@ public class ServerToolExecutorService {
     private final ToolUseLogService toolUseLogService;
 
     @Async
-    public void execute(ToolUsePayload toolUse, UUID agentId, UUID userPubId) {
+    public void execute(ToolUsePayload toolUse, UUID agentId, UUID userId) {
         var handler = toolRegistry.getHandlerByToolName(toolUse.name());
 
         try {
@@ -31,7 +31,7 @@ public class ServerToolExecutorService {
                     toolUse.name(),
                     toolUse.input(),
                     agentId,
-                    userPubId
+                    userId
             );
 
             var toolResult = new ToolResultRequest(toolUse.id(), toolUse.connectorCode(), JsonUtils.writeValueAsString(result), null);

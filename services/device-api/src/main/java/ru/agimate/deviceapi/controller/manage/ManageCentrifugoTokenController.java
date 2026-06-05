@@ -30,26 +30,26 @@ public class ManageCentrifugoTokenController {
 
     @Operation(
             summary = "Get Centrifugo subscription token for user channel",
-            description = "Returns JWT tokens for subscribing to user:{userPubId} channel with real-time events"
+            description = "Returns JWT tokens for subscribing to user:{userId} channel with real-time events"
     )
     @PostMapping("/token")
     public SuccessResponse<CentrifugoTokenResponse> getSubscriptionToken(
             @AuthenticationPrincipal AgimateUserPrincipal principal
     ) {
-        String userPubId = principal.pubId();
-        String channel = "user:" + userPubId;
+        String userId = principal.id();
+        String channel = "user:" + userId;
 
         String connectionToken = centrifugoService.generateConnectionToken(
-                userPubId, TOKEN_EXPIRATION_SECONDS
+                userId, TOKEN_EXPIRATION_SECONDS
         );
 
         String subscriptionToken = centrifugoService.generateSubscriptionToken(
-                userPubId, channel, TOKEN_EXPIRATION_SECONDS
+                userId, channel, TOKEN_EXPIRATION_SECONDS
         );
 
         String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
 
-        log.debug("Generated Centrifugo tokens for user: {}, channel: {}", userPubId, channel);
+        log.debug("Generated Centrifugo tokens for user: {}, channel: {}", userId, channel);
 
         return SuccessResponse.ok(new CentrifugoTokenResponse(connectionToken, subscriptionToken, channel, wsUrl));
     }

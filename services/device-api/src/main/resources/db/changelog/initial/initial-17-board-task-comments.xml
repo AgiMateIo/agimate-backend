@@ -15,7 +15,7 @@
                              foreignKeyName="fk_board_task_comments_task"
                              references="board_tasks(id)"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="agent_id" type="UUID">

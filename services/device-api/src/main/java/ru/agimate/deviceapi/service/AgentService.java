@@ -54,14 +54,14 @@ public class AgentService {
     private final AppRepository appRepository;
     private final AgentLlmService agentLlmService;
 
-    public Page<AgentResponse> getAllForUser(UUID userPubId, UUID agenticTeamId, String search, int page, int size) {
+    public Page<AgentResponse> getAllForUser(UUID userId, UUID agenticTeamId, String search, int page, int size) {
         if (agenticTeamId != null) {
             agenticTeamRepository.findById(agenticTeamId)
                     .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
         }
         String normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
         Page<Agent> agents = agentRepository.searchForUser(
-                userPubId, agenticTeamId, normalizedSearch, PageRequest.of(page, size));
+                userId, agenticTeamId, normalizedSearch, PageRequest.of(page, size));
 
         List<UUID> teamIds = agents.getContent().stream()
                 .map(Agent::getAgenticTeamId)
@@ -123,7 +123,7 @@ public class AgentService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        Map<String, ToolDefinition> toolDefinitionMap = buildToolDefinitionMap(agent.getUserPubId());
+        Map<String, ToolDefinition> toolDefinitionMap = buildToolDefinitionMap(agent.getUserId());
 
         List<ToolDefinition> toolDefinitions = allowedToolNames.stream()
                 .map(name -> toolDefinitionMap.getOrDefault(name,
@@ -166,7 +166,7 @@ public class AgentService {
                         teamEntity.getDescription()
                 );
                 teamAgents = agentRepository
-                        .findByUserPubIdAndAgenticTeamId(agent.getUserPubId(), teamEntity.getId())
+                        .findByUserIdAndAgenticTeamId(agent.getUserId(), teamEntity.getId())
                         .stream()
                         .map(a -> new AgentContextResponse.TeamAgent(
                                 a.getId(),
@@ -191,7 +191,7 @@ public class AgentService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        Map<String, ToolDefinition> toolDefinitionMap = buildToolDefinitionMap(agent.getUserPubId());
+        Map<String, ToolDefinition> toolDefinitionMap = buildToolDefinitionMap(agent.getUserId());
 
         return allowedToolNames.stream()
                 .map(name -> toolDefinitionMap.getOrDefault(name,
@@ -214,7 +214,7 @@ public class AgentService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
-        Map<String, AgentToolSpec> specMap = buildToolSpecMap(agent.getUserPubId());
+        Map<String, AgentToolSpec> specMap = buildToolSpecMap(agent.getUserId());
 
         return allowedToolNames.stream()
                 .map(name -> specMap.getOrDefault(name, new AgentToolSpec(name, null, null)))
@@ -222,8 +222,8 @@ public class AgentService {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, AgentToolSpec> buildToolSpecMap(UUID userPubId) {
-        List<App> apps = appRepository.findByUserPubIdNotDeleted(userPubId);
+    private Map<String, AgentToolSpec> buildToolSpecMap(UUID userId) {
+        List<App> apps = appRepository.findByUserIdNotDeleted(userId);
         Map<String, AgentToolSpec> map = new LinkedHashMap<>();
 
         for (App app : apps) {
@@ -241,8 +241,8 @@ public class AgentService {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, ToolDefinition> buildToolDefinitionMap(UUID userPubId) {
-        List<App> apps = appRepository.findByUserPubIdNotDeleted(userPubId);
+    private Map<String, ToolDefinition> buildToolDefinitionMap(UUID userId) {
+        List<App> apps = appRepository.findByUserIdNotDeleted(userId);
         Map<String, ToolDefinition> map = new LinkedHashMap<>();
 
         for (App app : apps) {
@@ -262,7 +262,7 @@ public class AgentService {
     }
 
     @Transactional
-    public AgentCreateResult create(UUID userPubId, CreateAgentRequest request) {
+    public AgentCreateResult create(UUID userId, CreateAgentRequest request) {
         AgentType type = request.type() != null
                 ? request.type() : AgentType.CENTRIFUGO;
         validateWebhookFields(type, request.webhookUrl());
@@ -271,7 +271,7 @@ public class AgentService {
         if (request.agenticTeamId() != null) {
             team = agenticTeamRepository.findById(request.agenticTeamId())
                     .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
-            if (!team.getUserPubId().equals(userPubId)) {
+            if (!team.getUserId().equals(userId)) {
                 throw new ForbiddenStatusException("Access denied to the specified team");
             }
         }
@@ -281,7 +281,7 @@ public class AgentService {
         Agent agent = Agent.builder()
                 .keyHash(generatedKey.secretHash())
                 .keyId(generatedKey.keyId())
-                .userPubId(userPubId)
+                .userId(userId)
                 .name(request.name())
                 .description(request.description())
                 .prompt(request.prompt())
@@ -292,16 +292,16 @@ public class AgentService {
                 .build();
         agent = agentRepository.save(agent);
 
-        log.info("Created agent id={}, user={}", agent.getId(), userPubId);
+        log.info("Created agent id={}, user={}", agent.getId(), userId);
         return new AgentCreateResult(agent, team, generatedKey.fullKey());
     }
 
     @Transactional
-    public AgentCreateResult regenerateKey(UUID id, UUID userPubId) {
+    public AgentCreateResult regenerateKey(UUID id, UUID userId) {
         Agent agent = agentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
-        if (!agent.getUserPubId().equals(userPubId)) {
+        if (!agent.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
 
@@ -317,11 +317,11 @@ public class AgentService {
     }
 
     @Transactional
-    public AgentResponse update(UUID id, UUID userPubId, UpdateAgentRequest request) {
+    public AgentResponse update(UUID id, UUID userId, UpdateAgentRequest request) {
         Agent agent = agentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
-        if (!agent.getUserPubId().equals(userPubId)) {
+        if (!agent.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
 
@@ -351,11 +351,11 @@ public class AgentService {
     }
 
     @Transactional
-    public void delete(UUID id, UUID userPubId) {
+    public void delete(UUID id, UUID userId) {
         Agent agent = agentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
-        if (!agent.getUserPubId().equals(userPubId)) {
+        if (!agent.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
 

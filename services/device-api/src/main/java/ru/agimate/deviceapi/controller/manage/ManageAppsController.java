@@ -33,8 +33,8 @@ public class ManageAppsController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Page<AppResponse> response = appService.getAppsForUser(userPubId, page, size)
+        UUID userId = UUID.fromString(principal.id());
+        Page<AppResponse> response = appService.getAppsForUser(userId, page, size)
                 .map(AppResponse::from);
         return SuccessResponse.ok(response);
     }
@@ -46,9 +46,9 @@ public class ManageAppsController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody CreateAppRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userId = UUID.fromString(principal.id());
         AppCreateResult result = appService.createApp(
-                userPubId,
+                userId,
                 request.name(),
                 request.description(),
                 request.connectorCode()
@@ -68,8 +68,8 @@ public class ManageAppsController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID appId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var app = appService.getAppById(appId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        var app = appService.getAppById(appId, userId);
         return SuccessResponse.ok(UserAppDetailResponse.from(app));
     }
 
@@ -80,10 +80,10 @@ public class ManageAppsController {
             @PathVariable UUID appId,
             @Valid @RequestBody UpdateAppRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userId = UUID.fromString(principal.id());
         App updated = appService.updateApp(
                 appId,
-                userPubId,
+                userId,
                 request.name(),
                 request.description(),
                 request.enabled()
@@ -97,8 +97,8 @@ public class ManageAppsController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID appId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        appService.deleteApp(appId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        appService.deleteApp(appId, userId);
         return SuccessResponse.empty();
     }
 
@@ -109,8 +109,8 @@ public class ManageAppsController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID appId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        AppCreateResult result = appService.regenerateAppKey(appId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        AppCreateResult result = appService.regenerateAppKey(appId, userId);
         return SuccessResponse.ok(AppCreatedResponse.from(
                 result.app(),
                 result.plaintextKey()

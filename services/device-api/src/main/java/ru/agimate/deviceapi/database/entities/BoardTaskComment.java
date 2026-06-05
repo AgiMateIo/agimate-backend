@@ -26,8 +26,8 @@ public class BoardTaskComment extends BaseEntity {
     @Column(name = "board_task_id", nullable = false)
     private UUID boardTaskId;
 
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "agent_id", nullable = false)
     private UUID agentId;

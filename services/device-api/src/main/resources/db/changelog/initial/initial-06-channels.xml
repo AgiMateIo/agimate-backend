@@ -10,7 +10,7 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="agent_id" type="UUID">
@@ -59,8 +59,8 @@
                                  referencedColumnNames="id"
                                  onDelete="CASCADE"/>
 
-        <createIndex tableName="channels" indexName="idx_channels_user_pub_id">
-            <column name="user_pub_id"/>
+        <createIndex tableName="channels" indexName="idx_channels_user_id">
+            <column name="user_id"/>
         </createIndex>
         <createIndex tableName="channels" indexName="idx_channels_agent_id">
             <column name="agent_id"/>
@@ -68,7 +68,7 @@
 
         <sql>
             CREATE UNIQUE INDEX uq_channels_user_agent_trigger
-                ON channels (user_pub_id, agent_id, trigger_connector_code, trigger_identity, trigger_name)
+                ON channels (user_id, agent_id, trigger_connector_code, trigger_identity, trigger_name)
                 WHERE deleted_at IS NULL;
         </sql>
     </changeSet>

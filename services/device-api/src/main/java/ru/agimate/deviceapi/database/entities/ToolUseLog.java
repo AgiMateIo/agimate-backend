@@ -32,8 +32,8 @@ public class ToolUseLog extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "agent_id", nullable = false)
     private UUID agentId;

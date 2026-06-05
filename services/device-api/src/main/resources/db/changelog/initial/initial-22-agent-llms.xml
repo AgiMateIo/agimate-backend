@@ -10,7 +10,7 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="agent_id" type="UUID">
@@ -51,8 +51,8 @@
                                  referencedColumnNames="id"
                                  onDelete="CASCADE"/>
 
-        <createIndex tableName="agent_llms" indexName="idx_agent_llms_user_pub_id">
-            <column name="user_pub_id"/>
+        <createIndex tableName="agent_llms" indexName="idx_agent_llms_user_id">
+            <column name="user_id"/>
         </createIndex>
         <createIndex tableName="agent_llms" indexName="idx_agent_llms_llm_provider_id">
             <column name="llm_provider_id"/>

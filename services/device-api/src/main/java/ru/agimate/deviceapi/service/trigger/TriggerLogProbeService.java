@@ -39,14 +39,14 @@ public class TriggerLogProbeService {
         return new IssueProbeResponse(code, LocalDateTime.now());
     }
 
-    public TriggerLogResponse match(UUID userPubId, String code, LocalDateTime since) {
+    public TriggerLogResponse match(UUID userId, String code, LocalDateTime since) {
         if (code == null || !PROBE_CODE_PATTERN.matcher(code).matches()) {
             throw new BadRequestStatusException("Invalid probe code format");
         }
         if (since == null) {
             throw new BadRequestStatusException("Parameter 'since' is required");
         }
-        return triggerLogRepository.findFirstByUserAndPayloadContaining(userPubId, code, since)
+        return triggerLogRepository.findFirstByUserAndPayloadContaining(userId, code, since)
                 .map(TriggerLogResponse::from)
                 .orElseThrow(() -> new NotFoundStatusException("No matching trigger log yet"));
     }

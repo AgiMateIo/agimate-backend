@@ -255,7 +255,7 @@ Proto-файлы лежат в `services/device-api/src/main/proto/agentworker/`
 
 - `GetAgentSpec` → `AgentRepository` + `AgentSkillRepository` + `AgenticTeamRepository` + `AgentLlmRepository`. Возвращает `AgentSpec` со скилами в формате `AgentSkillRef(skill_id, version)` (версия из `AgentSkill.installedSkillVersion`).
 - `GetSkill` → `SkillRepository.findByPubIdNotDeleted`. Если запрошенная `version` не равна текущей — `FAILED_PRECONDITION` (защита воркфлоу от смены конфигурации в процессе исполнения, см. §1.5).
-- `GetTeamContext` → `AgenticTeamRepository` + `AgentRepository.findByUserPubIdAndAgenticTeamId`.
+- `GetTeamContext` → `AgenticTeamRepository` + `AgentRepository.findByUserIdAndAgenticTeamId`.
 - `GetLlmCredentials` → `AgentLlmRepository` + `LlmProviderRepository` + `IntegrationEncryptionService.decryptCredentials` (**вариант A** из §2.7). Возвращает `provider_type / base_url / api_key / model`. Логируется только факт выдачи (`pool`, `agent`, `providerType`) — ключ в логи не пишется.
 
 Проверка принадлежности агента/скила пулу — **не реализована** в PoC: на текущем этапе любой валидный пул видит любого агента. Закладка под Phase 1 (per-agent RBAC scope) аддитивная — добавится фильтрация по `WorkerPoolContextHolder.current().poolId()` в каждом RPC.

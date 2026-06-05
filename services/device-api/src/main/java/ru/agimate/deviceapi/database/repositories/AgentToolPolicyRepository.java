@@ -16,9 +16,9 @@ public interface AgentToolPolicyRepository extends JpaRepository<AgentToolPolicy
 
     List<AgentToolPolicy> findByAgentId(UUID agentId);
 
-    List<AgentToolPolicy> findByUserPubIdAndAgentId(UUID userPubId, UUID agentId);
+    List<AgentToolPolicy> findByUserIdAndAgentId(UUID userId, UUID agentId);
 
-    Page<AgentToolPolicy> findByUserPubIdAndAgentId(UUID userPubId, UUID agentId, Pageable pageable);
+    Page<AgentToolPolicy> findByUserIdAndAgentId(UUID userId, UUID agentId, Pageable pageable);
 
     @Query(value = """
             SELECT * FROM agent_tool_policies

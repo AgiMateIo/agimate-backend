@@ -14,7 +14,7 @@
                 <constraints nullable="false"/>
             </column>
             <column name="description" type="TEXT"/>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
@@ -26,8 +26,8 @@
         </createTable>
 
         <addUniqueConstraint tableName="agentic_teams"
-                             columnNames="user_pub_id, name"
-                             constraintName="uq_agentic_teams_user_pub_id_name"/>
+                             columnNames="user_id, name"
+                             constraintName="uq_agentic_teams_user_id_name"/>
     </changeSet>
 
 </databaseChangeLog>

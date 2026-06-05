@@ -18,7 +18,7 @@
             <column name="version" type="INTEGER" defaultValueNumeric="1">
                 <constraints nullable="false"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="is_public" type="BOOLEAN" defaultValueBoolean="false">
@@ -37,7 +37,7 @@
         </createTable>
 
         <!-- Unique name per user among non-deleted skills (soft-delete aware). -->
-        <sql>CREATE UNIQUE INDEX uq_skills_user_name_active ON skills (user_pub_id, name) WHERE deleted_at IS NULL</sql>
+        <sql>CREATE UNIQUE INDEX uq_skills_user_name_active ON skills (user_id, name) WHERE deleted_at IS NULL</sql>
     </changeSet>
 
 </databaseChangeLog>

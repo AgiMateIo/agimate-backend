@@ -32,21 +32,21 @@ public class ToolDefinitionService {
     private final ServerSideToolRegistry serverSideToolRegistry;
     private final AppRepository appRepository;
 
-    public Map<String, ToolSpecificationResponse> getTools(UUID userPubId, String connectorCode, UUID identity) {
+    public Map<String, ToolSpecificationResponse> getTools(UUID userId, String connectorCode, UUID identity) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
         return switch (connector.getType()) {
             case INTEGRATION -> mapSpecs(integrationsRegistry.getHandler(connectorCode).getPredefinedTools());
             case INTERNAL_SERVICE -> mapSpecs(serverSideToolRegistry.getHandler(connectorCode).getToolDefinitions());
-            case APP -> ToolSpecificationMapper.fromAppTools(resolveApp(userPubId, connectorCode, identity).getTools());
+            case APP -> ToolSpecificationMapper.fromAppTools(resolveApp(userId, connectorCode, identity).getTools());
             case LOOPBACK -> throw new BadRequestStatusException(
                     "Connector type " + connector.getType() + " does not expose static tool definitions");
         };
     }
 
-    public ToolSpecificationResponse getTool(UUID userPubId, String connectorCode, String toolName, UUID identity) {
-        Map<String, ToolSpecificationResponse> tools = getTools(userPubId, connectorCode, identity);
+    public ToolSpecificationResponse getTool(UUID userId, String connectorCode, String toolName, UUID identity) {
+        Map<String, ToolSpecificationResponse> tools = getTools(userId, connectorCode, identity);
         ToolSpecificationResponse tool = tools.get(toolName);
         if (tool == null) {
             throw new NotFoundStatusException("Tool not found: " + toolName);
@@ -54,11 +54,11 @@ public class ToolDefinitionService {
         return tool;
     }
 
-    private App resolveApp(UUID userPubId, String connectorCode, UUID identity) {
+    private App resolveApp(UUID userId, String connectorCode, UUID identity) {
         if (identity == null) {
             throw new BadRequestStatusException("identity is required for APP connectors");
         }
-        App app = appRepository.findByIdAndUserPubIdNotDeleted(identity, userPubId)
+        App app = appRepository.findByIdAndUserIdNotDeleted(identity, userId)
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
         if (!Objects.equals(app.getConnectorCode(), connectorCode)) {
             throw new BadRequestStatusException("App does not belong to connector " + connectorCode);

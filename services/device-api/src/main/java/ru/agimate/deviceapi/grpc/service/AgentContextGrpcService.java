@@ -219,7 +219,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                     .orElseThrow(() -> new NotFoundStatusException("Team not found: " + teamId));
 
             List<Agent> members = agentRepository
-                    .findByUserPubIdAndAgenticTeamId(team.getUserPubId(), team.getId());
+                    .findByUserIdAndAgenticTeamId(team.getUserId(), team.getId());
 
             TeamContext.Builder builder = TeamContext.newBuilder()
                     .setTeamId(team.getId().toString())

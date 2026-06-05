@@ -42,8 +42,8 @@ public class ManageSkillController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.getMySkills(userPubId, search, connectorCode, page, size));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(skillService.getMySkills(userId, search, connectorCode, page, size));
     }
 
     @Operation(summary = "List public skills (non-featured) with optional search and connector filter")
@@ -55,8 +55,8 @@ public class ManageSkillController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.getPublicSkills(userPubId, search, connectorCode, page, size));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(skillService.getPublicSkills(userId, search, connectorCode, page, size));
     }
 
     @Operation(summary = "List featured skills with optional search and connector filter")
@@ -68,8 +68,8 @@ public class ManageSkillController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.getFeaturedSkills(userPubId, search, connectorCode, page, size));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(skillService.getFeaturedSkills(userId, search, connectorCode, page, size));
     }
 
     @Operation(summary = "Get skill details with SKILL.md content")
@@ -78,8 +78,8 @@ public class ManageSkillController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.getSkillDetail(id, userPubId));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(skillService.getSkillDetail(id, userId));
     }
 
     @Operation(summary = "List user's agents that use this skill, with optional name/prompt search")
@@ -91,8 +91,8 @@ public class ManageSkillController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.getSkillAgents(id, userPubId, search, page, size));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(skillService.getSkillAgents(id, userId, search, page, size));
     }
 
     @Operation(summary = "Create skill from JSON with SKILL.md content")
@@ -101,8 +101,8 @@ public class ManageSkillController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody CreateSkillRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.create(userPubId, request));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(skillService.create(userId, request));
     }
 
     @Operation(summary = "Create skill by uploading SKILL.md file")
@@ -112,10 +112,10 @@ public class ManageSkillController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(defaultValue = "false") boolean isPublic
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userId = UUID.fromString(principal.id());
         try {
             String content = new String(file.getBytes(), StandardCharsets.UTF_8);
-            return SuccessResponse.ok(skillService.create(userPubId, new CreateSkillRequest(content, isPublic)));
+            return SuccessResponse.ok(skillService.create(userId, new CreateSkillRequest(content, isPublic)));
         } catch (IOException e) {
             throw new BadRequestStatusException("Failed to read uploaded file");
         }
@@ -128,8 +128,8 @@ public class ManageSkillController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateSkillRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.update(id, userPubId, request));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(skillService.update(id, userId, request));
     }
 
     @Operation(summary = "Delete skill (soft delete)")
@@ -138,8 +138,8 @@ public class ManageSkillController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        skillService.delete(id, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        skillService.delete(id, userId);
         return SuccessResponse.empty();
     }
 
@@ -149,7 +149,7 @@ public class ManageSkillController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(skillService.clone(id, userPubId));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(skillService.clone(id, userId));
     }
 }

@@ -20,8 +20,8 @@ public interface SkillRepository extends JpaRepository<Skill, UUID>, JpaSpecific
     @Query("SELECT s FROM Skill s WHERE s.id = :id AND s.deletedAt IS NULL")
     Optional<Skill> findByIdNotDeleted(@Param("id") UUID id);
 
-    @Query("SELECT COUNT(s) > 0 FROM Skill s WHERE s.userPubId = :userPubId AND s.name = :name AND s.deletedAt IS NULL")
-    boolean existsByUserPubIdAndNameNotDeleted(@Param("userPubId") UUID userPubId, @Param("name") String name);
+    @Query("SELECT COUNT(s) > 0 FROM Skill s WHERE s.userId = :userId AND s.name = :name AND s.deletedAt IS NULL")
+    boolean existsByUserIdAndNameNotDeleted(@Param("userId") UUID userId, @Param("name") String name);
 
     @Query("SELECT s FROM Skill s WHERE s.id IN :ids AND s.deletedAt IS NULL")
     List<Skill> findByIdInNotDeleted(@Param("ids") Collection<UUID> ids);
@@ -34,14 +34,14 @@ public interface SkillRepository extends JpaRepository<Skill, UUID>, JpaSpecific
             """)
     List<Object[]> findNamesAndConnectorsByIdIn(@Param("ids") Collection<UUID> ids);
 
-    @Query("SELECT s FROM Skill s WHERE s.userPubId = :userPubId AND s.name = :name AND s.deletedAt IS NULL")
-    Optional<Skill> findByUserPubIdAndNameNotDeleted(@Param("userPubId") UUID userPubId, @Param("name") String name);
+    @Query("SELECT s FROM Skill s WHERE s.userId = :userId AND s.name = :name AND s.deletedAt IS NULL")
+    Optional<Skill> findByUserIdAndNameNotDeleted(@Param("userId") UUID userId, @Param("name") String name);
 
     @Query("SELECT COUNT(s) > 0 FROM Skill s WHERE s.id = :id AND s.isFeatured = true AND s.deletedAt IS NULL")
     boolean existsByIdAndIsFeaturedTrue(@Param("id") UUID id);
 
-    @Query("SELECT s.parentId, s.id FROM Skill s WHERE s.parentId IN :parentIds AND s.userPubId = :userPubId AND s.deletedAt IS NULL")
-    List<Object[]> findMyClonesByParentIds(@Param("parentIds") Collection<UUID> parentIds, @Param("userPubId") UUID userPubId);
+    @Query("SELECT s.parentId, s.id FROM Skill s WHERE s.parentId IN :parentIds AND s.userId = :userId AND s.deletedAt IS NULL")
+    List<Object[]> findMyClonesByParentIds(@Param("parentIds") Collection<UUID> parentIds, @Param("userId") UUID userId);
 
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Skill s SET s.deletedAt = :now WHERE s.id = :id")

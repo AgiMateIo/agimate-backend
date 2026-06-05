@@ -34,8 +34,8 @@ public class ManageAgentSkillController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentSkillService.getAgentSkills(agentId, userPubId, page, size));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentSkillService.getAgentSkills(agentId, userId, page, size));
     }
 
     @Operation(summary = "Bind a skill to an agent (also creates ALLOW policies from skill connectors)")
@@ -45,8 +45,8 @@ public class ManageAgentSkillController {
             @PathVariable UUID agentId,
             @Valid @RequestBody CreateAgentSkillRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentSkillService.create(agentId, request.skillId(), userPubId));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentSkillService.create(agentId, request.skillId(), userId));
     }
 
     @Operation(summary = "Unbind a skill from an agent (also removes unused skill-sourced policies)")
@@ -56,8 +56,8 @@ public class ManageAgentSkillController {
             @PathVariable UUID agentId,
             @PathVariable UUID skillId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        agentSkillService.delete(agentId, skillId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        agentSkillService.delete(agentId, skillId, userId);
         return SuccessResponse.empty();
     }
 
@@ -69,8 +69,8 @@ public class ManageAgentSkillController {
             @PathVariable UUID skillId,
             @RequestParam String action
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentSkillService.previewPolicyDiff(agentId, skillId, userPubId, action));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentSkillService.previewPolicyDiff(agentId, skillId, userId, action));
     }
 
     @Operation(summary = "Re-sync all skill-sourced policies for the agent")
@@ -79,8 +79,8 @@ public class ManageAgentSkillController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        agentSkillService.syncPolicies(agentId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        agentSkillService.syncPolicies(agentId, userId);
         return SuccessResponse.empty();
     }
 }

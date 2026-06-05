@@ -20,8 +20,8 @@ public class UserService {
         return userRepository.findByEmail(email);
     }
 
-    public Optional<UserEntity> findByPubId(UUID pubId) {
-        return userRepository.findByPubId(pubId);
+    public Optional<UserEntity> findById(UUID id) {
+        return userRepository.findById(id);
     }
 
     @Transactional

@@ -74,7 +74,7 @@ Returned in list endpoints and on create/update/clone.
 | `version` | `int` | no | Increments on every `PUT /{pubId}` |
 | `isPublic` | `bool` | no | Visible to other users in `/public/` |
 | `isFeatured` | `bool` | no | Curated; surfaced in `/featured/` (read-only for clones) |
-| `userPubId` | `uuid` | no | Owner of the skill |
+| `userId` | `uuid` | no | Owner of the skill |
 | `parentPubId` | `uuid` | yes | Source skill if this is a clone |
 | `createdAt` | `datetime` (`yyyy-MM-dd'T'HH:mm:ss`) | no | Creation timestamp |
 | `updatedAt` | `datetime` (`yyyy-MM-dd'T'HH:mm:ss`) | no | Last update timestamp |
@@ -201,7 +201,7 @@ Access rule: the skill must be either owned by the caller **or** marked `isPubli
     "version": 3,
     "isPublic": false,
     "isFeatured": false,
-    "userPubId": "0193b8e3-9999-7c31-a4f0-111122223333",
+    "userId": "0193b8e3-9999-7c31-a4f0-111122223333",
     "parentPubId": null,
     "skillMd": "---\nname: Daily Standup\ndescription: Generates daily standup summaries\n---\n\n# Instructions\n...",
     "createdAt": "2026-04-01T12:00:00",
@@ -223,7 +223,7 @@ Access rule: the skill must be either owned by the caller **or** marked `isPubli
 
 Returns the **current user's agents** that have this skill bound. Useful for the "Used by" panel on the skill detail page.
 
-Access rule: the skill must exist and be either owned by the caller or public (same as `getSkillDetail`). The returned agents are always scoped to `userPubId = caller`, so even on a public skill page the user only sees *their own* agents.
+Access rule: the skill must exist and be either owned by the caller or public (same as `getSkillDetail`). The returned agents are always scoped to `userId = caller`, so even on a public skill page the user only sees *their own* agents.
 
 **Path parameters:**
 

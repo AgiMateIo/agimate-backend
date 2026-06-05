@@ -10,7 +10,7 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="connector_code" type="TEXT">
@@ -38,11 +38,11 @@
         </createTable>
 
         <addUniqueConstraint tableName="trigger_logs"
-                             columnNames="user_pub_id, connector_code, identity, trigger_name, trigger_id"
+                             columnNames="user_id, connector_code, identity, trigger_name, trigger_id"
                              constraintName="uq_trigger_logs_user_connector_identity_name_id"/>
 
-        <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_user_pub_id">
-            <column name="user_pub_id"/>
+        <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_user_id">
+            <column name="user_id"/>
         </createIndex>
 
         <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_created_at">

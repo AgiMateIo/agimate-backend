@@ -35,8 +35,8 @@ public class ManageAppToolsController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID appId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var tools = appService.getToolsByAppIdAndUser(appId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        var tools = appService.getToolsByAppIdAndUser(appId, userId);
         return SuccessResponse.ok(tools);
     }
 }

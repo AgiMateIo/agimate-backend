@@ -38,21 +38,21 @@ public class ConnectorService {
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + toolUseLog.getConnectorCode()));
 
         var payload = ToolUsePayload.from(toolUseLog);
-        UUID userPubId = toolUseLog.getUserPubId();
+        UUID userId = toolUseLog.getUserId();
         UUID agentId = toolUseLog.getAgentId();
 
         switch (connector.getType()) {
             case APP -> {
-                var app = appRepository.findByIdAndUserPubIdNotDeleted(UUID.fromString(payload.identity()), userPubId)
+                var app = appRepository.findByIdAndUserIdNotDeleted(UUID.fromString(payload.identity()), userId)
                         .orElseThrow(() -> new NotFoundStatusException("App not found: " + payload.identity()));
                 centrifugoService.publishMessage("device:" + app.getDeviceId(), "toolUse", payload);
             }
             case INTEGRATION -> {
-                var credentials = integrationCredentialsRepository.findByIdAndUserPubIdNotDeleted(UUID.fromString(payload.identity()), userPubId)
+                var credentials = integrationCredentialsRepository.findByIdAndUserIdNotDeleted(UUID.fromString(payload.identity()), userId)
                         .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found: " + payload.identity()));
                 integrationToolExecutorService.execute(credentials, payload, agentId);
             }
-            case INTERNAL_SERVICE -> serverToolExecutorService.execute(payload, agentId, userPubId);
+            case INTERNAL_SERVICE -> serverToolExecutorService.execute(payload, agentId, userId);
             case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}", payload.connectorCode(), payload.name());
         }
     }

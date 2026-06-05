@@ -15,7 +15,7 @@
                              foreignKeyName="fk_apps_connectors"
                              references="connectors(code)"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT">
@@ -44,8 +44,8 @@
             </column>
         </createTable>
 
-        <createIndex tableName="apps" indexName="idx_apps_user_pub_id">
-            <column name="user_pub_id"/>
+        <createIndex tableName="apps" indexName="idx_apps_user_id">
+            <column name="user_id"/>
         </createIndex>
 
         <createIndex tableName="apps" indexName="idx_apps_key_id_active">
@@ -54,9 +54,9 @@
             <column name="deleted_at"/>
         </createIndex>
 
-        <createIndex tableName="apps" indexName="idx_apps_device_id_user_pub_id">
+        <createIndex tableName="apps" indexName="idx_apps_device_id_user_id">
             <column name="device_id"/>
-            <column name="user_pub_id"/>
+            <column name="user_id"/>
         </createIndex>
 
         <createIndex tableName="apps" indexName="idx_apps_connector_code">

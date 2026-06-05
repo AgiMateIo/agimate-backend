@@ -15,15 +15,15 @@ public interface ChannelRepository extends JpaRepository<Channel, UUID> {
 
     Optional<Channel> findByIdAndDeletedAtIsNull(UUID id);
 
-    List<Channel> findByUserPubIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userPubId);
+    List<Channel> findByUserIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userId);
 
     List<Channel> findByAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID agentId);
 
-    List<Channel> findByUserPubIdAndAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userPubId, UUID agentId);
+    List<Channel> findByUserIdAndAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userId, UUID agentId);
 
     @Query("""
             SELECT c FROM Channel c
-            WHERE c.userPubId = :userPubId
+            WHERE c.userId = :userId
               AND c.agentId = :agentId
               AND c.triggerConnectorCode = :connectorCode
               AND c.triggerIdentity = :identity
@@ -31,7 +31,7 @@ public interface ChannelRepository extends JpaRepository<Channel, UUID> {
               AND c.deletedAt IS NULL
             """)
     Optional<Channel> findActiveByTriggerKey(
-            @Param("userPubId") UUID userPubId,
+            @Param("userId") UUID userId,
             @Param("agentId") UUID agentId,
             @Param("connectorCode") String connectorCode,
             @Param("identity") String identity,

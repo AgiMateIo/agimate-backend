@@ -23,20 +23,20 @@ public class TriggerLogService {
 
     private final TriggerLogRepository triggerLogRepository;
 
-    public Page<TriggerLogResponse> getTriggerLogs(UUID userPubId, String connectorCode, int page, int size) {
-        return triggerLogRepository.findByUserPubIdWithFilters(userPubId, connectorCode, PageRequest.of(page, size, Sort.by("createdAt").descending()))
+    public Page<TriggerLogResponse> getTriggerLogs(UUID userId, String connectorCode, int page, int size) {
+        return triggerLogRepository.findByUserIdWithFilters(userId, connectorCode, PageRequest.of(page, size, Sort.by("createdAt").descending()))
                 .map(TriggerLogResponse::from);
     }
 
     @Transactional
-    public TriggerLog createTriggerLog(UUID userPubId, Trigger trigger) {
+    public TriggerLog createTriggerLog(UUID userId, Trigger trigger) {
         LocalDateTime occurredAt = null;
         if (trigger.occurredAt() != null && !trigger.occurredAt().isEmpty()) {
             occurredAt = LocalDateTime.ofInstant(java.time.Instant.parse(trigger.occurredAt()), ZoneOffset.UTC);
         }
 
         TriggerLog triggerLog = TriggerLog.builder()
-                .userPubId(userPubId)
+                .userId(userId)
                 .connectorCode(trigger.connectorCode())
                 .identity(trigger.identity())
                 .triggerId(trigger.id() != null ? trigger.id() : "")

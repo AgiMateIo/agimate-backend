@@ -69,7 +69,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         // Generate JWT tokens
         AgimateUserPrincipal agimateUserPrincipal = AgimateUserPrincipal.fromUser(
-                userEntity.getPubId().toString(), userEntity.getRole());
+                userEntity.getId().toString(), userEntity.getRole());
 
         String refreshTokenId = UUID.randomUUID().toString();
         String refreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, refreshTokenId);

@@ -9,7 +9,7 @@ import ru.agimate.userapi.database.entities.UserEntity;
 public class UserMapper {
     public static @NonNull UserResponse getUserResponse(UserEntity userEntity) {
         return new UserResponse(
-                userEntity.getPubId(),
+                userEntity.getId(),
                 userEntity.getEmail(),
                 userEntity.getFirstName(),
                 userEntity.getLastName(),

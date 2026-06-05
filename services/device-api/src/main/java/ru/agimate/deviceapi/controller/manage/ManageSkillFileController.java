@@ -43,8 +43,8 @@ public class ManageSkillFileController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findAccessibleSkill(id, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        Skill skill = skillService.findAccessibleSkill(id, userId);
         UUID fileOwnerId = skillService.resolveFileOwnerId(skill);
 
         InputStream zipStream = skillFileService.getOrCreateZip(fileOwnerId, skill.getUpdatedAt());
@@ -61,8 +61,8 @@ public class ManageSkillFileController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findAccessibleSkill(id, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        Skill skill = skillService.findAccessibleSkill(id, userId);
         UUID fileOwnerId = skillService.resolveFileOwnerId(skill);
         List<SkillFileEntryResponse> entries = skillFileService
                 .listFiles(fileOwnerId)
@@ -80,8 +80,8 @@ public class ManageSkillFileController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "path", defaultValue = "") String path
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(id, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        Skill skill = skillService.findOwnedSkill(id, userId);
         skillService.requireNotFeaturedClone(skill);
 
         String originalFilename = file.getOriginalFilename();
@@ -92,7 +92,7 @@ public class ManageSkillFileController {
         String relativePath = path.isEmpty() ? safeFilename : path + "/" + safeFilename;
 
         skillFileService.uploadFile(skill.getId(), relativePath, file);
-        skillService.touchUpdatedAt(id, userPubId);
+        skillService.touchUpdatedAt(id, userId);
         return SuccessResponse.empty();
     }
 
@@ -103,8 +103,8 @@ public class ManageSkillFileController {
             @PathVariable UUID id,
             HttpServletRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findAccessibleSkill(id, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        Skill skill = skillService.findAccessibleSkill(id, userId);
         UUID fileOwnerId = skillService.resolveFileOwnerId(skill);
         String relativePath = extractRelativePath(request, id);
 
@@ -122,13 +122,13 @@ public class ManageSkillFileController {
             @PathVariable UUID id,
             HttpServletRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(id, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        Skill skill = skillService.findOwnedSkill(id, userId);
         skillService.requireNotFeaturedClone(skill);
         String relativePath = extractRelativePath(request, id);
 
         skillFileService.deleteFile(skill.getId(), relativePath);
-        skillService.touchUpdatedAt(id, userPubId);
+        skillService.touchUpdatedAt(id, userId);
         return SuccessResponse.empty();
     }
 

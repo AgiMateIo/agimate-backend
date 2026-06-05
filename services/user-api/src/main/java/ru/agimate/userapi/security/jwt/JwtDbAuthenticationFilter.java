@@ -37,11 +37,11 @@ public class JwtDbAuthenticationFilter extends OncePerRequestFilter {
 
         if (jwt != null) {
             jwtService.extractClaimsFromValidAccessToken(jwt)
-                    .flatMap(w -> userService.findByPubId(UUID.fromString(w.claims().getSubject())))
+                    .flatMap(w -> userService.findById(UUID.fromString(w.claims().getSubject())))
                     .ifPresent(userEntity -> SecurityContextHolder.getContext().setAuthentication(
                             new JwtAuthenticationToken(
                                     AgimateUserPrincipal.fromUser(
-                                            userEntity.getPubId().toString(), userEntity.getRole())
+                                            userEntity.getId().toString(), userEntity.getRole())
                             )
                     ));
         }

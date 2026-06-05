@@ -40,10 +40,10 @@ public class ManageChannelController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) UUID agentId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userId = UUID.fromString(principal.id());
         var channels = agentId != null
-                ? channelService.listForUserAndAgent(userPubId, agentId)
-                : channelService.listForUser(userPubId);
+                ? channelService.listForUserAndAgent(userId, agentId)
+                : channelService.listForUser(userId);
         return SuccessResponse.ok(channelService.toResponses(channels));
     }
 
@@ -53,8 +53,8 @@ public class ManageChannelController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Channel channel = channelService.getById(userPubId, id);
+        UUID userId = UUID.fromString(principal.id());
+        Channel channel = channelService.getById(userId, id);
         return SuccessResponse.ok(channelService.toResponse(channel));
     }
 
@@ -64,8 +64,8 @@ public class ManageChannelController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody CreateChannelRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Channel channel = channelService.create(userPubId, new ChannelService.CreateChannelData(
+        UUID userId = UUID.fromString(principal.id());
+        Channel channel = channelService.create(userId, new ChannelService.CreateChannelData(
                 request.agentId(),
                 request.name(),
                 request.triggerConnectorCode(),
@@ -88,8 +88,8 @@ public class ManageChannelController {
             @PathVariable UUID id,
             @Valid @RequestBody UpdateChannelRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Channel channel = channelService.update(userPubId, id, new ChannelService.UpdateChannelData(
+        UUID userId = UUID.fromString(principal.id());
+        Channel channel = channelService.update(userId, id, new ChannelService.UpdateChannelData(
                 request.name(),
                 request.triggerMessageField(),
                 request.replyToolParams(),
@@ -105,8 +105,8 @@ public class ManageChannelController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        channelService.delete(userPubId, id);
+        UUID userId = UUID.fromString(principal.id());
+        channelService.delete(userId, id);
         return SuccessResponse.empty();
     }
 
@@ -116,8 +116,8 @@ public class ManageChannelController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Channel channel = channelService.getById(userPubId, id);
+        UUID userId = UUID.fromString(principal.id());
+        Channel channel = channelService.getById(userId, id);
         List<ChannelSessionResponse> response = channelSessionService.listByChannelId(channel.getId()).stream()
                 .map(ChannelSessionResponse::from)
                 .toList();
@@ -130,9 +130,9 @@ public class ManageChannelController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID sessionId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userId = UUID.fromString(principal.id());
         ChannelSession session = channelSessionService.getById(sessionId);
-        channelService.getByIdForUser(userPubId, session.getChannelId());
+        channelService.getByIdForUser(userId, session.getChannelId());
         List<ChannelSessionMessageResponse> response = channelSessionMessageRepository
                 .findBySessionIdOrderByCreatedAtAsc(session.getId())
                 .stream()
@@ -148,9 +148,9 @@ public class ManageChannelController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID sessionId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userId = UUID.fromString(principal.id());
         ChannelSession session = channelSessionService.getById(sessionId);
-        channelService.getByIdForUser(userPubId, session.getChannelId());
+        channelService.getByIdForUser(userId, session.getChannelId());
         ChannelSession closed = channelSessionService.close(sessionId);
         return SuccessResponse.ok(ChannelSessionResponse.from(closed));
     }

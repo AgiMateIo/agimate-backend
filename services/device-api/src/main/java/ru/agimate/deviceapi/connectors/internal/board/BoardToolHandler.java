@@ -49,7 +49,7 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
     @Tool(name = "board.get_tasks", value = "Get all tasks from the board grouped by status")
     public Map<String, Object> getTasks() {
         Board board = resolveBoard(resolveAgent());
-        var result = boardService.getTasksByStatus(board.getId(), userPubId());
+        var result = boardService.getTasksByStatus(board.getId(), userId());
         return Map.of("tasks", result);
     }
 
@@ -81,7 +81,7 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
 
         var request = new CreateBoardTaskRequest(taskType, title, description,
                 agent.getId(), assigneeId, parentId);
-        var result = boardService.createTask(board.getId(), userPubId(), request);
+        var result = boardService.createTask(board.getId(), userId(), request);
         return Map.of("task", result);
     }
 
@@ -107,7 +107,7 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
         }
 
         var request = new UpdateBoardTaskStatusRequest(taskStatus, agent.getId());
-        var result = boardService.changeTaskStatus(taskUuid, userPubId(), request);
+        var result = boardService.changeTaskStatus(taskUuid, userId(), request);
         return Map.of("task", result);
     }
 
@@ -115,7 +115,7 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
     public Map<String, Object> getComments(
             @P("Task public ID") String taskId) {
         UUID taskUuid = UUID.fromString(taskId);
-        var result = boardService.getComments(taskUuid, userPubId());
+        var result = boardService.getComments(taskUuid, userId());
         return Map.of("comments", result);
     }
 
@@ -127,7 +127,7 @@ public class BoardToolHandler extends BaseServerSideToolHandler {
 
         UUID taskUuid = UUID.fromString(taskId);
         var request = new CreateBoardTaskCommentRequest(agent.getId(), content);
-        var result = boardService.createComment(taskUuid, userPubId(), request);
+        var result = boardService.createComment(taskUuid, userId(), request);
         return Map.of("comment", result);
     }
 

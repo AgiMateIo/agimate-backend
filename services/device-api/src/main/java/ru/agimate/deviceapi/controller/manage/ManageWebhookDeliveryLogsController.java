@@ -37,7 +37,7 @@ public class ManageWebhookDeliveryLogsController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(webhookDeliveryService.getDeliveryLogs(userPubId, agentId, page, size));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(webhookDeliveryService.getDeliveryLogs(userId, agentId, page, size));
     }
 }

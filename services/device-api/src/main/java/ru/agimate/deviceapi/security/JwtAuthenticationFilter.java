@@ -44,7 +44,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 ? roles.stream().map(SimpleGrantedAuthority::new).toList()
                                 : AgimateUserPrincipal.DEFAULT_ROLES;
 
-                        // Create principal with subject (userPubId)
+                        // Create principal with subject (userId)
                         String subject = wrappedJwt.claims().getSubject();
                         var principal = new AgimateUserPrincipal(subject, authorities);
 

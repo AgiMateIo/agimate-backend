@@ -24,23 +24,23 @@ public class AgentTriggerPolicyService {
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
     private final TriggerPolicyDbEvaluatorService triggerPolicyEvaluatorService;
 
-    public List<AgentTriggerPolicy> getPoliciesByAgent(UUID userPubId, UUID agentId) {
-        return agentTriggerPolicyRepository.findByUserPubIdAndAgentId(userPubId, agentId);
+    public List<AgentTriggerPolicy> getPoliciesByAgent(UUID userId, UUID agentId) {
+        return agentTriggerPolicyRepository.findByUserIdAndAgentId(userId, agentId);
     }
 
-    public Page<AgentTriggerPolicy> getPoliciesByAgent(UUID userPubId, UUID agentId, int page, int size) {
-        return agentTriggerPolicyRepository.findByUserPubIdAndAgentId(userPubId, agentId, PageRequest.of(page, size));
+    public Page<AgentTriggerPolicy> getPoliciesByAgent(UUID userId, UUID agentId, int page, int size) {
+        return agentTriggerPolicyRepository.findByUserIdAndAgentId(userId, agentId, PageRequest.of(page, size));
     }
 
-    public AgentTriggerPolicy getPolicyById(UUID userPubId, UUID id) {
+    public AgentTriggerPolicy getPolicyById(UUID userId, UUID id) {
         AgentTriggerPolicy policy = agentTriggerPolicyRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent trigger policy not found"));
-        validateOwnership(policy, userPubId);
+        validateOwnership(policy, userId);
         return policy;
     }
 
     @Transactional
-    public AgentTriggerPolicy createPolicy(UUID userPubId, UUID agentId, String connectorCode, String connectorIdentity,
+    public AgentTriggerPolicy createPolicy(UUID userId, UUID agentId, String connectorCode, String connectorIdentity,
                                            String triggerName, AccessEffect effect, Integer priority, String description) {
         validateConstraints(connectorCode, connectorIdentity, triggerName);
 
@@ -51,7 +51,7 @@ public class AgentTriggerPolicyService {
         }
 
         AgentTriggerPolicy policy = AgentTriggerPolicy.builder()
-                .userPubId(userPubId)
+                .userId(userId)
                 .agentId(agentId)
                 .connectorCode(connectorCode)
                 .connectorIdentity(connectorIdentity)
@@ -67,9 +67,9 @@ public class AgentTriggerPolicyService {
     }
 
     @Transactional
-    public AgentTriggerPolicy updatePolicy(UUID userPubId, UUID id, String connectorCode, String connectorIdentity,
+    public AgentTriggerPolicy updatePolicy(UUID userId, UUID id, String connectorCode, String connectorIdentity,
                                            String triggerName, AccessEffect effect, Integer priority, String description) {
-        AgentTriggerPolicy policy = getPolicyById(userPubId, id);
+        AgentTriggerPolicy policy = getPolicyById(userId, id);
         validateConstraints(connectorCode, connectorIdentity, triggerName);
 
         if (connectorCode != null || policy.getConnectorCode() != null) {
@@ -91,24 +91,24 @@ public class AgentTriggerPolicyService {
     }
 
     @Transactional
-    public void deletePolicy(UUID userPubId, UUID id) {
-        AgentTriggerPolicy policy = getPolicyById(userPubId, id);
+    public void deletePolicy(UUID userId, UUID id) {
+        AgentTriggerPolicy policy = getPolicyById(userId, id);
         agentTriggerPolicyRepository.delete(policy);
         triggerPolicyEvaluatorService.invalidateByAgent(policy.getAgentId());
     }
 
-    public List<Agent> findAllowedAgents(UUID userPubId, String connectorCode,
+    public List<Agent> findAllowedAgents(UUID userId, String connectorCode,
                                          String connectorIdentity, String triggerName) {
-        return agentRepository.findAllowedAgents(userPubId, connectorCode, connectorIdentity, triggerName);
+        return agentRepository.findAllowedAgents(userId, connectorCode, connectorIdentity, triggerName);
     }
 
-    public List<Agent> findAllowedAgentsForTeamId(UUID userPubId, UUID teamId, String connectorCode,
+    public List<Agent> findAllowedAgentsForTeamId(UUID userId, UUID teamId, String connectorCode,
                                          String connectorIdentity, String triggerName) {
-        return agentRepository.findAllowedAgentsForTeamId(userPubId, teamId, connectorCode, connectorIdentity, triggerName);
+        return agentRepository.findAllowedAgentsForTeamId(userId, teamId, connectorCode, connectorIdentity, triggerName);
     }
 
-    private void validateOwnership(AgentTriggerPolicy policy, UUID userPubId) {
-        PolicyValidationUtils.validateOwnership(policy.getUserPubId(), userPubId);
+    private void validateOwnership(AgentTriggerPolicy policy, UUID userId) {
+        PolicyValidationUtils.validateOwnership(policy.getUserId(), userId);
     }
 
     private void validateConstraints(String connectorCode, String connectorIdentity, String triggerName) {

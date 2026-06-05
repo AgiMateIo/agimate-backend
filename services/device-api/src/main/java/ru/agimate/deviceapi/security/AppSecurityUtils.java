@@ -8,8 +8,8 @@ import java.util.UUID;
 
 public class AppSecurityUtils {
 
-    public static UUID getAppUserPubId() {
-        return getPrincipal().userPubId();
+    public static UUID getAppUserId() {
+        return getPrincipal().userId();
     }
 
     public static UUID getAppId() {

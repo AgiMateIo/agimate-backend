@@ -29,8 +29,8 @@ public class AgentToolPolicy extends BaseEntity {
     @Column(name = "agent_id", nullable = false)
     private UUID agentId;
 
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "connector_code", columnDefinition = "TEXT")
     private String connectorCode;

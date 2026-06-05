@@ -213,8 +213,8 @@ Backend перед вызовом tool'а проходит по `replyToolParams
 1. Агент существует, принадлежит текущему пользователю → иначе `404` / `403`.
 2. Reply-Trigger connector существует → иначе `404`.
 3. `triggerIdentity` парсится как UUID и существует:
-   - APP: `App.findByPubIdAndUserPubIdNotDeleted` + `isActive()`
-   - INTEGRATION: `IntegrationCredentials.findByPubIdAndUserPubIdNotDeleted` + `connectorCode` совпадает + `isActive()`
+   - APP: `App.findByPubIdAndUserIdNotDeleted` + `isActive()`
+   - INTEGRATION: `IntegrationCredentials.findByPubIdAndUserIdNotDeleted` + `connectorCode` совпадает + `isActive()`
    - INTERNAL_SERVICE / LOOPBACK: `400` (триггеры/инструменты не поддерживаются)
 4. `triggerName` присутствует в:
    - `App.triggers` (для APP), либо

@@ -23,8 +23,8 @@ public class Board extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @OneToOne
     @JoinColumn(name = "agentic_team_id", nullable = false, unique = true)

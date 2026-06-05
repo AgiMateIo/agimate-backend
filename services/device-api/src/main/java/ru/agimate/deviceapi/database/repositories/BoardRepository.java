@@ -10,7 +10,7 @@ import java.util.UUID;
 
 public interface BoardRepository extends JpaRepository<Board, UUID> {
 
-    List<Board> findByUserPubId(UUID userPubId);
+    List<Board> findByUserId(UUID userId);
 
     boolean existsByAgenticTeam(AgenticTeam agenticTeam);
 

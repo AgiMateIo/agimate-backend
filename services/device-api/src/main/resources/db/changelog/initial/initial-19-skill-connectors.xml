@@ -16,7 +16,7 @@
                              references="skills(id)"
                              deleteCascade="true"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="connector_code" type="TEXT">
@@ -36,8 +36,8 @@
         <sql>ALTER TABLE skill_connectors ADD CONSTRAINT chk_skill_connectors_type_name CHECK (type IS NOT NULL OR name IS NULL)</sql>
         <sql>CREATE UNIQUE INDEX uq_skill_connectors ON skill_connectors (skill_id, connector_code, COALESCE(type, ''), COALESCE(name, ''))</sql>
 
-        <createIndex tableName="skill_connectors" indexName="idx_skill_connectors_user_pub_id">
-            <column name="user_pub_id"/>
+        <createIndex tableName="skill_connectors" indexName="idx_skill_connectors_user_id">
+            <column name="user_id"/>
         </createIndex>
     </changeSet>
 

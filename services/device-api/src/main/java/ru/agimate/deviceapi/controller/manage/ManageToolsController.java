@@ -38,8 +38,8 @@ public class ManageToolsController {
             @PathVariable String connectorCode,
             @RequestParam(required = false) UUID identity
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(toolDefinitionService.getTools(userPubId, connectorCode, identity));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(toolDefinitionService.getTools(userId, connectorCode, identity));
     }
 
     @Operation(
@@ -54,7 +54,7 @@ public class ManageToolsController {
             @PathVariable String toolName,
             @RequestParam(required = false) UUID identity
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(toolDefinitionService.getTool(userPubId, connectorCode, toolName, identity));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(toolDefinitionService.getTool(userId, connectorCode, toolName, identity));
     }
 }

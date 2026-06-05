@@ -94,7 +94,7 @@ public class SkillConnectorService {
         List<SkillConnector> clonedBindings = sourceBindings.stream()
                 .map(cs -> SkillConnector.builder()
                         .skill(target)
-                        .userPubId(target.getUserPubId())
+                        .userId(target.getUserId())
                         .connectorCode(cs.getConnectorCode())
                         .type(cs.getType())
                         .name(cs.getName())
@@ -120,7 +120,7 @@ public class SkillConnectorService {
     private SkillConnector toEntity(SkillConnectorRequest request, Skill skill) {
         return SkillConnector.builder()
                 .skill(skill)
-                .userPubId(skill.getUserPubId())
+                .userId(skill.getUserId())
                 .connectorCode(request.connectorCode())
                 .type(request.type())
                 .name(request.name())

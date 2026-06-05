@@ -22,8 +22,8 @@ public abstract class BaseServerSideToolHandler implements ServerSideToolHandler
         return CONTEXT.get().agentId();
     }
 
-    protected UUID userPubId() {
-        return CONTEXT.get().userPubId();
+    protected UUID userId() {
+        return CONTEXT.get().userId();
     }
 
     @Override
@@ -37,8 +37,8 @@ public abstract class BaseServerSideToolHandler implements ServerSideToolHandler
     @Override
     @SuppressWarnings("unchecked")
     public Map<String, Object> executeTool(String toolName, Map<String, Object> params,
-                                           UUID agentId, UUID userPubId) {
-        CONTEXT.set(new ServerSideToolContext(agentId, userPubId));
+                                           UUID agentId, UUID userId) {
+        CONTEXT.set(new ServerSideToolContext(agentId, userId));
         try {
             Method method = findToolMethod(toolName);
             Object[] args = buildMethodArgs(method, params);
@@ -80,5 +80,5 @@ public abstract class BaseServerSideToolHandler implements ServerSideToolHandler
         return value;
     }
 
-    private record ServerSideToolContext(UUID agentId, UUID userPubId) {}
+    private record ServerSideToolContext(UUID agentId, UUID userId) {}
 }

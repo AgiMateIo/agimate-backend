@@ -16,9 +16,9 @@ public interface AgentTriggerPolicyRepository extends JpaRepository<AgentTrigger
 
     List<AgentTriggerPolicy> findByAgentId(UUID agentId);
 
-    List<AgentTriggerPolicy> findByUserPubIdAndAgentId(UUID userPubId, UUID agentId);
+    List<AgentTriggerPolicy> findByUserIdAndAgentId(UUID userId, UUID agentId);
 
-    Page<AgentTriggerPolicy> findByUserPubIdAndAgentId(UUID userPubId, UUID agentId, Pageable pageable);
+    Page<AgentTriggerPolicy> findByUserIdAndAgentId(UUID userId, UUID agentId, Pageable pageable);
 
     @Query(value = """
             SELECT * FROM agent_trigger_policies

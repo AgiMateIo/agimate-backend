@@ -6,7 +6,7 @@ import java.util.UUID;
 public record AgentPrincipal(
         String name,
         UUID agentId,
-        UUID userPubId
+        UUID userId
 ) implements Principal {
 
     @Override

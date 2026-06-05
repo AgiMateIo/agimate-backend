@@ -89,7 +89,7 @@ public class ChannelMessageOutboundService {
 
         ToolUseLog log = ToolUseLog.builder()
                 .agentId(channel.getAgentId())
-                .userPubId(channel.getUserPubId())
+                .userId(channel.getUserId())
                 .connectorCode(channel.getReplyConnectorCode())
                 .identity(channel.getReplyIdentity())
                 .toolUseId(effectiveToolCallId)

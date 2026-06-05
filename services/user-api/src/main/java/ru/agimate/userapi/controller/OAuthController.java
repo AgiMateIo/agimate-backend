@@ -71,11 +71,11 @@ public class OAuthController {
 
 
         var subject = wrappedJwtOptional.get().claims().getSubject();
-        UserEntity userEntity = userService.findByPubId(UUID.fromString(subject))
+        UserEntity userEntity = userService.findById(UUID.fromString(subject))
                 .orElseThrow(() -> new BadRequestStatusException("User doesn't exist"));
 
         var agimateUserPrincipal = AgimateUserPrincipal.fromUser(
-                userEntity.getPubId().toString(), userEntity.getRole());
+                userEntity.getId().toString(), userEntity.getRole());
         String newAccessToken = jwtService.generateAccessToken(agimateUserPrincipal);
         String newRefreshTokenId = UUID.randomUUID().toString();
         String newRefreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, newRefreshTokenId);

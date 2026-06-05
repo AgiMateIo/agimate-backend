@@ -18,18 +18,18 @@ public interface IntegrationCredentialsRepository extends JpaRepository<Integrat
     @Query("SELECT i FROM IntegrationCredentials i WHERE i.id = :id AND i.deletedAt IS NULL")
     Optional<IntegrationCredentials> findByIdNotDeleted(@Param("id") UUID id);
 
-    @Query("SELECT i FROM IntegrationCredentials i WHERE i.userPubId = :userPubId AND i.deletedAt IS NULL ORDER BY i.createdAt DESC")
-    List<IntegrationCredentials> findByUserPubIdNotDeleted(@Param("userPubId") UUID userPubId);
+    @Query("SELECT i FROM IntegrationCredentials i WHERE i.userId = :userId AND i.deletedAt IS NULL ORDER BY i.createdAt DESC")
+    List<IntegrationCredentials> findByUserIdNotDeleted(@Param("userId") UUID userId);
 
     @Query("""
             SELECT i FROM IntegrationCredentials i
-            WHERE i.userPubId = :userPubId
+            WHERE i.userId = :userId
               AND i.connectorCode = :connectorCode
               AND i.deletedAt IS NULL
             ORDER BY i.createdAt DESC
             """)
-    List<IntegrationCredentials> findByUserPubIdAndConnectorCodeNotDeleted(
-            @Param("userPubId") UUID userPubId,
+    List<IntegrationCredentials> findByUserIdAndConnectorCodeNotDeleted(
+            @Param("userId") UUID userId,
             @Param("connectorCode") String connectorCode);
 
     @Query("SELECT i FROM IntegrationCredentials i WHERE i.connectorCode = :connectorCode AND i.deletedAt IS NULL")
@@ -43,14 +43,14 @@ public interface IntegrationCredentialsRepository extends JpaRepository<Integrat
             """)
     List<IntegrationCredentials> findActiveByConnectorCode(@Param("connectorCode") String connectorCode);
 
-    @Query("SELECT i FROM IntegrationCredentials i WHERE i.id = :id AND i.userPubId = :userPubId AND i.deletedAt IS NULL")
-    Optional<IntegrationCredentials> findByIdAndUserPubIdNotDeleted(@Param("id") UUID id, @Param("userPubId") UUID userPubId);
+    @Query("SELECT i FROM IntegrationCredentials i WHERE i.id = :id AND i.userId = :userId AND i.deletedAt IS NULL")
+    Optional<IntegrationCredentials> findByIdAndUserIdNotDeleted(@Param("id") UUID id, @Param("userId") UUID userId);
 
     @Query("SELECT i FROM IntegrationCredentials i WHERE i.id IN :ids AND i.deletedAt IS NULL")
     List<IntegrationCredentials> findAllByIdInNotDeleted(@Param("ids") java.util.Collection<UUID> ids);
 
-    boolean existsByConnectorCodeAndUserPubIdAndPlatformIdentifierAndDeletedAtIsNull(
-            String connectorCode, UUID userPubId, String platformIdentifier);
+    boolean existsByConnectorCodeAndUserIdAndPlatformIdentifierAndDeletedAtIsNull(
+            String connectorCode, UUID userId, String platformIdentifier);
 
     @Modifying
     @Query("UPDATE IntegrationCredentials i SET i.deletedAt = :now WHERE i.id = :id")

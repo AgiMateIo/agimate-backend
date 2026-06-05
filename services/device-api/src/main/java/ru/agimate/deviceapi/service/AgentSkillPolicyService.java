@@ -55,10 +55,10 @@ public class AgentSkillPolicyService {
     }
 
     @Transactional
-    public void applyDiff(UUID agentId, UUID userPubId) {
+    public void applyDiff(UUID agentId, UUID userId) {
         Set<UUID> desiredSkillIds = getCurrentSkillIds(agentId);
         PolicyDiffResponse diff = computeDiff(agentId, desiredSkillIds);
-        executeDiff(agentId, userPubId, diff);
+        executeDiff(agentId, userId, diff);
     }
 
     private PolicyDiffResponse computeDiff(UUID agentId, Set<UUID> desiredSkillIds) {
@@ -92,9 +92,9 @@ public class AgentSkillPolicyService {
         return new PolicyDiffResponse(toAdd, toRemove);
     }
 
-    private void executeDiff(UUID agentId, UUID userPubId, PolicyDiffResponse diff) {
+    private void executeDiff(UUID agentId, UUID userId, PolicyDiffResponse diff) {
         for (PolicyDiffEntry entry : diff.policiesToAdd()) {
-            createPolicy(agentId, userPubId, entry);
+            createPolicy(agentId, userId, entry);
         }
 
         for (PolicyDiffEntry entry : diff.policiesToRemove()) {
@@ -109,10 +109,10 @@ public class AgentSkillPolicyService {
         }
     }
 
-    private void createPolicy(UUID agentId, UUID userPubId, PolicyDiffEntry entry) {
+    private void createPolicy(UUID agentId, UUID userId, PolicyDiffEntry entry) {
         if ("TOOL".equals(entry.policyType())) {
             AgentToolPolicy policy = AgentToolPolicy.builder()
-                    .userPubId(userPubId)
+                    .userId(userId)
                     .agentId(agentId)
                     .connectorCode(entry.connectorCode())
                     .toolName(entry.name())
@@ -123,7 +123,7 @@ public class AgentSkillPolicyService {
             agentToolPolicyRepository.save(policy);
         } else {
             AgentTriggerPolicy policy = AgentTriggerPolicy.builder()
-                    .userPubId(userPubId)
+                    .userId(userId)
                     .agentId(agentId)
                     .connectorCode(entry.connectorCode())
                     .triggerName(entry.name())

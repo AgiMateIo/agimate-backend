@@ -45,8 +45,8 @@ public class ManageIntegrationController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) String connectorCode
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var integrations = integrationService.getIntegrations(userPubId, connectorCode).stream()
+        UUID userId = UUID.fromString(principal.id());
+        var integrations = integrationService.getIntegrations(userId, connectorCode).stream()
                 .map(IntegrationResponse::from)
                 .toList();
         return SuccessResponse.ok(integrations);
@@ -58,9 +58,9 @@ public class ManageIntegrationController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody CreateIntegrationRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
+        UUID userId = UUID.fromString(principal.id());
         var integrationCredentials = integrationService.createIntegration(
-                userPubId, request.connectorCode(), request.credentials(), request.name());
+                userId, request.connectorCode(), request.credentials(), request.name());
         return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
@@ -70,8 +70,8 @@ public class ManageIntegrationController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID credentialId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var integrationCredentials = integrationService.getIntegrationCredentials(credentialId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        var integrationCredentials = integrationService.getIntegrationCredentials(credentialId, userId);
         return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
@@ -82,8 +82,8 @@ public class ManageIntegrationController {
             @PathVariable UUID credentialId,
             @Valid @RequestBody UpdateIntegrationRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var integrationCredentials = integrationService.patchIntegration(credentialId, userPubId, request.enabled(), request.name());
+        UUID userId = UUID.fromString(principal.id());
+        var integrationCredentials = integrationService.patchIntegration(credentialId, userId, request.enabled(), request.name());
         return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
@@ -94,8 +94,8 @@ public class ManageIntegrationController {
             @PathVariable UUID credentialId,
             @Valid @RequestBody UpdateIntegrationCredentialsRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var integrationCredentials = integrationService.updateCredentials(credentialId, userPubId, request.credentials());
+        UUID userId = UUID.fromString(principal.id());
+        var integrationCredentials = integrationService.updateCredentials(credentialId, userId, request.credentials());
         return SuccessResponse.ok(IntegrationResponse.from(integrationCredentials));
     }
 
@@ -105,8 +105,8 @@ public class ManageIntegrationController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID credentialId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        integrationService.deleteIntegration(credentialId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        integrationService.deleteIntegration(credentialId, userId);
         return SuccessResponse.empty();
     }
 

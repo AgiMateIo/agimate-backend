@@ -32,8 +32,8 @@ public class ManageAgentLlmController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentLlmService.listForAgent(agentId, userPubId));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentLlmService.listForAgent(agentId, userId));
     }
 
     @Operation(summary = "Create an LLM binding for the agent")
@@ -43,8 +43,8 @@ public class ManageAgentLlmController {
             @PathVariable UUID agentId,
             @Valid @RequestBody CreateAgentLlmRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentLlmService.create(agentId, userPubId, request));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentLlmService.create(agentId, userId, request));
     }
 
     @Operation(summary = "Replace the LLM binding identified by its name")
@@ -55,8 +55,8 @@ public class ManageAgentLlmController {
             @PathVariable String name,
             @Valid @RequestBody UpdateAgentLlmRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentLlmService.replace(agentId, userPubId, name, request));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentLlmService.replace(agentId, userId, name, request));
     }
 
     @Operation(summary = "Delete the LLM binding identified by its name")
@@ -66,8 +66,8 @@ public class ManageAgentLlmController {
             @PathVariable UUID agentId,
             @PathVariable String name
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        agentLlmService.delete(agentId, userPubId, name);
+        UUID userId = UUID.fromString(principal.id());
+        agentLlmService.delete(agentId, userId, name);
         return SuccessResponse.empty();
     }
 }

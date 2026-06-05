@@ -28,48 +28,48 @@ public class AgenticTeamService {
     private final AgentRepository agentRepository;
     private final BoardRepository boardRepository;
 
-    public List<AgenticTeamResponse> getAllForUser(UUID userPubId) {
-        return agenticTeamRepository.findByUserPubId(userPubId).stream()
+    public List<AgenticTeamResponse> getAllForUser(UUID userId) {
+        return agenticTeamRepository.findByUserId(userId).stream()
                 .map(AgenticTeamResponse::from)
                 .toList();
     }
 
-    public AgenticTeamResponse getById(UUID id, UUID userPubId) {
+    public AgenticTeamResponse getById(UUID id, UUID userId) {
         AgenticTeam team = agenticTeamRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
-        if (!team.getUserPubId().equals(userPubId)) {
+        if (!team.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
         return AgenticTeamResponse.from(team);
     }
 
     @Transactional
-    public AgenticTeamResponse create(UUID userPubId, CreateAgenticTeamRequest request) {
-        if (agenticTeamRepository.existsByUserPubIdAndName(userPubId, request.name())) {
+    public AgenticTeamResponse create(UUID userId, CreateAgenticTeamRequest request) {
+        if (agenticTeamRepository.existsByUserIdAndName(userId, request.name())) {
             throw new BadRequestStatusException("Team with this name already exists");
         }
 
         AgenticTeam team = AgenticTeam.builder()
                 .name(request.name())
                 .description(request.description())
-                .userPubId(userPubId)
+                .userId(userId)
                 .build();
         team = agenticTeamRepository.save(team);
 
-        log.info("Created agentic team '{}' for user={}", request.name(), userPubId);
+        log.info("Created agentic team '{}' for user={}", request.name(), userId);
         return AgenticTeamResponse.from(team);
     }
 
     @Transactional
-    public AgenticTeamResponse update(UUID id, UUID userPubId, UpdateAgenticTeamRequest request) {
+    public AgenticTeamResponse update(UUID id, UUID userId, UpdateAgenticTeamRequest request) {
         AgenticTeam team = agenticTeamRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
-        if (!team.getUserPubId().equals(userPubId)) {
+        if (!team.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
 
         if (!team.getName().equals(request.name())
-                && agenticTeamRepository.existsByUserPubIdAndName(userPubId, request.name())) {
+                && agenticTeamRepository.existsByUserIdAndName(userId, request.name())) {
             throw new BadRequestStatusException("Team with this name already exists");
         }
 
@@ -82,10 +82,10 @@ public class AgenticTeamService {
     }
 
     @Transactional
-    public void delete(UUID id, UUID userPubId) {
+    public void delete(UUID id, UUID userId) {
         AgenticTeam team = agenticTeamRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
-        if (!team.getUserPubId().equals(userPubId)) {
+        if (!team.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
 

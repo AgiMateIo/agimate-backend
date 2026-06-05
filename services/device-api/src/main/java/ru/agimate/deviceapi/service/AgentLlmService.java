@@ -37,8 +37,8 @@ public class AgentLlmService {
     private final LlmProviderRepository llmProviderRepository;
     private final LlmProviderService llmProviderService;
 
-    public List<AgentLlmResponse> listForAgent(UUID agentId, UUID userPubId) {
-        Agent agent = requireOwnedAgent(agentId, userPubId);
+    public List<AgentLlmResponse> listForAgent(UUID agentId, UUID userId) {
+        Agent agent = requireOwnedAgent(agentId, userId);
         List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByName(agent.getId());
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
         return bindings.stream()
@@ -62,9 +62,9 @@ public class AgentLlmService {
     }
 
     @Transactional
-    public AgentLlmResponse create(UUID agentId, UUID userPubId, CreateAgentLlmRequest request) {
-        Agent agent = requireOwnedAgent(agentId, userPubId);
-        LlmProvider provider = llmProviderService.requireOwned(request.llmProviderId(), userPubId);
+    public AgentLlmResponse create(UUID agentId, UUID userId, CreateAgentLlmRequest request) {
+        Agent agent = requireOwnedAgent(agentId, userId);
+        LlmProvider provider = llmProviderService.requireOwned(request.llmProviderId(), userId);
         validateModel(provider, request.model());
 
         if (agentLlmRepository.existsByAgentIdAndName(agent.getId(), request.name())) {
@@ -72,7 +72,7 @@ public class AgentLlmService {
         }
 
         AgentLlm binding = AgentLlm.builder()
-                .userPubId(userPubId)
+                .userId(userId)
                 .agentId(agent.getId())
                 .llmProviderId(provider.getId())
                 .name(request.name())
@@ -86,11 +86,11 @@ public class AgentLlmService {
     }
 
     @Transactional
-    public AgentLlmResponse replace(UUID agentId, UUID userPubId, String name, UpdateAgentLlmRequest request) {
-        Agent agent = requireOwnedAgent(agentId, userPubId);
+    public AgentLlmResponse replace(UUID agentId, UUID userId, String name, UpdateAgentLlmRequest request) {
+        Agent agent = requireOwnedAgent(agentId, userId);
         AgentLlm binding = agentLlmRepository.findByAgentIdAndName(agent.getId(), name)
                 .orElseThrow(() -> new NotFoundStatusException("LLM binding '" + name + "' not found for this agent"));
-        LlmProvider provider = llmProviderService.requireOwned(request.llmProviderId(), userPubId);
+        LlmProvider provider = llmProviderService.requireOwned(request.llmProviderId(), userId);
         validateModel(provider, request.model());
 
         binding.setLlmProviderId(provider.getId());
@@ -103,8 +103,8 @@ public class AgentLlmService {
     }
 
     @Transactional
-    public void delete(UUID agentId, UUID userPubId, String name) {
-        Agent agent = requireOwnedAgent(agentId, userPubId);
+    public void delete(UUID agentId, UUID userId, String name) {
+        Agent agent = requireOwnedAgent(agentId, userId);
         AgentLlm binding = agentLlmRepository.findByAgentIdAndName(agent.getId(), name)
                 .orElseThrow(() -> new NotFoundStatusException("LLM binding '" + name + "' not found for this agent"));
         agentLlmRepository.delete(binding);
@@ -155,10 +155,10 @@ public class AgentLlmService {
                 .collect(Collectors.toMap(LlmProvider::getId, Function.identity()));
     }
 
-    private Agent requireOwnedAgent(UUID agentId, UUID userPubId) {
+    private Agent requireOwnedAgent(UUID agentId, UUID userId) {
         Agent agent = agentRepository.findById(agentId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-        if (!agent.getUserPubId().equals(userPubId)) {
+        if (!agent.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
         return agent;

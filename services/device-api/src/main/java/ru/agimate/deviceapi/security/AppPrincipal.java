@@ -6,7 +6,7 @@ import java.util.UUID;
 public record AppPrincipal(
         String name,
         UUID appId,
-        UUID userPubId
+        UUID userId
 ) implements Principal {
 
     @Override

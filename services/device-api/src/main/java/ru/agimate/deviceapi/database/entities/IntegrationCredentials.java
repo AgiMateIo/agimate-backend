@@ -12,7 +12,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "integration_credentials", uniqueConstraints = {
         @UniqueConstraint(name = "uq_integration_credentials_connector_user_identifier",
-                columnNames = {"connector_code", "user_pub_id", "platform_identifier"})
+                columnNames = {"connector_code", "user_id", "platform_identifier"})
 })
 @Getter
 @Setter
@@ -30,8 +30,8 @@ public class IntegrationCredentials extends BaseEntity {
     @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
     private String connectorCode;
 
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "name", columnDefinition = "TEXT")
     private String name;

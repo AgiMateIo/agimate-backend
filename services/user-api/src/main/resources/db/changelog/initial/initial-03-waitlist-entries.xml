@@ -7,11 +7,8 @@
 
     <changeSet id="create-waitlist-entries" author="Eugene Smith">
         <createTable tableName="waitlist_entries">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
-            </column>
-            <column name="pub_id" type="UUID" defaultValueComputed="gen_random_uuid()">
-                <constraints nullable="false" unique="true"/>
             </column>
             <column name="email" type="TEXT">
                 <constraints nullable="false" unique="true"/>

@@ -28,8 +28,8 @@ public class SkillConnector extends BaseEntity {
     @JoinColumn(name = "skill_id", nullable = false)
     private Skill skill;
 
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
     private String connectorCode;

@@ -36,8 +36,8 @@ public class ManageAgentController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentService.getAllForUser(userPubId, agenticTeamId, search, page, size));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentService.getAllForUser(userId, agenticTeamId, search, page, size));
     }
 
     @Operation(summary = "Create an agent")
@@ -46,8 +46,8 @@ public class ManageAgentController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody CreateAgentRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var result = agentService.create(userPubId, request);
+        UUID userId = UUID.fromString(principal.id());
+        var result = agentService.create(userId, request);
         return SuccessResponse.ok(new AgentCreatedResponse(
                 AgentResponse.from(result.agent(), result.team()),
                 result.plaintextKey()
@@ -70,8 +70,8 @@ public class ManageAgentController {
             @PathVariable UUID agentId,
             @Valid @RequestBody UpdateAgentRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(agentService.update(agentId, userPubId, request));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentService.update(agentId, userId, request));
     }
 
     @Operation(summary = "Delete an agent")
@@ -80,8 +80,8 @@ public class ManageAgentController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        agentService.delete(agentId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        agentService.delete(agentId, userId);
         return SuccessResponse.empty();
     }
 
@@ -91,8 +91,8 @@ public class ManageAgentController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var result = agentService.regenerateKey(agentId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        var result = agentService.regenerateKey(agentId, userId);
         return SuccessResponse.ok(new AgentCreatedResponse(
                 AgentResponse.from(result.agent(), result.team()),
                 result.plaintextKey()

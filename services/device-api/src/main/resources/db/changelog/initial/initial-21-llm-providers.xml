@@ -10,7 +10,7 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT">
@@ -40,11 +40,11 @@
         </createTable>
 
         <addUniqueConstraint tableName="llm_providers"
-                             columnNames="user_pub_id, name"
+                             columnNames="user_id, name"
                              constraintName="uq_llm_providers_user_name"/>
 
-        <createIndex tableName="llm_providers" indexName="idx_llm_providers_user_pub_id">
-            <column name="user_pub_id"/>
+        <createIndex tableName="llm_providers" indexName="idx_llm_providers_user_id">
+            <column name="user_id"/>
         </createIndex>
     </changeSet>
 

@@ -10,7 +10,7 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT" defaultValue="Unnamed Agent">
@@ -44,8 +44,8 @@
             </column>
         </createTable>
 
-        <createIndex tableName="agents" indexName="idx_agents_user_pub_id">
-            <column name="user_pub_id"/>
+        <createIndex tableName="agents" indexName="idx_agents_user_id">
+            <column name="user_id"/>
         </createIndex>
 
         <createIndex tableName="agents" indexName="idx_agents_agentic_team_id">

@@ -50,7 +50,7 @@ dependencies {
 
     implementation("dev.langchain4j:langchain4j-core")
 
-    implementation("dev.dbos:transact:0.8.0")
+    implementation("dev.dbos:transact:0.9.0")
 
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 

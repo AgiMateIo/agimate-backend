@@ -40,7 +40,7 @@ Authentication service handling OAuth2 login, JWT token management, API key mana
 
 | Method | Path                      | Description                    |
 |--------|---------------------------|--------------------------------|
-| GET    | `/user/user/{pub_id}`     | Get user by public ID          |
+| GET    | `/user/user/{id}`         | Get user by id                 |
 | GET    | `/user/user/me`           | Get current authenticated user |
 
 ### OAuth2 Authentication (Public)

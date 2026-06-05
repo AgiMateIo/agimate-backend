@@ -28,8 +28,8 @@ public class BoardTask extends BaseEntity {
     @Column(name = "board_id", nullable = false)
     private UUID boardId;
 
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "parent_task_id")
     private UUID parentTaskId;

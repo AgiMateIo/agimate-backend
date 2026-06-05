@@ -33,8 +33,8 @@ public class ManageSkillConnectorController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(id, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        Skill skill = skillService.findOwnedSkill(id, userId);
         return SuccessResponse.ok(skillConnectorService.getAll(skill));
     }
 
@@ -45,8 +45,8 @@ public class ManageSkillConnectorController {
             @PathVariable UUID id,
             @Valid @RequestBody ReplaceSkillConnectorsRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(id, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        Skill skill = skillService.findOwnedSkill(id, userId);
         skillService.requireNotFeaturedClone(skill);
         return SuccessResponse.ok(skillConnectorService.replaceAll(skill, request));
     }
@@ -58,8 +58,8 @@ public class ManageSkillConnectorController {
             @PathVariable UUID id,
             @Valid @RequestBody SkillConnectorRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(id, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        Skill skill = skillService.findOwnedSkill(id, userId);
         skillService.requireNotFeaturedClone(skill);
         return SuccessResponse.ok(skillConnectorService.addOne(skill, request));
     }
@@ -71,8 +71,8 @@ public class ManageSkillConnectorController {
             @PathVariable UUID id,
             @PathVariable UUID connectorId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        Skill skill = skillService.findOwnedSkill(id, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        Skill skill = skillService.findOwnedSkill(id, userId);
         skillService.requireNotFeaturedClone(skill);
         skillConnectorService.delete(skill, connectorId);
         return SuccessResponse.empty();

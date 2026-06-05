@@ -40,7 +40,7 @@ public class AgentSkillController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return SuccessResponse.ok(agentSkillService.getAgentSkillsWithConnectors(principal.agentId(), principal.userPubId(), page, size));
+        return SuccessResponse.ok(agentSkillService.getAgentSkillsWithConnectors(principal.agentId(), principal.userId(), page, size));
     }
 
     @Operation(summary = "Download all skill files as a ZIP archive")
@@ -49,7 +49,7 @@ public class AgentSkillController {
             @AuthenticationPrincipal AgentPrincipal principal,
             @PathVariable UUID skillId
     ) {
-        Skill skill = agentSkillService.findAssignedSkill(principal.agentId(), skillId, principal.userPubId());
+        Skill skill = agentSkillService.findAssignedSkill(principal.agentId(), skillId, principal.userId());
         UUID fileOwnerId = skillService.resolveFileOwnerId(skill);
 
         InputStream zipStream = skillFileService.getOrCreateZip(fileOwnerId, skill.getUpdatedAt());

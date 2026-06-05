@@ -29,8 +29,8 @@ public class ManageBoardController {
     public SuccessResponse<List<BoardResponse>> getBoards(
             @AuthenticationPrincipal AgimateUserPrincipal principal
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.getAllForUser(userPubId));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(boardService.getAllForUser(userId));
     }
 
     @Operation(summary = "Get board by ID")
@@ -39,8 +39,8 @@ public class ManageBoardController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.getById(id, userPubId));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(boardService.getById(id, userId));
     }
 
     @Operation(summary = "Create a board for an agentic team")
@@ -49,8 +49,8 @@ public class ManageBoardController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody CreateBoardRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.create(userPubId, request));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(boardService.create(userId, request));
     }
 
     @Operation(summary = "Get board tasks grouped by status")
@@ -59,8 +59,8 @@ public class ManageBoardController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID boardId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.getTasksByStatus(boardId, userPubId));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(boardService.getTasksByStatus(boardId, userId));
     }
 
     @Operation(summary = "Create a task on the board")
@@ -70,8 +70,8 @@ public class ManageBoardController {
             @PathVariable UUID boardId,
             @Valid @RequestBody CreateBoardTaskRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.createTask(boardId, userPubId, request));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(boardService.createTask(boardId, userId, request));
     }
 
     @Operation(summary = "Change task status")
@@ -81,8 +81,8 @@ public class ManageBoardController {
             @PathVariable UUID taskId,
             @Valid @RequestBody UpdateBoardTaskStatusRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.changeTaskStatus(taskId, userPubId, request));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(boardService.changeTaskStatus(taskId, userId, request));
     }
 
     @Operation(summary = "Get comments for a task")
@@ -91,8 +91,8 @@ public class ManageBoardController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID taskId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.getComments(taskId, userPubId));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(boardService.getComments(taskId, userId));
     }
 
     @Operation(summary = "Create a comment on a task")
@@ -102,7 +102,7 @@ public class ManageBoardController {
             @PathVariable UUID taskId,
             @Valid @RequestBody CreateBoardTaskCommentRequest request
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(boardService.createComment(taskId, userPubId, request));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(boardService.createComment(taskId, userId, request));
     }
 }

@@ -36,8 +36,8 @@ public class ManageAgentToolPolicyController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(userPrincipal.pubId());
-        Page<AgentToolPolicyResponse> response = agentToolPolicyService.getPoliciesByAgent(userPubId, agentId, page, size)
+        UUID userId = UUID.fromString(userPrincipal.id());
+        Page<AgentToolPolicyResponse> response = agentToolPolicyService.getPoliciesByAgent(userId, agentId, page, size)
                 .map(AgentToolPolicyResponse::from);
         return SuccessResponse.ok(response);
     }
@@ -48,8 +48,8 @@ public class ManageAgentToolPolicyController {
             @AuthenticationPrincipal AgimateUserPrincipal userPrincipal,
             @PathVariable UUID policyId
     ) {
-        UUID userPubId = UUID.fromString(userPrincipal.pubId());
-        AgentToolPolicy policy = agentToolPolicyService.getPolicyById(userPubId, policyId);
+        UUID userId = UUID.fromString(userPrincipal.id());
+        AgentToolPolicy policy = agentToolPolicyService.getPolicyById(userId, policyId);
         return SuccessResponse.ok(AgentToolPolicyResponse.from(policy));
     }
 
@@ -59,9 +59,9 @@ public class ManageAgentToolPolicyController {
             @AuthenticationPrincipal AgimateUserPrincipal userPrincipal,
             @Valid @RequestBody CreateAgentToolPolicyRequest request
     ) {
-        UUID userPubId = UUID.fromString(userPrincipal.pubId());
+        UUID userId = UUID.fromString(userPrincipal.id());
         AgentToolPolicy policy = agentToolPolicyService.createPolicy(
-                userPubId,
+                userId,
                 request.agentId(),
                 request.connectorCode(),
                 request.connectorIdentity(),
@@ -80,9 +80,9 @@ public class ManageAgentToolPolicyController {
             @PathVariable UUID policyId,
             @Valid @RequestBody UpdateAgentToolPolicyRequest request
     ) {
-        UUID userPubId = UUID.fromString(userPrincipal.pubId());
+        UUID userId = UUID.fromString(userPrincipal.id());
         AgentToolPolicy policy = agentToolPolicyService.updatePolicy(
-                userPubId,
+                userId,
                 policyId,
                 request.connectorCode(),
                 request.connectorIdentity(),
@@ -100,8 +100,8 @@ public class ManageAgentToolPolicyController {
             @AuthenticationPrincipal AgimateUserPrincipal userPrincipal,
             @PathVariable UUID policyId
     ) {
-        UUID userPubId = UUID.fromString(userPrincipal.pubId());
-        agentToolPolicyService.deletePolicy(userPubId, policyId);
+        UUID userId = UUID.fromString(userPrincipal.id());
+        agentToolPolicyService.deletePolicy(userId, policyId);
         return SuccessResponse.empty();
     }
 }

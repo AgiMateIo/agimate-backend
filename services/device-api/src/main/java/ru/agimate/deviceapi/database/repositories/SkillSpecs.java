@@ -16,8 +16,8 @@ public class SkillSpecs {
         return (root, query, cb) -> cb.isNull(root.get("deletedAt"));
     }
 
-    public static Specification<Skill> ownedBy(UUID userPubId) {
-        return (root, query, cb) -> cb.equal(root.get("userPubId"), userPubId);
+    public static Specification<Skill> ownedBy(UUID userId) {
+        return (root, query, cb) -> cb.equal(root.get("userId"), userId);
     }
 
     public static Specification<Skill> publicNotFeatured() {

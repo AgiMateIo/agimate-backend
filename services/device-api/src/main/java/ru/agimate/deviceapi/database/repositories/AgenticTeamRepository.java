@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface AgenticTeamRepository extends JpaRepository<AgenticTeam, UUID> {
 
-    List<AgenticTeam> findByUserPubId(UUID userPubId);
+    List<AgenticTeam> findByUserId(UUID userId);
 
-    boolean existsByUserPubIdAndName(UUID userPubId, String name);
+    boolean existsByUserIdAndName(UUID userId, String name);
 }

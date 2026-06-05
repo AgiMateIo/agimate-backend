@@ -41,24 +41,24 @@ public class BoardService {
 
     // ---- Board CRUD ----
 
-    public List<BoardResponse> getAllForUser(UUID userPubId) {
-        List<Board> boards = boardRepository.findByUserPubId(userPubId);
+    public List<BoardResponse> getAllForUser(UUID userId) {
+        List<Board> boards = boardRepository.findByUserId(userId);
         return boards.stream()
                 .map(board -> BoardResponse.from(board, board.getAgenticTeam()))
                 .toList();
     }
 
-    public BoardResponse getById(UUID id, UUID userPubId) {
+    public BoardResponse getById(UUID id, UUID userId) {
         Board board = findBoardById(id);
-        validateBoardOwnership(board, userPubId);
+        validateBoardOwnership(board, userId);
         return BoardResponse.from(board, board.getAgenticTeam());
     }
 
     @Transactional
-    public BoardResponse create(UUID userPubId, CreateBoardRequest request) {
+    public BoardResponse create(UUID userId, CreateBoardRequest request) {
         AgenticTeam team = agenticTeamRepository.findById(request.agenticTeamId())
                 .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
-        if (!team.getUserPubId().equals(userPubId)) {
+        if (!team.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied to the specified team");
         }
         if (boardRepository.existsByAgenticTeam(team)) {
@@ -66,22 +66,22 @@ public class BoardService {
         }
 
         Board board = Board.builder()
-                .userPubId(userPubId)
+                .userId(userId)
                 .agenticTeam(team)
                 .name(request.name())
                 .description(request.description())
                 .build();
         board = boardRepository.save(board);
 
-        log.info("Created board '{}' for agenticTeam={}, user={}", request.name(), team.getId(), userPubId);
+        log.info("Created board '{}' for agenticTeam={}, user={}", request.name(), team.getId(), userId);
         return BoardResponse.from(board, team);
     }
 
     // ---- Tasks ----
 
-    public BoardTasksByStatusResponse getTasksByStatus(UUID boardId, UUID userPubId) {
+    public BoardTasksByStatusResponse getTasksByStatus(UUID boardId, UUID userId) {
         Board board = findBoardById(boardId);
-        validateBoardOwnership(board, userPubId);
+        validateBoardOwnership(board, userId);
 
         List<BoardTask> tasks = boardTaskRepository.findByBoardIdOrderByCreatedAtDesc(board.getId());
         Map<UUID, Agent> agentsById = resolveAgentsForTasks(tasks);
@@ -102,9 +102,9 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardTaskResponse createTask(UUID boardId, UUID userPubId, CreateBoardTaskRequest request) {
+    public BoardTaskResponse createTask(UUID boardId, UUID userId, CreateBoardTaskRequest request) {
         Board board = findBoardById(boardId);
-        validateBoardOwnership(board, userPubId);
+        validateBoardOwnership(board, userId);
 
         Agent createdBy = resolveTeamAgent(board, request.createdByAgentId());
         Agent assignee = null;
@@ -137,7 +137,7 @@ public class BoardService {
 
         BoardTask task = BoardTask.builder()
                 .boardId(board.getId())
-                .userPubId(userPubId)
+                .userId(userId)
                 .parentTaskId(parentTaskId)
                 .type(request.type())
                 .title(request.title())
@@ -176,9 +176,9 @@ public class BoardService {
                 audience
         );
 
-        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getId(), trigger);
+        triggerRouterService.routeInternalTrigger(userId, board.getAgenticTeam().getId(), trigger);
 
-        publishBoardEvent(userPubId, board.getId(), BoardEventType.TASK_CREATED,
+        publishBoardEvent(userId, board.getId(), BoardEventType.TASK_CREATED,
                 new BoardTaskCreatedEvent(
                         board.getId(),
                         task.getId(),
@@ -198,12 +198,12 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardTaskResponse changeTaskStatus(UUID taskId, UUID userPubId, UpdateBoardTaskStatusRequest request) {
+    public BoardTaskResponse changeTaskStatus(UUID taskId, UUID userId, UpdateBoardTaskStatusRequest request) {
         BoardTask task = boardTaskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundStatusException("Task not found"));
         Board board = boardRepository.findById(task.getBoardId())
                 .orElseThrow(() -> new NotFoundStatusException("Board not found"));
-        validateBoardOwnership(board, userPubId);
+        validateBoardOwnership(board, userId);
 
         resolveTeamAgent(board, request.agentId());
 
@@ -232,9 +232,9 @@ public class BoardService {
                 audience
         );
 
-        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getId(), trigger);
+        triggerRouterService.routeInternalTrigger(userId, board.getAgenticTeam().getId(), trigger);
 
-        publishBoardEvent(userPubId, board.getId(), BoardEventType.TASK_STATUS_CHANGED,
+        publishBoardEvent(userId, board.getId(), BoardEventType.TASK_STATUS_CHANGED,
                 new BoardTaskStatusChangedEvent(
                         board.getId(),
                         task.getId(),
@@ -252,12 +252,12 @@ public class BoardService {
 
     // ---- Comments ----
 
-    public List<BoardTaskCommentResponse> getComments(UUID taskId, UUID userPubId) {
+    public List<BoardTaskCommentResponse> getComments(UUID taskId, UUID userId) {
         BoardTask task = boardTaskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundStatusException("Task not found"));
         Board board = boardRepository.findById(task.getBoardId())
                 .orElseThrow(() -> new NotFoundStatusException("Board not found"));
-        validateBoardOwnership(board, userPubId);
+        validateBoardOwnership(board, userId);
 
         List<BoardTaskComment> comments = boardTaskCommentRepository.findByBoardTaskIdOrderByCreatedAtAsc(task.getId());
 
@@ -274,18 +274,18 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardTaskCommentResponse createComment(UUID taskId, UUID userPubId, CreateBoardTaskCommentRequest request) {
+    public BoardTaskCommentResponse createComment(UUID taskId, UUID userId, CreateBoardTaskCommentRequest request) {
         BoardTask task = boardTaskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundStatusException("Task not found"));
         Board board = boardRepository.findById(task.getBoardId())
                 .orElseThrow(() -> new NotFoundStatusException("Board not found"));
-        validateBoardOwnership(board, userPubId);
+        validateBoardOwnership(board, userId);
 
         Agent agent = resolveTeamAgent(board, request.agentId());
 
         BoardTaskComment comment = BoardTaskComment.builder()
                 .boardTaskId(task.getId())
-                .userPubId(userPubId)
+                .userId(userId)
                 .agentId(agent.getId())
                 .content(request.content())
                 .build();
@@ -313,9 +313,9 @@ public class BoardService {
                 audience
         );
 
-        triggerRouterService.routeInternalTrigger(userPubId, board.getAgenticTeam().getId(), trigger);
+        triggerRouterService.routeInternalTrigger(userId, board.getAgenticTeam().getId(), trigger);
 
-        publishBoardEvent(userPubId, board.getId(), BoardEventType.COMMENT_CREATED,
+        publishBoardEvent(userId, board.getId(), BoardEventType.COMMENT_CREATED,
                 new BoardTaskCommentCreatedEvent(
                         board.getId(),
                         task.getId(),
@@ -329,8 +329,8 @@ public class BoardService {
 
     // ---- Helpers ----
 
-    private void publishBoardEvent(UUID userPubId, UUID boardId, String eventType, Object eventData) {
-        String channel = "user:" + userPubId;
+    private void publishBoardEvent(UUID userId, UUID boardId, String eventType, Object eventData) {
+        String channel = "user:" + userId;
         Map<String, String> tags = Map.of(
                 "entity", "board.task",
                 "boardId", boardId.toString()
@@ -347,8 +347,8 @@ public class BoardService {
                 .orElseThrow(() -> new NotFoundStatusException("Board not found"));
     }
 
-    private void validateBoardOwnership(Board board, UUID userPubId) {
-        if (!board.getUserPubId().equals(userPubId)) {
+    private void validateBoardOwnership(Board board, UUID userId) {
+        if (!board.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
     }

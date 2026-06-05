@@ -15,32 +15,32 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
 
     Optional<Agent> findByKeyId(String keyId);
 
-    Page<Agent> findByUserPubId(UUID userPubId, Pageable pageable);
+    Page<Agent> findByUserId(UUID userId, Pageable pageable);
 
     @Query("""
             SELECT a FROM Agent a
-            WHERE a.userPubId = :userPubId
+            WHERE a.userId = :userId
               AND (:agenticTeamId IS NULL OR a.agenticTeamId = :agenticTeamId)
               AND (CAST(:search AS string) IS NULL
                    OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
                    OR LOWER(a.description) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             """)
     Page<Agent> searchForUser(
-            @Param("userPubId") UUID userPubId,
+            @Param("userId") UUID userId,
             @Param("agenticTeamId") UUID agenticTeamId,
             @Param("search") String search,
             Pageable pageable);
 
     @Query("""
-            SELECT a FROM Agent a WHERE a.userPubId = :userPubId AND a.enabled = true
+            SELECT a FROM Agent a WHERE a.userId = :userId AND a.enabled = true
             AND a.id IN (
                 SELECT DISTINCT p.agentId FROM AgentTriggerPolicy p
                 WHERE p.effect = ru.agimate.deviceapi.abac.AccessEffect.ALLOW
                 AND (p.triggerName IS NULL OR p.triggerName = :triggerName)
             )
             """)
-    List<Agent> findRoutableByUserPubIdAndTriggerName(
-            @Param("userPubId") UUID userPubId,
+    List<Agent> findRoutableByUserIdAndTriggerName(
+            @Param("userId") UUID userId,
             @Param("triggerName") String triggerName);
 
     @Query(value = """
@@ -55,7 +55,7 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
                     ) AS specificity
                 FROM agent_trigger_policies p
                 JOIN agents a ON a.id = p.agent_id
-                WHERE a.user_pub_id = :userPubId
+                WHERE a.user_id = :userId
                   AND a.enabled = true
                   AND (p.connector_code IS NULL OR p.connector_code = :connectorCode)
                   AND (p.connector_identity IS NULL OR CAST(:connectorIdentity AS TEXT) IS NULL OR p.connector_identity = :connectorIdentity)
@@ -79,7 +79,7 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
             WHERE NOT w.has_deny
             """, nativeQuery = true)
     List<Agent> findAllowedAgents(
-            @Param("userPubId") UUID userPubId,
+            @Param("userId") UUID userId,
             @Param("connectorCode") String connectorCode,
             @Param("connectorIdentity") String connectorIdentity,
             @Param("triggerName") String triggerName);
@@ -97,7 +97,7 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
                 FROM agent_trigger_policies p
                 JOIN agents a ON a.id = p.agent_id
                 JOIN agentic_teams t ON a.agentic_team_id = t.id
-                WHERE a.user_pub_id = :userPubId
+                WHERE a.user_id = :userId
                   AND a.enabled = true
                   AND t.id = :agenticTeamId
                   AND (p.connector_code IS NULL OR p.connector_code = :connectorCode)
@@ -122,21 +122,21 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
             WHERE NOT w.has_deny
             """, nativeQuery = true)
     List<Agent> findAllowedAgentsForTeamId(
-            @Param("userPubId") UUID userPubId,
+            @Param("userId") UUID userId,
             @Param("agenticTeamId") UUID agenticTeamId,
             @Param("connectorCode") String connectorCode,
             @Param("connectorIdentity") String connectorIdentity,
             @Param("triggerName") String triggerName);
 
-    List<Agent> findByUserPubIdAndAgenticTeamId(UUID userPubId, UUID agenticTeamId);
+    List<Agent> findByUserIdAndAgenticTeamId(UUID userId, UUID agenticTeamId);
 
-    Page<Agent> findByUserPubIdAndAgenticTeamId(UUID userPubId, UUID agenticTeamId, Pageable pageable);
+    Page<Agent> findByUserIdAndAgenticTeamId(UUID userId, UUID agenticTeamId, Pageable pageable);
 
     boolean existsByAgenticTeamId(UUID agenticTeamId);
 
     @Query("""
             SELECT a FROM Agent a
-            WHERE a.userPubId = :userPubId
+            WHERE a.userId = :userId
               AND a.id IN (
                   SELECT s.agentId FROM AgentSkill s WHERE s.skillId = :skillId
               )
@@ -146,7 +146,7 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
             """)
     Page<Agent> findBySkillId(
             @Param("skillId") UUID skillId,
-            @Param("userPubId") UUID userPubId,
+            @Param("userId") UUID userId,
             @Param("search") String search,
             Pageable pageable);
 }

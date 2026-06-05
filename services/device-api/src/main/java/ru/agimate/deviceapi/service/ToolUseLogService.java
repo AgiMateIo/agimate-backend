@@ -38,7 +38,7 @@ public class ToolUseLogService {
                                 AccessEffect effect, String error) {
         var toolUseLog = ToolUseLog.builder()
                 .agentId(agent.getId())
-                .userPubId(agent.getUserPubId())
+                .userId(agent.getUserId())
                 .connectorCode(toolUse.getConnectorCode())
                 .identity(toolUse.getIdentity())
                 .toolUseId(toolUse.getId())
@@ -91,8 +91,8 @@ public class ToolUseLogService {
         return toolUseLog;
     }
 
-    public Page<ToolUseLogResponse> getToolUseLogs(UUID userPubId, UUID agentId, int page, int size) {
-        return toolUseLogRepository.findWithFilters(userPubId, agentId, PageRequest.of(page, size, Sort.by("createdAt").descending()))
+    public Page<ToolUseLogResponse> getToolUseLogs(UUID userId, UUID agentId, int page, int size) {
+        return toolUseLogRepository.findWithFilters(userId, agentId, PageRequest.of(page, size, Sort.by("createdAt").descending()))
                 .map(ToolUseLogResponse::from);
     }
 

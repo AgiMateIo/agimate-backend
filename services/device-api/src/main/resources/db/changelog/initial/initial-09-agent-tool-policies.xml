@@ -13,7 +13,7 @@
             <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="connector_code" type="TEXT"/>
@@ -56,8 +56,8 @@
                                  referencedColumnNames="id"
                                  onDelete="CASCADE"/>
 
-        <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_user_pub_id">
-            <column name="user_pub_id"/>
+        <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_user_id">
+            <column name="user_id"/>
         </createIndex>
         <createIndex tableName="agent_tool_policies" indexName="idx_agent_tool_policies_channel_id">
             <column name="channel_id"/>

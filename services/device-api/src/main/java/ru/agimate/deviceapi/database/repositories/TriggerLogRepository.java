@@ -20,21 +20,21 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
                    t.occurredAt AS occurredAt, t.triggerInput AS triggerInput, t.createdAt AS createdAt,
                    SIZE(t.triggerLogAgents) AS agentsCount
             FROM TriggerLog t
-            WHERE t.userPubId = :userPubId
+            WHERE t.userId = :userId
             AND (:connectorCode IS NULL OR t.connectorCode = :connectorCode)
             """)
-    Page<TriggerLogWithAgentsCountProjection> findByUserPubIdWithFilters(UUID userPubId, String connectorCode, Pageable pageable);
+    Page<TriggerLogWithAgentsCountProjection> findByUserIdWithFilters(UUID userId, String connectorCode, Pageable pageable);
 
     @Query(value = """
             SELECT tl.* FROM trigger_logs tl
-            WHERE tl.user_pub_id = :userPubId
+            WHERE tl.user_id = :userId
               AND tl.created_at >= :since
               AND tl.trigger_input::text ILIKE CONCAT('%', :code, '%')
             ORDER BY tl.created_at ASC
             LIMIT 1
             """, nativeQuery = true)
     Optional<TriggerLog> findFirstByUserAndPayloadContaining(
-            @Param("userPubId") UUID userPubId,
+            @Param("userId") UUID userId,
             @Param("code") String code,
             @Param("since") LocalDateTime since);
 }

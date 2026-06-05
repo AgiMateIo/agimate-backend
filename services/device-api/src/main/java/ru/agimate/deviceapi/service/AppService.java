@@ -39,13 +39,13 @@ public class AppService {
     private final AppRepository appRepository;
 
     @Transactional
-    public AppCreateResult createApp(UUID userPubId, String name, String description, String connectorCode) {
-        long existingCount = appRepository.countByUserPubIdNotDeleted(userPubId);
+    public AppCreateResult createApp(UUID userId, String name, String description, String connectorCode) {
+        long existingCount = appRepository.countByUserIdNotDeleted(userId);
         if (existingCount >= MAX_KEYS_PER_USER) {
             throw new ConflictStatusException("Maximum number of connectors reached: " + MAX_KEYS_PER_USER);
         }
 
-        if (appRepository.existsByUserPubIdAndName(userPubId, name)) {
+        if (appRepository.existsByUserIdAndName(userId, name)) {
             throw new ConflictStatusException("An app with this name already exists");
         }
 
@@ -54,7 +54,7 @@ public class AppService {
         // todo: check connectorCode by using connector repository and check coonector.type
 
         App app = App.builder()
-                .userPubId(userPubId)
+                .userId(userId)
                 .connectorCode(connectorCode)
                 .name(name)
                 .description(description)
@@ -64,25 +64,25 @@ public class AppService {
                 .build();
 
         App saved = appRepository.save(app);
-        log.info("Created new app for user {}: {}", userPubId, saved.getId());
+        log.info("Created new app for user {}: {}", userId, saved.getId());
 
         return new AppCreateResult(saved, generatedKey.fullKey());
     }
 
-    public Page<App> getAppsForUser(UUID userPubId, int page, int size) {
-        return appRepository.findByUserPubIdNotDeleted(userPubId, PageRequest.of(page, size));
+    public Page<App> getAppsForUser(UUID userId, int page, int size) {
+        return appRepository.findByUserIdNotDeleted(userId, PageRequest.of(page, size));
     }
 
-    public App getAppById(UUID id, UUID userPubId) {
+    public App getAppById(UUID id, UUID userId) {
         return appRepository.findByIdNotDeleted(id)
-                .filter(a -> a.getUserPubId().equals(userPubId))
+                .filter(a -> a.getUserId().equals(userId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
     }
 
     @Transactional
-    public App updateApp(UUID id, UUID userPubId, String name, String description, Boolean enabled) {
+    public App updateApp(UUID id, UUID userId, String name, String description, Boolean enabled) {
         App app = appRepository.findByIdNotDeleted(id)
-                .filter(k -> k.getUserPubId().equals(userPubId))
+                .filter(k -> k.getUserId().equals(userId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
         if (name != null) app.setName(name);
@@ -93,9 +93,9 @@ public class AppService {
     }
 
     @Transactional
-    public void deleteApp(UUID id, UUID userPubId) {
+    public void deleteApp(UUID id, UUID userId) {
         App app = appRepository.findByIdNotDeleted(id)
-                .filter(k -> k.getUserPubId().equals(userPubId))
+                .filter(k -> k.getUserId().equals(userId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
         appRepository.softDelete(app.getId(), LocalDateTime.now());
@@ -103,9 +103,9 @@ public class AppService {
     }
 
     @Transactional
-    public AppCreateResult regenerateAppKey(UUID id, UUID userPubId) {
+    public AppCreateResult regenerateAppKey(UUID id, UUID userId) {
         App app = appRepository.findByIdNotDeleted(id)
-                .filter(k -> k.getUserPubId().equals(userPubId))
+                .filter(k -> k.getUserId().equals(userId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
         GeneratedAppKey generatedKey = AppKeyUtils.generate(APP_KEY_PREFIX);
@@ -130,14 +130,14 @@ public class AppService {
                 .orElseThrow(() -> new UnauthorizedStatusException("App not found"));
     }
 
-    public List<AppTool> getToolsByAppIdAndUser(UUID appId, UUID userPubId) {
-        var app = appRepository.findByIdAndUserPubIdNotDeleted(appId, userPubId)
+    public List<AppTool> getToolsByAppIdAndUser(UUID appId, UUID userId) {
+        var app = appRepository.findByIdAndUserIdNotDeleted(appId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
         return parseTools(app.getTools());
     }
 
-    public List<AppTrigger> getTriggersByAppIdAndUser(UUID appId, UUID userPubId) {
-        var app = appRepository.findByIdAndUserPubIdNotDeleted(appId, userPubId)
+    public List<AppTrigger> getTriggersByAppIdAndUser(UUID appId, UUID userId) {
+        var app = appRepository.findByIdAndUserIdNotDeleted(appId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
         return parseTriggers(app.getTriggers());
     }

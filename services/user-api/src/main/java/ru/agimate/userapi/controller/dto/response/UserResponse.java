@@ -11,8 +11,8 @@ import java.util.UUID;
  */
 @Schema(description = "User Response DTO")
 public record UserResponse(
-        @Schema(description = "User public ID", example = "550e8400-e29b-41d4-a716-446655440000")
-        UUID pubId,
+        @Schema(description = "User ID", example = "0190a3b7-1234-7abc-8def-0123456789ab")
+        UUID id,
 
         @Schema(description = "User email", example = "user@example.com")
         String email,

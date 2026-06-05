@@ -134,12 +134,12 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
     }
 
     @Transactional(readOnly = true)
-    public Page<WebhookDeliveryLogResponse> getDeliveryLogs(UUID userPubId, UUID agentId, int page, int size) {
+    public Page<WebhookDeliveryLogResponse> getDeliveryLogs(UUID userId, UUID agentId, int page, int size) {
         Page<WebhookDeliveryLog> logs;
         if (agentId != null) {
             logs = webhookDeliveryLogRepository.findByAgentId(agentId, PageRequest.of(page, size));
         } else {
-            logs = webhookDeliveryLogRepository.findByUserPubId(userPubId, PageRequest.of(page, size));
+            logs = webhookDeliveryLogRepository.findByUserId(userId, PageRequest.of(page, size));
         }
         return logs.map(WebhookDeliveryLogResponse::from);
     }

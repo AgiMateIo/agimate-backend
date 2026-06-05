@@ -16,12 +16,12 @@ public final class SecurityUtils {
     }
 
     /**
-     * Get current authenticated user's public ID from JWT token.
+     * Get current authenticated user's id from JWT token.
      *
-     * @return user public ID
+     * @return user id
      * @throws UnauthorizedStatusException if user is not authenticated or principal is wrong type
      */
-    public static UUID getCurrentUserPubId() {
+    public static UUID getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication == null || !authentication.isAuthenticated()) {

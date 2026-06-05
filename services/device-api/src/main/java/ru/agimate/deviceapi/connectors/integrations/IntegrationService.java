@@ -38,7 +38,7 @@ public class IntegrationService {
 
     @Transactional
     public IntegrationCredentials createIntegration(
-            UUID userPubId,
+            UUID userId,
             String connectorCode,
             Map<String, String> credentials,
             String name
@@ -54,8 +54,8 @@ public class IntegrationService {
             throw new ValidationErrorStatusException(validationResult.errorField(), validationResult.errorMessage());
         }
 
-        if (integrationCredentialsRepository.existsByConnectorCodeAndUserPubIdAndPlatformIdentifierAndDeletedAtIsNull(
-                connectorCode, userPubId, validationResult.identifier())) {
+        if (integrationCredentialsRepository.existsByConnectorCodeAndUserIdAndPlatformIdentifierAndDeletedAtIsNull(
+                connectorCode, userId, validationResult.identifier())) {
             throw new ConflictStatusException("Integration already exists for " + connectorCode + ": " + validationResult.identifier());
         }
 
@@ -69,7 +69,7 @@ public class IntegrationService {
 
         IntegrationCredentials integrationCredentials = IntegrationCredentials.builder()
                 .connectorCode(connectorCode)
-                .userPubId(userPubId)
+                .userId(userId)
                 .name(name)
                 .platformIdentifier(validationResult.identifier())
                 .encryptedData(encryptedData)
@@ -85,7 +85,7 @@ public class IntegrationService {
         integrationCredentials = integrationCredentialsRepository.save(integrationCredentials);
 
         log.info("Created integration {} for user {}: {} ({})",
-                integrationCredentials.getId(), userPubId, connectorCode, validationResult.identifier());
+                integrationCredentials.getId(), userId, connectorCode, validationResult.identifier());
 
         eventPublisher.publishEvent(new IntegrationCreatedEvent(
                 integrationCredentials.getId(), connectorCode));
@@ -93,26 +93,26 @@ public class IntegrationService {
         return integrationCredentials;
     }
 
-    public List<IntegrationCredentials> getIntegrations(UUID userPubId) {
-        return integrationCredentialsRepository.findByUserPubIdNotDeleted(userPubId);
+    public List<IntegrationCredentials> getIntegrations(UUID userId) {
+        return integrationCredentialsRepository.findByUserIdNotDeleted(userId);
     }
 
-    public List<IntegrationCredentials> getIntegrations(UUID userPubId, String connectorCode) {
+    public List<IntegrationCredentials> getIntegrations(UUID userId, String connectorCode) {
         if (connectorCode == null || connectorCode.isBlank()) {
-            return getIntegrations(userPubId);
+            return getIntegrations(userId);
         }
-        return integrationCredentialsRepository.findByUserPubIdAndConnectorCodeNotDeleted(userPubId, connectorCode);
+        return integrationCredentialsRepository.findByUserIdAndConnectorCodeNotDeleted(userId, connectorCode);
     }
 
-    public IntegrationCredentials getIntegrationCredentials(UUID integrationCredentialsId, UUID userPubId) {
+    public IntegrationCredentials getIntegrationCredentials(UUID integrationCredentialsId, UUID userId) {
         return integrationCredentialsRepository.findByIdNotDeleted(integrationCredentialsId)
-                .filter(i -> i.getUserPubId().equals(userPubId))
+                .filter(i -> i.getUserId().equals(userId))
                 .orElseThrow(() -> new NotFoundStatusException("Integration not found"));
     }
 
     @Transactional
-    public void deleteIntegration(UUID id, UUID userPubId) {
-        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userPubId);
+    public void deleteIntegration(UUID id, UUID userId) {
+        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userId);
 
         // Remove webhook if platform supports it
         try {
@@ -131,8 +131,8 @@ public class IntegrationService {
     }
 
     @Transactional
-    public IntegrationCredentials updateCredentials(UUID id, UUID userPubId, Map<String, String> credentials) {
-        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userPubId);
+    public IntegrationCredentials updateCredentials(UUID id, UUID userId, Map<String, String> credentials) {
+        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userId);
         var handler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
 
         var validationResult = handler.validateCredentials(credentials);
@@ -160,8 +160,8 @@ public class IntegrationService {
     }
 
     @Transactional
-    public IntegrationCredentials patchIntegration(UUID id, UUID userPubId, Boolean enabled, String name) {
-        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userPubId);
+    public IntegrationCredentials patchIntegration(UUID id, UUID userId, Boolean enabled, String name) {
+        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userId);
 
         boolean enabledChanged = false;
         Boolean previousEnabled = integrationCredentials.getEnabled();

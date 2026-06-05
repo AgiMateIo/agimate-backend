@@ -40,7 +40,7 @@ public class AppAuthFilter extends OncePerRequestFilter {
                         var principal = new AppPrincipal(
                                 app.getName(),
                                 app.getId(),
-                                app.getUserPubId()
+                                app.getUserId()
                         );
 
                         SecurityContextHolder.getContext().setAuthentication(
@@ -48,7 +48,7 @@ public class AppAuthFilter extends OncePerRequestFilter {
                         );
 
                         log.debug("App key authenticated for app: {} (user: {})",
-                                app.getName(), app.getUserPubId());
+                                app.getName(), app.getUserId());
                     });
         }
 

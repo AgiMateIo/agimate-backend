@@ -40,7 +40,7 @@ public class AgentAuthFilter extends OncePerRequestFilter {
                         var principal = new AgentPrincipal(
                                 agent.getName(),
                                 agent.getId(),
-                                agent.getUserPubId()
+                                agent.getUserId()
                         );
 
                         SecurityContextHolder.getContext().setAuthentication(
@@ -48,7 +48,7 @@ public class AgentAuthFilter extends OncePerRequestFilter {
                         );
 
                         log.debug("Agent key authenticated for agent: {} (user: {})",
-                                agent.getName(), agent.getUserPubId());
+                                agent.getName(), agent.getUserId());
                     });
         }
 

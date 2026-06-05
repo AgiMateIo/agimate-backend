@@ -11,11 +11,11 @@ import java.util.UUID;
 @Repository
 public interface LlmProviderRepository extends JpaRepository<LlmProvider, UUID> {
 
-    List<LlmProvider> findAllByUserPubIdOrderByCreatedAtDesc(UUID userPubId);
+    List<LlmProvider> findAllByUserIdOrderByCreatedAtDesc(UUID userId);
 
-    Optional<LlmProvider> findByIdAndUserPubId(UUID id, UUID userPubId);
+    Optional<LlmProvider> findByIdAndUserId(UUID id, UUID userId);
 
     List<LlmProvider> findAllByIdIn(List<UUID> ids);
 
-    boolean existsByUserPubIdAndName(UUID userPubId, String name);
+    boolean existsByUserIdAndName(UUID userId, String name);
 }

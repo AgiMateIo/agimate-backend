@@ -32,8 +32,8 @@ public class ManageAppTriggersController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID appId
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        var triggers = appService.getTriggersByAppIdAndUser(appId, userPubId);
+        UUID userId = UUID.fromString(principal.id());
+        var triggers = appService.getTriggersByAppIdAndUser(appId, userId);
         return SuccessResponse.ok(triggers);
     }
 }

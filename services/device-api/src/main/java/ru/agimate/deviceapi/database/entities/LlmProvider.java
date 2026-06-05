@@ -16,7 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "llm_providers", uniqueConstraints = {
         @UniqueConstraint(name = "uq_llm_providers_user_name",
-                columnNames = {"user_pub_id", "name"})
+                columnNames = {"user_id", "name"})
 })
 @Getter
 @Setter
@@ -31,8 +31,8 @@ public class LlmProvider extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;

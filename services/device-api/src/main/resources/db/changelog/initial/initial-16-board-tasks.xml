@@ -15,7 +15,7 @@
                              foreignKeyName="fk_board_tasks_board"
                              references="boards(id)"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="parent_task_id" type="UUID">

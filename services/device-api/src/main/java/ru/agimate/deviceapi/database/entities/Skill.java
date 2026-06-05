@@ -34,8 +34,8 @@ public class Skill extends BaseEntity {
     @Builder.Default
     private Integer version = 1;
 
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "is_public", nullable = false)
     @Builder.Default

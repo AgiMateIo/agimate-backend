@@ -30,8 +30,8 @@ public class Agent extends BaseEntity {
     @Column(name = "key_id", nullable = false, unique = true, columnDefinition = "TEXT")
     private String keyId;
 
-    @Column(name = "user_pub_id", nullable = false)
-    private UUID userPubId;
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
 
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;

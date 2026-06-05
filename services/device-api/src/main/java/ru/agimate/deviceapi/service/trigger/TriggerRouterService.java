@@ -45,26 +45,26 @@ public class TriggerRouterService {
                 triggerRequest.name(),
                 JsonUtils.fromJsonToMap(triggerRequest.data().toString())
         );
-        routeTrigger(app.getUserPubId(), trigger);
+        routeTrigger(app.getUserId(), trigger);
     }
 
     @Async
     public void routeWhTrigger(IntegrationCredentials integration, Trigger trigger) {
-        routeTrigger(integration.getUserPubId(), trigger);
+        routeTrigger(integration.getUserId(), trigger);
     }
 
 
-    public void routeInternalTrigger(UUID userPubId, UUID agenticTeamId, Trigger trigger) {
-        TriggerLog triggerLog = triggerLogService.createTriggerLog(userPubId, trigger);
+    public void routeInternalTrigger(UUID userId, UUID agenticTeamId, Trigger trigger) {
+        TriggerLog triggerLog = triggerLogService.createTriggerLog(userId, trigger);
 
         if (isBlockingProbe(trigger.data())) {
-            log.info("Internal trigger contains discovery probe (block mode) - skipping agent routing for user={}", userPubId);
+            log.info("Internal trigger contains discovery probe (block mode) - skipping agent routing for user={}", userId);
             triggerLogService.save(triggerLog);
             return;
         }
 
         List<Agent> agents = agentTriggerPolicyService.findAllowedAgentsForTeamId(
-                userPubId, agenticTeamId,  trigger.connectorCode(), trigger.identity(), trigger.name());
+                userId, agenticTeamId,  trigger.connectorCode(), trigger.identity(), trigger.name());
 
         agents = applyAudience(agents, trigger.audience());
 
@@ -92,17 +92,17 @@ public class TriggerRouterService {
         return agents;
     }
 
-    private void routeTrigger(UUID userPubId, Trigger trigger) {
-        TriggerLog triggerLog = triggerLogService.createTriggerLog(userPubId, trigger);
+    private void routeTrigger(UUID userId, Trigger trigger) {
+        TriggerLog triggerLog = triggerLogService.createTriggerLog(userId, trigger);
 
         if (isBlockingProbe(trigger.data())) {
-            log.info("Trigger contains discovery probe (block mode) - skipping agent routing for user={}", userPubId);
+            log.info("Trigger contains discovery probe (block mode) - skipping agent routing for user={}", userId);
             triggerLogService.save(triggerLog);
             return;
         }
 
         List<Agent> agents = agentTriggerPolicyService.findAllowedAgents(
-                userPubId, trigger.connectorCode(), trigger.identity(), trigger.name());
+                userId, trigger.connectorCode(), trigger.identity(), trigger.name());
 
         sendTrigger(agents, triggerLog, trigger);
 

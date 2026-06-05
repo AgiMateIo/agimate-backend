@@ -28,7 +28,7 @@ public record SkillResponse(
         boolean isFeatured,
 
         @Schema(description = "Owner user ID")
-        UUID userPubId,
+        UUID userId,
 
         @Schema(description = "Parent skill ID (if cloned)")
         UUID parentId,
@@ -56,7 +56,7 @@ public record SkillResponse(
                 skill.getVersion(),
                 skill.getIsPublic(),
                 skill.getIsFeatured(),
-                skill.getUserPubId(),
+                skill.getUserId(),
                 skill.getParentId(),
                 skill.getCreatedAt(),
                 skill.getUpdatedAt(),

@@ -35,34 +35,34 @@ public class LlmProviderService {
     private final IntegrationEncryptionService encryptionService;
     private final LlmModelDiscoveryService modelDiscoveryService;
 
-    public List<LlmProviderResponse> listForUser(UUID userPubId) {
-        return llmProviderRepository.findAllByUserPubIdOrderByCreatedAtDesc(userPubId).stream()
+    public List<LlmProviderResponse> listForUser(UUID userId) {
+        return llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(LlmProviderResponse::from)
                 .toList();
     }
 
-    public LlmProviderResponse getForUser(UUID id, UUID userPubId) {
-        return LlmProviderResponse.from(requireOwned(id, userPubId));
+    public LlmProviderResponse getForUser(UUID id, UUID userId) {
+        return LlmProviderResponse.from(requireOwned(id, userId));
     }
 
-    public LlmProvider requireOwned(UUID id, UUID userPubId) {
-        LlmProvider provider = llmProviderRepository.findByIdAndUserPubId(id, userPubId)
+    public LlmProvider requireOwned(UUID id, UUID userId) {
+        LlmProvider provider = llmProviderRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NotFoundStatusException("LLM provider not found"));
-        if (!provider.getUserPubId().equals(userPubId)) {
+        if (!provider.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
         return provider;
     }
 
     @Transactional
-    public LlmProviderResponse create(UUID userPubId, CreateLlmProviderRequest request) {
+    public LlmProviderResponse create(UUID userId, CreateLlmProviderRequest request) {
         validateBaseUrl(request.providerType(), request.baseUrl());
-        if (llmProviderRepository.existsByUserPubIdAndName(userPubId, request.name())) {
+        if (llmProviderRepository.existsByUserIdAndName(userId, request.name())) {
             throw new ConflictStatusException("LLM provider with this name already exists");
         }
 
         LlmProvider provider = LlmProvider.builder()
-                .userPubId(userPubId)
+                .userId(userId)
                 .name(request.name())
                 .providerType(request.providerType())
                 .baseUrl(blankToNull(request.baseUrl()))
@@ -73,16 +73,16 @@ public class LlmProviderService {
         provider = llmProviderRepository.save(provider);
 
         log.info("Created LLM provider id={}, user={}, type={}",
-                provider.getId(), userPubId, provider.getProviderType());
+                provider.getId(), userId, provider.getProviderType());
         return LlmProviderResponse.from(provider);
     }
 
     @Transactional
-    public LlmProviderResponse update(UUID id, UUID userPubId, UpdateLlmProviderRequest request) {
-        LlmProvider provider = requireOwned(id, userPubId);
+    public LlmProviderResponse update(UUID id, UUID userId, UpdateLlmProviderRequest request) {
+        LlmProvider provider = requireOwned(id, userId);
 
         if (request.name() != null && !request.name().equals(provider.getName())) {
-            if (llmProviderRepository.existsByUserPubIdAndName(userPubId, request.name())) {
+            if (llmProviderRepository.existsByUserIdAndName(userId, request.name())) {
                 throw new ConflictStatusException("LLM provider with this name already exists");
             }
             provider.setName(request.name());
@@ -106,15 +106,15 @@ public class LlmProviderService {
     }
 
     @Transactional
-    public void delete(UUID id, UUID userPubId) {
-        LlmProvider provider = requireOwned(id, userPubId);
+    public void delete(UUID id, UUID userId) {
+        LlmProvider provider = requireOwned(id, userId);
         llmProviderRepository.delete(provider);
         log.info("Deleted LLM provider id={}", id);
     }
 
     @Transactional
-    public RefreshModelsResponse refreshModels(UUID id, UUID userPubId) {
-        LlmProvider provider = requireOwned(id, userPubId);
+    public RefreshModelsResponse refreshModels(UUID id, UUID userId) {
+        LlmProvider provider = requireOwned(id, userId);
         String apiKey = decryptApiKey(provider);
         List<String> models = modelDiscoveryService.discover(provider, apiKey);
 

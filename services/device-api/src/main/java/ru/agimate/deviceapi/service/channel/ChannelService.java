@@ -51,39 +51,39 @@ public class ChannelService {
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
     private final AgentToolPolicyRepository agentToolPolicyRepository;
 
-    public Channel getById(UUID userPubId, UUID id) {
+    public Channel getById(UUID userId, UUID id) {
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
-        if (!channel.getUserPubId().equals(userPubId)) {
+        if (!channel.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
         return channel;
     }
 
-    public Channel getByIdForUser(UUID userPubId, UUID id) {
+    public Channel getByIdForUser(UUID userId, UUID id) {
         Channel channel = channelRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
-        if (!channel.getUserPubId().equals(userPubId)) {
+        if (!channel.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
         return channel;
     }
 
-    public List<Channel> listForUser(UUID userPubId) {
-        return channelRepository.findByUserPubIdAndDeletedAtIsNullOrderByCreatedAtDesc(userPubId);
+    public List<Channel> listForUser(UUID userId) {
+        return channelRepository.findByUserIdAndDeletedAtIsNullOrderByCreatedAtDesc(userId);
     }
 
-    public List<Channel> listForUserAndAgent(UUID userPubId, UUID agentId) {
-        return channelRepository.findByUserPubIdAndAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(userPubId, agentId);
+    public List<Channel> listForUserAndAgent(UUID userId, UUID agentId) {
+        return channelRepository.findByUserIdAndAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(userId, agentId);
     }
 
     public List<Channel> listForAgent(UUID agentId) {
         return channelRepository.findByAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(agentId);
     }
 
-    public Optional<Channel> findActiveByTriggerKey(UUID userPubId, UUID agentId,
+    public Optional<Channel> findActiveByTriggerKey(UUID userId, UUID agentId,
                                                     String connectorCode, String identity, String triggerName) {
-        return channelRepository.findActiveByTriggerKey(userPubId, agentId, connectorCode, identity, triggerName);
+        return channelRepository.findActiveByTriggerKey(userId, agentId, connectorCode, identity, triggerName);
     }
 
     public ChannelResponse toResponse(Channel channel) {
@@ -149,18 +149,18 @@ public class ChannelService {
     }
 
     @Transactional
-    public Channel create(UUID userPubId, CreateChannelData data) {
+    public Channel create(UUID userId, CreateChannelData data) {
         Agent agent = agentRepository.findById(data.agentId())
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-        if (!agent.getUserPubId().equals(userPubId)) {
+        if (!agent.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied to agent");
         }
 
         validateMessageField(data.triggerMessageField());
-        validateTriggerSource(userPubId, data.triggerConnectorCode(), data.triggerIdentity(), data.triggerName());
-        validateReplyTarget(userPubId, data.replyConnectorCode(), data.replyIdentity(), data.replyToolName());
+        validateTriggerSource(userId, data.triggerConnectorCode(), data.triggerIdentity(), data.triggerName());
+        validateReplyTarget(userId, data.replyConnectorCode(), data.replyIdentity(), data.replyToolName());
 
-        channelRepository.findActiveByTriggerKey(userPubId, data.agentId(),
+        channelRepository.findActiveByTriggerKey(userId, data.agentId(),
                         data.triggerConnectorCode(), data.triggerIdentity(), data.triggerName())
                 .ifPresent(c -> {
                     throw new ConflictStatusException(
@@ -184,7 +184,7 @@ public class ChannelService {
         }
 
         Channel channel = Channel.builder()
-                .userPubId(userPubId)
+                .userId(userId)
                 .agentId(data.agentId())
                 .name(data.name())
                 .triggerConnectorCode(data.triggerConnectorCode())
@@ -204,7 +204,7 @@ public class ChannelService {
             agentTriggerPolicyRepository.save(existingPolicy);
         } else {
             AgentTriggerPolicy policy = AgentTriggerPolicy.builder()
-                    .userPubId(userPubId)
+                    .userId(userId)
                     .agentId(data.agentId())
                     .connectorCode(data.triggerConnectorCode())
                     .connectorIdentity(data.triggerIdentity())
@@ -222,7 +222,7 @@ public class ChannelService {
             agentToolPolicyRepository.save(existingToolPolicy);
         } else {
             AgentToolPolicy toolPolicy = AgentToolPolicy.builder()
-                    .userPubId(userPubId)
+                    .userId(userId)
                     .agentId(data.agentId())
                     .connectorCode(data.replyConnectorCode())
                     .connectorIdentity(data.replyIdentity())
@@ -234,13 +234,13 @@ public class ChannelService {
             agentToolPolicyRepository.save(toolPolicy);
         }
 
-        log.info("Created channel id={} for agent={} user={}", channel.getId(), data.agentId(), userPubId);
+        log.info("Created channel id={} for agent={} user={}", channel.getId(), data.agentId(), userId);
         return channel;
     }
 
     @Transactional
-    public Channel update(UUID userPubId, UUID id, UpdateChannelData data) {
-        Channel channel = getById(userPubId, id);
+    public Channel update(UUID userId, UUID id, UpdateChannelData data) {
+        Channel channel = getById(userId, id);
 
         if (data.name() != null) {
             channel.setName(data.name());
@@ -268,8 +268,8 @@ public class ChannelService {
     }
 
     @Transactional
-    public void delete(UUID userPubId, UUID id) {
-        Channel channel = getById(userPubId, id);
+    public void delete(UUID userId, UUID id) {
+        Channel channel = getById(userId, id);
         agentTriggerPolicyRepository.deleteByChannelId(channel.getId());
         agentToolPolicyRepository.deleteByChannelId(channel.getId());
         channel.setDeletedAt(LocalDateTime.now());
@@ -283,36 +283,36 @@ public class ChannelService {
         }
     }
 
-    private void validateTriggerSource(UUID userPubId, String connectorCode, String identity, String triggerName) {
+    private void validateTriggerSource(UUID userId, String connectorCode, String identity, String triggerName) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
-        Set<String> availableTriggers = lookupTriggerNames(connector, userPubId, identity);
+        Set<String> availableTriggers = lookupTriggerNames(connector, userId, identity);
         if (!availableTriggers.contains(triggerName)) {
             throw new BadRequestStatusException(
                     "Trigger '" + triggerName + "' not available on connector '" + connectorCode + "'");
         }
     }
 
-    private void validateReplyTarget(UUID userPubId, String connectorCode, String identity, String toolName) {
+    private void validateReplyTarget(UUID userId, String connectorCode, String identity, String toolName) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Reply connector not found: " + connectorCode));
 
-        Set<String> availableTools = lookupToolNames(connector, userPubId, identity);
+        Set<String> availableTools = lookupToolNames(connector, userId, identity);
         if (!availableTools.contains(toolName)) {
             throw new BadRequestStatusException(
                     "Tool '" + toolName + "' not available on connector '" + connectorCode + "'");
         }
     }
 
-    private Set<String> lookupTriggerNames(Connector connector, UUID userPubId, String identity) {
+    private Set<String> lookupTriggerNames(Connector connector, UUID userId, String identity) {
         return switch (connector.getType()) {
             case APP -> {
-                App app = loadApp(userPubId, identity);
+                App app = loadApp(userId, identity);
                 yield app.getTriggers() != null ? app.getTriggers().keySet() : Set.of();
             }
             case INTEGRATION -> {
-                loadIntegration(userPubId, connector.getCode(), identity);
+                loadIntegration(userId, connector.getCode(), identity);
                 IntegrationHandler handler = integrationsRegistry.findHandler(connector.getCode())
                         .orElseThrow(() -> new BadRequestStatusException("Unknown integration: " + connector.getCode()));
                 yield handler.getPredefinedTriggers() != null ? handler.getPredefinedTriggers().keySet() : Set.of();
@@ -322,14 +322,14 @@ public class ChannelService {
         };
     }
 
-    private Set<String> lookupToolNames(Connector connector, UUID userPubId, String identity) {
+    private Set<String> lookupToolNames(Connector connector, UUID userId, String identity) {
         return switch (connector.getType()) {
             case APP -> {
-                App app = loadApp(userPubId, identity);
+                App app = loadApp(userId, identity);
                 yield app.getTools() != null ? app.getTools().keySet() : Set.of();
             }
             case INTEGRATION -> {
-                loadIntegration(userPubId, connector.getCode(), identity);
+                loadIntegration(userId, connector.getCode(), identity);
                 IntegrationHandler handler = integrationsRegistry.findHandler(connector.getCode())
                         .orElseThrow(() -> new BadRequestStatusException("Unknown integration: " + connector.getCode()));
                 yield handler.getPredefinedTools() != null ? handler.getPredefinedTools().keySet() : Set.of();
@@ -339,9 +339,9 @@ public class ChannelService {
         };
     }
 
-    private App loadApp(UUID userPubId, String identity) {
+    private App loadApp(UUID userId, String identity) {
         UUID identityId = parseUuid(identity, "identity");
-        App app = appRepository.findByIdAndUserPubIdNotDeleted(identityId, userPubId)
+        App app = appRepository.findByIdAndUserIdNotDeleted(identityId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("App not found: " + identity));
         if (!app.isActive()) {
             throw new BadRequestStatusException("App is not active: " + identity);
@@ -349,10 +349,10 @@ public class ChannelService {
         return app;
     }
 
-    private IntegrationCredentials loadIntegration(UUID userPubId, String connectorCode, String identity) {
+    private IntegrationCredentials loadIntegration(UUID userId, String connectorCode, String identity) {
         UUID identityId = parseUuid(identity, "identity");
         IntegrationCredentials credentials = integrationCredentialsRepository
-                .findByIdAndUserPubIdNotDeleted(identityId, userPubId)
+                .findByIdAndUserIdNotDeleted(identityId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("Integration not found: " + identity));
         if (!credentials.getConnectorCode().equals(connectorCode)) {
             throw new BadRequestStatusException(

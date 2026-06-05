@@ -41,8 +41,8 @@ public class ManageTriggerLogsController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(triggerLogService.getTriggerLogs(userPubId, connectorCode, page, size));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(triggerLogService.getTriggerLogs(userId, connectorCode, page, size));
     }
 
     @Operation(
@@ -68,7 +68,7 @@ public class ManageTriggerLogsController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
             @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") LocalDateTime since
     ) {
-        UUID userPubId = UUID.fromString(principal.pubId());
-        return SuccessResponse.ok(triggerLogProbeService.match(userPubId, code, since));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(triggerLogProbeService.match(userId, code, since));
     }
 }

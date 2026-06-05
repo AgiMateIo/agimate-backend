@@ -10,7 +10,7 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="user_pub_id" type="UUID">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="agentic_team_id" type="UUID">
@@ -30,8 +30,8 @@
             </column>
         </createTable>
 
-        <createIndex tableName="boards" indexName="idx_boards_user_pub_id">
-            <column name="user_pub_id"/>
+        <createIndex tableName="boards" indexName="idx_boards_user_id">
+            <column name="user_id"/>
         </createIndex>
     </changeSet>
 

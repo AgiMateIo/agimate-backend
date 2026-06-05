@@ -21,23 +21,23 @@ public class AgentToolPolicyService {
     private final AgentToolPolicyRepository agentToolPolicyRepository;
     private final ToolPolicyDbEvaluatorService toolPolicyEvaluatorService;
 
-    public List<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID agentId) {
-        return agentToolPolicyRepository.findByUserPubIdAndAgentId(userPubId, agentId);
+    public List<AgentToolPolicy> getPoliciesByAgent(UUID userId, UUID agentId) {
+        return agentToolPolicyRepository.findByUserIdAndAgentId(userId, agentId);
     }
 
-    public Page<AgentToolPolicy> getPoliciesByAgent(UUID userPubId, UUID agentId, int page, int size) {
-        return agentToolPolicyRepository.findByUserPubIdAndAgentId(userPubId, agentId, PageRequest.of(page, size));
+    public Page<AgentToolPolicy> getPoliciesByAgent(UUID userId, UUID agentId, int page, int size) {
+        return agentToolPolicyRepository.findByUserIdAndAgentId(userId, agentId, PageRequest.of(page, size));
     }
 
-    public AgentToolPolicy getPolicyById(UUID userPubId, UUID id) {
+    public AgentToolPolicy getPolicyById(UUID userId, UUID id) {
         AgentToolPolicy policy = agentToolPolicyRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent tool policy not found"));
-        validateOwnership(policy, userPubId);
+        validateOwnership(policy, userId);
         return policy;
     }
 
     @Transactional
-    public AgentToolPolicy createPolicy(UUID userPubId, UUID agentId, String connectorCode, String connectorIdentity,
+    public AgentToolPolicy createPolicy(UUID userId, UUID agentId, String connectorCode, String connectorIdentity,
                                         String toolName, AccessEffect effect, Integer priority, String description) {
         validateConstraints(connectorCode, connectorIdentity, toolName);
 
@@ -48,7 +48,7 @@ public class AgentToolPolicyService {
         }
 
         AgentToolPolicy policy = AgentToolPolicy.builder()
-                .userPubId(userPubId)
+                .userId(userId)
                 .agentId(agentId)
                 .connectorCode(connectorCode)
                 .connectorIdentity(connectorIdentity)
@@ -64,9 +64,9 @@ public class AgentToolPolicyService {
     }
 
     @Transactional
-    public AgentToolPolicy updatePolicy(UUID userPubId, UUID id, String connectorCode, String connectorIdentity,
+    public AgentToolPolicy updatePolicy(UUID userId, UUID id, String connectorCode, String connectorIdentity,
                                         String toolName, AccessEffect effect, Integer priority, String description) {
-        AgentToolPolicy policy = getPolicyById(userPubId, id);
+        AgentToolPolicy policy = getPolicyById(userId, id);
         validateConstraints(connectorCode, connectorIdentity, toolName);
 
         if (connectorCode != null || policy.getConnectorCode() != null) {
@@ -88,14 +88,14 @@ public class AgentToolPolicyService {
     }
 
     @Transactional
-    public void deletePolicy(UUID userPubId, UUID id) {
-        AgentToolPolicy policy = getPolicyById(userPubId, id);
+    public void deletePolicy(UUID userId, UUID id) {
+        AgentToolPolicy policy = getPolicyById(userId, id);
         agentToolPolicyRepository.delete(policy);
         toolPolicyEvaluatorService.invalidateByAgent(policy.getAgentId());
     }
 
-    private void validateOwnership(AgentToolPolicy policy, UUID userPubId) {
-        PolicyValidationUtils.validateOwnership(policy.getUserPubId(), userPubId);
+    private void validateOwnership(AgentToolPolicy policy, UUID userId) {
+        PolicyValidationUtils.validateOwnership(policy.getUserId(), userId);
     }
 
     private void validateConstraints(String connectorCode, String connectorIdentity, String toolName) {
