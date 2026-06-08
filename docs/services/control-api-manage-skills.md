@@ -1,8 +1,8 @@
-# device-api — Skill Management Endpoints
+# control-api — Skill Management Endpoints
 
-Detailed API specification for the `/manage/skills/**` endpoint group in device-api. Aimed at frontend developers integrating the Skill catalog into the UI.
+Detailed API specification for the `/manage/skills/**` endpoint group in control-api. Aimed at frontend developers integrating the Skill catalog into the UI.
 
-> All paths below are relative to the context path `/device`.
+> All paths below are relative to the context path `/control`.
 
 ## Authentication
 
@@ -47,16 +47,16 @@ Skill flavours:
 
 | Method | Path                                            | Purpose                                                              |
 |--------|-------------------------------------------------|----------------------------------------------------------------------|
-| GET    | `/device/manage/skills/`                        | List my own skills (paginated, search, filter by connector)          |
-| GET    | `/device/manage/skills/public/`                 | List public non-featured skills                                       |
-| GET    | `/device/manage/skills/featured/`               | List featured skills                                                  |
-| GET    | `/device/manage/skills/{pubId}`                 | Get skill details + `SKILL.md` content                                |
-| GET    | `/device/manage/skills/{pubId}/agents/`         | List my agents that use this skill (paginated, search by name/prompt) |
-| POST   | `/device/manage/skills/`                        | Create skill from JSON payload                                        |
-| POST   | `/device/manage/skills/upload`                  | Create skill by uploading a `SKILL.md` file                           |
-| PUT    | `/device/manage/skills/{pubId}`                 | Update skill (bumps `version`)                                        |
-| DELETE | `/device/manage/skills/{pubId}`                 | Soft-delete skill                                                     |
-| POST   | `/device/manage/skills/{pubId}/clone`           | Clone a public/featured skill into the user's collection              |
+| GET    | `/control/manage/skills/`                        | List my own skills (paginated, search, filter by connector)          |
+| GET    | `/control/manage/skills/public/`                 | List public non-featured skills                                       |
+| GET    | `/control/manage/skills/featured/`               | List featured skills                                                  |
+| GET    | `/control/manage/skills/{pubId}`                 | Get skill details + `SKILL.md` content                                |
+| GET    | `/control/manage/skills/{pubId}/agents/`         | List my agents that use this skill (paginated, search by name/prompt) |
+| POST   | `/control/manage/skills/`                        | Create skill from JSON payload                                        |
+| POST   | `/control/manage/skills/upload`                  | Create skill by uploading a `SKILL.md` file                           |
+| PUT    | `/control/manage/skills/{pubId}`                 | Update skill (bumps `version`)                                        |
+| DELETE | `/control/manage/skills/{pubId}`                 | Soft-delete skill                                                     |
+| POST   | `/control/manage/skills/{pubId}/clone`           | Clone a public/featured skill into the user's collection              |
 
 ---
 
@@ -136,7 +136,7 @@ The frontend should rely on `totalElements`, `totalPages`, `number` (current pag
 
 ## Endpoints
 
-### GET `/device/manage/skills/`
+### GET `/control/manage/skills/`
 
 List the **current user's own** skills.
 
@@ -155,7 +155,7 @@ Sorted by `createdAt` descending.
 
 ---
 
-### GET `/device/manage/skills/public/`
+### GET `/control/manage/skills/public/`
 
 List **public, non-featured** skills authored by other users.
 
@@ -167,7 +167,7 @@ Sorted by `createdAt` descending.
 
 ---
 
-### GET `/device/manage/skills/featured/`
+### GET `/control/manage/skills/featured/`
 
 List **featured** skills (`isPublic = true`, `isFeatured = true`).
 
@@ -179,7 +179,7 @@ Sorted by `createdAt` descending.
 
 ---
 
-### GET `/device/manage/skills/{pubId}`
+### GET `/control/manage/skills/{pubId}`
 
 Returns full skill details including the raw `SKILL.md` body.
 
@@ -219,7 +219,7 @@ Access rule: the skill must be either owned by the caller **or** marked `isPubli
 
 ---
 
-### GET `/device/manage/skills/{pubId}/agents/`
+### GET `/control/manage/skills/{pubId}/agents/`
 
 Returns the **current user's agents** that have this skill bound. Useful for the "Used by" panel on the skill detail page.
 
@@ -276,9 +276,9 @@ Sorted by agent `name` ascending.
 **Examples:**
 
 ```
-GET /device/manage/skills/0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77/agents/
-GET /device/manage/skills/0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77/agents/?search=standup
-GET /device/manage/skills/0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77/agents/?page=1&size=10
+GET /control/manage/skills/0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77/agents/
+GET /control/manage/skills/0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77/agents/?search=standup
+GET /control/manage/skills/0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77/agents/?page=1&size=10
 ```
 
 **Errors:**
@@ -290,7 +290,7 @@ GET /device/manage/skills/0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77/agents/?page=1&si
 
 ---
 
-### POST `/device/manage/skills/`
+### POST `/control/manage/skills/`
 
 Create a skill from a JSON payload.
 
@@ -321,7 +321,7 @@ The backend parses the frontmatter (`name`, `description`) and uses it as the ca
 
 ---
 
-### POST `/device/manage/skills/upload`
+### POST `/control/manage/skills/upload`
 
 Same as `POST /` but accepts a `multipart/form-data` upload of the `SKILL.md` file. Convenient for "Upload SKILL.md" buttons in the UI.
 
@@ -344,7 +344,7 @@ Same as `POST /` but accepts a `multipart/form-data` upload of the `SKILL.md` fi
 
 ---
 
-### PUT `/device/manage/skills/{pubId}`
+### PUT `/control/manage/skills/{pubId}`
 
 Update an existing skill. Bumps `version` by 1, persists the new `SKILL.md`, and re-parses `name` / `description` from the frontmatter.
 
@@ -381,7 +381,7 @@ Update an existing skill. Bumps `version` by 1, persists the new `SKILL.md`, and
 
 ---
 
-### DELETE `/device/manage/skills/{pubId}`
+### DELETE `/control/manage/skills/{pubId}`
 
 Soft-deletes the skill and removes its files from storage.
 
@@ -399,7 +399,7 @@ Soft-deletes the skill and removes its files from storage.
 
 ---
 
-### POST `/device/manage/skills/{pubId}/clone`
+### POST `/control/manage/skills/{pubId}/clone`
 
 Clones a **public** or **featured** skill into the caller's own collection. Cannot be used on your own skill.
 
@@ -433,21 +433,21 @@ Notes:
 ### Skill detail page — "Used by N agents" panel
 
 ```
-GET /device/manage/skills/{skillPubId}/agents/?page=0&size=10
+GET /control/manage/skills/{skillPubId}/agents/?page=0&size=10
 ```
 
-Render `totalElements` next to the section header. If `totalElements === 0`, show an empty state with a CTA to "Bind to an agent" (which calls `POST /device/manage/agents/{agentPubId}/skills/`). Use the `search` query param for the in-panel search input — debounce input and keep `page=0` while typing.
+Render `totalElements` next to the section header. If `totalElements === 0`, show an empty state with a CTA to "Bind to an agent" (which calls `POST /control/manage/agents/{agentPubId}/skills/`). Use the `search` query param for the in-panel search input — debounce input and keep `page=0` while typing.
 
 ### "Public skills" tab — show "Open my copy" vs "Clone"
 
 ```
-GET /device/manage/skills/public/?search=...&page=...&size=...
+GET /control/manage/skills/public/?search=...&page=...&size=...
 ```
 
 For each item in `content[]`:
 - if `myCopyId != null` → render "Open my copy" linking to `/skills/{myCopyId}`
-- else → render "Clone" calling `POST /device/manage/skills/{id}/clone`
+- else → render "Clone" calling `POST /control/manage/skills/{id}/clone`
 
 ### Detecting "needs reinstall" on a bound skill
 
-The needs-reinstall flag is exposed in the *agent skills* list (`GET /device/manage/agents/{agentPubId}/skills/`), not here. Compare `installedSkillVersion` against the skill's current `version` (also returned in `SkillResponse`) if you need to compute it client-side.
+The needs-reinstall flag is exposed in the *agent skills* list (`GET /control/manage/agents/{agentPubId}/skills/`), not here. Compare `installedSkillVersion` against the skill's current `version` (also returned in `SkillResponse`) if you need to compute it client-side.

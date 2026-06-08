@@ -1,10 +1,10 @@
-# device-api — Trigger Log Probe (discovery)
+# control-api — Trigger Log Probe (discovery)
 
 Stateless-механизм полуавтоматического создания канала / диагностики доставки триггеров. UI запрашивает у бэка случайный probe-код, пользователь отправляет сообщение, содержащее этот код, через любую свою интеграцию (Telegram-бот, Slack, app endpoint). Бэк находит соответствующую запись в `trigger_logs` и возвращает её UI — на основе TriggerLog UI заполняет форму канала или показывает диагностику доставки.
 
 Бэк **не** хранит probe-состояние: код самодостаточен (префикс кодирует режим, хвост — энтропию), match — это поиск подстроки в `trigger_logs.trigger_input::text`.
 
-> Все пути ниже — относительно context path `/device`.
+> Все пути ниже — относительно context path `/control`.
 
 ## Authentication
 

@@ -1,8 +1,8 @@
-# device-api — Agent & App Endpoints
+# control-api — Agent & App Endpoints
 
-Detailed API specification for the `/agent/**` and `/app/**` endpoint groups in device-api.
+Detailed API specification for the `/agent/**` and `/app/**` endpoint groups in control-api.
 
-> All paths below are relative to the context path `/device`.
+> All paths below are relative to the context path `/control`.
 
 ## Authentication
 
@@ -26,7 +26,7 @@ Auth: `X-Api-Key: <key>` header required on all endpoints.
 
 ---
 
-### GET `/device/agent/settings`
+### GET `/control/agent/settings`
 
 Returns configuration for the authenticated API key: prompt, authorized tools, and subscribed triggers.
 
@@ -53,7 +53,7 @@ Returns configuration for the authenticated API key: prompt, authorized tools, a
 
 ---
 
-### POST `/device/agent/centrifugo/token`
+### POST `/control/agent/centrifugo/token`
 
 Generates Centrifugo connection and subscription tokens for the agent's real-time channel (`agent:{apiKeyPubId}`).
 
@@ -91,9 +91,9 @@ Tokens expire after **3600 seconds (1 hour)**.
 
 ---
 
-### POST `/device/agent/tool/call/{connectorId}`
+### POST `/control/agent/tool/call/{connectorId}`
 
-Sends a tool use request to a connector/device via Centrifugo. Creates a `tool_use_log` entry.
+Sends a tool use request to a connector/control via Centrifugo. Creates a `tool_use_log` entry.
 
 If a log for the same `id` already exists for this user, returns the existing `toolUseId` without re-sending (idempotent).
 
@@ -142,7 +142,7 @@ The response value is the `toolUseId` from the created log entry (matches `id` f
 
 ---
 
-### POST `/device/agent/tool/check/{connectorId}`
+### POST `/control/agent/tool/check/{connectorId}`
 
 Checks whether a tool use request would be authorized, without pushing to the device. Creates a `tool_use_log` entry with the resulting permission decision.
 
@@ -177,7 +177,7 @@ If a log for the same `id` already exists for this user, returns the cached `per
 
 ---
 
-### POST `/device/agent/tool/result`
+### POST `/control/agent/tool/result`
 
 Saves the result of a tool use execution back to the log. Only allowed when the tool use has `ALLOW` permission decision and the requesting agent owns it.
 
@@ -216,7 +216,7 @@ The response value is the `toolUseId` of the updated log entry.
 
 ---
 
-### GET `/device/agent/connectors/`
+### GET `/control/agent/connectors/`
 
 Returns all connectors currently connected (linked) for the authenticated user.
 
@@ -243,7 +243,7 @@ Returns all connectors currently connected (linked) for the authenticated user.
 
 ---
 
-### GET `/device/agent/connectors/triggers/`
+### GET `/control/agent/connectors/triggers/`
 
 Returns available triggers grouped by connector for all connectors belonging to the authenticated user.
 
@@ -280,7 +280,7 @@ Returns available triggers grouped by connector for all connectors belonging to 
 
 ---
 
-### GET `/device/agent/connectors/triggers/{connectorId}`
+### GET `/control/agent/connectors/triggers/{connectorId}`
 
 Returns available triggers for a specific connector.
 
@@ -311,7 +311,7 @@ Returns available triggers for a specific connector.
 
 ---
 
-### GET `/device/agent/connectors/tools/`
+### GET `/control/agent/connectors/tools/`
 
 Returns available tools grouped by connector for all connectors belonging to the authenticated user.
 
@@ -326,7 +326,7 @@ Returns available tools grouped by connector for all connectors belonging to the
 
 ---
 
-### GET `/device/agent/connectors/tools/{connectorId}`
+### GET `/control/agent/connectors/tools/{connectorId}`
 
 Returns available tools for a specific connector.
 
@@ -357,7 +357,7 @@ Returns available tools for a specific connector.
 
 ---
 
-### GET `/device/agent/skills/`
+### GET `/control/agent/skills/`
 
 Returns a paginated list of skills assigned to the authenticated agent (via `agent_skills` bindings).
 
@@ -408,7 +408,7 @@ Results are sorted by `created_at DESC`.
 
 ---
 
-### GET `/device/agent/skills/{skillPubId}.zip`
+### GET `/control/agent/skills/{skillPubId}.zip`
 
 Downloads all files of a skill as a ZIP archive. Only available for skills assigned to this agent. For featured skill clones, files are served from the parent skill's storage.
 
@@ -447,7 +447,7 @@ The connector auth key is generated per connector and is only known to the linke
 
 ---
 
-### POST `/device/app/registration/link`
+### POST `/control/app/registration/link`
 
 Associates device hardware information with the authenticated connector. Must be called once after the device boots and before subscribing to Centrifugo.
 
@@ -495,7 +495,7 @@ Associates device hardware information with the authenticated connector. Must be
 
 ---
 
-### POST `/device/app/centrifugo/token`
+### POST `/control/app/centrifugo/token`
 
 Generates Centrifugo connection and subscription tokens for the device's tools channel (`device:{deviceId}`).
 
@@ -542,9 +542,9 @@ Tokens expire after **3600 seconds (1 hour)**.
 
 ---
 
-### POST `/device/app/tools/result`
+### POST `/control/app/tools/result`
 
-Submits the result of a tool execution from the device back to device-api. The result is stored in the `tool_use_log` and forwarded to the agent via the agent's Centrifugo channel.
+Submits the result of a tool execution from the device back to control-api. The result is stored in the `tool_use_log` and forwarded to the agent via the agent's Centrifugo channel.
 
 **Request body:**
 ```json
@@ -579,9 +579,9 @@ Submits the result of a tool execution from the device back to device-api. The r
 
 ---
 
-### POST `/device/app/trigger/new`
+### POST `/control/app/trigger/new`
 
-Reports a trigger event from the device. device-api routes the event to subscribed agents based on their trigger configuration (`triggers_to`, `triggers_allow_all`).
+Reports a trigger event from the device. control-api routes the event to subscribed agents based on their trigger configuration (`triggers_to`, `triggers_allow_all`).
 
 **Request body:**
 ```json
@@ -632,7 +632,7 @@ The response value is the `name` field from the request.
 ### Agent Tool Invocation Flow
 
 ```
-Agent                        device-api                    Device (App)
+Agent                        control-api                    Device (App)
   |                              |                              |
   |-- GET /agent/settings ------>|                              |
   |<-- { prompt, tools, ... } ---|                              |
@@ -655,7 +655,7 @@ Agent                        device-api                    Device (App)
 ### Device Trigger Flow
 
 ```
-Device (App)                 device-api                    Agent
+Device (App)                 control-api                    Agent
   |                              |                              |
   |-- POST /app/trigger/new ---> |                              |
   |<-- { response: "name" } -----|                              |

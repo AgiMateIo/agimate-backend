@@ -1,4 +1,4 @@
-# Multi-stage build for device-api
+# Multi-stage build for control-api
 FROM eclipse-temurin:21-jdk AS builder
 
 WORKDIR /app
@@ -12,17 +12,17 @@ COPY build.gradle.kts .
 # Copy all module build files
 COPY libs/common/build.gradle.kts libs/common/
 COPY user-api/build.gradle.kts user-api/
-COPY device-api/build.gradle.kts device-api/
+COPY control-api/build.gradle.kts control-api/
 
 # Download dependencies (cached layer)
 RUN ./gradlew dependencies --no-daemon || true
 
 # Copy source code
 COPY libs/common/src libs/common/src
-COPY device-api/src device-api/src
+COPY control-api/src control-api/src
 
 # Build the application
-RUN ./gradlew :device-api:bootJar --no-daemon
+RUN ./gradlew :control-api:bootJar --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
@@ -34,7 +34,7 @@ RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 
 # Copy the built jar
-COPY --from=builder /app/device-api/build/libs/*.jar app.jar
+COPY --from=builder /app/control-api/build/libs/*.jar app.jar
 
 # Expose port
 EXPOSE 8080

@@ -92,7 +92,7 @@
 
 ## 4. Новый gRPC сервис `ChannelGateway`
 
-Proto: `services/device-api/src/main/proto/agentworker/channel_gateway.proto`. Package — `ru.agimate.agentworker` (тот же, что и `ToolGateway`). Аутентификация — стандартный worker-pool Bearer-токен через `WorkerPoolAuthInterceptor` (см. agimate-worker-protocol-spec.md §1.3).
+Proto: `services/control-api/src/main/proto/agentworker/channel_gateway.proto`. Package — `ru.agimate.agentworker` (тот же, что и `ToolGateway`). Аутентификация — стандартный worker-pool Bearer-токен через `WorkerPoolAuthInterceptor` (см. agimate-worker-protocol-spec.md §1.3).
 
 ```proto
 service ChannelGateway {
@@ -264,7 +264,7 @@ Backend не присылает уведомление о закрытии се�
 - шаблон параметров tool'а (`replyToolParams`),
 - опциональный `inputFilter` (фильтр по полям `trigger.data`).
 
-Подробнее: [`device-api-manage-channels.md`](device-api-manage-channels.md).
+Подробнее: [`control-api-manage-channels.md`](control-api-manage-channels.md).
 
 С точки зрения агента эти настройки прозрачны — он видит результат через payload триггера и через поведение `SendChannelMessage`.
 

@@ -6,7 +6,7 @@ on:
     branches: [master]
     paths:
       - 'services/user-api/**'
-      - 'services/device-api/**'
+      - 'services/control-api/**'
       - 'services/libs/**'
       - 'services/build.gradle.kts'
       - 'services/settings.gradle.kts'
@@ -35,7 +35,7 @@ jobs:
     runs-on: self-hosted
     outputs:
       user-api: ${{ steps.changes.outputs.user-api }}
-      device-api: ${{ steps.changes.outputs.device-api }}
+      control-api: ${{ steps.changes.outputs.control-api }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,15 +49,15 @@ jobs:
           echo "$CHANGED"
 
           echo "user-api=false" >> $GITHUB_OUTPUT
-          echo "device-api=false" >> $GITHUB_OUTPUT
+          echo "control-api=false" >> $GITHUB_OUTPUT
 
           if echo "$CHANGED" | grep -qE '^services/(build\.gradle\.kts|settings\.gradle\.kts|gradle/|libs/)'; then
             echo "Root build files or libs changed — rebuilding all"
             echo "user-api=true" >> $GITHUB_OUTPUT
-            echo "device-api=true" >> $GITHUB_OUTPUT
+            echo "control-api=true" >> $GITHUB_OUTPUT
           else
             echo "$CHANGED" | grep -q '^services/user-api/' && echo "user-api=true" >> $GITHUB_OUTPUT || true
-            echo "$CHANGED" | grep -q '^services/device-api/' && echo "device-api=true" >> $GITHUB_OUTPUT || true
+            echo "$CHANGED" | grep -q '^services/control-api/' && echo "control-api=true" >> $GITHUB_OUTPUT || true
           fi
 
   build-user-api:
@@ -74,23 +74,23 @@ jobs:
           CR_USERNAME: ${{ secrets.CR_USERNAME }}
           CR_PASSWORD: ${{ secrets.CR_PASSWORD }}
 
-  build-device-api:
+  build-control-api:
     needs: detect-changes
-    if: needs.detect-changes.outputs.device-api == 'true'
+    if: needs.detect-changes.outputs.control-api == 'true'
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
 
       - name: Build and push
-        run: ./ci/build-and-push.sh device-api
+        run: ./ci/build-and-push.sh control-api
         env:
           REGISTRY: ${{ vars.REGISTRY }}
           CR_USERNAME: ${{ secrets.CR_USERNAME }}
           CR_PASSWORD: ${{ secrets.CR_PASSWORD }}
 
   update-infra:
-    needs: [build-user-api, build-device-api]
-    if: always() && (needs.build-user-api.result == 'success' || needs.build-device-api.result == 'success')
+    needs: [build-user-api, build-control-api]
+    if: always() && (needs.build-user-api.result == 'success' || needs.build-control-api.result == 'success')
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
@@ -99,7 +99,7 @@ jobs:
         run: |
           SERVICES=""
           [ "${{ needs.build-user-api.result }}" == "success" ] && SERVICES="$SERVICES user-api"
-          [ "${{ needs.build-device-api.result }}" == "success" ] && SERVICES="$SERVICES device-api"
+          [ "${{ needs.build-control-api.result }}" == "success" ] && SERVICES="$SERVICES control-api"
           ./ci/update-infra.sh $SERVICES
         env:
           REGISTRY: ${{ vars.REGISTRY }}

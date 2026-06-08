@@ -18,7 +18,7 @@
 Архитектура коннекторов уже готова к новому `INTEGRATION` — добавление чисто аддитивное:
 
 - Запись в таблице `connectors` через Liquibase: `code='mail'`, `type=INTEGRATION`, `credential_fields=[...]`.
-- Новый Handler `connectors/integrations/mail/MailHandler.java extends BaseIntegrationHandler` по образцу `TelegramHandler` (`services/device-api/src/main/java/ru/agimate/deviceapi/connectors/integrations/telegram/TelegramHandler.java`). Регистрация в `IntegrationsRegistry` происходит автоматически через `@Component`.
+- Новый Handler `connectors/integrations/mail/MailHandler.java extends BaseIntegrationHandler` по образцу `TelegramHandler` (`services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/telegram/TelegramHandler.java`). Регистрация в `IntegrationsRegistry` происходит автоматически через `@Component`.
 - Шифрование секретов уже работает «из коробки»: `IntegrationEncryptionService` (AES-GCM) кладёт credentials в `integration_credentials.encrypted_data`. Никаких новых таблиц не требуется.
 - REST API расширять не нужно: эндпоинты `/manage/integrations/credentials/*` универсальны, набор полей диктуется методом `getCredentialFields()` хендлера.
 - Push vs Pull: телеграм поддерживает webhook или polling. Почта IMAP — pull-only, поэтому `supportsWebhooks() = false`. Для подписки на новые письма — отдельный poller-сервис (по образцу `TelegramPollingService`), либо вообще не делать push, а ограничиться tool `mail.fetch_recent`.
@@ -102,7 +102,7 @@ Credentials fields: `["email", "password"]` + опционально `["imap_hos
 2. `MailHandler` с `auth_type=password`, автодетектом хостов по домену, `validateCredentials` через `Store.connect`.
 3. Tools: `send`, `fetch_recent`, `fetch_by_id`, `search`, `mark_read`, `delete`, `list_folders`. Без триггеров.
 4. Без OAuth, без polling, без IDLE — заделы оставлены в местах расширения.
-5. Зависимость `angus-mail` в `services/device-api/build.gradle`.
+5. Зависимость `angus-mail` в `services/control-api/build.gradle`.
 6. Тест с greenmail (in-memory IMAP/SMTP) в JUnit.
 
 ## Открытые вопросы
@@ -113,10 +113,10 @@ Credentials fields: `["email", "password"]` + опционально `["imap_hos
 
 ## Ключевые файлы-образцы (на момент анализа)
 
-- `services/device-api/src/main/java/ru/agimate/deviceapi/connectors/integrations/telegram/TelegramHandler.java` — образец Handler-а.
-- `services/device-api/src/main/java/ru/agimate/deviceapi/connectors/integrations/BaseIntegrationHandler.java` — базовый класс.
-- `services/device-api/src/main/java/ru/agimate/deviceapi/connectors/integrations/IntegrationEncryptionService.java` — AES-GCM шифрование credentials.
-- `services/device-api/src/main/java/ru/agimate/deviceapi/connectors/integrations/IntegrationsRegistry.java` — авто-регистрация хендлеров.
-- `services/device-api/src/main/java/ru/agimate/deviceapi/database/entities/Connector.java` — сущность коннектора.
-- `services/device-api/src/main/java/ru/agimate/deviceapi/database/entities/IntegrationCredentials.java` — сущность credentials.
-- `services/device-api/src/main/java/ru/agimate/deviceapi/connectors/integrations/telegram/TelegramPollingService.java` — образец poller-а на случай триггеров.
+- `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/telegram/TelegramHandler.java` — образец Handler-а.
+- `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/BaseIntegrationHandler.java` — базовый класс.
+- `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/IntegrationEncryptionService.java` — AES-GCM шифрование credentials.
+- `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/IntegrationsRegistry.java` — авто-регистрация хендлеров.
+- `services/control-api/src/main/java/ru/agimate/controlapi/database/entities/Connector.java` — сущность коннектора.
+- `services/control-api/src/main/java/ru/agimate/controlapi/database/entities/IntegrationCredentials.java` — сущность credentials.
+- `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/telegram/TelegramPollingService.java` — образец poller-а на случай триггеров.

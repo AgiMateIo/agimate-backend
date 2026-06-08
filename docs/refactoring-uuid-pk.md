@@ -2,7 +2,7 @@
 
 ## Motivation
 
-device-api entities currently carry **two identifiers**:
+control-api entities currently carry **two identifiers**:
 
 - `Long id` — `BIGSERIAL` primary key, internal-only;
 - `UUID pubId` — external-facing identifier (`UUIDUtils.generateUUIDv8()`).
@@ -146,10 +146,10 @@ Master uses `includeAll` over `initial/` then `updates/`. For every table except
   test DB is PG18 (required for `uuidv7()`).
 - Confirm whether `@SpringBootTest` boots a DB; if so, point it at PG18.
 - Update tests referencing `getPubId()` / Long ids; `*.http` ids are already UUID-shaped.
-- `./gradlew :libs:common:test :device-api:test`.
+- `./gradlew :libs:common:test :control-api:test`.
 
 ### 3.8 Build & verify
-- `./gradlew build`; boot device-api on a fresh schema (`ddl-auto: validate` must pass →
+- `./gradlew build`; boot control-api on a fresh schema (`ddl-auto: validate` must pass →
   entity UUID columns must match Liquibase exactly).
 - Smoke-test agent create / trigger routing / channel flows (exercise the native queries).
 - Update `/docs/services/` where id types are documented.
@@ -164,13 +164,13 @@ Master uses `includeAll` over `initial/` then `updates/`. For every table except
 | Native SQL `*_pub_id` joins break silently | rewrite + boot-test ABAC/routing queries explicitly |
 | `ddl-auto: validate` mismatch (UUID vs BIGINT) | full table-by-table checklist in §3.6; Hibernate fails fast at boot |
 | `AgentSessionMessagesService` line 84 sets a PK that now has a DB default | verify; remove manual id assignment if it targets a DB-generated PK |
-| `*PubId` rename ripples wider than expected | one pass; `grep -rn "PubId" device-api/src/main` → only `userPubId` left |
+| `*PubId` rename ripples wider than expected | one pass; `grep -rn "PubId" control-api/src/main` → only `userPubId` left |
 | Reduced insert batching on log tables | accepted; PG18 `INSERT … RETURNING` is adequate |
 
 ## 5. Done criteria
-- `grep -rn "pubId\|pub_id" device-api/src/main` returns only `userPubId` / `user_pub_id`.
+- `grep -rn "pubId\|pub_id" control-api/src/main` returns only `userPubId` / `user_pub_id`.
 - No entity has a `Long id`; no repository is `JpaRepository<*, Long>`.
-- `./gradlew :device-api:test` green; device-api boots on a fresh PG18 schema.
+- `./gradlew :control-api:test` green; control-api boots on a fresh PG18 schema.
 
 ---
 

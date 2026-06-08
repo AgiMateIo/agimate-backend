@@ -208,18 +208,18 @@ Polling-RPC за результатом async-tool **не предусмотре
 
 ## 5. Текущая реализация Backend (PoC)
 
-Раздел отражает состояние кода в `services/device-api` после PoC-итерации. Подробный how-to: [`docs/services/device-api-grpc-worker.md`](services/device-api-grpc-worker.md).
+Раздел отражает состояние кода в `services/control-api` после PoC-итерации. Подробный how-to: [`docs/services/control-api-grpc-worker.md`](services/control-api-grpc-worker.md).
 
 ### 5.1 Транспорт и порт
 
-- gRPC-сервер поднимается внутри `device-api` (Spring Boot 4) на отдельном порту `9091` (HTTP/2). Управляется флагом `grpc.server.enabled`.
+- gRPC-сервер поднимается внутри `control-api` (Spring Boot 4) на отдельном порту `9091` (HTTP/2). Управляется флагом `grpc.server.enabled`.
 - TLS включается через `grpc.server.security.enabled` + `certificate-chain` / `private-key` (PEM). В local dev допустим plaintext.
 - Реализация: прямые `io.grpc:grpc-netty-shaded` + `com.google.protobuf` 3.25.5 (без Spring-стартеров — для совместимости с SB 4.0). Жизненным циклом сервера управляет `GrpcServerLifecycle` (`@PostConstruct` start, `@PreDestroy` graceful shutdown).
 - Все Spring-бины `BindableService` автоматически биндятся; все `ServerInterceptor` бины — навешиваются как глобальные.
 
 ### 5.2 Proto-контракты
 
-Proto-файлы лежат в `services/device-api/src/main/proto/agentworker/`, package `ru.agimate.agentworker`:
+Proto-файлы лежат в `services/control-api/src/main/proto/agentworker/`, package `ru.agimate.agentworker`:
 
 | Файл | Сервис | Реализованные RPC |
 |---|---|---|
@@ -244,14 +244,14 @@ Proto-файлы лежат в `services/device-api/src/main/proto/agentworker/`
 - **Интерсептор**: `WorkerPoolAuthInterceptor` извлекает `authorization: Bearer <token>` и `x-worker-instance` из metadata, валидирует через `WorkerPoolKeyAuthService` (parse → check prefix → CRC32 → registry lookup → SHA-256). При успехе кладёт `WorkerPoolContext(poolId, workerInstanceId)` в gRPC `Context`; downstream-код читает через `WorkerPoolContextHolder.current()`. На PoC `poolId == keyId` (отдельного `pool_name` пока нет).
 - **Генерация ключей**: gated JUnit-тест `WorkerAuthkeyGeneratorTest`, запуск:
   ```
-  ./gradlew :device-api:test --tests "*WorkerAuthkeyGeneratorTest" -Dgenerate.worker.authkey=true --rerun-tasks
+  ./gradlew :control-api:test --tests "*WorkerAuthkeyGeneratorTest" -Dgenerate.worker.authkey=true --rerun-tasks
   ```
   Печатает `fullKey` (отдать воркеру) и `authkey` (положить в `WORKER_POOLS_AUTHKEYS_*`). Никаких CLI runner'ов в production-коде.
 - `x-trace-id` пока не обрабатывается серверной стороной (заложено как расширение).
 
 ### 5.4 AgentContext — переиспользование существующих сервисов
 
-Реализация только читающая, обёртка над текущими сервисами `device-api`:
+Реализация только читающая, обёртка над текущими сервисами `control-api`:
 
 - `GetAgentSpec` → `AgentRepository` + `AgentSkillRepository` + `AgenticTeamRepository` + `AgentLlmRepository`. Возвращает `AgentSpec` со скилами в формате `AgentSkillRef(skill_id, version)` (версия из `AgentSkill.installedSkillVersion`).
 - `GetSkill` → `SkillRepository.findByPubIdNotDeleted`. Если запрошенная `version` не равна текущей — `FAILED_PRECONDITION` (защита воркфлоу от смены конфигурации в процессе исполнения, см. §1.5).
@@ -278,7 +278,7 @@ Proto-файлы лежат в `services/device-api/src/main/proto/agentworker/`
 ### 5.6 Структура кода
 
 ```
-services/device-api/src/main/java/ru/agimate/deviceapi/
+services/control-api/src/main/java/ru/agimate/controlapi/
 ├── config/
 │   ├── GrpcServerProperties.java         // grpc.server.* (port, security)
 │   └── WorkerPoolProperties.java         // worker-pools.authkeys: List<String>
@@ -295,7 +295,7 @@ services/device-api/src/main/java/ru/agimate/deviceapi/
         ├── WorkerControlGrpcService.java
         ├── AgentContextGrpcService.java
         └── ToolGatewayGrpcService.java
-services/device-api/src/main/proto/agentworker/
+services/control-api/src/main/proto/agentworker/
     ├── worker_control.proto
     ├── agent_context.proto
     └── tool_gateway.proto

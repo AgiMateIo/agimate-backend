@@ -1,4 +1,4 @@
-# device-api: Generic Worker gRPC Protocol
+# control-api: Generic Worker gRPC Protocol
 
 PoC implementation of the gRPC contract described in [`agimate-worker-protocol-spec.md`](../agimate-worker-protocol-spec.md).
 The protocol lets Generic Workers — durable executors of agentic workflows running inside DBOS — fetch agent specs/skills/LLM
@@ -21,7 +21,7 @@ credentials from the backend and execute tools through the Tool Gateway.
 | `AgentRunRegistry`      | `RegisterRun`, `GetActiveRun`, `ReleaseRun`                                                       | done     |
 | `WorkflowReporting`     | —                                                                                                 | post-PoC |
 
-Source proto files: `services/device-api/src/main/proto/agentworker/`.
+Source proto files: `services/control-api/src/main/proto/agentworker/`.
 
 ## Authentication
 
@@ -73,8 +73,8 @@ Use the gated JUnit test (no CLI runner — keeps the magic out of production):
 
 ```bash
 cd services
-./gradlew :device-api:test --tests "*WorkerAuthkeyGeneratorTest" -Dgenerate.worker.authkey=true --rerun-tasks
-cat services/device-api/build/test-results/test/TEST-ru.agimate.deviceapi.grpc.auth.WorkerAuthkeyGeneratorTest.xml
+./gradlew :control-api:test --tests "*WorkerAuthkeyGeneratorTest" -Dgenerate.worker.authkey=true --rerun-tasks
+cat services/control-api/build/test-results/test/TEST-ru.agimate.controlapi.grpc.auth.WorkerAuthkeyGeneratorTest.xml
 ```
 
 Output:
@@ -98,7 +98,7 @@ In `application.yaml` defaults the gRPC server is **disabled**. To turn it on lo
 GRPC_SERVER_ENABLED=true \
 GRPC_SERVER_SECURITY_ENABLED=false \
 WORKER_POOLS_AUTHKEYS_0=<authkey from generator> \
-./gradlew :device-api:bootRun
+./gradlew :control-api:bootRun
 ```
 
 Smoke-test with `grpcurl` (install: `brew install grpcurl`):

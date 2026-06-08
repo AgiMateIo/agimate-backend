@@ -1,8 +1,8 @@
-# device-api — Connector Catalog Endpoints
+# control-api — Connector Catalog Endpoints
 
-Detailed API specification for the `/manage/connectors/**` endpoint group in device-api.
+Detailed API specification for the `/manage/connectors/**` endpoint group in control-api.
 
-> All paths below are relative to the context path `/device`.
+> All paths below are relative to the context path `/control`.
 
 ## Authentication
 
@@ -29,7 +29,7 @@ For connectors of `type=INTEGRATION`, the response includes an `integrationMeta`
 
 ---
 
-### GET `/device/manage/connectors/`
+### GET `/control/manage/connectors/`
 
 Returns a paginated list of connector type definitions from the catalog, with optional filtering by `type` and full-text search by `name` / `description`.
 
@@ -119,9 +119,9 @@ Results are sorted by `name` ascending.
 **Examples:**
 
 ```
-GET /device/manage/connectors/?type=INTEGRATION
-GET /device/manage/connectors/?search=telegram
-GET /device/manage/connectors/?type=APP&search=device&page=0&size=10
+GET /control/manage/connectors/?type=INTEGRATION
+GET /control/manage/connectors/?search=telegram
+GET /control/manage/connectors/?type=APP&search=device&page=0&size=10
 ```
 
 **Error responses:**
@@ -134,7 +134,7 @@ GET /device/manage/connectors/?type=APP&search=device&page=0&size=10
 
 ---
 
-### GET `/device/manage/connectors/{code}`
+### GET `/control/manage/connectors/{code}`
 
 Returns a single connector by its `code`. Convenient for fetching a connector's `integrationMeta` (credential fields, webhook support) without scanning the paginated list.
 

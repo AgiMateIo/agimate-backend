@@ -1,10 +1,10 @@
-# device-api — Integration Credentials Endpoints
+# control-api — Integration Credentials Endpoints
 
-Detailed API specification for the `/manage/integrations/**` endpoint group in device-api. These endpoints manage a user's **integration credentials** — instances of configured platform integrations (e.g., a specific Telegram bot) — not the integration catalog itself.
+Detailed API specification for the `/manage/integrations/**` endpoint group in control-api. These endpoints manage a user's **integration credentials** — instances of configured platform integrations (e.g., a specific Telegram bot) — not the integration catalog itself.
 
-> Connector catalog and integration-platform metadata (required credential fields, webhook support) live under `/manage/connectors/**`. See [device-api-manage-connectors.md](device-api-manage-connectors.md).
+> Connector catalog and integration-platform metadata (required credential fields, webhook support) live under `/manage/connectors/**`. See [control-api-manage-connectors.md](control-api-manage-connectors.md).
 
-> All paths below are relative to the context path `/device`.
+> All paths below are relative to the context path `/control`.
 
 ## Authentication
 
@@ -42,7 +42,7 @@ All endpoints that return a credential use the following shape:
 
 ## Endpoints
 
-### GET `/device/manage/integrations/credentials/`
+### GET `/control/manage/integrations/credentials/`
 
 List integration credentials owned by the current user. Optionally filter by connector code.
 
@@ -73,7 +73,7 @@ Results are sorted by `createdAt` descending.
 
 ---
 
-### POST `/device/manage/integrations/credentials/`
+### POST `/control/manage/integrations/credentials/`
 
 Create a new integration credential. Credentials are validated against the platform API (e.g., Telegram `getMe`) before being persisted; the secret values are encrypted at rest (AES-GCM). If the platform supports webhooks, a webhook is registered with the platform as part of creation.
 
@@ -105,7 +105,7 @@ Create a new integration credential. Credentials are validated against the platf
 
 ---
 
-### GET `/device/manage/integrations/credentials/{credentialId}`
+### GET `/control/manage/integrations/credentials/{credentialId}`
 
 Get a single credential by its public ID. The caller must own the credential.
 
@@ -113,7 +113,7 @@ Get a single credential by its public ID. The caller must own the credential.
 
 ---
 
-### PATCH `/device/manage/integrations/credentials/{credentialId}/`
+### PATCH `/control/manage/integrations/credentials/{credentialId}/`
 
 Update mutable credential settings (enable/disable, display name). Does **not** change secret values — use `PUT .../secret` for that.
 
@@ -134,7 +134,7 @@ Update mutable credential settings (enable/disable, display name). Does **not** 
 
 ---
 
-### PUT `/device/manage/integrations/credentials/{credentialId}/secret`
+### PUT `/control/manage/integrations/credentials/{credentialId}/secret`
 
 Replace the secret values (credential field map) for an existing integration. The new credentials must belong to the same platform identity (e.g., the same bot) — otherwise the request is rejected. If the platform supports webhooks, the webhook is re-registered with the new credentials.
 
@@ -162,7 +162,7 @@ Replace the secret values (credential field map) for an existing integration. Th
 
 ---
 
-### DELETE `/device/manage/integrations/credentials/{credentialId}`
+### DELETE `/control/manage/integrations/credentials/{credentialId}`
 
 Soft-delete an integration credential. If the integration supports webhooks, the webhook is de-registered from the platform (best-effort — failures are logged but do not block deletion).
 
@@ -178,7 +178,7 @@ Soft-delete an integration credential. If the integration supports webhooks, the
 
 Expose what a given integration connector offers so the UI can render tool/trigger pickers before the user subscribes a skill or agent.
 
-### GET `/device/manage/integrations/tools/`
+### GET `/control/manage/integrations/tools/`
 
 List predefined tools for the given integration connector.
 
@@ -219,7 +219,7 @@ Each entry uses the same `ToolSpecificationResponse` shape as `GET /agent/tools/
 
 ---
 
-### GET `/device/manage/integrations/triggers/`
+### GET `/control/manage/integrations/triggers/`
 
 List predefined triggers for the given integration connector.
 

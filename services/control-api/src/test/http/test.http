@@ -1,4 +1,4 @@
-POST http://localhost:8180/device-api/device/trigger/new
+POST http://localhost:8180/control-api/control/trigger/new
 X-Device-Auth-Key: ***REMOVED***
 Content-Type: application/json
 

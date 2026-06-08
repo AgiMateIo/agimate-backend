@@ -23,7 +23,7 @@
 | `APP_OAUTH_FRONTEND_REDIRECT_URL` | Default frontend redirect URL after OAuth2 login     |
 | `APP_OAUTH_ALLOWED_REDIRECT_URLS` | Comma-separated whitelist for multi-domain redirects |
 
-### Centrifugo (device-api)
+### Centrifugo (control-api)
 
 | Variable                | Description                            |
 |-------------------------|----------------------------------------|
@@ -31,7 +31,7 @@
 | `CENTRIFUGO_PRIVATEKEY` | Centrifugo JWT signing private key     |
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT verification public key |
 
-### Generic Worker gRPC (device-api)
+### Generic Worker gRPC (control-api)
 
 | Variable                                | Description                                                       |
 |-----------------------------------------|-------------------------------------------------------------------|
@@ -40,7 +40,7 @@
 | `GRPC_SERVER_SECURITY_ENABLED`          | Enable TLS (must be `true` in production)                         |
 | `GRPC_SERVER_SECURITY_CERTIFICATECHAIN` | Path to PEM certificate chain                                     |
 | `GRPC_SERVER_SECURITY_PRIVATEKEY`       | Path to PEM private key                                           |
-| `WORKER_POOLS_AUTHKEYS_0`, ..._N        | Worker pool authkeys, one per pool. See `device-api-grpc-worker`. |
+| `WORKER_POOLS_AUTHKEYS_0`, ..._N        | Worker pool authkeys, one per pool. See `control-api-grpc-worker`. |
 
 ## Key Generation
 
@@ -69,7 +69,7 @@ Centrifugo uses the same ES256 key format as JWT. Generate using the JWT key gen
 | 8080 | All                  | HTTP API                                      |
 | 8088 | All                  | Management (health, metrics, prometheus)      |
 | 9090 | user-api             | gRPC server for internal s2s interactions     |
-| 9091 | device-api           | gRPC server for Generic Worker protocol (TLS) |
+| 9091 | control-api           | gRPC server for Generic Worker protocol (TLS) |
 
 ## Spring Profiles
 
@@ -88,7 +88,7 @@ Each service connects to its own PostgreSQL database:
 | Service        | Database         | Default URL                                         |
 |----------------|------------------|-----------------------------------------------------|
 | user-api       | am_user_db       | `jdbc:postgresql://localhost:5432/am_user_db`       |
-| device-api     | am_device_db     | `jdbc:postgresql://localhost:5432/am_device_db`     |
+| control-api     | am_control_db     | `jdbc:postgresql://localhost:5432/am_control_db`     |
 
 Configure via standard Spring datasource properties or environment variables:
 - `SPRING_DATASOURCE_URL`
@@ -100,7 +100,7 @@ Configure via standard Spring datasource properties or environment variables:
 ```bash
 # Create deployment JARs
 ./gradlew :user-api:bootJar
-./gradlew :device-api:bootJar
+./gradlew :control-api:bootJar
 ```
 
 JARs are created in `services/{service}/build/libs/`.
@@ -153,7 +153,7 @@ Key configuration options in `config.json`:
 
 For production, ensure:
 1. Generate new keys (do not use development keys)
-2. Set `CENTRIFUGO_APIKEY` in device-api to match `http_api.key`
-3. Set `CENTRIFUGO_PUBLICKEY` in device-api to match `client.token.ecdsa_public_key`
+2. Set `CENTRIFUGO_APIKEY` in control-api to match `http_api.key`
+3. Set `CENTRIFUGO_PUBLICKEY` in control-api to match `client.token.ecdsa_public_key`
 4. Configure `allowed_origins` appropriately
 5. Disable admin UI or use strong credentials

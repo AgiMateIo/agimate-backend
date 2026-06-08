@@ -9,7 +9,7 @@ import ru.agimate.controlapi.util.GeneratedAppKey;
 /**
  * Manual generator for worker pool authkeys. Disabled by default.
  * <p>
- * Run: {@code ./gradlew :device-api:test --tests "*WorkerAuthkeyGeneratorTest" -Dgenerate.worker.authkey=true}
+ * Run: {@code ./gradlew :control-api:test --tests "*WorkerAuthkeyGeneratorTest" -Dgenerate.worker.authkey=true}
  */
 class WorkerAuthkeyGeneratorTest {
 

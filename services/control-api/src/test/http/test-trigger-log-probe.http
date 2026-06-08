@@ -1,7 +1,7 @@
 ### --- Trigger log probe (discovery flow) --- ###
 
 ### Issue a probe code (block mode — default). Probe-bearing triggers are saved but NOT delivered to agents.
-POST http://localhost:8180/device/manage/trigger-logs/probe
+POST http://localhost:8180/control/manage/trigger-logs/probe
 Authorization: Bearer {{jwt}}
 Content-Type: application/json
 
@@ -15,7 +15,7 @@ Content-Type: application/json
 %}
 
 ### Issue a probe code (pass mode — normal delivery, useful for diagnosing routing).
-POST http://localhost:8180/device/manage/trigger-logs/probe
+POST http://localhost:8180/control/manage/trigger-logs/probe
 Authorization: Bearer {{jwt}}
 Content-Type: application/json
 
@@ -25,7 +25,7 @@ Content-Type: application/json
 
 ### Simulate sending a trigger that contains the probe code (replace x-api-key with an active app key).
 ### Embed {{probeCode}} anywhere in the JSON payload.
-POST http://localhost:8180/device/app/trigger/new
+POST http://localhost:8180/control/app/trigger/new
 x-api-key: REPLACE_WITH_APP_KEY
 Content-Type: application/json
 
@@ -39,9 +39,9 @@ Content-Type: application/json
 }
 
 ### Poll for match (UI calls this every 1-2s). Returns matched=false until the trigger arrives.
-GET http://localhost:8180/device/manage/trigger-logs/probe/match?code={{probeCode}}&since={{probeIssuedAt}}
+GET http://localhost:8180/control/manage/trigger-logs/probe/match?code={{probeCode}}&since={{probeIssuedAt}}
 Authorization: Bearer {{jwt}}
 
 ### Invalid probe code format -> 400
-GET http://localhost:8180/device/manage/trigger-logs/probe/match?code=garbage&since={{probeIssuedAt}}
+GET http://localhost:8180/control/manage/trigger-logs/probe/match?code=garbage&since={{probeIssuedAt}}
 Authorization: Bearer {{jwt}}

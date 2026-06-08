@@ -1,4 +1,4 @@
-# device-api — Channel Endpoints
+# control-api — Channel Endpoints
 
 API specification for `/manage/channels/**` — управление **каналами**: декларативная связка между диалоговым триггером (сообщение пользователя в Telegram-чат, веб-форме и т.п.) и обратным каналом доставки ответа агента (tool-call на коннекторе с шаблоном параметров).
 
@@ -9,7 +9,7 @@ API specification for `/manage/channels/**` — управление **кана�
 
 Когда worker / агент хочет ответить, он использует gRPC-методы `ChannelGateway.ListChannels` / `ChannelGateway.SendChannelMessage` (см. `agimate-worker-protocol-spec.md`). UI на этот путь не влияет — он только описывает каналы и просматривает историю сессий.
 
-> Все пути ниже — относительно context path `/device`.
+> Все пути ниже — относительно context path `/control`.
 
 ## Authentication
 
@@ -130,7 +130,7 @@ Backend перед вызовом tool'а проходит по `replyToolParams
 
 ## Endpoints
 
-### GET `/device/manage/channels/`
+### GET `/control/manage/channels/`
 
 Список всех каналов пользователя (без пагинации, soft-deleted исключены).
 
@@ -173,13 +173,13 @@ Backend перед вызовом tool'а проходит по `replyToolParams
 
 ---
 
-### GET `/device/manage/channels/{pubId}`
+### GET `/control/manage/channels/{pubId}`
 
 Один канал по pubId.
 
 ---
 
-### POST `/device/manage/channels/`
+### POST `/control/manage/channels/`
 
 Создаёт канал и одновременно `AgentTriggerPolicy(effect=ALLOW, channel_id=<new>, input_filter=<optional>)`. Если для тех же `(agent, connector, identity, triggerName)` уже была ALLOW-policy **без** channel_id, она апгрейдится — присваивается `channel_id` и `input_filter`.
 
@@ -228,7 +228,7 @@ Backend перед вызовом tool'а проходит по `replyToolParams
 
 ---
 
-### PATCH `/device/manage/channels/{pubId}`
+### PATCH `/control/manage/channels/{pubId}`
 
 Частичное обновление. Все поля опциональны.
 
@@ -254,7 +254,7 @@ Backend перед вызовом tool'а проходит по `replyToolParams
 
 ---
 
-### DELETE `/device/manage/channels/{pubId}`
+### DELETE `/control/manage/channels/{pubId}`
 
 Soft delete (`deletedAt = NOW()`). Канал перестаёт получать триггеры (FK `agent_trigger_policies.channel_id` остаётся, но в SQL-фильтре `deletedAt IS NULL` канал исключается). Связанная policy не удаляется автоматически — если нужно, удаляйте отдельно через `/manage/agent-trigger-policies/`.
 
@@ -266,7 +266,7 @@ Soft delete (`deletedAt = NOW()`). Канал перестаёт получат�
 
 ## Sessions
 
-### GET `/device/manage/channels/{pubId}/sessions/`
+### GET `/control/manage/channels/{pubId}/sessions/`
 
 Все сессии канала, отсортированы по `lastMessageAt` DESC (активные сверху).
 
@@ -287,7 +287,7 @@ Soft delete (`deletedAt = NOW()`). Канал перестаёт получат�
 
 ---
 
-### GET `/device/manage/channels/sessions/{sessionPubId}/messages/`
+### GET `/control/manage/channels/sessions/{sessionPubId}/messages/`
 
 Сообщения сессии в хронологическом порядке (старые сверху).
 
@@ -315,7 +315,7 @@ Soft delete (`deletedAt = NOW()`). Канал перестаёт получат�
 
 ---
 
-### POST `/device/manage/channels/sessions/{sessionPubId}/close`
+### POST `/control/manage/channels/sessions/{sessionPubId}/close`
 
 Закрывает сессию (выставляет `closedAt = NOW()`). Идемпотентно — повторный вызов на уже закрытой сессии возвращает то же состояние, ничего не меняя.
 

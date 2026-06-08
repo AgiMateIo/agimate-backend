@@ -1,12 +1,12 @@
 ### Old smoke check ###
-GET localhost:8180/device/agent/tools/telegram
+GET localhost:8180/control/agent/tools/telegram
 x-api-key: ***REMOVED***
 
 
 ### --- LLM providers (management, JWT) --- ###
 
 ### Create LLM provider (OpenAI)
-POST http://localhost:8180/device/manage/llm-providers/
+POST http://localhost:8180/control/manage/llm-providers/
 Authorization: Bearer {{jwt}}
 Content-Type: application/json
 
@@ -18,15 +18,15 @@ Content-Type: application/json
 }
 
 ### List LLM providers
-GET http://localhost:8180/device/manage/llm-providers/
+GET http://localhost:8180/control/manage/llm-providers/
 Authorization: Bearer {{jwt}}
 
 ### Get LLM provider
-GET http://localhost:8180/device/manage/llm-providers/{{llmProviderPubId}}
+GET http://localhost:8180/control/manage/llm-providers/{{llmProviderPubId}}
 Authorization: Bearer {{jwt}}
 
 ### Update LLM provider (rotate api_key)
-PATCH http://localhost:8180/device/manage/llm-providers/{{llmProviderPubId}}
+PATCH http://localhost:8180/control/manage/llm-providers/{{llmProviderPubId}}
 Authorization: Bearer {{jwt}}
 Content-Type: application/json
 
@@ -35,18 +35,18 @@ Content-Type: application/json
 }
 
 ### Refresh available models
-POST http://localhost:8180/device/manage/llm-providers/{{llmProviderPubId}}/refresh-models
+POST http://localhost:8180/control/manage/llm-providers/{{llmProviderPubId}}/refresh-models
 Authorization: Bearer {{jwt}}
 
 ### Delete LLM provider (cascades to agent bindings)
-DELETE http://localhost:8180/device/manage/llm-providers/{{llmProviderPubId}}
+DELETE http://localhost:8180/control/manage/llm-providers/{{llmProviderPubId}}
 Authorization: Bearer {{jwt}}
 
 
 ### --- Agent ↔ LLM bindings (management, JWT) --- ###
 
 ### Create binding "main_model"
-POST http://localhost:8180/device/manage/agents/{{agentPubId}}/llms/
+POST http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/
 Authorization: Bearer {{jwt}}
 Content-Type: application/json
 
@@ -57,7 +57,7 @@ Content-Type: application/json
 }
 
 ### Create binding "for_light_task"
-POST http://localhost:8180/device/manage/agents/{{agentPubId}}/llms/
+POST http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/
 Authorization: Bearer {{jwt}}
 Content-Type: application/json
 
@@ -68,11 +68,11 @@ Content-Type: application/json
 }
 
 ### List bindings
-GET http://localhost:8180/device/manage/agents/{{agentPubId}}/llms/
+GET http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/
 Authorization: Bearer {{jwt}}
 
 ### Replace binding (change model)
-PUT http://localhost:8180/device/manage/agents/{{agentPubId}}/llms/main_model
+PUT http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/main_model
 Authorization: Bearer {{jwt}}
 Content-Type: application/json
 
@@ -82,16 +82,16 @@ Content-Type: application/json
 }
 
 ### Delete binding
-DELETE http://localhost:8180/device/manage/agents/{{agentPubId}}/llms/for_light_task
+DELETE http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/for_light_task
 Authorization: Bearer {{jwt}}
 
 
 ### --- Agent runtime (X-Api-Key) --- ###
 
 ### List all LLM bindings (with decrypted apiKey)
-GET http://localhost:8180/device/agent/llm
+GET http://localhost:8180/control/agent/llm
 x-api-key: ***REMOVED***
 
 ### Get one binding by name
-GET http://localhost:8180/device/agent/llm/main_model
+GET http://localhost:8180/control/agent/llm/main_model
 x-api-key: ***REMOVED***

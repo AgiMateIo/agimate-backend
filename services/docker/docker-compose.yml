@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_USER: agimate
       POSTGRES_PASSWORD: agimate_dev_password
-      POSTGRES_MULTIPLE_DATABASES: am_core_db,am_device_db
+      POSTGRES_MULTIPLE_DATABASES: am_core_db,am_control_db
     ports:
       - "5432:5432"
     volumes:
@@ -22,7 +22,7 @@ services:
     networks:
       - agimate-network
 
-  # Centrifugo for real-time messaging (used by device-api)
+  # Centrifugo for real-time messaging (used by control-api)
   centrifugo:
     image: centrifugo/centrifugo:v6
     container_name: agimate-centrifugo
@@ -65,12 +65,12 @@ services:
       - agimate-network
     restart: unless-stopped
 
-  # Device API Service
-  device-api:
+  # Control API Service
+  control-api:
     build:
       context: ..
-      dockerfile: device-api/Dockerfile
-    container_name: agimate-device-api
+      dockerfile: control-api/Dockerfile
+    container_name: agimate-control-api
     depends_on:
       postgres:
         condition: service_healthy
@@ -80,7 +80,7 @@ services:
       - ../.env
     environment:
       SPRING_PROFILES_ACTIVE: develop
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_device_db
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_control_db
       SPRING_DATASOURCE_USERNAME: agimate
       SPRING_DATASOURCE_PASSWORD: agimate_dev_password
       JWT_PUBLICKEY: ${JWT_PUBLICKEY}
