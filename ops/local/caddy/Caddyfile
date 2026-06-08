@@ -19,7 +19,7 @@ http://api.agimate.lc:8000 {
 		reverse_proxy localhost:8080
 	}
 
-	handle /device/* {
+	handle /control/* {
 		reverse_proxy localhost:8180
 	}
 
