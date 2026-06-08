@@ -10,12 +10,9 @@ import ru.agimate.controlapi.connectors.integrations.IntegrationsRegistry;
 import ru.agimate.controlapi.connectors.integrations.events.IntegrationCreatedEvent;
 import ru.agimate.controlapi.connectors.integrations.events.IntegrationDeletedEvent;
 import ru.agimate.controlapi.database.entities.IntegrationCredentials;
-import ru.agimate.controlapi.database.enums.ConnectorTaskType;
 import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Превращает события lifecycle интеграций в строки {@code connector_tasks}.
@@ -58,13 +55,8 @@ public class IntegrationTaskListener {
         }
         TaskScope scope = TaskScope.integration(creds.getId());
         for (TaskDescriptor descriptor : descriptors) {
-            taskService.upsert(
-                    event.connectorCode(),
-                    scope,
-                    descriptor.taskCode(),
-                    creds.getPlatformIdentifier(),
-                    typeOf(descriptor),
-                    configOf(descriptor));
+            taskService.upsertFromDescriptor(
+                    event.connectorCode(), scope, creds.getPlatformIdentifier(), descriptor);
             log.info("Registered background task {}/{}/{} for integration {}",
                     event.connectorCode(), descriptor.taskCode(), creds.getPlatformIdentifier(), creds.getId());
         }
@@ -79,24 +71,5 @@ public class IntegrationTaskListener {
             log.info("Removed {} background task row(s) for integration {} ({})",
                     removed, event.integrationId(), event.connectorCode());
         }
-    }
-
-    private static ConnectorTaskType typeOf(TaskDescriptor descriptor) {
-        return switch (descriptor) {
-            case TaskDescriptor.Periodic ignored -> ConnectorTaskType.PERIODIC;
-            case TaskDescriptor.Cron ignored -> ConnectorTaskType.CRON;
-        };
-    }
-
-    private static Map<String, Object> configOf(TaskDescriptor descriptor) {
-        Map<String, Object> config = new LinkedHashMap<>();
-        switch (descriptor) {
-            case TaskDescriptor.Periodic p -> config.put("intervalSeconds", p.interval().toSeconds());
-            case TaskDescriptor.Cron c -> {
-                config.put("cron", c.cronExpression());
-                config.put("zone", c.zone().getId());
-            }
-        }
-        return config;
     }
 }

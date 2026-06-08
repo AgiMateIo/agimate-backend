@@ -11,6 +11,7 @@ import ru.agimate.controlapi.database.repositories.ConnectorTaskRepository;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -72,6 +73,31 @@ public class ConnectorTaskService {
         row.setConfig(config);
 
         return repository.save(row);
+    }
+
+    /**
+     * Удобный upsert из {@link TaskDescriptor}: подбирает {@link ConnectorTaskType} и сериализует
+     * параметры расписания в {@code config}. Используется обоими «писателями» — listener'ом
+     * интеграций и bootstrap'ом internal Global задач.
+     */
+    @Transactional
+    public ConnectorTask upsertFromDescriptor(String connectorCode,
+                                              TaskScope scope,
+                                              String identity,
+                                              TaskDescriptor descriptor) {
+        ConnectorTaskType taskType = switch (descriptor) {
+            case TaskDescriptor.Periodic ignored -> ConnectorTaskType.PERIODIC;
+            case TaskDescriptor.Cron ignored -> ConnectorTaskType.CRON;
+        };
+        Map<String, Object> config = new LinkedHashMap<>();
+        switch (descriptor) {
+            case TaskDescriptor.Periodic p -> config.put("intervalSeconds", p.interval().toSeconds());
+            case TaskDescriptor.Cron c -> {
+                config.put("cron", c.cronExpression());
+                config.put("zone", c.zone().getId());
+            }
+        }
+        return upsert(connectorCode, scope, descriptor.taskCode(), identity, taskType, config);
     }
 
     @Transactional

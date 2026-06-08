@@ -384,7 +384,10 @@ public class TelegramHandler extends BaseIntegrationHandler {
             try {
                 telegramApiClient.deleteWebhook(token);
             } catch (Exception e) {
-                log.warn("Failed to deleteWebhook before polling for {}: {}", id, e.getMessage());
+                // Не логируем e.getMessage() / не передаём cause: Spring RestClient может вложить
+                // URL вида /bot{token}/... в текст или стек, что утечёт токен в логи.
+                log.warn("Failed to deleteWebhook before polling for {}: {}",
+                        id, e.getClass().getSimpleName());
                 webhookDeleted.remove(id); // дать шанс ретраю на следующем tick'е
             }
         }
@@ -395,8 +398,13 @@ public class TelegramHandler extends BaseIntegrationHandler {
             response = telegramApiClient.getUpdates(token, offset, LONG_POLL_TIMEOUT_SEC);
         } catch (HttpClientErrorException.Conflict e) {
             // Другой процесс держит getUpdates с этим токеном — пусть scheduler подождёт 60s.
+            // Cause не пробрасываем — см. комментарий выше про утечку URL c токеном.
             throw new IllegalStateException(
-                    "Telegram 409 Conflict — another process holds long-poll for this bot", e);
+                    "Telegram 409 Conflict — another process holds long-poll for this bot");
+        } catch (Exception e) {
+            // Любая другая transport-ошибка телеги: только класс исключения, без message/cause.
+            throw new IllegalStateException(
+                    "Telegram getUpdates failed: " + e.getClass().getSimpleName());
         }
         if (!Boolean.TRUE.equals(response.get("ok"))) {
             throw new IllegalStateException("Telegram getUpdates failed: " + response.get("description"));
