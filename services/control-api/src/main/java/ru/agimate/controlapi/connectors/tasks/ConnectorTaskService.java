@@ -3,6 +3,7 @@ package ru.agimate.controlapi.connectors.tasks;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.database.entities.ConnectorTask;
 import ru.agimate.controlapi.database.enums.ConnectorTaskStatus;
@@ -33,7 +34,11 @@ public class ConnectorTaskService {
 
     private final ConnectorTaskRepository repository;
 
-    @Transactional(readOnly = true)
+    /**
+     * Не {@code readOnly} — внутри pickup делает UPDATE ... RETURNING. Дефолтный {@code REQUIRED}
+     * propagation у repo impl присоединился бы к внешней readOnly‑транзакции и упал на PG уровне.
+     */
+    @Transactional
     public List<ConnectorTask> claimReady(Duration leaseDuration, int batchSize) {
         return repository.claimReady(LocalDateTime.now(), leaseDuration, batchSize);
     }
@@ -79,8 +84,14 @@ public class ConnectorTaskService {
      * Удобный upsert из {@link TaskDescriptor}: подбирает {@link ConnectorTaskType} и сериализует
      * параметры расписания в {@code config}. Используется обоими «писателями» — listener'ом
      * интеграций и bootstrap'ом internal Global задач.
+     *
+     * <p>{@code REQUIRES_NEW} нужен потому, что метод вызывается из
+     * {@code @TransactionalEventListener(AFTER_COMMIT)} — там outer‑транзакция уже committed,
+     * но её EntityManagerHolder ещё привязан к потоку. REQUIRED participate'нулся бы к мёртвой
+     * транзакции и упал на «No active transaction». REQUIRES_NEW suspend'ит stale holder и
+     * стартует чистую tx.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ConnectorTask upsertFromDescriptor(String connectorCode,
                                               TaskScope scope,
                                               String identity,
@@ -100,7 +111,8 @@ public class ConnectorTaskService {
         return upsert(connectorCode, scope, descriptor.taskCode(), identity, taskType, config);
     }
 
-    @Transactional
+    /** {@code REQUIRES_NEW} по той же причине, что и {@link #upsertFromDescriptor(...)} — вызов из AFTER_COMMIT listener'а. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int deleteByScope(String connectorCode, TaskScope scope) {
         return repository.deleteByScope(connectorCode, scope.kind(), scope.id());
     }

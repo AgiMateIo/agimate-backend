@@ -9,11 +9,15 @@ import ru.agimate.common.persistence.BaseEntity;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+/**
+ * Уникальность {@code (connector_code, user_id, platform_identifier)} обеспечивается
+ * partial unique index'ом в БД (см. миграцию {@code 2026/06/08-03-integration-credentials-partial-unique.xml}):
+ * индекс действует только для активных строк {@code WHERE deleted_at IS NULL}, поэтому
+ * soft-deleted записи не блокируют повторное создание интеграции с тем же платформенным
+ * идентификатором. {@code @UniqueConstraint} в JPA не умеет в partial — не декларируем.
+ */
 @Entity
-@Table(name = "integration_credentials", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_integration_credentials_connector_user_identifier",
-                columnNames = {"connector_code", "user_id", "platform_identifier"})
-})
+@Table(name = "integration_credentials")
 @Getter
 @Setter
 @Builder
