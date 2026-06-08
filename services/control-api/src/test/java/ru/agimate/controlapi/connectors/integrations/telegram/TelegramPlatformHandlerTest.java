@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.controlapi.database.entities.IntegrationCredentials;
+import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 import tools.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -32,12 +33,15 @@ class TelegramPlatformHandlerTest {
     @Mock
     private IntegrationEncryptionService encryptionService;
 
+    @Mock
+    private TriggerRouterService triggerRouterService;
+
     private TelegramHandler handler;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
-        handler = new TelegramHandler(encryptionService, telegramApiClient, objectMapper, "webhook");
+        handler = new TelegramHandler(encryptionService, telegramApiClient, objectMapper, triggerRouterService, "webhook");
     }
 
     @Test

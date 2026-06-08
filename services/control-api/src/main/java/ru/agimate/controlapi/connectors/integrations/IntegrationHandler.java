@@ -2,6 +2,7 @@ package ru.agimate.controlapi.connectors.integrations;
 
 import dev.langchain4j.agent.tool.ToolSpecification;
 import jakarta.servlet.http.HttpServletRequest;
+import ru.agimate.controlapi.connectors.tasks.TaskDescriptor;
 import ru.agimate.controlapi.database.entities.IntegrationCredentials;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -51,5 +52,20 @@ public interface IntegrationHandler {
 
     default boolean validateWebhookRequest(IntegrationCredentials integrationCredentials, HttpServletRequest request) {
         return false;
+    }
+
+    /**
+     * Фоновые задачи, которые должны крутиться, пока эта интеграция активна. Listener
+     * ({@code IntegrationTaskListener}) перехватывает {@code IntegrationCreatedEvent} и
+     * транслирует возвращённые дескрипторы в строки {@code connector_tasks}; resolver
+     * ({@code IntegrationTaskResolver}) на каждом тике scheduler'а ищет по {@code task_code}
+     * соответствующий {@code Task} в этом же списке.
+     *
+     * <p>Поле {@code scope} на дескрипторе игнорируется — listener всегда подставляет
+     * {@code TaskScope.integration(credentials.getId())}. Handler может ставить любое, например
+     * {@code TaskScope.global()} как placeholder.
+     */
+    default List<TaskDescriptor> getBackgroundTasks(IntegrationCredentials credentials) {
+        return List.of();
     }
 }

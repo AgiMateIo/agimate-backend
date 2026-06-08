@@ -6,16 +6,22 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import ru.agimate.controlapi.database.entities.IntegrationCredentials;
+import org.springframework.web.client.HttpClientErrorException;
 import ru.agimate.controlapi.connectors.integrations.BaseIntegrationHandler;
 import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.tasks.TaskDescriptor;
+import ru.agimate.controlapi.connectors.tasks.TaskScope;
+import ru.agimate.controlapi.database.entities.IntegrationCredentials;
 import ru.agimate.controlapi.service.trigger.Trigger;
+import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -24,7 +30,9 @@ public class TelegramHandler extends BaseIntegrationHandler {
     public static final String CONNECTOR_CODE = "telegram";
     public static final String MODE_WEBHOOK = "webhook";
     public static final String MODE_POLLING = "polling";
+    public static final String TASK_LONG_POLL = "long-poll";
     private static final String HEADER_SECRET_TOKEN = "X-Telegram-Bot-Api-Secret-Token";
+    private static final int LONG_POLL_TIMEOUT_SEC = 20;
 
     /** Telegram's hard limit for a single sendMessage/editMessageText text (UTF-16 code units, == String.length()). */
     static final int MAX_MESSAGE_LENGTH = 4096;
@@ -34,15 +42,29 @@ public class TelegramHandler extends BaseIntegrationHandler {
 
     private final TelegramApiClient telegramApiClient;
     private final ObjectMapper objectMapper;
+    private final TriggerRouterService triggerRouterService;
     private final String mode;
+
+    /**
+     * Per‑integration cache long‑poll'а:
+     *   {@code offsets} — следующий update_id, передаваемый в getUpdates;
+     *   {@code webhookDeleted} — флаг «уже вызывали deleteWebhook» (Telegram не любит держать
+     *   и webhook, и getUpdates одновременно — 409 Conflict).
+     * Состояние live до рестарта процесса. Восстанавливать после рестарта необязательно:
+     * Telegram сам отдаст неподтверждённые updates на запрос без offset.
+     */
+    private final Map<UUID, Long> offsets = new ConcurrentHashMap<>();
+    private final Set<UUID> webhookDeleted = ConcurrentHashMap.newKeySet();
 
     public TelegramHandler(IntegrationEncryptionService encryptionService,
                            TelegramApiClient telegramApiClient,
                            ObjectMapper objectMapper,
+                           TriggerRouterService triggerRouterService,
                            @Value("${app.integration.telegram.mode:webhook}") String mode) {
         super(encryptionService);
         this.telegramApiClient = telegramApiClient;
         this.objectMapper = objectMapper;
+        this.triggerRouterService = triggerRouterService;
         this.mode = mode;
     }
 
@@ -326,6 +348,82 @@ public class TelegramHandler extends BaseIntegrationHandler {
                 "params", List.of("callbackQueryId", "data", "chatId", "messageId", "from")
         ));
         return triggers;
+    }
+
+    @Override
+    public List<TaskDescriptor> getBackgroundTasks(IntegrationCredentials credentials) {
+        if (!isPollingMode()) {
+            return List.of();
+        }
+        // interval=ZERO — pull-based scheduler сразу поставит next_run_at=now и подхватит
+        // строку на следующем тике (≤1с). Один tick = один getUpdates(timeout=20s).
+        return List.of(new TaskDescriptor.Periodic(
+                TaskScope.global(), // listener подставит integration scope
+                TASK_LONG_POLL,
+                () -> longPollTick(credentials),
+                Duration.ZERO));
+    }
+
+    /**
+     * Одна итерация long‑polling'а: при необходимости снимаем webhook у Telegram, делаем
+     * {@code getUpdates(timeout=20s)}, диспатчим полученные обновления через
+     * {@link TriggerRouterService}, обновляем offset в памяти.
+     *
+     * <p>На любой ошибке scheduler ставит {@code next_run_at = now + 60s} (общий error retry).
+     * На успехе — {@code now + 0s}, и следующий tick подхватит строку сразу же.
+     */
+    @SuppressWarnings("unchecked")
+    private void longPollTick(IntegrationCredentials credentials) throws Exception {
+        UUID id = credentials.getId();
+        String token = decryptCredentials(credentials).get("token");
+        if (token == null || token.isBlank()) {
+            throw new IllegalStateException("Integration " + id + " has no telegram token");
+        }
+
+        if (webhookDeleted.add(id)) {
+            try {
+                telegramApiClient.deleteWebhook(token);
+            } catch (Exception e) {
+                log.warn("Failed to deleteWebhook before polling for {}: {}", id, e.getMessage());
+                webhookDeleted.remove(id); // дать шанс ретраю на следующем tick'е
+            }
+        }
+
+        Long offset = offsets.get(id);
+        Map<String, Object> response;
+        try {
+            response = telegramApiClient.getUpdates(token, offset, LONG_POLL_TIMEOUT_SEC);
+        } catch (HttpClientErrorException.Conflict e) {
+            // Другой процесс держит getUpdates с этим токеном — пусть scheduler подождёт 60s.
+            throw new IllegalStateException(
+                    "Telegram 409 Conflict — another process holds long-poll for this bot", e);
+        }
+        if (!Boolean.TRUE.equals(response.get("ok"))) {
+            throw new IllegalStateException("Telegram getUpdates failed: " + response.get("description"));
+        }
+
+        List<Map<String, Object>> updates = (List<Map<String, Object>>) response.get("result");
+        if (updates == null || updates.isEmpty()) {
+            return;
+        }
+        for (Map<String, Object> update : updates) {
+            Number updateId = (Number) update.get("update_id");
+            if (updateId != null) {
+                offsets.put(id, updateId.longValue() + 1);
+            }
+            dispatch(credentials, update);
+        }
+    }
+
+    private void dispatch(IntegrationCredentials credentials, Map<String, Object> update) {
+        try {
+            String rawBody = objectMapper.writeValueAsString(update);
+            Trigger trigger = normalizeInbound(credentials, rawBody);
+            triggerRouterService.routeWhTrigger(credentials, trigger);
+        } catch (Exception e) {
+            log.error("Failed to dispatch update for integration {}: {}",
+                    credentials.getId(), e.getMessage());
+        }
     }
 
     @Override

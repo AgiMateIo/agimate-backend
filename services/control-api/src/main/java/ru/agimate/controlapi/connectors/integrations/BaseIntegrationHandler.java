@@ -20,7 +20,7 @@ public abstract class BaseIntegrationHandler implements IntegrationHandler {
 
     private static final ThreadLocal<ToolExecutionContext> CONTEXT = new ThreadLocal<>();
 
-    private final IntegrationEncryptionService encryptionService;
+    protected final IntegrationEncryptionService encryptionService;
 
     protected IntegrationCredentials integrationCredentials() {
         return CONTEXT.get().integrationCredentials();
@@ -28,6 +28,14 @@ public abstract class BaseIntegrationHandler implements IntegrationHandler {
 
     protected Map<String, String> credentials() {
         return CONTEXT.get().credentials();
+    }
+
+    /**
+     * Расшифровка credentials вне ThreadLocal‑контекста {@code executeTool} —
+     * для фоновых задач ({@code getBackgroundTasks}), которые не проходят через инструменты.
+     */
+    protected Map<String, String> decryptCredentials(IntegrationCredentials credentials) {
+        return encryptionService.decryptCredentials(credentials.getEncryptedData());
     }
 
     @Override
