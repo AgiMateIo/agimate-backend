@@ -5,3 +5,5 @@ databaseChangeLog:
   - includeAll:
       path: updates
       relativeToChangelogFile: true
+      # updates/ is organised as YYYY/MM/DD-NN-name.xml; pick up nested files
+      recursive: true

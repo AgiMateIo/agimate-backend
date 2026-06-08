@@ -52,7 +52,7 @@ public class LlmProvider extends BaseEntity {
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "available_models", columnDefinition = "JSONB")
-    private List<String> availableModels;
+    private List<LlmModelInfo> availableModels;
 
     @Column(name = "models_refreshed_at")
     private LocalDateTime modelsRefreshedAt;

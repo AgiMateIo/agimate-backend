@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.llm;
 
+import ru.agimate.controlapi.database.entities.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 
@@ -9,5 +10,5 @@ public interface LlmModelDiscoveryStrategy {
 
     LlmProviderType type();
 
-    List<String> listModels(LlmProvider provider, String decryptedApiKey);
+    List<LlmModelInfo> listModels(LlmProvider provider, String decryptedApiKey);
 }

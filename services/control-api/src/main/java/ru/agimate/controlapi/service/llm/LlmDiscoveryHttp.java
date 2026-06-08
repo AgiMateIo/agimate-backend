@@ -7,6 +7,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.database.entities.LlmModelInfo;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,7 +33,20 @@ public class LlmDiscoveryHttp {
                 .build();
     }
 
-    public static List<String> extractIds(ClientHttpResponse response, String arrayKey, String idKey) throws IOException {
+    /**
+     * Extracts model entries from a provider's "list models" response.
+     *
+     * @param arrayKey       the JSON key under which the array of model objects lives (e.g. {@code "data"} or {@code "models"}).
+     * @param idKey          field on each entry holding the model id.
+     * @param displayNameKey optional field on each entry holding the human-readable name; pass {@code null} if the provider
+     *                       doesn't expose one — {@link LlmModelInfo#displayName()} will be {@code null}.
+     */
+    public static List<LlmModelInfo> extractModels(
+            ClientHttpResponse response,
+            String arrayKey,
+            String idKey,
+            String displayNameKey
+    ) throws IOException {
         if (!response.getStatusCode().is2xxSuccessful()) {
             String body = readBody(response.getBody());
             log.warn("LLM models endpoint returned {}: {}", response.getStatusCode(), body);
@@ -46,12 +60,26 @@ public class LlmDiscoveryHttp {
             return List.of();
         }
         return list.stream()
-                .filter(it -> it instanceof Map)
-                .map(it -> (Map<?, ?>) it)
-                .map(it -> it.get(idKey))
-                .filter(it -> it instanceof String)
-                .map(Object::toString)
+                .filter(Map.class::isInstance)
+                .map(Map.class::cast)
+                .map(entry -> toModelInfo(entry, idKey, displayNameKey))
+                .filter(it -> it != null)
                 .toList();
+    }
+
+    private static LlmModelInfo toModelInfo(Map<?, ?> entry, String idKey, String displayNameKey) {
+        Object id = entry.get(idKey);
+        if (!(id instanceof String idStr) || idStr.isBlank()) {
+            return null;
+        }
+        String displayName = null;
+        if (displayNameKey != null) {
+            Object raw = entry.get(displayNameKey);
+            if (raw instanceof String s && !s.isBlank()) {
+                displayName = s;
+            }
+        }
+        return new LlmModelInfo(idStr, displayName);
     }
 
     private static String readBody(InputStream is) throws IOException {

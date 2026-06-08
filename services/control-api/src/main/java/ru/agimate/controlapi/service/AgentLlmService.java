@@ -14,6 +14,7 @@ import ru.agimate.controlapi.controller.manage.dto.llm.CreateAgentLlmRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateAgentLlmRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
+import ru.agimate.controlapi.database.entities.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
@@ -165,16 +166,18 @@ public class AgentLlmService {
     }
 
     private void validateModel(LlmProvider provider, String model) {
-        List<String> models = provider.getAvailableModels();
+        List<LlmModelInfo> models = provider.getAvailableModels();
         if (models == null || models.isEmpty()) {
             log.warn("LLM provider {} has no availableModels list — skipping model validation for '{}'",
                     provider.getId(), model);
             return;
         }
-        if (!models.contains(model)) {
+        boolean matches = models.stream().anyMatch(m -> model.equals(m.id()));
+        if (!matches) {
+            List<String> ids = models.stream().map(LlmModelInfo::id).toList();
             throw new BadRequestStatusException(
                     "Model '" + model + "' is not in the provider's available models. "
-                            + "Refresh models or use one of: " + models);
+                            + "Refresh models or use one of: " + ids);
         }
     }
 }

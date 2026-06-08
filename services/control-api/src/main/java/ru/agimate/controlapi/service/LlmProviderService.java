@@ -13,12 +13,14 @@ import ru.agimate.controlapi.controller.manage.dto.llm.CreateLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.RefreshModelsResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest;
+import ru.agimate.controlapi.database.entities.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.service.llm.LlmModelDiscoveryService;
 
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -116,7 +118,10 @@ public class LlmProviderService {
     public RefreshModelsResponse refreshModels(UUID id, UUID userId) {
         LlmProvider provider = requireOwned(id, userId);
         String apiKey = decryptApiKey(provider);
-        List<String> models = modelDiscoveryService.discover(provider, apiKey);
+        // Sort by id (always present), falling back to nothing else — displayName is optional.
+        List<LlmModelInfo> models = modelDiscoveryService.discover(provider, apiKey).stream()
+                .sorted(Comparator.comparing(LlmModelInfo::id, Comparator.nullsLast(String::compareTo)))
+                .toList();
 
         provider.setAvailableModels(models);
         provider.setModelsRefreshedAt(LocalDateTime.now());
@@ -153,11 +158,16 @@ public class LlmProviderService {
         if (apiKey.length() <= 4) {
             return "****";
         }
-        String tail = apiKey.substring(apiKey.length() - 4);
         int prefixEnd = apiKey.indexOf('-');
         String prefix = prefixEnd > 0 && prefixEnd <= 6
                 ? apiKey.substring(0, prefixEnd + 1)
                 : "";
-        return prefix + "..." + tail;
+        int remaining = apiKey.length() - prefix.length();
+        if (remaining <= 8) {
+            return prefix + "****";
+        }
+        String head = apiKey.substring(prefix.length(), prefix.length() + 4);
+        String tail = apiKey.substring(apiKey.length() - 4);
+        return prefix + head + "..." + tail;
     }
 }

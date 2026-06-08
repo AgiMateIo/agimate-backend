@@ -3,6 +3,7 @@ package ru.agimate.controlapi.service.llm;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.controlapi.database.entities.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 
@@ -22,7 +23,7 @@ public class LlmModelDiscoveryService {
                 .collect(Collectors.toUnmodifiableMap(LlmModelDiscoveryStrategy::type, Function.identity()));
     }
 
-    public List<String> discover(LlmProvider provider, String decryptedApiKey) {
+    public List<LlmModelInfo> discover(LlmProvider provider, String decryptedApiKey) {
         LlmModelDiscoveryStrategy strategy = strategies.get(provider.getProviderType());
         if (strategy == null) {
             throw new BadRequestStatusException(

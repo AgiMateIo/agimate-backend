@@ -2,6 +2,7 @@ package ru.agimate.controlapi.controller.manage.dto.llm;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.controlapi.database.entities.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 
@@ -23,11 +24,11 @@ public record LlmProviderResponse(
         @Schema(description = "Custom base URL")
         String baseUrl,
 
-        @Schema(description = "Masked API key (e.g. \"sk-...AbCd\")")
+        @Schema(description = "Masked API key (e.g. \"sk-AbCd...WxYz\")")
         String apiKeyMask,
 
         @Schema(description = "Available models (refreshed via refresh-models endpoint)")
-        List<String> availableModels,
+        List<LlmModelInfo> availableModels,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When availableModels was last refreshed")
