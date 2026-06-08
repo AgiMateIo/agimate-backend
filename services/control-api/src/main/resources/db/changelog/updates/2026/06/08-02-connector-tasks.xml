@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-connector-tasks-table" author="agimate">
+        <createTable tableName="connector_tasks">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="connector_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="scope_kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="scope_id" type="UUID"/>
+            <column name="identity" type="TEXT"/>
+            <column name="task_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="task_type" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="config" type="JSONB" defaultValueComputed="'{}'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_started_at" type="TIMESTAMP"/>
+            <column name="last_error" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!--
+            Согласованность scope_kind ↔ scope_id:
+              GLOBAL  → scope_id IS NULL
+              иначе   → scope_id IS NOT NULL
+        -->
+        <sql>
+            ALTER TABLE connector_tasks
+                ADD CONSTRAINT chk_connector_tasks_scope_id
+                CHECK (
+                    (scope_kind = 'GLOBAL' AND scope_id IS NULL)
+                 OR (scope_kind &lt;&gt; 'GLOBAL' AND scope_id IS NOT NULL)
+                );
+        </sql>
+
+        <!--
+            Уникальность бизнес‑ключа. PostgreSQL не считает NULL = NULL, поэтому обычный UNIQUE
+            не поймает дубли среди GLOBAL‑строк. Используем два частичных индекса.
+        -->
+        <sql>
+            CREATE UNIQUE INDEX uq_connector_tasks_global
+                ON connector_tasks (connector_code, task_code)
+                WHERE scope_kind = 'GLOBAL';
+
+            CREATE UNIQUE INDEX uq_connector_tasks_scoped
+                ON connector_tasks (connector_code, scope_kind, scope_id, task_code)
+                WHERE scope_kind &lt;&gt; 'GLOBAL';
+        </sql>
+
+        <!-- Шедулер при старте делает один SELECT WHERE enabled=true — индекс под него. -->
+        <createIndex tableName="connector_tasks" indexName="idx_connector_tasks_enabled">
+            <column name="enabled"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
