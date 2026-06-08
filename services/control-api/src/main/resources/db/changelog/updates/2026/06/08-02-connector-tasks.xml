@@ -30,6 +30,11 @@
             <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
                 <constraints nullable="false"/>
             </column>
+            <column name="status" type="TEXT" defaultValue="PENDING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="next_run_at" type="TIMESTAMP"/>
+            <column name="lease_until" type="TIMESTAMP"/>
             <column name="last_started_at" type="TIMESTAMP"/>
             <column name="last_error" type="TEXT"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
@@ -68,10 +73,16 @@
                 WHERE scope_kind &lt;&gt; 'GLOBAL';
         </sql>
 
-        <!-- Шедулер при старте делает один SELECT WHERE enabled=true — индекс под него. -->
-        <createIndex tableName="connector_tasks" indexName="idx_connector_tasks_enabled">
-            <column name="enabled"/>
-        </createIndex>
+        <!--
+            Pickup‑запрос фильтрует по (enabled, status, next_run_at, lease_until) и сортирует по
+            next_run_at. Партиальный индекс на enabled=true покрывает оба условия (PENDING+next_run_at
+            и RUNNING+lease_until) и держит размер маленьким, отсекая выключенные строки.
+        -->
+        <sql>
+            CREATE INDEX idx_connector_tasks_ready
+                ON connector_tasks (next_run_at NULLS FIRST, lease_until)
+                WHERE enabled = true;
+        </sql>
     </changeSet>
 
 </databaseChangeLog>

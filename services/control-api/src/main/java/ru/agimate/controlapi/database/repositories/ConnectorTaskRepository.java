@@ -14,10 +14,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UUID> {
-
-    @Query("SELECT t FROM ConnectorTask t WHERE t.enabled = true")
-    List<ConnectorTask> findAllEnabled();
+public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UUID>, ConnectorTaskRepositoryCustom {
 
     @Query("""
             SELECT t FROM ConnectorTask t
@@ -32,12 +29,23 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
             @Param("scopeId") UUID scopeId,
             @Param("taskCode") String taskCode);
 
+    @Query("""
+            SELECT t.id FROM ConnectorTask t
+            WHERE t.connectorCode = :connectorCode
+              AND t.scopeKind = :scopeKind
+              AND ((:scopeId IS NULL AND t.scopeId IS NULL) OR t.scopeId = :scopeId)
+            """)
+    List<UUID> findIdsByScope(
+            @Param("connectorCode") String connectorCode,
+            @Param("scopeKind") ConnectorTaskScopeKind scopeKind,
+            @Param("scopeId") UUID scopeId);
+
     @Modifying
     @Query("""
             DELETE FROM ConnectorTask t
             WHERE t.connectorCode = :connectorCode
               AND t.scopeKind = :scopeKind
-              AND t.scopeId = :scopeId
+              AND ((:scopeId IS NULL AND t.scopeId IS NULL) OR t.scopeId = :scopeId)
             """)
     int deleteByScope(
             @Param("connectorCode") String connectorCode,
@@ -49,10 +57,15 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
     int updateEnabled(@Param("id") UUID id, @Param("enabled") boolean enabled);
 
     @Modifying
-    @Query("UPDATE ConnectorTask t SET t.lastStartedAt = :now, t.lastError = NULL WHERE t.id = :id")
-    int markStarted(@Param("id") UUID id, @Param("now") LocalDateTime now);
-
-    @Modifying
-    @Query("UPDATE ConnectorTask t SET t.lastError = :error WHERE t.id = :id")
-    int markError(@Param("id") UUID id, @Param("error") String error);
+    @Query("""
+            UPDATE ConnectorTask t
+            SET t.status = ru.agimate.controlapi.database.enums.ConnectorTaskStatus.PENDING,
+                t.leaseUntil = NULL,
+                t.nextRunAt = :nextRunAt,
+                t.lastError = :lastError
+            WHERE t.id = :id
+            """)
+    int complete(@Param("id") UUID id,
+                 @Param("nextRunAt") LocalDateTime nextRunAt,
+                 @Param("lastError") String lastError);
 }

@@ -8,6 +8,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.ConnectorTaskScopeKind;
+import ru.agimate.controlapi.database.enums.ConnectorTaskStatus;
 import ru.agimate.controlapi.database.enums.ConnectorTaskType;
 
 import java.time.LocalDateTime;
@@ -15,11 +16,12 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Registry фоновых задач коннекторов — источник истины для {@code ConnectorTaskScheduler}.
- * Каждая строка описывает один экземпляр задачи, который должен крутиться, пока {@code enabled=true}.
+ * Registry фоновых задач коннекторов — источник истины для pull‑based scheduler'а
+ * {@code ConnectorTaskScheduler}.
  *
- * <p>Сам исполняемый код в БД не хранится — он живёт в handler'е и резолвится при старте по паре
- * {@code (connectorCode, taskCode)}. В {@link #config} лежат только параметры расписания.
+ * <p>Сам исполняемый код в БД не хранится — он живёт в handler'е и резолвится по паре
+ * {@code (connectorCode, taskCode)}. В {@link #config} лежат только параметры расписания
+ * ({@code intervalSeconds}, {@code cron}, {@code zone}, {@code backoff}).
  */
 @Entity
 @Table(name = "connector_tasks")
@@ -58,10 +60,7 @@ public class ConnectorTask extends BaseEntity {
     @Column(name = "task_type", nullable = false, columnDefinition = "TEXT")
     private ConnectorTaskType taskType;
 
-    /**
-     * Параметры расписания/поведения: {@code interval}, {@code initialDelay} для PERIODIC;
-     * {@code cron}, {@code zone} для CRON; {@code backoff} для LONG_RUNNING.
-     */
+    /** Параметры расписания/поведения: {@code intervalSeconds}, {@code cron}, {@code zone}, {@code backoff}. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "config", nullable = false, columnDefinition = "JSONB")
     private Map<String, Object> config;
@@ -70,11 +69,24 @@ public class ConnectorTask extends BaseEntity {
     @Builder.Default
     private Boolean enabled = true;
 
-    /** Когда задача была в последний раз запущена шедулером (информационно). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private ConnectorTaskStatus status = ConnectorTaskStatus.PENDING;
+
+    /** Когда поллер должен подхватить задачу в следующий раз. */
+    @Column(name = "next_run_at")
+    private LocalDateTime nextRunAt;
+
+    /** До этого момента строка считается «занятой» текущей нодой; после — подхватывается заново. */
+    @Column(name = "lease_until")
+    private LocalDateTime leaseUntil;
+
+    /** Когда в последний раз scheduler claim'нул строку (информационно). */
     @Column(name = "last_started_at")
     private LocalDateTime lastStartedAt;
 
-    /** Последнее наблюдённое сообщение об ошибке (информационно, для диагностики). */
+    /** Последнее наблюдённое сообщение об ошибке (информационно). */
     @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
 }

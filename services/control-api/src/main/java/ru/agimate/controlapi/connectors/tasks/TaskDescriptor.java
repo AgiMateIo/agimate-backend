@@ -4,9 +4,12 @@ import java.time.Duration;
 import java.time.ZoneId;
 
 /**
- * Описание задачи, которое handler возвращает из {@code getBackgroundTasks(...)}.
- * Чисто данные — менеджер транслирует их в строки {@code connector_tasks}, а шедулер по описанию
- * выбирает подходящий backend ({@link LongRunning} / {@link Periodic} / {@link Cron}).
+ * Описание задачи, которое handler возвращает из {@code getBackgroundTasks(...)} — listener
+ * транслирует его в строку {@code connector_tasks}.
+ *
+ * <p>После вставки строка живёт своей жизнью: scheduler читает её на каждом тике, дёргает
+ * {@link Task} через {@code TaskResolver} и обновляет {@code next_run_at}/{@code last_started_at}.
+ * Сам дескриптор в runtime не участвует.
  *
  * <p>Для {@code IntegrationHandler.getBackgroundTasks(creds)} поле {@link #scope()} может быть
  * любым — listener перезаписывает его на {@code TaskScope.integration(creds.getId())} перед
@@ -20,27 +23,19 @@ public sealed interface TaskDescriptor {
 
     Task task();
 
-    /** Долгоживущий цикл (long‑polling, websocket reconnect и т.п.). */
-    record LongRunning(TaskScope scope, String taskCode, Task task, BackoffPolicy onError)
-            implements TaskDescriptor {
-
-        public LongRunning {
-            if (onError == null) {
-                onError = BackoffPolicy.DEFAULT;
-            }
-        }
-    }
-
-    /** Периодический запуск с фиксированным интервалом. */
-    record Periodic(TaskScope scope, String taskCode, Task task, Duration interval, Duration initialDelay)
+    /**
+     * Периодический запуск с фиксированным интервалом. {@code interval=Duration.ZERO} означает
+     * «немедленный повтор после завершения» — подходит для long‑poll‑паттернов (Telegram getUpdates).
+     *
+     * <p>На ошибке scheduler ставит {@code next_run_at = now + 60s} (константа). Если когда‑то
+     * понадобится per‑task delay — добавим сюда поле {@code errorRetryDelay} и поле в JSON config.
+     */
+    record Periodic(TaskScope scope, String taskCode, Task task, Duration interval)
             implements TaskDescriptor {
 
         public Periodic {
-            if (interval == null || interval.isZero() || interval.isNegative()) {
-                throw new IllegalArgumentException("Periodic.interval must be positive");
-            }
-            if (initialDelay == null) {
-                initialDelay = Duration.ZERO;
+            if (interval == null || interval.isNegative()) {
+                throw new IllegalArgumentException("Periodic.interval must be non-negative");
             }
         }
     }
