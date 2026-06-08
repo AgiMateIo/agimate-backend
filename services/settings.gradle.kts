@@ -3,7 +3,7 @@ rootProject.name = "services"
 // Services
 include(
     "user-api",
-    "device-api"
+    "control-api"
 )
 
 // libs

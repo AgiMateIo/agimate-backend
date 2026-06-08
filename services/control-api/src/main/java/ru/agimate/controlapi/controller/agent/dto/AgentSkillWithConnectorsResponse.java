@@ -1,0 +1,23 @@
+package ru.agimate.controlapi.controller.agent.dto;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.controlapi.controller.manage.dto.SkillConnectorResponse;
+
+import java.util.List;
+import java.util.UUID;
+
+@Schema(description = "Skill assigned to the agent with attached connectors")
+public record AgentSkillWithConnectorsResponse(
+        @Schema(description = "Skill public ID")
+        UUID skillId,
+
+        @Schema(description = "Skill name")
+        String skillName,
+
+        @Schema(description = "Skill description")
+        String description,
+
+        @Schema(description = "Connectors attached to this skill")
+        List<SkillConnectorResponse> connectors
+) {
+}
