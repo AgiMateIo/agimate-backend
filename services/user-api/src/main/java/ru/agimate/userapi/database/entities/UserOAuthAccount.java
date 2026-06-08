@@ -6,7 +6,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
+
+import java.util.UUID;
 
 @Entity
 @Table(name = "user_oauth_accounts",
@@ -22,9 +26,10 @@ import ru.agimate.common.persistence.BaseEntity;
 public class UserOAuthAccount extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
+    @Generated
+    @ColumnDefault("uuidv7()")
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

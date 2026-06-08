@@ -14,7 +14,7 @@ public class UserSecurityService {
 
     private final UserRepository userRepository;
 
-    public boolean canAccessUser(Authentication authentication, UUID requestedPubId) {
+    public boolean canAccessUser(Authentication authentication, UUID requestedId) {
         // If no authentication, access is denied
         if (authentication == null || !authentication.isAuthenticated()) {
             return false;
@@ -26,14 +26,14 @@ public class UserSecurityService {
             return false;
         }
 
-        UUID authenticatedUserPubId = UUID.fromString(agimateUserPrincipal.pubId());
+        UUID authenticatedUserId = UUID.fromString(agimateUserPrincipal.id());
 
         // Allow access if:
         // 1. The requested user is the same as the authenticated user (self-access)
         // 2. The authenticated user has ADMIN role
-        return authenticatedUserPubId.equals(requestedPubId) || 
+        return authenticatedUserId.equals(requestedId) ||
                authentication.getAuthorities().stream()
-                   .anyMatch(grantedAuthority -> 
+                   .anyMatch(grantedAuthority ->
                        "ROLE_ADMIN".equals(grantedAuthority.getAuthority()));
     }
 }

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-channel-session-messages-table" author="agimate">
+        <createTable tableName="channel_session_messages">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="session_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="run_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="turn_idx" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="message" type="TEXT"/>
+            <column name="message_json" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_input" type="JSONB"/>
+            <column name="input_tokens" type="INTEGER"/>
+            <column name="output_tokens" type="INTEGER"/>
+            <column name="cache_read_tokens" type="INTEGER"/>
+            <column name="cache_write_tokens" type="INTEGER"/>
+            <column name="model_name" type="TEXT"/>
+            <column name="provider_name" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE channel_session_messages
+                ADD CONSTRAINT chk_channel_session_messages_kind CHECK (kind IN ('REQUEST', 'RESPONSE'));
+        </sql>
+
+        <addForeignKeyConstraint baseTableName="channel_session_messages"
+                                 baseColumnNames="session_id"
+                                 constraintName="fk_channel_session_messages_session"
+                                 referencedTableName="channel_sessions"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="channel_session_messages"
+                                 baseColumnNames="agent_id"
+                                 constraintName="fk_channel_session_messages_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"/>
+
+        <addUniqueConstraint tableName="channel_session_messages"
+                             columnNames="session_id, turn_idx"
+                             constraintName="uq_channel_session_messages_session_turn"/>
+
+        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_session_id">
+            <column name="session_id"/>
+            <column name="created_at"/>
+        </createIndex>
+        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_agent_created_at">
+            <column name="agent_id"/>
+            <column name="created_at"/>
+        </createIndex>
+        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_session_run">
+            <column name="session_id"/>
+            <column name="run_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

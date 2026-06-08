@@ -7,10 +7,10 @@
 
     <changeSet id="create-user-oauth-accounts-table" author="Eugene Smith">
         <createTable tableName="user_oauth_accounts">
-            <column name="id" type="BIGSERIAL" autoIncrement="true">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="user_id" type="BIGINT">
+            <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="oauth_provider" type="TEXT">

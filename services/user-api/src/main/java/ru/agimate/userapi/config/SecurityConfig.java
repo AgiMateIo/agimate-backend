@@ -20,6 +20,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
+import ru.agimate.common.security.SecurityUtils;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.userapi.security.jwt.JwtDbAuthenticationFilter;
 import ru.agimate.userapi.security.oauth2.CookieOAuth2AuthorizationRequestRepository;
@@ -79,7 +80,7 @@ public class SecurityConfig {
 
             // Write JSON response
             var writer = response.getWriter();
-            writer.write(JsonUtils.writeValueAsString(new ErrorResponse("Access denied. Insufficient permissions.")));
+            writer.write(JsonUtils.writeValueAsString(new ErrorResponse(SecurityUtils.accessDeniedMessage())));
             writer.flush();
         };
     }

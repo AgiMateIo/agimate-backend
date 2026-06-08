@@ -1,0 +1,16 @@
+package ru.agimate.controlapi.security;
+
+import java.security.Principal;
+import java.util.UUID;
+
+public record AppPrincipal(
+        String name,
+        UUID appId,
+        UUID userId
+) implements Principal {
+
+    @Override
+    public String getName() {
+        return name;
+    }
+}

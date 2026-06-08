@@ -36,10 +36,10 @@ docker-compose up -d
 ```
 
 This will start:
-- PostgreSQL (port 5432) with 2 databases: `am_core_db`, `am_device_db`
+- PostgreSQL (port 5432) with 2 databases: `am_core_db`, `am_control_db`
 - Centrifugo (ports 8000, 8001)
 - user-api (port 8080)
-- device-api (port 8081)
+- control-api (port 8081)
 
 4. **Check service status**
 
@@ -54,7 +54,7 @@ docker-compose logs -f
 
 ```bash
 docker-compose build user-api
-docker-compose build device-api
+docker-compose build control-api
 ```
 
 ### Start/stop specific service
@@ -73,7 +73,7 @@ docker-compose logs -f
 
 # Specific service
 docker-compose logs -f user-api
-docker-compose logs -f device-api
+docker-compose logs -f control-api
 ```
 
 ## JWT Key Generation
@@ -91,12 +91,12 @@ Set the contents of these files as environment variables in `../.env`.
 - Health: http://localhost:8088/actuator/health
 - Info: http://localhost:8080/user-api/
 
-### Device API (port 8081)
+### Control API (port 8081)
 - Health: http://localhost:8188/actuator/health
-- Info: http://localhost:8081/device-api/
+- Info: http://localhost:8081/control-api/
 
 ### PostgreSQL (port 5432)
-- Databases: `am_core_db`, `am_device_db`
+- Databases: `am_core_db`, `am_control_db`
 - User: `agimate`
 - Password: `agimate_dev_password` (change in production)
 
@@ -110,7 +110,7 @@ Connect to PostgreSQL:
 
 ```bash
 docker-compose exec postgres psql -U agimate -d am_core_db
-docker-compose exec postgres psql -U agimate -d am_device_db
+docker-compose exec postgres psql -U agimate -d am_control_db
 ```
 
 ## Troubleshooting
@@ -134,7 +134,7 @@ docker-compose up -d
 
 ```bash
 docker-compose logs user-api
-docker-compose logs device-api
+docker-compose logs control-api
 docker-compose logs postgres
 docker-compose logs centrifugo
 ```
@@ -143,7 +143,7 @@ docker-compose logs centrifugo
 
 ```bash
 docker-compose exec user-api sh
-docker-compose exec device-api sh
+docker-compose exec control-api sh
 docker-compose exec postgres sh
 ```
 
@@ -175,6 +175,6 @@ backend/
 │   └── generate-jwt-keys.sh        # JWT key generation script
 ├── user-api/
 │   └── Dockerfile              # User API container definition
-└── device-api/
-    └── Dockerfile              # Device API container definition
+└── control-api/
+    └── Dockerfile              # Control API container definition
 ```

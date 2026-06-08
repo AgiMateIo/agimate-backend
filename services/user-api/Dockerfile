@@ -12,7 +12,7 @@ COPY build.gradle.kts .
 # Copy all module build files
 COPY libs/common/build.gradle.kts libs/common/
 COPY user-api/build.gradle.kts user-api/
-COPY device-api/build.gradle.kts device-api/
+COPY control-api/build.gradle.kts control-api/
 
 # Download dependencies (cached layer)
 RUN ./gradlew dependencies --no-daemon || true

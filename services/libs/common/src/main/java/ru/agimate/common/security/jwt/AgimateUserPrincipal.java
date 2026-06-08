@@ -9,22 +9,22 @@ import java.util.Collection;
 import java.util.List;
 
 public record AgimateUserPrincipal(
-        String pubId,
+        String id,
         Collection<? extends GrantedAuthority> authorities
 ) implements Principal {
 
     public static final Collection<? extends SimpleGrantedAuthority> DEFAULT_ROLES = List.of(new SimpleGrantedAuthority("ROLE_USER"));
 
-    public AgimateUserPrincipal(String pubId) {
-        this(pubId, DEFAULT_ROLES);
+    public AgimateUserPrincipal(String id) {
+        this(id, DEFAULT_ROLES);
     }
 
-    public static AgimateUserPrincipal fromUser(String pubId, UserRole role) {
-        return new AgimateUserPrincipal(pubId, List.of(new SimpleGrantedAuthority(role.toAuthority())));
+    public static AgimateUserPrincipal fromUser(String id, UserRole role) {
+        return new AgimateUserPrincipal(id, List.of(new SimpleGrantedAuthority(role.toAuthority())));
     }
 
     @Override
     public String getName() {
-        return this.pubId;
+        return this.id;
     }
 }

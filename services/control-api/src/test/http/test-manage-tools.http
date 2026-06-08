@@ -1,0 +1,32 @@
+### Manage Tools endpoints (JWT) ###
+
+### List tools for an INTEGRATION connector (identity ignored)
+GET http://localhost:8180/control/manage/tools/telegram/
+Authorization: Bearer {{jwt}}
+
+### Get a single tool of an INTEGRATION connector
+GET http://localhost:8180/control/manage/tools/telegram/sendMessage
+Authorization: Bearer {{jwt}}
+
+### List tools for an INTERNAL_SERVICE connector
+GET http://localhost:8180/control/manage/tools/board/
+Authorization: Bearer {{jwt}}
+
+### List tools for an APP connector — identity required
+GET http://localhost:8180/control/manage/tools/{{appConnectorCode}}/?identity={{appPubId}}
+Authorization: Bearer {{jwt}}
+
+### Get a single tool of an APP connector
+GET http://localhost:8180/control/manage/tools/{{appConnectorCode}}/{{toolName}}?identity={{appPubId}}
+Authorization: Bearer {{jwt}}
+
+### APP without identity → 400
+GET http://localhost:8180/control/manage/tools/{{appConnectorCode}}/
+Authorization: Bearer {{jwt}}
+
+### Unknown connector → 404
+GET http://localhost:8180/control/manage/tools/__missing__/
+Authorization: Bearer {{jwt}}
+
+### Without JWT → 401
+GET http://localhost:8180/control/manage/tools/telegram/

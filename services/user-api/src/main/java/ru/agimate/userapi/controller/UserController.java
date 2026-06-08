@@ -27,14 +27,14 @@ public class UserController {
 
     private final UserService userService;
 
-    @Operation(summary = "Get user by public ID", description = "Returns user information by their public ID")
-    @GetMapping("/{pub_id}")
-    @PreAuthorize("@userSecurityService.canAccessUser(authentication, #pubId)")
-    public ResponseEntity<SuccessResponse<UserResponse>> getUserByPubId(
-            @Parameter(description = "Public ID of the user", required = true)
-            @PathVariable("pub_id") UUID pubId) {
+    @Operation(summary = "Get user by id", description = "Returns user information by their id")
+    @GetMapping("/{id}")
+    @PreAuthorize("@userSecurityService.canAccessUser(authentication, #id)")
+    public ResponseEntity<SuccessResponse<UserResponse>> getUserById(
+            @Parameter(description = "ID of the user", required = true)
+            @PathVariable("id") UUID id) {
 
-        return userService.findByPubId(pubId)
+        return userService.findById(id)
                 .map(UserMapper::getUserResponse)
                 .map(ur -> ResponseEntity.ok(SuccessResponse.ok(ur)))
                 .orElse(ResponseEntity.notFound().build());
@@ -49,8 +49,8 @@ public class UserController {
             Object principal = authentication.getPrincipal();
 
             if (principal instanceof AgimateUserPrincipal agimateUserPrincipal) {
-                // Find the user by their pubId to get the full user object
-                return userService.findByPubId(UUID.fromString(agimateUserPrincipal.pubId()))
+                // Find the user by their id to get the full user object
+                return userService.findById(UUID.fromString(agimateUserPrincipal.id()))
                         .map(UserMapper::getUserResponse)
                         .map(ur -> ResponseEntity.ok(SuccessResponse.ok(ur)))
                         .orElse(ResponseEntity.status(403).build());

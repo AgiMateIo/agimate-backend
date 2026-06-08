@@ -46,7 +46,7 @@ on:
     branches: [master]
     paths:
       - 'services/user-api/**'
-      - 'services/device-api/**'
+      - 'services/control-api/**'
       - 'services/libs/**'
       - 'services/build.gradle.kts'
       - 'services/settings.gradle.kts'

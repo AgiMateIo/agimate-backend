@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-channels-table" author="agimate">
+        <createTable tableName="channels">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_connector_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_identity" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="trigger_message_field" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reply_connector_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reply_identity" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reply_tool_name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="reply_tool_params" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="channels"
+                                 baseColumnNames="agent_id"
+                                 constraintName="fk_channels_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <createIndex tableName="channels" indexName="idx_channels_user_id">
+            <column name="user_id"/>
+        </createIndex>
+        <createIndex tableName="channels" indexName="idx_channels_agent_id">
+            <column name="agent_id"/>
+        </createIndex>
+
+        <sql>
+            CREATE UNIQUE INDEX uq_channels_user_agent_trigger
+                ON channels (user_id, agent_id, trigger_connector_code, trigger_identity, trigger_name)
+                WHERE deleted_at IS NULL;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

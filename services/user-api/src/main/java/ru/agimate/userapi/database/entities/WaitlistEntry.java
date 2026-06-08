@@ -3,8 +3,9 @@ package ru.agimate.userapi.database.entities;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
-import ru.agimate.common.util.UUIDUtils;
 
 import java.util.UUID;
 
@@ -15,12 +16,10 @@ import java.util.UUID;
 public class WaitlistEntry extends BaseEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", nullable = false)
-    private Long id;
-
-    @Column(name = "pub_id", unique = true, nullable = false)
-    private UUID pubId = UUIDUtils.generateUUIDv8();
+    @Generated
+    @ColumnDefault("uuidv7()")
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
     @Column(name = "email", nullable = false, unique = true, columnDefinition = "TEXT")
     private String email;

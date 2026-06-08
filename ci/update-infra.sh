@@ -5,7 +5,7 @@ set -euo pipefail
 # Update image versions in agimate-infra
 #
 # Usage:   ./ci/update-infra.sh <service1> [service2] ...
-# Example: ./ci/update-infra.sh user-api device-api
+# Example: ./ci/update-infra.sh user-api control-api
 #
 # Environment variables:
 #   REGISTRY          — Container Registry URL

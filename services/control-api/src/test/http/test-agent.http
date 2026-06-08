@@ -1,0 +1,97 @@
+### Old smoke check ###
+GET localhost:8180/control/agent/tools/telegram
+x-api-key: ***REMOVED***
+
+
+### --- LLM providers (management, JWT) --- ###
+
+### Create LLM provider (OpenAI)
+POST http://localhost:8180/control/manage/llm-providers/
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{
+  "name": "Production OpenAI",
+  "providerType": "OPENAI",
+  "apiKey": "sk-replace-me-with-real-key",
+  "enabled": true
+}
+
+### List LLM providers
+GET http://localhost:8180/control/manage/llm-providers/
+Authorization: Bearer {{jwt}}
+
+### Get LLM provider
+GET http://localhost:8180/control/manage/llm-providers/{{llmProviderPubId}}
+Authorization: Bearer {{jwt}}
+
+### Update LLM provider (rotate api_key)
+PATCH http://localhost:8180/control/manage/llm-providers/{{llmProviderPubId}}
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{
+  "apiKey": "sk-new-rotated-key"
+}
+
+### Refresh available models
+POST http://localhost:8180/control/manage/llm-providers/{{llmProviderPubId}}/refresh-models
+Authorization: Bearer {{jwt}}
+
+### Delete LLM provider (cascades to agent bindings)
+DELETE http://localhost:8180/control/manage/llm-providers/{{llmProviderPubId}}
+Authorization: Bearer {{jwt}}
+
+
+### --- Agent ↔ LLM bindings (management, JWT) --- ###
+
+### Create binding "main_model"
+POST http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{
+  "name": "main_model",
+  "llmProviderPubId": "{{llmProviderPubId}}",
+  "model": "gpt-4o"
+}
+
+### Create binding "for_light_task"
+POST http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{
+  "name": "for_light_task",
+  "llmProviderPubId": "{{llmProviderPubId}}",
+  "model": "gpt-4o-mini"
+}
+
+### List bindings
+GET http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/
+Authorization: Bearer {{jwt}}
+
+### Replace binding (change model)
+PUT http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/main_model
+Authorization: Bearer {{jwt}}
+Content-Type: application/json
+
+{
+  "llmProviderPubId": "{{llmProviderPubId}}",
+  "model": "gpt-4o-2024-11-20"
+}
+
+### Delete binding
+DELETE http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/for_light_task
+Authorization: Bearer {{jwt}}
+
+
+### --- Agent runtime (X-Api-Key) --- ###
+
+### List all LLM bindings (with decrypted apiKey)
+GET http://localhost:8180/control/agent/llm
+x-api-key: ***REMOVED***
+
+### Get one binding by name
+GET http://localhost:8180/control/agent/llm/main_model
+x-api-key: ***REMOVED***
