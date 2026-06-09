@@ -14,7 +14,7 @@ import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.controlapi.connectors.integrations.IntegrationsRegistry;
-import ru.agimate.controlapi.connectors.internal.ServerSideToolRegistry;
+import ru.agimate.controlapi.connectors.internal.InternalConnectorRegistry;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationMapper;
 import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationResponse;
@@ -81,7 +81,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final ConnectorRepository connectorRepository;
     private final IntegrationEncryptionService encryptionService;
     private final IntegrationsRegistry integrationsRegistry;
-    private final ServerSideToolRegistry serverSideToolRegistry;
+    private final InternalConnectorRegistry internalConnectorRegistry;
     private final AgentSkillService agentSkillService;
     private final AgentService agentService;
     private final SkillFileService skillFileService;
@@ -293,7 +293,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
 
             Map<String, ToolSpecification> tools = switch (connector.getType()) {
                 case INTEGRATION -> integrationsRegistry.getHandler(connectorCode).getPredefinedTools();
-                case INTERNAL_SERVICE -> serverSideToolRegistry.getHandler(connectorCode).getToolDefinitions();
+                case INTERNAL_SERVICE -> internalConnectorRegistry.getHandler(connectorCode).getToolDefinitions();
                 case APP, LOOPBACK -> throw new BadRequestStatusException(
                         "Connector type " + connector.getType() + " does not expose static tool definitions");
             };

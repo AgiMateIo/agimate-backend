@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.integrations.IntegrationToolExecutorService;
-import ru.agimate.controlapi.connectors.internal.ServerToolExecutorService;
+import ru.agimate.controlapi.connectors.internal.InternalToolExecutorService;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.ToolUseLog;
 import ru.agimate.controlapi.database.repositories.AppRepository;
@@ -31,7 +31,7 @@ public class ConnectorService {
 
     private final IntegrationToolExecutorService integrationToolExecutorService;
 
-    private final ServerToolExecutorService serverToolExecutorService;
+    private final InternalToolExecutorService internalToolExecutorService;
 
     public void pushToConnector(ToolUseLog toolUseLog) {
         Connector connector = connectorRepository.findById(toolUseLog.getConnectorCode())
@@ -52,7 +52,7 @@ public class ConnectorService {
                         .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found: " + payload.identity()));
                 integrationToolExecutorService.execute(credentials, payload, agentId);
             }
-            case INTERNAL_SERVICE -> serverToolExecutorService.execute(payload, agentId, userId);
+            case INTERNAL_SERVICE -> internalToolExecutorService.execute(payload, agentId, userId);
             case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}", payload.connectorCode(), payload.name());
         }
     }

@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.integrations.IntegrationsRegistry;
-import ru.agimate.controlapi.connectors.internal.ServerSideToolRegistry;
+import ru.agimate.controlapi.connectors.internal.InternalConnectorRegistry;
 import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationMapper;
 import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationResponse;
 import ru.agimate.controlapi.database.entities.App;
@@ -29,7 +29,7 @@ public class ToolDefinitionService {
 
     private final ConnectorRepository connectorRepository;
     private final IntegrationsRegistry integrationsRegistry;
-    private final ServerSideToolRegistry serverSideToolRegistry;
+    private final InternalConnectorRegistry internalConnectorRegistry;
     private final AppRepository appRepository;
 
     public Map<String, ToolSpecificationResponse> getTools(UUID userId, String connectorCode, UUID identity) {
@@ -38,7 +38,7 @@ public class ToolDefinitionService {
 
         return switch (connector.getType()) {
             case INTEGRATION -> mapSpecs(integrationsRegistry.getHandler(connectorCode).getPredefinedTools());
-            case INTERNAL_SERVICE -> mapSpecs(serverSideToolRegistry.getHandler(connectorCode).getToolDefinitions());
+            case INTERNAL_SERVICE -> mapSpecs(internalConnectorRegistry.getHandler(connectorCode).getToolDefinitions());
             case APP -> ToolSpecificationMapper.fromAppTools(resolveApp(userId, connectorCode, identity).getTools());
             case LOOPBACK -> throw new BadRequestStatusException(
                     "Connector type " + connector.getType() + " does not expose static tool definitions");

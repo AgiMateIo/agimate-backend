@@ -16,9 +16,9 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ServerToolExecutorService {
+public class InternalToolExecutorService {
 
-    private final ServerSideToolRegistry toolRegistry;
+    private final InternalConnectorRegistry toolRegistry;
     private final AgentDeliveryService agentDeliveryService;
     private final ToolUseLogService toolUseLogService;
 
@@ -38,9 +38,9 @@ public class ServerToolExecutorService {
             toolUseLogService.recordOutput(toolResult);
             agentDeliveryService.deliverToolResult(agentId, toolResult);
 
-            log.debug("Executed server tool '{}'", toolUse.name());
+            log.debug("Executed internal tool '{}'", toolUse.name());
         } catch (Exception e) {
-            log.error("Failed to execute server tool '{}': {}", toolUse.name(), e.getMessage());
+            log.error("Failed to execute internal tool '{}': {}", toolUse.name(), e.getMessage());
 
             var errorResult = new ToolResultRequest(
                     toolUse.id(), toolUse.connectorCode(), null, "Tool execution failed");
@@ -48,7 +48,7 @@ public class ServerToolExecutorService {
             try {
                 toolUseLogService.recordOutput(errorResult);
             } catch (Exception logError) {
-                log.warn("Failed to log server tool error: {}", logError.getMessage());
+                log.warn("Failed to log internal tool error: {}", logError.getMessage());
             }
 
             agentDeliveryService.deliverToolResult(agentId, errorResult);

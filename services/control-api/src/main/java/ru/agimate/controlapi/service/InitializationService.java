@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.connectors.integrations.IntegrationsRegistry;
-import ru.agimate.controlapi.connectors.internal.ServerSideToolRegistry;
+import ru.agimate.controlapi.connectors.internal.InternalConnectorRegistry;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.ConnectorType;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
@@ -17,7 +17,7 @@ public class InitializationService {
 
     private final ConnectorRepository connectorRepository;
     private final IntegrationsRegistry integrationsRegistry;
-    private final ServerSideToolRegistry serverSideToolRegistry;
+    private final InternalConnectorRegistry internalConnectorRegistry;
 
     @PostConstruct
     public void init() {
@@ -46,7 +46,7 @@ public class InitializationService {
         }
 
         // 3. INTERNAL_SERVICE connectors from registry
-        for (var handler : serverSideToolRegistry.getAvailableHandlers()) {
+        for (var handler : internalConnectorRegistry.getAvailableHandlers()) {
             saveIfAbsent(Connector.builder()
                     .code(handler.getConnectorCode())
                     .type(ConnectorType.INTERNAL_SERVICE)

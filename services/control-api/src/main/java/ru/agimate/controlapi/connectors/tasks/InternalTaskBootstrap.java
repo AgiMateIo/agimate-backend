@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import ru.agimate.controlapi.connectors.internal.ServerSideToolHandler;
-import ru.agimate.controlapi.connectors.internal.ServerSideToolRegistry;
+import ru.agimate.controlapi.connectors.internal.InternalConnectorHandler;
+import ru.agimate.controlapi.connectors.internal.InternalConnectorRegistry;
 import ru.agimate.controlapi.database.enums.ConnectorTaskScopeKind;
 
 import java.util.List;
@@ -29,12 +29,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class InternalTaskBootstrap {
 
-    private final ServerSideToolRegistry registry;
+    private final InternalConnectorRegistry registry;
     private final ConnectorTaskService taskService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void registerGlobalTasks() {
-        for (ServerSideToolHandler handler : registry.getAvailableHandlers()) {
+        for (InternalConnectorHandler handler : registry.getAvailableHandlers()) {
             String connectorCode = handler.getConnectorCode();
             List<TaskDescriptor> descriptors = handler.getBackgroundTasks();
             for (TaskDescriptor descriptor : descriptors) {

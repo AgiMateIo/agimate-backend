@@ -14,9 +14,9 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public abstract class BaseServerSideToolHandler implements ServerSideToolHandler {
+public abstract class BaseInternalConnectorHandler implements InternalConnectorHandler {
 
-    private static final ThreadLocal<ServerSideToolContext> CONTEXT = new ThreadLocal<>();
+    private static final ThreadLocal<InternalConnectorContext> CONTEXT = new ThreadLocal<>();
 
     protected UUID agentId() {
         return CONTEXT.get().agentId();
@@ -38,7 +38,7 @@ public abstract class BaseServerSideToolHandler implements ServerSideToolHandler
     @SuppressWarnings("unchecked")
     public Map<String, Object> executeTool(String toolName, Map<String, Object> params,
                                            UUID agentId, UUID userId) {
-        CONTEXT.set(new ServerSideToolContext(agentId, userId));
+        CONTEXT.set(new InternalConnectorContext(agentId, userId));
         try {
             Method method = findToolMethod(toolName);
             Object[] args = buildMethodArgs(method, params);
@@ -80,5 +80,5 @@ public abstract class BaseServerSideToolHandler implements ServerSideToolHandler
         return value;
     }
 
-    private record ServerSideToolContext(UUID agentId, UUID userId) {}
+    private record InternalConnectorContext(UUID agentId, UUID userId) {}
 }

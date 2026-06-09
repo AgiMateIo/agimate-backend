@@ -14,7 +14,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.integrations.IntegrationsRegistry;
-import ru.agimate.controlapi.connectors.internal.ServerSideToolRegistry;
+import ru.agimate.controlapi.connectors.internal.InternalConnectorRegistry;
 import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationMapper;
 import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationResponse;
 import ru.agimate.controlapi.database.entities.Connector;
@@ -33,7 +33,7 @@ public class AgentToolsController {
     public static final String PATH = AgentController.PATH + "/tools";
 
     private final IntegrationsRegistry integrationsRegistry;
-    private final ServerSideToolRegistry serverSideToolRegistry;
+    private final InternalConnectorRegistry internalConnectorRegistry;
     private final ConnectorRepository connectorRepository;
 
     @Operation(
@@ -52,7 +52,7 @@ public class AgentToolsController {
 
         Map<String, ToolSpecification> tools = switch (connector.getType()) {
             case INTEGRATION -> integrationsRegistry.getHandler(connectorCode).getPredefinedTools();
-            case INTERNAL_SERVICE -> serverSideToolRegistry.getHandler(connectorCode).getToolDefinitions();
+            case INTERNAL_SERVICE -> internalConnectorRegistry.getHandler(connectorCode).getToolDefinitions();
             case APP, LOOPBACK -> throw new BadRequestStatusException(
                     "Connector type " + connector.getType() + " does not expose static tool definitions");
         };

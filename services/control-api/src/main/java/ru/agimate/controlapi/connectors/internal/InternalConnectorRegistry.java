@@ -10,28 +10,28 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
-public class ServerSideToolRegistry {
+public class InternalConnectorRegistry {
 
-    private final Map<String, ServerSideToolHandler> handlers;
+    private final Map<String, InternalConnectorHandler> handlers;
 
-    public ServerSideToolRegistry(List<ServerSideToolHandler> handlerList) {
+    public InternalConnectorRegistry(List<InternalConnectorHandler> handlerList) {
         this.handlers = handlerList.stream()
-                .collect(Collectors.toMap(ServerSideToolHandler::getConnectorCode, Function.identity()));
+                .collect(Collectors.toMap(InternalConnectorHandler::getConnectorCode, Function.identity()));
     }
 
-    public ServerSideToolHandler getHandler(String connectorCode) {
+    public InternalConnectorHandler getHandler(String connectorCode) {
         var handler = handlers.get(connectorCode);
         if (handler == null) {
-            throw new BadRequestStatusException("Unsupported server tool handler: " + connectorCode);
+            throw new BadRequestStatusException("Unsupported internal connector: " + connectorCode);
         }
         return handler;
     }
 
-    public Collection<ServerSideToolHandler> getAvailableHandlers() {
+    public Collection<InternalConnectorHandler> getAvailableHandlers() {
         return handlers.values();
     }
 
-    public ServerSideToolHandler getHandlerByToolName(String toolName) {
+    public InternalConnectorHandler getHandlerByToolName(String toolName) {
         String prefix = toolName.contains(".") ? toolName.substring(0, toolName.indexOf('.')) : toolName;
         return getHandler(prefix);
     }

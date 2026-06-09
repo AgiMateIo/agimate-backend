@@ -6,7 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.internal.BaseServerSideToolHandler;
+import ru.agimate.controlapi.connectors.internal.BaseInternalConnectorHandler;
 import ru.agimate.controlapi.controller.manage.dto.*;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgenticTeam;
@@ -22,7 +22,7 @@ import java.util.UUID;
 
 @Slf4j
 @Component
-public class BoardToolHandler extends BaseServerSideToolHandler {
+public class BoardToolHandler extends BaseInternalConnectorHandler {
 
     public static final String CONNECTOR_CODE = "board";
 
