@@ -14,7 +14,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ThreadFactory;
 
 /**
@@ -22,13 +21,14 @@ import java.util.concurrent.ThreadFactory;
  *
  * <p>На каждом тике (раз в секунду) атомарно claim'ит готовые к запуску строки
  * {@code connector_tasks} через {@code FOR UPDATE SKIP LOCKED}, сразу переводя их в
- * {@code RUNNING} с lease. Для каждой claim'нутой строки сабмитит виртуальный поток, который:
+ * {@code RUNNING} с per-row lease ({@code now + timeout_seconds}). Для каждой claim'нутой строки
+ * сабмитит виртуальный поток, который:
  *
  * <ol>
- *   <li>находит исполняемый {@link Task} через {@link TaskResolver};</li>
- *   <li>вызывает {@code task.run()} вне транзакции (важно: long‑poll может держать поток 20с,
- *       коннект к БД на это время отдан в пул);</li>
- *   <li>обновляет {@code next_run_at} и переводит строку обратно в {@code PENDING}.</li>
+ *   <li>вызывает {@link TaskExecutionService#executeTask(ConnectorTask)} вне транзакции
+ *       (важно: long‑poll может держать поток 20с, коннект к БД на это время отдан в пул);</li>
+ *   <li>обновляет {@code next_run_at} и переводит строку обратно в {@code PENDING},
+ *       либо в {@code COMPLETED} для успешного {@code ONETIME}.</li>
  * </ol>
  *
  * <p>Если процесс упал между claim и complete — lease истечёт сам, и любая нода (включая эту
@@ -42,20 +42,17 @@ public class ConnectorTaskScheduler {
     /** Сколько строк подхватываем за один тик. С запасом — на проде задач должны быть единицы. */
     private static final int BATCH_SIZE = 100;
 
-    /** Default lease: 5 минут покрывает Telegram long‑poll (20с) и среднюю Periodic/Cron задачу. */
-    private static final Duration DEFAULT_LEASE = Duration.ofMinutes(5);
-
-    /** Дефолтная задержка повтора после ошибки, если в config не указано. */
+    /** Дефолтная задержка повтора после ошибки. */
     private static final Duration DEFAULT_ERROR_RETRY = Duration.ofSeconds(60);
 
     private final ConnectorTaskService taskService;
-    private final List<TaskResolver> resolvers;
+    private final TaskExecutionService taskExecutionService;
 
     private final ThreadFactory virtualThreads = Thread.ofVirtual().name("ctask-", 0).factory();
 
     @Scheduled(fixedDelay = 1_000)
     public void tick() {
-        List<ConnectorTask> claimed = taskService.claimReady(DEFAULT_LEASE, BATCH_SIZE);
+        List<ConnectorTask> claimed = taskService.claimReady(BATCH_SIZE);
         if (claimed.isEmpty()) {
             return;
         }
@@ -66,23 +63,17 @@ public class ConnectorTaskScheduler {
     }
 
     private void execute(ConnectorTask row) {
-        TaskKey key = toKey(row);
-        try (MDC.MDCCloseable __ = MDC.putCloseable("taskKey", key.asString())) {
-            Optional<Task> resolved = resolve(row);
-            if (resolved.isEmpty()) {
-                log.warn("No TaskResolver for {} — completing with error", key);
-                taskService.complete(row.getId(), computeNext(row, true), "No TaskResolver");
-                return;
-            }
+        String taskKey = taskKey(row);
+        try (MDC.MDCCloseable __ = MDC.putCloseable("taskKey", taskKey)) {
             try {
-                resolved.get().run();
-                taskService.complete(row.getId(), computeNext(row, false), null);
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                log.warn("Task {} interrupted", key);
-                taskService.complete(row.getId(), computeNext(row, true), "Interrupted");
+                taskExecutionService.executeTask(row);
+                if (row.getTaskType() == ConnectorTaskType.ONETIME) {
+                    taskService.markCompleted(row.getId(), null);
+                } else {
+                    taskService.complete(row.getId(), computeNext(row, false), null);
+                }
             } catch (Exception e) {
-                log.error("Task {} failed: {}", key, e.toString(), e);
+                log.error("Task {} failed: {}", taskKey, e.toString(), e);
                 taskService.complete(row.getId(), computeNext(row, true), summarize(e));
             }
         }
@@ -91,14 +82,17 @@ public class ConnectorTaskScheduler {
     /**
      * Когда задача должна запуститься в следующий раз.
      * <ul>
+     *   <li>ONETIME: сюда попадает только после ошибки — retry через {@code DEFAULT_ERROR_RETRY},
+     *       успех финализируется {@code markCompleted} без следующего запуска.</li>
      *   <li>PERIODIC: {@code now + intervalSeconds} в норме; {@code now + DEFAULT_ERROR_RETRY} при ошибке.</li>
      *   <li>CRON: следующий cron‑тик (ошибка тоже идёт в очередь по cron — пропускаем итерацию).</li>
      * </ul>
      */
     private LocalDateTime computeNext(ConnectorTask row, boolean afterError) {
         LocalDateTime now = LocalDateTime.now();
-        Map<String, Object> config = row.getConfig() == null ? Map.of() : row.getConfig();
+        Map<String, Object> config = row.getTaskConfig() == null ? Map.of() : row.getTaskConfig();
         return switch (row.getTaskType()) {
+            case ONETIME -> now.plus(DEFAULT_ERROR_RETRY);
             case PERIODIC -> afterError
                     ? now.plus(DEFAULT_ERROR_RETRY)
                     : now.plusSeconds(readLong(config, "intervalSeconds", 0L));
@@ -115,31 +109,18 @@ public class ConnectorTaskScheduler {
         }
         String zoneId = (String) config.getOrDefault("zone", "UTC");
         CronExpression cron = CronExpression.parse(expr);
-        LocalDateTime next = cron.next(now.atZone(ZoneId.of(zoneId))).toLocalDateTime();
-        return next != null ? next : now.plusYears(10);
+        var next = cron.next(now.atZone(ZoneId.of(zoneId)));
+        return next != null ? next.toLocalDateTime() : now.plusYears(10);
     }
 
     private static long readLong(Map<String, Object> config, String key, long defaultValue) {
         return config.get(key) instanceof Number n ? n.longValue() : defaultValue;
     }
 
-    private Optional<Task> resolve(ConnectorTask row) {
-        for (TaskResolver resolver : resolvers) {
-            Optional<Task> result = resolver.resolve(row);
-            if (result.isPresent()) {
-                return result;
-            }
-        }
-        return Optional.empty();
-    }
-
-    private static TaskKey toKey(ConnectorTask row) {
-        TaskScope scope = switch (row.getScopeKind()) {
-            case GLOBAL -> TaskScope.global();
-            case INTEGRATION -> TaskScope.integration(row.getScopeId());
-            case USER -> TaskScope.user(row.getScopeId());
-        };
-        return new TaskKey(row.getConnectorCode(), scope, row.getTaskCode());
+    private static String taskKey(ConnectorTask row) {
+        return row.getConnectorCode() + "/"
+                + (row.getIdentity() == null ? "global" : row.getIdentity()) + "/"
+                + row.getTaskName();
     }
 
     private static String summarize(Throwable e) {

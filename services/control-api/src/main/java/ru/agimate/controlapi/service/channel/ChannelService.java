@@ -9,8 +9,8 @@ import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.abac.AccessEffect;
-import ru.agimate.controlapi.connectors.integrations.IntegrationHandler;
-import ru.agimate.controlapi.connectors.integrations.IntegrationsRegistry;
+import ru.agimate.controlapi.connectors.core.ConnectorHandler;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentToolPolicy;
@@ -47,7 +47,7 @@ public class ChannelService {
     private final ConnectorRepository connectorRepository;
     private final AppRepository appRepository;
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
-    private final IntegrationsRegistry integrationsRegistry;
+    private final ConnectorRegistry connectorRegistry;
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
     private final AgentToolPolicyRepository agentToolPolicyRepository;
 
@@ -313,9 +313,9 @@ public class ChannelService {
             }
             case INTEGRATION -> {
                 loadIntegration(userId, connector.getCode(), identity);
-                IntegrationHandler handler = integrationsRegistry.findHandler(connector.getCode())
+                ConnectorHandler handler = connectorRegistry.findHandler(connector.getCode())
                         .orElseThrow(() -> new BadRequestStatusException("Unknown integration: " + connector.getCode()));
-                yield handler.getPredefinedTriggers() != null ? handler.getPredefinedTriggers().keySet() : Set.of();
+                yield handler.getTriggers().keySet();
             }
             case INTERNAL_SERVICE, LOOPBACK ->
                     throw new BadRequestStatusException("Connector type does not support triggers: " + connector.getType());
@@ -330,9 +330,9 @@ public class ChannelService {
             }
             case INTEGRATION -> {
                 loadIntegration(userId, connector.getCode(), identity);
-                IntegrationHandler handler = integrationsRegistry.findHandler(connector.getCode())
+                ConnectorHandler handler = connectorRegistry.findHandler(connector.getCode())
                         .orElseThrow(() -> new BadRequestStatusException("Unknown integration: " + connector.getCode()));
-                yield handler.getPredefinedTools() != null ? handler.getPredefinedTools().keySet() : Set.of();
+                yield handler.getTools().keySet();
             }
             case INTERNAL_SERVICE, LOOPBACK ->
                     throw new BadRequestStatusException("Connector type does not support tools: " + connector.getType());

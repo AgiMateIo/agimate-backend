@@ -169,7 +169,7 @@ public class BoardService {
         );
 
         Trigger trigger = Trigger.createWithAudience(
-                BoardToolHandler.CONNECTOR_CODE,
+                BoardConnectorService.CONNECTOR_CODE,
                 board.getId().toString(),
                 "trigger.board.task_created",
                 triggerData,
@@ -225,7 +225,7 @@ public class BoardService {
         );
 
         Trigger trigger = Trigger.createWithAudience(
-                BoardToolHandler.CONNECTOR_CODE,
+                BoardConnectorService.CONNECTOR_CODE,
                 board.getId().toString(),
                 "trigger.board.task_status_changed",
                 triggerData,
@@ -306,7 +306,7 @@ public class BoardService {
         );
 
         Trigger trigger = Trigger.createWithAudience(
-                BoardToolHandler.CONNECTOR_CODE,
+                BoardConnectorService.CONNECTOR_CODE,
                 board.getId().toString(),
                 "trigger.board.task_comment_created",
                 triggerData,

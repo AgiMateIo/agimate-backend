@@ -2,7 +2,6 @@ package ru.agimate.controlapi.database.repositories;
 
 import ru.agimate.controlapi.database.entities.ConnectorTask;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -15,14 +14,14 @@ public interface ConnectorTaskRepositoryCustom {
     /**
      * Атомарно подхватывает до {@code batchSize} готовых к запуску строк:
      * <ul>
-     *   <li>{@code enabled=true} и {@code (status=PENDING AND next_run_at <= now)} — нормальный pickup;</li>
+     *   <li>{@code status=PENDING AND next_run_at <= now} — нормальный pickup;</li>
      *   <li>либо {@code status=RUNNING AND lease_until <= now} — crash‑recovery зависшей строки.</li>
      * </ul>
      *
      * <p>Под капотом {@code SELECT … FOR UPDATE SKIP LOCKED} обеспечивает корректное разделение
      * работы между несколькими нодами без блокировок. Возвращённые строки сразу переводятся в
-     * {@code status=RUNNING} с lease до {@code now + leaseDuration} — отдельный коммит на стороне
-     * caller'а не нужен.
+     * {@code status=RUNNING} с lease до {@code now + timeout_seconds} (per-row) — отдельный
+     * коммит на стороне caller'а не нужен.
      */
-    List<ConnectorTask> claimReady(LocalDateTime now, Duration leaseDuration, int batchSize);
+    List<ConnectorTask> claimReady(LocalDateTime now, int batchSize);
 }

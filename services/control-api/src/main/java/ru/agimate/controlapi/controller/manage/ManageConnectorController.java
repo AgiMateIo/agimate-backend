@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.integrations.IntegrationsRegistry;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.manage.dto.ConnectorResponse;
 import ru.agimate.controlapi.controller.manage.dto.IntegrationMeta;
 import ru.agimate.controlapi.database.entities.Connector;
@@ -29,7 +29,7 @@ public class ManageConnectorController {
     public static final String PATH = "/manage/connectors";
 
     private final ConnectorRepository connectorRepository;
-    private final IntegrationsRegistry integrationsRegistry;
+    private final ConnectorRegistry connectorRegistry;
 
     @Operation(summary = "List available connectors with optional type filter and full-text search")
     @GetMapping("/")
@@ -56,7 +56,7 @@ public class ManageConnectorController {
 
     private ConnectorResponse toResponse(Connector connector) {
         if (connector.getType() == ConnectorType.INTEGRATION) {
-            return integrationsRegistry.findHandler(connector.getCode())
+            return connectorRegistry.findIntegrationHandler(connector.getCode())
                     .map(handler -> ConnectorResponse.from(connector, IntegrationMeta.from(handler)))
                     .orElseGet(() -> ConnectorResponse.from(connector));
         }

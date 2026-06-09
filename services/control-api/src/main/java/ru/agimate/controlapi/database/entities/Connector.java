@@ -7,7 +7,6 @@ import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.ConnectorType;
 
-import java.util.List;
 import java.util.Map;
 
 @Entity
@@ -33,9 +32,10 @@ public class Connector extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    /** Поля credentials integration-коннектора: код поля → человекочитаемое название. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "credential_fields", columnDefinition = "JSONB")
-    private List<String> credentialFields;
+    private Map<String, String> credentialFields;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "features", columnDefinition = "JSONB")

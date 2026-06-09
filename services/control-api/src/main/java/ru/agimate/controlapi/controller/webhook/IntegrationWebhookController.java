@@ -5,8 +5,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
+import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
-import ru.agimate.controlapi.connectors.integrations.IntegrationsRegistry;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
 import java.util.UUID;
@@ -20,7 +23,8 @@ public class IntegrationWebhookController {
     public static final String PATH = "/webhook/integration";
 
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
-    private final IntegrationsRegistry integrationsRegistry;
+    private final ConnectorRegistry connectorRegistry;
+    private final ConnectorContextFactory contextFactory;
     private final TriggerRouterService triggerRouterService;
 
     @PostMapping("/{integrationId}")
@@ -41,22 +45,30 @@ public class IntegrationWebhookController {
             return ResponseEntity.ok("ok");
         }
 
-        var integrationHandler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
+        IntegrationConnectorHandler handler = connectorRegistry
+                .findIntegrationHandler(integrationCredentials.getConnectorCode())
+                .orElse(null);
+        if (handler == null) {
+            log.warn("Webhook received for integration without handler: {}", integrationId);
+            return ResponseEntity.ok("ok");
+        }
 
         // Guard: platform must support webhooks
-        if (!integrationHandler.supportsWebhooks()) {
+        if (!handler.supportsWebhooks()) {
             log.warn("Webhook received for non-webhook platform: {}", integrationId);
             return ResponseEntity.notFound().build();
         }
 
-        if (!integrationHandler.validateWebhookRequest(integrationCredentials, request)) {
+        ConnectorContext context = contextFactory.forWebhook(integrationCredentials);
+
+        if (!handler.validateWebhookRequest(context, request)) {
             log.warn("Webhook validation failed for integration: {}", integrationId);
             return ResponseEntity.ok("ok");
         }
 
         try {
-            var trigger = integrationHandler.normalizeInbound(integrationCredentials, rawBody);
-            triggerRouterService.routeWhTrigger(integrationCredentials, trigger);
+            var trigger = handler.normalizeInbound(context, rawBody);
+            triggerRouterService.routeWhTrigger(integrationCredentials.getUserId(), trigger);
         } catch (Exception e) {
             log.error("Failed to process webhook for integration {}: {}", integrationId, e.getMessage());
         }

@@ -10,9 +10,9 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.controlapi.connectors.integrations.IntegrationHandler;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.integrations.IntegrationService;
-import ru.agimate.controlapi.connectors.integrations.IntegrationsRegistry;
 import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationMapper;
 import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateIntegrationRequest;
@@ -36,7 +36,7 @@ public class ManageIntegrationController {
     public static final String PATH = "/manage/integrations";
 
     private final IntegrationService integrationService;
-    private final IntegrationsRegistry integrationsRegistry;
+    private final ConnectorRegistry connectorRegistry;
     private final ConnectorRepository connectorRepository;
 
     @Operation(summary = "List integration credentials, optionally filtered by connectorCode")
@@ -113,8 +113,8 @@ public class ManageIntegrationController {
     @Operation(summary = "List predefined tools exposed by an integration connector")
     @GetMapping("/tools/")
     public SuccessResponse<List<ToolSpecificationResponse>> listTools(@RequestParam String connectorCode) {
-        IntegrationHandler handler = loadIntegrationHandler(connectorCode);
-        List<ToolSpecificationResponse> tools = handler.getPredefinedTools().values().stream()
+        IntegrationConnectorHandler handler = loadIntegrationHandler(connectorCode);
+        List<ToolSpecificationResponse> tools = handler.getTools().values().stream()
                 .map(ToolSpecificationMapper::toResponse)
                 .toList();
         return SuccessResponse.ok(tools);
@@ -123,20 +123,21 @@ public class ManageIntegrationController {
     @Operation(summary = "List predefined triggers exposed by an integration connector")
     @GetMapping("/triggers/")
     public SuccessResponse<List<TriggerSpecificationResponse>> listTriggers(@RequestParam String connectorCode) {
-        IntegrationHandler handler = loadIntegrationHandler(connectorCode);
-        List<TriggerSpecificationResponse> triggers = handler.getPredefinedTriggers().entrySet().stream()
+        IntegrationConnectorHandler handler = loadIntegrationHandler(connectorCode);
+        List<TriggerSpecificationResponse> triggers = handler.getTriggers().entrySet().stream()
                 .map(entry -> TriggerSpecificationResponse.from(entry.getKey(), entry.getValue()))
                 .toList();
         return SuccessResponse.ok(triggers);
     }
 
-    private IntegrationHandler loadIntegrationHandler(String connectorCode) {
+    private IntegrationConnectorHandler loadIntegrationHandler(String connectorCode) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
         if (connector.getType() != ConnectorType.INTEGRATION) {
             throw new BadRequestStatusException(
                     "Connector " + connectorCode + " is not an INTEGRATION type (got " + connector.getType() + ")");
         }
-        return integrationsRegistry.getHandler(connectorCode);
+        return connectorRegistry.findIntegrationHandler(connectorCode)
+                .orElseThrow(() -> new BadRequestStatusException("Unsupported platform: " + connectorCode));
     }
 }

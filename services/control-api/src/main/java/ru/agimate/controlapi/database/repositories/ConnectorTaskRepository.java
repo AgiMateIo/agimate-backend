@@ -6,10 +6,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.ConnectorTask;
-import ru.agimate.controlapi.database.enums.ConnectorTaskScopeKind;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,42 +18,36 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
     @Query("""
             SELECT t FROM ConnectorTask t
             WHERE t.connectorCode = :connectorCode
-              AND t.scopeKind = :scopeKind
-              AND ((:scopeId IS NULL AND t.scopeId IS NULL) OR t.scopeId = :scopeId)
-              AND t.taskCode = :taskCode
+              AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
+              AND t.taskName = :taskName
             """)
     Optional<ConnectorTask> findByBusinessKey(
             @Param("connectorCode") String connectorCode,
-            @Param("scopeKind") ConnectorTaskScopeKind scopeKind,
-            @Param("scopeId") UUID scopeId,
-            @Param("taskCode") String taskCode);
-
-    @Query("""
-            SELECT t.id FROM ConnectorTask t
-            WHERE t.connectorCode = :connectorCode
-              AND t.scopeKind = :scopeKind
-              AND ((:scopeId IS NULL AND t.scopeId IS NULL) OR t.scopeId = :scopeId)
-            """)
-    List<UUID> findIdsByScope(
-            @Param("connectorCode") String connectorCode,
-            @Param("scopeKind") ConnectorTaskScopeKind scopeKind,
-            @Param("scopeId") UUID scopeId);
+            @Param("identity") String identity,
+            @Param("taskName") String taskName);
 
     @Modifying
     @Query("""
             DELETE FROM ConnectorTask t
             WHERE t.connectorCode = :connectorCode
-              AND t.scopeKind = :scopeKind
-              AND ((:scopeId IS NULL AND t.scopeId IS NULL) OR t.scopeId = :scopeId)
+              AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
             """)
-    int deleteByScope(
+    int deleteByIdentity(
             @Param("connectorCode") String connectorCode,
-            @Param("scopeKind") ConnectorTaskScopeKind scopeKind,
-            @Param("scopeId") UUID scopeId);
+            @Param("identity") String identity);
 
+    /** Удаляет строки identity, чьи task_name больше не декларируются коннектором. */
     @Modifying
-    @Query("UPDATE ConnectorTask t SET t.enabled = :enabled WHERE t.id = :id")
-    int updateEnabled(@Param("id") UUID id, @Param("enabled") boolean enabled);
+    @Query("""
+            DELETE FROM ConnectorTask t
+            WHERE t.connectorCode = :connectorCode
+              AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
+              AND t.taskName NOT IN :keepTaskNames
+            """)
+    int deleteStale(
+            @Param("connectorCode") String connectorCode,
+            @Param("identity") String identity,
+            @Param("keepTaskNames") Collection<String> keepTaskNames);
 
     @Modifying
     @Query("""
@@ -68,4 +61,16 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
     int complete(@Param("id") UUID id,
                  @Param("nextRunAt") LocalDateTime nextRunAt,
                  @Param("lastError") String lastError);
+
+    @Modifying
+    @Query("""
+            UPDATE ConnectorTask t
+            SET t.status = ru.agimate.controlapi.database.enums.ConnectorTaskStatus.COMPLETED,
+                t.leaseUntil = NULL,
+                t.nextRunAt = NULL,
+                t.lastError = :lastError
+            WHERE t.id = :id
+            """)
+    int markCompleted(@Param("id") UUID id,
+                      @Param("lastError") String lastError);
 }

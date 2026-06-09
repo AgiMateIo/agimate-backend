@@ -4,13 +4,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.integrations.IntegrationToolExecutorService;
-import ru.agimate.controlapi.connectors.internal.InternalToolExecutorService;
+import ru.agimate.controlapi.connectors.execution.ToolExecutionService;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.ToolUseLog;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
-import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.dto.ToolUsePayload;
 
@@ -27,33 +25,21 @@ public class ConnectorService {
 
     private final CentrifugoService centrifugoService;
 
-    private final IntegrationCredentialsRepository integrationCredentialsRepository;
-
-    private final IntegrationToolExecutorService integrationToolExecutorService;
-
-    private final InternalToolExecutorService internalToolExecutorService;
+    private final ToolExecutionService toolExecutionService;
 
     public void pushToConnector(ToolUseLog toolUseLog) {
         Connector connector = connectorRepository.findById(toolUseLog.getConnectorCode())
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + toolUseLog.getConnectorCode()));
 
-        var payload = ToolUsePayload.from(toolUseLog);
-        UUID userId = toolUseLog.getUserId();
-        UUID agentId = toolUseLog.getAgentId();
-
         switch (connector.getType()) {
             case APP -> {
-                var app = appRepository.findByIdAndUserIdNotDeleted(UUID.fromString(payload.identity()), userId)
-                        .orElseThrow(() -> new NotFoundStatusException("App not found: " + payload.identity()));
-                centrifugoService.publishMessage("device:" + app.getDeviceId(), "toolUse", payload);
+                var app = appRepository.findByIdAndUserIdNotDeleted(UUID.fromString(toolUseLog.getIdentity()), toolUseLog.getUserId())
+                        .orElseThrow(() -> new NotFoundStatusException("App not found: " + toolUseLog.getIdentity()));
+                centrifugoService.publishMessage("device:" + app.getDeviceId(), "toolUse", ToolUsePayload.from(toolUseLog));
             }
-            case INTEGRATION -> {
-                var credentials = integrationCredentialsRepository.findByIdAndUserIdNotDeleted(UUID.fromString(payload.identity()), userId)
-                        .orElseThrow(() -> new NotFoundStatusException("Integration credentials not found: " + payload.identity()));
-                integrationToolExecutorService.execute(credentials, payload, agentId);
-            }
-            case INTERNAL_SERVICE -> internalToolExecutorService.execute(payload, agentId, userId);
-            case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}", payload.connectorCode(), payload.name());
+            case INTEGRATION, INTERNAL_SERVICE -> toolExecutionService.executeTool(toolUseLog);
+            case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}",
+                    toolUseLog.getConnectorCode(), toolUseLog.getToolName());
         }
     }
 

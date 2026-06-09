@@ -10,12 +10,17 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
-import ru.agimate.controlapi.connectors.integrations.events.IntegrationCreatedEvent;
-import ru.agimate.controlapi.connectors.integrations.events.IntegrationDeletedEvent;
+import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
+import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
+import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
 import ru.agimate.controlapi.database.entities.IntegrationCredentials;
 import ru.agimate.controlapi.database.enums.ConnectorType;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +37,8 @@ public class IntegrationService {
 
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
     private final ConnectorRepository connectorRepository;
-    private final IntegrationsRegistry integrationsRegistry;
+    private final ConnectorRegistry connectorRegistry;
+    private final ConnectorContextFactory contextFactory;
     private final IntegrationEncryptionService encryptionService;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -47,7 +53,7 @@ public class IntegrationService {
             throw new BadRequestStatusException("Integration connector not found: " + connectorCode);
         }
 
-        var handler = integrationsRegistry.getHandler(connectorCode);
+        var handler = integrationHandler(connectorCode);
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
@@ -76,19 +82,20 @@ public class IntegrationService {
                 .webhookSecret(webhookSecret)
                 .build();
 
-        // Setup webhook before save — on failure the transaction rolls back automatically
+        // Сначала save: id генерится в БД (uuidv7), а он нужен в webhook URL.
+        // На ошибке setupWebhook транзакция откатится вместе со вставкой.
+        integrationCredentials = integrationCredentialsRepository.save(integrationCredentials);
+
         if (handler.supportsWebhooks()) {
             String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getId();
-            handler.setupWebhook(integrationCredentials, credentials, webhookUrl);
+            handler.setupWebhook(contextFactory.withCredentials(integrationCredentials, credentials, null), webhookUrl);
         }
-
-        integrationCredentials = integrationCredentialsRepository.save(integrationCredentials);
 
         log.info("Created integration {} for user {}: {} ({})",
                 integrationCredentials.getId(), userId, connectorCode, validationResult.identifier());
 
-        eventPublisher.publishEvent(new IntegrationCreatedEvent(
-                integrationCredentials.getId(), connectorCode));
+        eventPublisher.publishEvent(new ConnectorCreatedEvent(
+                connectorCode, integrationCredentials.getId().toString()));
 
         return integrationCredentials;
     }
@@ -116,9 +123,9 @@ public class IntegrationService {
 
         // Remove webhook if platform supports it
         try {
-            var handler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
+            var handler = integrationHandler(integrationCredentials.getConnectorCode());
             Map<String, String> credentials = encryptionService.decryptCredentials(integrationCredentials.getEncryptedData());
-            handler.removeWebhook(credentials);
+            handler.removeWebhook(contextFactory.withCredentials(integrationCredentials, credentials, null));
         } catch (Exception e) {
             log.warn("Failed to remove webhook for integration {}: {}", id, e.getMessage());
         }
@@ -126,14 +133,14 @@ public class IntegrationService {
         integrationCredentialsRepository.softDelete(integrationCredentials.getId(), LocalDateTime.now());
         log.info("Deleted integration {}", id);
 
-        eventPublisher.publishEvent(new IntegrationDeletedEvent(
-                integrationCredentials.getId(), integrationCredentials.getConnectorCode()));
+        eventPublisher.publishEvent(new ConnectorDeletedEvent(
+                integrationCredentials.getConnectorCode(), integrationCredentials.getId().toString()));
     }
 
     @Transactional
     public IntegrationCredentials updateCredentials(UUID id, UUID userId, Map<String, String> credentials) {
         IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userId);
-        var handler = integrationsRegistry.getHandler(integrationCredentials.getConnectorCode());
+        var handler = integrationHandler(integrationCredentials.getConnectorCode());
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
@@ -153,10 +160,15 @@ public class IntegrationService {
         // Re-setup webhook if platform supports it
         if (handler.supportsWebhooks()) {
             String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getId();
-            handler.setupWebhook(integrationCredentials, credentials, webhookUrl);
+            handler.setupWebhook(contextFactory.withCredentials(integrationCredentials, credentials, null), webhookUrl);
         }
 
-        return integrationCredentialsRepository.save(integrationCredentials);
+        IntegrationCredentials saved = integrationCredentialsRepository.save(integrationCredentials);
+
+        eventPublisher.publishEvent(new ConnectorModifiedEvent(
+                saved.getConnectorCode(), saved.getId().toString()));
+
+        return saved;
     }
 
     @Transactional
@@ -177,14 +189,19 @@ public class IntegrationService {
 
         if (enabledChanged) {
             if (Boolean.TRUE.equals(enabled)) {
-                eventPublisher.publishEvent(new IntegrationCreatedEvent(
-                        saved.getId(), saved.getConnectorCode()));
+                eventPublisher.publishEvent(new ConnectorCreatedEvent(
+                        saved.getConnectorCode(), saved.getId().toString()));
             } else {
-                eventPublisher.publishEvent(new IntegrationDeletedEvent(
-                        saved.getId(), saved.getConnectorCode()));
+                eventPublisher.publishEvent(new ConnectorDeletedEvent(
+                        saved.getConnectorCode(), saved.getId().toString()));
             }
         }
 
         return saved;
+    }
+
+    private IntegrationConnectorHandler integrationHandler(String connectorCode) {
+        return connectorRegistry.findIntegrationHandler(connectorCode)
+                .orElseThrow(() -> new BadRequestStatusException("Unsupported platform: " + connectorCode));
     }
 }

@@ -7,9 +7,12 @@ package ru.agimate.controlapi.database.enums;
  *   <li>{@link #RUNNING} — текущая нода claim'нула строку и выполняет её. {@code lease_until}
  *       — до какого момента lease считается живым; по истечении строка считается «зависшей»
  *       и подхватывается повторно (crash‑recovery).</li>
+ *   <li>{@link #COMPLETED} — одноразовая ({@code ONETIME}) задача успешно выполнена; строка
+ *       больше не подхватывается. Upsert по бизнес‑ключу возвращает её в {@code PENDING}.</li>
  * </ul>
  */
 public enum ConnectorTaskStatus {
     PENDING,
-    RUNNING
+    RUNNING,
+    COMPLETED
 }

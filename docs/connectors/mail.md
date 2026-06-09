@@ -18,7 +18,7 @@
 Архитектура коннекторов уже готова к новому `INTEGRATION` — добавление чисто аддитивное:
 
 - Запись в таблице `connectors` через Liquibase: `code='mail'`, `type=INTEGRATION`, `credential_fields=[...]`.
-- Новый Handler `connectors/integrations/mail/MailHandler.java extends BaseIntegrationHandler` по образцу `TelegramHandler` (`services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/telegram/TelegramHandler.java`). Регистрация в `IntegrationsRegistry` происходит автоматически через `@Component`.
+- Новый Handler `connectors/integrations/mail/MailConnectorService.java implements IntegrationConnectorHandler extends BaseConnectorHandler` по образцу `TelegramConnectorService` (`services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/telegram/TelegramConnectorService.java`). Регистрация в `ConnectorRegistry` происходит автоматически через `@Component`.
 - Шифрование секретов уже работает «из коробки»: `IntegrationEncryptionService` (AES-GCM) кладёт credentials в `integration_credentials.encrypted_data`. Никаких новых таблиц не требуется.
 - REST API расширять не нужно: эндпоинты `/manage/integrations/credentials/*` универсальны, набор полей диктуется методом `getCredentialFields()` хендлера.
 - Push vs Pull: телеграм поддерживает webhook или polling. Почта IMAP — pull-only, поэтому `supportsWebhooks() = false`. Для подписки на новые письма — отдельный poller-сервис (по образцу `TelegramPollingService`), либо вообще не делать push, а ограничиться tool `mail.fetch_recent`.
@@ -114,7 +114,7 @@ Credentials fields: `["email", "password"]` + опционально `["imap_hos
 ## Ключевые файлы-образцы (на момент анализа)
 
 - `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/telegram/TelegramHandler.java` — образец Handler-а.
-- `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/BaseIntegrationHandler.java` — базовый класс.
+- `services/control-api/src/main/java/ru/agimate/controlapi/connectors/core/BaseConnectorHandler.java` — базовый класс.
 - `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/IntegrationEncryptionService.java` — AES-GCM шифрование credentials.
 - `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/IntegrationsRegistry.java` — авто-регистрация хендлеров.
 - `services/control-api/src/main/java/ru/agimate/controlapi/database/entities/Connector.java` — сущность коннектора.

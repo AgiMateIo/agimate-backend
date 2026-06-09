@@ -64,7 +64,7 @@ Results are sorted by `name` ascending.
         "name": "Telegram",
         "description": "Telegram bot integration",
         "integrationMeta": {
-          "credentialFields": ["botToken"],
+          "credentialFields": {"token": "Bot API token"},
           "supportsWebhooks": true
         }
       }
@@ -104,7 +104,7 @@ Results are sorted by `name` ascending.
 
 | Field | Type | Nullable | Description |
 |-------|------|----------|-------------|
-| `credentialFields` | `string[]` | no | Required credential field names for creating an integration of this type |
+| `credentialFields` | `object (map)` | no | Required credential fields for creating an integration of this type: field code → human-readable label |
 | `supportsWebhooks` | `boolean` | no | Whether the integration supports inbound webhooks |
 
 **`type` enum values:**
@@ -154,7 +154,7 @@ Returns a single connector by its `code`. Convenient for fetching a connector's 
     "name": "Telegram",
     "description": "Telegram bot integration",
     "integrationMeta": {
-      "credentialFields": ["botToken"],
+      "credentialFields": {"token": "Bot API token"},
       "supportsWebhooks": true
     }
   }

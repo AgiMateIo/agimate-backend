@@ -49,8 +49,8 @@ public class TriggerRouterService {
     }
 
     @Async
-    public void routeWhTrigger(IntegrationCredentials integration, Trigger trigger) {
-        routeTrigger(integration.getUserId(), trigger);
+    public void routeWhTrigger(UUID userId, Trigger trigger) {
+        routeTrigger(userId, trigger);
     }
 
 

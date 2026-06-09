@@ -45,7 +45,7 @@ API specification for `/manage/channels/**` — управление **кана�
 | `triggerConnectorCode` | string | Код connector'а (например, `telegram`) |
 | `triggerIdentity` | string | `pubId` instance'а — `App.pubId` (для APP) или `IntegrationCredentials.pubId` (для INTEGRATION) |
 | `triggerIdentityName` | string? | Денормализованное человекочитаемое имя identity: `App.name` (для APP) или `IntegrationCredentials.name`/`platformIdentifier` (для INTEGRATION). `null`, если identity удалён или невалидный UUID. UI может использовать без доп. запросов. |
-| `triggerName` | string | Имя триггера на коннекторе (должно быть в `App.triggers` или `IntegrationHandler.predefinedTriggers`) |
+| `triggerName` | string | Имя триггера на коннекторе (должно быть в `App.triggers` или `ConnectorHandler.getTriggers()`) |
 | `triggerMessageField` | string | Dot-path внутри `trigger.data`, по которому достаётся **текст сообщения пользователя**. Например `data.message.text` для Telegram |
 | **replayConfig** | | Куда канал отправляет исходящие |
 | `replyConnectorCode` | string | Код connector'а для ответа (обычно совпадает с `triggerConnectorCode`, но не обязательно) |
@@ -218,8 +218,8 @@ Backend перед вызовом tool'а проходит по `replyToolParams
    - INTERNAL_SERVICE / LOOPBACK: `400` (триггеры/инструменты не поддерживаются)
 4. `triggerName` присутствует в:
    - `App.triggers` (для APP), либо
-   - `IntegrationHandler.predefinedTriggers` (для INTEGRATION).
-5. `replyToolName` присутствует в `App.tools` или `IntegrationHandler.predefinedTools`.
+   - `ConnectorHandler.getTriggers()` (для INTEGRATION).
+5. `replyToolName` присутствует в `App.tools` или `ConnectorHandler.getTools()`.
 6. `triggerMessageField` не blank.
 7. Нет существующего активного канала с тем же `(user, agent, connector, identity, triggerName)` → иначе `409`.
 8. Нет конфликтующей ALLOW-policy с другим `channel_id` → иначе `409`.
