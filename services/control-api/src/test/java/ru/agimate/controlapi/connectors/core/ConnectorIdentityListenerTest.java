@@ -10,7 +10,7 @@ import ru.agimate.controlapi.connectors.core.dto.TaskSpecification;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
-import ru.agimate.controlapi.connectors.tasks.ConnectorTaskService;
+import ru.agimate.controlapi.connectors.core.tasks.ConnectorTaskService;
 import ru.agimate.controlapi.database.enums.ConnectorTaskType;
 
 import java.util.List;

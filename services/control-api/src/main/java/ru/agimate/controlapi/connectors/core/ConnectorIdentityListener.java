@@ -9,7 +9,7 @@ import ru.agimate.controlapi.connectors.core.dto.TaskSpecification;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
-import ru.agimate.controlapi.connectors.tasks.ConnectorTaskService;
+import ru.agimate.controlapi.connectors.core.tasks.ConnectorTaskService;
 
 /**
  * Превращает lifecycle-события экземпляров коннекторов в строки {@code connector_tasks}

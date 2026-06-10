@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import ru.agimate.controlapi.connectors.tasks.ConnectorTaskService;
+import ru.agimate.controlapi.connectors.core.tasks.ConnectorTaskService;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.ConnectorType;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;

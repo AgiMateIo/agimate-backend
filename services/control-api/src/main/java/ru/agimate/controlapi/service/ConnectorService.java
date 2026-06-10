@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.execution.ToolExecutionService;
+import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.ToolUseLog;
 import ru.agimate.controlapi.database.repositories.AppRepository;

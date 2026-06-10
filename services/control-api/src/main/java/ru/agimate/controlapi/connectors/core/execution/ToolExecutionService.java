@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.connectors.execution;
+package ru.agimate.controlapi.connectors.core.execution;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.connectors.tasks;
+package ru.agimate.controlapi.connectors.core.tasks;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
