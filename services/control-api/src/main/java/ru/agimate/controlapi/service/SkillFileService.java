@@ -46,6 +46,10 @@ public class SkillFileService {
         skillStorage.saveFile(basePath, SKILL_MD, new ByteArrayInputStream(bytes), bytes.length);
     }
 
+    public boolean skillMdExists(UUID skillId) {
+        return skillStorage.exists(resolveBasePath(skillId), SKILL_MD);
+    }
+
     public String readSkillMd(UUID skillId) {
         String basePath = resolveBasePath(skillId);
         try (InputStream is = skillStorage.readFile(basePath, SKILL_MD)) {

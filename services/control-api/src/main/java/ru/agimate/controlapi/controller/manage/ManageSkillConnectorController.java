@@ -34,7 +34,7 @@ public class ManageSkillConnectorController {
             @PathVariable UUID id
     ) {
         UUID userId = UUID.fromString(principal.id());
-        Skill skill = skillService.findOwnedSkill(id, userId);
+        Skill skill = skillService.findAccessibleSkill(id, userId);
         return SuccessResponse.ok(skillConnectorService.getAll(skill));
     }
 
