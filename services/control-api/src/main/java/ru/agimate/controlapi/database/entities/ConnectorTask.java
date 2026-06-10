@@ -47,10 +47,23 @@ public class ConnectorTask extends BaseEntity {
 
     /**
      * Идентификатор экземпляра коннектора: для integration — id из {@code integration_credentials}
-     * строкой (как в {@code ToolUseLog}); {@code null} — глобальная задача internal-коннектора.
+     * строкой (как в {@code ToolUseLog}); {@code null} — задача internal-коннектора (в т.ч.
+     * динамическая, запланированная агентом).
      */
     @Column(name = "identity", columnDefinition = "TEXT")
     private String identity;
+
+    /** Владелец задачи: пользователь, создавший интеграцию, либо владелец агента-инициатора. */
+    @Column(name = "user_id", nullable = false)
+    private UUID userId;
+
+    /**
+     * Агент-инициатор для динамических задач (например, {@code time.schedule}): по нему list/cancel
+     * и реконструкция {@link ru.agimate.controlapi.connectors.core.ConnectorContext} на срабатывании.
+     * {@code null} у декларативных задач интеграции.
+     */
+    @Column(name = "agent_id")
+    private UUID agentId;
 
     /** Имя задачи; диспатчится в {@code @Tool}-метод коннектора с этим именем. */
     @Column(name = "task_name", nullable = false, columnDefinition = "TEXT")

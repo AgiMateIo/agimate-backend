@@ -39,7 +39,7 @@ public class ConnectorIdentityListener {
             return;
         }
         for (TaskSpecification spec : handler.getTasks().values()) {
-            taskService.upsert(event.connectorCode(), event.identity(), spec);
+            taskService.upsert(event.connectorCode(), event.identity(), event.userId(), spec);
             log.info("Registered task {}/{}/{}", event.connectorCode(), event.identity(), spec.name());
         }
     }
@@ -52,7 +52,8 @@ public class ConnectorIdentityListener {
                     event.connectorCode(), event.identity());
             return;
         }
-        taskService.syncIdentity(event.connectorCode(), event.identity(), handler.getTasks().values());
+        taskService.syncIdentity(event.connectorCode(), event.identity(), event.userId(),
+                handler.getTasks().values());
         log.info("Synced tasks for {}/{}", event.connectorCode(), event.identity());
     }
 

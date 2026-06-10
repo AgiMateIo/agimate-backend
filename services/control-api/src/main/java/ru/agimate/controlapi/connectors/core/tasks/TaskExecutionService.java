@@ -52,7 +52,9 @@ public class TaskExecutionService {
                             "Integration credentials missing or disabled: " + row.getIdentity()));
             return contextFactory.forIntegration(credentials, null);
         }
-        return contextFactory.internal(row.getIdentity(), null, null);
+        // Полный контекст инициатора (userId/agentId сохранены в строке при планировании) —
+        // динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.
+        return contextFactory.internal(row.getIdentity(), row.getUserId(), row.getAgentId());
     }
 
     private static UUID parseIdentity(ConnectorTask row) {

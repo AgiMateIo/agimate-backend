@@ -36,7 +36,9 @@ ConnectorHandler                — connectorCode/Name, getTriggers, getTools, g
 (`ConnectorRegistry.findHandler(...).orElseThrow(...)`).
 
 Существующие коннекторы: `integrations/telegram/` (TelegramConnectorService + TelegramToolService,
-таска `telegram.long_poll` в polling-режиме), `internal/board/` (BoardConnectorService + BoardToolService).
+декларативная таска `telegram.long_poll` в polling-режиме), `internal/board/` (BoardConnectorService +
+BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — текущее время +
+планирование отложенных задач агента, см. [«Планирование задач агентом»](#планирование-задач-агентом-time)).
 
 ## Выполнение
 
@@ -45,20 +47,53 @@ ConnectorHandler                — connectorCode/Name, getTriggers, getTools, g
   свежие credentials по `log.identity`), вызывает `executeTool`, пишет результат в лог и доставляет агенту.
 - **Таски**: `tasks/ConnectorTaskScheduler` (`@Scheduled` 1s) атомарно claim'ит готовые строки
   `connector_tasks` (`FOR UPDATE SKIP LOCKED`, lease = `now + timeout_seconds`), исполняет в virtual
-  threads через `tasks/TaskExecutionService` вне транзакции.
+  threads через `tasks/TaskExecutionService` вне транзакции. `TaskExecutionService` реконструирует
+  полный `ConnectorContext` из строки (`identity` + `user_id` + `agent_id`), поэтому таска исполняется
+  с контекстом инициатора — так же, как если бы агент вызвал тулу сам.
 
 ## connector_tasks
 
-Бизнес-ключ `(connector_code, identity, task_name)` (partial unique, identity NULL = глобальная задача).
 `task_type`: `ONETIME` (успех → `COMPLETED`), `PERIODIC` (`task_config.intervalSeconds`; 0 = немедленный
 повтор, long-poll), `CRON` (`task_config.cron`/`zone`). Ошибка любой таски → retry через 60s в `last_error`.
-Crash recovery — по истечении `lease_until` строку подхватывает любая нода.
+Crash recovery — по истечении `lease_until` строку подхватывает любая нода. `user_id` (NOT NULL) — владелец;
+`agent_id` (nullable) — инициатор динамической задачи. `task_args` — аргументы метода; контекст инициатора
+не в `task_args`, а в колонках (`identity`/`user_id`/`agent_id`).
+
+Две формы строк:
+
+| | `identity` | `agent_id` | уникальность | пишется | живёт |
+|---|---|---|---|---|---|
+| **декларативная** (интеграция) | id credentials | `null` | бизнес-ключ `(connector_code, identity, task_name)`, partial unique `WHERE identity IS NOT NULL` | listener upsert/sync из `getTasks()` | до удаления интеграции |
+| **динамическая** (агент) | `null` | id агента | нет, insert-only | тула коннектора (напр. `time.schedule`) → `ConnectorTaskService.schedule(...)` | до срабатывания (`ONETIME`→`COMPLETED`) / отмены |
+
+Концепта «глобальной задачи» (`identity IS NULL` как singleton) больше нет — `identity IS NULL`
+теперь означает динамическую задачу агента; их на один `task_name` может быть много.
+
+`ConnectorTaskService.schedule(...)` вставляет строку с будущим `next_run_at` (первое срабатывание),
+`findActiveByAgent`/`cancel` — list/отмена по `(connector_code, user_id, agent_id)` с проверкой владельца.
+
+### Планирование задач агентом (time)
+
+`internal/time` даёт агенту тулы поверх этого механизма:
+
+- `time.schedule(prompt, delaySeconds|intervalSeconds|cron[,zone])` — вставляет динамическую строку
+  (`ONETIME`/`PERIODIC`/`CRON`), `task_name = time.fire`, `task_args = {prompt}`. Возвращает `id`.
+- `time.scheduled_tasks` / `time.cancel_scheduled(id)` — список/отмена своих задач.
+- `time.fire` — скрытая (`@Task isTaskOnly`) таска-диспетчер: на срок порождает триггер
+  `trigger.time.due` (data `{prompt}`), адресованный агенту-инициатору через `TriggerAudience`.
+
+Доставка: `TriggerRouterService.routeToAgent(userId, trigger)` — user-scoped (без привязки к команде,
+в отличие от `routeInternalTrigger`), сужает кандидатов до audience. Агент получит напоминание, только
+если у него есть осознанная ALLOW-политика на `time`/`trigger.time.due` — дефолтных политик не заводим.
 
 ## Lifecycle
 
-- События `ConnectorCreatedEvent/ConnectorModifiedEvent/ConnectorDeletedEvent (connectorCode, identity)`
-  публикует `IntegrationService` (create/enable, updateCredentials, delete/disable).
-- `ConnectorIdentityListener` (AFTER_COMMIT) превращает их в строки `connector_tasks` из `handler.getTasks()`:
-  created → upsert, modified → sync (upsert + удаление stale), deleted → delete by identity.
+- События `ConnectorCreatedEvent/ConnectorModifiedEvent (connectorCode, identity, userId)` и
+  `ConnectorDeletedEvent (connectorCode, identity)` публикует `IntegrationService`
+  (create/enable, updateCredentials, delete/disable). `userId` → `connector_tasks.user_id`.
+- `ConnectorIdentityListener` (AFTER_COMMIT) превращает их в **декларативные** строки `connector_tasks`
+  из `handler.getTasks()`: created → upsert, modified → sync (upsert + удаление stale), deleted →
+  delete by identity. Касается только интеграций; динамические задачи агента сюда не попадают.
 - `ConnectorBootstrap` (ApplicationReadyEvent) — upsert каталога `connectors` из registry
-  (код — источник истины для name/type/credential_fields) + синк глобальных тасок internal-коннекторов.
+  (код — источник истины для name/type/credential_fields). Задачи на старте не регистрируются:
+  декларативные заводятся по `ConnectorCreatedEvent`, динамические — агентом через тулы.

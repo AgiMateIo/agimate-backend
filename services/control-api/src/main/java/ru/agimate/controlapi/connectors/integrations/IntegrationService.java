@@ -95,7 +95,7 @@ public class IntegrationService {
                 integrationCredentials.getId(), userId, connectorCode, validationResult.identifier());
 
         eventPublisher.publishEvent(new ConnectorCreatedEvent(
-                connectorCode, integrationCredentials.getId().toString()));
+                connectorCode, integrationCredentials.getId().toString(), integrationCredentials.getUserId()));
 
         return integrationCredentials;
     }
@@ -166,7 +166,7 @@ public class IntegrationService {
         IntegrationCredentials saved = integrationCredentialsRepository.save(integrationCredentials);
 
         eventPublisher.publishEvent(new ConnectorModifiedEvent(
-                saved.getConnectorCode(), saved.getId().toString()));
+                saved.getConnectorCode(), saved.getId().toString(), saved.getUserId()));
 
         return saved;
     }
@@ -190,7 +190,7 @@ public class IntegrationService {
         if (enabledChanged) {
             if (Boolean.TRUE.equals(enabled)) {
                 eventPublisher.publishEvent(new ConnectorCreatedEvent(
-                        saved.getConnectorCode(), saved.getId().toString()));
+                        saved.getConnectorCode(), saved.getId().toString(), saved.getUserId()));
             } else {
                 eventPublisher.publishEvent(new ConnectorDeletedEvent(
                         saved.getConnectorCode(), saved.getId().toString()));

@@ -29,7 +29,7 @@ public class ConnectorTaskService {
 
     private static final int LAST_ERROR_LIMIT = 4_000;
 
-    private final ConnectorTaskRepository repository;
+    private final ConnectorTaskRepository connectorTaskRepository;
 
     /**
      * Не {@code readOnly} — внутри pickup делает UPDATE ... RETURNING. Дефолтный {@code REQUIRED}
@@ -37,7 +37,7 @@ public class ConnectorTaskService {
      */
     @Transactional
     public List<ConnectorTask> claimReady(int batchSize) {
-        return repository.claimReady(LocalDateTime.now(), batchSize);
+        return connectorTaskRepository.claimReady(LocalDateTime.now(), batchSize);
     }
 
     /**
@@ -52,8 +52,8 @@ public class ConnectorTaskService {
      * стартует чистую tx.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public ConnectorTask upsert(String connectorCode, String identity, TaskSpecification spec) {
-        return doUpsert(connectorCode, identity, spec);
+    public ConnectorTask upsert(String connectorCode, String identity, UUID userId, TaskSpecification spec) {
+        return doUpsert(connectorCode, identity, userId, spec);
     }
 
     /**
@@ -62,22 +62,23 @@ public class ConnectorTaskService {
      * {@code REQUIRES_NEW} — по той же причине, что и {@link #upsert}.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void syncIdentity(String connectorCode, String identity, Collection<TaskSpecification> specs) {
+    public void syncIdentity(String connectorCode, String identity, UUID userId,
+                             Collection<TaskSpecification> specs) {
         if (specs.isEmpty()) {
-            repository.deleteByIdentity(connectorCode, identity);
+            connectorTaskRepository.deleteByIdentity(connectorCode, identity);
             return;
         }
         for (TaskSpecification spec : specs) {
-            doUpsert(connectorCode, identity, spec);
+            doUpsert(connectorCode, identity, userId, spec);
         }
-        repository.deleteStale(connectorCode, identity,
+        connectorTaskRepository.deleteStale(connectorCode, identity,
                 specs.stream().map(TaskSpecification::name).toList());
     }
 
     /** {@code REQUIRES_NEW} — по той же причине, что и {@link #upsert}: вызов из AFTER_COMMIT listener'а. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int deleteByIdentity(String connectorCode, String identity) {
-        return repository.deleteByIdentity(connectorCode, identity);
+        return connectorTaskRepository.deleteByIdentity(connectorCode, identity);
     }
 
     /**
@@ -86,17 +87,54 @@ public class ConnectorTaskService {
      */
     @Transactional
     public void complete(UUID taskId, LocalDateTime nextRunAt, String lastError) {
-        repository.complete(taskId, nextRunAt, trimError(lastError));
+        connectorTaskRepository.complete(taskId, nextRunAt, trimError(lastError));
     }
 
     /** Финализирует успешно выполненный ONETIME: {@code status=COMPLETED}, без следующего запуска. */
     @Transactional
     public void markCompleted(UUID taskId, String lastError) {
-        repository.markCompleted(taskId, trimError(lastError));
+        connectorTaskRepository.markCompleted(taskId, trimError(lastError));
     }
 
-    private ConnectorTask doUpsert(String connectorCode, String identity, TaskSpecification spec) {
-        ConnectorTask row = repository.findByBusinessKey(connectorCode, identity, spec.name())
+    // ===== Динамические задачи, запланированные агентом (time.schedule и т.п.) =====
+
+    /**
+     * Планирует динамическую задачу агента: INSERT новой строки (в отличие от {@link #upsert} —
+     * без бизнес-ключа, на агента их может быть много). {@code firstRunAt} — момент первого
+     * срабатывания (для ONETIME это и есть единственный запуск).
+     */
+    @Transactional
+    public ConnectorTask schedule(String connectorCode, String identity, UUID userId, UUID agentId,
+                                  TaskSpecification spec, LocalDateTime firstRunAt) {
+        ConnectorTask row = ConnectorTask.builder()
+                .connectorCode(connectorCode)
+                .identity(identity)
+                .userId(userId)
+                .agentId(agentId)
+                .taskName(spec.name())
+                .taskType(spec.taskType())
+                .taskConfig(spec.taskConfig())
+                .taskArgs(spec.taskArgs())
+                .timeoutSeconds(spec.timeoutSeconds())
+                .status(ConnectorTaskStatus.PENDING)
+                .nextRunAt(firstRunAt)
+                .build();
+        return connectorTaskRepository.save(row);
+    }
+
+    /** Активные (не COMPLETED) задачи агента — для list. */
+    public List<ConnectorTask> findActiveByAgent(String connectorCode, UUID userId, UUID agentId) {
+        return connectorTaskRepository.findActiveByAgent(connectorCode, userId, agentId);
+    }
+
+    /** Отменяет задачу агента с проверкой владельца; {@code true} — действительно удалена. */
+    @Transactional
+    public boolean cancel(String connectorCode, UUID userId, UUID agentId, UUID taskId) {
+        return connectorTaskRepository.deleteOwned(taskId, connectorCode, userId, agentId) > 0;
+    }
+
+    private ConnectorTask doUpsert(String connectorCode, String identity, UUID userId, TaskSpecification spec) {
+        ConnectorTask row = connectorTaskRepository.findByBusinessKey(connectorCode, identity, spec.name())
                 .orElseGet(() -> ConnectorTask.builder()
                         .connectorCode(connectorCode)
                         .identity(identity)
@@ -109,12 +147,13 @@ public class ConnectorTaskService {
             row.setStatus(ConnectorTaskStatus.PENDING);
             row.setNextRunAt(LocalDateTime.now());
         }
+        row.setUserId(userId);
         row.setTaskType(spec.taskType());
         row.setTaskConfig(spec.taskConfig());
         row.setTaskArgs(spec.taskArgs());
         row.setTimeoutSeconds(spec.timeoutSeconds());
 
-        return repository.save(row);
+        return connectorTaskRepository.save(row);
     }
 
     private static String trimError(String lastError) {

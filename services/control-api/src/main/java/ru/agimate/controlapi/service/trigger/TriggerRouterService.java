@@ -92,6 +92,30 @@ public class TriggerRouterService {
         return agents;
     }
 
+    /**
+     * Доставка триггера конкретным агентам пользователя по {@link TriggerAudience} — без привязки
+     * к команде (в отличие от {@link #routeInternalTrigger}). Кандидаты ограничены allow-политиками
+     * пользователя, затем сужаются audience. Используется динамическими задачами агента
+     * ({@code time.schedule} → {@code trigger.time.due}): адресат уже известен из audience.
+     */
+    public void routeToAgent(UUID userId, Trigger trigger) {
+        TriggerLog triggerLog = triggerLogService.createTriggerLog(userId, trigger);
+
+        if (isBlockingProbe(trigger.data())) {
+            log.info("Trigger contains discovery probe (block mode) - skipping agent routing for user={}", userId);
+            triggerLogService.save(triggerLog);
+            return;
+        }
+
+        List<Agent> agents = agentTriggerPolicyService.findAllowedAgents(
+                userId, trigger.connectorCode(), trigger.identity(), trigger.name());
+        agents = applyAudience(agents, trigger.audience());
+
+        sendTrigger(agents, triggerLog, trigger);
+
+        triggerLogService.save(triggerLog);
+    }
+
     private void routeTrigger(UUID userId, Trigger trigger) {
         TriggerLog triggerLog = triggerLogService.createTriggerLog(userId, trigger);
 

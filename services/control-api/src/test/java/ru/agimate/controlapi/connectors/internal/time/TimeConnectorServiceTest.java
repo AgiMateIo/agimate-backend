@@ -12,30 +12,41 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("TimeConnectorService")
 class TimeConnectorServiceTest {
 
-    private final TimeConnectorService handler = new TimeConnectorService(new TimeToolService());
+    // taskService/triggerRouter не нужны для метаданных и current_datetime — передаём null.
+    private final TimeConnectorService handler =
+            new TimeConnectorService(new TimeToolService(null, null));
 
     private static ConnectorContext context() {
         return new ConnectorContext(null, null, null, Map.of(), null);
     }
 
     @Test
-    @DisplayName("метаданные: code/name, одна тула, без тасок и триггеров")
+    @DisplayName("метаданные: LLM-тулы, скрытая таска fire, триггер due")
     void metadata() {
         assertEquals("time", handler.connectorCode());
         assertEquals("Time", handler.connectorName());
 
         Map<String, ConnectorToolSpec> tools = handler.getTools();
-        assertEquals(1, tools.size());
+        assertEquals(4, tools.size());
         assertNotNull(tools.get("time.current_datetime"));
         assertTrue(tools.get("time.current_datetime").annotations().readOnlyHint());
+        assertNotNull(tools.get("time.schedule"));
+        assertNotNull(tools.get("time.scheduled_tasks"));
+        assertNotNull(tools.get("time.cancel_scheduled"));
+        // fire — task-only, скрыта от LLM, но регистрируется как таска-диспетчер.
+        assertNull(tools.get("time.fire"));
 
-        assertTrue(handler.getTasks().isEmpty());
-        assertTrue(handler.getTriggers().isEmpty());
+        assertEquals(1, handler.getTasks().size());
+        assertNotNull(handler.getTasks().get("time.fire"));
+
+        assertEquals(1, handler.getTriggers().size());
+        assertNotNull(handler.getTriggers().get("trigger.time.due"));
     }
 
     @Test

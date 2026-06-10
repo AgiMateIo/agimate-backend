@@ -141,6 +141,23 @@ class TaskExecutionServiceTest {
     }
 
     @Test
+    @DisplayName("internal: userId/agentId строки реконструируются в контекст")
+    void internalContextReconstructsOwner() {
+        UUID agentId = UUID.randomUUID();
+        ConnectorTask row = row("board", null);
+        row.setUserId(USER_ID);
+        row.setAgentId(agentId);
+
+        service.executeTask(row);
+
+        verify(internalHandler).executeTask(
+                argThat((ConnectorContext ctx) ->
+                        USER_ID.equals(ctx.userId()) && agentId.equals(ctx.agentId())),
+                eq("some.task"),
+                eq(Map.of("arg", "value")));
+    }
+
+    @Test
     @DisplayName("неизвестный коннектор → ConnectorException")
     void unknownConnector() {
         assertThrows(ConnectorException.class,

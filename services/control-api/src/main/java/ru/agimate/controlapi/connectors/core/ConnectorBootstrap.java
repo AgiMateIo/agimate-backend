@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import ru.agimate.controlapi.connectors.core.tasks.ConnectorTaskService;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.ConnectorType;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
@@ -15,10 +14,12 @@ import ru.agimate.controlapi.database.repositories.ConnectorRepository;
  * <ol>
  *   <li>статические строки {@code connectors} ({@code app}, {@code claude-code}) — только если отсутствуют;</li>
  *   <li>upsert строки {@code connectors} для каждого handler'а из registry — код-источник истины
- *       для name/type/credential_fields; description/features не затираются;</li>
- *   <li>синк глобальных задач ({@code identity = null}) internal-коннекторов — у них нет
- *       наблюдаемого «создания», поэтому единственная точка регистрации — старт приложения.</li>
+ *       для name/type/credential_fields; description/features не затираются.</li>
  * </ol>
+ *
+ * <p>Задачи коннекторов на старте не регистрируются: декларативные таски интеграций заводятся
+ * по {@code ConnectorCreatedEvent} (добавление коннектора пользователем), динамические — агентом
+ * через тулы (например {@code time.schedule}).
  */
 @Slf4j
 @Component
@@ -27,7 +28,6 @@ public class ConnectorBootstrap {
 
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
-    private final ConnectorTaskService taskService;
 
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
@@ -44,9 +44,6 @@ public class ConnectorBootstrap {
 
         for (ConnectorHandler handler : connectorRegistry.getHandlers()) {
             upsertConnector(handler);
-            if (handler instanceof InternalConnectorHandler) {
-                taskService.syncIdentity(handler.connectorCode(), null, handler.getTasks().values());
-            }
         }
         log.info("Connectors bootstrapped: {}", connectorRegistry.getHandlers().size());
     }

@@ -15,6 +15,7 @@ import ru.agimate.controlapi.database.enums.ConnectorTaskType;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -27,6 +28,7 @@ import static org.mockito.Mockito.when;
 class ConnectorIdentityListenerTest {
 
     private static final String IDENTITY = "integration-1";
+    private static final UUID USER_ID = UUID.randomUUID();
 
     private static final TaskSpecification SPEC_A = new TaskSpecification(
             "test.task_a", ConnectorTaskType.PERIODIC, Map.of("intervalSeconds", 0L), Map.of(), 60);
@@ -52,10 +54,10 @@ class ConnectorIdentityListenerTest {
     void onCreated() {
         when(handler.getTasks()).thenReturn(Map.of("test.task_a", SPEC_A, "test.task_b", SPEC_B));
 
-        listener.onCreated(new ConnectorCreatedEvent("test", IDENTITY));
+        listener.onCreated(new ConnectorCreatedEvent("test", IDENTITY, USER_ID));
 
-        verify(taskService).upsert("test", IDENTITY, SPEC_A);
-        verify(taskService).upsert("test", IDENTITY, SPEC_B);
+        verify(taskService).upsert("test", IDENTITY, USER_ID, SPEC_A);
+        verify(taskService).upsert("test", IDENTITY, USER_ID, SPEC_B);
     }
 
     @Test
@@ -63,9 +65,9 @@ class ConnectorIdentityListenerTest {
     void onModified() {
         when(handler.getTasks()).thenReturn(Map.of("test.task_a", SPEC_A));
 
-        listener.onModified(new ConnectorModifiedEvent("test", IDENTITY));
+        listener.onModified(new ConnectorModifiedEvent("test", IDENTITY, USER_ID));
 
-        verify(taskService).syncIdentity(eq("test"), eq(IDENTITY),
+        verify(taskService).syncIdentity(eq("test"), eq(IDENTITY), eq(USER_ID),
                 argThat(specs -> specs.size() == 1 && specs.contains(SPEC_A)));
     }
 
@@ -80,8 +82,8 @@ class ConnectorIdentityListenerTest {
     @Test
     @DisplayName("неизвестный коннектор: created/modified — warn и skip")
     void unknownConnectorSkipped() {
-        listener.onCreated(new ConnectorCreatedEvent("ghost", IDENTITY));
-        listener.onModified(new ConnectorModifiedEvent("ghost", IDENTITY));
+        listener.onCreated(new ConnectorCreatedEvent("ghost", IDENTITY, USER_ID));
+        listener.onModified(new ConnectorModifiedEvent("ghost", IDENTITY, USER_ID));
 
         verifyNoInteractions(taskService);
     }

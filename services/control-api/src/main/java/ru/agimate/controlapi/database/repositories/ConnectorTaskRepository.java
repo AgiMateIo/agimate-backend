@@ -9,6 +9,7 @@ import ru.agimate.controlapi.database.entities.ConnectorTask;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -48,6 +49,35 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
             @Param("connectorCode") String connectorCode,
             @Param("identity") String identity,
             @Param("keepTaskNames") Collection<String> keepTaskNames);
+
+    /** Активные (не COMPLETED) динамические задачи агента — для list. */
+    @Query("""
+            SELECT t FROM ConnectorTask t
+            WHERE t.connectorCode = :connectorCode
+              AND t.userId = :userId
+              AND t.agentId = :agentId
+              AND t.status <> ru.agimate.controlapi.database.enums.ConnectorTaskStatus.COMPLETED
+            ORDER BY t.nextRunAt NULLS FIRST
+            """)
+    List<ConnectorTask> findActiveByAgent(
+            @Param("connectorCode") String connectorCode,
+            @Param("userId") UUID userId,
+            @Param("agentId") UUID agentId);
+
+    /** Удаляет задачу с проверкой владельца (user + agent); {@code > 0} — действительно удалена. */
+    @Modifying
+    @Query("""
+            DELETE FROM ConnectorTask t
+            WHERE t.id = :id
+              AND t.connectorCode = :connectorCode
+              AND t.userId = :userId
+              AND t.agentId = :agentId
+            """)
+    int deleteOwned(
+            @Param("id") UUID id,
+            @Param("connectorCode") String connectorCode,
+            @Param("userId") UUID userId,
+            @Param("agentId") UUID agentId);
 
     @Modifying
     @Query("""

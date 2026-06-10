@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        Владелец строки connector_tasks. Раньше строки были либо глобальными internal-задачами
+        (identity IS NULL), либо декларативными задачами интеграции (identity = creds id). Теперь
+        добавляются динамические задачи, запланированные агентом (time.schedule и т.п.):
+          - user_id  — владелец, всегда задан (интеграция/агент так или иначе чьи-то);
+          - agent_id — инициатор; NULL у декларативных задач, задан у задач от агента.
+        Концепт глобальных задач убран → partial unique по (connector_code, task_name) больше не нужен;
+        много строк time.fire с identity IS NULL теперь сосуществуют свободно.
+    -->
+    <changeSet id="connector-tasks-add-owner-columns" author="agimate">
+        <addColumn tableName="connector_tasks">
+            <column name="user_id" type="UUID"/>
+            <column name="agent_id" type="UUID"/>
+        </addColumn>
+
+        <!-- Backfill user_id для уже существующих декларативных строк интеграций по identity. -->
+        <sql>
+            UPDATE connector_tasks t
+               SET user_id = c.user_id
+              FROM integration_credentials c
+             WHERE t.identity = c.id::text
+               AND t.user_id IS NULL;
+        </sql>
+
+        <addNotNullConstraint tableName="connector_tasks" columnName="user_id" columnDataType="UUID"/>
+    </changeSet>
+
+    <changeSet id="connector-tasks-drop-global-unique" author="agimate">
+        <!-- Глобальных задач (identity IS NULL как singleton) больше нет. -->
+        <sql>DROP INDEX IF EXISTS uq_connector_tasks_global;</sql>
+    </changeSet>
+
+    <changeSet id="connector-tasks-index-agent" author="agimate">
+        <!-- Под list/cancel задач конкретного агента. -->
+        <createIndex tableName="connector_tasks" indexName="idx_connector_tasks_agent">
+            <column name="agent_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
