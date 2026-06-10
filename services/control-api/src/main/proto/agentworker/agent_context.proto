@@ -102,10 +102,23 @@ message GetConnectorToolsRequest {
   string connector_code = 1;
 }
 
+// MCP ToolAnnotations — поведенческие хинты тула.
+message ToolAnnotations {
+  bool read_only_hint = 1 [json_name = "readOnlyHint"];
+  bool destructive_hint = 2 [json_name = "destructiveHint"];
+  bool idempotent_hint = 3 [json_name = "idempotentHint"];
+  bool open_world_hint = 4 [json_name = "openWorldHint"];
+}
+
+// MCP-совместимое описание тула (соответствует ConnectorToolSpec в control-api).
 message ConnectorToolSpec {
   string name = 1;
-  string description = 2;
-  bytes parameters_json_schema = 3;
+  string title = 2;
+  string description = 3;
+  bytes input_schema = 4 [json_name = "inputSchema"];    // MCP inputSchema (JSON Schema)
+  bytes output_schema = 5 [json_name = "outputSchema"];  // MCP outputSchema (JSON Schema)
+  ToolAnnotations annotations = 6;                       // MCP annotations
+  map<string, string> meta = 7 [json_name = "_meta"];    // MCP _meta
 }
 
 message GetConnectorToolsResponse {

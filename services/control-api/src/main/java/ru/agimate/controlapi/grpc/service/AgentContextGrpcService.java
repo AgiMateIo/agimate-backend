@@ -1,7 +1,6 @@
 package ru.agimate.controlapi.grpc.service;
 
 import com.google.protobuf.ByteString;
-import dev.langchain4j.agent.tool.ToolSpecification;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +14,6 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
-import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationMapper;
-import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillConnectorResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
@@ -57,6 +54,7 @@ import ru.agimate.agentworker.SkillRef;
 import ru.agimate.agentworker.SkillSpec;
 import ru.agimate.agentworker.TeamContext;
 import ru.agimate.agentworker.TeamMember;
+import ru.agimate.agentworker.ToolAnnotations;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -289,26 +287,42 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             Connector connector = connectorRepository.findById(connectorCode)
                     .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
-            Map<String, ToolSpecification> tools = switch (connector.getType()) {
-                case INTEGRATION, INTERNAL_SERVICE -> connectorRegistry.findHandler(connectorCode)
-                        .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
-                        .getTools();
-                case APP, LOOPBACK -> throw new BadRequestStatusException(
-                        "Connector type " + connector.getType() + " does not expose static tool definitions");
-            };
+            Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> tools =
+                    switch (connector.getType()) {
+                        case INTEGRATION, INTERNAL_SERVICE -> connectorRegistry.findHandler(connectorCode)
+                                .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
+                                .getTools();
+                        case APP, LOOPBACK -> throw new BadRequestStatusException(
+                                "Connector type " + connector.getType() + " does not expose static tool definitions");
+                    };
 
             GetConnectorToolsResponse.Builder builder = GetConnectorToolsResponse.newBuilder();
             tools.forEach((name, spec) -> {
-                ToolSpecificationResponse dto = ToolSpecificationMapper.toResponse(spec);
                 ConnectorToolSpec.Builder toolBuilder = ConnectorToolSpec.newBuilder()
-                        .setName(dto.name() != null ? dto.name() : name);
-                if (dto.description() != null) {
-                    toolBuilder.setDescription(dto.description());
+                        .setName(spec.name() != null ? spec.name() : name);
+                if (spec.title() != null) {
+                    toolBuilder.setTitle(spec.title());
                 }
-                if (dto.parameters() != null) {
-                    String json = JsonUtils.writeValueAsString(dto.parameters());
-                    toolBuilder.setParametersJsonSchema(
-                            ByteString.copyFrom(json.getBytes(StandardCharsets.UTF_8)));
+                if (spec.description() != null) {
+                    toolBuilder.setDescription(spec.description());
+                }
+                if (spec.inputSchema() != null) {
+                    toolBuilder.setInputSchema(toJsonBytes(spec.inputSchema()));
+                }
+                if (spec.outputSchema() != null) {
+                    toolBuilder.setOutputSchema(toJsonBytes(spec.outputSchema()));
+                }
+                var annotations = spec.annotations() != null
+                        ? spec.annotations()
+                        : ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec.DEFAULT;
+                toolBuilder.setAnnotations(ToolAnnotations.newBuilder()
+                        .setReadOnlyHint(annotations.readOnlyHint())
+                        .setDestructiveHint(annotations.destructiveHint())
+                        .setIdempotentHint(annotations.idempotentHint())
+                        .setOpenWorldHint(annotations.openWorldHint())
+                        .build());
+                if (spec.meta() != null) {
+                    toolBuilder.putAllMeta(spec.meta());
                 }
                 builder.addTools(toolBuilder.build());
             });
@@ -364,6 +378,10 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
 
     private static String nullToEmpty(String s) {
         return s == null ? "" : s;
+    }
+
+    private static ByteString toJsonBytes(Object value) {
+        return ByteString.copyFrom(JsonUtils.writeValueAsString(value).getBytes(StandardCharsets.UTF_8));
     }
 
     private static void handleError(Exception e, StreamObserver<?> observer) {
