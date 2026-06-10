@@ -1,6 +1,5 @@
 package ru.agimate.controlapi.connectors.integrations.telegram;
 
-import dev.langchain4j.agent.tool.ToolSpecification;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,6 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 import tools.jackson.databind.ObjectMapper;
@@ -86,7 +86,7 @@ class TelegramConnectorServiceTest {
         @Test
         @DisplayName("getTools содержит все пять тулов, но не long_poll")
         void tools() {
-            Map<String, ToolSpecification> tools = handler.getTools();
+            Map<String, ConnectorToolSpec> tools = handler.getTools();
 
             assertTrue(tools.containsKey("telegram.send_message"));
             assertTrue(tools.containsKey("telegram.send_photo"));
@@ -95,9 +95,10 @@ class TelegramConnectorServiceTest {
             assertTrue(tools.containsKey("telegram.answer_callback_query"));
             assertFalse(tools.containsKey(TelegramToolService.TASK_LONG_POLL));
 
-            ToolSpecification sendMessage = tools.get("telegram.send_message");
+            ConnectorToolSpec sendMessage = tools.get("telegram.send_message");
             assertEquals("Send a text message", sendMessage.description());
-            assertNotNull(sendMessage.parameters());
+            assertNotNull(sendMessage.inputSchema());
+            assertFalse(sendMessage.annotations().destructiveHint());
         }
 
         @Test

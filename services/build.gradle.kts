@@ -41,7 +41,6 @@ allprojects {
                 implementation("com.squareup.okhttp3:okhttp-brotli:5.3.2")
                 implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")
 
-                implementation("dev.langchain4j:langchain4j-core:1.1.0")
                 implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.0")
                 implementation("org.postgresql:postgresql:42.7.5")
                 implementation("org.liquibase:liquibase-core:4.29.2")

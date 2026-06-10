@@ -1,9 +1,9 @@
 package ru.agimate.controlapi.connectors.internal.time;
 
-import dev.langchain4j.agent.tool.ToolSpecification;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -29,9 +29,10 @@ class TimeConnectorServiceTest {
         assertEquals("time", handler.connectorCode());
         assertEquals("Time", handler.connectorName());
 
-        Map<String, ToolSpecification> tools = handler.getTools();
+        Map<String, ConnectorToolSpec> tools = handler.getTools();
         assertEquals(1, tools.size());
         assertNotNull(tools.get("time.current_datetime"));
+        assertTrue(tools.get("time.current_datetime").annotations().readOnlyHint());
 
         assertTrue(handler.getTasks().isEmpty());
         assertTrue(handler.getTriggers().isEmpty());

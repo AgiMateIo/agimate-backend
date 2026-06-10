@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationResponse;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.service.ToolDefinitionService;
 
 import java.util.Map;
@@ -33,7 +33,7 @@ public class ManageToolsController {
                     "For APP connectors the `identity` query parameter (App id) is required."
     )
     @GetMapping("/{connectorCode}/")
-    public SuccessResponse<Map<String, ToolSpecificationResponse>> getTools(
+    public SuccessResponse<Map<String, ConnectorToolSpec>> getTools(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable String connectorCode,
             @RequestParam(required = false) UUID identity
@@ -48,7 +48,7 @@ public class ManageToolsController {
                     "(plus identity for APP connectors)."
     )
     @GetMapping("/{connectorCode}/{toolName}")
-    public SuccessResponse<ToolSpecificationResponse> getTool(
+    public SuccessResponse<ConnectorToolSpec> getTool(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable String connectorCode,
             @PathVariable String toolName,

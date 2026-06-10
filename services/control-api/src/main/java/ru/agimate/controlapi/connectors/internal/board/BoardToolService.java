@@ -1,12 +1,13 @@
 package ru.agimate.controlapi.connectors.internal.board;
 
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.connectors.core.ConnectorContextHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.core.annotation.Tool;
+import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
+import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.controller.manage.dto.CreateBoardTaskCommentRequest;
 import ru.agimate.controlapi.controller.manage.dto.CreateBoardTaskRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateBoardTaskStatusRequest;
@@ -35,20 +36,22 @@ public class BoardToolService {
     private final AgenticTeamRepository agenticTeamRepository;
     private final BoardRepository boardRepository;
 
-    @Tool(name = "board.get_tasks", value = "Get all tasks from the board grouped by status")
+    @Tool(name = "board.get_tasks", description = "Get all tasks from the board grouped by status",
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public Map<String, Object> getTasks() {
         Board board = resolveBoard(resolveAgent());
         var result = boardService.getTasksByStatus(board.getId(), userId());
         return Map.of("tasks", result);
     }
 
-    @Tool(name = "board.create_task", value = "Create a new task on the board")
+    @Tool(name = "board.create_task", description = "Create a new task on the board",
+            annotations = @ToolAnnotations(openWorldHint = false))
     public Map<String, Object> createTask(
-            @P("Task type (EPIC, TASK, SUBTASK)") String type,
-            @P("Task title") String title,
-            @P("Task description") String description,
-            @P("Parent task public ID") String parentTaskId,
-            @P("Assignee agent public ID") String assigneeAgentId) {
+            @ToolParam("Task type (EPIC, TASK, SUBTASK)") String type,
+            @ToolParam("Task title") String title,
+            @ToolParam(value = "Task description", required = false) String description,
+            @ToolParam(value = "Parent task public ID", required = false) String parentTaskId,
+            @ToolParam(value = "Assignee agent public ID", required = false) String assigneeAgentId) {
         if (type == null || type.isBlank()) {
             throw new ConnectorException("Parameter 'type' is required (EPIC, TASK, SUBTASK)");
         }
@@ -74,10 +77,11 @@ public class BoardToolService {
         return Map.of("task", result);
     }
 
-    @Tool(name = "board.change_task_status", value = "Change the status of a task")
+    @Tool(name = "board.change_task_status", description = "Change the status of a task",
+            annotations = @ToolAnnotations(openWorldHint = false))
     public Map<String, Object> changeTaskStatus(
-            @P("Task public ID") String taskId,
-            @P("New status") String status) {
+            @ToolParam("Task public ID") String taskId,
+            @ToolParam("New status") String status) {
         if (taskId == null || taskId.isBlank()) {
             throw new ConnectorException("Parameter 'taskId' is required");
         }
@@ -100,18 +104,20 @@ public class BoardToolService {
         return Map.of("task", result);
     }
 
-    @Tool(name = "board.get_comments", value = "Get comments for a task")
+    @Tool(name = "board.get_comments", description = "Get comments for a task",
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public Map<String, Object> getComments(
-            @P("Task public ID") String taskId) {
+            @ToolParam("Task public ID") String taskId) {
         UUID taskUuid = UUID.fromString(taskId);
         var result = boardService.getComments(taskUuid, userId());
         return Map.of("comments", result);
     }
 
-    @Tool(name = "board.create_comment", value = "Create a comment on a task")
+    @Tool(name = "board.create_comment", description = "Create a comment on a task",
+            annotations = @ToolAnnotations(openWorldHint = false))
     public Map<String, Object> createComment(
-            @P("Task public ID") String taskId,
-            @P("Comment content") String content) {
+            @ToolParam("Task public ID") String taskId,
+            @ToolParam("Comment content") String content) {
         Agent agent = resolveAgent();
 
         UUID taskUuid = UUID.fromString(taskId);

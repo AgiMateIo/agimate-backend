@@ -9,18 +9,15 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import dev.langchain4j.agent.tool.ToolSpecification;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
-import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationMapper;
-import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationResponse;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.security.AgentPrincipal;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -41,14 +38,14 @@ public class AgentToolsController {
             security = @SecurityRequirement(name = "ApiKey")
     )
     @GetMapping("/{connectorCode}")
-    public SuccessResponse<Map<String, ToolSpecificationResponse>> getTools(
+    public SuccessResponse<Map<String, ConnectorToolSpec>> getTools(
             @AuthenticationPrincipal AgentPrincipal principal,
             @PathVariable("connectorCode") String connectorCode) {
 
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
-        Map<String, ToolSpecification> tools = switch (connector.getType()) {
+        Map<String, ConnectorToolSpec> tools = switch (connector.getType()) {
             case INTEGRATION, INTERNAL_SERVICE -> connectorRegistry.findHandler(connectorCode)
                     .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
                     .getTools();
@@ -56,8 +53,6 @@ public class AgentToolsController {
                     "Connector type " + connector.getType() + " does not expose static tool definitions");
         };
 
-        Map<String, ToolSpecificationResponse> result = new LinkedHashMap<>();
-        tools.forEach((name, spec) -> result.put(name, ToolSpecificationMapper.toResponse(spec)));
-        return SuccessResponse.ok(result);
+        return SuccessResponse.ok(tools);
     }
 }

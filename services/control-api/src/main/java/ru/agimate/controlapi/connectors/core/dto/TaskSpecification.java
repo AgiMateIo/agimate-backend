@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.connectors.core.dto;
 
-import ru.agimate.controlapi.connectors.core.TaskOnly;
+import ru.agimate.controlapi.connectors.core.annotation.Task;
 import ru.agimate.controlapi.database.enums.ConnectorTaskType;
 
 import java.util.Map;
@@ -10,7 +10,7 @@ import java.util.Map;
  * в {@code connector_tasks} ({@code ConnectorIdentityListener}, {@code ConnectorBootstrap}).
  *
  * @param name           имя задачи; диспатчится в {@code @Tool}-метод с этим именем
- *                       (включая обычные тулы — см. {@link TaskOnly})
+ *                       (включая обычные тулы — см. {@link Task})
  * @param taskType       ONETIME / PERIODIC / CRON
  * @param taskConfig     параметры расписания: {@code intervalSeconds} | {@code cron}, {@code zone}
  * @param taskArgs       аргументы, передаваемые в метод при каждом запуске

@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.connectors.core;
 
-import dev.langchain4j.agent.tool.ToolSpecification;
+import ru.agimate.controlapi.connectors.core.annotation.Task;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.TaskSpecification;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpecification;
 
@@ -11,7 +12,7 @@ import java.util.Map;
  *
  * <p>Коннектор состоит из «фасада» (реализация этого интерфейса, обычно через
  * {@link BaseConnectorHandler}) и tool-сервиса с {@code @Tool}-методами, в которые фасад
- * делегирует выполнение. Тулы доступны LLM; таски ({@link TaskOnly}) исполняются
+ * делегирует выполнение. Тулы доступны LLM; таски ({@link Task}) исполняются
  * scheduler'ом из строк {@code connector_tasks}.
  */
 public interface ConnectorHandler {
@@ -26,7 +27,7 @@ public interface ConnectorHandler {
         return Map.of();
     }
 
-    Map<String, ToolSpecification> getTools();
+    Map<String, ConnectorToolSpec> getTools();
 
     default Map<String, TaskSpecification> getTasks() {
         return Map.of();

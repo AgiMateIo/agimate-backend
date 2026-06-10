@@ -1,13 +1,20 @@
 package ru.agimate.controlapi.connectors.core;
 
-import dev.langchain4j.agent.tool.Tool;
-import dev.langchain4j.agent.tool.ToolSpecification;
-import dev.langchain4j.agent.tool.ToolSpecifications;
+import com.fasterxml.jackson.databind.JavaType;
+import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.connectors.core.annotation.Meta;
+import ru.agimate.controlapi.connectors.core.annotation.Task;
+import ru.agimate.controlapi.connectors.core.annotation.Tool;
+import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.TaskSpecification;
+import ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.Type;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -16,18 +23,20 @@ import java.util.Map;
  * строит спеки и выполняет вызовы с привязкой {@link ConnectorContext} через
  * {@link ConnectorContextHolder} (set/clear только здесь).
  *
- * <p>Методы с {@link TaskOnly} не попадают в {@link #getTools()} и недоступны через
- * {@link #executeTool}; {@link #executeTask} диспатчит в любой {@code @Tool}-метод, поэтому
- * таска может быть и «вызовом тулы по расписанию».
+ * <p>Метод с {@link Task}{@code (isTaskOnly = true)} не попадает в {@link #getTools()} и
+ * недоступен через {@link #executeTool}; {@link #executeTask} диспатчит в любой {@code @Tool}-метод,
+ * поэтому таска может быть и «вызовом тулы по расписанию».
  */
 public abstract class BaseConnectorHandler implements ConnectorHandler {
 
     private final Object toolService;
     private final Map<String, Method> methodsByName;
+    private final Map<String, ConnectorToolSpec> toolSpecs;
 
     protected BaseConnectorHandler(Object toolService) {
         this.toolService = toolService;
         this.methodsByName = scanToolMethods(toolService);
+        this.toolSpecs = buildToolSpecs(this.methodsByName);
     }
 
     private static Map<String, Method> scanToolMethods(Object toolService) {
@@ -46,22 +55,55 @@ public abstract class BaseConnectorHandler implements ConnectorHandler {
         return methods;
     }
 
-    @Override
-    public Map<String, ToolSpecification> getTools() {
-        Map<String, ToolSpecification> specs = new LinkedHashMap<>();
+    /** Спеки тулов статичны (аннотации + сигнатуры не меняются) — строим один раз при создании. */
+    private static Map<String, ConnectorToolSpec> buildToolSpecs(Map<String, Method> methodsByName) {
+        Map<String, ConnectorToolSpec> specs = new LinkedHashMap<>();
         methodsByName.forEach((name, method) -> {
-            if (!method.isAnnotationPresent(TaskOnly.class)) {
-                specs.put(name, ToolSpecifications.toolSpecificationFrom(method));
+            if (!isTaskOnly(method)) {
+                specs.put(name, toToolSpec(name, method));
             }
         });
-        return specs;
+        return Collections.unmodifiableMap(specs);
+    }
+
+    @Override
+    public Map<String, ConnectorToolSpec> getTools() {
+        return toolSpecs;
+    }
+
+    private static ConnectorToolSpec toToolSpec(String name, Method method) {
+        Tool tool = method.getAnnotation(Tool.class);
+        return new ConnectorToolSpec(
+                name,
+                tool.title().isBlank() ? null : tool.title(),
+                tool.description().isBlank() ? null : tool.description(),
+                ToolSchemaReflector.inputSchema(method),
+                ToolSchemaReflector.outputSchema(method),
+                toAnnotationsSpec(tool.annotations()),
+                toMeta(tool.meta()));
+    }
+
+    private static ToolAnnotationsSpec toAnnotationsSpec(ToolAnnotations a) {
+        return new ToolAnnotationsSpec(
+                a.readOnlyHint(), a.destructiveHint(), a.idempotentHint(), a.openWorldHint());
+    }
+
+    private static Map<String, String> toMeta(Meta[] meta) {
+        if (meta.length == 0) {
+            return null;
+        }
+        Map<String, String> map = new LinkedHashMap<>();
+        for (Meta m : meta) {
+            map.put(m.key(), m.value());
+        }
+        return map;
     }
 
     @Override
     public Map<String, TaskSpecification> getTasks() {
         Map<String, TaskSpecification> specs = new LinkedHashMap<>();
         methodsByName.forEach((name, method) -> {
-            TaskOnly task = method.getAnnotation(TaskOnly.class);
+            Task task = method.getAnnotation(Task.class);
             if (task != null) {
                 specs.put(name, toTaskSpecification(name, task));
             }
@@ -69,7 +111,7 @@ public abstract class BaseConnectorHandler implements ConnectorHandler {
         return specs;
     }
 
-    private static TaskSpecification toTaskSpecification(String name, TaskOnly task) {
+    private static TaskSpecification toTaskSpecification(String name, Task task) {
         Map<String, Object> config = switch (task.type()) {
             case ONETIME -> Map.of();
             case PERIODIC -> Map.of("intervalSeconds", task.intervalSeconds());
@@ -81,10 +123,15 @@ public abstract class BaseConnectorHandler implements ConnectorHandler {
     @Override
     public Map<String, Object> executeTool(ConnectorContext context, String toolName, Map<String, Object> args) {
         Method method = methodsByName.get(toolName);
-        if (method == null || method.isAnnotationPresent(TaskOnly.class)) {
+        if (method == null || isTaskOnly(method)) {
             throw new ConnectorException("Unknown tool: " + toolName);
         }
         return invoke(context, method, args);
+    }
+
+    private static boolean isTaskOnly(Method method) {
+        Task task = method.getAnnotation(Task.class);
+        return task != null && task.isTaskOnly();
     }
 
     @Override
@@ -126,19 +173,30 @@ public abstract class BaseConnectorHandler implements ConnectorHandler {
         for (int i = 0; i < parameters.length; i++) {
             Object value = args == null ? null : args.get(parameters[i].getName());
             if (value != null) {
-                values[i] = convertArg(value, parameters[i].getType());
+                values[i] = convertArg(value, parameters[i].getParameterizedType());
             }
         }
         return values;
     }
 
-    private static Object convertArg(Object value, Class<?> targetType) {
-        if (targetType.isInstance(value)) {
+    /**
+     * Приводит значение аргумента к типу параметра. Поддерживает любые типы, которые описывает
+     * {@link ToolSchemaReflector}: примитивы/обёртки, enum, record, коллекции, мапы, вложенные
+     * объекты — через Jackson. String — быстрый путь (число → его строковое представление).
+     */
+    private static Object convertArg(Object value, Type targetType) {
+        JavaType javaType = JsonUtils.MAPPER.getTypeFactory().constructType(targetType);
+        if (javaType.getRawClass().isInstance(value)) {
             return value;
         }
-        if (targetType == String.class) {
+        if (javaType.hasRawClass(String.class)) {
             return String.valueOf(value);
         }
-        return value;
+        try {
+            return JsonUtils.MAPPER.convertValue(value, javaType);
+        } catch (IllegalArgumentException e) {
+            throw new ConnectorException(
+                    "Cannot convert argument to " + targetType.getTypeName() + ": " + e.getMessage(), e);
+        }
     }
 }

@@ -194,21 +194,28 @@ List predefined tools for the given integration connector.
   "response": [
     {
       "name": "telegram.send_message",
-      "description": "Send a message to a Telegram chat",
-      "parameters": {
+      "description": "Send a text message",
+      "inputSchema": {
         "type": "object",
         "properties": {
-          "chatId": { "type": "string", "description": "Target chat id" },
+          "chatId": { "type": "string", "description": "Target chat ID" },
           "text":   { "type": "string", "description": "Message text" }
         },
         "required": ["chatId", "text"]
+      },
+      "outputSchema": { "type": "object", "additionalProperties": {} },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
       }
     }
   ]
 }
 ```
 
-Each entry uses the same `ToolSpecificationResponse` shape as `GET /agent/tools/{connectorCode}` (name, description, JSON Schema `parameters`).
+Each entry is an MCP-compatible `ConnectorToolSpec` (the same shape as `GET /agent/tools/{connectorCode}`): `name`, optional `title`/`description`, `inputSchema` and `outputSchema` (JSON Schema, built by reflection over the tool method), `annotations` (MCP behavioural hints), and optional `_meta`. Fields are omitted when empty.
 
 **Errors:**
 

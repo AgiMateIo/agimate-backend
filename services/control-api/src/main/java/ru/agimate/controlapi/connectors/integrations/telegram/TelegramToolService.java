@@ -1,7 +1,5 @@
 package ru.agimate.controlapi.connectors.integrations.telegram;
 
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -9,7 +7,10 @@ import org.springframework.web.client.HttpClientErrorException;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorContextHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.core.TaskOnly;
+import ru.agimate.controlapi.connectors.core.annotation.Task;
+import ru.agimate.controlapi.connectors.core.annotation.Tool;
+import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
+import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
@@ -46,13 +47,14 @@ public class TelegramToolService {
     private final Map<String, Long> offsets = new ConcurrentHashMap<>();
     private final Set<String> webhookDeleted = ConcurrentHashMap.newKeySet();
 
-    @Tool(name = "telegram.send_message", value = "Send a text message")
+    @Tool(name = "telegram.send_message", description = "Send a text message",
+            annotations = @ToolAnnotations(destructiveHint = false))
     public Map<String, Object> toolSendMessage(
-            @P("Target chat ID") String chatId,
-            @P("Message text") String text,
-            @P("Parse mode (HTML, Markdown, MarkdownV2)") String parseMode,
-            @P("ID of message to reply to") String replyToMessageId,
-            @P("Inline keyboard markup as JSON") String replyMarkup) {
+            @ToolParam("Target chat ID") String chatId,
+            @ToolParam("Message text") String text,
+            @ToolParam(value = "Parse mode (HTML, Markdown, MarkdownV2)", required = false) String parseMode,
+            @ToolParam(value = "ID of message to reply to", required = false) String replyToMessageId,
+            @ToolParam(value = "Inline keyboard markup as JSON", required = false) String replyMarkup) {
         List<String> chunks = TelegramUtils.splitMessage(text == null ? "" : text, TelegramUtils.MAX_MESSAGE_LENGTH);
         Map<String, Object> lastResponse = null;
         for (int i = 0; i < chunks.size(); i++) {
@@ -68,11 +70,12 @@ public class TelegramToolService {
         return lastResponse;
     }
 
-    @Tool(name = "telegram.send_photo", value = "Send a photo")
+    @Tool(name = "telegram.send_photo", description = "Send a photo",
+            annotations = @ToolAnnotations(destructiveHint = false))
     public Map<String, Object> toolSendPhoto(
-            @P("Target chat ID") String chatId,
-            @P("Photo URL or file ID") String photo,
-            @P("Photo caption") String caption) {
+            @ToolParam("Target chat ID") String chatId,
+            @ToolParam("Photo URL or file ID") String photo,
+            @ToolParam(value = "Photo caption", required = false) String caption) {
         Map<String, Object> apiParams = new LinkedHashMap<>();
         apiParams.put("chat_id", chatId);
         apiParams.put("photo", photo);
@@ -80,11 +83,12 @@ public class TelegramToolService {
         return sendTelegramRequest("sendPhoto", apiParams);
     }
 
-    @Tool(name = "telegram.edit_message", value = "Edit a message")
+    // edit_message перезаписывает прежний текст → destructiveHint=true (дефолт).
+    @Tool(name = "telegram.edit_message", description = "Edit a message")
     public Map<String, Object> toolEditMessage(
-            @P("Chat ID") String chatId,
-            @P("Message ID to edit") String messageId,
-            @P("New message text") String text) {
+            @ToolParam("Chat ID") String chatId,
+            @ToolParam("Message ID to edit") String messageId,
+            @ToolParam("New message text") String text) {
         Map<String, Object> apiParams = new LinkedHashMap<>();
         apiParams.put("chat_id", chatId);
         apiParams.put("message_id", messageId);
@@ -92,20 +96,21 @@ public class TelegramToolService {
         return sendTelegramRequest("editMessageText", apiParams);
     }
 
-    @Tool(name = "telegram.delete_message", value = "Delete a message")
+    @Tool(name = "telegram.delete_message", description = "Delete a message")
     public Map<String, Object> toolDeleteMessage(
-            @P("Chat ID") String chatId,
-            @P("Message ID to delete") String messageId) {
+            @ToolParam("Chat ID") String chatId,
+            @ToolParam("Message ID to delete") String messageId) {
         Map<String, Object> apiParams = new LinkedHashMap<>();
         apiParams.put("chat_id", chatId);
         apiParams.put("message_id", messageId);
         return sendTelegramRequest("deleteMessage", apiParams);
     }
 
-    @Tool(name = "telegram.answer_callback_query", value = "Answer a callback query")
+    @Tool(name = "telegram.answer_callback_query", description = "Answer a callback query",
+            annotations = @ToolAnnotations(destructiveHint = false))
     public Map<String, Object> toolAnswerCallbackQuery(
-            @P("Callback query ID") String callbackQueryId,
-            @P("Response text") String text) {
+            @ToolParam("Callback query ID") String callbackQueryId,
+            @ToolParam(value = "Response text", required = false) String text) {
         Map<String, Object> apiParams = new LinkedHashMap<>();
         apiParams.put("callback_query_id", callbackQueryId);
         if (text != null) apiParams.put("text", text);
@@ -121,8 +126,8 @@ public class TelegramToolService {
      * строку на следующем тике (≤1с); один запуск = один getUpdates. На ошибке —
      * {@code next_run_at = now + 60s} (общий error retry).
      */
-    @Tool(name = TASK_LONG_POLL, value = "Long-poll Telegram updates and dispatch them as triggers")
-    @TaskOnly(intervalSeconds = 0, timeoutSeconds = 60)
+    @Tool(name = TASK_LONG_POLL, description = "Long-poll Telegram updates and dispatch them as triggers")
+    @Task(intervalSeconds = 0, timeoutSeconds = 60)
     @SuppressWarnings("unchecked")
     public void longPoll() {
         ConnectorContext ctx = ConnectorContextHolder.current();

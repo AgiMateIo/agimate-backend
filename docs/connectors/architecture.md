@@ -14,9 +14,14 @@ ConnectorHandler                — connectorCode/Name, getTriggers, getTools, g
 
 - **`<Name>ConnectorService`** — фасад: implements `IntegrationConnectorHandler`/`InternalConnectorHandler`,
   extends `BaseConnectorHandler`. Содержит метаданные, credentials/webhook-логику.
-- **`<Name>ToolService`** — `@Tool`-методы (langchain4j). Методы с `@TaskOnly` — фоновые таски:
-  не попадают в LLM-спеки и недоступны через `executeTool`, аннотация несёт расписание по умолчанию
-  (`type`, `intervalSeconds`/`cron`/`zone`, `timeoutSeconds`).
+- **`<Name>ToolService`** — методы с собственной MCP-совместимой `@Tool` (`name`/`title`/`description`/
+  `annotations`/`_meta`); параметры описываются `@ToolParam`. `getTools()` отдаёт `ConnectorToolSpec`
+  (MCP): `inputSchema`/`outputSchema` строятся рефлексией (`ToolSchemaReflector`, без сторонних библиотек),
+  `annotations` — поведенческие хинты (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`,
+  пессимистичные дефолты). Методы с `@Task` — фоновые таски: аннотация несёт расписание по умолчанию
+  (`type`, `intervalSeconds`/`cron`/`zone`, `timeoutSeconds`). По умолчанию `isTaskOnly = true` — метод не
+  попадает в `getTools()`/LLM-спеки и недоступен через `executeTool`; при `isTaskOnly = false` метод
+  доступен и как тула, и как таска.
 
 `BaseConnectorHandler` — единственный reflection-диспатчер: маппит `Map<String,Object> args` на параметры
 метода по именам, привязывает `ConnectorContext` через ThreadLocal (`ConnectorContextHolder`, set/clear

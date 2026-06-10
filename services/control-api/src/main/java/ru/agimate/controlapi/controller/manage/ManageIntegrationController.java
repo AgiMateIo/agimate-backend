@@ -13,8 +13,7 @@ import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.integrations.IntegrationService;
-import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationMapper;
-import ru.agimate.controlapi.controller.agent.dto.ToolSpecificationResponse;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.controller.manage.dto.CreateIntegrationRequest;
 import ru.agimate.controlapi.controller.manage.dto.IntegrationResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
@@ -112,12 +111,9 @@ public class ManageIntegrationController {
 
     @Operation(summary = "List predefined tools exposed by an integration connector")
     @GetMapping("/tools/")
-    public SuccessResponse<List<ToolSpecificationResponse>> listTools(@RequestParam String connectorCode) {
+    public SuccessResponse<List<ConnectorToolSpec>> listTools(@RequestParam String connectorCode) {
         IntegrationConnectorHandler handler = loadIntegrationHandler(connectorCode);
-        List<ToolSpecificationResponse> tools = handler.getTools().values().stream()
-                .map(ToolSpecificationMapper::toResponse)
-                .toList();
-        return SuccessResponse.ok(tools);
+        return SuccessResponse.ok(handler.getTools().values().stream().toList());
     }
 
     @Operation(summary = "List predefined triggers exposed by an integration connector")
