@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        Бизнес-ключ (connector_code, identity, task_name) — инвариант только декларативных тасок
+        (reconcile-синк из getTasks()). Динамические задачи агента (time.schedule) сохраняют
+        identity tool-вызова, и uq_connector_tasks_identity ловил duplicate key на втором
+        time.schedule с тем же identity (общий task_name = time.fire).
+
+        Вводим явный дискриминатор kind: SYSTEM — декларативная (управляется синком, уникальна по
+        бизнес-ключу), AGENT — запланирована агентом, USER — зарезервировано под пользовательские
+        задачи из manage-API. Плюс paused_at — пользовательская пауза: scheduler не подхватывает
+        строку, пока поле не NULL (отдельное поле, не значение в status, — чтобы pause не гонялся
+        с переходами PENDING/RUNNING, которые пишет scheduler).
+    -->
+    <changeSet id="connector-tasks-add-kind-and-paused-at" author="agimate">
+        <addColumn tableName="connector_tasks">
+            <column name="kind" type="TEXT"/>
+            <column name="paused_at" type="TIMESTAMP"/>
+        </addColumn>
+
+        <sql>
+            UPDATE connector_tasks
+               SET kind = CASE WHEN agent_id IS NULL THEN 'SYSTEM' ELSE 'AGENT' END;
+        </sql>
+
+        <addNotNullConstraint tableName="connector_tasks" columnName="kind" columnDataType="TEXT"/>
+    </changeSet>
+
+    <changeSet id="connector-tasks-unique-system-only" author="agimate">
+        <sql>DROP INDEX IF EXISTS uq_connector_tasks_identity;</sql>
+        <sql>
+            CREATE UNIQUE INDEX uq_connector_tasks_identity
+                ON connector_tasks (connector_code, identity, task_name)
+                WHERE kind = 'SYSTEM';
+        </sql>
+    </changeSet>
+
+    <changeSet id="connector-tasks-ready-index-skip-paused" author="agimate">
+        <sql>DROP INDEX IF EXISTS idx_connector_tasks_ready;</sql>
+        <sql>
+            CREATE INDEX idx_connector_tasks_ready
+                ON connector_tasks (next_run_at NULLS FIRST, lease_until)
+                WHERE status &lt;&gt; 'COMPLETED' AND paused_at IS NULL;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

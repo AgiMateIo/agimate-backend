@@ -87,6 +87,17 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | GET    | `/control/manage/connectors/`         | List connectors (paginated, filter by `type`, search by `name`/`description`) |
 | GET    | `/control/manage/connectors/{code}`   | Get connector by code (includes `integrationMeta` when `type=INTEGRATION`)    |
 
+### Connector Tasks (JWT)
+
+> For full request/response schemas see [control-api-manage-connector-tasks.md](control-api-manage-connector-tasks.md).
+
+| Method | Path                                              | Description                                                  |
+|--------|---------------------------------------------------|--------------------------------------------------------------|
+| GET    | `/control/manage/connector-tasks/`                 | List background connector tasks (filter by `connectorCode`, `kind`) |
+| POST   | `/control/manage/connector-tasks/{id}/pause`       | Pause a task (scheduler skips it until resumed)              |
+| POST   | `/control/manage/connector-tasks/{id}/resume`      | Resume a paused task (`nextRunAt` recomputed from now)       |
+| DELETE | `/control/manage/connector-tasks/{id}`             | Delete a USER/AGENT task (SYSTEM tasks are sync-managed)     |
+
 ### Skill Management (JWT)
 
 > For full request/response schemas see [control-api-manage-skills.md](control-api-manage-skills.md).

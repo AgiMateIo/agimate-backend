@@ -31,6 +31,7 @@ import ru.agimate.controlapi.database.repositories.AgentToolPolicyRepository;
 import ru.agimate.controlapi.database.repositories.AgentTriggerPolicyRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.AppRepository;
+import ru.agimate.controlapi.database.repositories.ConnectorTaskRepository;
 import ru.agimate.controlapi.util.AppKeyUtils;
 import ru.agimate.controlapi.util.GeneratedAppKey;
 
@@ -53,6 +54,7 @@ public class AgentService {
     private final AgenticTeamRepository agenticTeamRepository;
     private final AppRepository appRepository;
     private final AgentLlmService agentLlmService;
+    private final ConnectorTaskRepository connectorTaskRepository;
 
     public Page<AgentResponse> getAllForUser(UUID userId, UUID agenticTeamId, String search, int page, int size) {
         if (agenticTeamId != null) {
@@ -361,6 +363,7 @@ public class AgentService {
 
         agentToolPolicyRepository.deleteByAgentId(agent.getId());
         agentTriggerPolicyRepository.deleteByAgentId(agent.getId());
+        connectorTaskRepository.deleteByAgentId(agent.getId());
         agentRepository.delete(agent);
 
         log.info("Deleted agent id={}", id);

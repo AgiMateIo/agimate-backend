@@ -38,6 +38,7 @@ import ru.agimate.controlapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.controlapi.controller.manage.ManageAgentToolPolicyController;
 import ru.agimate.controlapi.controller.manage.ManageAgentTriggerPolicyController;
 import ru.agimate.controlapi.controller.manage.ManageConnectorController;
+import ru.agimate.controlapi.controller.manage.ManageConnectorTaskController;
 import ru.agimate.controlapi.controller.manage.ManageIntegrationController;
 import ru.agimate.controlapi.controller.manage.ManageLlmProviderController;
 import ru.agimate.controlapi.controller.manage.ManageSkillController;
@@ -131,6 +132,7 @@ public class SecurityConfig {
                 ManageSkillController.PATH + "/**",
                 ManageSkillFileController.PATH + "/**",
                 ManageConnectorController.PATH + "/**",
+                ManageConnectorTaskController.PATH + "/**",
                 ManageCentrifugoTokenController.PATH + "/**",
                 ManageLlmProviderController.PATH + "/**",
                 ManageChannelController.PATH + "/**",

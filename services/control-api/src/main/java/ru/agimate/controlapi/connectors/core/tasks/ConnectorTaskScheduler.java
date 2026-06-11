@@ -4,14 +4,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.database.entities.ConnectorTask;
 import ru.agimate.controlapi.database.enums.ConnectorTaskType;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadFactory;
@@ -95,26 +93,9 @@ public class ConnectorTaskScheduler {
             case ONETIME -> now.plus(DEFAULT_ERROR_RETRY);
             case PERIODIC -> afterError
                     ? now.plus(DEFAULT_ERROR_RETRY)
-                    : now.plusSeconds(readLong(config, "intervalSeconds", 0L));
-            case CRON -> nextCron(config, now);
+                    : now.plusSeconds(TaskSchedule.readLong(config, "intervalSeconds", 0L));
+            case CRON -> TaskSchedule.nextCron(config, now);
         };
-    }
-
-    private static LocalDateTime nextCron(Map<String, Object> config, LocalDateTime now) {
-        String expr = (String) config.get("cron");
-        if (expr == null || expr.isBlank()) {
-            // Без выражения в конфиге cron не запустится — отодвигаем далеко, чтобы не ловить
-            // SKIP LOCKED'ом на каждом тике.
-            return now.plusYears(10);
-        }
-        String zoneId = (String) config.getOrDefault("zone", "UTC");
-        CronExpression cron = CronExpression.parse(expr);
-        var next = cron.next(now.atZone(ZoneId.of(zoneId)));
-        return next != null ? next.toLocalDateTime() : now.plusYears(10);
-    }
-
-    private static long readLong(Map<String, Object> config, String key, long defaultValue) {
-        return config.get(key) instanceof Number n ? n.longValue() : defaultValue;
     }
 
     private static String taskKey(ConnectorTask row) {

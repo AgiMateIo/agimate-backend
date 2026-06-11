@@ -7,6 +7,7 @@ import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.controlapi.database.enums.ConnectorTaskKind;
 import ru.agimate.controlapi.database.enums.ConnectorTaskStatus;
 import ru.agimate.controlapi.database.enums.ConnectorTaskType;
 
@@ -22,10 +23,11 @@ import java.util.UUID;
  * tool-сервиса коннектора с аргументами {@link #taskArgs}. В {@link #taskConfig} лежат только
  * параметры расписания ({@code intervalSeconds}, {@code cron}, {@code zone}).
  *
- * <p>Уникальность бизнес-ключа обеспечивается partial unique index'ами в БД (см. миграцию
- * {@code 2026/06/08-02-connector-tasks.xml}): {@code (connector_code, task_name) WHERE identity
- * IS NULL} и {@code (connector_code, identity, task_name) WHERE identity IS NOT NULL} —
- * PostgreSQL не считает NULL = NULL, а {@code @UniqueConstraint} в JPA не умеет в partial.
+ * <p>Уникальность бизнес-ключа {@code (connector_code, identity, task_name)} действует только на
+ * {@code kind = SYSTEM} (partial unique index, см. {@code 2026/06/11-01-connector-tasks-kind-paused.xml};
+ * {@code @UniqueConstraint} в JPA не умеет в partial) — это инвариант reconcile-синка
+ * ({@code findByBusinessKey} возвращает {@code Optional}). USER/AGENT-строки идентифицируются
+ * собственным {@code id}, их на один {@code task_name} может быть много.
  */
 @Entity
 @Table(name = "connector_tasks")
@@ -47,8 +49,9 @@ public class ConnectorTask extends BaseEntity {
 
     /**
      * Идентификатор экземпляра коннектора: для integration — id из {@code integration_credentials}
-     * строкой (как в {@code ToolUseLog}); {@code null} — задача internal-коннектора (в т.ч.
-     * динамическая, запланированная агентом).
+     * строкой (как в {@code ToolUseLog}); у динамических задач — identity tool-вызова инициатора
+     * (восстанавливается в {@code ConnectorContext} на срабатывании); {@code null}, если экземпляр
+     * не применим.
      */
     @Column(name = "identity", columnDefinition = "TEXT")
     private String identity;
@@ -64,6 +67,15 @@ public class ConnectorTask extends BaseEntity {
      */
     @Column(name = "agent_id")
     private UUID agentId;
+
+    /** Категория строки — см. {@link ConnectorTaskKind}; определяет, действует ли бизнес-ключ. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kind", nullable = false, columnDefinition = "TEXT")
+    private ConnectorTaskKind kind;
+
+    /** Пауза пользователем: пока не {@code null}, scheduler строку не подхватывает. */
+    @Column(name = "paused_at")
+    private LocalDateTime pausedAt;
 
     /** Имя задачи; диспатчится в {@code @Tool}-метод коннектора с этим именем. */
     @Column(name = "task_name", nullable = false, columnDefinition = "TEXT")

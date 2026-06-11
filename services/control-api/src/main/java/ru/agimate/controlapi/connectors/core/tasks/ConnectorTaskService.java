@@ -5,8 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.TaskSpecification;
 import ru.agimate.controlapi.database.entities.ConnectorTask;
+import ru.agimate.controlapi.database.enums.ConnectorTaskKind;
 import ru.agimate.controlapi.database.enums.ConnectorTaskStatus;
 import ru.agimate.controlapi.database.repositories.ConnectorTaskRepository;
 
@@ -57,15 +59,16 @@ public class ConnectorTaskService {
     }
 
     /**
-     * Приводит набор задач identity в соответствие с декларацией коннектора: upsert всех
+     * Приводит набор SYSTEM-задач identity в соответствие с декларацией коннектора: upsert всех
      * актуальных + удаление строк, чьи {@code task_name} больше не возвращаются {@code getTasks()}.
+     * Динамические задачи (USER/AGENT) на этом identity пересинк не трогает.
      * {@code REQUIRES_NEW} — по той же причине, что и {@link #upsert}.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void syncIdentity(String connectorCode, String identity, UUID userId,
                              Collection<TaskSpecification> specs) {
         if (specs.isEmpty()) {
-            connectorTaskRepository.deleteByIdentity(connectorCode, identity);
+            connectorTaskRepository.deleteSystemByIdentity(connectorCode, identity);
             return;
         }
         for (TaskSpecification spec : specs) {
@@ -75,7 +78,11 @@ public class ConnectorTaskService {
                 specs.stream().map(TaskSpecification::name).toList());
     }
 
-    /** {@code REQUIRES_NEW} — по той же причине, что и {@link #upsert}: вызов из AFTER_COMMIT listener'а. */
+    /**
+     * Удаляет все строки identity, включая динамические (USER/AGENT) — вызывается при удалении
+     * интеграции, когда без credentials они всё равно неисполнимы.
+     * {@code REQUIRES_NEW} — по той же причине, что и {@link #upsert}: вызов из AFTER_COMMIT listener'а.
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int deleteByIdentity(String connectorCode, String identity) {
         return connectorTaskRepository.deleteByIdentity(connectorCode, identity);
@@ -99,18 +106,22 @@ public class ConnectorTaskService {
     // ===== Динамические задачи, запланированные агентом (time.schedule и т.п.) =====
 
     /**
-     * Планирует динамическую задачу агента: INSERT новой строки (в отличие от {@link #upsert} —
-     * без бизнес-ключа, на агента их может быть много). {@code firstRunAt} — момент первого
-     * срабатывания (для ONETIME это и есть единственный запуск).
+     * Планирует динамическую задачу агента ({@code kind=AGENT}): INSERT новой строки (в отличие
+     * от {@link #upsert} — бизнес-ключ на неё не действует, на агента их может быть много).
+     * {@code firstRunAt} — момент первого срабатывания (для ONETIME это и есть единственный запуск).
      */
     @Transactional
     public ConnectorTask schedule(String connectorCode, String identity, UUID userId, UUID agentId,
                                   TaskSpecification spec, LocalDateTime firstRunAt) {
+        if (agentId == null) {
+            throw new ConnectorException("Dynamic task requires an initiating agent");
+        }
         ConnectorTask row = ConnectorTask.builder()
                 .connectorCode(connectorCode)
                 .identity(identity)
                 .userId(userId)
                 .agentId(agentId)
+                .kind(ConnectorTaskKind.AGENT)
                 .taskName(spec.name())
                 .taskType(spec.taskType())
                 .taskConfig(spec.taskConfig())
@@ -138,6 +149,7 @@ public class ConnectorTaskService {
                 .orElseGet(() -> ConnectorTask.builder()
                         .connectorCode(connectorCode)
                         .identity(identity)
+                        .kind(ConnectorTaskKind.SYSTEM)
                         .taskName(spec.name())
                         .status(ConnectorTaskStatus.PENDING)
                         .nextRunAt(LocalDateTime.now())

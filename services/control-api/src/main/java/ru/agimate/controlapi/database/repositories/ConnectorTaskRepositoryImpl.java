@@ -22,8 +22,9 @@ public class ConnectorTaskRepositoryImpl implements ConnectorTaskRepositoryCusto
                 last_started_at = :now
             WHERE id IN (
                 SELECT id FROM connector_tasks
-                 WHERE (status = 'PENDING' AND next_run_at <= :now)
-                    OR (status = 'RUNNING' AND lease_until <= :now)
+                 WHERE paused_at IS NULL
+                   AND ((status = 'PENDING' AND next_run_at <= :now)
+                    OR (status = 'RUNNING' AND lease_until <= :now))
                  ORDER BY next_run_at NULLS FIRST
                  LIMIT :batchSize
                  FOR UPDATE SKIP LOCKED

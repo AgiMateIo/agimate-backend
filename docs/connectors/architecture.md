@@ -59,15 +59,28 @@ Crash recovery — по истечении `lease_until` строку подхв
 `agent_id` (nullable) — инициатор динамической задачи. `task_args` — аргументы метода; контекст инициатора
 не в `task_args`, а в колонках (`identity`/`user_id`/`agent_id`).
 
-Две формы строк:
+Категории строк различает явный дискриминатор `kind`:
 
-| | `identity` | `agent_id` | уникальность | пишется | живёт |
+| `kind` | `identity` | `agent_id` | уникальность | пишется | живёт |
 |---|---|---|---|---|---|
-| **декларативная** (интеграция) | id credentials | `null` | бизнес-ключ `(connector_code, identity, task_name)`, partial unique `WHERE identity IS NOT NULL` | listener upsert/sync из `getTasks()` | до удаления интеграции |
-| **динамическая** (агент) | `null` | id агента | нет, insert-only | тула коннектора (напр. `time.schedule`) → `ConnectorTaskService.schedule(...)` | до срабатывания (`ONETIME`→`COMPLETED`) / отмены |
+| **SYSTEM** — декларативная (интеграция) | id credentials | `null` | бизнес-ключ `(connector_code, identity, task_name)`, partial unique `WHERE kind = 'SYSTEM'` | listener upsert/sync из `getTasks()` | до удаления интеграции |
+| **AGENT** — динамическая | identity tool-вызова (может быть `null`) | id агента-инициатора | нет — идентифицируется `id`, дубли легитимны | тула коннектора (напр. `time.schedule`) → `ConnectorTaskService.schedule(...)` | до срабатывания (`ONETIME`→`COMPLETED`) / отмены |
+| **USER** — пользовательская | — | целевой агент (если адресная) | нет | manage-API (зарезервировано, ещё не реализовано) | — |
 
-Концепта «глобальной задачи» (`identity IS NULL` как singleton) больше нет — `identity IS NULL`
-теперь означает динамическую задачу агента; их на один `task_name` может быть много.
+Уникальность бизнес-ключа — инвариант reconcile-синка SYSTEM-строк (`findByBusinessKey` →
+`Optional`); пересинк деклараций (`syncIdentity`/`deleteStale`) не трогает чужие `kind`. Удаление
+интеграции (`deleteByIdentity`) сносит все строки identity, включая динамические — без credentials
+они неисполнимы.
+
+`paused_at` — пользовательская пауза: пока поле не `NULL`, scheduler строку не подхватывает
+(`claimReady` фильтрует). Отдельное поле, а не значение в `status`: переходами
+`PENDING`/`RUNNING`/`COMPLETED` владеет scheduler, и pause внутри `status` гонялся бы с ними;
+пересинк деклараций паузу тоже не сбрасывает.
+
+Пользовательское управление — `/manage/connector-tasks/**` (list, pause/resume, delete для
+USER/AGENT; см. `docs/services/control-api-manage-connector-tasks.md`). Lifecycle-чистки: удаление
+агента сносит все его задачи (`deleteByAgentId`); тула `time.cancel_scheduled` удаляет только
+`kind = AGENT` — задачу, созданную пользователем для агента, тулой отменить нельзя.
 
 `ConnectorTaskService.schedule(...)` вставляет строку с будущим `next_run_at` (первое срабатывание),
 `findActiveByAgent`/`cancel` — list/отмена по `(connector_code, user_id, agent_id)` с проверкой владельца.
