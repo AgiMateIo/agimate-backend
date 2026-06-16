@@ -27,8 +27,7 @@ public class DbosProperties {
     @Getter
     @Setter
     public static class Workflows {
-        private Workflow triggerWorkflow = new Workflow();
-        private Workflow channelWorkflow = new Workflow();
+        private Workflow agentWorkflow = new Workflow();
     }
 
     @Getter

@@ -37,13 +37,11 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         String agentId = agent.getId().toString();
         Trigger trigger = TriggerMapper.map(triggerLogAgent);
 
-        DbosProperties.Workflow workflow;
+        DbosProperties.Workflow workflow = props.getWorkflows().getAgentWorkflow();
         String type;
         if (channelContext != null) {
-            workflow = props.getWorkflows().getChannelWorkflow();
             type = "channel_message";
         } else {
-            workflow = props.getWorkflows().getTriggerWorkflow();
             type = "trigger";
         }
         String runId = triggerLogAgent.getId().toString();

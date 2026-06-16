@@ -176,7 +176,7 @@ public class TimeToolService {
                 DUE_TRIGGER,
                 Map.of("prompt", prompt == null ? "" : prompt),
                 new TriggerAudience(null, List.of(ctx.agentId())));
-        triggerRouterService.routeToAgent(ctx.userId(), trigger);
+        triggerRouterService.routeTrigger(ctx.userId(), trigger);
     }
 
     private static void requirePositive(long value, String field) {

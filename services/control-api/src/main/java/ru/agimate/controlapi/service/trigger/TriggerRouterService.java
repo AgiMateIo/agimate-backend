@@ -144,7 +144,7 @@ public class TriggerRouterService {
 
     private void sendTrigger(List<Agent> agents, TriggerLog triggerLog, Trigger trigger) {
         if (agents.isEmpty()) {
-            log.warn("Ignored trigger {} - {}", triggerLog.getConnectorCode(), triggerLog.getTriggerName());
+            log.debug("Ignored trigger {} - {}", triggerLog.getConnectorCode(), triggerLog.getTriggerName());
         }
 
         for (Agent agent : agents) {
