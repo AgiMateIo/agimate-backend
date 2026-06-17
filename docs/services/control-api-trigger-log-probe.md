@@ -81,10 +81,9 @@ Response 404 (ещё не сматчилось — UI продолжает по�
 2. Пользователь отправляет в Telegram-бот (или Slack, или через app endpoint) сообщение, содержащее `code`.
 3. UI поллит `GET /manage/trigger-logs/probe/match?code=...&since=<issuedAt>` каждые 1–2 сек.
 4. При матче UI получает полный `TriggerLog` и сам предзаполняет форму `POST /manage/channels/`:
-   - `triggerConnectorCode = triggerLog.connectorCode`
-   - `triggerIdentity = triggerLog.identity`
-   - `triggerName = triggerLog.triggerName`
-   - `replyConnectorCode`, `replyIdentity`, `replyToolName` — по умолчанию можно подставить trigger-сторону (UI решает).
+   - `connectorCode = triggerLog.connectorCode`, `identity = triggerLog.identity`
+   - `channelHandler = "generic"` (по умолчанию), `config.triggers = [triggerLog.triggerName]`
+   - reply-сторону в `config` (`replyConnectorCode`/`replyIdentity`/`replyToolName`) по умолчанию можно подставить из trigger-стороны (UI решает).
    - `triggerInput` показывается пользователю как образец payload — он может выбрать поля для `input_filter`.
 
 ## Поток (Delivery diagnostic, future)

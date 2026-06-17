@@ -7,46 +7,32 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
-@Schema(description = "Channel binding between a trigger and reply tool")
+@Schema(description = "Channel: a handler-driven binding between triggers and reply tools")
 public record ChannelResponse(
         UUID id,
         UUID agentId,
         String name,
-        String triggerConnectorCode,
-        String triggerIdentity,
-        @Schema(description = "Denormalized display name of trigger identity (App.name or IntegrationCredentials.name); null if identity is missing or deleted")
-        String triggerIdentityName,
-        String triggerName,
-        String triggerMessageField,
-        String replyConnectorCode,
-        String replyIdentity,
-        @Schema(description = "Denormalized display name of reply identity; null if identity is missing or deleted")
-        String replyIdentityName,
-        String replyToolName,
-        Map<String, Object> replyToolParams,
+        String channelHandler,
+        String connectorCode,
+        String identity,
+        @Schema(description = "Denormalized display name of the identity (App.name or IntegrationCredentials.name); null if missing or deleted")
+        String identityName,
+        Map<String, Object> config,
         @Schema(description = "Optional input filter stored on the linked AgentTriggerPolicy; null if no filter is configured")
         Map<String, Object> inputFilter,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static ChannelResponse from(Channel c,
-                                       String triggerIdentityName,
-                                       String replyIdentityName,
-                                       Map<String, Object> inputFilter) {
+    public static ChannelResponse from(Channel c, String identityName, Map<String, Object> inputFilter) {
         return new ChannelResponse(
                 c.getId(),
                 c.getAgentId(),
                 c.getName(),
-                c.getTriggerConnectorCode(),
-                c.getTriggerIdentity(),
-                triggerIdentityName,
-                c.getTriggerName(),
-                c.getTriggerMessageField(),
-                c.getReplyConnectorCode(),
-                c.getReplyIdentity(),
-                replyIdentityName,
-                c.getReplyToolName(),
-                c.getReplyToolParams(),
+                c.getChannelHandler(),
+                c.getConnectorCode(),
+                c.getIdentity(),
+                identityName,
+                c.getConfig(),
                 inputFilter,
                 c.getCreatedAt(),
                 c.getUpdatedAt()
@@ -54,6 +40,6 @@ public record ChannelResponse(
     }
 
     public static ChannelResponse from(Channel c) {
-        return from(c, null, null, null);
+        return from(c, null, null);
     }
 }

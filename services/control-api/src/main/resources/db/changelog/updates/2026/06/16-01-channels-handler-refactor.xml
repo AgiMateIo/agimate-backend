@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        Рефактор каналов: trigger/reply-поля -> channel_handler + connector_code + identity + config.
+        Существующие каналы переезжают на handler 'generic', который воспроизводит прежнее
+        поведение (messageField-извлечение + replyTool + шаблон replyToolParams) из config.
+    -->
+    <changeSet id="channels-handler-refactor" author="agimate">
+
+        <addColumn tableName="channels">
+            <column name="channel_handler" type="TEXT"/>
+            <column name="connector_code" type="TEXT"/>
+            <column name="identity" type="TEXT"/>
+            <column name="config" type="JSONB"/>
+        </addColumn>
+
+        <!-- Backfill всех строк (включая soft-deleted) в generic-handler. -->
+        <sql>
+            UPDATE channels SET
+                channel_handler = 'generic',
+                connector_code  = trigger_connector_code,
+                identity        = trigger_identity,
+                config = jsonb_build_object(
+                    'triggers',           jsonb_build_array(trigger_name),
+                    'messageField',       trigger_message_field,
+                    'replyConnectorCode', reply_connector_code,
+                    'replyIdentity',      reply_identity,
+                    'replyToolName',      reply_tool_name,
+                    'replyToolParams',    reply_tool_params
+                );
+        </sql>
+
+        <addNotNullConstraint tableName="channels" columnName="channel_handler" columnDataType="TEXT"/>
+        <addNotNullConstraint tableName="channels" columnName="connector_code" columnDataType="TEXT"/>
+        <addNotNullConstraint tableName="channels" columnName="identity" columnDataType="TEXT"/>
+        <addNotNullConstraint tableName="channels" columnName="config" columnDataType="JSONB"/>
+
+        <!-- Старый unique (trigger-ключ) больше не применим; дедуп обеспечивает AgentTriggerPolicy. -->
+        <sql>DROP INDEX IF EXISTS uq_channels_user_agent_trigger;</sql>
+
+        <dropColumn tableName="channels" columnName="trigger_connector_code"/>
+        <dropColumn tableName="channels" columnName="trigger_identity"/>
+        <dropColumn tableName="channels" columnName="trigger_name"/>
+        <dropColumn tableName="channels" columnName="trigger_message_field"/>
+        <dropColumn tableName="channels" columnName="reply_connector_code"/>
+        <dropColumn tableName="channels" columnName="reply_identity"/>
+        <dropColumn tableName="channels" columnName="reply_tool_name"/>
+        <dropColumn tableName="channels" columnName="reply_tool_params"/>
+
+    </changeSet>
+
+</databaseChangeLog>

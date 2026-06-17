@@ -20,6 +20,7 @@ import ru.agimate.agentworker.SendChannelMessageRequest;
 import ru.agimate.agentworker.SendChannelMessageResponse;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -39,11 +40,12 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
 
             ListChannelsResponse.Builder responseBuilder = ListChannelsResponse.newBuilder();
             for (Channel channel : channels) {
+                Map<String, Object> config = channel.getConfig();
                 responseBuilder.addChannels(ChannelDescriptor.newBuilder()
                         .setChannelId(channel.getId().toString())
                         .setName(channel.getName())
-                        .setReplyConnectorCode(channel.getReplyConnectorCode())
-                        .setReplyToolName(channel.getReplyToolName())
+                        .setReplyConnectorCode(configString(config, "replyConnectorCode", channel.getConnectorCode()))
+                        .setReplyToolName(configString(config, "replyToolName", ""))
                         .build());
             }
             log.debug("ChannelGateway.ListChannels pool={} agent={} count={}", poolId, agentId, channels.size());
@@ -71,7 +73,7 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
 
             SendChannelMessageResponse response = SendChannelMessageResponse.newBuilder()
                     .setSessionId(result.session().getId().toString())
-                    .setToolUseId(result.toolUseLog().getId().toString())
+                    .setToolUseId(result.toolUseId())
                     .build();
 
             log.info("ChannelGateway.SendChannelMessage pool={} agent={} channel={} session={}",
@@ -116,5 +118,13 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
 
     private static String emptyToNull(String value) {
         return value == null || value.isEmpty() ? null : value;
+    }
+
+    private static String configString(Map<String, Object> config, String key, String fallback) {
+        if (config == null) {
+            return fallback;
+        }
+        Object value = config.get(key);
+        return value != null ? value.toString() : fallback;
     }
 }

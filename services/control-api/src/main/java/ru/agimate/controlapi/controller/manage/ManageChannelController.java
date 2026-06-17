@@ -68,14 +68,10 @@ public class ManageChannelController {
         Channel channel = channelService.create(userId, new ChannelService.CreateChannelData(
                 request.agentId(),
                 request.name(),
-                request.triggerConnectorCode(),
-                request.triggerIdentity(),
-                request.triggerName(),
-                request.triggerMessageField(),
-                request.replyConnectorCode(),
-                request.replyIdentity(),
-                request.replyToolName(),
-                request.replyToolParams(),
+                request.channelHandler(),
+                request.connectorCode(),
+                request.identity(),
+                request.config(),
                 request.inputFilter()
         ));
         return SuccessResponse.ok(channelService.toResponse(channel));
@@ -91,8 +87,7 @@ public class ManageChannelController {
         UUID userId = UUID.fromString(principal.id());
         Channel channel = channelService.update(userId, id, new ChannelService.UpdateChannelData(
                 request.name(),
-                request.triggerMessageField(),
-                request.replyToolParams(),
+                request.config(),
                 request.inputFilter(),
                 Boolean.TRUE.equals(request.clearInputFilter())
         ));

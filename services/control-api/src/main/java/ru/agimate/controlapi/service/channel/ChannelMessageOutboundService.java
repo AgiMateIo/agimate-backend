@@ -5,19 +5,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
-import ru.agimate.controlapi.database.entities.ToolUseLog;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
-import ru.agimate.controlapi.database.repositories.ToolUseLogRepository;
-import ru.agimate.controlapi.service.ConnectorService;
+import ru.agimate.controlapi.service.channel.handler.ChannelConfig;
+import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
+import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
+import ru.agimate.controlapi.service.channel.handler.ChannelOutboundContext;
+import ru.agimate.controlapi.service.channel.handler.OutboundMessage;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -29,10 +29,9 @@ public class ChannelMessageOutboundService {
     private final ChannelSessionRepository channelSessionRepository;
     private final ChannelSessionMessageRepository channelSessionMessageRepository;
     private final ChannelSessionService channelSessionService;
-    private final ToolUseLogRepository toolUseLogRepository;
-    private final ConnectorService connectorService;
+    private final ChannelHandlerRegistry channelHandlerRegistry;
 
-    public record OutboundResult(ChannelSession session, ToolUseLog toolUseLog) {}
+    public record OutboundResult(ChannelSession session, String toolUseId) {}
 
     @Transactional
     public OutboundResult send(UUID agentId, UUID channelId, UUID sessionIdOrNull,
@@ -44,18 +43,28 @@ public class ChannelMessageOutboundService {
             throw new NotFoundStatusException("Channel not found for this agent");
         }
 
+        ChannelHandler handler = channelHandlerRegistry.find(channel.getChannelHandler())
+                .orElseThrow(() -> new NotFoundStatusException(
+                        "Channel handler not found: " + channel.getChannelHandler()));
+
         ChannelSession session = resolveSession(channel, sessionIdOrNull);
-        Map<String, Object> triggerInput = lookupLastInboundTrigger(session);
+        Map<String, Object> replyContext = lookupLastInboundTrigger(session);
 
-        Map<String, Object> renderedParams = PlaceholderRenderer.render(
-                channel.getReplyToolParams(), text, triggerInput);
+        // Resolve the idempotency key once so it is both used by the dispatcher and returned to the worker.
+        String effectiveToolCallId = toolCallId != null && !toolCallId.isBlank()
+                ? toolCallId : UUID.randomUUID().toString();
 
-        ToolUseLog toolUseLog = upsertToolUseLog(channel, toolCallId, renderedParams);
-        connectorService.pushToConnector(toolUseLog);
+        ChannelConfig config = new ChannelConfig(
+                channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
+        OutboundMessage outbound = OutboundMessage.text(text, replyContext);
+        ChannelOutboundContext ctx = new ChannelOutboundContext(
+                channel.getAgentId(), channel.getUserId(), effectiveToolCallId);
 
-        log.info("Dispatched OUT message session={} channel={} via tool={}",
-                session.getId(), channel.getId(), channel.getReplyToolName());
-        return new OutboundResult(session, toolUseLog);
+        handler.process(config, outbound, ctx);
+
+        log.info("Dispatched OUT message session={} channel={} via handler={}",
+                session.getId(), channel.getId(), handler.name());
+        return new OutboundResult(session, effectiveToolCallId);
     }
 
     private ChannelSession resolveSession(Channel channel, UUID sessionIdOrNull) {
@@ -75,28 +84,5 @@ public class ChannelMessageOutboundService {
                 .findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(session.getId())
                 .map(ChannelSessionMessage::getTriggerInput)
                 .orElse(Map.of());
-    }
-
-    private ToolUseLog upsertToolUseLog(Channel channel, String toolCallId, Map<String, Object> renderedParams) {
-        String effectiveToolCallId = toolCallId != null && !toolCallId.isBlank()
-                ? toolCallId : UUID.randomUUID().toString();
-
-        Optional<ToolUseLog> existing = toolUseLogRepository
-                .findByToolUseIdAndAgentId(effectiveToolCallId, channel.getAgentId());
-        if (existing.isPresent()) {
-            return existing.get();
-        }
-
-        ToolUseLog log = ToolUseLog.builder()
-                .agentId(channel.getAgentId())
-                .userId(channel.getUserId())
-                .connectorCode(channel.getReplyConnectorCode())
-                .identity(channel.getReplyIdentity())
-                .toolUseId(effectiveToolCallId)
-                .toolName(channel.getReplyToolName())
-                .input(renderedParams)
-                .accessEffect(AccessEffect.ALLOW)
-                .build();
-        return toolUseLogRepository.save(log);
     }
 }

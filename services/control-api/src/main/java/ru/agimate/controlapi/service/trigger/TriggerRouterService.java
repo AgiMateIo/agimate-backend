@@ -15,6 +15,10 @@ import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.channel.ChannelSessionService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
+import ru.agimate.controlapi.service.channel.handler.ChannelConfig;
+import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
+import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
+import ru.agimate.controlapi.service.channel.handler.InboundMessage;
 
 import java.util.Comparator;
 import java.util.List;
@@ -36,6 +40,7 @@ public class TriggerRouterService {
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
     private final ChannelRepository channelRepository;
     private final ChannelSessionService channelSessionService;
+    private final ChannelHandlerRegistry channelHandlerRegistry;
 
     @Async
     public void routeAppTrigger(App app, TriggerRequest triggerRequest) {
@@ -116,7 +121,7 @@ public class TriggerRouterService {
         triggerLogService.save(triggerLog);
     }
 
-    private void routeTrigger(UUID userId, Trigger trigger) {
+    public void routeTrigger(UUID userId, Trigger trigger) {
         TriggerLog triggerLog = triggerLogService.createTriggerLog(userId, trigger);
 
         if (isBlockingProbe(trigger.data())) {
@@ -157,7 +162,7 @@ public class TriggerRouterService {
             ChannelContext channelContext = null;
             AgentTriggerPolicy policy = bestPolicy.get();
             if (policy.getChannelId() != null) {
-                channelContext = processChannelInbound(policy.getChannelId());
+                channelContext = processChannelInbound(policy.getChannelId(), trigger);
             }
 
             TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
@@ -198,18 +203,35 @@ public class TriggerRouterService {
         return spec;
     }
 
-    private ChannelContext processChannelInbound(UUID channelId) {
+    private ChannelContext processChannelInbound(UUID channelId, Trigger trigger) {
         Channel channel = channelRepository.findById(channelId).orElse(null);
         if (channel == null || channel.getDeletedAt() != null) {
             log.warn("Channel id={} not found or deleted; treating as no-channel route", channelId);
             return null;
         }
         ChannelSession session = channelSessionService.findOrCreateActive(channel, null);
+
+        Map<String, Object> config = channel.getConfig();
+        Object rawMessageField = config != null ? config.get("messageField") : null;
+        String messageField = rawMessageField != null ? rawMessageField.toString() : null;
+
+        // Handlers без messageField в config (например telegram) извлекают текст сами через convert();
+        // generic оставляет messageField — текст по-прежнему извлекает воркер (поведение не меняется).
+        String inboundText = null;
+        if (messageField == null) {
+            ChannelHandler handler = channelHandlerRegistry.find(channel.getChannelHandler()).orElse(null);
+            if (handler != null) {
+                ChannelConfig cc = new ChannelConfig(channel.getConnectorCode(), channel.getIdentity(), config);
+                inboundText = handler.convert(cc, trigger).map(InboundMessage::text).orElse(null);
+            }
+        }
+
         return new ChannelContext(
                 channel.getId(),
                 session.getId(),
                 channel.getName(),
-                channel.getTriggerMessageField()
+                messageField,
+                inboundText
         );
     }
 

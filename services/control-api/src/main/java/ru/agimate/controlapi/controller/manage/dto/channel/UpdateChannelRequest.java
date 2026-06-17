@@ -9,11 +9,8 @@ public record UpdateChannelRequest(
         @Schema(description = "Channel display name")
         String name,
 
-        @Schema(description = "Dot-path into trigger.data with the message text")
-        String triggerMessageField,
-
-        @Schema(description = "Reply tool params template")
-        Map<String, Object> replyToolParams,
+        @Schema(description = "Handler configuration (full replacement; trigger/tool set must stay the same)")
+        Map<String, Object> config,
 
         @Schema(description = "Optional input filter (use null + clearInputFilter=true to drop)")
         Map<String, Object> inputFilter,

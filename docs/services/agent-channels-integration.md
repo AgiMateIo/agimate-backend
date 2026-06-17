@@ -258,10 +258,8 @@ Backend не присылает уведомление о закрытии се�
 Просто чтобы понимать контекст. Пользователь в UI создаёт канал, заполняя:
 
 - какому агенту канал принадлежит,
-- какой connector + identity + triggerName слушать,
-- где в `trigger.data` лежит текст сообщения (dot-path → `triggerMessageField`),
-- какой connector + identity + toolName использовать для ответа,
-- шаблон параметров tool'а (`replyToolParams`),
+- `channelHandler` (например `generic`), `connectorCode` + `identity` источника,
+- `config` обработчика — для `generic`: список `triggers`, `messageField` (dot-path до текста), reply-цель (`replyConnectorCode`/`replyIdentity`/`replyToolName`) и `replyToolParams` (шаблон),
 - опциональный `inputFilter` (фильтр по полям `trigger.data`).
 
 Подробнее: [`control-api-manage-channels.md`](control-api-manage-channels.md).

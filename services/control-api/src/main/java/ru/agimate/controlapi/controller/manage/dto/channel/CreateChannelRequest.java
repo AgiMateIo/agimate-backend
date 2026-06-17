@@ -18,36 +18,20 @@ public record CreateChannelRequest(
         String name,
 
         @NotBlank
-        @Schema(description = "Connector code that emits the trigger")
-        String triggerConnectorCode,
+        @Schema(description = "Channel handler name (e.g. 'generic')")
+        String channelHandler,
+
+        @NotBlank
+        @Schema(description = "Trigger source connector code")
+        String connectorCode,
 
         @NotBlank
         @Schema(description = "Connector identity (App.id or IntegrationCredentials.id)")
-        String triggerIdentity,
-
-        @NotBlank
-        @Schema(description = "Trigger name to bind to")
-        String triggerName,
-
-        @NotBlank
-        @Schema(description = "Dot-path into trigger.data with the user-visible message text")
-        String triggerMessageField,
-
-        @NotBlank
-        @Schema(description = "Connector code used to send the reply")
-        String replyConnectorCode,
-
-        @NotBlank
-        @Schema(description = "Reply connector identity")
-        String replyIdentity,
-
-        @NotBlank
-        @Schema(description = "Reply tool name")
-        String replyToolName,
+        String identity,
 
         @NotNull
-        @Schema(description = "Reply tool params template with {text} and {trigger.*} placeholders")
-        Map<String, Object> replyToolParams,
+        @Schema(description = "Handler-specific configuration (settings map)")
+        Map<String, Object> config,
 
         @Schema(description = "Optional input filter (dot-path → value) applied to trigger.data")
         Map<String, Object> inputFilter

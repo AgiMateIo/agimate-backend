@@ -36,30 +36,22 @@ public class Channel extends BaseEntity {
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
 
-    @Column(name = "trigger_connector_code", nullable = false, columnDefinition = "TEXT")
-    private String triggerConnectorCode;
+    /** Имя {@code ChannelHandler}-а, обрабатывающего этот канал (см. ChannelHandlerRegistry). */
+    @Column(name = "channel_handler", nullable = false, columnDefinition = "TEXT")
+    private String channelHandler;
 
-    @Column(name = "trigger_identity", nullable = false, columnDefinition = "TEXT")
-    private String triggerIdentity;
+    /** Коннектор источника триггеров (и, как правило, ответов). */
+    @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
+    private String connectorCode;
 
-    @Column(name = "trigger_name", nullable = false, columnDefinition = "TEXT")
-    private String triggerName;
+    /** Identity источника: App.id или IntegrationCredentials.id строкой. */
+    @Column(name = "identity", nullable = false, columnDefinition = "TEXT")
+    private String identity;
 
-    @Column(name = "trigger_message_field", nullable = false, columnDefinition = "TEXT")
-    private String triggerMessageField;
-
-    @Column(name = "reply_connector_code", nullable = false, columnDefinition = "TEXT")
-    private String replyConnectorCode;
-
-    @Column(name = "reply_identity", nullable = false, columnDefinition = "TEXT")
-    private String replyIdentity;
-
-    @Column(name = "reply_tool_name", nullable = false, columnDefinition = "TEXT")
-    private String replyToolName;
-
+    /** Произвольные настройки handler-а (reply-цель, шаблоны, messageField и т.п.). */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "reply_tool_params", nullable = false, columnDefinition = "JSONB")
-    private Map<String, Object> replyToolParams;
+    @Column(name = "config", nullable = false, columnDefinition = "JSONB")
+    private Map<String, Object> config;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
