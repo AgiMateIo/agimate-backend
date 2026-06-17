@@ -54,9 +54,15 @@ Backend перед вызовом тула рекурсивно проходит
 
 ### Handler `telegram`
 
-Код-handler для Telegram. Требует `connectorCode = "telegram"`; `config` дополнительных ключей **не требует** (вся логика в коде). Обрабатывает все пять триггеров (`message_received`, `photo_received`, `document_received`, `command_received`, `callback_query`) и отвечает текстом через `telegram.send_message` (адресат — `chatId` из исходного входящего).
+Код-handler для Telegram. Требует `connectorCode = "telegram"`. Обрабатывает все пять триггеров (`message_received`, `photo_received`, `document_received`, `command_received`, `callback_query`) и отвечает текстом через `telegram.send_message` (адресат — `chatId` из исходного входящего).
 
-Пример создания:
+`config` (см. `GET /handlers/` для схемы):
+
+| Ключ | Тип | Описание |
+|---|---|---|
+| `allowedChatIds` | integer[]? | Если задано — обрабатываются только сообщения из этих `chat_id`; пусто/нет — из всех. Фильтр применяется при роутинге: отсечённый триггер **не доходит до агента** и не создаёт сессию. |
+
+Пример создания (только конкретный чат):
 ```json
 {
   "agentId": "018f...",
@@ -64,7 +70,7 @@ Backend перед вызовом тула рекурсивно проходит
   "channelHandler": "telegram",
   "connectorCode": "telegram",
   "identity": "018f...",
-  "config": {}
+  "config": { "allowedChatIds": [12345] }
 }
 ```
 
@@ -145,6 +151,26 @@ Backend перед вызовом тула рекурсивно проходит
 ---
 
 ## Endpoints
+
+### GET `/control/manage/channels/handlers/`
+
+Список доступных обработчиков и JSON Schema их `config` — для мастера создания канала (UI рендерит форму по схеме).
+
+**Response 200:**
+```json
+{
+  "response": [
+    {
+      "name": "generic",
+      "configFields": { "type": "object", "properties": { "triggers": { "type": "array", "items": { "type": "string" }, "title": "Триггеры", "description": "..." }, "messageField": { "type": "string", "title": "Поле сообщения", "description": "..." } }, "required": ["triggers", "messageField", "replyConnectorCode", "replyIdentity", "replyToolName", "replyToolParams"] }
+    },
+    {
+      "name": "telegram",
+      "configFields": { "type": "object", "properties": { "allowedChatIds": { "type": "array", "items": { "type": "integer" }, "title": "Разрешённые чаты", "description": "..." } }, "required": [] }
+    }
+  ]
+}
+```
 
 ### GET `/control/manage/channels/`
 
@@ -284,7 +310,7 @@ Soft delete (`deletedAt = NOW()`). Связанные trigger/tool-policy **уд
 
 - **AgentTriggerPolicy / AgentToolPolicy**: у policy есть `channelId` (и у trigger-policy — `inputFilter`). Если `channelId != null`, policy управляется через `/manage/channels/` — напрямую её редактировать не следует. Один канал может порождать несколько policy (по числу триггеров/тулов handler-а).
 - **TriggerLog**: не меняется — в `trigger_input` лога лежит оригинал.
-- **ToolUseLog**: ответ через канал создаёт `ToolUseLog` с `accessEffect=ALLOW`; `toolUseId` — это `tool_call_id` из `SendChannelMessage` (или сгенерированный UUID).
+- **ToolUseLog**: ответ через канал идёт через `AgentToolUseService.processToolUse` — та же проверка ABAC, что и для обычных вызовов агента (effect берётся из tool-policy, созданной при создании канала). `toolUseId` — это `tool_call_id` из `SendChannelMessage` (или сгенерированный UUID).
 
 ## Notes
 

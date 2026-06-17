@@ -5,17 +5,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.controlapi.service.AgentToolUseService;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
-import ru.agimate.controlapi.service.channel.handler.ChannelConfig;
+import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
-import ru.agimate.controlapi.service.channel.handler.ChannelOutboundContext;
-import ru.agimate.controlapi.service.channel.handler.OutboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.ChannelOutboundContext;
+import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 
 import java.util.Map;
 import java.util.UUID;
@@ -30,6 +31,7 @@ public class ChannelMessageOutboundService {
     private final ChannelSessionMessageRepository channelSessionMessageRepository;
     private final ChannelSessionService channelSessionService;
     private final ChannelHandlerRegistry channelHandlerRegistry;
+    private final AgentToolUseService agentToolUseService;
 
     public record OutboundResult(ChannelSession session, String toolUseId) {}
 
@@ -57,10 +59,9 @@ public class ChannelMessageOutboundService {
         ChannelConfig config = new ChannelConfig(
                 channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
         OutboundMessage outbound = OutboundMessage.text(text, replyContext);
-        ChannelOutboundContext ctx = new ChannelOutboundContext(
-                channel.getAgentId(), channel.getUserId(), effectiveToolCallId);
+        ChannelOutboundContext ctx = new ChannelOutboundContext(channel.getAgentId(), effectiveToolCallId);
 
-        handler.process(config, outbound, ctx);
+        handler.process(config, outbound, ctx, agentToolUseService);
 
         log.info("Dispatched OUT message session={} channel={} via handler={}",
                 session.getId(), channel.getId(), handler.name());

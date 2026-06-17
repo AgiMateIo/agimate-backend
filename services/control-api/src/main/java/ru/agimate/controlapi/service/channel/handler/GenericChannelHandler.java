@@ -1,11 +1,12 @@
 package ru.agimate.controlapi.service.channel.handler;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.service.channel.ChannelOutboundDispatcher;
+import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
+import ru.agimate.controlapi.service.AgentToolUseService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.PlaceholderRenderer;
+import ru.agimate.controlapi.service.channel.handler.dto.*;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.util.List;
@@ -25,7 +26,6 @@ import java.util.Optional;
  * </ul>
  */
 @Component
-@RequiredArgsConstructor
 public class GenericChannelHandler implements ChannelHandler {
 
     public static final String NAME = "generic";
@@ -37,11 +37,28 @@ public class GenericChannelHandler implements ChannelHandler {
     private static final String K_REPLY_TOOL = "replyToolName";
     private static final String K_REPLY_PARAMS = "replyToolParams";
 
-    private final ChannelOutboundDispatcher dispatcher;
-
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public Map<String, Object> getConfigFields() {
+        Map<String, Object> props = new java.util.LinkedHashMap<>();
+        props.put(K_TRIGGERS, ConfigSchema.arrayProp("string", "Триггеры",
+                "Имена триггеров коннектора, которые слушает канал"));
+        props.put(K_MESSAGE_FIELD, ConfigSchema.prop("string", "Поле сообщения",
+                "Dot-path внутри trigger.data до текста сообщения (например data.message.text)"));
+        props.put(K_REPLY_CONNECTOR, ConfigSchema.prop("string", "Reply connector",
+                "Код коннектора для отправки ответа"));
+        props.put(K_REPLY_IDENTITY, ConfigSchema.prop("string", "Reply identity",
+                "Identity reply-коннектора"));
+        props.put(K_REPLY_TOOL, ConfigSchema.prop("string", "Reply tool",
+                "Тул, отправляющий ответ"));
+        props.put(K_REPLY_PARAMS, ConfigSchema.prop("object", "Шаблон параметров",
+                "Шаблон параметров тула с плейсхолдерами {text} и {trigger.*}"));
+        return ConfigSchema.schema(props,
+                K_TRIGGERS, K_MESSAGE_FIELD, K_REPLY_CONNECTOR, K_REPLY_IDENTITY, K_REPLY_TOOL, K_REPLY_PARAMS);
     }
 
     @Override
@@ -76,11 +93,18 @@ public class GenericChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public void process(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx) {
+    public void process(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
+                        AgentToolUseService toolUseService) {
         Map<String, Object> args = PlaceholderRenderer.render(
                 replyParams(config), outbound.text(), outbound.replyContext());
-        dispatcher.dispatch(ctx.agentId(), ctx.userId(),
-                replyConnector(config), replyIdentity(config), replyTool(config), args, ctx.toolCallId());
+        ToolUseRequest request = ToolUseRequest.builder()
+                .id(ctx.toolCallId())
+                .connectorCode(replyConnector(config))
+                .identity(replyIdentity(config))
+                .name(replyTool(config))
+                .input(args)
+                .build();
+        toolUseService.processToolUse(ctx.agentId(), request);
     }
 
     // --- config accessors ---

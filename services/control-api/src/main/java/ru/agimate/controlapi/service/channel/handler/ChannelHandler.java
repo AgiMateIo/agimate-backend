@@ -1,8 +1,11 @@
 package ru.agimate.controlapi.service.channel.handler;
 
+import ru.agimate.controlapi.service.AgentToolUseService;
+import ru.agimate.controlapi.service.channel.handler.dto.*;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -22,6 +25,14 @@ public interface ChannelHandler {
 
     /** Уникальное в системе имя обработчика; пишется в {@code channels.channel_handler}. */
     String name();
+
+    /**
+     * JSON Schema (object) полей {@code config} — чтобы UI отрисовал форму с описаниями
+     * и пользователь корректно заполнил настройки (в т.ч. параметры фильтрации).
+     */
+    default Map<String, Object> getConfigFields() {
+        return Map.of("type", "object", "properties", Map.of(), "required", List.of());
+    }
 
     /**
      * Входящие триггеры, которые обрабатывает канал с данным {@code config}.
@@ -44,8 +55,12 @@ public interface ChannelHandler {
 
     /**
      * Отправляет ответ модели в канал: выбирает тул и аргументы и вызывает его через
-     * {@code ChannelOutboundDispatcher} (поэтому ABAC соблюдается). {@code ctx} несёт
-     * уже разрешённый {@link ChannelOutboundContext#toolCallId()} (идемпотентность).
+     * {@link AgentToolUseService#processToolUse} (идемпотентность + проверка ABAC). {@code ctx}
+     * несёт уже разрешённый {@link ChannelOutboundContext#toolCallId()}.
+     *
+     * <p>{@code toolUseService} передаётся параметром, а не инжектится в handler — иначе бин
+     * handler'а тянул бы {@code ConnectorService} и замыкал цикл с роутером инбаунда.
      */
-    void process(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx);
+    void process(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
+                 AgentToolUseService toolUseService);
 }

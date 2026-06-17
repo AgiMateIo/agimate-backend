@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.channel.handler;
+package ru.agimate.controlapi.service.channel.handler.dto;
 
 import java.util.Map;
 

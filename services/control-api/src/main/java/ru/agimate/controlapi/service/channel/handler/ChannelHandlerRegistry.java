@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Collection;
 
 /**
  * Реестр {@link ChannelHandler}-ов по {@link ChannelHandler#name()}.
@@ -34,6 +35,10 @@ public class ChannelHandlerRegistry {
 
     public Optional<ChannelHandler> find(String name) {
         return Optional.ofNullable(byName.get(name));
+    }
+
+    public Collection<ChannelHandler> all() {
+        return byName.values();
     }
 
     public ChannelHandler require(String name) {

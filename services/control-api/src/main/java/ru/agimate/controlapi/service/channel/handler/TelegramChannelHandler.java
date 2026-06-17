@@ -1,9 +1,10 @@
 package ru.agimate.controlapi.service.channel.handler;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.service.channel.ChannelOutboundDispatcher;
+import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
+import ru.agimate.controlapi.service.AgentToolUseService;
+import ru.agimate.controlapi.service.channel.handler.dto.*;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.util.LinkedHashMap;
@@ -20,7 +21,6 @@ import java.util.Optional;
  * подпись, если она есть. Скачивание/транскрибация — отдельный этап (мультимодальность).
  */
 @Component
-@RequiredArgsConstructor
 public class TelegramChannelHandler implements ChannelHandler {
 
     public static final String NAME = "telegram";
@@ -32,12 +32,19 @@ public class TelegramChannelHandler implements ChannelHandler {
     private static final String TRIGGER_COMMAND = "telegram.command_received";
     private static final String TRIGGER_CALLBACK = "telegram.callback_query";
     private static final String TOOL_SEND_MESSAGE = "telegram.send_message";
-
-    private final ChannelOutboundDispatcher dispatcher;
+    private static final String CFG_ALLOWED_CHAT_IDS = "allowedChatIds";
 
     @Override
     public String name() {
         return NAME;
+    }
+
+    @Override
+    public Map<String, Object> getConfigFields() {
+        Map<String, Object> props = new LinkedHashMap<>();
+        props.put(CFG_ALLOWED_CHAT_IDS, ConfigSchema.arrayProp("integer", "Разрешённые чаты",
+                "Если задано — обрабатываются только сообщения из этих chat_id; пусто — из всех"));
+        return ConfigSchema.schema(props);
     }
 
     @Override
@@ -65,6 +72,9 @@ public class TelegramChannelHandler implements ChannelHandler {
     @Override
     public Optional<InboundMessage> convert(ChannelConfig config, Trigger trigger) {
         Map<String, Object> data = trigger.data() != null ? trigger.data() : Map.of();
+        if (!chatAllowed(config, data.get("chatId"))) {
+            return Optional.empty();
+        }
         String text = switch (trigger.name()) {
             case TRIGGER_MESSAGE, TRIGGER_COMMAND -> asString(data.get("text"));
             case TRIGGER_CALLBACK -> "[Нажата кнопка] " + asString(data.get("data"));
@@ -77,7 +87,8 @@ public class TelegramChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public void process(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx) {
+    public void process(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
+                        AgentToolUseService toolUseService) {
         Map<String, Object> replyContext = outbound.replyContext() != null ? outbound.replyContext() : Map.of();
         Object chatId = replyContext.get("chatId");
         if (chatId == null) {
@@ -86,8 +97,29 @@ public class TelegramChannelHandler implements ChannelHandler {
         Map<String, Object> args = new LinkedHashMap<>();
         args.put("chatId", chatId.toString());
         args.put("text", outbound.text());
-        dispatcher.dispatch(ctx.agentId(), ctx.userId(),
-                config.connectorCode(), config.identity(), TOOL_SEND_MESSAGE, args, ctx.toolCallId());
+        ToolUseRequest request = ToolUseRequest.builder()
+                .id(ctx.toolCallId())
+                .connectorCode(config.connectorCode())
+                .identity(config.identity())
+                .name(TOOL_SEND_MESSAGE)
+                .input(args)
+                .build();
+        toolUseService.processToolUse(ctx.agentId(), request);
+    }
+
+    private static boolean chatAllowed(ChannelConfig config, Object chatId) {
+        Object raw = config.setting(CFG_ALLOWED_CHAT_IDS);
+        if (!(raw instanceof List<?> allowed) || allowed.isEmpty()) {
+            return true;
+        }
+        if (chatId == null) {
+            return false;
+        }
+        String want = chatId.toString();
+        return allowed.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(Object::toString)
+                .anyMatch(want::equals);
     }
 
     @SuppressWarnings("unchecked")

@@ -15,10 +15,10 @@ import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.channel.ChannelSessionService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
-import ru.agimate.controlapi.service.channel.handler.ChannelConfig;
+import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
-import ru.agimate.controlapi.service.channel.handler.InboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 
 import java.util.Comparator;
 import java.util.List;
@@ -97,30 +97,6 @@ public class TriggerRouterService {
         return agents;
     }
 
-    /**
-     * Доставка триггера конкретным агентам пользователя по {@link TriggerAudience} — без привязки
-     * к команде (в отличие от {@link #routeInternalTrigger}). Кандидаты ограничены allow-политиками
-     * пользователя, затем сужаются audience. Используется динамическими задачами агента
-     * ({@code time.schedule} → {@code trigger.time.due}): адресат уже известен из audience.
-     */
-    public void routeToAgent(UUID userId, Trigger trigger) {
-        TriggerLog triggerLog = triggerLogService.createTriggerLog(userId, trigger);
-
-        if (isBlockingProbe(trigger.data())) {
-            log.info("Trigger contains discovery probe (block mode) - skipping agent routing for user={}", userId);
-            triggerLogService.save(triggerLog);
-            return;
-        }
-
-        List<Agent> agents = agentTriggerPolicyService.findAllowedAgents(
-                userId, trigger.connectorCode(), trigger.identity(), trigger.name());
-        agents = applyAudience(agents, trigger.audience());
-
-        sendTrigger(agents, triggerLog, trigger);
-
-        triggerLogService.save(triggerLog);
-    }
-
     public void routeTrigger(UUID userId, Trigger trigger) {
         TriggerLog triggerLog = triggerLogService.createTriggerLog(userId, trigger);
 
@@ -132,6 +108,7 @@ public class TriggerRouterService {
 
         List<Agent> agents = agentTriggerPolicyService.findAllowedAgents(
                 userId, trigger.connectorCode(), trigger.identity(), trigger.name());
+        agents = applyAudience(agents, trigger.audience());
 
         sendTrigger(agents, triggerLog, trigger);
 
@@ -159,10 +136,16 @@ public class TriggerRouterService {
                 continue;
             }
 
-            ChannelContext channelContext = null;
             AgentTriggerPolicy policy = bestPolicy.get();
+            ChannelContext channelContext = null;
             if (policy.getChannelId() != null) {
-                channelContext = processChannelInbound(policy.getChannelId(), trigger);
+                ChannelInbound inbound = resolveChannelInbound(policy.getChannelId(), trigger);
+                if (inbound.skip()) {
+                    log.debug("Channel {} filtered out trigger '{}' for agent {}",
+                            policy.getChannelId(), trigger.name(), agent.getId());
+                    continue;
+                }
+                channelContext = inbound.context();
             }
 
             TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
@@ -203,36 +186,53 @@ public class TriggerRouterService {
         return spec;
     }
 
-    private ChannelContext processChannelInbound(UUID channelId, Trigger trigger) {
+    /**
+     * @param skip    true → handler-фильтр отверг триггер: доставку пропустить (сессия не создаётся)
+     * @param context контекст доставки; null при отсутствующем/удалённом канале (обычная доставка триггера)
+     */
+    private record ChannelInbound(boolean skip, ChannelContext context) {
+        private static final ChannelInbound SKIP = new ChannelInbound(true, null);
+
+        private static ChannelInbound deliver(ChannelContext context) {
+            return new ChannelInbound(false, context);
+        }
+    }
+
+    private ChannelInbound resolveChannelInbound(UUID channelId, Trigger trigger) {
         Channel channel = channelRepository.findById(channelId).orElse(null);
         if (channel == null || channel.getDeletedAt() != null) {
             log.warn("Channel id={} not found or deleted; treating as no-channel route", channelId);
-            return null;
+            return ChannelInbound.deliver(null);
         }
-        ChannelSession session = channelSessionService.findOrCreateActive(channel, null);
 
         Map<String, Object> config = channel.getConfig();
         Object rawMessageField = config != null ? config.get("messageField") : null;
         String messageField = rawMessageField != null ? rawMessageField.toString() : null;
 
         // Handlers без messageField в config (например telegram) извлекают текст сами через convert();
+        // convert() == empty означает «триггер не для этого канала» (фильтр) → доставку пропускаем.
         // generic оставляет messageField — текст по-прежнему извлекает воркер (поведение не меняется).
         String inboundText = null;
         if (messageField == null) {
             ChannelHandler handler = channelHandlerRegistry.find(channel.getChannelHandler()).orElse(null);
             if (handler != null) {
                 ChannelConfig cc = new ChannelConfig(channel.getConnectorCode(), channel.getIdentity(), config);
-                inboundText = handler.convert(cc, trigger).map(InboundMessage::text).orElse(null);
+                Optional<InboundMessage> inbound = handler.convert(cc, trigger);
+                if (inbound.isEmpty()) {
+                    return ChannelInbound.SKIP;
+                }
+                inboundText = inbound.get().text();
             }
         }
 
-        return new ChannelContext(
+        ChannelSession session = channelSessionService.findOrCreateActive(channel, null);
+        return ChannelInbound.deliver(new ChannelContext(
                 channel.getId(),
                 session.getId(),
                 channel.getName(),
                 messageField,
                 inboundText
-        );
+        ));
     }
 
 }

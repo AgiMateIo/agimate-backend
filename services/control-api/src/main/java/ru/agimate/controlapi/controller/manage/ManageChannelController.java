@@ -8,6 +8,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
+import ru.agimate.controlapi.controller.manage.dto.channel.ChannelHandlerResponse;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelResponse;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelSessionMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelSessionResponse;
@@ -45,6 +46,12 @@ public class ManageChannelController {
                 ? channelService.listForUserAndAgent(userId, agentId)
                 : channelService.listForUser(userId);
         return SuccessResponse.ok(channelService.toResponses(channels));
+    }
+
+    @Operation(summary = "List available channel handlers and their config JSON Schema")
+    @GetMapping("/handlers/")
+    public SuccessResponse<List<ChannelHandlerResponse>> handlers() {
+        return SuccessResponse.ok(channelService.listHandlers());
     }
 
     @Operation(summary = "Get channel by id")

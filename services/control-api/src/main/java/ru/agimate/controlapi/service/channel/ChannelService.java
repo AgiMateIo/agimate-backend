@@ -12,6 +12,7 @@ import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.controller.manage.dto.channel.ChannelHandlerResponse;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentToolPolicy;
@@ -27,11 +28,11 @@ import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
-import ru.agimate.controlapi.service.channel.handler.ChannelConfig;
+import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
-import ru.agimate.controlapi.service.channel.handler.ToolDefinition;
-import ru.agimate.controlapi.service.channel.handler.TriggerDefinition;
+import ru.agimate.controlapi.service.channel.handler.dto.ToolDefinition;
+import ru.agimate.controlapi.service.channel.handler.dto.TriggerDefinition;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -86,6 +87,12 @@ public class ChannelService {
 
     public List<Channel> listForAgent(UUID agentId) {
         return channelRepository.findByAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(agentId);
+    }
+
+    public List<ChannelHandlerResponse> listHandlers() {
+        return channelHandlerRegistry.all().stream()
+                .map(h -> new ChannelHandlerResponse(h.name(), h.getConfigFields()))
+                .toList();
     }
 
     public ChannelResponse toResponse(Channel channel) {

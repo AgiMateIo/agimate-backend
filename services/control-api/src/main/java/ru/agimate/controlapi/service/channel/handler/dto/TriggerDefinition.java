@@ -1,4 +1,6 @@
-package ru.agimate.controlapi.service.channel.handler;
+package ru.agimate.controlapi.service.channel.handler.dto;
+
+import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 
 /**
  * Описание входящего триггера, который умеет обрабатывать {@link ChannelHandler}.
