@@ -61,7 +61,7 @@ public class ChannelMessageOutboundService {
         OutboundMessage outbound = OutboundMessage.text(text, replyContext);
         ChannelOutboundContext ctx = new ChannelOutboundContext(channel.getAgentId(), effectiveToolCallId);
 
-        handler.process(config, outbound, ctx, agentToolUseService);
+        handler.handleOutput(config, outbound, ctx, agentToolUseService);
 
         log.info("Dispatched OUT message session={} channel={} via handler={}",
                 session.getId(), channel.getId(), handler.name());

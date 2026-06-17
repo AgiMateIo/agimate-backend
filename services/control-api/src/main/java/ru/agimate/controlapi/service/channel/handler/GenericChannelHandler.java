@@ -86,14 +86,14 @@ public class GenericChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public Optional<InboundMessage> convert(ChannelConfig config, Trigger trigger) {
+    public Optional<InboundMessage> handleInput(ChannelConfig config, Trigger trigger) {
         Object value = InputFilterEvaluator.resolvePath(trigger.data(), messageField(config));
         String text = value == null ? null : value.toString();
         return Optional.of(InboundMessage.text(text, trigger.data(), null));
     }
 
     @Override
-    public void process(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
+    public void handleOutput(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
                         AgentToolUseService toolUseService) {
         Map<String, Object> args = PlaceholderRenderer.render(
                 replyParams(config), outbound.text(), outbound.replyContext());

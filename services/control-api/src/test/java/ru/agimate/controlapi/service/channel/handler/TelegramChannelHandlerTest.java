@@ -9,16 +9,21 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.service.channel.ChannelOutboundDispatcher;
+import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
+import ru.agimate.controlapi.service.AgentToolUseService;
+import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
+import ru.agimate.controlapi.service.channel.handler.dto.ChannelOutboundContext;
+import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.ToolDefinition;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -28,18 +33,17 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class TelegramChannelHandlerTest {
 
     private static final UUID AGENT_ID = UUID.randomUUID();
-    private static final UUID USER_ID = UUID.randomUUID();
     private static final String IDENTITY = "bot-creds-1";
 
     @Mock
-    private ChannelOutboundDispatcher dispatcher;
+    private AgentToolUseService toolUseService;
 
     private TelegramChannelHandler handler;
     private ChannelConfig config;
 
     @BeforeEach
     void setUp() {
-        handler = new TelegramChannelHandler(dispatcher);
+        handler = new TelegramChannelHandler();
         config = new ChannelConfig("telegram", IDENTITY, Map.of());
     }
 
@@ -74,16 +78,26 @@ class TelegramChannelHandlerTest {
             ChannelConfig wrong = new ChannelConfig("slack", IDENTITY, Map.of());
             assertThrows(ConnectorException.class, () -> handler.validateConfig(wrong));
         }
+
+        @Test
+        @DisplayName("getConfigFields exposes allowedChatIds as a JSON schema property")
+        void configFields() {
+            Map<String, Object> schema = handler.getConfigFields();
+            assertEquals("object", schema.get("type"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> props = (Map<String, Object>) schema.get("properties");
+            assertTrue(props.containsKey("allowedChatIds"));
+        }
     }
 
     @Nested
-    @DisplayName("convert")
+    @DisplayName("handleInput")
     class Convert {
 
         @Test
         @DisplayName("plain text message")
         void message() {
-            String text = handler.convert(config,
+            String text = handler.handleInput(config,
                     trigger("telegram.message_received", Map.of("chatId", 42, "text", "Привет"))).orElseThrow().text();
             assertEquals("Привет", text);
         }
@@ -91,7 +105,7 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("command keeps the full command line")
         void command() {
-            String text = handler.convert(config,
+            String text = handler.handleInput(config,
                     trigger("telegram.command_received", Map.of("chatId", 42, "text", "/start now"))).orElseThrow().text();
             assertEquals("/start now", text);
         }
@@ -99,7 +113,7 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("callback query is described")
         void callback() {
-            String text = handler.convert(config,
+            String text = handler.handleInput(config,
                     trigger("telegram.callback_query", Map.of("chatId", 42, "data", "yes"))).orElseThrow().text();
             assertEquals("[Нажата кнопка] yes", text);
         }
@@ -107,7 +121,7 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("photo without caption is described, no file fetched")
         void photo() {
-            String text = handler.convert(config,
+            String text = handler.handleInput(config,
                     trigger("telegram.photo_received", Map.of("chatId", 42))).orElseThrow().text();
             assertEquals("[Пользователь отправил изображение]", text);
         }
@@ -115,7 +129,7 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("photo caption is appended")
         void photoWithCaption() {
-            String text = handler.convert(config,
+            String text = handler.handleInput(config,
                     trigger("telegram.photo_received", Map.of("chatId", 42, "caption", "смотри"))).orElseThrow().text();
             assertEquals("[Пользователь отправил изображение] смотри", text);
         }
@@ -123,7 +137,7 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("document uses its file name")
         void document() {
-            String text = handler.convert(config,
+            String text = handler.handleInput(config,
                     trigger("telegram.document_received",
                             Map.of("chatId", 42, "document", Map.of("file_name", "report.pdf")))).orElseThrow().text();
             assertEquals("[Пользователь отправил документ: report.pdf]", text);
@@ -132,39 +146,71 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("conversationKey is the chat id")
         void conversationKey() {
-            String key = handler.convert(config,
+            String key = handler.handleInput(config,
                     trigger("telegram.message_received", Map.of("chatId", 42, "text", "hi"))).orElseThrow().conversationKey();
             assertEquals("42", key);
         }
     }
 
     @Nested
-    @DisplayName("process")
+    @DisplayName("chat filter (allowedChatIds)")
+    class ChatFilter {
+
+        @Test
+        @DisplayName("allows chats in the list")
+        void allowed() {
+            ChannelConfig filtered = new ChannelConfig("telegram", IDENTITY, Map.of("allowedChatIds", List.of(42)));
+            assertTrue(handler.handleInput(filtered,
+                    trigger("telegram.message_received", Map.of("chatId", 42, "text", "hi"))).isPresent());
+        }
+
+        @Test
+        @DisplayName("filters out chats not in the list")
+        void filteredOut() {
+            ChannelConfig filtered = new ChannelConfig("telegram", IDENTITY, Map.of("allowedChatIds", List.of(42)));
+            assertTrue(handler.handleInput(filtered,
+                    trigger("telegram.message_received", Map.of("chatId", 999, "text", "hi"))).isEmpty());
+        }
+
+        @Test
+        @DisplayName("empty list means all chats allowed")
+        void emptyAllowsAll() {
+            assertTrue(handler.handleInput(config,
+                    trigger("telegram.message_received", Map.of("chatId", 999, "text", "hi"))).isPresent());
+        }
+    }
+
+    @Nested
+    @DisplayName("handleOutput")
     class Process {
 
         @Test
-        @DisplayName("dispatches send_message with chatId from reply context")
+        @DisplayName("calls processToolUse with send_message and chatId from reply context")
         void dispatches() {
             OutboundMessage outbound = OutboundMessage.text("Готово", Map.of("chatId", 42));
-            ChannelOutboundContext ctx = new ChannelOutboundContext(AGENT_ID, USER_ID, "call-1");
+            ChannelOutboundContext ctx = new ChannelOutboundContext(AGENT_ID, "call-1");
 
-            handler.process(config, outbound, ctx);
+            handler.handleOutput(config, outbound, ctx, toolUseService);
 
-            ArgumentCaptor<Map<String, Object>> args = ArgumentCaptor.forClass(Map.class);
-            verify(dispatcher).dispatch(eq(AGENT_ID), eq(USER_ID), eq("telegram"), eq(IDENTITY),
-                    eq("telegram.send_message"), args.capture(), eq("call-1"));
-            assertEquals("42", args.getValue().get("chatId"));
-            assertEquals("Готово", args.getValue().get("text"));
+            ArgumentCaptor<ToolUseRequest> req = ArgumentCaptor.forClass(ToolUseRequest.class);
+            verify(toolUseService).processToolUse(eq(AGENT_ID), req.capture());
+            ToolUseRequest r = req.getValue();
+            assertEquals("telegram", r.getConnectorCode());
+            assertEquals(IDENTITY, r.getIdentity());
+            assertEquals("telegram.send_message", r.getName());
+            assertEquals("call-1", r.getId());
+            assertEquals("42", r.getInput().get("chatId"));
+            assertEquals("Готово", r.getInput().get("text"));
         }
 
         @Test
         @DisplayName("throws when chatId is missing")
         void missingChatId() {
             OutboundMessage outbound = OutboundMessage.text("Готово", Map.of());
-            ChannelOutboundContext ctx = new ChannelOutboundContext(AGENT_ID, USER_ID, "call-1");
+            ChannelOutboundContext ctx = new ChannelOutboundContext(AGENT_ID, "call-1");
 
-            assertThrows(ConnectorException.class, () -> handler.process(config, outbound, ctx));
-            verifyNoInteractions(dispatcher);
+            assertThrows(ConnectorException.class, () -> handler.handleOutput(config, outbound, ctx, toolUseService));
+            verifyNoInteractions(toolUseService);
         }
     }
 }

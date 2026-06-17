@@ -5,7 +5,7 @@ import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import java.util.UUID;
 
 /**
- * Контекст исходящей доставки, передаваемый в {@link ChannelHandler#process}.
+ * Контекст исходящей доставки, передаваемый в {@link ChannelHandler#handleOutput}.
  *
  * <p>userId не нужен — {@link ru.agimate.controlapi.service.AgentToolUseService} выводит его из
  * агента; здесь только агент-отправитель и идемпотентный ключ вызова.

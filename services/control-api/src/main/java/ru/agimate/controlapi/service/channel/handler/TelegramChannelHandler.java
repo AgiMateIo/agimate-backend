@@ -70,7 +70,7 @@ public class TelegramChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public Optional<InboundMessage> convert(ChannelConfig config, Trigger trigger) {
+    public Optional<InboundMessage> handleInput(ChannelConfig config, Trigger trigger) {
         Map<String, Object> data = trigger.data() != null ? trigger.data() : Map.of();
         if (!chatAllowed(config, data.get("chatId"))) {
             return Optional.empty();
@@ -87,7 +87,7 @@ public class TelegramChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public void process(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
+    public void handleOutput(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
                         AgentToolUseService toolUseService) {
         Map<String, Object> replyContext = outbound.replyContext() != null ? outbound.replyContext() : Map.of();
         Object chatId = replyContext.get("chatId");

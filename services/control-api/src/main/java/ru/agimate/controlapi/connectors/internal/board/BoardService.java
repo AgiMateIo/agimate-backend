@@ -176,7 +176,7 @@ public class BoardService {
                 audience
         );
 
-        triggerRouterService.routeInternalTrigger(userId, board.getAgenticTeam().getId(), trigger);
+        triggerRouterService.routeTrigger(userId, trigger);
 
         publishBoardEvent(userId, board.getId(), BoardEventType.TASK_CREATED,
                 new BoardTaskCreatedEvent(
@@ -232,7 +232,7 @@ public class BoardService {
                 audience
         );
 
-        triggerRouterService.routeInternalTrigger(userId, board.getAgenticTeam().getId(), trigger);
+        triggerRouterService.routeTrigger(userId, trigger);
 
         publishBoardEvent(userId, board.getId(), BoardEventType.TASK_STATUS_CHANGED,
                 new BoardTaskStatusChangedEvent(
@@ -313,7 +313,7 @@ public class BoardService {
                 audience
         );
 
-        triggerRouterService.routeInternalTrigger(userId, board.getAgenticTeam().getId(), trigger);
+        triggerRouterService.routeTrigger(userId, trigger);
 
         publishBoardEvent(userId, board.getId(), BoardEventType.COMMENT_CREATED,
                 new BoardTaskCommentCreatedEvent(

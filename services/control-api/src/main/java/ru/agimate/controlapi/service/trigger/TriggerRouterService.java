@@ -58,27 +58,6 @@ public class TriggerRouterService {
         routeTrigger(userId, trigger);
     }
 
-
-    public void routeInternalTrigger(UUID userId, UUID agenticTeamId, Trigger trigger) {
-        TriggerLog triggerLog = triggerLogService.createTriggerLog(userId, trigger);
-
-        if (isBlockingProbe(trigger.data())) {
-            log.info("Internal trigger contains discovery probe (block mode) - skipping agent routing for user={}", userId);
-            triggerLogService.save(triggerLog);
-            return;
-        }
-
-        List<Agent> agents = agentTriggerPolicyService.findAllowedAgentsForTeamId(
-                userId, agenticTeamId,  trigger.connectorCode(), trigger.identity(), trigger.name());
-
-        agents = applyAudience(agents, trigger.audience());
-
-        sendTrigger(agents, triggerLog, trigger);
-
-        triggerLogService.save(triggerLog);
-
-    }
-
     private List<Agent> applyAudience(List<Agent> agents, TriggerAudience audience) {
         if (audience == null) {
             return agents;
@@ -126,7 +105,7 @@ public class TriggerRouterService {
 
     private void sendTrigger(List<Agent> agents, TriggerLog triggerLog, Trigger trigger) {
         if (agents.isEmpty()) {
-            log.debug("Ignored trigger {} - {}", triggerLog.getConnectorCode(), triggerLog.getTriggerName());
+            log.warn("Ignored trigger {} - {}", triggerLog.getConnectorCode(), triggerLog.getTriggerName());
         }
 
         for (Agent agent : agents) {
@@ -209,15 +188,15 @@ public class TriggerRouterService {
         Object rawMessageField = config != null ? config.get("messageField") : null;
         String messageField = rawMessageField != null ? rawMessageField.toString() : null;
 
-        // Handlers без messageField в config (например telegram) извлекают текст сами через convert();
-        // convert() == empty означает «триггер не для этого канала» (фильтр) → доставку пропускаем.
+        // Handlers без messageField в config (например telegram) извлекают текст сами через handleInput();
+        // handleInput() == empty означает «триггер не для этого канала» (фильтр) → доставку пропускаем.
         // generic оставляет messageField — текст по-прежнему извлекает воркер (поведение не меняется).
         String inboundText = null;
         if (messageField == null) {
             ChannelHandler handler = channelHandlerRegistry.find(channel.getChannelHandler()).orElse(null);
             if (handler != null) {
                 ChannelConfig cc = new ChannelConfig(channel.getConnectorCode(), channel.getIdentity(), config);
-                Optional<InboundMessage> inbound = handler.convert(cc, trigger);
+                Optional<InboundMessage> inbound = handler.handleInput(cc, trigger);
                 if (inbound.isEmpty()) {
                     return ChannelInbound.SKIP;
                 }

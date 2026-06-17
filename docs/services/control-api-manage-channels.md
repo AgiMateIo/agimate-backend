@@ -316,4 +316,4 @@ Soft delete (`deletedAt = NOW()`). Связанные trigger/tool-policy **уд
 
 - Дедупликация каналов обеспечивается уникальностью `AgentTriggerPolicy (agent, connector, identity, trigger_name, effect)` — отдельного UNIQUE на `channels` нет.
 - Soft delete канала не удаляет историю сессий/сообщений.
-- Извлечение текста входящего зависит от handler-а: `generic` — на стороне worker по `config.messageField` (как раньше); код-handler'ы (`telegram`) — control-api сам зовёт `convert()` и кладёт результат в `ChannelContext.inboundText`. **Воркеру**: при наличии `inboundText` использовать его вместо извлечения по `triggerMessageField` (аддитивно, для `generic` поле пустое). Полный перенос `convert()` + скачивание медиа — Фаза 2.
+- Извлечение текста входящего зависит от handler-а: `generic` — на стороне worker по `config.messageField` (как раньше); код-handler'ы (`telegram`) — control-api сам зовёт `handleInput()` и кладёт результат в `ChannelContext.inboundText`. **Воркеру**: при наличии `inboundText` использовать его вместо извлечения по `triggerMessageField` (аддитивно, для `generic` поле пустое). Полный перенос `handleInput()` + скачивание медиа — Фаза 2.

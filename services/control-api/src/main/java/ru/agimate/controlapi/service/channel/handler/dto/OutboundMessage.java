@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Унифицированный ответ модели — вход {@link ChannelHandler#process}.
+ * Унифицированный ответ модели — вход {@link ChannelHandler#handleOutput}.
  *
  * <p>Handler разворачивает его в вызов нужного тула коннектора. В Фазе 1 используется только
  * {@code text}; {@code parts} зарезервирован под медиа-ответы.

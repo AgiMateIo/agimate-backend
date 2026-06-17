@@ -15,7 +15,7 @@ import java.util.Optional;
  * {@code channels.channel_handler}. Поведение задаётся кодом, данные конкретного канала —
  * в {@link ChannelConfig} (connectorCode + identity + settings).
  *
- * <p>Вызовы тулов внутри {@link #process} идут через штатную подсистему вызова тулов,
+ * <p>Вызовы тулов внутри {@link #handleOutput} идут через штатную подсистему вызова тулов,
  * поэтому ABAC-политики соблюдаются. {@link #listOfTriggers} и {@link #listOfTools} нужны,
  * чтобы при создании канала сгенерировать соответствующие {@code AgentTriggerPolicy}/{@code AgentToolPolicy}.
  *
@@ -51,7 +51,7 @@ public interface ChannelHandler {
     void validateConfig(ChannelConfig config);
 
     /** Приводит триггер к унифицированному {@link InboundMessage}; {@code empty} — триггер отфильтрован/пропущен. */
-    Optional<InboundMessage> convert(ChannelConfig config, Trigger trigger);
+    Optional<InboundMessage> handleInput(ChannelConfig config, Trigger trigger);
 
     /**
      * Отправляет ответ модели в канал: выбирает тул и аргументы и вызывает его через
@@ -61,6 +61,6 @@ public interface ChannelHandler {
      * <p>{@code toolUseService} передаётся параметром, а не инжектится в handler — иначе бин
      * handler'а тянул бы {@code ConnectorService} и замыкал цикл с роутером инбаунда.
      */
-    void process(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
+    void handleOutput(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
                  AgentToolUseService toolUseService);
 }
