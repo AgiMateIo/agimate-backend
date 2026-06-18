@@ -33,6 +33,7 @@ public class TelegramChannelHandler implements ChannelHandler {
     private static final String TRIGGER_CALLBACK = "telegram.callback_query";
     private static final String TOOL_SEND_MESSAGE = "telegram.send_message";
     private static final String CFG_ALLOWED_CHAT_IDS = "allowedChatIds";
+    private static final String CFG_DEFAULT_CHAT_ID = "defaultChatId";
 
     @Override
     public String name() {
@@ -44,6 +45,8 @@ public class TelegramChannelHandler implements ChannelHandler {
         Map<String, Object> props = new LinkedHashMap<>();
         props.put(CFG_ALLOWED_CHAT_IDS, ConfigSchema.arrayProp("integer", "Разрешённые чаты",
                 "Если задано — обрабатываются только сообщения из этих chat_id; пусто — из всех"));
+        props.put(CFG_DEFAULT_CHAT_ID, ConfigSchema.prop("integer", "Чат по умолчанию",
+                "chat_id для проактивных ответов, когда нет входящего в сессии (например по time.due)"));
         return ConfigSchema.schema(props);
     }
 
@@ -90,9 +93,14 @@ public class TelegramChannelHandler implements ChannelHandler {
     public void handleOutput(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
                         AgentToolUseService toolUseService) {
         Map<String, Object> replyContext = outbound.replyContext() != null ? outbound.replyContext() : Map.of();
+        // Адрес ответа: из входящего (replyContext) → дефолт из config (проактивные/не-канальные триггеры).
         Object chatId = replyContext.get("chatId");
         if (chatId == null) {
-            throw new ConnectorException("cannot send Telegram reply: chatId is missing in reply context");
+            chatId = config.setting(CFG_DEFAULT_CHAT_ID);
+        }
+        if (chatId == null) {
+            throw new ConnectorException(
+                    "cannot send Telegram reply: no chatId in reply context and no defaultChatId in config");
         }
         Map<String, Object> args = new LinkedHashMap<>();
         args.put("chatId", chatId.toString());

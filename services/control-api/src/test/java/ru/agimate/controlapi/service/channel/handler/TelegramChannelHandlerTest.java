@@ -204,7 +204,21 @@ class TelegramChannelHandlerTest {
         }
 
         @Test
-        @DisplayName("throws when chatId is missing")
+        @DisplayName("falls back to config defaultChatId when reply context has none")
+        void defaultChatIdFallback() {
+            ChannelConfig withDefault = new ChannelConfig("telegram", IDENTITY, Map.of("defaultChatId", 777));
+            OutboundMessage outbound = OutboundMessage.text("Напоминание", Map.of());
+            ChannelOutboundContext ctx = new ChannelOutboundContext(AGENT_ID, "call-2");
+
+            handler.handleOutput(withDefault, outbound, ctx, toolUseService);
+
+            ArgumentCaptor<ToolUseRequest> req = ArgumentCaptor.forClass(ToolUseRequest.class);
+            verify(toolUseService).processToolUse(eq(AGENT_ID), req.capture());
+            assertEquals("777", req.getValue().getInput().get("chatId"));
+        }
+
+        @Test
+        @DisplayName("throws when chatId is missing and no defaultChatId")
         void missingChatId() {
             OutboundMessage outbound = OutboundMessage.text("Готово", Map.of());
             ChannelOutboundContext ctx = new ChannelOutboundContext(AGENT_ID, "call-1");

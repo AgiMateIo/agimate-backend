@@ -39,6 +39,7 @@ public class CentrifugoDeliveryService implements AgentDeliveryHandler {
     @Override
     public void deliverToolResult(Agent agent, IToolResult toolResult) {
         String agentId = agent.getId().toString();
+        // todo: для доставки ответов тулов желательно использовать дургой канал агента. Другими словами, у агента два канала: 1 для получения заланий для агента, 2 для получения результатов вызова тулов (тут оборачивание в AgentMessage уже не требуется)
         AgentMessage<IToolResult> message = new AgentMessage<>(agentId, null, "toolResult", null, toolResult);
         centrifugoService.publish(agentChannel(agent), message);
         log.debug("Tool result '{}' sent to agent '{}' via centrifugo", toolResult.getId(), agent.getId());
