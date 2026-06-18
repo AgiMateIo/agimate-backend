@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service;
+package ru.agimate.controlapi.service.tool;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

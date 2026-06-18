@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.ToolUseLogResponse;
-import ru.agimate.controlapi.service.ToolUseLogService;
+import ru.agimate.controlapi.service.tool.ToolUseLogService;
 
 import java.util.UUID;
 

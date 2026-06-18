@@ -16,7 +16,7 @@ import ru.agimate.controlapi.database.entities.IntegrationCredentials;
 import ru.agimate.controlapi.database.entities.ToolUseLog;
 import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
-import ru.agimate.controlapi.service.ToolUseLogService;
+import ru.agimate.controlapi.service.tool.ToolUseLogService;
 
 import java.time.LocalDateTime;
 import java.util.Map;

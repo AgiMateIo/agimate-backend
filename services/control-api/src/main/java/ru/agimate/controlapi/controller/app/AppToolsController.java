@@ -9,7 +9,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.controlapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.AppService;
-import ru.agimate.controlapi.service.ToolUseLogService;
+import ru.agimate.controlapi.service.tool.ToolUseLogService;
 
 @Slf4j
 @RestController

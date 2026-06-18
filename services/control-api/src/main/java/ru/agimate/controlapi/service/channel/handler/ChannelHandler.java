@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.service.channel.handler;
 
-import ru.agimate.controlapi.service.AgentToolUseService;
+import ru.agimate.controlapi.service.tool.AgentToolUseService;
 import ru.agimate.controlapi.service.channel.handler.dto.*;
 import ru.agimate.controlapi.service.trigger.Trigger;
 

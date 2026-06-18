@@ -10,7 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
-import ru.agimate.controlapi.service.AgentToolUseService;
+import ru.agimate.controlapi.service.tool.AgentToolUseService;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelOutboundContext;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;

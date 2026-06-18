@@ -5,6 +5,13 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
+    <!--
+        Фоновые задачи коннекторов, разбираемые ConnectorTaskScheduler (FOR UPDATE SKIP LOCKED).
+        kind — дискриминатор: SYSTEM (декларативная, управляется reconcile-синком из getTasks(),
+        уникальна по бизнес-ключу), AGENT (запланирована агентом), USER (зарезервировано под manage-API).
+        paused_at — пользовательская пауза: scheduler не подхватывает строку, пока поле не NULL.
+        user_id — владелец (всегда задан); agent_id — инициатор (NULL у декларативных задач).
+    -->
     <changeSet id="create-connector-tasks-table" author="agimate">
         <createTable tableName="connector_tasks">
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
@@ -14,6 +21,13 @@
                 <constraints nullable="false"/>
             </column>
             <column name="identity" type="TEXT"/>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID"/>
+            <column name="kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
             <column name="task_name" type="TEXT">
                 <constraints nullable="false"/>
             </column>
@@ -36,6 +50,7 @@
             <column name="lease_until" type="TIMESTAMP"/>
             <column name="last_started_at" type="TIMESTAMP"/>
             <column name="last_error" type="TEXT"/>
+            <column name="paused_at" type="TIMESTAMP"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
@@ -45,30 +60,30 @@
         </createTable>
 
         <!--
-            Уникальность бизнес‑ключа (connector_code, identity, task_name). PostgreSQL не считает
-            NULL = NULL, поэтому обычный UNIQUE не поймает дубли среди глобальных строк
-            (identity IS NULL). Используем два частичных индекса.
+            Бизнес-ключ (connector_code, identity, task_name) — инвариант только декларативных
+            (SYSTEM) тасок. AGENT-задачи (time.schedule) делят общий task_name (time.fire) и не
+            должны конфликтовать, поэтому уникальность ограничена kind = 'SYSTEM'.
         -->
         <sql>
-            CREATE UNIQUE INDEX uq_connector_tasks_global
-                ON connector_tasks (connector_code, task_name)
-                WHERE identity IS NULL;
-
             CREATE UNIQUE INDEX uq_connector_tasks_identity
                 ON connector_tasks (connector_code, identity, task_name)
-                WHERE identity IS NOT NULL;
+                WHERE kind = 'SYSTEM';
         </sql>
 
         <!--
-            Pickup‑запрос фильтрует по (status, next_run_at, lease_until) и сортирует по
-            next_run_at. COMPLETED-строки (выполненные ONETIME) в pickup не участвуют —
-            partial index держит размер маленьким.
+            Pickup-запрос фильтрует по (status, next_run_at, lease_until) и сортирует по next_run_at.
+            COMPLETED-строки (выполненные ONETIME) и приостановленные (paused_at) в pickup не участвуют.
         -->
         <sql>
             CREATE INDEX idx_connector_tasks_ready
                 ON connector_tasks (next_run_at NULLS FIRST, lease_until)
-                WHERE status &lt;&gt; 'COMPLETED';
+                WHERE status &lt;&gt; 'COMPLETED' AND paused_at IS NULL;
         </sql>
+
+        <!-- Под list/cancel задач конкретного агента. -->
+        <createIndex tableName="connector_tasks" indexName="idx_connector_tasks_agent">
+            <column name="agent_id"/>
+        </createIndex>
     </changeSet>
 
 </databaseChangeLog>

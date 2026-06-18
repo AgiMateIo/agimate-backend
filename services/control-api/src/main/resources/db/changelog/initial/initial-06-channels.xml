@@ -19,28 +19,16 @@
             <column name="name" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="trigger_connector_code" type="TEXT">
+            <column name="channel_handler" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="trigger_identity" type="TEXT">
+            <column name="connector_code" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="trigger_name" type="TEXT">
+            <column name="identity" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="trigger_message_field" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="reply_connector_code" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="reply_identity" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="reply_tool_name" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="reply_tool_params" type="JSONB">
+            <column name="config" type="JSONB">
                 <constraints nullable="false"/>
             </column>
             <column name="deleted_at" type="TIMESTAMP"/>
@@ -65,12 +53,6 @@
         <createIndex tableName="channels" indexName="idx_channels_agent_id">
             <column name="agent_id"/>
         </createIndex>
-
-        <sql>
-            CREATE UNIQUE INDEX uq_channels_user_agent_trigger
-                ON channels (user_id, agent_id, trigger_connector_code, trigger_identity, trigger_name)
-                WHERE deleted_at IS NULL;
-        </sql>
     </changeSet>
 
 </databaseChangeLog>

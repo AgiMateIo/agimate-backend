@@ -3,7 +3,7 @@ package ru.agimate.controlapi.service.channel.handler;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
-import ru.agimate.controlapi.service.AgentToolUseService;
+import ru.agimate.controlapi.service.tool.AgentToolUseService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.PlaceholderRenderer;
 import ru.agimate.controlapi.service.channel.handler.dto.*;

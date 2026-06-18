@@ -15,7 +15,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
 import ru.agimate.controlapi.database.entities.ToolUseLog;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
-import ru.agimate.controlapi.service.AgentToolUseService;
+import ru.agimate.controlapi.service.tool.AgentToolUseService;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.ExecuteToolRequest;
 import ru.agimate.agentworker.GetToolResultRequest;

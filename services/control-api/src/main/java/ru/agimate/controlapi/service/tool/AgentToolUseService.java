@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service;
+package ru.agimate.controlapi.service.tool;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -12,6 +12,8 @@ import ru.agimate.controlapi.abac.ToolPolicyDbEvaluatorService;
 import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.ToolUseLog;
+import ru.agimate.controlapi.service.AgentService;
+import ru.agimate.controlapi.service.ConnectorService;
 import ru.agimate.controlapi.service.dto.IToolResult;
 
 import java.util.UUID;

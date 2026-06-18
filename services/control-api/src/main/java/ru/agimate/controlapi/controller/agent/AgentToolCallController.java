@@ -21,7 +21,7 @@ import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
 import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.security.AgentPrincipal;
 import ru.agimate.controlapi.service.AgentService;
-import ru.agimate.controlapi.service.AgentToolUseService;
+import ru.agimate.controlapi.service.tool.AgentToolUseService;
 
 import java.util.List;
 

@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.service.ToolDefinitionService;
+import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 
 import java.util.Map;
 import java.util.UUID;
