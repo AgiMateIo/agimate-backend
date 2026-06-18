@@ -1,11 +1,11 @@
 package ru.agimate.controlapi.database.enums;
 
 /**
- * Кто создал строку {@code connector_tasks} и как она управляется.
+ * Кто создал строку {@code connector_jobs} и как она управляется.
  * <ul>
- *   <li>{@link #SYSTEM} — декларативная задача коннектора ({@code getTasks()}): строкой владеет
+ *   <li>{@link #SYSTEM} — декларативная задача коннектора ({@code getJobs()}): строкой владеет
  *       reconcile-синк (upsert/удаление по бизнес-ключу {@code (connector_code, identity,
- *       task_name)}); уникальность бизнес-ключа в БД действует только на эти строки.
+ *       name)}); уникальность бизнес-ключа в БД действует только на эти строки.
  *       {@code agent_id IS NULL}.</li>
  *   <li>{@link #AGENT} — запланирована агентом в рантайме (например {@code time.schedule});
  *       идентифицируется собственным {@code id}, на агента таких строк может быть много.
@@ -14,7 +14,7 @@ package ru.agimate.controlapi.database.enums;
  *       значение зарезервировано); {@code agent_id} — целевой агент, если задача адресная.</li>
  * </ul>
  */
-public enum ConnectorTaskKind {
+public enum ConnectorJobKind {
     SYSTEM,
     USER,
     AGENT

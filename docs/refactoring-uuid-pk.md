@@ -19,7 +19,7 @@ that UUID. `pubId` disappears.
 
 1. **Generation strategy: native `uuidv7()` from PostgreSQL 18** (`DEFAULT uuidv7()` on the
    `id` column). See §1 for the comparison and why this beats app-side generation here.
-2. **All tables move to UUID PK, including high-volume log tables** (`tool_use_logs`,
+2. **All tables move to UUID PK, including high-volume log tables** (`tool_call_logs`,
    `trigger_logs`, `webhook_delivery_logs`, `channel_session_messages`).
 3. **`Connector` is the only exception** — keeps `code TEXT` natural PK. Unchanged.
 4. **`user_pub_id` stays `UUID`** — cross-service reference into user-api (out of scope). No change.
@@ -187,7 +187,7 @@ Master uses `includeAll` over `initial/` then `updates/`. For every table except
 | TriggerLog | trigger_logs | — | OneToMany to trigger_log_agents |
 | TriggerLogAgent | trigger_log_agents | trigger_log_id, agent_id (BIGINT→UUID), session_pub_id→session_id, agent_pub_id→agent_id | @ManyToOne ×2 |
 | WebhookDeliveryLog | webhook_delivery_logs | trigger_log_agent_id (BIGINT→UUID) | duration_ms stays Long (not a FK) |
-| ToolUseLog | tool_use_logs | agent_pub_id→agent_id | user_pub_id keep |
+| ToolCallLog | tool_call_logs | agent_pub_id→agent_id | user_pub_id keep |
 | Board | boards | agentic_team_id (BIGINT→UUID) | @OneToOne unique |
 | BoardTask | board_tasks | board_id, parent_task_id (self), created_by_agent_id, assignee_agent_id (BIGINT→UUID) | |
 | BoardTaskComment | board_task_comments | board_task_id, agent_id (BIGINT→UUID) | |

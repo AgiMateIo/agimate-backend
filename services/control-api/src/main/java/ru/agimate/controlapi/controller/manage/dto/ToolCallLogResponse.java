@@ -3,14 +3,14 @@ package ru.agimate.controlapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.abac.AccessEffect;
-import ru.agimate.controlapi.database.entities.ToolUseLog;
+import ru.agimate.controlapi.database.entities.ToolCallLog;
 
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
 @Schema(description = "Tool use log entry")
-public record ToolUseLogResponse(
+public record ToolCallLogResponse(
         @Schema(description = "Tool use log ID")
         UUID id,
 
@@ -27,10 +27,10 @@ public record ToolUseLogResponse(
         String agentSessionId,
 
         @Schema(description = "Tool use correlation ID")
-        String toolUseId,
+        String externalId,
 
         @Schema(description = "Tool name")
-        String toolName,
+        String name,
 
         @Schema(description = "Tool input")
         Map<String, Object> input,
@@ -40,7 +40,7 @@ public record ToolUseLogResponse(
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the output was received")
-        LocalDateTime outputAt,
+        LocalDateTime finishAt,
 
         @Schema(description = "Tool output")
         String output,
@@ -52,21 +52,21 @@ public record ToolUseLogResponse(
         @Schema(description = "When the log was created")
         LocalDateTime createdAt
 ) {
-    public static ToolUseLogResponse from(ToolUseLog toolUseLog) {
-        return new ToolUseLogResponse(
-                toolUseLog.getId(),
-                toolUseLog.getAgentId(),
-                toolUseLog.getConnectorCode(),
-                toolUseLog.getIdentity(),
-                toolUseLog.getAgentSessionId(),
-                toolUseLog.getToolUseId(),
-                toolUseLog.getToolName(),
-                toolUseLog.getInput(),
-                toolUseLog.getAccessEffect(),
-                toolUseLog.getOutputAt(),
-                toolUseLog.getOutput(),
-                toolUseLog.getError(),
-                toolUseLog.getCreatedAt()
+    public static ToolCallLogResponse from(ToolCallLog toolCallLog) {
+        return new ToolCallLogResponse(
+                toolCallLog.getId(),
+                toolCallLog.getAgentId(),
+                toolCallLog.getConnectorCode(),
+                toolCallLog.getIdentity(),
+                toolCallLog.getAgentSessionId(),
+                toolCallLog.getExternalId(),
+                toolCallLog.getName(),
+                toolCallLog.getInput(),
+                toolCallLog.getAccessEffect(),
+                toolCallLog.getFinishAt(),
+                toolCallLog.getOutput(),
+                toolCallLog.getError(),
+                toolCallLog.getCreatedAt()
         );
     }
 }

@@ -28,7 +28,7 @@ Auth: `X-Api-Key: <key>` header required on all endpoints.
 
 ### GET `/control/agent/settings`
 
-Returns configuration for the authenticated API key: prompt, authorized tools, and subscribed triggers.
+Returns configuration for the authenticated API key: instructions, authorized tools, and subscribed triggers.
 
 **Request:** no body, no query parameters.
 
@@ -37,7 +37,7 @@ Returns configuration for the authenticated API key: prompt, authorized tools, a
 {
   "response": {
     "apiKeyPubId": "01951234-abcd-ef01-2345-6789abcdef01",
-    "prompt": "You are a smart home assistant...",
+    "instructions": "You are a smart home assistant...",
     "tools": ["tool.device.tts.speak", "tool.device.light.toggle"],
     "triggers": ["trigger.door.open", "trigger.motion.detected"]
   }
@@ -47,7 +47,7 @@ Returns configuration for the authenticated API key: prompt, authorized tools, a
 | Field | Type | Description |
 |-------|------|-------------|
 | `apiKeyPubId` | `UUID` | UUIDv8 public ID of the API key |
-| `prompt` | `string` | System prompt configured for this agent |
+| `instructions` | `string` | System prompt configured for this agent |
 | `tools` | `string[]` | Tool names the agent is authorized to invoke |
 | `triggers` | `string[]` | Trigger names the agent is subscribed to |
 
@@ -635,7 +635,7 @@ The response value is the `name` field from the request.
 Agent                        control-api                    Device (App)
   |                              |                              |
   |-- GET /agent/settings ------>|                              |
-  |<-- { prompt, tools, ... } ---|                              |
+  |<-- { instructions, tools, ... } ---|                              |
   |                              |                              |
   |-- POST /agent/centrifugo/token ->                           |
   |<-- { connectionToken, ... } -|                              |

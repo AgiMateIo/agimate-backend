@@ -7,9 +7,9 @@ import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
-import ru.agimate.controlapi.database.enums.ConnectorTaskKind;
-import ru.agimate.controlapi.database.enums.ConnectorTaskStatus;
-import ru.agimate.controlapi.database.enums.ConnectorTaskType;
+import ru.agimate.controlapi.database.enums.ConnectorJobKind;
+import ru.agimate.controlapi.database.enums.ConnectorJobStatus;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -17,26 +17,26 @@ import java.util.UUID;
 
 /**
  * Registry фоновых задач коннекторов — источник истины для pull‑based scheduler'а
- * {@code ConnectorTaskScheduler}.
+ * {@code ConnectorJobScheduler}.
  *
- * <p>Сам исполняемый код в БД не хранится: {@code task_name} диспатчится в {@code @Tool}-метод
- * tool-сервиса коннектора с аргументами {@link #taskArgs}. В {@link #taskConfig} лежат только
+ * <p>Сам исполняемый код в БД не хранится: {@code name} диспатчится в {@code @Tool}-метод
+ * tool-сервиса коннектора с аргументами {@link #args}. В {@link #config} лежат только
  * параметры расписания ({@code intervalSeconds}, {@code cron}, {@code zone}).
  *
- * <p>Уникальность бизнес-ключа {@code (connector_code, identity, task_name)} действует только на
- * {@code kind = SYSTEM} (partial unique index, см. {@code 2026/06/11-01-connector-tasks-kind-paused.xml};
+ * <p>Уникальность бизнес-ключа {@code (connector_code, identity, name)} действует только на
+ * {@code kind = SYSTEM} (partial unique index, см. {@code 2026/06/11-01-connector-jobs-kind-paused.xml};
  * {@code @UniqueConstraint} в JPA не умеет в partial) — это инвариант reconcile-синка
  * ({@code findByBusinessKey} возвращает {@code Optional}). USER/AGENT-строки идентифицируются
- * собственным {@code id}, их на один {@code task_name} может быть много.
+ * собственным {@code id}, их на один {@code name} может быть много.
  */
 @Entity
-@Table(name = "connector_tasks")
+@Table(name = "connector_jobs")
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ConnectorTask extends BaseEntity {
+public class ConnectorJob extends BaseEntity {
 
     @Id
     @Generated
@@ -49,7 +49,7 @@ public class ConnectorTask extends BaseEntity {
 
     /**
      * Идентификатор экземпляра коннектора: для integration — id из {@code integration_credentials}
-     * строкой (как в {@code ToolUseLog}); у динамических задач — identity tool-вызова инициатора
+     * строкой (как в {@code ToolCallLog}); у динамических задач — identity tool-вызова инициатора
      * (восстанавливается в {@code ConnectorContext} на срабатывании); {@code null}, если экземпляр
      * не применим.
      */
@@ -68,37 +68,37 @@ public class ConnectorTask extends BaseEntity {
     @Column(name = "agent_id")
     private UUID agentId;
 
-    /** Категория строки — см. {@link ConnectorTaskKind}; определяет, действует ли бизнес-ключ. */
+    /** Категория строки — см. {@link ConnectorJobKind}; определяет, действует ли бизнес-ключ. */
     @Enumerated(EnumType.STRING)
     @Column(name = "kind", nullable = false, columnDefinition = "TEXT")
-    private ConnectorTaskKind kind;
+    private ConnectorJobKind kind;
 
     /** Пауза пользователем: пока не {@code null}, scheduler строку не подхватывает. */
     @Column(name = "paused_at")
     private LocalDateTime pausedAt;
 
     /** Имя задачи; диспатчится в {@code @Tool}-метод коннектора с этим именем. */
-    @Column(name = "task_name", nullable = false, columnDefinition = "TEXT")
-    private String taskName;
+    @Column(name = "name", nullable = false, columnDefinition = "TEXT")
+    private String name;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "task_type", nullable = false, columnDefinition = "TEXT")
-    private ConnectorTaskType taskType;
+    @Column(name = "type", nullable = false, columnDefinition = "TEXT")
+    private ConnectorJobType type;
 
     /** Параметры расписания: {@code intervalSeconds} | {@code cron}, {@code zone}. */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "task_config", nullable = false, columnDefinition = "JSONB")
-    private Map<String, Object> taskConfig;
+    @Column(name = "config", nullable = false, columnDefinition = "JSONB")
+    private Map<String, Object> config;
 
     /** Аргументы, передаваемые в метод при каждом запуске. */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "task_args", nullable = false, columnDefinition = "JSONB")
-    private Map<String, Object> taskArgs;
+    @Column(name = "args", nullable = false, columnDefinition = "JSONB")
+    private Map<String, Object> args;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "TEXT")
     @Builder.Default
-    private ConnectorTaskStatus status = ConnectorTaskStatus.PENDING;
+    private ConnectorJobStatus status = ConnectorJobStatus.PENDING;
 
     /** Когда поллер должен подхватить задачу в следующий раз; {@code null} для COMPLETED. */
     @Column(name = "next_run_at")

@@ -2,23 +2,23 @@ package ru.agimate.controlapi.database.repositories;
 
 import lombok.experimental.UtilityClass;
 import org.springframework.data.jpa.domain.Specification;
-import ru.agimate.controlapi.database.entities.ConnectorTask;
-import ru.agimate.controlapi.database.enums.ConnectorTaskKind;
+import ru.agimate.controlapi.database.entities.ConnectorJob;
+import ru.agimate.controlapi.database.enums.ConnectorJobKind;
 
 import java.util.UUID;
 
 @UtilityClass
-public class ConnectorTaskSpecs {
+public class ConnectorJobSpecs {
 
-    public static Specification<ConnectorTask> ownedBy(UUID userId) {
+    public static Specification<ConnectorJob> ownedBy(UUID userId) {
         return (root, query, cb) -> cb.equal(root.get("userId"), userId);
     }
 
-    public static Specification<ConnectorTask> hasConnector(String connectorCode) {
+    public static Specification<ConnectorJob> hasConnector(String connectorCode) {
         return (root, query, cb) -> cb.equal(root.get("connectorCode"), connectorCode);
     }
 
-    public static Specification<ConnectorTask> hasKind(ConnectorTaskKind kind) {
+    public static Specification<ConnectorJob> hasKind(ConnectorJobKind kind) {
         return (root, query, cb) -> cb.equal(root.get("kind"), kind);
     }
 }

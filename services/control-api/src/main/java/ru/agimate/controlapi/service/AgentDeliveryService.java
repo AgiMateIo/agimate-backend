@@ -38,7 +38,7 @@ public class AgentDeliveryService {
         } catch (Exception e) {
             triggerLogAgent.setError(e.getMessage());
             log.warn("Failed to send trigger '{}' to agent '{}' via {}: {}",
-                    triggerLogAgent.getTriggerLog().getTriggerName(),
+                    triggerLogAgent.getTriggerLog().getName(),
                     agent.getId(), agent.getType(), e.getMessage());
         }
     }

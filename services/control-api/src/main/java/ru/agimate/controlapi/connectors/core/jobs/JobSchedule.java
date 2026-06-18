@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.connectors.core.tasks;
+package ru.agimate.controlapi.connectors.core.jobs;
 
 import lombok.experimental.UtilityClass;
 import org.springframework.scheduling.support.CronExpression;
@@ -8,12 +8,12 @@ import java.time.ZoneId;
 import java.util.Map;
 
 /**
- * Вычисление следующего запуска по {@code task_config}. Общая логика scheduler'а (очередной тик
+ * Вычисление следующего запуска по {@code config}. Общая логика scheduler'а (очередной тик
  * после итерации) и manage-API (пересчёт при resume, чтобы возобновлённая задача не стреляла
  * «вдогонку» по сроку, прошедшему за время паузы).
  */
 @UtilityClass
-public class TaskSchedule {
+public class JobSchedule {
 
     public static LocalDateTime nextCron(Map<String, Object> config, LocalDateTime now) {
         String expr = (String) config.get("cron");

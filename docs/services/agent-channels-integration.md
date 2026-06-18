@@ -59,7 +59,7 @@
 {
   "connectorCode": "telegram",
   "identity": "018f-...",                  // pubId инстанса (App / IntegrationCredentials)
-  "id": "<triggerLog.triggerId>",
+  "id": "<triggerLog.externalId>",
   "name": "trigger.message.new",
   "data": {
     "data": { "message": { "chat_id": 12345, "text": "Привет" } },
@@ -136,7 +136,7 @@ message SendChannelMessageRequest {
 }
 message SendChannelMessageResponse {
   string session_id = 1;       // pubId сессии (особенно полезно, если session_id был пуст)
-  string tool_use_id = 2;      // pubId созданного ToolUseLog (для трейсинга)
+  string tool_use_id = 2;      // pubId созданного ToolCallLog (для трейсинга)
 }
 ```
 
@@ -147,14 +147,14 @@ message SendChannelMessageResponse {
 3. Извлекает `trigger_input` из последнего IN-сообщения этой сессии — нужен для подстановки `{trigger.*}` плейсхолдеров.
 4. Рендерит `channel.reply_tool_params` (см. §5).
 5. Сохраняет `ChannelSessionMessage(direction=OUT, message=text)` и обновляет `session.last_message_at`.
-6. Создаёт `ToolUseLog` с `accessEffect=ALLOW` (канал — уже авторизованный путь, ABAC не оценивается).
+6. Создаёт `ToolCallLog` с `accessEffect=ALLOW` (канал — уже авторизованный путь, ABAC не оценивается).
 7. Вызывает `ConnectorService.pushToConnector(...)` — для INTEGRATION выполняется сразу, для APP уходит в Centrifugo на устройство, и т.д.
 
 ### 4.3 Идемпотентность
 
 `tool_use_id` уникален в паре `(agent_pub_id, tool_use_id)` в БД. Повторный вызов с тем же `tool_use_id`:
 - сохраняет новое OUT-сообщение в сессии (БД не препятствует, но это побочный эффект);
-- **переиспользует существующий `ToolUseLog`** — повторного tool-call в connector не будет.
+- **переиспользует существующий `ToolCallLog`** — повторного tool-call в connector не будет.
 
 Это поведение защитит от ретраев на сетевых сбоях, **но не делает SendChannelMessage полностью idempotent** в отношении session messages. Если ваш workflow рестартится — генерируйте детерминированный `tool_use_id` (например, hash от `(session_id, agent_step_id)`), чтобы хотя бы не дублировать tool-вызов.
 
@@ -165,7 +165,7 @@ message SendChannelMessageResponse {
 | `INVALID_ARGUMENT` | `agent_id` / `channel_id` пустой, не UUID; `session_id` указан, но не UUID |
 | `NOT_FOUND` | Канал не существует, soft-deleted, или принадлежит другому агенту; сессия с указанным `session_id` не найдена либо принадлежит другому каналу |
 | `PERMISSION_DENIED` | Зарезервировано (сейчас не выбрасывается — авторизация через владение каналом) |
-| `ABORTED` | Конфликт `tool_use_id` с другим input (общая логика ToolUseLog) |
+| `ABORTED` | Конфликт `tool_use_id` с другим input (общая логика ToolCallLog) |
 | `INTERNAL` | Всё остальное |
 
 ---

@@ -13,17 +13,17 @@ import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.controlapi.database.entities.IntegrationCredentials;
-import ru.agimate.controlapi.database.entities.ToolUseLog;
+import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
-import ru.agimate.controlapi.service.tool.ToolUseLogService;
+import ru.agimate.controlapi.service.tool.ToolCallLogService;
 
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Асинхронное выполнение тулы коннектора по записи {@link ToolUseLog}: контекст собирается
+ * Асинхронное выполнение тулы коннектора по записи {@link ToolCallLog}: контекст собирается
  * по типу хендлера (integration — со свежими credentials по {@code identity}), результат
  * пишется в лог и доставляется агенту.
  *
@@ -39,57 +39,57 @@ public class ToolExecutionService {
     private final ConnectorRegistry connectorRegistry;
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
     private final ConnectorContextFactory contextFactory;
-    private final ToolUseLogService toolUseLogService;
+    private final ToolCallLogService toolCallLogService;
     private final AgentDeliveryService agentDeliveryService;
 
     @Async
-    public void executeTool(ToolUseLog toolUseLog) {
+    public void executeTool(ToolCallLog toolCallLog) {
         try {
-            ConnectorHandler handler = connectorRegistry.getHandler(toolUseLog.getConnectorCode());
-            ConnectorContext context = buildContext(handler, toolUseLog);
+            ConnectorHandler handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());
+            ConnectorContext context = buildContext(handler, toolCallLog);
 
             Map<String, Object> result = handler.executeTool(
-                    context, toolUseLog.getToolName(), toolUseLog.getInput());
+                    context, toolCallLog.getName(), toolCallLog.getInput());
 
             if (handler instanceof IntegrationConnectorHandler) {
                 integrationCredentialsRepository.updateLastUsedAt(
-                        UUID.fromString(toolUseLog.getIdentity()), LocalDateTime.now());
+                        UUID.fromString(toolCallLog.getIdentity()), LocalDateTime.now());
             }
 
-            deliver(toolUseLog, JsonUtils.writeValueAsString(result), null);
+            deliver(toolCallLog, JsonUtils.writeValueAsString(result), null);
             log.debug("Executed tool '{}' on connector {}",
-                    toolUseLog.getToolName(), toolUseLog.getConnectorCode());
+                    toolCallLog.getName(), toolCallLog.getConnectorCode());
         } catch (Exception e) {
             log.error("Failed to execute tool '{}' on connector {}: {}",
-                    toolUseLog.getToolName(), toolUseLog.getConnectorCode(), e.getMessage());
+                    toolCallLog.getName(), toolCallLog.getConnectorCode(), e.getMessage());
             String error = e instanceof ConnectorException ? e.getMessage() : "Tool execution failed";
-            deliver(toolUseLog, null, error);
+            deliver(toolCallLog, null, error);
         }
     }
 
-    private ConnectorContext buildContext(ConnectorHandler handler, ToolUseLog toolUseLog) {
+    private ConnectorContext buildContext(ConnectorHandler handler, ToolCallLog toolCallLog) {
         if (handler instanceof IntegrationConnectorHandler) {
             IntegrationCredentials credentials = integrationCredentialsRepository
-                    .findByIdAndUserIdNotDeleted(UUID.fromString(toolUseLog.getIdentity()), toolUseLog.getUserId())
+                    .findByIdAndUserIdNotDeleted(UUID.fromString(toolCallLog.getIdentity()), toolCallLog.getUserId())
                     .filter(IntegrationCredentials::isActive)
                     .orElseThrow(() -> new ConnectorException(
-                            "Integration credentials missing or disabled: " + toolUseLog.getIdentity()));
-            return contextFactory.forIntegration(credentials, toolUseLog.getAgentId());
+                            "Integration credentials missing or disabled: " + toolCallLog.getIdentity()));
+            return contextFactory.forIntegration(credentials, toolCallLog.getAgentId());
         }
         return contextFactory.internal(
-                toolUseLog.getIdentity(), toolUseLog.getUserId(), toolUseLog.getAgentId());
+                toolCallLog.getIdentity(), toolCallLog.getUserId(), toolCallLog.getAgentId());
     }
 
-    private void deliver(ToolUseLog toolUseLog, String output, String error) {
+    private void deliver(ToolCallLog toolCallLog, String output, String error) {
         var toolResult = new ToolResultRequest(
-                toolUseLog.getToolUseId(), toolUseLog.getConnectorCode(), output, error);
+                toolCallLog.getExternalId(), toolCallLog.getConnectorCode(), output, error);
         try {
-            toolUseLogService.recordOutput(toolResult);
+            toolCallLogService.recordOutput(toolResult);
         } catch (Exception logError) {
             log.warn("Failed to log tool result: {}", logError.getMessage());
         }
-        if (toolUseLog.getAgentId() != null) {
-            agentDeliveryService.deliverToolResult(toolUseLog.getAgentId(), toolResult);
+        if (toolCallLog.getAgentId() != null) {
+            agentDeliveryService.deliverToolResult(toolCallLog.getAgentId(), toolResult);
         }
     }
 }

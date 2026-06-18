@@ -142,7 +142,7 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
               )
               AND (CAST(:search AS string) IS NULL
                    OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%'))
-                   OR LOWER(a.prompt) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
+                   OR LOWER(a.instructions) LIKE LOWER(CONCAT('%', CAST(:search AS string), '%')))
             """)
     Page<Agent> findBySkillId(
             @Param("skillId") UUID skillId,

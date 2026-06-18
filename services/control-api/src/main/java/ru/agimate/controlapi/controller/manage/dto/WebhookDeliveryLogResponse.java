@@ -19,7 +19,7 @@ public record WebhookDeliveryLogResponse(
         Integer responseStatusCode,
 
         @Schema(description = "Error message if delivery failed")
-        String errorMessage,
+        String error,
 
         @Schema(description = "Request duration in milliseconds")
         Long durationMs,
@@ -36,7 +36,7 @@ public record WebhookDeliveryLogResponse(
                 log.getId(),
                 log.getRequestUrl(),
                 log.getResponseStatusCode(),
-                log.getErrorMessage(),
+                log.getError(),
                 log.getDurationMs(),
                 log.isSuccess(),
                 log.getDeliveredAt()

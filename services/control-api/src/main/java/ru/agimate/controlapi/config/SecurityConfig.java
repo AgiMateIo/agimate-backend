@@ -33,12 +33,12 @@ import ru.agimate.controlapi.controller.manage.ManageChannelController;
 import ru.agimate.controlapi.controller.manage.ManageAppsController;
 import ru.agimate.controlapi.controller.manage.ManageAppToolsController;
 import ru.agimate.controlapi.controller.manage.ManageAppTriggersController;
-import ru.agimate.controlapi.controller.manage.ManageToolUseLogsController;
+import ru.agimate.controlapi.controller.manage.ManageToolCallLogsController;
 import ru.agimate.controlapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.controlapi.controller.manage.ManageAgentToolPolicyController;
 import ru.agimate.controlapi.controller.manage.ManageAgentTriggerPolicyController;
 import ru.agimate.controlapi.controller.manage.ManageConnectorController;
-import ru.agimate.controlapi.controller.manage.ManageConnectorTaskController;
+import ru.agimate.controlapi.controller.manage.ManageConnectorJobController;
 import ru.agimate.controlapi.controller.manage.ManageIntegrationController;
 import ru.agimate.controlapi.controller.manage.ManageLlmProviderController;
 import ru.agimate.controlapi.controller.manage.ManageSkillController;
@@ -120,7 +120,7 @@ public class SecurityConfig {
                 ManageAppToolsController.PATH + "/**",
                 ManageAppTriggersController.PATH + "/**",
                 ManageTriggerLogsController.PATH + "/**",
-                ManageToolUseLogsController.PATH + "/**",
+                ManageToolCallLogsController.PATH + "/**",
                 ManageAgentController.PATH + "/**",
                 ManageAgentSkillController.PATH + "/**",
                 ManageAgenticTeamController.PATH + "/**",
@@ -132,7 +132,7 @@ public class SecurityConfig {
                 ManageSkillController.PATH + "/**",
                 ManageSkillFileController.PATH + "/**",
                 ManageConnectorController.PATH + "/**",
-                ManageConnectorTaskController.PATH + "/**",
+                ManageConnectorJobController.PATH + "/**",
                 ManageCentrifugoTokenController.PATH + "/**",
                 ManageLlmProviderController.PATH + "/**",
                 ManageChannelController.PATH + "/**",

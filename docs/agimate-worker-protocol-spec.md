@@ -265,7 +265,7 @@ Proto-файлы лежат в `services/control-api/src/main/proto/agentworker/
 - `ExecuteTool` оборачивает существующий `AgentToolUseService.processToolUse(agentPubId, ToolUseRequest)`:
   - идемпотентность через `tool_use_id` → `ToolUseRequest.id` (БД-уникальность по `(agent_pub_id, tool_use_id)`),
   - ABAC через `ToolPolicyDbEvaluatorService` (внутри `processToolUse`),
-  - audit через `ToolUseLogService` — все вызовы пишутся в `tool_use_log` независимо от reporting'а воркера (см. §2.8),
+  - audit через `ToolCallLogService` — все вызовы пишутся в `tool_call_logs` независимо от reporting'а воркера (см. §2.8),
   - доставка через `ConnectorService.pushToConnector`.
 - В proto `ExecuteToolRequest` добавлены поля `connector_code`, `identity`, `agent_session_id` — нужны для прямой стыковки с текущей моделью `ToolUseRequest`. Ожидается, что воркер выводит их из `SkillSpec` / workflow payload.
 - Маппинг ошибок:
@@ -326,7 +326,7 @@ services/control-api/src/main/proto/agentworker/
 | §2.5 RBAC внутри `ExecuteTool*`, без отдельного `CheckPermission` | ✅ (через `AgentToolUseService` + ABAC) |
 | §2.6 Knowledge Base | ⏳ stub |
 | §2.7 LLM-credentials вариант A | ✅ (`GetLlmCredentials`) |
-| §2.8 Audit на стороне Tool Gateway независимо от воркера | ✅ (`ToolUseLogService` пишет всегда) |
+| §2.8 Audit на стороне Tool Gateway независимо от воркера | ✅ (`ToolCallLogService` пишет всегда) |
 | §2.9 Не хранить ключи в БД, не светить LLM-ключи в логах | ✅ |
 
 ---

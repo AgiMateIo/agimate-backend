@@ -10,8 +10,8 @@ public record AgentConfigResponse(
         @Schema(description = "Agent public ID")
         UUID agentId,
 
-        @Schema(description = "Agent prompt")
-        String prompt,
+        @Schema(description = "Agent instructions")
+        String instructions,
 
         @Schema(description = "Authorized tools with definitions")
         List<ToolDefinition> tools,

@@ -4,24 +4,24 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.controlapi.database.entities.ConnectorTask;
+import ru.agimate.controlapi.database.entities.ConnectorJob;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Реализация {@link ConnectorTaskRepositoryCustom}. Spring Data JPA подцепляет её по конвенции
- * имени ({@code <RepositoryName>Impl}) и сливает с интерфейсом {@link ConnectorTaskRepository}.
+ * Реализация {@link ConnectorJobRepositoryCustom}. Spring Data JPA подцепляет её по конвенции
+ * имени ({@code <RepositoryName>Impl}) и сливает с интерфейсом {@link ConnectorJobRepository}.
  */
-public class ConnectorTaskRepositoryImpl implements ConnectorTaskRepositoryCustom {
+public class ConnectorJobRepositoryImpl implements ConnectorJobRepositoryCustom {
 
     private static final String CLAIM_SQL = """
-            UPDATE connector_tasks
+            UPDATE connector_jobs
             SET status = 'RUNNING',
                 lease_until = cast(:now as timestamp) + (timeout_seconds * interval '1 second'),
                 last_started_at = :now
             WHERE id IN (
-                SELECT id FROM connector_tasks
+                SELECT id FROM connector_jobs
                  WHERE paused_at IS NULL
                    AND ((status = 'PENDING' AND next_run_at <= :now)
                     OR (status = 'RUNNING' AND lease_until <= :now))
@@ -38,10 +38,10 @@ public class ConnectorTaskRepositoryImpl implements ConnectorTaskRepositoryCusto
     @Override
     @SuppressWarnings("unchecked")
     @Transactional
-    public List<ConnectorTask> claimReady(LocalDateTime now, int batchSize) {
-        Query query = entityManager.createNativeQuery(CLAIM_SQL, ConnectorTask.class);
+    public List<ConnectorJob> claimReady(LocalDateTime now, int batchSize) {
+        Query query = entityManager.createNativeQuery(CLAIM_SQL, ConnectorJob.class);
         query.setParameter("now", now);
         query.setParameter("batchSize", batchSize);
-        return (List<ConnectorTask>) query.getResultList();
+        return (List<ConnectorJob>) query.getResultList();
     }
 }

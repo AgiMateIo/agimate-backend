@@ -16,7 +16,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "trigger_logs", uniqueConstraints =
-        @UniqueConstraint(columnNames = {"user_id", "connector_code", "identity", "trigger_name", "trigger_id"}))
+        @UniqueConstraint(columnNames = {"user_id", "connector_code", "identity", "name", "external_id"}))
 @Getter
 @Setter
 @Builder
@@ -39,18 +39,18 @@ public class TriggerLog extends BaseEntity {
     @Column(name = "identity", nullable = false, columnDefinition = "TEXT")
     private String identity;
 
-    @Column(name = "trigger_id", nullable = false, columnDefinition = "TEXT")
-    private String triggerId;
+    @Column(name = "external_id", nullable = false, columnDefinition = "TEXT")
+    private String externalId;
 
-    @Column(name = "trigger_name", nullable = false, columnDefinition = "TEXT")
-    private String triggerName;
+    @Column(name = "name", nullable = false, columnDefinition = "TEXT")
+    private String name;
 
     @Column(name = "occurred_at")
     private LocalDateTime occurredAt;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "trigger_input", nullable = false, columnDefinition = "JSONB")
-    private Map<String, Object> triggerInput;
+    @Column(name = "input", nullable = false, columnDefinition = "JSONB")
+    private Map<String, Object> input;
 
     @OneToMany(mappedBy = "triggerLog", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

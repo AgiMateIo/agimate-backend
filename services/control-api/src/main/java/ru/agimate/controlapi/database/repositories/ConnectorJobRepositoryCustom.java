@@ -1,15 +1,15 @@
 package ru.agimate.controlapi.database.repositories;
 
-import ru.agimate.controlapi.database.entities.ConnectorTask;
+import ru.agimate.controlapi.database.entities.ConnectorJob;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Кастомные методы {@link ConnectorTaskRepository}, требующие native SQL — Spring Data JPA
+ * Кастомные методы {@link ConnectorJobRepository}, требующие native SQL — Spring Data JPA
  * не умеет {@code UPDATE … FROM (… FOR UPDATE SKIP LOCKED) RETURNING *} через {@code @Query}.
  */
-public interface ConnectorTaskRepositoryCustom {
+public interface ConnectorJobRepositoryCustom {
 
     /**
      * Атомарно подхватывает до {@code batchSize} готовых к запуску строк:
@@ -23,5 +23,5 @@ public interface ConnectorTaskRepositoryCustom {
      * {@code status=RUNNING} с lease до {@code now + timeout_seconds} (per-row) — отдельный
      * коммит на стороне caller'а не нужен.
      */
-    List<ConnectorTask> claimReady(LocalDateTime now, int batchSize);
+    List<ConnectorJob> claimReady(LocalDateTime now, int batchSize);
 }

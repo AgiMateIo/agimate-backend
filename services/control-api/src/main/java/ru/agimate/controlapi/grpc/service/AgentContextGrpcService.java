@@ -105,7 +105,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                     .setAgentId(agent.getId().toString())
                     .setName(nullToEmpty(agent.getName()))
                     .setAgentType(agent.getType() == null ? "" : agent.getType().name())
-                    .setSystemPrompt(nullToEmpty(agent.getPrompt()))
+                    .setSystemPrompt(nullToEmpty(agent.getInstructions()))
                     .setTeamId(teamPubId)
                     .build();
 

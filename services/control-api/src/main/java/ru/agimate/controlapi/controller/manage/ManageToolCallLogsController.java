@@ -8,33 +8,33 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.controlapi.controller.manage.dto.ToolUseLogResponse;
-import ru.agimate.controlapi.service.tool.ToolUseLogService;
+import ru.agimate.controlapi.controller.manage.dto.ToolCallLogResponse;
+import ru.agimate.controlapi.service.tool.ToolCallLogService;
 
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ManageToolUseLogsController.PATH)
+@RequestMapping(ManageToolCallLogsController.PATH)
 @RequiredArgsConstructor
 @Tag(name = "Tool Use Logs", description = "Manage tool use logs")
-public class ManageToolUseLogsController {
+public class ManageToolCallLogsController {
 
-    public static final String PATH = "/manage/tool-use-logs";
+    public static final String PATH = "/manage/tool-call-logs";
 
-    private final ToolUseLogService toolUseLogService;
+    private final ToolCallLogService toolCallLogService;
 
     @Operation(
             summary = "List tool use logs",
             description = "Returns tool use logs with optional filtering by API key"
     )
     @GetMapping("/")
-    public SuccessResponse<Page<ToolUseLogResponse>> getToolUseLogs(
+    public SuccessResponse<Page<ToolCallLogResponse>> getToolCallLogs(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) UUID agentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(toolUseLogService.getToolUseLogs(userId, agentId, page, size));
+        return SuccessResponse.ok(toolCallLogService.getToolCallLogs(userId, agentId, page, size));
     }
 }

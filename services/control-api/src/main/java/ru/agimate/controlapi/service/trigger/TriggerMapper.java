@@ -12,9 +12,9 @@ public class TriggerMapper {
         return new Trigger(
                 triggerLog.getConnectorCode(),
                 triggerLog.getIdentity(),
-                triggerLog.getTriggerName(),
+                triggerLog.getName(),
                 triggerLogAgent.getId().toString(),
-                triggerLog.getTriggerInput(),
+                triggerLog.getInput(),
                 triggerLog.getOccurredAt() != null ? triggerLog.getOccurredAt().toString() : null,
                 null
         );

@@ -106,9 +106,9 @@ public class AgentToolCallController {
             @PathVariable String toolUseId,
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        var log = agentToolUseService.getToolUseLog(principal.agentId(), toolUseId);
+        var log = agentToolUseService.getToolCallLog(principal.agentId(), toolUseId);
 
-        if (log.getOutputAt() == null) {
+        if (log.getFinishAt() == null) {
             return ResponseEntity.noContent().build();
         }
 
@@ -147,6 +147,6 @@ public class AgentToolCallController {
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
         var log = agentToolUseService.saveToolResult(principal.agentId(), request);
-        return SuccessResponse.ok(log.getToolUseId());
+        return SuccessResponse.ok(log.getExternalId());
     }
 }

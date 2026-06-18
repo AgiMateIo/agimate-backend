@@ -11,8 +11,8 @@ public record UpdateAgentRequest(
         @Schema(description = "Agent description")
         String description,
 
-        @Schema(description = "Agent prompt")
-        String prompt,
+        @Schema(description = "Agent instructions")
+        String instructions,
 
         @Schema(description = "Agent type: CENTRIFUGO, WEBHOOK or GENERIC")
         AgentType type,

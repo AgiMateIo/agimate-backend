@@ -17,7 +17,7 @@
                 <constraints nullable="false"/>
             </column>
             <column name="description" type="TEXT"/>
-            <column name="prompt" type="TEXT"/>
+            <column name="instructions" type="TEXT"/>
             <column name="key_hash" type="TEXT">
                 <constraints nullable="false"/>
             </column>

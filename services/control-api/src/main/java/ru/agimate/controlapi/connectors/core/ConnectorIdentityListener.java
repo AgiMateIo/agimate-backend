@@ -5,15 +5,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import ru.agimate.controlapi.connectors.core.dto.TaskSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
-import ru.agimate.controlapi.connectors.core.tasks.ConnectorTaskService;
+import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 
 /**
- * Превращает lifecycle-события экземпляров коннекторов в строки {@code connector_tasks}
- * (декларация — {@code handler.getTasks()}).
+ * Превращает lifecycle-события экземпляров коннекторов в строки {@code connector_jobs}
+ * (декларация — {@code handler.getJobs()}).
  *
  * <p>Pull‑модель не требует сообщать scheduler'у об изменениях — он сам прочитает новую/удалённую
  * строку на ближайшем тике (≤1с). Поэтому listener только пишет в БД и не публикует ничего обратно.
@@ -28,7 +28,7 @@ import ru.agimate.controlapi.connectors.core.tasks.ConnectorTaskService;
 public class ConnectorIdentityListener {
 
     private final ConnectorRegistry connectorRegistry;
-    private final ConnectorTaskService taskService;
+    private final ConnectorJobService jobService;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onCreated(ConnectorCreatedEvent event) {
@@ -38,8 +38,8 @@ public class ConnectorIdentityListener {
                     event.connectorCode(), event.identity());
             return;
         }
-        for (TaskSpecification spec : handler.getTasks().values()) {
-            taskService.upsert(event.connectorCode(), event.identity(), event.userId(), spec);
+        for (JobSpecification spec : handler.getJobs().values()) {
+            jobService.upsert(event.connectorCode(), event.identity(), event.userId(), spec);
             log.info("Registered task {}/{}/{}", event.connectorCode(), event.identity(), spec.name());
         }
     }
@@ -52,14 +52,14 @@ public class ConnectorIdentityListener {
                     event.connectorCode(), event.identity());
             return;
         }
-        taskService.syncIdentity(event.connectorCode(), event.identity(), event.userId(),
-                handler.getTasks().values());
+        jobService.syncIdentity(event.connectorCode(), event.identity(), event.userId(),
+                handler.getJobs().values());
         log.info("Synced tasks for {}/{}", event.connectorCode(), event.identity());
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onDeleted(ConnectorDeletedEvent event) {
-        int removed = taskService.deleteByIdentity(event.connectorCode(), event.identity());
+        int removed = jobService.deleteByIdentity(event.connectorCode(), event.identity());
         if (removed > 0) {
             log.info("Removed {} task row(s) for {}/{}",
                     removed, event.connectorCode(), event.identity());

@@ -22,7 +22,7 @@ public record AgentContextResponse(
             @Schema(description = "Agent public ID") UUID id,
             @Schema(description = "Agent name") String name,
             @Schema(description = "Agent description") String description,
-            @Schema(description = "Agent prompt") String prompt
+            @Schema(description = "Agent instructions") String instructions
     ) {}
 
     @Schema(description = "Agentic team info")

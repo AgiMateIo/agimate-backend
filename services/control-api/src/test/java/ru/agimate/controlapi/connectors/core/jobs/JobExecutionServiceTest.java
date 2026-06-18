@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.connectors.core.tasks;
+package ru.agimate.controlapi.connectors.core.jobs;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,9 +13,9 @@ import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
-import ru.agimate.controlapi.database.entities.ConnectorTask;
+import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.entities.IntegrationCredentials;
-import ru.agimate.controlapi.database.enums.ConnectorTaskType;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
 import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
 
 import java.util.Map;
@@ -32,8 +32,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("TaskExecutionService")
-class TaskExecutionServiceTest {
+@DisplayName("JobExecutionService")
+class JobExecutionServiceTest {
 
     private static final UUID CREDENTIALS_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
@@ -50,7 +50,7 @@ class TaskExecutionServiceTest {
     @Mock
     private InternalConnectorHandler internalHandler;
 
-    private TaskExecutionService service;
+    private JobExecutionService service;
 
     @BeforeEach
     void setUp() {
@@ -59,18 +59,18 @@ class TaskExecutionServiceTest {
         when(integrationHandler.connectorCode()).thenReturn("telegram");
         when(internalHandler.connectorCode()).thenReturn("board");
         ConnectorRegistry registry = new ConnectorRegistry(java.util.List.of(integrationHandler, internalHandler));
-        service = new TaskExecutionService(registry, credentialsRepository,
+        service = new JobExecutionService(registry, credentialsRepository,
                 new ConnectorContextFactory(encryptionService));
     }
 
-    private ConnectorTask row(String connectorCode, String identity) {
-        return ConnectorTask.builder()
+    private ConnectorJob row(String connectorCode, String identity) {
+        return ConnectorJob.builder()
                 .id(UUID.randomUUID())
                 .connectorCode(connectorCode)
                 .identity(identity)
-                .taskName("some.task")
-                .taskType(ConnectorTaskType.PERIODIC)
-                .taskArgs(Map.of("arg", "value"))
+                .name("some.task")
+                .type(ConnectorJobType.PERIODIC)
+                .args(Map.of("arg", "value"))
                 .build();
     }
 
@@ -86,9 +86,9 @@ class TaskExecutionServiceTest {
         when(credentialsRepository.findByIdNotDeleted(CREDENTIALS_ID)).thenReturn(Optional.of(credentials));
         when(encryptionService.decryptCredentials("encrypted")).thenReturn(Map.of("token", "t1"));
 
-        service.executeTask(row("telegram", CREDENTIALS_ID.toString()));
+        service.executeJob(row("telegram", CREDENTIALS_ID.toString()));
 
-        verify(integrationHandler).executeTask(
+        verify(integrationHandler).executeJob(
                 argThat((ConnectorContext ctx) ->
                         CREDENTIALS_ID.toString().equals(ctx.identity())
                                 && USER_ID.equals(ctx.userId())
@@ -103,7 +103,7 @@ class TaskExecutionServiceTest {
         when(credentialsRepository.findByIdNotDeleted(CREDENTIALS_ID)).thenReturn(Optional.empty());
 
         ConnectorException e = assertThrows(ConnectorException.class,
-                () -> service.executeTask(row("telegram", CREDENTIALS_ID.toString())));
+                () -> service.executeJob(row("telegram", CREDENTIALS_ID.toString())));
 
         assertTrue(e.getMessage().contains("missing or disabled"));
     }
@@ -118,22 +118,22 @@ class TaskExecutionServiceTest {
         when(credentialsRepository.findByIdNotDeleted(CREDENTIALS_ID)).thenReturn(Optional.of(disabled));
 
         assertThrows(ConnectorException.class,
-                () -> service.executeTask(row("telegram", CREDENTIALS_ID.toString())));
+                () -> service.executeJob(row("telegram", CREDENTIALS_ID.toString())));
     }
 
     @Test
     @DisplayName("integration: некорректный identity → ConnectorException")
     void integrationInvalidIdentity() {
         assertThrows(ConnectorException.class,
-                () -> service.executeTask(row("telegram", "not-a-uuid")));
+                () -> service.executeJob(row("telegram", "not-a-uuid")));
     }
 
     @Test
     @DisplayName("internal: голый контекст с identity строки")
     void internalContext() {
-        service.executeTask(row("board", null));
+        service.executeJob(row("board", null));
 
-        verify(internalHandler).executeTask(
+        verify(internalHandler).executeJob(
                 argThat((ConnectorContext ctx) ->
                         ctx.identity() == null && ctx.userId() == null && ctx.credentials().isEmpty()),
                 eq("some.task"),
@@ -144,13 +144,13 @@ class TaskExecutionServiceTest {
     @DisplayName("internal: userId/agentId строки реконструируются в контекст")
     void internalContextReconstructsOwner() {
         UUID agentId = UUID.randomUUID();
-        ConnectorTask row = row("board", null);
+        ConnectorJob row = row("board", null);
         row.setUserId(USER_ID);
         row.setAgentId(agentId);
 
-        service.executeTask(row);
+        service.executeJob(row);
 
-        verify(internalHandler).executeTask(
+        verify(internalHandler).executeJob(
                 argThat((ConnectorContext ctx) ->
                         USER_ID.equals(ctx.userId()) && agentId.equals(ctx.agentId())),
                 eq("some.task"),
@@ -161,18 +161,18 @@ class TaskExecutionServiceTest {
     @DisplayName("неизвестный коннектор → ConnectorException")
     void unknownConnector() {
         assertThrows(ConnectorException.class,
-                () -> service.executeTask(row("unknown", null)));
+                () -> service.executeJob(row("unknown", null)));
     }
 
     @Test
-    @DisplayName("null taskArgs нормализуются в пустую мапу")
+    @DisplayName("null args нормализуются в пустую мапу")
     void nullArgsNormalized() {
-        ConnectorTask row = row("board", null);
-        row.setTaskArgs(null);
-        when(internalHandler.executeTask(any(), any(), any())).thenReturn(Map.of());
+        ConnectorJob row = row("board", null);
+        row.setArgs(null);
+        when(internalHandler.executeJob(any(), any(), any())).thenReturn(Map.of());
 
-        service.executeTask(row);
+        service.executeJob(row);
 
-        verify(internalHandler).executeTask(any(), eq("some.task"), eq(Map.of()));
+        verify(internalHandler).executeJob(any(), eq("some.task"), eq(Map.of()));
     }
 }

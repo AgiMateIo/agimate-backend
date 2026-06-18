@@ -16,8 +16,8 @@ public record AgentSummaryResponse(
         @Schema(description = "Agent description")
         String description,
 
-        @Schema(description = "Agent prompt")
-        String prompt,
+        @Schema(description = "Agent instructions")
+        String instructions,
 
         @Schema(description = "Whether the agent is enabled")
         boolean enabled
@@ -27,7 +27,7 @@ public record AgentSummaryResponse(
                 agent.getId(),
                 agent.getName(),
                 agent.getDescription(),
-                agent.getPrompt(),
+                agent.getInstructions(),
                 agent.isEnabled()
         );
     }

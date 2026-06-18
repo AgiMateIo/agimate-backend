@@ -7,7 +7,7 @@ import java.util.UUID;
  *
  * @param connectorCode код коннектора
  * @param identity      идентификатор экземпляра
- * @param userId        владелец экземпляра — проставляется в {@code connector_tasks.user_id}
+ * @param userId        владелец экземпляра — проставляется в {@code connector_jobs.user_id}
  */
 public record ConnectorModifiedEvent(String connectorCode, String identity, UUID userId) {
 }

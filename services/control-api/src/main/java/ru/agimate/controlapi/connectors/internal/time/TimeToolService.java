@@ -6,14 +6,14 @@ import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorContextHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.core.annotation.Task;
+import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
-import ru.agimate.controlapi.connectors.core.dto.TaskSpecification;
-import ru.agimate.controlapi.connectors.core.tasks.ConnectorTaskService;
-import ru.agimate.controlapi.database.entities.ConnectorTask;
-import ru.agimate.controlapi.database.enums.ConnectorTaskType;
+import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
+import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
+import ru.agimate.controlapi.database.entities.ConnectorJob;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
@@ -33,8 +33,8 @@ import java.util.UUID;
 /**
  * Тулы time-коннектора: текущее время и планирование отложенных задач агента.
  *
- * <p>{@code time.schedule} вставляет строку {@code connector_tasks} (ONETIME/PERIODIC/CRON); когда
- * приходит срок, {@code ConnectorTaskScheduler} диспатчит скрытый {@link #fire} — он порождает
+ * <p>{@code time.schedule} вставляет строку {@code connector_jobs} (ONETIME/PERIODIC/CRON); когда
+ * приходит срок, {@code ConnectorJobScheduler} диспатчит скрытый {@link #fire} — он порождает
  * триггер {@code trigger.time.due}, адресованный агенту-инициатору (audience), и тот «просыпается».
  */
 @Service
@@ -48,7 +48,7 @@ public class TimeToolService {
     /** Срабатывание — лишь публикация триггера; итерация короткая. */
     private static final int FIRE_TIMEOUT_SECONDS = 60;
 
-    private final ConnectorTaskService taskService;
+    private final ConnectorJobService jobService;
     private final TriggerRouterService triggerRouterService;
 
     @Tool(name = "time.current_datetime", description = "Get the current date and time in UTC (ISO-8601)",
@@ -79,7 +79,7 @@ public class TimeToolService {
             throw new ConnectorException("prompt is required");
         }
 
-        ConnectorTaskType type;
+        ConnectorJobType type;
         Map<String, Object> config;
         LocalDateTime firstRunAt;
         LocalDateTime now = LocalDateTime.now();
@@ -89,24 +89,24 @@ public class TimeToolService {
         }
         if (delaySeconds != null) {
             requirePositive(delaySeconds, "delaySeconds");
-            type = ConnectorTaskType.ONETIME;
+            type = ConnectorJobType.ONETIME;
             config = Map.of();
             firstRunAt = now.plusSeconds(delaySeconds);
         } else if (intervalSeconds != null) {
             requirePositive(intervalSeconds, "intervalSeconds");
-            type = ConnectorTaskType.PERIODIC;
+            type = ConnectorJobType.PERIODIC;
             config = Map.of("intervalSeconds", intervalSeconds);
             firstRunAt = now.plusSeconds(intervalSeconds);
         } else {
             String resolvedZone = zone == null || zone.isBlank() ? "UTC" : zone;
             firstRunAt = nextCron(cron, resolvedZone, now);
-            type = ConnectorTaskType.CRON;
+            type = ConnectorJobType.CRON;
             config = Map.of("cron", cron, "zone", resolvedZone);
         }
 
-        TaskSpecification spec = new TaskSpecification(
+        JobSpecification spec = new JobSpecification(
                 FIRE_TASK, type, config, Map.of("prompt", prompt), FIRE_TIMEOUT_SECONDS);
-        ConnectorTask row = taskService.schedule(
+        ConnectorJob row = jobService.schedule(
                 TimeConnectorService.CONNECTOR_CODE, ctx.identity(), ctx.userId(), ctx.agentId(), spec, firstRunAt);
 
         return Map.of(
@@ -123,14 +123,14 @@ public class TimeToolService {
             throw new ConnectorException("time.scheduled_tasks must be called by an agent");
         }
         List<Map<String, Object>> tasks = new ArrayList<>();
-        for (ConnectorTask row : taskService.findActiveByAgent(
+        for (ConnectorJob row : jobService.findActiveByAgent(
                 TimeConnectorService.CONNECTOR_CODE, ctx.userId(), ctx.agentId())) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", row.getId().toString());
-            item.put("taskType", row.getTaskType().name());
+            item.put("taskType", row.getType().name());
             item.put("nextRunAt", row.getNextRunAt() == null ? null : row.getNextRunAt().toString());
-            item.put("prompt", row.getTaskArgs() == null ? null : row.getTaskArgs().get("prompt"));
-            item.put("config", row.getTaskConfig());
+            item.put("prompt", row.getArgs() == null ? null : row.getArgs().get("prompt"));
+            item.put("config", row.getConfig());
             tasks.add(item);
         }
         return Map.of("tasks", tasks);
@@ -150,7 +150,7 @@ public class TimeToolService {
         } catch (IllegalArgumentException e) {
             throw new ConnectorException("Invalid task id: " + id);
         }
-        boolean cancelled = taskService.cancel(
+        boolean cancelled = jobService.cancel(
                 TimeConnectorService.CONNECTOR_CODE, ctx.userId(), ctx.agentId(), taskId);
         if (!cancelled) {
             throw new ConnectorException("Scheduled task not found: " + id);
@@ -159,12 +159,12 @@ public class TimeToolService {
     }
 
     /**
-     * Скрытая таска-диспетчер: исполняется scheduler'ом по сроку строки {@code connector_tasks}.
+     * Скрытая таска-диспетчер: исполняется scheduler'ом по сроку строки {@code connector_jobs}.
      * Контекст реконструирован из строки ({@code userId}/{@code agentId} инициатора), поэтому
-     * адресуем триггер обратно агенту через audience. Не видна LLM ({@code isTaskOnly}).
+     * адресуем триггер обратно агенту через audience. Не видна LLM ({@code isJobOnly}).
      */
     @Tool(name = FIRE_TASK, description = "Internal: deliver a scheduled task to its agent")
-    @Task(isTaskOnly = true)
+    @Job(isJobOnly = true)
     public void fire(@ToolParam("Prompt to deliver to the agent") String prompt) {
         ConnectorContext ctx = ConnectorContextHolder.current();
         if (ctx.agentId() == null) {

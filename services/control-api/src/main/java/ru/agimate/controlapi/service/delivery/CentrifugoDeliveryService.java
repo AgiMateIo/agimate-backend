@@ -33,7 +33,7 @@ public class CentrifugoDeliveryService implements AgentDeliveryHandler {
                 agentId, triggerLogAgent.getId().toString(), "trigger", channelContext, trigger);
         centrifugoService.publish(agentChannel(agent), message);
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo",
-                triggerLogAgent.getTriggerLog().getTriggerName(), agent.getId());
+                triggerLogAgent.getTriggerLog().getName(), agent.getId());
     }
 
     @Override

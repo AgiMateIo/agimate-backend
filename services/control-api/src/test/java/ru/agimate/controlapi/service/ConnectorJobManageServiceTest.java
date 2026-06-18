@@ -10,11 +10,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.database.entities.ConnectorTask;
-import ru.agimate.controlapi.database.enums.ConnectorTaskKind;
-import ru.agimate.controlapi.database.enums.ConnectorTaskStatus;
-import ru.agimate.controlapi.database.enums.ConnectorTaskType;
-import ru.agimate.controlapi.database.repositories.ConnectorTaskRepository;
+import ru.agimate.controlapi.database.entities.ConnectorJob;
+import ru.agimate.controlapi.database.enums.ConnectorJobKind;
+import ru.agimate.controlapi.database.enums.ConnectorJobStatus;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
+import ru.agimate.controlapi.database.repositories.ConnectorJobRepository;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -29,30 +29,30 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("ConnectorTaskManageService")
-class ConnectorTaskManageServiceTest {
+@DisplayName("ConnectorJobManageService")
+class ConnectorJobManageServiceTest {
 
     private static final UUID TASK_ID = UUID.randomUUID();
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID OTHER_USER_ID = UUID.randomUUID();
 
     @Mock
-    private ConnectorTaskRepository repository;
+    private ConnectorJobRepository repository;
 
     @InjectMocks
-    private ConnectorTaskManageService service;
+    private ConnectorJobManageService service;
 
-    private ConnectorTask task(ConnectorTaskKind kind, ConnectorTaskType type, Map<String, Object> config) {
-        return ConnectorTask.builder()
+    private ConnectorJob task(ConnectorJobKind kind, ConnectorJobType type, Map<String, Object> config) {
+        return ConnectorJob.builder()
                 .id(TASK_ID)
                 .connectorCode("time")
                 .userId(USER_ID)
                 .kind(kind)
-                .taskName("time.fire")
-                .taskType(type)
-                .taskConfig(config)
-                .taskArgs(Map.of("prompt", "test"))
-                .status(ConnectorTaskStatus.PENDING)
+                .name("time.fire")
+                .type(type)
+                .config(config)
+                .args(Map.of("prompt", "test"))
+                .status(ConnectorJobStatus.PENDING)
                 .nextRunAt(LocalDateTime.now().plusHours(1))
                 .timeoutSeconds(60)
                 .build();
@@ -65,7 +65,7 @@ class ConnectorTaskManageServiceTest {
         @Test
         @DisplayName("ставит paused_at точечным UPDATE")
         void pausesTask() {
-            ConnectorTask task = task(ConnectorTaskKind.AGENT, ConnectorTaskType.PERIODIC,
+            ConnectorJob task = task(ConnectorJobKind.AGENT, ConnectorJobType.PERIODIC,
                     Map.of("intervalSeconds", 300));
             when(repository.findById(TASK_ID)).thenReturn(Optional.of(task));
 
@@ -85,7 +85,7 @@ class ConnectorTaskManageServiceTest {
         @Test
         @DisplayName("чужая задача → 404, существование не раскрывается")
         void foreignTaskThrowsNotFound() {
-            ConnectorTask task = task(ConnectorTaskKind.AGENT, ConnectorTaskType.PERIODIC, Map.of());
+            ConnectorJob task = task(ConnectorJobKind.AGENT, ConnectorJobType.PERIODIC, Map.of());
             when(repository.findById(TASK_ID)).thenReturn(Optional.of(task));
 
             assertThrows(NotFoundStatusException.class, () -> service.pause(TASK_ID, OTHER_USER_ID));
@@ -95,8 +95,8 @@ class ConnectorTaskManageServiceTest {
         @Test
         @DisplayName("COMPLETED → 400")
         void completedTaskThrowsBadRequest() {
-            ConnectorTask task = task(ConnectorTaskKind.AGENT, ConnectorTaskType.ONETIME, Map.of());
-            task.setStatus(ConnectorTaskStatus.COMPLETED);
+            ConnectorJob task = task(ConnectorJobKind.AGENT, ConnectorJobType.ONETIME, Map.of());
+            task.setStatus(ConnectorJobStatus.COMPLETED);
             when(repository.findById(TASK_ID)).thenReturn(Optional.of(task));
 
             assertThrows(BadRequestStatusException.class, () -> service.pause(TASK_ID, USER_ID));
@@ -110,7 +110,7 @@ class ConnectorTaskManageServiceTest {
         @Test
         @DisplayName("не на паузе → no-op")
         void notPausedIsNoop() {
-            ConnectorTask task = task(ConnectorTaskKind.AGENT, ConnectorTaskType.PERIODIC,
+            ConnectorJob task = task(ConnectorJobKind.AGENT, ConnectorJobType.PERIODIC,
                     Map.of("intervalSeconds", 300));
             when(repository.findById(TASK_ID)).thenReturn(Optional.of(task));
 
@@ -122,7 +122,7 @@ class ConnectorTaskManageServiceTest {
         @Test
         @DisplayName("PERIODIC: next_run_at = now + intervalSeconds, без догоняющего запуска")
         void periodicRecomputesFromNow() {
-            ConnectorTask task = task(ConnectorTaskKind.AGENT, ConnectorTaskType.PERIODIC,
+            ConnectorJob task = task(ConnectorJobKind.AGENT, ConnectorJobType.PERIODIC,
                     Map.of("intervalSeconds", 300));
             task.setPausedAt(LocalDateTime.now().minusDays(1));
             task.setNextRunAt(LocalDateTime.now().minusDays(1));
@@ -140,7 +140,7 @@ class ConnectorTaskManageServiceTest {
         @Test
         @DisplayName("CRON: next_run_at = следующий тик выражения от now")
         void cronRecomputesNextTick() {
-            ConnectorTask task = task(ConnectorTaskKind.AGENT, ConnectorTaskType.CRON,
+            ConnectorJob task = task(ConnectorJobKind.AGENT, ConnectorJobType.CRON,
                     Map.of("cron", "0 0 9 * * *", "zone", "UTC"));
             task.setPausedAt(LocalDateTime.now().minusDays(3));
             when(repository.findById(TASK_ID)).thenReturn(Optional.of(task));
@@ -157,7 +157,7 @@ class ConnectorTaskManageServiceTest {
         @Test
         @DisplayName("ONETIME: next_run_at сохраняется как был")
         void onetimeKeepsNextRunAt() {
-            ConnectorTask task = task(ConnectorTaskKind.AGENT, ConnectorTaskType.ONETIME, Map.of());
+            ConnectorJob task = task(ConnectorJobKind.AGENT, ConnectorJobType.ONETIME, Map.of());
             LocalDateTime original = task.getNextRunAt();
             task.setPausedAt(LocalDateTime.now().minusHours(2));
             when(repository.findById(TASK_ID)).thenReturn(Optional.of(task));
@@ -170,8 +170,8 @@ class ConnectorTaskManageServiceTest {
         @Test
         @DisplayName("COMPLETED → 400")
         void completedTaskThrowsBadRequest() {
-            ConnectorTask task = task(ConnectorTaskKind.AGENT, ConnectorTaskType.ONETIME, Map.of());
-            task.setStatus(ConnectorTaskStatus.COMPLETED);
+            ConnectorJob task = task(ConnectorJobKind.AGENT, ConnectorJobType.ONETIME, Map.of());
+            task.setStatus(ConnectorJobStatus.COMPLETED);
             when(repository.findById(TASK_ID)).thenReturn(Optional.of(task));
 
             assertThrows(BadRequestStatusException.class, () -> service.resume(TASK_ID, USER_ID));
@@ -185,7 +185,7 @@ class ConnectorTaskManageServiceTest {
         @Test
         @DisplayName("AGENT-задача удаляется")
         void deletesAgentTask() {
-            ConnectorTask task = task(ConnectorTaskKind.AGENT, ConnectorTaskType.PERIODIC, Map.of());
+            ConnectorJob task = task(ConnectorJobKind.AGENT, ConnectorJobType.PERIODIC, Map.of());
             when(repository.findById(TASK_ID)).thenReturn(Optional.of(task));
 
             service.delete(TASK_ID, USER_ID);
@@ -196,21 +196,21 @@ class ConnectorTaskManageServiceTest {
         @Test
         @DisplayName("SYSTEM-задача → 400: управляется reconcile-синком")
         void systemTaskThrowsBadRequest() {
-            ConnectorTask task = task(ConnectorTaskKind.SYSTEM, ConnectorTaskType.PERIODIC, Map.of());
+            ConnectorJob task = task(ConnectorJobKind.SYSTEM, ConnectorJobType.PERIODIC, Map.of());
             when(repository.findById(TASK_ID)).thenReturn(Optional.of(task));
 
             assertThrows(BadRequestStatusException.class, () -> service.delete(TASK_ID, USER_ID));
-            verify(repository, never()).delete(any(ConnectorTask.class));
+            verify(repository, never()).delete(any(ConnectorJob.class));
         }
 
         @Test
         @DisplayName("чужая задача → 404")
         void foreignTaskThrowsNotFound() {
-            ConnectorTask task = task(ConnectorTaskKind.AGENT, ConnectorTaskType.PERIODIC, Map.of());
+            ConnectorJob task = task(ConnectorJobKind.AGENT, ConnectorJobType.PERIODIC, Map.of());
             when(repository.findById(TASK_ID)).thenReturn(Optional.of(task));
 
             assertThrows(NotFoundStatusException.class, () -> service.delete(TASK_ID, OTHER_USER_ID));
-            verify(repository, never()).delete(any(ConnectorTask.class));
+            verify(repository, never()).delete(any(ConnectorJob.class));
         }
     }
 }

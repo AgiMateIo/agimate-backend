@@ -44,8 +44,8 @@ public class WebhookDeliveryLog extends BaseEntity {
     @Column(name = "response_body", columnDefinition = "TEXT")
     private String responseBody;
 
-    @Column(name = "error_message", columnDefinition = "TEXT")
-    private String errorMessage;
+    @Column(name = "error", columnDefinition = "TEXT")
+    private String error;
 
     @Column(name = "duration_ms")
     private Long durationMs;

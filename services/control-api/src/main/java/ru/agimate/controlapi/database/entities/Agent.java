@@ -39,8 +39,8 @@ public class Agent extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "prompt", columnDefinition = "TEXT")
-    private String prompt;
+    @Column(name = "instructions", columnDefinition = "TEXT")
+    private String instructions;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "type", nullable = false, columnDefinition = "TEXT")

@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-import ru.agimate.controlapi.database.entities.ConnectorTask;
+import ru.agimate.controlapi.database.entities.ConnectorJob;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -15,25 +15,25 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UUID>,
-        JpaSpecificationExecutor<ConnectorTask>, ConnectorTaskRepositoryCustom {
+public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID>,
+        JpaSpecificationExecutor<ConnectorJob>, ConnectorJobRepositoryCustom {
 
     /** Поиск по бизнес-ключу — осмыслен только для SYSTEM-строк (reconcile-синк, ≤1 строка на ключ). */
     @Query("""
-            SELECT t FROM ConnectorTask t
+            SELECT t FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
               AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
-              AND t.taskName = :taskName
-              AND t.kind = ru.agimate.controlapi.database.enums.ConnectorTaskKind.SYSTEM
+              AND t.name = :name
+              AND t.kind = ru.agimate.controlapi.database.enums.ConnectorJobKind.SYSTEM
             """)
-    Optional<ConnectorTask> findByBusinessKey(
+    Optional<ConnectorJob> findByBusinessKey(
             @Param("connectorCode") String connectorCode,
             @Param("identity") String identity,
-            @Param("taskName") String taskName);
+            @Param("name") String name);
 
     @Modifying
     @Query("""
-            DELETE FROM ConnectorTask t
+            DELETE FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
               AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
             """)
@@ -42,29 +42,29 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
             @Param("identity") String identity);
 
     /**
-     * Удаляет SYSTEM-строки identity, чьи task_name больше не декларируются коннектором.
+     * Удаляет SYSTEM-строки identity, чьи name больше не декларируются коннектором.
      * Динамические задачи (USER/AGENT) пересинк деклараций не трогает.
      */
     @Modifying
     @Query("""
-            DELETE FROM ConnectorTask t
+            DELETE FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
               AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
-              AND t.kind = ru.agimate.controlapi.database.enums.ConnectorTaskKind.SYSTEM
-              AND t.taskName NOT IN :keepTaskNames
+              AND t.kind = ru.agimate.controlapi.database.enums.ConnectorJobKind.SYSTEM
+              AND t.name NOT IN :keepNames
             """)
     int deleteStale(
             @Param("connectorCode") String connectorCode,
             @Param("identity") String identity,
-            @Param("keepTaskNames") Collection<String> keepTaskNames);
+            @Param("keepNames") Collection<String> keepNames);
 
     /** Удаляет все SYSTEM-строки identity — когда коннектор больше не декларирует ни одной задачи. */
     @Modifying
     @Query("""
-            DELETE FROM ConnectorTask t
+            DELETE FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
               AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
-              AND t.kind = ru.agimate.controlapi.database.enums.ConnectorTaskKind.SYSTEM
+              AND t.kind = ru.agimate.controlapi.database.enums.ConnectorJobKind.SYSTEM
             """)
     int deleteSystemByIdentity(
             @Param("connectorCode") String connectorCode,
@@ -72,14 +72,14 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
 
     /** Активные (не COMPLETED) динамические задачи агента — для list. */
     @Query("""
-            SELECT t FROM ConnectorTask t
+            SELECT t FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
               AND t.userId = :userId
               AND t.agentId = :agentId
-              AND t.status <> ru.agimate.controlapi.database.enums.ConnectorTaskStatus.COMPLETED
+              AND t.status <> ru.agimate.controlapi.database.enums.ConnectorJobStatus.COMPLETED
             ORDER BY t.nextRunAt NULLS FIRST
             """)
-    List<ConnectorTask> findActiveByAgent(
+    List<ConnectorJob> findActiveByAgent(
             @Param("connectorCode") String connectorCode,
             @Param("userId") UUID userId,
             @Param("agentId") UUID agentId);
@@ -91,12 +91,12 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
      */
     @Modifying
     @Query("""
-            DELETE FROM ConnectorTask t
+            DELETE FROM ConnectorJob t
             WHERE t.id = :id
               AND t.connectorCode = :connectorCode
               AND t.userId = :userId
               AND t.agentId = :agentId
-              AND t.kind = ru.agimate.controlapi.database.enums.ConnectorTaskKind.AGENT
+              AND t.kind = ru.agimate.controlapi.database.enums.ConnectorJobKind.AGENT
             """)
     int deleteOwned(
             @Param("id") UUID id,
@@ -106,8 +106,8 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
 
     @Modifying
     @Query("""
-            UPDATE ConnectorTask t
-            SET t.status = ru.agimate.controlapi.database.enums.ConnectorTaskStatus.PENDING,
+            UPDATE ConnectorJob t
+            SET t.status = ru.agimate.controlapi.database.enums.ConnectorJobStatus.PENDING,
                 t.leaseUntil = NULL,
                 t.nextRunAt = :nextRunAt,
                 t.lastError = :lastError
@@ -119,8 +119,8 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
 
     @Modifying
     @Query("""
-            UPDATE ConnectorTask t
-            SET t.status = ru.agimate.controlapi.database.enums.ConnectorTaskStatus.COMPLETED,
+            UPDATE ConnectorJob t
+            SET t.status = ru.agimate.controlapi.database.enums.ConnectorJobStatus.COMPLETED,
                 t.leaseUntil = NULL,
                 t.nextRunAt = NULL,
                 t.lastError = :lastError
@@ -131,7 +131,7 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
 
     /** Снимает все задачи агента (динамические + адресованные ему) — вызывается при удалении агента. */
     @Modifying
-    @Query("DELETE FROM ConnectorTask t WHERE t.agentId = :agentId")
+    @Query("DELETE FROM ConnectorJob t WHERE t.agentId = :agentId")
     int deleteByAgentId(@Param("agentId") UUID agentId);
 
     /**
@@ -140,7 +140,7 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
      */
     @Modifying
     @Query("""
-            UPDATE ConnectorTask t
+            UPDATE ConnectorJob t
             SET t.pausedAt = :now
             WHERE t.id = :id AND t.userId = :userId AND t.pausedAt IS NULL
             """)
@@ -149,7 +149,7 @@ public interface ConnectorTaskRepository extends JpaRepository<ConnectorTask, UU
     /** Возобновление с пересчитанным {@code next_run_at}; 0 строк = не была на паузе (идемпотентно). */
     @Modifying
     @Query("""
-            UPDATE ConnectorTask t
+            UPDATE ConnectorJob t
             SET t.pausedAt = NULL, t.nextRunAt = :nextRunAt
             WHERE t.id = :id AND t.userId = :userId AND t.pausedAt IS NOT NULL
             """)

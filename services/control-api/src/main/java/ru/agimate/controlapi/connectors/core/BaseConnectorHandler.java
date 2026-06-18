@@ -3,11 +3,11 @@ package ru.agimate.controlapi.connectors.core;
 import com.fasterxml.jackson.databind.JavaType;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.annotation.Meta;
-import ru.agimate.controlapi.connectors.core.annotation.Task;
+import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.core.dto.TaskSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
 import ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec;
 
 import java.lang.reflect.InvocationTargetException;
@@ -23,8 +23,8 @@ import java.util.Map;
  * строит спеки и выполняет вызовы с привязкой {@link ConnectorContext} через
  * {@link ConnectorContextHolder} (set/clear только здесь).
  *
- * <p>Метод с {@link Task}{@code (isTaskOnly = true)} не попадает в {@link #getTools()} и
- * недоступен через {@link #executeTool}; {@link #executeTask} диспатчит в любой {@code @Tool}-метод,
+ * <p>Метод с {@link Job}{@code (isJobOnly = true)} не попадает в {@link #getTools()} и
+ * недоступен через {@link #executeTool}; {@link #executeJob} диспатчит в любой {@code @Tool}-метод,
  * поэтому таска может быть и «вызовом тулы по расписанию».
  */
 public abstract class BaseConnectorHandler implements ConnectorHandler {
@@ -59,7 +59,7 @@ public abstract class BaseConnectorHandler implements ConnectorHandler {
     private static Map<String, ConnectorToolSpec> buildToolSpecs(Map<String, Method> methodsByName) {
         Map<String, ConnectorToolSpec> specs = new LinkedHashMap<>();
         methodsByName.forEach((name, method) -> {
-            if (!isTaskOnly(method)) {
+            if (!isJobOnly(method)) {
                 specs.put(name, toToolSpec(name, method));
             }
         });
@@ -100,45 +100,45 @@ public abstract class BaseConnectorHandler implements ConnectorHandler {
     }
 
     @Override
-    public Map<String, TaskSpecification> getTasks() {
-        Map<String, TaskSpecification> specs = new LinkedHashMap<>();
+    public Map<String, JobSpecification> getJobs() {
+        Map<String, JobSpecification> specs = new LinkedHashMap<>();
         methodsByName.forEach((name, method) -> {
-            Task task = method.getAnnotation(Task.class);
+            Job task = method.getAnnotation(Job.class);
             if (task != null) {
-                specs.put(name, toTaskSpecification(name, task));
+                specs.put(name, toJobSpecification(name, task));
             }
         });
         return specs;
     }
 
-    private static TaskSpecification toTaskSpecification(String name, Task task) {
+    private static JobSpecification toJobSpecification(String name, Job task) {
         Map<String, Object> config = switch (task.type()) {
             case ONETIME -> Map.of();
             case PERIODIC -> Map.of("intervalSeconds", task.intervalSeconds());
             case CRON -> Map.of("cron", task.cron(), "zone", task.zone());
         };
-        return new TaskSpecification(name, task.type(), config, Map.of(), task.timeoutSeconds());
+        return new JobSpecification(name, task.type(), config, Map.of(), task.timeoutSeconds());
     }
 
     @Override
     public Map<String, Object> executeTool(ConnectorContext context, String toolName, Map<String, Object> args) {
         Method method = methodsByName.get(toolName);
-        if (method == null || isTaskOnly(method)) {
+        if (method == null || isJobOnly(method)) {
             throw new ConnectorException("Unknown tool: " + toolName);
         }
         return invoke(context, method, args);
     }
 
-    private static boolean isTaskOnly(Method method) {
-        Task task = method.getAnnotation(Task.class);
-        return task != null && task.isTaskOnly();
+    private static boolean isJobOnly(Method method) {
+        Job task = method.getAnnotation(Job.class);
+        return task != null && task.isJobOnly();
     }
 
     @Override
-    public Map<String, Object> executeTask(ConnectorContext context, String taskName, Map<String, Object> args) {
-        Method method = methodsByName.get(taskName);
+    public Map<String, Object> executeJob(ConnectorContext context, String name, Map<String, Object> args) {
+        Method method = methodsByName.get(name);
         if (method == null) {
-            throw new ConnectorException("Unknown task: " + taskName);
+            throw new ConnectorException("Unknown task: " + name);
         }
         return invoke(context, method, args);
     }

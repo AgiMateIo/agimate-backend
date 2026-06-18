@@ -42,8 +42,8 @@ class TimeConnectorServiceTest {
         // fire — task-only, скрыта от LLM, но регистрируется как таска-диспетчер.
         assertNull(tools.get("time.fire"));
 
-        assertEquals(1, handler.getTasks().size());
-        assertNotNull(handler.getTasks().get("time.fire"));
+        assertEquals(1, handler.getJobs().size());
+        assertNotNull(handler.getJobs().get("time.fire"));
 
         assertEquals(1, handler.getTriggers().size());
         assertNotNull(handler.getTriggers().get("trigger.time.due"));

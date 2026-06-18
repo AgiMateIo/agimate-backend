@@ -112,13 +112,13 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
         } catch (IOException e) {
             long duration = System.currentTimeMillis() - startTime;
             if (logBuilder != null) {
-                logBuilder.errorMessage(e.getMessage()).durationMs(duration);
+                logBuilder.error(e.getMessage()).durationMs(duration);
             }
             log.error("Failed to deliver webhook to {}: {}", agent.getWebhookUrl(), e.getMessage());
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             if (logBuilder != null) {
-                logBuilder.errorMessage(e.getMessage()).durationMs(duration);
+                logBuilder.error(e.getMessage()).durationMs(duration);
             }
             log.error("Unexpected error delivering webhook to {}: {}", agent.getWebhookUrl(), e.getMessage(), e);
         }

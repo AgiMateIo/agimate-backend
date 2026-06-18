@@ -26,8 +26,8 @@ public record AgentResponse(
         @Schema(description = "Masked agent key ID")
         String maskedKeyId,
 
-        @Schema(description = "Agent prompt")
-        String prompt,
+        @Schema(description = "Agent instructions")
+        String instructions,
 
         @Schema(description = "Agent type")
         AgentType type,
@@ -67,7 +67,7 @@ public record AgentResponse(
                 agent.getName(),
                 agent.getDescription(),
                 maskedKeyId,
-                agent.getPrompt(),
+                agent.getInstructions(),
                 agent.getType(),
                 agent.getWebhookUrl(),
                 agent.hasWebhookAuth(),

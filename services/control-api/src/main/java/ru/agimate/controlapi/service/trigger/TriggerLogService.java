@@ -39,10 +39,10 @@ public class TriggerLogService {
                 .userId(userId)
                 .connectorCode(trigger.connectorCode())
                 .identity(trigger.identity())
-                .triggerId(trigger.id() != null ? trigger.id() : "")
-                .triggerName(trigger.name())
+                .externalId(trigger.id() != null ? trigger.id() : "")
+                .name(trigger.name())
                 .occurredAt(occurredAt)
-                .triggerInput(trigger.data())
+                .input(trigger.data())
                 .build();
 
         return triggerLogRepository.save(triggerLog);

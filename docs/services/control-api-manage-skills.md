@@ -98,7 +98,7 @@ Lightweight agent representation used by `GET /{pubId}/agents/`.
 |-------|------|----------|-------------|
 | `id` | `uuid` | no | Agent `pubId` |
 | `name` | `string` | no | Agent display name |
-| `prompt` | `string` | yes | Agent system prompt |
+| `instructions` | `string` | yes | Agent system instructions |
 | `enabled` | `bool` | no | Whether the agent is currently enabled |
 
 ### Spring `Page<T>` envelope
@@ -235,7 +235,7 @@ Access rule: the skill must exist and be either owned by the caller or public (s
 
 | Name | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
-| `search` | `string` | no | — | Case-insensitive substring match against agent `name` or `prompt`. Blank values are ignored. |
+| `search` | `string` | no | — | Case-insensitive substring match against agent `name` or `instructions`. Blank values are ignored. |
 | `page` | `int` | no | `0` | Zero-based page index. |
 | `size` | `int` | no | `20` | Page size (max `100`). |
 
@@ -249,13 +249,13 @@ Sorted by agent `name` ascending.
       {
         "id": "0193b900-1111-7c31-a4f0-aaaa00000001",
         "name": "Standup Bot",
-        "prompt": "You are a standup facilitator...",
+        "instructions": "You are a standup facilitator...",
         "enabled": true
       },
       {
         "id": "0193b900-1111-7c31-a4f0-aaaa00000002",
         "name": "QA Reporter",
-        "prompt": "Summarize failing tests...",
+        "instructions": "Summarize failing tests...",
         "enabled": false
       }
     ],

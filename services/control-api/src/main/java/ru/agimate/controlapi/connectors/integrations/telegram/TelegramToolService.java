@@ -7,7 +7,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorContextHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.core.annotation.Task;
+import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
@@ -127,7 +127,7 @@ public class TelegramToolService {
      * {@code next_run_at = now + 60s} (общий error retry).
      */
     @Tool(name = TASK_LONG_POLL, description = "Long-poll Telegram updates and dispatch them as triggers")
-    @Task(intervalSeconds = 0, timeoutSeconds = 60)
+    @Job(intervalSeconds = 0, timeoutSeconds = 60)
     @SuppressWarnings("unchecked")
     public void longPoll() {
         ConnectorContext ctx = ConnectorContextHolder.current();

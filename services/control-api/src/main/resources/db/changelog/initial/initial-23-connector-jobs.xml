@@ -6,14 +6,14 @@
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
     <!--
-        Фоновые задачи коннекторов, разбираемые ConnectorTaskScheduler (FOR UPDATE SKIP LOCKED).
-        kind — дискриминатор: SYSTEM (декларативная, управляется reconcile-синком из getTasks(),
+        Фоновые задачи коннекторов, разбираемые ConnectorJobScheduler (FOR UPDATE SKIP LOCKED).
+        kind — дискриминатор: SYSTEM (декларативная, управляется reconcile-синком из getJobs(),
         уникальна по бизнес-ключу), AGENT (запланирована агентом), USER (зарезервировано под manage-API).
         paused_at — пользовательская пауза: scheduler не подхватывает строку, пока поле не NULL.
         user_id — владелец (всегда задан); agent_id — инициатор (NULL у декларативных задач).
     -->
-    <changeSet id="create-connector-tasks-table" author="agimate">
-        <createTable tableName="connector_tasks">
+    <changeSet id="create-connector-jobs-table" author="agimate">
+        <createTable tableName="connector_jobs">
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
@@ -28,16 +28,16 @@
             <column name="kind" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="task_name" type="TEXT">
+            <column name="name" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="task_type" type="TEXT">
+            <column name="type" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="task_config" type="JSONB" defaultValueComputed="'{}'::jsonb">
+            <column name="config" type="JSONB" defaultValueComputed="'{}'::jsonb">
                 <constraints nullable="false"/>
             </column>
-            <column name="task_args" type="JSONB" defaultValueComputed="'{}'::jsonb">
+            <column name="args" type="JSONB" defaultValueComputed="'{}'::jsonb">
                 <constraints nullable="false"/>
             </column>
             <column name="status" type="TEXT" defaultValue="PENDING">
@@ -60,13 +60,13 @@
         </createTable>
 
         <!--
-            Бизнес-ключ (connector_code, identity, task_name) — инвариант только декларативных
-            (SYSTEM) тасок. AGENT-задачи (time.schedule) делят общий task_name (time.fire) и не
+            Бизнес-ключ (connector_code, identity, name) — инвариант только декларативных
+            (SYSTEM) тасок. AGENT-задачи (time.schedule) делят общий name (time.fire) и не
             должны конфликтовать, поэтому уникальность ограничена kind = 'SYSTEM'.
         -->
         <sql>
-            CREATE UNIQUE INDEX uq_connector_tasks_identity
-                ON connector_tasks (connector_code, identity, task_name)
+            CREATE UNIQUE INDEX uq_connector_jobs_identity
+                ON connector_jobs (connector_code, identity, name)
                 WHERE kind = 'SYSTEM';
         </sql>
 
@@ -75,13 +75,13 @@
             COMPLETED-строки (выполненные ONETIME) и приостановленные (paused_at) в pickup не участвуют.
         -->
         <sql>
-            CREATE INDEX idx_connector_tasks_ready
-                ON connector_tasks (next_run_at NULLS FIRST, lease_until)
+            CREATE INDEX idx_connector_jobs_ready
+                ON connector_jobs (next_run_at NULLS FIRST, lease_until)
                 WHERE status &lt;&gt; 'COMPLETED' AND paused_at IS NULL;
         </sql>
 
         <!-- Под list/cancel задач конкретного агента. -->
-        <createIndex tableName="connector_tasks" indexName="idx_connector_tasks_agent">
+        <createIndex tableName="connector_jobs" indexName="idx_connector_jobs_agent">
             <column name="agent_id"/>
         </createIndex>
     </changeSet>

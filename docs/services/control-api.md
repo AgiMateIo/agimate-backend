@@ -87,16 +87,16 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | GET    | `/control/manage/connectors/`         | List connectors (paginated, filter by `type`, search by `name`/`description`) |
 | GET    | `/control/manage/connectors/{code}`   | Get connector by code (includes `integrationMeta` when `type=INTEGRATION`)    |
 
-### Connector Tasks (JWT)
+### Connector Jobs (JWT)
 
-> For full request/response schemas see [control-api-manage-connector-tasks.md](control-api-manage-connector-tasks.md).
+> For full request/response schemas see [control-api-manage-connector-jobs.md](control-api-manage-connector-jobs.md).
 
 | Method | Path                                              | Description                                                  |
 |--------|---------------------------------------------------|--------------------------------------------------------------|
-| GET    | `/control/manage/connector-tasks/`                 | List background connector tasks (filter by `connectorCode`, `kind`) |
-| POST   | `/control/manage/connector-tasks/{id}/pause`       | Pause a task (scheduler skips it until resumed)              |
-| POST   | `/control/manage/connector-tasks/{id}/resume`      | Resume a paused task (`nextRunAt` recomputed from now)       |
-| DELETE | `/control/manage/connector-tasks/{id}`             | Delete a USER/AGENT task (SYSTEM tasks are sync-managed)     |
+| GET    | `/control/manage/connector-jobs/`                 | List background connector jobs (filter by `connectorCode`, `kind`) |
+| POST   | `/control/manage/connector-jobs/{id}/pause`       | Pause a job (scheduler skips it until resumed)               |
+| POST   | `/control/manage/connector-jobs/{id}/resume`      | Resume a paused job (`nextRunAt` recomputed from now)        |
+| DELETE | `/control/manage/connector-jobs/{id}`             | Delete a USER/AGENT job (SYSTEM jobs are sync-managed)       |
 
 ### Skill Management (JWT)
 
@@ -172,11 +172,11 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | GET    | `/control/manage/boards/tasks/{taskPubId}/comments/`    | Get task comments             |
 | POST   | `/control/manage/boards/tasks/{taskPubId}/comments/`    | Create task comment           |
 
-### Tool Use Logs (JWT)
+### Tool Call Logs (JWT)
 
 | Method | Path                            | Description                        |
 |--------|---------------------------------|------------------------------------|
-| GET    | `/control/manage/tool-use-logs/` | List tool use logs (filter by apiKeyPubId) |
+| GET    | `/control/manage/tool-call-logs/` | List tool call logs (filter by apiKeyPubId) |
 
 ### Integration Management (JWT)
 
@@ -216,12 +216,12 @@ control-api integrates with Centrifugo for real-time messaging:
 ## AI Agent Flow
 
 1. Agent authenticates with API Key (`X-Api-Key` header)
-2. Gets settings via `GET /agent/settings` (prompt, available tools, triggers)
+2. Gets settings via `GET /agent/settings` (instructions, available tools, triggers)
 3. Gets Centrifugo token via `POST /agent/centrifugo/token` for channel `agent:{apiKeyPubId}`
 4. Subscribes to agent channel for real-time events
 5. Calls `POST /agent/tool/call/{connectorId}` to invoke a tool on a connector/control
    - Tool authorization checked against `agent_tools` table
-   - `tool_use_log` entry created
+   - `tool_call_log` entry created
 6. Device executes tool and sends result via `POST /app/tools/result`
    - `tool_use_log` updated with result
    - Result published to agent's Centrifugo channel
@@ -248,8 +248,8 @@ control-api integrates with Centrifugo for real-time messaging:
 - `connectors` — Connector authentication keys, linked device info (deviceId, deviceFeatures JSONB), triggers/tools capabilities (JSONB)
 - `trigger_logs` — Logged trigger events
 - `trigger_log_agents` — Trigger routing log per agent
-- `tool_use_logs` — Tool invocation logs (request + result)
-- `agents` — Agent configuration (prompt, triggers_allow_all, triggers_to, webhook_url, webhook_auth_header)
+- `tool_call_logs` — Tool invocation logs (request + result)
+- `agents` — Agent configuration (instructions, triggers_allow_all, triggers_to, webhook_url, webhook_auth_header)
 - `agent_tools` — Agent-to-tool access mapping
 - `agent_triggers` — Agent-to-trigger subscription mapping
 - `webhook_delivery_logs` — Webhook delivery attempt logs

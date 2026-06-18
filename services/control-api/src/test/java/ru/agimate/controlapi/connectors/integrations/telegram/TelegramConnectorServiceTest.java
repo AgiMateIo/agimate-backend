@@ -123,7 +123,7 @@ class TelegramConnectorServiceTest {
         @DisplayName("webhook-режим: supportsWebhooks=true, тасок нет")
         void webhookMode() {
             assertTrue(handler.supportsWebhooks());
-            assertTrue(handler.getTasks().isEmpty());
+            assertTrue(handler.getJobs().isEmpty());
         }
 
         @Test
@@ -132,9 +132,9 @@ class TelegramConnectorServiceTest {
             TelegramConnectorService polling = newHandler("polling");
 
             assertFalse(polling.supportsWebhooks());
-            var spec = polling.getTasks().get(TelegramToolService.TASK_LONG_POLL);
+            var spec = polling.getJobs().get(TelegramToolService.TASK_LONG_POLL);
             assertNotNull(spec);
-            assertEquals(0L, spec.taskConfig().get("intervalSeconds"));
+            assertEquals(0L, spec.config().get("intervalSeconds"));
             assertEquals(60, spec.timeoutSeconds());
         }
     }
@@ -332,7 +332,7 @@ class TelegramConnectorServiceTest {
     }
 
     @Nested
-    @DisplayName("executeTask: long_poll")
+    @DisplayName("executeJob: long_poll")
     class LongPoll {
 
         private Map<String, Object> update(long updateId, String text) {
@@ -352,8 +352,8 @@ class TelegramConnectorServiceTest {
             when(telegramApiClient.getUpdates("token123", 6L, 20))
                     .thenReturn(Map.of("ok", true, "result", List.of()));
 
-            handler.executeTask(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
-            handler.executeTask(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
+            handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
+            handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
 
             verify(telegramApiClient, times(1)).deleteWebhook("token123");
             verify(telegramApiClient).getUpdates("token123", 6L, 20);
@@ -369,7 +369,7 @@ class TelegramConnectorServiceTest {
                             HttpStatus.CONFLICT, "Conflict", HttpHeaders.EMPTY, new byte[0], null));
 
             ConnectorException e = assertThrows(ConnectorException.class, () ->
-                    handler.executeTask(context(), TelegramToolService.TASK_LONG_POLL, Map.of()));
+                    handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of()));
 
             assertNull(e.getCause());
             assertTrue(e.getMessage().contains("409"));
@@ -382,7 +382,7 @@ class TelegramConnectorServiceTest {
                     .thenReturn(Map.of("ok", false, "description", "Unauthorized"));
 
             ConnectorException e = assertThrows(ConnectorException.class, () ->
-                    handler.executeTask(context(), TelegramToolService.TASK_LONG_POLL, Map.of()));
+                    handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of()));
 
             assertTrue(e.getMessage().contains("Unauthorized"));
         }
@@ -393,7 +393,7 @@ class TelegramConnectorServiceTest {
             ConnectorContext noToken = new ConnectorContext(IDENTITY, USER_ID, null, Map.of(), null);
 
             assertThrows(ConnectorException.class, () ->
-                    handler.executeTask(noToken, TelegramToolService.TASK_LONG_POLL, Map.of()));
+                    handler.executeJob(noToken, TelegramToolService.TASK_LONG_POLL, Map.of()));
         }
 
         @Test
@@ -405,8 +405,8 @@ class TelegramConnectorServiceTest {
             when(telegramApiClient.getUpdates(eq("token123"), isNull(), eq(20)))
                     .thenReturn(Map.of("ok", true, "result", List.of()));
 
-            handler.executeTask(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
-            handler.executeTask(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
+            handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
+            handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
 
             verify(telegramApiClient, times(2)).deleteWebhook("token123");
         }

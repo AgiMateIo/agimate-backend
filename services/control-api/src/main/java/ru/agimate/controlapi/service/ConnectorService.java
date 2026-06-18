@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
 import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.entities.ToolUseLog;
+import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
@@ -27,19 +27,19 @@ public class ConnectorService {
 
     private final ToolExecutionService toolExecutionService;
 
-    public void pushToConnector(ToolUseLog toolUseLog) {
-        Connector connector = connectorRepository.findById(toolUseLog.getConnectorCode())
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + toolUseLog.getConnectorCode()));
+    public void pushToConnector(ToolCallLog toolCallLog) {
+        Connector connector = connectorRepository.findById(toolCallLog.getConnectorCode())
+                .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + toolCallLog.getConnectorCode()));
 
         switch (connector.getType()) {
             case APP -> {
-                var app = appRepository.findByIdAndUserIdNotDeleted(UUID.fromString(toolUseLog.getIdentity()), toolUseLog.getUserId())
-                        .orElseThrow(() -> new NotFoundStatusException("App not found: " + toolUseLog.getIdentity()));
-                centrifugoService.publishMessage("device:" + app.getDeviceId(), "toolUse", ToolUsePayload.from(toolUseLog));
+                var app = appRepository.findByIdAndUserIdNotDeleted(UUID.fromString(toolCallLog.getIdentity()), toolCallLog.getUserId())
+                        .orElseThrow(() -> new NotFoundStatusException("App not found: " + toolCallLog.getIdentity()));
+                centrifugoService.publishMessage("device:" + app.getDeviceId(), "toolUse", ToolUsePayload.from(toolCallLog));
             }
-            case INTEGRATION, INTERNAL_SERVICE -> toolExecutionService.executeTool(toolUseLog);
+            case INTEGRATION, INTERNAL_SERVICE -> toolExecutionService.executeTool(toolCallLog);
             case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}",
-                    toolUseLog.getConnectorCode(), toolUseLog.getToolName());
+                    toolCallLog.getConnectorCode(), toolCallLog.getName());
         }
     }
 

@@ -2,7 +2,7 @@
 
 Stateless-механизм полуавтоматического создания канала / диагностики доставки триггеров. UI запрашивает у бэка случайный probe-код, пользователь отправляет сообщение, содержащее этот код, через любую свою интеграцию (Telegram-бот, Slack, app endpoint). Бэк находит соответствующую запись в `trigger_logs` и возвращает её UI — на основе TriggerLog UI заполняет форму канала или показывает диагностику доставки.
 
-Бэк **не** хранит probe-состояние: код самодостаточен (префикс кодирует режим, хвост — энтропию), match — это поиск подстроки в `trigger_logs.trigger_input::text`.
+Бэк **не** хранит probe-состояние: код самодостаточен (префикс кодирует режим, хвост — энтропию), match — это поиск подстроки в `trigger_logs.input::text`.
 
 > Все пути ниже — относительно context path `/control`.
 
@@ -47,7 +47,7 @@ UI должен запомнить `code` и `issuedAt`, и передавать
 
 ### `GET /manage/trigger-logs/probe/match?code=...&since=...`
 
-Ищет первый `trigger_log` текущего пользователя, созданный начиная с `since`, у которого `trigger_input` содержит `code` (подстрочное совпадение).
+Ищет первый `trigger_log` текущего пользователя, созданный начиная с `since`, у которого `input` содержит `code` (подстрочное совпадение).
 
 Параметры:
 - `code` — обязателен, должен соответствовать regex `^agm-probe-(block|pass)-[a-z0-9]{10}$`, иначе 400.
@@ -60,10 +60,10 @@ Response 200 (найдено):
     "id": "<UUID>",
     "connectorCode": "telegram",
     "identity": "<UUID>",
-    "triggerId": "...",
-    "triggerName": "trigger.message.new",
+    "externalId": "...",
+    "name": "trigger.message.new",
     "occurredAt": "2026-05-12T14:33:10",
-    "triggerInput": { ... raw JSONB ... },
+    "input": { ... raw JSONB ... },
     "createdAt": "2026-05-12T14:33:11",
     "agentsCount": 0
   }
@@ -82,9 +82,9 @@ Response 404 (ещё не сматчилось — UI продолжает по�
 3. UI поллит `GET /manage/trigger-logs/probe/match?code=...&since=<issuedAt>` каждые 1–2 сек.
 4. При матче UI получает полный `TriggerLog` и сам предзаполняет форму `POST /manage/channels/`:
    - `connectorCode = triggerLog.connectorCode`, `identity = triggerLog.identity`
-   - `channelHandler = "generic"` (по умолчанию), `config.triggers = [triggerLog.triggerName]`
+   - `channelHandler = "generic"` (по умолчанию), `config.triggers = [triggerLog.name]`
    - reply-сторону в `config` (`replyConnectorCode`/`replyIdentity`/`replyToolName`) по умолчанию можно подставить из trigger-стороны (UI решает).
-   - `triggerInput` показывается пользователю как образец payload — он может выбрать поля для `input_filter`.
+   - `input` показывается пользователю как образец payload — он может выбрать поля для `input_filter`.
 
 ## Поток (Delivery diagnostic, future)
 

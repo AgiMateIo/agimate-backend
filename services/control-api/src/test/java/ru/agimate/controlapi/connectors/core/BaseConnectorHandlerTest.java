@@ -4,13 +4,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import ru.agimate.controlapi.connectors.core.annotation.Task;
+import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.JsonSchema;
-import ru.agimate.controlapi.connectors.core.dto.TaskSpecification;
-import ru.agimate.controlapi.database.enums.ConnectorTaskType;
+import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -43,7 +43,7 @@ class BaseConnectorHandlerTest {
     class GetTools {
 
         @Test
-        @DisplayName("возвращает @Tool-методы без @Task")
+        @DisplayName("возвращает @Tool-методы без @Job")
         void exposesPlainTools() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
@@ -53,7 +53,7 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("исключает @Task(isTaskOnly = true)-методы")
+        @DisplayName("исключает @Job(isJobOnly = true)-методы")
         void excludesTaskOnlyMethods() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
@@ -62,7 +62,7 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("включает @Task(isTaskOnly = false)-метод как тулу")
+        @DisplayName("включает @Job(isJobOnly = false)-метод как тулу")
         void exposesDualTaskAsTool() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
@@ -113,47 +113,47 @@ class BaseConnectorHandlerTest {
     }
 
     @Nested
-    @DisplayName("getTasks")
+    @DisplayName("getJobs")
     class GetTasks {
 
         @Test
         @DisplayName("строит PERIODIC-спеку из атрибутов аннотации")
         void buildsPeriodicSpecification() {
-            TaskSpecification spec = handler.getTasks().get("test.periodic_task");
+            JobSpecification spec = handler.getJobs().get("test.periodic_task");
 
             assertNotNull(spec);
-            assertEquals(ConnectorTaskType.PERIODIC, spec.taskType());
-            assertEquals(5L, spec.taskConfig().get("intervalSeconds"));
+            assertEquals(ConnectorJobType.PERIODIC, spec.type());
+            assertEquals(5L, spec.config().get("intervalSeconds"));
             assertEquals(60, spec.timeoutSeconds());
-            assertTrue(spec.taskArgs().isEmpty());
+            assertTrue(spec.args().isEmpty());
         }
 
         @Test
         @DisplayName("строит CRON-спеку из атрибутов аннотации")
         void buildsCronSpecification() {
-            TaskSpecification spec = handler.getTasks().get("test.cron_task");
+            JobSpecification spec = handler.getJobs().get("test.cron_task");
 
             assertNotNull(spec);
-            assertEquals(ConnectorTaskType.CRON, spec.taskType());
-            assertEquals("0 0 * * * *", spec.taskConfig().get("cron"));
-            assertEquals("Europe/Moscow", spec.taskConfig().get("zone"));
+            assertEquals(ConnectorJobType.CRON, spec.type());
+            assertEquals("0 0 * * * *", spec.config().get("cron"));
+            assertEquals("Europe/Moscow", spec.config().get("zone"));
             assertEquals(120, spec.timeoutSeconds());
         }
 
         @Test
         @DisplayName("не содержит обычных тулов")
         void excludesPlainTools() {
-            assertFalse(handler.getTasks().containsKey("test.echo"));
+            assertFalse(handler.getJobs().containsKey("test.echo"));
         }
 
         @Test
-        @DisplayName("содержит @Task(isTaskOnly = false)-метод")
+        @DisplayName("содержит @Job(isJobOnly = false)-метод")
         void includesDualTaskTool() {
-            TaskSpecification spec = handler.getTasks().get("test.dual_task");
+            JobSpecification spec = handler.getJobs().get("test.dual_task");
 
             assertNotNull(spec);
-            assertEquals(ConnectorTaskType.PERIODIC, spec.taskType());
-            assertEquals(10L, spec.taskConfig().get("intervalSeconds"));
+            assertEquals(ConnectorJobType.PERIODIC, spec.type());
+            assertEquals(10L, spec.config().get("intervalSeconds"));
         }
     }
 
@@ -185,18 +185,18 @@ class BaseConnectorHandlerTest {
                     Map.of("n", 7, "kind", "CRON"));
 
             assertEquals(7, result.get("n"));
-            assertEquals(ConnectorTaskType.CRON, result.get("kind"));
+            assertEquals(ConnectorJobType.CRON, result.get("kind"));
         }
 
         @Test
-        @DisplayName("отклоняет @Task(isTaskOnly = true)-метод")
+        @DisplayName("отклоняет @Job(isJobOnly = true)-метод")
         void rejectsTaskOnlyMethod() {
             assertThrows(ConnectorException.class,
                     () -> handler.executeTool(CONTEXT, "test.periodic_task", Map.of()));
         }
 
         @Test
-        @DisplayName("вызывает @Task(isTaskOnly = false)-метод как тулу")
+        @DisplayName("вызывает @Job(isJobOnly = false)-метод как тулу")
         void invokesDualTaskAsTool() {
             Map<String, Object> result = handler.executeTool(CONTEXT, "test.dual_task", Map.of());
 
@@ -234,13 +234,13 @@ class BaseConnectorHandlerTest {
     }
 
     @Nested
-    @DisplayName("executeTask")
+    @DisplayName("executeJob")
     class ExecuteTask {
 
         @Test
-        @DisplayName("вызывает @Task-метод, void нормализуется в пустую мапу")
+        @DisplayName("вызывает @Job-метод, void нормализуется в пустую мапу")
         void invokesTaskOnlyMethod() {
-            Map<String, Object> result = handler.executeTask(CONTEXT, "test.periodic_task", Map.of());
+            Map<String, Object> result = handler.executeJob(CONTEXT, "test.periodic_task", Map.of());
 
             assertTrue(result.isEmpty());
             assertEquals(1, toolService.periodicRuns);
@@ -250,7 +250,7 @@ class BaseConnectorHandlerTest {
         @Test
         @DisplayName("fallback: таска может вызвать обычную тулу")
         void fallsBackToPlainTool() {
-            Map<String, Object> result = handler.executeTask(CONTEXT, "test.echo", Map.of("text", "scheduled"));
+            Map<String, Object> result = handler.executeJob(CONTEXT, "test.echo", Map.of("text", "scheduled"));
 
             assertEquals("scheduled", result.get("text"));
         }
@@ -259,7 +259,7 @@ class BaseConnectorHandlerTest {
         @DisplayName("отклоняет неизвестную таску")
         void rejectsUnknownTask() {
             assertThrows(ConnectorException.class,
-                    () -> handler.executeTask(CONTEXT, "test.unknown", Map.of()));
+                    () -> handler.executeJob(CONTEXT, "test.unknown", Map.of()));
         }
     }
 
@@ -296,26 +296,26 @@ class BaseConnectorHandlerTest {
         }
 
         @Tool(name = "test.periodic_task", description = "Periodic background task")
-        @Task(intervalSeconds = 5, timeoutSeconds = 60)
+        @Job(intervalSeconds = 5, timeoutSeconds = 60)
         public void periodicTask() {
             observedContext = ConnectorContextHolder.current();
             periodicRuns++;
         }
 
         @Tool(name = "test.cron_task", description = "Cron background task")
-        @Task(type = ConnectorTaskType.CRON, cron = "0 0 * * * *", zone = "Europe/Moscow", timeoutSeconds = 120)
+        @Job(type = ConnectorJobType.CRON, cron = "0 0 * * * *", zone = "Europe/Moscow", timeoutSeconds = 120)
         public void cronTask() {
         }
 
         @Tool(name = "test.dual_task", description = "Both an LLM tool and a scheduled task")
-        @Task(intervalSeconds = 10, isTaskOnly = false)
+        @Job(intervalSeconds = 10, isJobOnly = false)
         public void dualTask() {
             observedContext = ConnectorContextHolder.current();
             dualRuns++;
         }
 
         @Tool(name = "test.typed", description = "Non-String typed params")
-        public Map<String, Object> typed(@ToolParam("Number") int n, @ToolParam("Kind") ConnectorTaskType kind) {
+        public Map<String, Object> typed(@ToolParam("Number") int n, @ToolParam("Kind") ConnectorJobType kind) {
             Map<String, Object> result = new HashMap<>();
             result.put("n", n);
             result.put("kind", kind);

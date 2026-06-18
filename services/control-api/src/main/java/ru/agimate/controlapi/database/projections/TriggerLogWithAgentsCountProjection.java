@@ -8,10 +8,10 @@ public interface TriggerLogWithAgentsCountProjection {
     UUID getId();
     String getConnectorCode();
     String getIdentity();
-    String getTriggerId();
-    String getTriggerName();
+    String getExternalId();
+    String getName();
     LocalDateTime getOccurredAt();
-    Map<String, Object> getTriggerInput();
+    Map<String, Object> getInput();
     LocalDateTime getCreatedAt();
     long getAgentsCount();
 }

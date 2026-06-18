@@ -16,8 +16,8 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
 
     @Query("""
             SELECT t.id AS id, t.connectorCode AS connectorCode, t.identity AS identity,
-                   t.triggerId AS triggerId, t.triggerName AS triggerName,
-                   t.occurredAt AS occurredAt, t.triggerInput AS triggerInput, t.createdAt AS createdAt,
+                   t.externalId AS externalId, t.name AS name,
+                   t.occurredAt AS occurredAt, t.input AS input, t.createdAt AS createdAt,
                    SIZE(t.triggerLogAgents) AS agentsCount
             FROM TriggerLog t
             WHERE t.userId = :userId
@@ -29,7 +29,7 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
             SELECT tl.* FROM trigger_logs tl
             WHERE tl.user_id = :userId
               AND tl.created_at >= :since
-              AND tl.trigger_input::text ILIKE CONCAT('%', :code, '%')
+              AND tl.input::text ILIKE CONCAT('%', :code, '%')
             ORDER BY tl.created_at ASC
             LIMIT 1
             """, nativeQuery = true)

@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.service.dto;
 
-import ru.agimate.controlapi.database.entities.ToolUseLog;
+import ru.agimate.controlapi.database.entities.ToolCallLog;
 
 import java.util.Map;
 
@@ -12,12 +12,12 @@ public record ToolUsePayload(
         Map<String, Object> input,
         String agentSessionId
 ) {
-    public static ToolUsePayload from(ToolUseLog log) {
+    public static ToolUsePayload from(ToolCallLog log) {
         return new ToolUsePayload(
-                log.getToolUseId(),
+                log.getExternalId(),
                 log.getConnectorCode(),
                 log.getIdentity(),
-                log.getToolName(),
+                log.getName(),
                 log.getInput(),
                 log.getAgentSessionId()
         );

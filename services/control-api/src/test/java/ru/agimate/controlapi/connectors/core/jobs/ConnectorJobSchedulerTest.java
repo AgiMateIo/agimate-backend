@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.connectors.core.tasks;
+package ru.agimate.controlapi.connectors.core.jobs;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -7,8 +7,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.agimate.controlapi.database.entities.ConnectorTask;
-import ru.agimate.controlapi.database.enums.ConnectorTaskType;
+import ru.agimate.controlapi.database.entities.ConnectorJob;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,29 +26,29 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("ConnectorTaskScheduler")
-class ConnectorTaskSchedulerTest {
+@DisplayName("ConnectorJobScheduler")
+class ConnectorJobSchedulerTest {
 
     private static final long VERIFY_TIMEOUT_MS = 2_000;
 
     @Mock
-    private ConnectorTaskService taskService;
+    private ConnectorJobService jobService;
 
     @Mock
-    private TaskExecutionService taskExecutionService;
+    private JobExecutionService jobExecutionService;
 
     @InjectMocks
-    private ConnectorTaskScheduler scheduler;
+    private ConnectorJobScheduler scheduler;
 
-    private ConnectorTask row(ConnectorTaskType type, Map<String, Object> config) {
-        return ConnectorTask.builder()
+    private ConnectorJob row(ConnectorJobType type, Map<String, Object> config) {
+        return ConnectorJob.builder()
                 .id(UUID.randomUUID())
                 .connectorCode("test")
                 .identity("identity-1")
-                .taskName("test.task")
-                .taskType(type)
-                .taskConfig(config)
-                .taskArgs(Map.of())
+                .name("test.task")
+                .type(type)
+                .config(config)
+                .args(Map.of())
                 .timeoutSeconds(60)
                 .build();
     }
@@ -56,25 +56,25 @@ class ConnectorTaskSchedulerTest {
     @Test
     @DisplayName("ONETIME: успех → markCompleted без следующего запуска")
     void onetimeSuccess() {
-        ConnectorTask row = row(ConnectorTaskType.ONETIME, Map.of());
-        when(taskService.claimReady(100)).thenReturn(List.of(row));
+        ConnectorJob row = row(ConnectorJobType.ONETIME, Map.of());
+        when(jobService.claimReady(100)).thenReturn(List.of(row));
 
         scheduler.tick();
 
-        verify(taskService, timeout(VERIFY_TIMEOUT_MS)).markCompleted(row.getId(), null);
+        verify(jobService, timeout(VERIFY_TIMEOUT_MS)).markCompleted(row.getId(), null);
     }
 
     @Test
     @DisplayName("ONETIME: ошибка → PENDING с retry через ~60s")
     void onetimeFailure() {
-        ConnectorTask row = row(ConnectorTaskType.ONETIME, Map.of());
-        when(taskService.claimReady(100)).thenReturn(List.of(row));
-        when(taskExecutionService.executeTask(row)).thenThrow(new IllegalStateException("boom"));
+        ConnectorJob row = row(ConnectorJobType.ONETIME, Map.of());
+        when(jobService.claimReady(100)).thenReturn(List.of(row));
+        when(jobExecutionService.executeJob(row)).thenThrow(new IllegalStateException("boom"));
 
         scheduler.tick();
 
         ArgumentCaptor<LocalDateTime> nextRun = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(taskService, timeout(VERIFY_TIMEOUT_MS))
+        verify(jobService, timeout(VERIFY_TIMEOUT_MS))
                 .complete(eq(row.getId()), nextRun.capture(), contains("boom"));
         assertCloseTo(LocalDateTime.now().plusSeconds(60), nextRun.getValue());
     }
@@ -82,13 +82,13 @@ class ConnectorTaskSchedulerTest {
     @Test
     @DisplayName("PERIODIC: успех → next_run_at = now + intervalSeconds")
     void periodicSuccess() {
-        ConnectorTask row = row(ConnectorTaskType.PERIODIC, Map.of("intervalSeconds", 30));
-        when(taskService.claimReady(100)).thenReturn(List.of(row));
+        ConnectorJob row = row(ConnectorJobType.PERIODIC, Map.of("intervalSeconds", 30));
+        when(jobService.claimReady(100)).thenReturn(List.of(row));
 
         scheduler.tick();
 
         ArgumentCaptor<LocalDateTime> nextRun = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(taskService, timeout(VERIFY_TIMEOUT_MS))
+        verify(jobService, timeout(VERIFY_TIMEOUT_MS))
                 .complete(eq(row.getId()), nextRun.capture(), isNull());
         assertCloseTo(LocalDateTime.now().plusSeconds(30), nextRun.getValue());
     }
@@ -96,14 +96,14 @@ class ConnectorTaskSchedulerTest {
     @Test
     @DisplayName("PERIODIC: ошибка → retry через ~60s")
     void periodicFailure() {
-        ConnectorTask row = row(ConnectorTaskType.PERIODIC, Map.of("intervalSeconds", 5));
-        when(taskService.claimReady(100)).thenReturn(List.of(row));
-        when(taskExecutionService.executeTask(row)).thenThrow(new IllegalStateException("fail"));
+        ConnectorJob row = row(ConnectorJobType.PERIODIC, Map.of("intervalSeconds", 5));
+        when(jobService.claimReady(100)).thenReturn(List.of(row));
+        when(jobExecutionService.executeJob(row)).thenThrow(new IllegalStateException("fail"));
 
         scheduler.tick();
 
         ArgumentCaptor<LocalDateTime> nextRun = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(taskService, timeout(VERIFY_TIMEOUT_MS))
+        verify(jobService, timeout(VERIFY_TIMEOUT_MS))
                 .complete(eq(row.getId()), nextRun.capture(), contains("fail"));
         assertCloseTo(LocalDateTime.now().plusSeconds(60), nextRun.getValue());
     }
@@ -112,13 +112,13 @@ class ConnectorTaskSchedulerTest {
     @DisplayName("CRON: next_run_at = следующий тик выражения")
     void cronNextTick() {
         // каждый час в 00:00 — следующий запуск на границе часа
-        ConnectorTask row = row(ConnectorTaskType.CRON, Map.of("cron", "0 0 * * * *", "zone", "UTC"));
-        when(taskService.claimReady(100)).thenReturn(List.of(row));
+        ConnectorJob row = row(ConnectorJobType.CRON, Map.of("cron", "0 0 * * * *", "zone", "UTC"));
+        when(jobService.claimReady(100)).thenReturn(List.of(row));
 
         scheduler.tick();
 
         ArgumentCaptor<LocalDateTime> nextRun = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(taskService, timeout(VERIFY_TIMEOUT_MS))
+        verify(jobService, timeout(VERIFY_TIMEOUT_MS))
                 .complete(eq(row.getId()), nextRun.capture(), isNull());
         assertEquals(0, nextRun.getValue().getMinute());
         assertEquals(0, nextRun.getValue().getSecond());
@@ -128,13 +128,13 @@ class ConnectorTaskSchedulerTest {
     @Test
     @DisplayName("CRON без выражения → отодвигается далеко (без busy-loop)")
     void cronWithoutExpression() {
-        ConnectorTask row = row(ConnectorTaskType.CRON, Map.of());
-        when(taskService.claimReady(100)).thenReturn(List.of(row));
+        ConnectorJob row = row(ConnectorJobType.CRON, Map.of());
+        when(jobService.claimReady(100)).thenReturn(List.of(row));
 
         scheduler.tick();
 
         ArgumentCaptor<LocalDateTime> nextRun = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(taskService, timeout(VERIFY_TIMEOUT_MS))
+        verify(jobService, timeout(VERIFY_TIMEOUT_MS))
                 .complete(eq(row.getId()), nextRun.capture(), isNull());
         assertTrue(nextRun.getValue().isAfter(LocalDateTime.now().plusYears(9)));
     }
@@ -142,11 +142,11 @@ class ConnectorTaskSchedulerTest {
     @Test
     @DisplayName("пустой claim — ничего не исполняется")
     void emptyClaim() {
-        when(taskService.claimReady(100)).thenReturn(List.of());
+        when(jobService.claimReady(100)).thenReturn(List.of());
 
         scheduler.tick();
 
-        verify(taskExecutionService, timeout(200).times(0)).executeTask(any());
+        verify(jobExecutionService, timeout(200).times(0)).executeJob(any());
     }
 
     private static void assertCloseTo(LocalDateTime expected, LocalDateTime actual) {

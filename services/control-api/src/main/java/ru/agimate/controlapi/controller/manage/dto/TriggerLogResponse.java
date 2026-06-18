@@ -21,17 +21,17 @@ public record TriggerLogResponse(
         String identity,
 
         @Schema(description = "Trigger ID")
-        String triggerId,
+        String externalId,
 
         @Schema(description = "Trigger name")
-        String triggerName,
+        String name,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the trigger occurred")
         LocalDateTime occurredAt,
 
         @Schema(description = "Trigger input")
-        Map<String, Object> triggerInput,
+        Map<String, Object> input,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the log was created")
@@ -45,10 +45,10 @@ public record TriggerLogResponse(
                 projection.getId(),
                 projection.getConnectorCode(),
                 projection.getIdentity(),
-                projection.getTriggerId(),
-                projection.getTriggerName(),
+                projection.getExternalId(),
+                projection.getName(),
                 projection.getOccurredAt(),
-                projection.getTriggerInput(),
+                projection.getInput(),
                 projection.getCreatedAt(),
                 projection.getAgentsCount()
         );
@@ -60,10 +60,10 @@ public record TriggerLogResponse(
                 entity.getId(),
                 entity.getConnectorCode(),
                 entity.getIdentity(),
-                entity.getTriggerId(),
-                entity.getTriggerName(),
+                entity.getExternalId(),
+                entity.getName(),
                 entity.getOccurredAt(),
-                entity.getTriggerInput(),
+                entity.getInput(),
                 entity.getCreatedAt(),
                 agentsCount
         );

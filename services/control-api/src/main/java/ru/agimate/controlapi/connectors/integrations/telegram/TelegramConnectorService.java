@@ -8,7 +8,7 @@ import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
-import ru.agimate.controlapi.connectors.core.dto.TaskSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpecification;
 import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -73,8 +73,8 @@ public class TelegramConnectorService extends BaseConnectorHandler implements In
 
     /** Long-poll нужен только в polling-режиме; в webhook-режиме фоновых тасок нет. */
     @Override
-    public Map<String, TaskSpecification> getTasks() {
-        return isPollingMode() ? super.getTasks() : Map.of();
+    public Map<String, JobSpecification> getJobs() {
+        return isPollingMode() ? super.getJobs() : Map.of();
     }
 
     @Override

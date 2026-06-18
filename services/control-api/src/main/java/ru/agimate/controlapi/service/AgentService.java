@@ -31,7 +31,7 @@ import ru.agimate.controlapi.database.repositories.AgentToolPolicyRepository;
 import ru.agimate.controlapi.database.repositories.AgentTriggerPolicyRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.AppRepository;
-import ru.agimate.controlapi.database.repositories.ConnectorTaskRepository;
+import ru.agimate.controlapi.database.repositories.ConnectorJobRepository;
 import ru.agimate.controlapi.util.AppKeyUtils;
 import ru.agimate.controlapi.util.GeneratedAppKey;
 
@@ -54,7 +54,7 @@ public class AgentService {
     private final AgenticTeamRepository agenticTeamRepository;
     private final AppRepository appRepository;
     private final AgentLlmService agentLlmService;
-    private final ConnectorTaskRepository connectorTaskRepository;
+    private final ConnectorJobRepository connectorJobRepository;
 
     public Page<AgentResponse> getAllForUser(UUID userId, UUID agenticTeamId, String search, int page, int size) {
         if (agenticTeamId != null) {
@@ -140,7 +140,7 @@ public class AgentService {
 
         return new AgentConfigResponse(
                 agent.getId(),
-                agent.getPrompt(),
+                agent.getInstructions(),
                 toolDefinitions,
                 triggerNames
         );
@@ -153,7 +153,7 @@ public class AgentService {
                 agent.getId(),
                 agent.getName(),
                 agent.getDescription(),
-                agent.getPrompt()
+                agent.getInstructions()
         );
 
         AgentContextResponse.Team team = null;
@@ -286,7 +286,7 @@ public class AgentService {
                 .userId(userId)
                 .name(request.name())
                 .description(request.description())
-                .prompt(request.prompt())
+                .instructions(request.instructions())
                 .type(type)
                 .webhookUrl(request.webhookUrl())
                 .webhookAuthHeader(request.webhookAuthHeader())
@@ -335,7 +335,7 @@ public class AgentService {
             agent.setName(request.name());
         }
         agent.setDescription(request.description());
-        agent.setPrompt(request.prompt());
+        agent.setInstructions(request.instructions());
         agent.setType(type);
         agent.setWebhookUrl(request.webhookUrl());
         agent.setWebhookAuthHeader(request.webhookAuthHeader());
@@ -363,7 +363,7 @@ public class AgentService {
 
         agentToolPolicyRepository.deleteByAgentId(agent.getId());
         agentTriggerPolicyRepository.deleteByAgentId(agent.getId());
-        connectorTaskRepository.deleteByAgentId(agent.getId());
+        connectorJobRepository.deleteByAgentId(agent.getId());
         agentRepository.delete(agent);
 
         log.info("Deleted agent id={}", id);

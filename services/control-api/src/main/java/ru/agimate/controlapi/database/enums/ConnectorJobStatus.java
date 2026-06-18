@@ -1,7 +1,7 @@
 package ru.agimate.controlapi.database.enums;
 
 /**
- * Состояние строки {@code connector_tasks} в pull‑based scheduler'е.
+ * Состояние строки {@code connector_jobs} в pull‑based scheduler'е.
  * <ul>
  *   <li>{@link #PENDING} — задача в очереди, ждёт момента {@code next_run_at}.</li>
  *   <li>{@link #RUNNING} — текущая нода claim'нула строку и выполняет её. {@code lease_until}
@@ -11,7 +11,7 @@ package ru.agimate.controlapi.database.enums;
  *       больше не подхватывается. Upsert по бизнес‑ключу возвращает её в {@code PENDING}.</li>
  * </ul>
  */
-public enum ConnectorTaskStatus {
+public enum ConnectorJobStatus {
     PENDING,
     RUNNING,
     COMPLETED

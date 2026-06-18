@@ -13,7 +13,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
-import ru.agimate.controlapi.database.entities.ToolUseLog;
+import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.service.tool.AgentToolUseService;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
@@ -79,10 +79,10 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
             if (request.getToolUseId().isEmpty()) {
                 throw Status.INVALID_ARGUMENT.withDescription("tool_use_id is required").asRuntimeException();
             }
-            ToolUseLog logEntry = agentToolUseService.getToolUseLog(agentId, request.getToolUseId());
+            ToolCallLog logEntry = agentToolUseService.getToolCallLog(agentId, request.getToolUseId());
 
             GetToolResultResponse.Builder builder = GetToolResultResponse.newBuilder();
-            if (logEntry.getOutputAt() == null) {
+            if (logEntry.getFinishAt() == null) {
                 builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_PENDING);
             } else if (logEntry.getError() != null) {
                 builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_ERROR)

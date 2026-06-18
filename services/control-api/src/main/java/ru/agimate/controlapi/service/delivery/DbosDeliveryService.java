@@ -59,7 +59,7 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         client.enqueueWorkflow(options, new Object[]{message});
         log.debug("{} '{}' enqueued to DBOS queue '{}' for agent '{}'",
                 type,
-                triggerLogAgent.getTriggerLog().getTriggerName(),
+                triggerLogAgent.getTriggerLog().getName(),
                 workflow.getQueueName(),
                 agentId);
     }

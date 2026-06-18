@@ -15,16 +15,16 @@ import java.util.Map;
 import java.util.UUID;
 
 @Entity
-@Table(name = "tool_use_logs", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_tool_use_logs_agent_id_tool_use_id",
-                columnNames = {"agent_id", "tool_use_id"})
+@Table(name = "tool_call_logs", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_tool_call_logs_agent_id_external_id",
+                columnNames = {"agent_id", "external_id"})
 })
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ToolUseLog extends BaseEntity {
+public class ToolCallLog extends BaseEntity {
 
     @Id
     @Generated
@@ -44,11 +44,11 @@ public class ToolUseLog extends BaseEntity {
     @Column(name = "identity", columnDefinition = "TEXT")
     private String identity;
 
-    @Column(name = "tool_use_id", nullable = false, columnDefinition = "TEXT")
-    private String toolUseId;
+    @Column(name = "external_id", nullable = false, columnDefinition = "TEXT")
+    private String externalId;
 
-    @Column(name = "tool_name", nullable = false, columnDefinition = "TEXT")
-    private String toolName;
+    @Column(name = "name", nullable = false, columnDefinition = "TEXT")
+    private String name;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "input", columnDefinition = "JSONB")
@@ -61,8 +61,8 @@ public class ToolUseLog extends BaseEntity {
     @Column(name = "access_effect", columnDefinition = "TEXT")
     private AccessEffect accessEffect;
 
-    @Column(name = "output_at")
-    private LocalDateTime outputAt;
+    @Column(name = "finish_at")
+    private LocalDateTime finishAt;
 
     @Column(name = "output", columnDefinition = "TEXT")
     private String output;
@@ -71,7 +71,7 @@ public class ToolUseLog extends BaseEntity {
     private String error;
 
     public void applyResult(IToolResult toolResult) {
-        this.outputAt = LocalDateTime.now();
+        this.finishAt = LocalDateTime.now();
         this.output = toolResult.getOutput();
         this.error = toolResult.getError();
     }

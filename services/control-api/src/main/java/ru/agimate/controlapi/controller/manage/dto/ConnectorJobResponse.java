@@ -2,22 +2,22 @@ package ru.agimate.controlapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.controlapi.database.entities.ConnectorTask;
-import ru.agimate.controlapi.database.enums.ConnectorTaskKind;
-import ru.agimate.controlapi.database.enums.ConnectorTaskStatus;
-import ru.agimate.controlapi.database.enums.ConnectorTaskType;
+import ru.agimate.controlapi.database.entities.ConnectorJob;
+import ru.agimate.controlapi.database.enums.ConnectorJobKind;
+import ru.agimate.controlapi.database.enums.ConnectorJobStatus;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
 @Schema(description = "Background connector task")
-public record ConnectorTaskResponse(
-        @Schema(description = "Task ID")
+public record ConnectorJobResponse(
+        @Schema(description = "Job ID")
         UUID id,
 
-        @Schema(description = "Task origin: SYSTEM (declared by connector), USER, AGENT")
-        ConnectorTaskKind kind,
+        @Schema(description = "Job origin: SYSTEM (declared by connector), USER, AGENT")
+        ConnectorJobKind kind,
 
         @Schema(description = "Connector code")
         String connectorCode,
@@ -28,20 +28,20 @@ public record ConnectorTaskResponse(
         @Schema(description = "Initiating (or target) agent ID; null for SYSTEM tasks")
         UUID agentId,
 
-        @Schema(description = "Task name dispatched to the connector")
-        String taskName,
+        @Schema(description = "Job name dispatched to the connector")
+        String name,
 
         @Schema(description = "Schedule type")
-        ConnectorTaskType taskType,
+        ConnectorJobType type,
 
         @Schema(description = "Schedule parameters (intervalSeconds / cron + zone)")
-        Map<String, Object> taskConfig,
+        Map<String, Object> config,
 
         @Schema(description = "Arguments passed to the task on each run")
-        Map<String, Object> taskArgs,
+        Map<String, Object> args,
 
         @Schema(description = "Scheduler state")
-        ConnectorTaskStatus status,
+        ConnectorJobStatus status,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "Next scheduled run; null for COMPLETED")
@@ -58,17 +58,17 @@ public record ConnectorTaskResponse(
         @Schema(description = "When the task was created")
         LocalDateTime createdAt
 ) {
-    public static ConnectorTaskResponse from(ConnectorTask task) {
-        return new ConnectorTaskResponse(
+    public static ConnectorJobResponse from(ConnectorJob task) {
+        return new ConnectorJobResponse(
                 task.getId(),
                 task.getKind(),
                 task.getConnectorCode(),
                 task.getIdentity(),
                 task.getAgentId(),
-                task.getTaskName(),
-                task.getTaskType(),
-                task.getTaskConfig(),
-                task.getTaskArgs(),
+                task.getName(),
+                task.getType(),
+                task.getConfig(),
+                task.getArgs(),
                 task.getStatus(),
                 task.getNextRunAt(),
                 task.getPausedAt(),

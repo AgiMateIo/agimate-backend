@@ -9,7 +9,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.controlapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.AppService;
-import ru.agimate.controlapi.service.tool.ToolUseLogService;
+import ru.agimate.controlapi.service.tool.ToolCallLogService;
 
 @Slf4j
 @RestController
@@ -21,7 +21,7 @@ public class AppToolsController {
 
     private final AppService appService;
     private final AgentDeliveryService agentDeliveryService;
-    private final ToolUseLogService toolUseLogService;
+    private final ToolCallLogService toolCallLogService;
 
     @PostMapping("/result")
     public SuccessResponse<String> submitToolResult(
@@ -33,8 +33,8 @@ public class AppToolsController {
 
         var app = appService.getApp(authentication);
 
-        var toolUseLog = toolUseLogService.recordOutput(app, toolResultRequest);
-        agentDeliveryService.deliverToolResult(toolUseLog.getAgentId(), toolResultRequest);
+        var toolCallLog = toolCallLogService.recordOutput(app, toolResultRequest);
+        agentDeliveryService.deliverToolResult(toolCallLog.getAgentId(), toolResultRequest);
 
         return SuccessResponse.empty();
     }

@@ -8,65 +8,65 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.controlapi.controller.manage.dto.ConnectorTaskResponse;
-import ru.agimate.controlapi.database.enums.ConnectorTaskKind;
-import ru.agimate.controlapi.service.ConnectorTaskManageService;
+import ru.agimate.controlapi.controller.manage.dto.ConnectorJobResponse;
+import ru.agimate.controlapi.database.enums.ConnectorJobKind;
+import ru.agimate.controlapi.service.ConnectorJobManageService;
 
 import java.util.UUID;
 
 @RestController
-@RequestMapping(ManageConnectorTaskController.PATH)
+@RequestMapping(ManageConnectorJobController.PATH)
 @RequiredArgsConstructor
-@Tag(name = "Connector Tasks", description = "Manage background connector tasks")
-public class ManageConnectorTaskController {
+@Tag(name = "Connector Jobs", description = "Manage background connector jobs")
+public class ManageConnectorJobController {
 
-    public static final String PATH = "/manage/connector-tasks";
+    public static final String PATH = "/manage/connector-jobs";
 
-    private final ConnectorTaskManageService connectorTaskManageService;
+    private final ConnectorJobManageService connectorJobManageService;
 
-    @Operation(summary = "List background tasks with optional connector and kind filters")
+    @Operation(summary = "List background jobs with optional connector and kind filters")
     @GetMapping("/")
-    public SuccessResponse<Page<ConnectorTaskResponse>> getTasks(
+    public SuccessResponse<Page<ConnectorJobResponse>> getJobs(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) String connectorCode,
-            @RequestParam(required = false) ConnectorTaskKind kind,
+            @RequestParam(required = false) ConnectorJobKind kind,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(connectorTaskManageService.getTasks(userId, connectorCode, kind, page, size));
+        return SuccessResponse.ok(connectorJobManageService.getJobs(userId, connectorCode, kind, page, size));
     }
 
-    @Operation(summary = "Pause a task: scheduler stops picking it up until resumed")
+    @Operation(summary = "Pause a job: scheduler stops picking it up until resumed")
     @PostMapping("/{id}/pause")
     public SuccessResponse<Void> pause(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
         UUID userId = UUID.fromString(principal.id());
-        connectorTaskManageService.pause(id, userId);
+        connectorJobManageService.pause(id, userId);
         return SuccessResponse.empty();
     }
 
-    @Operation(summary = "Resume a paused task; next run is recomputed from now")
+    @Operation(summary = "Resume a paused job; next run is recomputed from now")
     @PostMapping("/{id}/resume")
     public SuccessResponse<Void> resume(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
         UUID userId = UUID.fromString(principal.id());
-        connectorTaskManageService.resume(id, userId);
+        connectorJobManageService.resume(id, userId);
         return SuccessResponse.empty();
     }
 
-    @Operation(summary = "Delete a task (USER/AGENT only; SYSTEM tasks are managed by the connector)")
+    @Operation(summary = "Delete a job (USER/AGENT only; SYSTEM jobs are managed by the connector)")
     @DeleteMapping("/{id}")
     public SuccessResponse<Void> delete(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id
     ) {
         UUID userId = UUID.fromString(principal.id());
-        connectorTaskManageService.delete(id, userId);
+        connectorJobManageService.delete(id, userId);
         return SuccessResponse.empty();
     }
 }

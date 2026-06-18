@@ -310,8 +310,8 @@ Soft delete (`deletedAt = NOW()`). Связанные trigger/tool-policy **уд
 ## Связь с другими сущностями
 
 - **AgentTriggerPolicy / AgentToolPolicy**: у policy есть `channelId` (и у trigger-policy — `inputFilter`). Если `channelId != null`, policy управляется через `/manage/channels/` — напрямую её редактировать не следует. Один канал может порождать несколько policy (по числу триггеров/тулов handler-а).
-- **TriggerLog**: не меняется — в `trigger_input` лога лежит оригинал.
-- **ToolUseLog**: ответ через канал идёт через `AgentToolUseService.processToolUse` — та же проверка ABAC, что и для обычных вызовов агента (effect берётся из tool-policy, созданной при создании канала). `toolUseId` — это `tool_call_id` из `SendChannelMessage` (или сгенерированный UUID).
+- **TriggerLog**: не меняется — в `input` лога лежит оригинал.
+- **ToolCallLog**: ответ через канал идёт через `AgentToolUseService.processToolUse` — та же проверка ABAC, что и для обычных вызовов агента (effect берётся из tool-policy, созданной при создании канала). `toolUseId` — это `tool_call_id` из `SendChannelMessage` (или сгенерированный UUID).
 
 ## Notes
 

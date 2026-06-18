@@ -7,7 +7,7 @@ import java.util.UUID;
  * Контекст выполнения тулы/таски/webhook-вызова коннектора.
  *
  * @param identity      идентификатор экземпляра коннектора: для integration —
- *                      {@code integration_credentials.id} строкой (как в {@code ToolUseLog});
+ *                      {@code integration_credentials.id} строкой (как в {@code ToolCallLog});
  *                      для internal — identity из tool-вызова (например pubId доски),
  *                      {@code null} если экземпляр не применим
  * @param userId        владелец; {@code null} для глобальных internal-тасок

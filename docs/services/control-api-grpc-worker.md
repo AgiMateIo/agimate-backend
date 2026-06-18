@@ -120,7 +120,7 @@ Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → 
 ## Tool execution
 
 `ToolGateway.ExecuteTool` wraps the existing `AgentToolUseService` (idempotency via `tool_use_id`, ABAC via
-`ToolPolicyDbEvaluatorService`, audit via `ToolUseLogService`, delivery via `ConnectorService`).
+`ToolPolicyDbEvaluatorService`, audit via `ToolCallLogService`, delivery via `ConnectorService`).
 
 Errors:
 
