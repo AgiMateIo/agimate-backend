@@ -11,8 +11,12 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentTriggerPolicy;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentTriggerPolicyRepository;
+import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -105,6 +109,32 @@ public class AgentTriggerPolicyService {
     public List<Agent> findAllowedAgentsForTeamId(UUID userId, UUID teamId, String connectorCode,
                                          String connectorIdentity, String triggerName) {
         return agentRepository.findAllowedAgentsForTeamId(userId, teamId, connectorCode, connectorIdentity, triggerName);
+    }
+
+    /**
+     * Среди ALLOW-политик агента, чей input_filter пропускает данные триггера, выбирает
+     * самую специфичную (по priority, иначе по числу заданных полей).
+     */
+    public Optional<AgentTriggerPolicy> selectMatchingAllowPolicy(UUID agentId, String connectorCode,
+                                                                  String connectorIdentity, String triggerName,
+                                                                  Map<String, Object> data) {
+        return agentTriggerPolicyRepository.findMatchingPolicies(agentId, connectorCode, connectorIdentity, triggerName)
+                .stream()
+                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
+                .filter(p -> InputFilterEvaluator.matches(p.getInputFilter(), data))
+                .max(Comparator.comparingInt(AgentTriggerPolicyService::specificity));
+    }
+
+    private static int specificity(AgentTriggerPolicy policy) {
+        if (policy.getPriority() != null) {
+            return policy.getPriority();
+        }
+        int spec = 0;
+        if (policy.getConnectorCode() != null) spec++;
+        if (policy.getConnectorIdentity() != null) spec++;
+        if (policy.getTriggerName() != null) spec++;
+        if (policy.getInputFilter() != null && !policy.getInputFilter().isEmpty()) spec++;
+        return spec;
     }
 
     private void validateOwnership(AgentTriggerPolicy policy, UUID userId) {

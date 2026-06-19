@@ -8,10 +8,12 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.IssueProbeResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerLogResponse;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.repositories.TriggerLogRepository;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -37,6 +39,19 @@ public class TriggerLogProbeService {
         String prefix = block ? BLOCK_PREFIX : PASS_PREFIX;
         String code = prefix + randomSuffix();
         return new IssueProbeResponse(code, LocalDateTime.now());
+    }
+
+    /**
+     * Trigger несёт discovery-probe в block-режиме → доставку агентам пропускаем,
+     * только фиксируем в trigger_log. Знание о формате probe-кода живёт здесь же.
+     */
+    public boolean isBlockProbe(Map<String, Object> data) {
+        if (data == null || data.isEmpty()) {
+            return false;
+        }
+        return JsonUtils.toJson(data)
+                .map(s -> s.contains(BLOCK_PREFIX))
+                .orElse(false);
     }
 
     public TriggerLogResponse match(UUID userId, String code, LocalDateTime since) {
