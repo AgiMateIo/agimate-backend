@@ -19,6 +19,7 @@ import ru.agimate.controlapi.service.dto.board.BoardTaskCreatedEvent;
 import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangedEvent;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
+import ru.agimate.controlapi.service.trigger.TriggerContext;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
 import java.util.*;
@@ -168,12 +169,12 @@ public class BoardService {
                 assignee != null ? List.of(assignee.getId()) : List.of()
         );
 
-        Trigger trigger = Trigger.createWithAudience(
+        Trigger trigger = Trigger.createDirected(
                 BoardConnectorService.CONNECTOR_CODE,
                 board.getId().toString(),
                 "trigger.board.task_created",
                 triggerData,
-                audience
+                TriggerContext.audience(audience)
         );
 
         triggerRouterService.routeTrigger(userId, trigger);
@@ -224,12 +225,12 @@ public class BoardService {
                 resolveTaskParticipantIds(task, agentsById)
         );
 
-        Trigger trigger = Trigger.createWithAudience(
+        Trigger trigger = Trigger.createDirected(
                 BoardConnectorService.CONNECTOR_CODE,
                 board.getId().toString(),
                 "trigger.board.task_status_changed",
                 triggerData,
-                audience
+                TriggerContext.audience(audience)
         );
 
         triggerRouterService.routeTrigger(userId, trigger);
@@ -305,12 +306,12 @@ public class BoardService {
                 resolveTaskParticipantIds(task, agentsById)
         );
 
-        Trigger trigger = Trigger.createWithAudience(
+        Trigger trigger = Trigger.createDirected(
                 BoardConnectorService.CONNECTOR_CODE,
                 board.getId().toString(),
                 "trigger.board.task_comment_created",
                 triggerData,
-                audience
+                TriggerContext.audience(audience)
         );
 
         triggerRouterService.routeTrigger(userId, trigger);

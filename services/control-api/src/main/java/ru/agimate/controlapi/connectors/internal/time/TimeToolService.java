@@ -16,6 +16,7 @@ import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
+import ru.agimate.controlapi.service.trigger.TriggerContext;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
 import java.time.LocalDateTime;
@@ -170,12 +171,12 @@ public class TimeToolService {
         if (ctx.agentId() == null) {
             throw new ConnectorException("Scheduled task has no originating agent");
         }
-        Trigger trigger = Trigger.createWithAudience(
+        Trigger trigger = Trigger.createDirected(
                 TimeConnectorService.CONNECTOR_CODE,
                 ctx.identity(),
                 DUE_TRIGGER,
                 Map.of("prompt", prompt == null ? "" : prompt),
-                new TriggerAudience(null, List.of(ctx.agentId())));
+                TriggerContext.audience(new TriggerAudience(null, List.of(ctx.agentId()))));
         triggerRouterService.routeTrigger(ctx.userId(), trigger);
     }
 
