@@ -67,13 +67,13 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
             UUID channelId = parseUuid(request.getChannelId(), "channel_id");
             UUID sessionId = parseOptionalUuid(request.getSessionId(), "session_id");
             String text = request.getText();
-            String toolCallId = emptyToNull(request.getToolCallId());
+            String messageId = emptyToNull(request.getMessageId());
 
-            var result = channelMessageOutboundService.send(agentId, channelId, sessionId, text, toolCallId);
+            var result = channelMessageOutboundService.send(agentId, channelId, sessionId, text, messageId);
 
             SendChannelMessageResponse response = SendChannelMessageResponse.newBuilder()
                     .setSessionId(result.session().getId().toString())
-                    .setToolUseId(result.toolUseId())
+                    .setMessageId(result.messageId())
                     .build();
 
             log.info("ChannelGateway.SendChannelMessage pool={} agent={} channel={} session={}",

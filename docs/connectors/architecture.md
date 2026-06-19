@@ -42,7 +42,7 @@ BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — 
 
 ## Выполнение
 
-- **Тулы**: `AgentToolUseService` → ABAC → `ToolCallLog` → `ConnectorService.pushToConnector` →
+- **Тулы**: `AgentToolCallService` → ABAC → `ToolCallLog` → `ConnectorService.pushToConnector` →
   `execution/ToolExecutionService` (`@Async`): по типу хендлера собирает Context (integration —
   свежие credentials по `log.identity`), вызывает `executeTool`, пишет результат в лог и доставляет агенту.
 - **Задачи**: `jobs/ConnectorJobScheduler` (`@Scheduled` 1s) атомарно claim'ит готовые строки

@@ -9,10 +9,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
-import ru.agimate.controlapi.service.tool.AgentToolUseService;
+import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
+import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
-import ru.agimate.controlapi.service.channel.handler.dto.ChannelOutboundContext;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.ToolDefinition;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -36,7 +35,7 @@ class TelegramChannelHandlerTest {
     private static final String IDENTITY = "bot-creds-1";
 
     @Mock
-    private AgentToolUseService toolUseService;
+    private AgentToolCallService toolCallService;
 
     private TelegramChannelHandler handler;
     private ChannelConfig config;
@@ -44,7 +43,7 @@ class TelegramChannelHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new TelegramChannelHandler();
-        config = new ChannelConfig("telegram", IDENTITY, Map.of());
+        config = new ChannelConfig(AGENT_ID, "telegram", IDENTITY, Map.of());
     }
 
     private Trigger trigger(String name, Map<String, Object> data) {
@@ -75,7 +74,7 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("validateConfig rejects non-telegram connector")
         void validateConfigRejectsWrongConnector() {
-            ChannelConfig wrong = new ChannelConfig("slack", IDENTITY, Map.of());
+            ChannelConfig wrong = new ChannelConfig(AGENT_ID, "slack", IDENTITY, Map.of());
             assertThrows(ConnectorException.class, () -> handler.validateConfig(wrong));
         }
 
@@ -142,14 +141,6 @@ class TelegramChannelHandlerTest {
                             Map.of("chatId", 42, "document", Map.of("file_name", "report.pdf")))).orElseThrow().text();
             assertEquals("[Пользователь отправил документ: report.pdf]", text);
         }
-
-        @Test
-        @DisplayName("conversationKey is the chat id")
-        void conversationKey() {
-            String key = handler.handleInput(config,
-                    trigger("telegram.message_received", Map.of("chatId", 42, "text", "hi"))).orElseThrow().conversationKey();
-            assertEquals("42", key);
-        }
     }
 
     @Nested
@@ -159,7 +150,7 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("allows chats in the list")
         void allowed() {
-            ChannelConfig filtered = new ChannelConfig("telegram", IDENTITY, Map.of("allowedChatIds", List.of(42)));
+            ChannelConfig filtered = new ChannelConfig(AGENT_ID, "telegram", IDENTITY, Map.of("allowedChatIds", List.of(42)));
             assertTrue(handler.handleInput(filtered,
                     trigger("telegram.message_received", Map.of("chatId", 42, "text", "hi"))).isPresent());
         }
@@ -167,7 +158,7 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("filters out chats not in the list")
         void filteredOut() {
-            ChannelConfig filtered = new ChannelConfig("telegram", IDENTITY, Map.of("allowedChatIds", List.of(42)));
+            ChannelConfig filtered = new ChannelConfig(AGENT_ID, "telegram", IDENTITY, Map.of("allowedChatIds", List.of(42)));
             assertTrue(handler.handleInput(filtered,
                     trigger("telegram.message_received", Map.of("chatId", 999, "text", "hi"))).isEmpty());
         }
@@ -185,16 +176,15 @@ class TelegramChannelHandlerTest {
     class Process {
 
         @Test
-        @DisplayName("calls processToolUse with send_message and chatId from reply context")
+        @DisplayName("calls processToolCall with send_message and chatId from reply context")
         void dispatches() {
-            OutboundMessage outbound = OutboundMessage.text("Готово", Map.of("chatId", 42));
-            ChannelOutboundContext ctx = new ChannelOutboundContext(AGENT_ID, "call-1");
+            OutboundMessage outbound = OutboundMessage.text("Готово", Map.of("chatId", 42), "call-1");
 
-            handler.handleOutput(config, outbound, ctx, toolUseService);
+            handler.handleOutput(config, outbound, toolCallService);
 
-            ArgumentCaptor<ToolUseRequest> req = ArgumentCaptor.forClass(ToolUseRequest.class);
-            verify(toolUseService).processToolUse(eq(AGENT_ID), req.capture());
-            ToolUseRequest r = req.getValue();
+            ArgumentCaptor<ToolCallRequest> req = ArgumentCaptor.forClass(ToolCallRequest.class);
+            verify(toolCallService).processToolCall(eq(AGENT_ID), req.capture());
+            ToolCallRequest r = req.getValue();
             assertEquals("telegram", r.getConnectorCode());
             assertEquals(IDENTITY, r.getIdentity());
             assertEquals("telegram.send_message", r.getName());
@@ -206,25 +196,23 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("falls back to config defaultChatId when reply context has none")
         void defaultChatIdFallback() {
-            ChannelConfig withDefault = new ChannelConfig("telegram", IDENTITY, Map.of("defaultChatId", 777));
-            OutboundMessage outbound = OutboundMessage.text("Напоминание", Map.of());
-            ChannelOutboundContext ctx = new ChannelOutboundContext(AGENT_ID, "call-2");
+            ChannelConfig withDefault = new ChannelConfig(AGENT_ID, "telegram", IDENTITY, Map.of("defaultChatId", 777));
+            OutboundMessage outbound = OutboundMessage.text("Напоминание", Map.of(), "call-2");
 
-            handler.handleOutput(withDefault, outbound, ctx, toolUseService);
+            handler.handleOutput(withDefault, outbound, toolCallService);
 
-            ArgumentCaptor<ToolUseRequest> req = ArgumentCaptor.forClass(ToolUseRequest.class);
-            verify(toolUseService).processToolUse(eq(AGENT_ID), req.capture());
+            ArgumentCaptor<ToolCallRequest> req = ArgumentCaptor.forClass(ToolCallRequest.class);
+            verify(toolCallService).processToolCall(eq(AGENT_ID), req.capture());
             assertEquals("777", req.getValue().getInput().get("chatId"));
         }
 
         @Test
         @DisplayName("throws when chatId is missing and no defaultChatId")
         void missingChatId() {
-            OutboundMessage outbound = OutboundMessage.text("Готово", Map.of());
-            ChannelOutboundContext ctx = new ChannelOutboundContext(AGENT_ID, "call-1");
+            OutboundMessage outbound = OutboundMessage.text("Готово", Map.of(), "call-1");
 
-            assertThrows(ConnectorException.class, () -> handler.handleOutput(config, outbound, ctx, toolUseService));
-            verifyNoInteractions(toolUseService);
+            assertThrows(ConnectorException.class, () -> handler.handleOutput(config, outbound, toolCallService));
+            verifyNoInteractions(toolCallService);
         }
     }
 }

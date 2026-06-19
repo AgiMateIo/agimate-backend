@@ -4,7 +4,7 @@ import ru.agimate.controlapi.database.entities.ToolCallLog;
 
 import java.util.Map;
 
-public record ToolUsePayload(
+public record ToolCallPayload(
         String id,
         String connectorCode,
         String identity,
@@ -12,8 +12,8 @@ public record ToolUsePayload(
         Map<String, Object> input,
         String agentSessionId
 ) {
-    public static ToolUsePayload from(ToolCallLog log) {
-        return new ToolUsePayload(
+    public static ToolCallPayload from(ToolCallLog log) {
+        return new ToolCallPayload(
                 log.getExternalId(),
                 log.getConnectorCode(),
                 log.getIdentity(),

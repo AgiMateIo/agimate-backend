@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import ru.agimate.controlapi.service.dto.IToolUse;
+import ru.agimate.controlapi.service.dto.IToolCall;
 
 import java.util.Map;
 
@@ -15,7 +15,7 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Schema(description = "Request to push tool use to device")
-public class ToolUseRequest implements IToolUse {
+public class ToolCallRequest implements IToolCall {
 
     @NotNull(message = "Request id is required")
     private String id;

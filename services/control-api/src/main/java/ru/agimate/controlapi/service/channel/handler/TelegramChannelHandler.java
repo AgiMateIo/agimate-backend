@@ -2,8 +2,8 @@ package ru.agimate.controlapi.service.channel.handler;
 
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
-import ru.agimate.controlapi.service.tool.AgentToolUseService;
+import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
+import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.service.channel.handler.dto.*;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -85,13 +85,11 @@ public class TelegramChannelHandler implements ChannelHandler {
             case TRIGGER_DOCUMENT -> withCaption(documentDescription(data.get("document")), data.get("caption"));
             default -> "[Получено сообщение неподдерживаемого типа: " + trigger.name() + "]";
         };
-        String conversationKey = data.get("chatId") != null ? data.get("chatId").toString() : null;
-        return Optional.of(InboundMessage.text(text, data, conversationKey));
+        return Optional.of(InboundMessage.text(text));
     }
 
     @Override
-    public void handleOutput(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
-                        AgentToolUseService toolUseService) {
+    public void handleOutput(ChannelConfig config, OutboundMessage outbound, AgentToolCallService toolCallService) {
         Map<String, Object> replyContext = outbound.replyContext() != null ? outbound.replyContext() : Map.of();
         // Адрес ответа: из входящего (replyContext) → дефолт из config (проактивные/не-канальные триггеры).
         Object chatId = replyContext.get("chatId");
@@ -105,14 +103,14 @@ public class TelegramChannelHandler implements ChannelHandler {
         Map<String, Object> args = new LinkedHashMap<>();
         args.put("chatId", chatId.toString());
         args.put("text", outbound.text());
-        ToolUseRequest request = ToolUseRequest.builder()
-                .id(ctx.toolCallId())
+        ToolCallRequest request = ToolCallRequest.builder()
+                .id(outbound.messageId())
                 .connectorCode(config.connectorCode())
                 .identity(config.identity())
                 .name(TOOL_SEND_MESSAGE)
                 .input(args)
                 .build();
-        toolUseService.processToolUse(ctx.agentId(), request);
+        toolCallService.processToolCall(config.agentId(), request);
     }
 
     private static boolean chatAllowed(ChannelConfig config, Object chatId) {

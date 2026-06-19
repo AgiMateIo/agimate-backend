@@ -12,7 +12,7 @@ service ToolGateway {
 }
 
 message ExecuteToolRequest {
-  string tool_use_id = 1;
+  string tool_call_id = 1;
   string connector_code = 2;
   string identity = 3;
   string tool_name = 4;
@@ -23,12 +23,12 @@ message ExecuteToolRequest {
 }
 
 message ExecuteToolAsyncAck {
-  string tool_use_id = 1;
+  string tool_call_id = 1;
 }
 
 message GetToolResultRequest {
   string agent_id = 1;
-  string tool_use_id = 2;
+  string tool_call_id = 2;
 }
 
 message GetToolResultResponse {

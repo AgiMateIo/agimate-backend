@@ -16,7 +16,7 @@ import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.repositories.ToolCallLogRepository;
 import ru.agimate.controlapi.service.dto.IToolResult;
-import ru.agimate.controlapi.service.dto.IToolUse;
+import ru.agimate.controlapi.service.dto.IToolCall;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -34,16 +34,16 @@ public class ToolCallLogService {
     }
 
     @Transactional
-    public ToolCallLog createLog(Agent agent, IToolUse toolUse, String agentSessionId,
+    public ToolCallLog createLog(Agent agent, IToolCall toolCall, String agentSessionId,
                                 AccessEffect effect, String error) {
         var toolCallLog = ToolCallLog.builder()
                 .agentId(agent.getId())
                 .userId(agent.getUserId())
-                .connectorCode(toolUse.getConnectorCode())
-                .identity(toolUse.getIdentity())
-                .externalId(toolUse.getId())
-                .name(toolUse.getName())
-                .input(toolUse.getInput())
+                .connectorCode(toolCall.getConnectorCode())
+                .identity(toolCall.getIdentity())
+                .externalId(toolCall.getId())
+                .name(toolCall.getName())
+                .input(toolCall.getInput())
                 .agentSessionId(agentSessionId)
                 .accessEffect(effect)
                 .error(error)

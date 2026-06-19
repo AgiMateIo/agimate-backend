@@ -119,15 +119,15 @@ Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → 
 
 ## Tool execution
 
-`ToolGateway.ExecuteTool` wraps the existing `AgentToolUseService` (idempotency via `tool_use_id`, ABAC via
+`ToolGateway.ExecuteTool` wraps the existing `AgentToolCallService` (idempotency via `tool_call_id`, ABAC via
 `ToolPolicyDbEvaluatorService`, audit via `ToolCallLogService`, delivery via `ConnectorService`).
 
 Errors:
 
 - `PERMISSION_DENIED` — ABAC denied. Per spec §3.6 this is a valid tool result, not a network error — the worker should
   feed it back to the LLM as a tool response.
-- `ABORTED` — same `tool_use_id` was reused with different input (idempotency conflict).
-- `INVALID_ARGUMENT` — missing `tool_use_id`/`connector_code`/`tool_name`/UUID parsing.
+- `ABORTED` — same `tool_call_id` was reused with different input (idempotency conflict).
+- `INVALID_ARGUMENT` — missing `tool_call_id`/`connector_code`/`tool_name`/UUID parsing.
 - `UNAUTHENTICATED` — bad pool key (handled by interceptor before the call ever reaches the service).
 
 ## Active-run registry (`AgentRunRegistry`)

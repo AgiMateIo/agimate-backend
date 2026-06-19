@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.service.channel.handler;
 
-import ru.agimate.controlapi.service.tool.AgentToolUseService;
+import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.service.channel.handler.dto.*;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -55,12 +55,11 @@ public interface ChannelHandler {
 
     /**
      * Отправляет ответ модели в канал: выбирает тул и аргументы и вызывает его через
-     * {@link AgentToolUseService#processToolUse} (идемпотентность + проверка ABAC). {@code ctx}
-     * несёт уже разрешённый {@link ChannelOutboundContext#toolCallId()}.
+     * {@link AgentToolCallService#processToolCall} (идемпотентность + проверка ABAC). Ключ
+     * идемпотентности — {@link OutboundMessage#messageId()}.
      *
-     * <p>{@code toolUseService} передаётся параметром, а не инжектится в handler — иначе бин
+     * <p>{@code toolCallService} передаётся параметром, а не инжектится в handler — иначе бин
      * handler'а тянул бы {@code ConnectorService} и замыкал цикл с роутером инбаунда.
      */
-    void handleOutput(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
-                 AgentToolUseService toolUseService);
+    void handleOutput(ChannelConfig config, OutboundMessage outbound, AgentToolCallService toolCallService);
 }

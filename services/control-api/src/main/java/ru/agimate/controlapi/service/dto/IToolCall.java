@@ -2,7 +2,7 @@ package ru.agimate.controlapi.service.dto;
 
 import java.util.Map;
 
-public interface IToolUse {
+public interface IToolCall {
     String getId();
     String getConnectorCode();
     String getIdentity();

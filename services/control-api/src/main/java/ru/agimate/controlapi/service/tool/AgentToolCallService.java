@@ -9,7 +9,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.abac.AccessDecision;
 import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.abac.ToolPolicyDbEvaluatorService;
-import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
+import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.service.AgentService;
@@ -20,7 +20,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class AgentToolUseService {
+public class AgentToolCallService {
 
     private final AgentService agentService;
     private final ToolCallLogService toolCallLogService;
@@ -34,7 +34,7 @@ public class AgentToolUseService {
     }
 
     /** Idempotency check + ABAC evaluate + create log */
-    private EvaluationResult evaluate(UUID agentId, ToolUseRequest request) {
+    private EvaluationResult evaluate(UUID agentId, ToolCallRequest request) {
         Agent agent = agentService.findById(agentId);
 
         var existing = toolCallLogService.findByExternalIdAndAgentId(request.getId(), agent.getId());
@@ -50,7 +50,7 @@ public class AgentToolUseService {
                     request.getAgentSessionId(), decision.accessEffect(), decision.reason());
             return new EvaluationResult.Created(log, decision);
         } catch (DataIntegrityViolationException e) {
-            // Concurrent insert with the same (agent_id, tool_use_id) — race lost.
+            // Concurrent insert with the same (agent_id, tool_call_id) — race lost.
             // Re-read and treat as replay or input conflict.
             var raced = toolCallLogService.findByExternalIdAndAgentId(request.getId(), agent.getId())
                     .orElseThrow(() -> e);
@@ -58,14 +58,14 @@ public class AgentToolUseService {
         }
     }
 
-    private EvaluationResult classifyExisting(ToolCallLog existing, ToolUseRequest request) {
+    private EvaluationResult classifyExisting(ToolCallLog existing, ToolCallRequest request) {
         return JsonUtils.jsonEquals(existing.getInput(), request.getInput())
                 ? new EvaluationResult.Replay(existing)
                 : new EvaluationResult.InputConflict(existing);
     }
 
     /** Evaluate + enforce permission + push to connector */
-    public String processToolUse(UUID agentId, ToolUseRequest request) {
+    public String processToolCall(UUID agentId, ToolCallRequest request) {
         return switch (evaluate(agentId, request)) {
             case EvaluationResult.Replay(var log) -> log.getExternalId();
             case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());
@@ -81,7 +81,7 @@ public class AgentToolUseService {
     }
 
     /** Evaluate permission without execution */
-    public AccessEffect checkToolUse(UUID agentId, ToolUseRequest request) {
+    public AccessEffect checkToolCall(UUID agentId, ToolCallRequest request) {
         return switch (evaluate(agentId, request)) {
             case EvaluationResult.Replay(var log) -> log.getAccessEffect();
             case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());

@@ -1,9 +1,13 @@
 package ru.agimate.controlapi.service.trigger;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+/** Также wire-payload для воркера в {@code AgentMessage}; {@code NON_NULL} убирает routing-поля (audience) когда пусты. */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record Trigger(
         String connectorCode,
         String identity,

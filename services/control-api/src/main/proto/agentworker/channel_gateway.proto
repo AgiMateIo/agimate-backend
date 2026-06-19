@@ -31,10 +31,12 @@ message SendChannelMessageRequest {
   string channel_id = 2;
   string session_id = 3;
   string text = 4;
-  string tool_call_id = 5;
+  // Id исходящего сообщения от агента — ключ идемпотентности (не про вызов тула). Может быть пустым.
+  string message_id = 5;
 }
 
 message SendChannelMessageResponse {
   string session_id = 1;
-  string tool_use_id = 2;
+  // Эффективный message_id (присланный агентом или сгенерированный control-api).
+  string message_id = 2;
 }

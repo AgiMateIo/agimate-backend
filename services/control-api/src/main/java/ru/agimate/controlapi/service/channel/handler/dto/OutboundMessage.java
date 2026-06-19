@@ -14,14 +14,16 @@ import java.util.Map;
  * @param text         текст ответа
  * @param parts        вложения (Фаза 1: пусто)
  * @param replyContext корреляция входящего сообщения, проброшенная через сессию (адресат ответа)
+ * @param messageId    id исходящего сообщения от агента — ключ идемпотентности дисптача ответа
  */
 public record OutboundMessage(
         String text,
         List<Part> parts,
-        Map<String, Object> replyContext
+        Map<String, Object> replyContext,
+        String messageId
 ) {
 
-    public static OutboundMessage text(String text, Map<String, Object> replyContext) {
-        return new OutboundMessage(text, List.of(), replyContext);
+    public static OutboundMessage text(String text, Map<String, Object> replyContext, String messageId) {
+        return new OutboundMessage(text, List.of(), replyContext, messageId);
     }
 }

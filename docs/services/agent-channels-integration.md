@@ -132,11 +132,11 @@ message SendChannelMessageRequest {
   string channel_id = 2;       // pubId канала из payload или ListChannels
   string session_id = 3;       // pubId сессии; пусто = найти активную или создать новую
   string text = 4;             // текст ответа
-  string tool_use_id = 5;     // для идемпотентности
+  string message_id = 5;     // для идемпотентности
 }
 message SendChannelMessageResponse {
   string session_id = 1;       // pubId сессии (особенно полезно, если session_id был пуст)
-  string tool_use_id = 2;      // pubId созданного ToolCallLog (для трейсинга)
+  string message_id = 2;      // pubId созданного ToolCallLog (для трейсинга)
 }
 ```
 
@@ -152,11 +152,11 @@ message SendChannelMessageResponse {
 
 ### 4.3 Идемпотентность
 
-`tool_use_id` уникален в паре `(agent_pub_id, tool_use_id)` в БД. Повторный вызов с тем же `tool_use_id`:
+`message_id` уникален в паре `(agent_pub_id, message_id)` в БД. Повторный вызов с тем же `message_id`:
 - сохраняет новое OUT-сообщение в сессии (БД не препятствует, но это побочный эффект);
 - **переиспользует существующий `ToolCallLog`** — повторного tool-call в connector не будет.
 
-Это поведение защитит от ретраев на сетевых сбоях, **но не делает SendChannelMessage полностью idempotent** в отношении session messages. Если ваш workflow рестартится — генерируйте детерминированный `tool_use_id` (например, hash от `(session_id, agent_step_id)`), чтобы хотя бы не дублировать tool-вызов.
+Это поведение защитит от ретраев на сетевых сбоях, **но не делает SendChannelMessage полностью idempotent** в отношении session messages. Если ваш workflow рестартится — генерируйте детерминированный `message_id` (например, hash от `(session_id, agent_step_id)`), чтобы хотя бы не дублировать tool-вызов.
 
 ### 4.4 Маппинг ошибок (gRPC Status)
 
@@ -165,7 +165,7 @@ message SendChannelMessageResponse {
 | `INVALID_ARGUMENT` | `agent_id` / `channel_id` пустой, не UUID; `session_id` указан, но не UUID |
 | `NOT_FOUND` | Канал не существует, soft-deleted, или принадлежит другому агенту; сессия с указанным `session_id` не найдена либо принадлежит другому каналу |
 | `PERMISSION_DENIED` | Зарезервировано (сейчас не выбрасывается — авторизация через владение каналом) |
-| `ABORTED` | Конфликт `tool_use_id` с другим input (общая логика ToolCallLog) |
+| `ABORTED` | Конфликт `message_id` с другим input (общая логика ToolCallLog) |
 | `INTERNAL` | Всё остальное |
 
 ---
@@ -219,11 +219,11 @@ def on_trigger(event: AgentEvent) -> None:
             channel_id=channel_id,
             session_id=channel_session_id,
             text=reply,
-            tool_use_id=stable_id_for(workflow_id, step="final_reply"),
+            message_id=stable_id_for(workflow_id, step="final_reply"),
         )
     else:
         # Сервисный триггер: реагируем как раньше — напрямую через ToolGateway.
-        run_react_loop_with_tool_use(event)
+        run_react_loop_with_tool_call(event)
 ```
 
 ### 6.2 Что хранить в DBOS workflow state
@@ -276,7 +276,7 @@ Backend не присылает уведомление о закрытии се�
 2. **Ответы пользователю** — заменить попытки `ToolGateway.ExecuteTool(telegram.sendMessage, ...)` на `ChannelGateway.SendChannelMessage(channel_id, session_id, text)`. Удалить из кода жёстко-зашитые `chat_id` — backend подставит сам через `{trigger.*}`.
 3. **gRPC stubs** — перегенерировать из новых proto (`channel_gateway.proto`). Идентичные настройки auth interceptor'а, что и для `ToolGateway`.
 4. **State retention** — убедиться, что `channel_id` и `session_id` сериализуются в DBOS workflow state.
-5. **Идемпотентность** — генерировать стабильный `tool_use_id` для финального ответа (например, `f"{workflow_id}:reply:{step_n}"`).
+5. **Идемпотентность** — генерировать стабильный `message_id` для финального ответа (например, `f"{workflow_id}:reply:{step_n}"`).
 6. **Тесты** — добавить fixture для триггера с полями `_channel_id` / `_channel_session_id` и проверить, что workflow вызывает `SendChannelMessage`, а не tool'у пишет напрямую.
 
 ---

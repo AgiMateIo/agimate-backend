@@ -3,15 +3,19 @@ package ru.agimate.controlapi.service.channel.handler.dto;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
- * Конфигурация канала, передаваемая в {@link ChannelHandler}.
+ * Дескриптор канала, передаваемый в {@link ChannelHandler}.
  *
- * <p>{@code connectorCode} и {@code identity} — первого класса (отдельные колонки {@code channels}),
- * по ним handler вызывает тулы/читает триггеры нужного коннектора. {@code settings} — произвольные
- * настройки конкретного handler'а (десериализуются им самостоятельно).
+ * <p>{@code agentId}, {@code connectorCode}, {@code identity} — первого класса (отдельные колонки
+ * {@code channels}). {@code agentId} — владелец канала; под ним {@code handleOutput} диспатчит
+ * reply-тул (использовать чужой канал нельзя — проверка владения на границе сервиса). По
+ * {@code connectorCode}/{@code identity} handler вызывает тулы/читает триггеры нужного коннектора.
+ * {@code settings} — произвольные настройки конкретного handler'а (десериализуются им самостоятельно).
  */
 public record ChannelConfig(
+        UUID agentId,
         String connectorCode,
         String identity,
         Map<String, Object> settings

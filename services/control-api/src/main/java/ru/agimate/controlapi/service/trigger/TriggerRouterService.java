@@ -163,7 +163,8 @@ public class TriggerRouterService {
 
         // Извлечение текста выполняет control-api для всех handler'ов (generic делает JSON-фолбэк);
         // empty == «триггер не для этого канала» (фильтр) → доставку пропускаем.
-        ChannelConfig cc = new ChannelConfig(channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
+        ChannelConfig cc = new ChannelConfig(
+                channel.getAgentId(), channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
         Optional<InboundMessage> inbound = handler.handleInput(cc, trigger);
         if (inbound.isEmpty()) {
             return ChannelInbound.SKIP;

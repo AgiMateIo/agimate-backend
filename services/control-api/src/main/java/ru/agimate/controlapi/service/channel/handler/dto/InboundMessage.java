@@ -3,28 +3,23 @@ package ru.agimate.controlapi.service.channel.handler.dto;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 
 import java.util.List;
-import java.util.Map;
 
 /**
- * Унифицированное входящее сообщение — результат {@link ChannelHandler#handleInput}.
+ * Унифицированное входящее сообщение — результат {@link ChannelHandler#handleInput}, отдаётся воркеру.
  *
  * <p>Handler приводит разнородные триггеры (текст/аудио/фото) к этому виду. В Фазе 1 заполняется
- * только {@code text}; {@code parts} зарезервирован под медиа.
+ * только {@code text}; {@code parts} зарезервирован под медиа. Адрес ответа control-api
+ * восстанавливает из сессии ({@code ChannelSessionMessage.triggerInput}), поэтому здесь его нет.
  *
- * @param text            текст сообщения (для медиа — транскрипт/подпись)
- * @param parts           вложения (Фаза 1: пусто)
- * @param replyContext    корреляция для ответа (например chat_id), сохраняется в сессии и
- *                        используется {@link ChannelHandler#handleOutput} для восстановления адресата
- * @param conversationKey ключ разговора для ключевания сессии (null → сессия на канал)
+ * @param text  текст сообщения (для медиа — транскрипт/подпись)
+ * @param parts вложения (Фаза 1: пусто)
  */
 public record InboundMessage(
         String text,
-        List<Part> parts,
-        Map<String, Object> replyContext,
-        String conversationKey
+        List<Part> parts
 ) {
 
-    public static InboundMessage text(String text, Map<String, Object> replyContext, String conversationKey) {
-        return new InboundMessage(text, List.of(), replyContext, conversationKey);
+    public static InboundMessage text(String text) {
+        return new InboundMessage(text, List.of());
     }
 }

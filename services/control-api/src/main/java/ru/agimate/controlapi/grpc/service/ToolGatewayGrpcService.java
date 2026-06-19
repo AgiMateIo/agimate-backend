@@ -12,10 +12,10 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
+import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
-import ru.agimate.controlapi.service.tool.AgentToolUseService;
+import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.ExecuteToolRequest;
 import ru.agimate.agentworker.GetToolResultRequest;
@@ -32,19 +32,19 @@ import java.util.UUID;
 @Slf4j
 public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase {
 
-    private final AgentToolUseService agentToolUseService;
+    private final AgentToolCallService agentToolCallService;
 
     @Override
     public void executeToolAsync(ExecuteToolRequest request, StreamObserver<ExecuteToolAsyncAck> responseObserver) {
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            ToolUseRequest toolUse = buildToolUseRequest(request);
-            String toolUseId = agentToolUseService.processToolUse(agentId, toolUse);
-            log.info("ToolGateway.ExecuteToolAsync ok pool={} agent={} workflow={} tool={} toolUseId={}",
-                    poolId, agentId, request.getWorkflowId(), request.getToolName(), toolUseId);
+            ToolCallRequest toolCall = buildToolCallRequest(request);
+            String toolCallId = agentToolCallService.processToolCall(agentId, toolCall);
+            log.info("ToolGateway.ExecuteToolAsync ok pool={} agent={} workflow={} tool={} toolCallId={}",
+                    poolId, agentId, request.getWorkflowId(), request.getToolName(), toolCallId);
             responseObserver.onNext(ExecuteToolAsyncAck.newBuilder()
-                    .setToolUseId(toolUseId)
+                    .setToolCallId(toolCallId)
                     .build());
             responseObserver.onCompleted();
         } catch (ForbiddenStatusException e) {
@@ -76,10 +76,10 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            if (request.getToolUseId().isEmpty()) {
-                throw Status.INVALID_ARGUMENT.withDescription("tool_use_id is required").asRuntimeException();
+            if (request.getToolCallId().isEmpty()) {
+                throw Status.INVALID_ARGUMENT.withDescription("tool_call_id is required").asRuntimeException();
             }
-            ToolCallLog logEntry = agentToolUseService.getToolCallLog(agentId, request.getToolUseId());
+            ToolCallLog logEntry = agentToolCallService.getToolCallLog(agentId, request.getToolCallId());
 
             GetToolResultResponse.Builder builder = GetToolResultResponse.newBuilder();
             if (logEntry.getFinishAt() == null) {
@@ -105,16 +105,16 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         } catch (io.grpc.StatusRuntimeException e) {
             responseObserver.onError(e);
         } catch (Exception e) {
-            log.error("ToolGateway.GetToolResult failed pool={} toolUseId={}",
-                    poolId, request.getToolUseId(), e);
+            log.error("ToolGateway.GetToolResult failed pool={} toolCallId={}",
+                    poolId, request.getToolCallId(), e);
             responseObserver.onError(Status.INTERNAL
                     .withDescription(e.getMessage()).asRuntimeException());
         }
     }
 
-    private static ToolUseRequest buildToolUseRequest(ExecuteToolRequest request) {
-        if (request.getToolUseId().isEmpty()) {
-            throw Status.INVALID_ARGUMENT.withDescription("tool_use_id is required").asRuntimeException();
+    private static ToolCallRequest buildToolCallRequest(ExecuteToolRequest request) {
+        if (request.getToolCallId().isEmpty()) {
+            throw Status.INVALID_ARGUMENT.withDescription("tool_call_id is required").asRuntimeException();
         }
         if (request.getConnectorCode().isEmpty()) {
             throw Status.INVALID_ARGUMENT.withDescription("connector_code is required").asRuntimeException();
@@ -129,8 +129,8 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
             input = JsonUtils.readValue(json, JsonUtils.MAP_TYPE_REFERENCE);
         }
 
-        return ToolUseRequest.builder()
-                .id(request.getToolUseId())
+        return ToolCallRequest.builder()
+                .id(request.getToolCallId())
                 .connectorCode(request.getConnectorCode())
                 .identity(emptyToNull(request.getIdentity()))
                 .name(request.getToolName())

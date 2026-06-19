@@ -93,9 +93,9 @@ Tokens expire after **3600 seconds (1 hour)**.
 
 ### POST `/control/agent/tool/call/{connectorId}`
 
-Sends a tool use request to a connector/control via Centrifugo. Creates a `tool_use_log` entry.
+Sends a tool use request to a connector/control via Centrifugo. Creates a `tool_call_log` entry.
 
-If a log for the same `id` already exists for this user, returns the existing `toolUseId` without re-sending (idempotent).
+If a log for the same `id` already exists for this user, returns the existing `toolCallId` without re-sending (idempotent).
 
 **Path parameters:**
 
@@ -130,7 +130,7 @@ If a log for the same `id` already exists for this user, returns the existing `t
 }
 ```
 
-The response value is the `toolUseId` from the created log entry (matches `id` from request).
+The response value is the `toolCallId` from the created log entry (matches `id` from request).
 
 **Error responses:**
 
@@ -144,7 +144,7 @@ The response value is the `toolUseId` from the created log entry (matches `id` f
 
 ### POST `/control/agent/tool/check/{connectorId}`
 
-Checks whether a tool use request would be authorized, without pushing to the device. Creates a `tool_use_log` entry with the resulting permission decision.
+Checks whether a tool use request would be authorized, without pushing to the device. Creates a `tool_call_log` entry with the resulting permission decision.
 
 If a log for the same `id` already exists for this user, returns the cached `permissionDecision` without rechecking (idempotent).
 
@@ -184,7 +184,7 @@ Saves the result of a tool use execution back to the log. Only allowed when the 
 **Request body:**
 ```json
 {
-  "toolUseId": "toolu_01AbCdEfGh",
+  "toolCallId": "toolu_01AbCdEfGh",
   "result": "{\"output\": \"Done\"}",
   "error": null
 }
@@ -192,7 +192,7 @@ Saves the result of a tool use execution back to the log. Only allowed when the 
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `toolUseId` | `string` | yes | Correlation ID from the original tool use log |
+| `toolCallId` | `string` | yes | Correlation ID from the original tool use log |
 | `result` | `string` | no | Tool execution result (serialized) |
 | `error` | `string` | no | Error message if execution failed |
 
@@ -203,16 +203,16 @@ Saves the result of a tool use execution back to the log. Only allowed when the 
 }
 ```
 
-The response value is the `toolUseId` of the updated log entry.
+The response value is the `toolCallId` of the updated log entry.
 
 **Error responses:**
 
 | Status | Condition |
 |--------|-----------|
-| 400 | `toolUseId` missing |
+| 400 | `toolCallId` missing |
 | 401 | Invalid or missing API key |
 | 403 | Agent does not own this tool use log, or the decision was DENY |
-| 404 | No tool use log found for the given `toolUseId` |
+| 404 | No tool use log found for the given `toolCallId` |
 
 ---
 
@@ -544,7 +544,7 @@ Tokens expire after **3600 seconds (1 hour)**.
 
 ### POST `/control/app/tools/result`
 
-Submits the result of a tool execution from the device back to control-api. The result is stored in the `tool_use_log` and forwarded to the agent via the agent's Centrifugo channel.
+Submits the result of a tool execution from the device back to control-api. The result is stored in the `tool_call_log` and forwarded to the agent via the agent's Centrifugo channel.
 
 **Request body:**
 ```json
@@ -560,7 +560,7 @@ Submits the result of a tool execution from the device back to control-api. The 
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | `string` | yes | Tool use correlation ID (from the original tool_use request) |
+| `id` | `string` | yes | Tool use correlation ID (from the original tool_call request) |
 | `name` | `string` | yes | Tool name that was executed |
 | `result` | `object` | yes | Execution result as a JSON object |
 

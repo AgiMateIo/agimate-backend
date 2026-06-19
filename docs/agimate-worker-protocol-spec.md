@@ -79,7 +79,7 @@
 | **Sync** | Быстрые tools (< 5 сек), результат сразу | gRPC unary |
 | **Streaming** | Tools со стримингом промежуточных событий (bash, поиск) | gRPC server-streaming |
 | **Batch** | Параллельный fan-out нескольких tools для оптимизации latency | gRPC unary с массивом запросов |
-| **Async** | Long-running tools (внешние устройства, human-in-the-loop). Ответ возвращается через DBOS signal | gRPC unary с возвратом `tool_use_id`; результат — `DBOS.send(workflow_id, tool_use_id, result)` |
+| **Async** | Long-running tools (внешние устройства, human-in-the-loop). Ответ возвращается через DBOS signal | gRPC unary с возвратом `tool_call_id`; результат — `DBOS.send(workflow_id, tool_call_id, result)` |
 
 Polling-RPC за результатом async-tool **не предусмотрен** — это anti-pattern на DBOS.
 
@@ -165,7 +165,7 @@ Polling-RPC за результатом async-tool **не предусмотре
 - Любое внешнее действие — через `ToolGateway`. Воркер не делает прямых HTTP/SDK-вызовов в сторону внешних систем.
 - Выбор паттерна (sync / stream / batch / async) определяется на стороне воркера на основании метаданных tool, полученных в `SkillSpec`.
 - При получении `PERMISSION_DENIED` от Tool Gateway — это валидный ответ, не сетевая ошибка. Воркер передаёт его в LLM как tool result, чтобы агент мог скорректировать поведение.
-- Long-running tools: воркер вызывает `ExecuteToolAsync`, получает `tool_use_id`, далее уходит в `DBOS.recv(tool_use_id)`. Workflow засыпает, не жжёт CPU.
+- Long-running tools: воркер вызывает `ExecuteToolAsync`, получает `tool_call_id`, далее уходит в `DBOS.recv(tool_call_id)`. Workflow засыпает, не жжёт CPU.
 
 ### 3.7 Telemetry
 
@@ -262,18 +262,18 @@ Proto-файлы лежат в `services/control-api/src/main/proto/agentworker/
 
 ### 5.5 ToolGateway
 
-- `ExecuteTool` оборачивает существующий `AgentToolUseService.processToolUse(agentPubId, ToolUseRequest)`:
-  - идемпотентность через `tool_use_id` → `ToolUseRequest.id` (БД-уникальность по `(agent_pub_id, tool_use_id)`),
-  - ABAC через `ToolPolicyDbEvaluatorService` (внутри `processToolUse`),
+- `ExecuteTool` оборачивает существующий `AgentToolCallService.processToolCall(agentPubId, ToolCallRequest)`:
+  - идемпотентность через `tool_call_id` → `ToolCallRequest.id` (БД-уникальность по `(agent_pub_id, tool_call_id)`),
+  - ABAC через `ToolPolicyDbEvaluatorService` (внутри `processToolCall`),
   - audit через `ToolCallLogService` — все вызовы пишутся в `tool_call_logs` независимо от reporting'а воркера (см. §2.8),
   - доставка через `ConnectorService.pushToConnector`.
-- В proto `ExecuteToolRequest` добавлены поля `connector_code`, `identity`, `agent_session_id` — нужны для прямой стыковки с текущей моделью `ToolUseRequest`. Ожидается, что воркер выводит их из `SkillSpec` / workflow payload.
+- В proto `ExecuteToolRequest` добавлены поля `connector_code`, `identity`, `agent_session_id` — нужны для прямой стыковки с текущей моделью `ToolCallRequest`. Ожидается, что воркер выводит их из `SkillSpec` / workflow payload.
 - Маппинг ошибок:
   - `ForbiddenStatusException` (ABAC отказал) → **`PERMISSION_DENIED`** — для воркера это валидный tool-результат (см. §3.6), не сетевая ошибка;
-  - `ConflictStatusException` (тот же `tool_use_id` с другим input) → **`ABORTED`**;
+  - `ConflictStatusException` (тот же `tool_call_id` с другим input) → **`ABORTED`**;
   - `NotFoundStatusException` → **`NOT_FOUND`**;
-  - отсутствие/невалидность UUID, `tool_use_id`, `connector_code`, `tool_name` → **`INVALID_ARGUMENT`**.
-- `ExecuteToolStream` / `ExecuteToolBatch` / `ExecuteToolAsync` → `UNIMPLEMENTED` (заложены в proto, ждут реализации; async-результат пойдёт через `DBOS.send(workflow_id, tool_use_id, result)` без polling-RPC, см. §2.4).
+  - отсутствие/невалидность UUID, `tool_call_id`, `connector_code`, `tool_name` → **`INVALID_ARGUMENT`**.
+- `ExecuteToolStream` / `ExecuteToolBatch` / `ExecuteToolAsync` → `UNIMPLEMENTED` (заложены в proto, ждут реализации; async-результат пойдёт через `DBOS.send(workflow_id, tool_call_id, result)` без polling-RPC, см. §2.4).
 
 ### 5.6 Структура кода
 
@@ -323,7 +323,7 @@ services/control-api/src/main/proto/agentworker/
 | §1.5 versioned reads | ✅ для `GetSkill` (по `installedSkillVersion`); `agent_version` в `AgentSpec` принимается, но строгая фиксация — закладка |
 | §2.3 Authorization Interceptor без БД/кэшей | ✅ (валидация на каждый RPC) |
 | §2.4 Sync tool-режим | ✅; Streaming/Batch/Async — `UNIMPLEMENTED` |
-| §2.5 RBAC внутри `ExecuteTool*`, без отдельного `CheckPermission` | ✅ (через `AgentToolUseService` + ABAC) |
+| §2.5 RBAC внутри `ExecuteTool*`, без отдельного `CheckPermission` | ✅ (через `AgentToolCallService` + ABAC) |
 | §2.6 Knowledge Base | ⏳ stub |
 | §2.7 LLM-credentials вариант A | ✅ (`GetLlmCredentials`) |
 | §2.8 Audit на стороне Tool Gateway независимо от воркера | ✅ (`ToolCallLogService` пишет всегда) |

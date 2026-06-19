@@ -54,9 +54,9 @@ Control API for connector registration, tool delivery, trigger submission, and A
 |--------|---------------------------------------------------|--------------------------------------|
 | GET    | `/control/agent/settings`                          | Get agent settings (from API key)    |
 | POST   | `/control/agent/centrifugo/token`                  | Get Centrifugo token for agent       |
-| POST   | `/control/agent/tool/call/{connectorId}`           | Push tool_use to connector/control    |
-| POST   | `/control/agent/tool/check/{connectorId}`          | Check tool_use permission (no push)  |
-| POST   | `/control/agent/tool/result`                       | Save tool_use result from agent      |
+| POST   | `/control/agent/tool/call/{connectorId}`           | Push tool_call to connector/control    |
+| POST   | `/control/agent/tool/check/{connectorId}`          | Check tool_call permission (no push)  |
+| POST   | `/control/agent/tool/result`                       | Save tool_call result from agent      |
 | GET    | `/control/agent/connectors/`                       | List connected connectors            |
 | GET    | `/control/agent/connectors/triggers/`              | Get all connector triggers           |
 | GET    | `/control/agent/connectors/triggers/{connectorId}` | Get connector triggers               |
@@ -209,7 +209,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 ## Centrifugo Integration
 
 control-api integrates with Centrifugo for real-time messaging:
-- **Device channels** (`device:{deviceId}`) — push tool_use requests to devices
+- **Device channels** (`device:{deviceId}`) — push tool_call requests to devices
 - **Agent channels** (`agent:{apiKeyPubId}`) — deliver tool_result and trigger events to agents
 - Connection and subscription token generation (ES256 JWT)
 
@@ -223,7 +223,7 @@ control-api integrates with Centrifugo for real-time messaging:
    - Tool authorization checked against `agent_tools` table
    - `tool_call_log` entry created
 6. Device executes tool and sends result via `POST /app/tools/result`
-   - `tool_use_log` updated with result
+   - `tool_call_log` updated with result
    - Result published to agent's Centrifugo channel
 7. Device triggers (`POST /app/trigger/new`) are routed to subscribed agents:
    - `triggers_to=centrifugo` — published to agent's Centrifugo channel

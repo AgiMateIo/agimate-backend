@@ -164,7 +164,7 @@ public class ChannelService {
 
         ChannelHandler handler = requireHandler(data.channelHandler());
         Map<String, Object> config = data.config() != null ? data.config() : Map.of();
-        ChannelConfig channelConfig = new ChannelConfig(data.connectorCode(), data.identity(), config);
+        ChannelConfig channelConfig = new ChannelConfig(data.agentId(), data.connectorCode(), data.identity(), config);
         validateConfig(handler, channelConfig);
 
         List<TriggerDefinition> triggers = handler.listOfTriggers(channelConfig);
@@ -230,8 +230,8 @@ public class ChannelService {
 
         if (data.config() != null) {
             ChannelHandler handler = requireHandler(channel.getChannelHandler());
-            ChannelConfig oldCfg = new ChannelConfig(channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
-            ChannelConfig newCfg = new ChannelConfig(channel.getConnectorCode(), channel.getIdentity(), data.config());
+            ChannelConfig oldCfg = new ChannelConfig(channel.getAgentId(), channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
+            ChannelConfig newCfg = new ChannelConfig(channel.getAgentId(), channel.getConnectorCode(), channel.getIdentity(), data.config());
             validateConfig(handler, newCfg);
             // Trigger/tool set is fixed at creation — changing it requires recreating the channel,
             // otherwise the generated policies would drift out of sync.

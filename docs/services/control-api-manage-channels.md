@@ -311,10 +311,11 @@ Soft delete (`deletedAt = NOW()`). Связанные trigger/tool-policy **уд
 
 - **AgentTriggerPolicy / AgentToolPolicy**: у policy есть `channelId` (и у trigger-policy — `inputFilter`). Если `channelId != null`, policy управляется через `/manage/channels/` — напрямую её редактировать не следует. Один канал может порождать несколько policy (по числу триггеров/тулов handler-а).
 - **TriggerLog**: не меняется — в `input` лога лежит оригинал.
-- **ToolCallLog**: ответ через канал идёт через `AgentToolUseService.processToolUse` — та же проверка ABAC, что и для обычных вызовов агента (effect берётся из tool-policy, созданной при создании канала). `toolUseId` — это `tool_call_id` из `SendChannelMessage` (или сгенерированный UUID).
+- **ToolCallLog**: ответ через канал идёт через `AgentToolCallService.processToolCall` — та же проверка ABAC, что и для обычных вызовов агента (effect берётся из tool-policy, созданной при создании канала). `messageId` — это `message_id` из `SendChannelMessage` (или сгенерированный UUID).
 
 ## Notes
 
 - Один активный канал на `(agent, connector, identity)` — частичный UNIQUE-индекс `uq_channels_agent_connector_identity_active` (`WHERE deleted_at IS NULL`). Маршрут триггера определяется наличием такого канала, а не `policy.channel_id`.
 - Soft delete канала не удаляет историю сессий/сообщений.
 - Извлечение текста входящего выполняет control-api для **всех** handler-ов через `handler.handleInput()`: `generic` — по `config.messageField`, при пустом результате — JSON `trigger.data`; код-handler'ы (`telegram`) — собственная логика. **Воркеру** отдаётся готовый `InboundMessage` + `Channels` в `AgentMessage`; `messageField`/`triggerMessageField` больше не передаются. Скачивание медиа — Фаза 2.
+- `AgentMessage` для воркера минимизирован: `InboundMessage` = `{ text, parts }` (без `replyContext`/`conversationKey` — адрес ответа control-api берёт из `ChannelSessionMessage.triggerInput`); wire-DTO сериализуются с `NON_NULL`. **Воркеру**: `triggerInput` для gRPC `append` возвращать из `payload.data`, а не из `inbound`.

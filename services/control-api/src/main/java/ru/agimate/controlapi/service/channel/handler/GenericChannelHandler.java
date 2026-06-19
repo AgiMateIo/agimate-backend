@@ -3,8 +3,8 @@ package ru.agimate.controlapi.service.channel.handler;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
-import ru.agimate.controlapi.service.tool.AgentToolUseService;
+import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
+import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.PlaceholderRenderer;
 import ru.agimate.controlapi.service.channel.handler.dto.*;
@@ -90,22 +90,21 @@ public class GenericChannelHandler implements ChannelHandler {
     public Optional<InboundMessage> handleInput(ChannelConfig config, Trigger trigger) {
         Object value = InputFilterEvaluator.resolvePath(trigger.data(), messageField(config));
         String text = value != null ? value.toString() : JsonUtils.writeValueAsString(trigger.data());
-        return Optional.of(InboundMessage.text(text, trigger.data(), null));
+        return Optional.of(InboundMessage.text(text));
     }
 
     @Override
-    public void handleOutput(ChannelConfig config, OutboundMessage outbound, ChannelOutboundContext ctx,
-                        AgentToolUseService toolUseService) {
+    public void handleOutput(ChannelConfig config, OutboundMessage outbound, AgentToolCallService toolCallService) {
         Map<String, Object> args = PlaceholderRenderer.render(
                 replyParams(config), outbound.text(), outbound.replyContext());
-        ToolUseRequest request = ToolUseRequest.builder()
-                .id(ctx.toolCallId())
+        ToolCallRequest request = ToolCallRequest.builder()
+                .id(outbound.messageId())
                 .connectorCode(replyConnector(config))
                 .identity(replyIdentity(config))
                 .name(replyTool(config))
                 .input(args)
                 .build();
-        toolUseService.processToolUse(ctx.agentId(), request);
+        toolCallService.processToolCall(config.agentId(), request);
     }
 
     // --- config accessors ---

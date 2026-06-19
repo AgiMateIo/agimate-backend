@@ -17,11 +17,11 @@ import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.controlapi.controller.agent.dto.AgentToolResultRequest;
 import ru.agimate.controlapi.controller.agent.dto.ToolDefinition;
-import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
+import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.security.AgentPrincipal;
 import ru.agimate.controlapi.service.AgentService;
-import ru.agimate.controlapi.service.tool.AgentToolUseService;
+import ru.agimate.controlapi.service.tool.AgentToolCallService;
 
 import java.util.List;
 
@@ -33,7 +33,7 @@ public class AgentToolCallController {
 
     public static final String PATH = AgentController.PATH + "/tool";
 
-    private final AgentToolUseService agentToolUseService;
+    private final AgentToolCallService agentToolCallService;
     private final AgentService agentService;
 
     @Operation(
@@ -50,37 +50,37 @@ public class AgentToolCallController {
 
 
     @Operation(
-            summary = "Check tool_use permission",
+            summary = "Check tool_call permission",
             description = "Checks if a tool use request is authorized without pushing to device",
             security = @SecurityRequirement(name = "ApiKey")
     )
     @PostMapping("/check")
-    public SuccessResponse<AccessEffect> checkToolUse(
+    public SuccessResponse<AccessEffect> checkToolCall(
             @Parameter(description = "Connector code", required = true)
-            @Valid @RequestBody ToolUseRequest toolUseRequest,
+            @Valid @RequestBody ToolCallRequest toolCallRequest,
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
         return SuccessResponse.ok(
-                agentToolUseService.checkToolUse(principal.agentId(), toolUseRequest));
+                agentToolCallService.checkToolCall(principal.agentId(), toolCallRequest));
     }
 
     @Operation(
-            summary = "Push tool_use to device",
+            summary = "Push tool_call to device",
             description = "Sends a tool use request to a specific device via Centrifugo",
             security = @SecurityRequirement(name = "ApiKey")
     )
     @PostMapping("/call")
-    public SuccessResponse<String> toolUse(
+    public SuccessResponse<String> toolCall(
             @Parameter(description = "Connector code", required = true)
-            @Valid @RequestBody ToolUseRequest toolUseRequest,
+            @Valid @RequestBody ToolCallRequest toolCallRequest,
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
         return SuccessResponse.ok(
-                agentToolUseService.processToolUse(principal.agentId(), toolUseRequest));
+                agentToolCallService.processToolCall(principal.agentId(), toolCallRequest));
     }
 
     @Operation(
-            summary = "Get tool_use result",
+            summary = "Get tool_call result",
             description = "Returns the tool use output if execution completed successfully, error if failed, or 204 if result is not yet available.",
             security = @SecurityRequirement(name = "ApiKey")
     )
@@ -101,12 +101,12 @@ public class AgentToolCallController {
                     content = @Content(schema = @Schema(implementation = ErrorResponse.class))
             )
     })
-    @GetMapping("/result/{toolUseId}")
+    @GetMapping("/result/{toolCallId}")
     public ResponseEntity<?> getToolResult(
-            @PathVariable String toolUseId,
+            @PathVariable String toolCallId,
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        var log = agentToolUseService.getToolCallLog(principal.agentId(), toolUseId);
+        var log = agentToolCallService.getToolCallLog(principal.agentId(), toolCallId);
 
         if (log.getFinishAt() == null) {
             return ResponseEntity.noContent().build();
@@ -120,7 +120,7 @@ public class AgentToolCallController {
     }
 
     @Operation(
-            summary = "Save tool_use result",
+            summary = "Save tool_call result",
             description = "Saves the result of a tool use execution. Only allowed for tool uses with ALLOW permission decision.",
             security = @SecurityRequirement(name = "ApiKey")
     )
@@ -146,7 +146,7 @@ public class AgentToolCallController {
             @Valid @RequestBody AgentToolResultRequest request,
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
-        var log = agentToolUseService.saveToolResult(principal.agentId(), request);
+        var log = agentToolCallService.saveToolResult(principal.agentId(), request);
         return SuccessResponse.ok(log.getExternalId());
     }
 }

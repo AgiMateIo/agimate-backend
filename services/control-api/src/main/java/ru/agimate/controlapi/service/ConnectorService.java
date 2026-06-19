@@ -10,7 +10,7 @@ import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
-import ru.agimate.controlapi.service.dto.ToolUsePayload;
+import ru.agimate.controlapi.service.dto.ToolCallPayload;
 
 import java.util.UUID;
 
@@ -35,10 +35,10 @@ public class ConnectorService {
             case APP -> {
                 var app = appRepository.findByIdAndUserIdNotDeleted(UUID.fromString(toolCallLog.getIdentity()), toolCallLog.getUserId())
                         .orElseThrow(() -> new NotFoundStatusException("App not found: " + toolCallLog.getIdentity()));
-                centrifugoService.publishMessage("device:" + app.getDeviceId(), "toolUse", ToolUsePayload.from(toolCallLog));
+                centrifugoService.publishMessage("device:" + app.getDeviceId(), "toolCall", ToolCallPayload.from(toolCallLog));
             }
             case INTEGRATION, INTERNAL_SERVICE -> toolExecutionService.executeTool(toolCallLog);
-            case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolUse={}",
+            case LOOPBACK -> log.warn("LOOPBACK connector called, ignoring. connectorCode={}, toolCall={}",
                     toolCallLog.getConnectorCode(), toolCallLog.getName());
         }
     }
