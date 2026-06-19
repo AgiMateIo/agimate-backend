@@ -55,4 +55,19 @@
         </createIndex>
     </changeSet>
 
+    <changeSet id="channels-active-unique-key" author="agimate">
+        <comment>
+            Один активный канал на (agent, connector, identity) — бизнес-ключ маршрута триггера.
+            Частичный индекс (WHERE deleted_at IS NULL), чтобы soft-delete не блокировал пересоздание.
+        </comment>
+        <sql>
+            CREATE UNIQUE INDEX uq_channels_agent_connector_identity_active
+            ON channels (agent_id, connector_code, identity)
+            WHERE deleted_at IS NULL;
+        </sql>
+        <rollback>
+            DROP INDEX uq_channels_agent_connector_identity_active;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

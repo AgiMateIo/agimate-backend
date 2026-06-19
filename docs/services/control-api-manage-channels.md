@@ -144,7 +144,7 @@ Backend перед вызовом тула рекурсивно проходит
 |---|---|---|
 | `pubId` | UUID | |
 | `direction` | enum | `IN` / `OUT` |
-| `message` | string | Текст. Для IN — извлечён по `config.messageField` (на стороне worker) |
+| `message` | string | Текст. Для IN — извлечён control-api через `handler.handleInput` (`generic` — по `config.messageField`, при пустом результате — JSON `trigger.data`) |
 | `createdAt` | datetime | |
 
 > `triggerInput` (полный JSON триггера) хранится для IN и используется при рендере `{trigger.*}`; в API не выдаётся.
@@ -315,6 +315,6 @@ Soft delete (`deletedAt = NOW()`). Связанные trigger/tool-policy **уд
 
 ## Notes
 
-- Дедупликация каналов обеспечивается уникальностью `AgentTriggerPolicy (agent, connector, identity, trigger_name, effect)` — отдельного UNIQUE на `channels` нет.
+- Один активный канал на `(agent, connector, identity)` — частичный UNIQUE-индекс `uq_channels_agent_connector_identity_active` (`WHERE deleted_at IS NULL`). Маршрут триггера определяется наличием такого канала, а не `policy.channel_id`.
 - Soft delete канала не удаляет историю сессий/сообщений.
-- Извлечение текста входящего зависит от handler-а: `generic` — на стороне worker по `config.messageField` (как раньше); код-handler'ы (`telegram`) — control-api сам зовёт `handleInput()` и кладёт результат в `ChannelContext.inboundText`. **Воркеру**: при наличии `inboundText` использовать его вместо извлечения по `triggerMessageField` (аддитивно, для `generic` поле пустое). Полный перенос `handleInput()` + скачивание медиа — Фаза 2.
+- Извлечение текста входящего выполняет control-api для **всех** handler-ов через `handler.handleInput()`: `generic` — по `config.messageField`, при пустом результате — JSON `trigger.data`; код-handler'ы (`telegram`) — собственная логика. **Воркеру** отдаётся готовый `InboundMessage` + `Channels` в `AgentMessage`; `messageField`/`triggerMessageField` больше не передаются. Скачивание медиа — Фаза 2.

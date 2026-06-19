@@ -10,10 +10,10 @@ import ru.agimate.controlapi.config.DbosProperties;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.dto.AgentMessage;
-import ru.agimate.controlapi.service.trigger.ChannelContext;
+import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
-import ru.agimate.controlapi.service.trigger.TriggerMapper;
 
 @Slf4j
 @Service
@@ -29,23 +29,18 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
     }
 
     @Override
-    public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
+    public void deliverTrigger(TriggerLogAgent triggerLogAgent, Trigger trigger, Channels channels, InboundMessage inbound) {
         DBOSClient client = clientProvider.getIfAvailable();
         if (client == null) {
             throw new IllegalStateException("GENERIC delivery is not configured (dbos.enabled=false)");
         }
+        Agent agent = triggerLogAgent.getAgent();
         String agentId = agent.getId().toString();
-        Trigger trigger = TriggerMapper.map(triggerLogAgent);
 
         DbosProperties.Workflow workflow = props.getWorkflows().getAgentWorkflow();
-        String type;
-        if (channelContext != null) {
-            type = "channel_message";
-        } else {
-            type = "trigger";
-        }
+        String type = channels != null ? "channel_message" : "trigger";
         String runId = triggerLogAgent.getId().toString();
-        AgentMessage<Trigger> message = new AgentMessage<>(agentId, runId, type, channelContext, trigger);
+        AgentMessage<Trigger> message = new AgentMessage<>(agentId, runId, type, channels, inbound, trigger);
 
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 workflow.getName(),

@@ -16,10 +16,10 @@ import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.controlapi.database.repositories.WebhookDeliveryLogRepository;
+import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.dto.AgentMessage;
-import ru.agimate.controlapi.service.trigger.ChannelContext;
+import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
-import ru.agimate.controlapi.service.trigger.TriggerMapper;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -50,13 +50,15 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
 
     @Override
     @Async
-    public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
-        Trigger trigger = TriggerMapper.map(triggerLogAgent);
+    public void deliverTrigger(TriggerLogAgent triggerLogAgent, Trigger trigger, Channels channels, InboundMessage inbound) {
+        Agent agent = triggerLogAgent.getAgent();
+        String type = channels != null ? "channel_message" : "trigger";
         AgentMessage<Trigger> message = new AgentMessage<>(
                 agent.getId().toString(),
                 triggerLogAgent.getId().toString(),
-                "trigger",
-                channelContext,
+                type,
+                channels,
+                inbound,
                 trigger);
         WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder = WebhookDeliveryLog.builder()
                 .triggerLogAgent(triggerLogAgent)

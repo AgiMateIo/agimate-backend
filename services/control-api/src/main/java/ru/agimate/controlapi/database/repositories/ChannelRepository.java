@@ -18,4 +18,11 @@ public interface ChannelRepository extends JpaRepository<Channel, UUID> {
     List<Channel> findByAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID agentId);
 
     List<Channel> findByUserIdAndAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userId, UUID agentId);
+
+    /**
+     * Активный канал для (agent, connector, identity) — источник маршрута триггера. Единственность
+     * гарантирует частичный уникальный индекс {@code WHERE deleted_at IS NULL}.
+     */
+    Optional<Channel> findByAgentIdAndConnectorCodeAndIdentityAndDeletedAtIsNull(
+            UUID agentId, String connectorCode, String identity);
 }

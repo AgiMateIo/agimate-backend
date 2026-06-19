@@ -17,8 +17,8 @@ import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -66,14 +66,17 @@ public class TriggerRouterService {
                 userId, trigger.connectorCode(), trigger.identity(), trigger.name());
         agents = TriggerAudience.filter(agents, trigger.audience());
 
-        sendTrigger(agents, triggerLog, trigger);
+        List<AgentRoute> routes = planRoutes(agents, trigger);
+        dispatch(triggerLog, trigger, routes);
     }
 
-    private void sendTrigger(List<Agent> agents, TriggerLog triggerLog, Trigger trigger) {
-        if (agents.isEmpty()) {
-            log.warn("Ignored trigger {} - {}", triggerLog.getConnectorCode(), triggerLog.getName());
-        }
-
+    /**
+     * Фаза 1 — доменное решение: кому и как доставлять. Работает только с {@link Trigger}, без персистентности.
+     * Policy (ABAC) решает, что агенту разрешено; наличие канала для {@code (agent, connector, identity)}
+     * решает, как строится взаимодействие — это разные слои, поэтому {@code policy.channelId} здесь не читается.
+     */
+    private List<AgentRoute> planRoutes(List<Agent> agents, Trigger trigger) {
+        List<AgentRoute> routes = new ArrayList<>();
         for (Agent agent : agents) {
             Optional<AgentTriggerPolicy> bestPolicy = agentTriggerPolicyService.selectMatchingAllowPolicy(
                     agent.getId(), trigger.connectorCode(), trigger.identity(), trigger.name(), trigger.data());
@@ -82,81 +85,93 @@ public class TriggerRouterService {
                 continue;
             }
 
-            AgentTriggerPolicy policy = bestPolicy.get();
-            ChannelContext channelContext = null;
-            if (policy.getChannelId() != null) {
-                ChannelInbound inbound = resolveChannelInbound(policy.getChannelId(), trigger);
-                if (inbound.skip()) {
-                    log.debug("Channel {} filtered out trigger '{}' for agent {}",
-                            policy.getChannelId(), trigger.name(), agent.getId());
-                    continue;
-                }
-                channelContext = inbound.context();
+            Channel channel = channelRepository.findByAgentIdAndConnectorCodeAndIdentityAndDeletedAtIsNull(
+                    agent.getId(), trigger.connectorCode(), trigger.identity()).orElse(null);
+            if (channel == null) {
+                routes.add(AgentRoute.direct(agent));
+                continue;
             }
+
+            ChannelInbound inbound = resolveChannelInbound(channel, trigger);
+            if (inbound.skip()) {
+                log.debug("Channel {} filtered out trigger '{}' for agent {}",
+                        channel.getId(), trigger.name(), agent.getId());
+                continue;
+            }
+            routes.add(new AgentRoute(agent, inbound.channels(), inbound.message()));
+        }
+        return routes;
+    }
+
+    /**
+     * Фаза 2 — персистентность и доставка. Работает с {@link TriggerLog}/{@link TriggerLogAgent};
+     * {@code sessionId} запуска берётся из prompt-канала.
+     */
+    private void dispatch(TriggerLog triggerLog, Trigger trigger, List<AgentRoute> routes) {
+        if (routes.isEmpty()) {
+            log.warn("Ignored trigger {} - {}", triggerLog.getConnectorCode(), triggerLog.getName());
+            return;
+        }
+
+        for (AgentRoute route : routes) {
+            UUID sessionId = route.channels() != null && route.channels().prompt() != null
+                    ? route.channels().prompt().sessionId() : null;
 
             TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
                     .triggerLog(triggerLog)
-                    .agent(agent)
-                    .destination(agent.getType().name())
-                    .sessionId(channelContext != null ? channelContext.channelSessionId() : null)
+                    .agent(route.agent())
+                    .destination(route.agent().getType().name())
+                    .sessionId(sessionId)
                     .build();
             // Persist before delivery so the DB-generated id (the canonical run_id == DBOS
             // workflow id) is populated; delivery and the run registry rely on this id.
             triggerLogAgent = triggerLogAgentRepository.save(triggerLogAgent);
 
-            agentDeliveryService.deliverTrigger(agent, triggerLogAgent, channelContext);
+            agentDeliveryService.deliverTrigger(triggerLogAgent, trigger, route.channels(), route.message());
 
             triggerLog.getTriggerLogAgents().add(triggerLogAgent);
         }
     }
 
-    /**
-     * @param skip    true → handler-фильтр отверг триггер: доставку пропустить (сессия не создаётся)
-     * @param context контекст доставки; null при отсутствующем/удалённом канале (обычная доставка триггера)
-     */
-    private record ChannelInbound(boolean skip, ChannelContext context) {
-        private static final ChannelInbound SKIP = new ChannelInbound(true, null);
-
-        private static ChannelInbound deliver(ChannelContext context) {
-            return new ChannelInbound(false, context);
+    /** Разрешённый маршрут до агента: {@code channels}/{@code message} == null для прямой (не канальной) доставки. */
+    private record AgentRoute(Agent agent, Channels channels, InboundMessage message) {
+        private static AgentRoute direct(Agent agent) {
+            return new AgentRoute(agent, null, null);
         }
     }
 
-    private ChannelInbound resolveChannelInbound(UUID channelId, Trigger trigger) {
-        Channel channel = channelRepository.findById(channelId).orElse(null);
-        if (channel == null || channel.getDeletedAt() != null) {
-            log.warn("Channel id={} not found or deleted; treating as no-channel route", channelId);
-            return ChannelInbound.deliver(null);
+    /**
+     * @param skip     true → handler-фильтр отверг триггер: доставку пропустить (сессия не создаётся)
+     * @param channels каналы взаимодействия (prompt заполнен); null при отсутствии handler'а
+     * @param message  извлечённое входящее сообщение; null при отсутствии handler'а
+     */
+    private record ChannelInbound(boolean skip, Channels channels, InboundMessage message) {
+        private static final ChannelInbound SKIP = new ChannelInbound(true, null, null);
+
+        private static ChannelInbound deliver(Channels channels, InboundMessage message) {
+            return new ChannelInbound(false, channels, message);
+        }
+    }
+
+    private ChannelInbound resolveChannelInbound(Channel channel, Trigger trigger) {
+        ChannelHandler handler = channelHandlerRegistry.find(channel.getChannelHandler()).orElse(null);
+        if (handler == null) {
+            log.warn("No handler '{}' for channel {}; treating as direct route",
+                    channel.getChannelHandler(), channel.getId());
+            return ChannelInbound.deliver(null, null);
         }
 
-        Map<String, Object> config = channel.getConfig();
-        Object rawMessageField = config != null ? config.get("messageField") : null;
-        String messageField = rawMessageField != null ? rawMessageField.toString() : null;
-
-        // Handlers без messageField в config (например telegram) извлекают текст сами через handleInput();
-        // handleInput() == empty означает «триггер не для этого канала» (фильтр) → доставку пропускаем.
-        // generic оставляет messageField — текст по-прежнему извлекает воркер (поведение не меняется).
-        String inboundText = null;
-        if (messageField == null) {
-            ChannelHandler handler = channelHandlerRegistry.find(channel.getChannelHandler()).orElse(null);
-            if (handler != null) {
-                ChannelConfig cc = new ChannelConfig(channel.getConnectorCode(), channel.getIdentity(), config);
-                Optional<InboundMessage> inbound = handler.handleInput(cc, trigger);
-                if (inbound.isEmpty()) {
-                    return ChannelInbound.SKIP;
-                }
-                inboundText = inbound.get().text();
-            }
+        // Извлечение текста выполняет control-api для всех handler'ов (generic делает JSON-фолбэк);
+        // empty == «триггер не для этого канала» (фильтр) → доставку пропускаем.
+        ChannelConfig cc = new ChannelConfig(channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
+        Optional<InboundMessage> inbound = handler.handleInput(cc, trigger);
+        if (inbound.isEmpty()) {
+            return ChannelInbound.SKIP;
         }
 
         ChannelSession session = channelSessionService.findOrCreateActive(channel, null);
-        return ChannelInbound.deliver(new ChannelContext(
-                channel.getId(),
-                session.getId(),
-                channel.getName(),
-                messageField,
-                inboundText
-        ));
+        ChannelInfo prompt = new ChannelInfo(channel.getId(), session.getId(), null);
+        return ChannelInbound.deliver(Channels.ofPrompt(prompt), inbound.get());
     }
 
 }

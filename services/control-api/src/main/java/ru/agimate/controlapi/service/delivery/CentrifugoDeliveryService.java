@@ -7,11 +7,11 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
+import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.dto.AgentMessage;
 import ru.agimate.controlapi.service.dto.IToolResult;
-import ru.agimate.controlapi.service.trigger.ChannelContext;
+import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
-import ru.agimate.controlapi.service.trigger.TriggerMapper;
 
 @Slf4j
 @Service
@@ -26,11 +26,12 @@ public class CentrifugoDeliveryService implements AgentDeliveryHandler {
     }
 
     @Override
-    public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
+    public void deliverTrigger(TriggerLogAgent triggerLogAgent, Trigger trigger, Channels channels, InboundMessage inbound) {
+        Agent agent = triggerLogAgent.getAgent();
         String agentId = agent.getId().toString();
-        Trigger trigger = TriggerMapper.map(triggerLogAgent);
+        String type = channels != null ? "channel_message" : "trigger";
         AgentMessage<Trigger> message = new AgentMessage<>(
-                agentId, triggerLogAgent.getId().toString(), "trigger", channelContext, trigger);
+                agentId, triggerLogAgent.getId().toString(), type, channels, inbound, trigger);
         centrifugoService.publish(agentChannel(agent), message);
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo",
                 triggerLogAgent.getTriggerLog().getName(), agent.getId());
@@ -40,7 +41,7 @@ public class CentrifugoDeliveryService implements AgentDeliveryHandler {
     public void deliverToolResult(Agent agent, IToolResult toolResult) {
         String agentId = agent.getId().toString();
         // todo: для доставки ответов тулов желательно использовать дургой канал агента. Другими словами, у агента два канала: 1 для получения заланий для агента, 2 для получения результатов вызова тулов (тут оборачивание в AgentMessage уже не требуется)
-        AgentMessage<IToolResult> message = new AgentMessage<>(agentId, null, "toolResult", null, toolResult);
+        AgentMessage<IToolResult> message = new AgentMessage<>(agentId, null, "toolResult", null, null, toolResult);
         centrifugoService.publish(agentChannel(agent), message);
         log.debug("Tool result '{}' sent to agent '{}' via centrifugo", toolResult.getId(), agent.getId());
     }

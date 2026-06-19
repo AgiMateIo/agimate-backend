@@ -12,6 +12,12 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Канал взаимодействия агента с пользователем (как строится диалог). Бизнес-ключ
+ * {@code (agent_id, connector_code, identity)} уникален среди активных каналов — обеспечивается
+ * частичным индексом {@code uq_channels_agent_connector_identity_active} ({@code WHERE deleted_at IS NULL}).
+ * JPA {@code @UniqueConstraint} частичное условие не выражает, поэтому здесь не дублируется.
+ */
 @Entity
 @Table(name = "channels")
 @Getter

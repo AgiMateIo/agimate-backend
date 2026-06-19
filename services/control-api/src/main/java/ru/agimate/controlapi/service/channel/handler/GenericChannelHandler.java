@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.service.channel.handler;
 
 import org.springframework.stereotype.Component;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.controller.agent.dto.ToolUseRequest;
 import ru.agimate.controlapi.service.tool.AgentToolUseService;
@@ -88,7 +89,7 @@ public class GenericChannelHandler implements ChannelHandler {
     @Override
     public Optional<InboundMessage> handleInput(ChannelConfig config, Trigger trigger) {
         Object value = InputFilterEvaluator.resolvePath(trigger.data(), messageField(config));
-        String text = value == null ? null : value.toString();
+        String text = value != null ? value.toString() : JsonUtils.writeValueAsString(trigger.data());
         return Optional.of(InboundMessage.text(text, trigger.data(), null));
     }
 

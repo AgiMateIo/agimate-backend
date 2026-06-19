@@ -5,9 +5,11 @@ import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.delivery.AgentDeliveryHandler;
 import ru.agimate.controlapi.service.dto.IToolResult;
-import ru.agimate.controlapi.service.trigger.ChannelContext;
+import ru.agimate.controlapi.service.trigger.Channels;
+import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.util.List;
 import java.util.Map;
@@ -28,13 +30,10 @@ public class AgentDeliveryService {
         this.agentService = agentService;
     }
 
-    public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent) {
-        deliverTrigger(agent, triggerLogAgent, null);
-    }
-
-    public void deliverTrigger(Agent agent, TriggerLogAgent triggerLogAgent, ChannelContext channelContext) {
+    public void deliverTrigger(TriggerLogAgent triggerLogAgent, Trigger trigger, Channels channels, InboundMessage inbound) {
+        Agent agent = triggerLogAgent.getAgent();
         try {
-            handlers.get(agent.getType()).deliverTrigger(agent, triggerLogAgent, channelContext);
+            handlers.get(agent.getType()).deliverTrigger(triggerLogAgent, trigger, channels, inbound);
         } catch (Exception e) {
             triggerLogAgent.setError(e.getMessage());
             log.warn("Failed to send trigger '{}' to agent '{}' via {}: {}",
