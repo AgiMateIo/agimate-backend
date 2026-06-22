@@ -22,10 +22,10 @@ import ru.agimate.agentworker.SendChannelMessageRequest;
 import ru.agimate.agentworker.SendChannelMessageResponse;
 
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.emptyToNull;
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.nullToEmpty;
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseOptionalUuid;
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 
@@ -46,13 +46,11 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
 
             ListChannelsResponse.Builder responseBuilder = ListChannelsResponse.newBuilder();
             for (Channel channel : channels) {
-                Map<String, Object> config = channel.getConfig();
                 responseBuilder.addChannels(ChannelDescriptor.newBuilder()
                         .setChannelId(channel.getId().toString())
                         .setName(channel.getName())
-                        .setReplyConnectorCode(ChannelGatewayMapper.configString(
-                                config, "replyConnectorCode", channel.getConnectorCode()))
-                        .setReplyToolName(ChannelGatewayMapper.configString(config, "replyToolName", ""))
+                        .setConnectorCode(channel.getConnectorCode())
+                        .setIdentity(nullToEmpty(channel.getIdentity()))
                         .build());
             }
             log.debug("ChannelGateway.ListChannels pool={} agent={} count={}", poolId, agentId, channels.size());

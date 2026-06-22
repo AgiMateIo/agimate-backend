@@ -110,8 +110,8 @@ message ListChannelsRequest {
 message ChannelDescriptor {
   string channel_id = 1;             // pubId канала
   string name = 2;
-  string reply_connector_code = 3;
-  string reply_tool_name = 4;
+  string connector_code = 3;         // коннектор, к которому привязан канал
+  string identity = 4;               // identity коннектора (может быть пустым)
 }
 message ListChannelsResponse {
   repeated ChannelDescriptor channels = 1;

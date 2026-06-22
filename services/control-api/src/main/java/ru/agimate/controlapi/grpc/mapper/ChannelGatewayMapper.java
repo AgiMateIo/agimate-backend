@@ -25,12 +25,4 @@ public class ChannelGatewayMapper {
                 : JsonUtils.readValue(part.getMetaJson(), JsonUtils.MAP_TYPE_REFERENCE);
         return new Part(part.getType(), part.getStorageRef(), part.getMime(), part.getSize(), meta);
     }
-
-    public static String configString(Map<String, Object> config, String key, String fallback) {
-        if (config == null) {
-            return fallback;
-        }
-        Object value = config.get(key);
-        return value != null ? value.toString() : fallback;
-    }
 }
