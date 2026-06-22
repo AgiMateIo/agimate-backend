@@ -74,10 +74,12 @@ public class ToolExecutionService {
                     .filter(IntegrationCredentials::isActive)
                     .orElseThrow(() -> new ConnectorException(
                             "Integration credentials missing or disabled: " + toolCallLog.getIdentity()));
-            return contextFactory.forIntegration(credentials, toolCallLog.getAgentId());
+            return contextFactory.forIntegration(
+                    credentials, toolCallLog.getAgentId(), toolCallLog.getAgentSessionId());
         }
         return contextFactory.internal(
-                toolCallLog.getIdentity(), toolCallLog.getUserId(), toolCallLog.getAgentId());
+                toolCallLog.getIdentity(), toolCallLog.getUserId(),
+                toolCallLog.getAgentId(), toolCallLog.getAgentSessionId());
     }
 
     private void deliver(ToolCallLog toolCallLog, String output, String error) {

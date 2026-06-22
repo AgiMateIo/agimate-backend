@@ -18,29 +18,35 @@ public class ConnectorContextFactory {
     private final IntegrationEncryptionService encryptionService;
 
     /** Полный контекст integration-коннектора: с расшифровкой credentials (тулы, таски). */
-    public ConnectorContext forIntegration(IntegrationCredentials credentials, UUID agentId) {
-        return withCredentials(credentials,
-                encryptionService.decryptCredentials(credentials.getEncryptedData()), agentId);
+    public ConnectorContext forIntegration(IntegrationCredentials credentials, UUID agentId, String agentSessionId) {
+        return build(credentials,
+                encryptionService.decryptCredentials(credentials.getEncryptedData()), agentId, agentSessionId);
     }
 
     /** Контекст с уже известной мапой credentials — когда расшифровка не нужна (lifecycle-вызовы). */
     public ConnectorContext withCredentials(IntegrationCredentials credentials,
                                             Map<String, String> decrypted,
                                             UUID agentId) {
-        return new ConnectorContext(
-                credentials.getId().toString(),
-                credentials.getUserId(),
-                agentId,
-                decrypted,
-                credentials.getWebhookSecret());
+        return build(credentials, decrypted, agentId, null);
     }
 
     /** Webhook hot path: валидация/нормализация не требует расшифрованных credentials. */
     public ConnectorContext forWebhook(IntegrationCredentials credentials) {
-        return withCredentials(credentials, Map.of(), null);
+        return build(credentials, Map.of(), null, null);
     }
 
-    public ConnectorContext internal(String identity, UUID userId, UUID agentId) {
-        return new ConnectorContext(identity, userId, agentId, Map.of(), null);
+    public ConnectorContext internal(String identity, UUID userId, UUID agentId, String agentSessionId) {
+        return new ConnectorContext(identity, userId, agentId, agentSessionId, Map.of(), null);
+    }
+
+    private ConnectorContext build(IntegrationCredentials credentials, Map<String, String> decrypted,
+                                   UUID agentId, String agentSessionId) {
+        return new ConnectorContext(
+                credentials.getId().toString(),
+                credentials.getUserId(),
+                agentId,
+                agentSessionId,
+                decrypted,
+                credentials.getWebhookSecret());
     }
 }

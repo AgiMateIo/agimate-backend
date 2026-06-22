@@ -14,6 +14,9 @@ import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
+import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
+import ru.agimate.controlapi.service.trigger.ChannelInfo;
+import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
@@ -51,6 +54,7 @@ public class TimeToolService {
 
     private final ConnectorJobService jobService;
     private final TriggerRouterService triggerRouterService;
+    private final ChannelSessionRepository channelSessionRepository;
 
     @Tool(name = "time.current_datetime", description = "Get the current date and time in UTC (ISO-8601)",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
@@ -105,8 +109,17 @@ public class TimeToolService {
             config = Map.of("cron", cron, "zone", resolvedZone);
         }
 
+        // Снимок исходного канала: напоминание уйдёт агенту с этим каналом как progress/answer
+        // (prompt у напоминания нет). channelId — это и есть аргумент fire() (см. ниже).
+        Map<String, Object> args = new LinkedHashMap<>();
+        args.put("prompt", prompt);
+        String originChannelId = resolveOriginChannelId(ctx.agentSessionId());
+        if (originChannelId != null) {
+            args.put("channelId", originChannelId);
+        }
+
         JobSpecification spec = new JobSpecification(
-                FIRE_TASK, type, config, Map.of("prompt", prompt), FIRE_TIMEOUT_SECONDS);
+                FIRE_TASK, type, config, args, FIRE_TIMEOUT_SECONDS);
         ConnectorJob row = jobService.schedule(
                 TimeConnectorService.CONNECTOR_CODE, ctx.identity(), ctx.userId(), ctx.agentId(), spec, firstRunAt);
 
@@ -166,18 +179,53 @@ public class TimeToolService {
      */
     @Tool(name = FIRE_TASK, description = "Internal: deliver a scheduled task to its agent")
     @Job(isJobOnly = true)
-    public void fire(@ToolParam("Prompt to deliver to the agent") String prompt) {
+    public void fire(@ToolParam("Prompt to deliver to the agent") String prompt,
+                     @ToolParam(value = "Originating channel id for the reply (progress/answer)",
+                             required = false) String channelId) {
         ConnectorContext ctx = ConnectorContextHolder.current();
         if (ctx.agentId() == null) {
             throw new ConnectorException("Scheduled task has no originating agent");
         }
+        TriggerAudience audience = new TriggerAudience(null, List.of(ctx.agentId()));
         Trigger trigger = Trigger.createDirected(
                 TimeConnectorService.CONNECTOR_CODE,
                 ctx.identity(),
                 DUE_TRIGGER,
                 Map.of("prompt", prompt == null ? "" : prompt),
-                TriggerContext.audience(new TriggerAudience(null, List.of(ctx.agentId()))));
+                fireContext(audience, channelId));
         triggerRouterService.routeTrigger(ctx.userId(), trigger);
+    }
+
+    /**
+     * Контекст триггера напоминания: к audience добавляет проактивный канал ответа, если он был снят
+     * при планировании. {@code prompt} остаётся {@code null} (входящего сообщения нет), а исходный
+     * канал агента кладётся в {@code progress}/{@code answer}.
+     */
+    private TriggerContext fireContext(TriggerAudience audience, String channelId) {
+        if (channelId == null || channelId.isBlank()) {
+            return TriggerContext.audience(audience);
+        }
+        UUID id;
+        try {
+            id = UUID.fromString(channelId);
+        } catch (IllegalArgumentException e) {
+            return TriggerContext.audience(audience);
+        }
+        ChannelInfo ref = new ChannelInfo(id, null, null);
+        return new TriggerContext(audience, new Channels(null, ref, ref));
+    }
+
+    private String resolveOriginChannelId(String agentSessionId) {
+        if (agentSessionId == null || agentSessionId.isBlank()) {
+            return null;
+        }
+        try {
+            return channelSessionRepository.findById(UUID.fromString(agentSessionId))
+                    .map(session -> session.getChannelId().toString())
+                    .orElse(null);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private static void requirePositive(long value, String field) {

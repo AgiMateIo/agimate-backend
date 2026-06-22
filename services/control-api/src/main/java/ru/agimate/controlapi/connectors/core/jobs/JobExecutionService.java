@@ -50,11 +50,12 @@ public class JobExecutionService {
                     .filter(IntegrationCredentials::isActive)
                     .orElseThrow(() -> new ConnectorException(
                             "Integration credentials missing or disabled: " + row.getIdentity()));
-            return contextFactory.forIntegration(credentials, null);
+            return contextFactory.forIntegration(credentials, null, null);
         }
         // Полный контекст инициатора (userId/agentId сохранены в строке при планировании) —
         // динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.
-        return contextFactory.internal(row.getIdentity(), row.getUserId(), row.getAgentId());
+        // agentSessionId не сохраняется: исходный канал, если нужен, едет в args задачи.
+        return contextFactory.internal(row.getIdentity(), row.getUserId(), row.getAgentId(), null);
     }
 
     private static UUID parseIdentity(ConnectorJob row) {

@@ -33,9 +33,40 @@ public class ChannelRouteResolver {
     ChannelResolution resolve(Agent agent, Trigger trigger) {
         Channel channel = resolveChannel(agent, trigger);
         if (channel == null) {
-            return ChannelResolution.direct();
+            // Нет prompt-канала, но продюсер мог объявить проактивный канал ответа (progress/answer
+            // без prompt) — например time.due: напоминание без входящего сообщения.
+            Channels proactive = resolveProactiveChannels(agent, trigger);
+            return proactive != null ? ChannelResolution.channel(proactive, null) : ChannelResolution.direct();
         }
         return resolveInbound(channel, trigger);
+    }
+
+    /**
+     * Проактивный канал без входящего: продюсер задал в {@link TriggerContext} channels с
+     * {@code progress}/{@code answer}, но без {@code prompt}. Отдаём объявленные channels как есть,
+     * проверив, что канал существует и принадлежит агенту; иначе {@code null} → прямая доставка.
+     */
+    private Channels resolveProactiveChannels(Agent agent, Trigger trigger) {
+        if (trigger.context() == null || trigger.context().channels() == null) {
+            return null;
+        }
+        Channels channels = trigger.context().channels();
+        if (channels.prompt() != null) {
+            return null;
+        }
+        ChannelInfo ref = channels.progress() != null ? channels.progress() : channels.answer();
+        if (ref == null || ref.channelId() == null) {
+            return null;
+        }
+        Channel channel = channelRepository.findById(ref.channelId())
+                .filter(c -> c.getDeletedAt() == null)
+                .orElse(null);
+        if (channel == null || !channel.getAgentId().equals(agent.getId())) {
+            log.debug("Declared proactive channel {} not applicable to agent {} - direct route",
+                    ref.channelId(), agent.getId());
+            return null;
+        }
+        return channels;
     }
 
     /**
