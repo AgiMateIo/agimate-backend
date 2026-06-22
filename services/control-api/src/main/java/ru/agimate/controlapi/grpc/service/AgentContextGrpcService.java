@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
@@ -60,6 +59,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.handleError;
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.nullToEmpty;
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.toJsonBytes;
 
 @Service
 @RequiredArgsConstructor
@@ -363,41 +367,4 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
         }
     }
 
-    private static UUID parseUuid(String value, String field) {
-        if (value == null || value.isBlank()) {
-            throw Status.INVALID_ARGUMENT
-                    .withDescription(field + " is required").asRuntimeException();
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            throw Status.INVALID_ARGUMENT
-                    .withDescription(field + " is not a valid UUID").asRuntimeException();
-        }
-    }
-
-    private static String nullToEmpty(String s) {
-        return s == null ? "" : s;
-    }
-
-    private static ByteString toJsonBytes(Object value) {
-        return ByteString.copyFrom(JsonUtils.writeValueAsString(value).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static void handleError(Exception e, StreamObserver<?> observer) {
-        if (e instanceof io.grpc.StatusRuntimeException sre) {
-            observer.onError(sre);
-            return;
-        }
-        if (e instanceof NotFoundStatusException) {
-            observer.onError(Status.NOT_FOUND.withDescription(e.getMessage()).asRuntimeException());
-            return;
-        }
-        if (e instanceof BadRequestStatusException || e instanceof ValidationErrorStatusException) {
-            observer.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asRuntimeException());
-            return;
-        }
-        log.error("AgentContext RPC failed", e);
-        observer.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
-    }
 }

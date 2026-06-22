@@ -11,10 +11,10 @@ import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
-import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
+import ru.agimate.controlapi.grpc.mapper.ToolGatewayMapper;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.ExecuteToolRequest;
@@ -24,8 +24,9 @@ import ru.agimate.agentworker.ToolGatewayGrpc;
 import ru.agimate.agentworker.ToolResultStatus;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.UUID;
+
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 
 @Service
 @RequiredArgsConstructor
@@ -39,7 +40,7 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            ToolCallRequest toolCall = buildToolCallRequest(request);
+            ToolCallRequest toolCall = ToolGatewayMapper.toToolCallRequest(request);
             String toolCallId = agentToolCallService.processToolCall(agentId, toolCall);
             log.info("ToolGateway.ExecuteToolAsync ok pool={} agent={} workflow={} tool={} toolCallId={}",
                     poolId, agentId, request.getWorkflowId(), request.getToolName(), toolCallId);
@@ -112,47 +113,4 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         }
     }
 
-    private static ToolCallRequest buildToolCallRequest(ExecuteToolRequest request) {
-        if (request.getToolCallId().isEmpty()) {
-            throw Status.INVALID_ARGUMENT.withDescription("tool_call_id is required").asRuntimeException();
-        }
-        if (request.getConnectorCode().isEmpty()) {
-            throw Status.INVALID_ARGUMENT.withDescription("connector_code is required").asRuntimeException();
-        }
-        if (request.getToolName().isEmpty()) {
-            throw Status.INVALID_ARGUMENT.withDescription("tool_name is required").asRuntimeException();
-        }
-
-        Map<String, Object> input = Map.of();
-        if (!request.getInput().isEmpty()) {
-            String json = request.getInput().toStringUtf8();
-            input = JsonUtils.readValue(json, JsonUtils.MAP_TYPE_REFERENCE);
-        }
-
-        return ToolCallRequest.builder()
-                .id(request.getToolCallId())
-                .connectorCode(request.getConnectorCode())
-                .identity(emptyToNull(request.getIdentity()))
-                .name(request.getToolName())
-                .input(input)
-                .agentSessionId(emptyToNull(request.getAgentSessionId()))
-                .build();
-    }
-
-    private static UUID parseUuid(String value, String field) {
-        if (value == null || value.isBlank()) {
-            throw Status.INVALID_ARGUMENT
-                    .withDescription(field + " is required").asRuntimeException();
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            throw Status.INVALID_ARGUMENT
-                    .withDescription(field + " is not a valid UUID").asRuntimeException();
-        }
-    }
-
-    private static String emptyToNull(String s) {
-        return s == null || s.isEmpty() ? null : s;
-    }
 }

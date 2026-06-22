@@ -10,8 +10,10 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
+import ru.agimate.controlapi.grpc.mapper.ChannelGatewayMapper;
 import ru.agimate.controlapi.service.channel.ChannelMessageOutboundService;
 import ru.agimate.controlapi.service.channel.ChannelService;
+import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.agentworker.ChannelDescriptor;
 import ru.agimate.agentworker.ChannelGatewayGrpc;
 import ru.agimate.agentworker.ListChannelsRequest;
@@ -22,6 +24,10 @@ import ru.agimate.agentworker.SendChannelMessageResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.emptyToNull;
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseOptionalUuid;
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 
 @Service
 @RequiredArgsConstructor
@@ -44,8 +50,9 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
                 responseBuilder.addChannels(ChannelDescriptor.newBuilder()
                         .setChannelId(channel.getId().toString())
                         .setName(channel.getName())
-                        .setReplyConnectorCode(configString(config, "replyConnectorCode", channel.getConnectorCode()))
-                        .setReplyToolName(configString(config, "replyToolName", ""))
+                        .setReplyConnectorCode(ChannelGatewayMapper.configString(
+                                config, "replyConnectorCode", channel.getConnectorCode()))
+                        .setReplyToolName(ChannelGatewayMapper.configString(config, "replyToolName", ""))
                         .build());
             }
             log.debug("ChannelGateway.ListChannels pool={} agent={} count={}", poolId, agentId, channels.size());
@@ -66,10 +73,10 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
             UUID channelId = parseUuid(request.getChannelId(), "channel_id");
             UUID sessionId = parseOptionalUuid(request.getSessionId(), "session_id");
-            String text = request.getText();
             String messageId = emptyToNull(request.getMessageId());
+            OutboundMessage outbound = ChannelGatewayMapper.toOutboundMessage(request.getMessage());
 
-            var result = channelMessageOutboundService.send(agentId, channelId, sessionId, text, messageId);
+            var result = channelMessageOutboundService.send(agentId, channelId, sessionId, outbound, messageId);
 
             SendChannelMessageResponse response = SendChannelMessageResponse.newBuilder()
                     .setSessionId(result.session().getId().toString())
@@ -92,39 +99,5 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
             log.error("ChannelGateway.SendChannelMessage failed pool={}", poolId, e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
         }
-    }
-
-    private static UUID parseUuid(String value, String field) {
-        if (value == null || value.isBlank()) {
-            throw Status.INVALID_ARGUMENT.withDescription(field + " is required").asRuntimeException();
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            throw Status.INVALID_ARGUMENT.withDescription(field + " is not a valid UUID").asRuntimeException();
-        }
-    }
-
-    private static UUID parseOptionalUuid(String value, String field) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            throw Status.INVALID_ARGUMENT.withDescription(field + " is not a valid UUID").asRuntimeException();
-        }
-    }
-
-    private static String emptyToNull(String value) {
-        return value == null || value.isEmpty() ? null : value;
-    }
-
-    private static String configString(Map<String, Object> config, String key, String fallback) {
-        if (config == null) {
-            return fallback;
-        }
-        Object value = config.get(key);
-        return value != null ? value.toString() : fallback;
     }
 }

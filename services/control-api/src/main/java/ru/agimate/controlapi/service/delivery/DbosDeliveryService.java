@@ -38,7 +38,7 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         String agentId = agent.getId().toString();
 
         DbosProperties.Workflow workflow = props.getWorkflows().getAgentWorkflow();
-        String type = channels != null ? "channel_message" : "trigger";
+        String type = "trigger";
         String runId = triggerLogAgent.getId().toString();
         AgentMessage<Trigger> message = new AgentMessage<>(agentId, runId, type, channels, inbound, trigger);
 
@@ -52,6 +52,7 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
                 .withWorkflowId(runId)
                 .withQueuePartitionKey(agentId);
         client.enqueueWorkflow(options, new Object[]{message});
+
         log.debug("{} '{}' enqueued to DBOS queue '{}' for agent '{}'",
                 type,
                 triggerLogAgent.getTriggerLog().getName(),

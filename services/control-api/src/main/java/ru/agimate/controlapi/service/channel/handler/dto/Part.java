@@ -12,7 +12,7 @@ import java.util.Map;
  * @param storageRef ссылка на содержимое в объектном хранилище
  * @param mime       MIME-тип
  * @param size       размер в байтах
- * @param meta       произвольные метаданные (имя файла, длительность, ...)
+ * @param meta       произвольные метаданные (имя файла, длительность, транскрипция ...)
  */
 public record Part(
         String type,

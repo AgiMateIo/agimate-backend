@@ -15,6 +15,7 @@ import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
+import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 
 import java.util.Map;
@@ -36,7 +37,7 @@ public class ChannelMessageOutboundService {
 
     @Transactional
     public OutboundResult send(UUID agentId, UUID channelId, UUID sessionIdOrNull,
-                               String text, String messageId) {
+                               OutboundMessage outbound, String messageId) {
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(channelId)
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
 
@@ -57,9 +58,9 @@ public class ChannelMessageOutboundService {
 
         ChannelConfig config = new ChannelConfig(
                 channel.getAgentId(), channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
-        OutboundMessage outbound = OutboundMessage.text(text, replyContext, effectiveMessageId);
+        OutboundDispatch dispatch = new OutboundDispatch(effectiveMessageId, replyContext);
 
-        handler.handleOutput(config, outbound, agentToolCallService);
+        handler.handleOutput(config, outbound, dispatch, agentToolCallService);
 
         log.info("Dispatched OUT message session={} channel={} via handler={}",
                 session.getId(), channel.getId(), handler.name());

@@ -89,8 +89,9 @@ public class TelegramChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public void handleOutput(ChannelConfig config, OutboundMessage outbound, AgentToolCallService toolCallService) {
-        Map<String, Object> replyContext = outbound.replyContext() != null ? outbound.replyContext() : Map.of();
+    public void handleOutput(ChannelConfig config, OutboundMessage outbound, OutboundDispatch dispatch,
+                             AgentToolCallService toolCallService) {
+        Map<String, Object> replyContext = dispatch.replyContext() != null ? dispatch.replyContext() : Map.of();
         // Адрес ответа: из входящего (replyContext) → дефолт из config (проактивные/не-канальные триггеры).
         Object chatId = replyContext.get("chatId");
         if (chatId == null) {
@@ -104,7 +105,7 @@ public class TelegramChannelHandler implements ChannelHandler {
         args.put("chatId", chatId.toString());
         args.put("text", outbound.text());
         ToolCallRequest request = ToolCallRequest.builder()
-                .id(outbound.messageId())
+                .id(dispatch.messageId())
                 .connectorCode(config.connectorCode())
                 .identity(config.identity())
                 .name(TOOL_SEND_MESSAGE)

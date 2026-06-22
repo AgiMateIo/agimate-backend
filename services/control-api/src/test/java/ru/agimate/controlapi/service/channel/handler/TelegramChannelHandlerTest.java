@@ -12,6 +12,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
+import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.ToolDefinition;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -178,9 +179,10 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("calls processToolCall with send_message and chatId from reply context")
         void dispatches() {
-            OutboundMessage outbound = OutboundMessage.text("Готово", Map.of("chatId", 42), "call-1");
+            OutboundMessage outbound = OutboundMessage.text("Готово");
+            OutboundDispatch dispatch = new OutboundDispatch("call-1", Map.of("chatId", 42));
 
-            handler.handleOutput(config, outbound, toolCallService);
+            handler.handleOutput(config, outbound, dispatch, toolCallService);
 
             ArgumentCaptor<ToolCallRequest> req = ArgumentCaptor.forClass(ToolCallRequest.class);
             verify(toolCallService).processToolCall(eq(AGENT_ID), req.capture());
@@ -197,9 +199,10 @@ class TelegramChannelHandlerTest {
         @DisplayName("falls back to config defaultChatId when reply context has none")
         void defaultChatIdFallback() {
             ChannelConfig withDefault = new ChannelConfig(AGENT_ID, "telegram", IDENTITY, Map.of("defaultChatId", 777));
-            OutboundMessage outbound = OutboundMessage.text("Напоминание", Map.of(), "call-2");
+            OutboundMessage outbound = OutboundMessage.text("Напоминание");
+            OutboundDispatch dispatch = new OutboundDispatch("call-2", Map.of());
 
-            handler.handleOutput(withDefault, outbound, toolCallService);
+            handler.handleOutput(withDefault, outbound, dispatch, toolCallService);
 
             ArgumentCaptor<ToolCallRequest> req = ArgumentCaptor.forClass(ToolCallRequest.class);
             verify(toolCallService).processToolCall(eq(AGENT_ID), req.capture());
@@ -209,9 +212,10 @@ class TelegramChannelHandlerTest {
         @Test
         @DisplayName("throws when chatId is missing and no defaultChatId")
         void missingChatId() {
-            OutboundMessage outbound = OutboundMessage.text("Готово", Map.of(), "call-1");
+            OutboundMessage outbound = OutboundMessage.text("Готово");
+            OutboundDispatch dispatch = new OutboundDispatch("call-1", Map.of());
 
-            assertThrows(ConnectorException.class, () -> handler.handleOutput(config, outbound, toolCallService));
+            assertThrows(ConnectorException.class, () -> handler.handleOutput(config, outbound, dispatch, toolCallService));
             verifyNoInteractions(toolCallService);
         }
     }

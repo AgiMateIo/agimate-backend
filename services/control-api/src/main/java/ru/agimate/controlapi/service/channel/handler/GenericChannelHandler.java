@@ -94,11 +94,12 @@ public class GenericChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public void handleOutput(ChannelConfig config, OutboundMessage outbound, AgentToolCallService toolCallService) {
+    public void handleOutput(ChannelConfig config, OutboundMessage outbound, OutboundDispatch dispatch,
+                             AgentToolCallService toolCallService) {
         Map<String, Object> args = PlaceholderRenderer.render(
-                replyParams(config), outbound.text(), outbound.replyContext());
+                replyParams(config), outbound.text(), dispatch.replyContext());
         ToolCallRequest request = ToolCallRequest.builder()
-                .id(outbound.messageId())
+                .id(dispatch.messageId())
                 .connectorCode(replyConnector(config))
                 .identity(replyIdentity(config))
                 .name(replyTool(config))

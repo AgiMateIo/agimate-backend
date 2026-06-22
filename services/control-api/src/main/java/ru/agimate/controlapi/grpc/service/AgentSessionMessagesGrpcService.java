@@ -1,9 +1,5 @@
 package ru.agimate.controlapi.grpc.service;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Int32Value;
-import com.google.protobuf.StringValue;
-import com.google.protobuf.Timestamp;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
@@ -15,19 +11,17 @@ import ru.agimate.agentworker.AppendRequest;
 import ru.agimate.agentworker.AppendResponse;
 import ru.agimate.agentworker.GetHistoryRequest;
 import ru.agimate.agentworker.GetHistoryResponse;
-import ru.agimate.agentworker.HistoryMessage;
-import ru.agimate.agentworker.MessageKind;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
-import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
+import ru.agimate.controlapi.grpc.mapper.AgentSessionMapper;
 import ru.agimate.controlapi.service.channel.AgentSessionMessagesService;
 
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 
 @Service
 @RequiredArgsConstructor
@@ -52,7 +46,7 @@ public class AgentSessionMessagesGrpcService extends AgentSessionMessagesGrpc.Ag
             List<AgentSessionMessagesService.AppendMessage> serviceMessages = new ArrayList<>(request.getMessagesCount());
             for (AppendMessage m : request.getMessagesList()) {
                 serviceMessages.add(new AgentSessionMessagesService.AppendMessage(
-                        mapKind(m.getKind()),
+                        AgentSessionMapper.toDomainKind(m.getKind()),
                         m.getMessageJson().toByteArray(),
                         m.hasText() ? m.getText().getValue() : null,
                         m.getTriggerInputJson().toByteArray()
@@ -92,7 +86,7 @@ public class AgentSessionMessagesGrpcService extends AgentSessionMessagesGrpc.Ag
 
             GetHistoryResponse.Builder builder = GetHistoryResponse.newBuilder();
             for (ChannelSessionMessage m : history) {
-                builder.addMessages(toHistoryMessage(m));
+                builder.addMessages(AgentSessionMapper.toHistoryMessage(m));
             }
             log.debug("AgentSessionMessages.GetHistory pool={} agent={} session={} count={}",
                     poolId, agentPubId, sessionPubId, history.size());
@@ -105,60 +99,6 @@ public class AgentSessionMessagesGrpcService extends AgentSessionMessagesGrpc.Ag
         } catch (Exception e) {
             log.error("AgentSessionMessages.GetHistory failed pool={}", poolId, e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
-        }
-    }
-
-    private static HistoryMessage toHistoryMessage(ChannelSessionMessage m) {
-        String json = JsonUtils.writeValueAsStringSafe(m.getMessageJson());
-        HistoryMessage.Builder b = HistoryMessage.newBuilder()
-                .setTurnIdx(m.getTurnIdx())
-                .setKind(toProtoKind(m.getKind()))
-                .setMessageJson(ByteString.copyFromUtf8(json != null ? json : "{}"))
-                .setCreatedAt(toProtoTimestamp(m));
-        if (m.getInputTokens() != null) {
-            b.setInputTokens(Int32Value.of(m.getInputTokens()));
-        }
-        if (m.getOutputTokens() != null) {
-            b.setOutputTokens(Int32Value.of(m.getOutputTokens()));
-        }
-        if (m.getModelName() != null) {
-            b.setModelName(StringValue.of(m.getModelName()));
-        }
-        return b.build();
-    }
-
-    private static Timestamp toProtoTimestamp(ChannelSessionMessage m) {
-        var instant = m.getCreatedAt().toInstant(ZoneOffset.UTC);
-        return Timestamp.newBuilder()
-                .setSeconds(instant.getEpochSecond())
-                .setNanos(instant.getNano())
-                .build();
-    }
-
-    private static ChannelSessionMessageKind mapKind(MessageKind kind) {
-        return switch (kind) {
-            case REQUEST -> ChannelSessionMessageKind.REQUEST;
-            case RESPONSE -> ChannelSessionMessageKind.RESPONSE;
-            default -> throw Status.INVALID_ARGUMENT
-                    .withDescription("Unknown message kind: " + kind).asRuntimeException();
-        };
-    }
-
-    private static MessageKind toProtoKind(ChannelSessionMessageKind kind) {
-        return switch (kind) {
-            case REQUEST -> MessageKind.REQUEST;
-            case RESPONSE -> MessageKind.RESPONSE;
-        };
-    }
-
-    private static UUID parseUuid(String value, String field) {
-        if (value == null || value.isBlank()) {
-            throw Status.INVALID_ARGUMENT.withDescription(field + " is required").asRuntimeException();
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            throw Status.INVALID_ARGUMENT.withDescription(field + " is not a valid UUID").asRuntimeException();
         }
     }
 }

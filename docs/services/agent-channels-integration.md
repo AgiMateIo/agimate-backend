@@ -127,16 +127,29 @@ message ListChannelsResponse {
 ### 4.2 `SendChannelMessage`
 
 ```proto
+// Вложение мультимодального сообщения (Фаза 1 — не используется).
+message Part {
+  string type = 1;
+  string storage_ref = 2;
+  string mime = 3;
+  int64 size = 4;
+  string meta_json = 5;        // произвольные метаданные как JSON-объект
+}
+// Контент ответа без адресации/корреляции — зеркало InboundMessage.
+message OutboundMessage {
+  string text = 1;             // текст ответа
+  repeated Part parts = 2;     // вложения (Фаза 1: пусто)
+}
 message SendChannelMessageRequest {
   string agent_id = 1;
   string channel_id = 2;       // pubId канала из payload или ListChannels
   string session_id = 3;       // pubId сессии; пусто = найти активную или создать новую
-  string text = 4;             // текст ответа
-  string message_id = 5;     // для идемпотентности
+  string message_id = 4;       // для идемпотентности; пусто = control-api сгенерирует
+  OutboundMessage message = 5; // контент ответа
 }
 message SendChannelMessageResponse {
   string session_id = 1;       // pubId сессии (особенно полезно, если session_id был пуст)
-  string message_id = 2;      // pubId созданного ToolCallLog (для трейсинга)
+  string message_id = 2;       // эффективный message_id (присланный или сгенерированный)
 }
 ```
 
@@ -176,7 +189,7 @@ message SendChannelMessageResponse {
 
 | Плейсхолдер | Значение |
 |---|---|
-| `{text}` | значение `text` из `SendChannelMessageRequest` |
+| `{text}` | значение `message.text` из `SendChannelMessageRequest` |
 | `{trigger.<dot.path>}` | поле из `triggerInput` **последнего IN-сообщения сессии** (= оригинальный `trigger.data`) |
 
 **Сохранение типа**: если строка целиком состоит из одного плейсхолдера (`"{trigger.data.message.chat_id}"`), результат имеет тип исходного значения (number, boolean, null, object). Если плейсхолдер вкраплён в строку (`"Re: {text}"`) — интерполяция как string.

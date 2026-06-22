@@ -56,10 +56,12 @@ public interface ChannelHandler {
     /**
      * Отправляет ответ модели в канал: выбирает тул и аргументы и вызывает его через
      * {@link AgentToolCallService#processToolCall} (идемпотентность + проверка ABAC). Ключ
-     * идемпотентности — {@link OutboundMessage#messageId()}.
+     * идемпотентности — {@link OutboundDispatch#messageId()}; адрес ответа — из
+     * {@link OutboundDispatch#replyContext()}.
      *
      * <p>{@code toolCallService} передаётся параметром, а не инжектится в handler — иначе бин
      * handler'а тянул бы {@code ConnectorService} и замыкал цикл с роутером инбаунда.
      */
-    void handleOutput(ChannelConfig config, OutboundMessage outbound, AgentToolCallService toolCallService);
+    void handleOutput(ChannelConfig config, OutboundMessage outbound, OutboundDispatch dispatch,
+                      AgentToolCallService toolCallService);
 }
