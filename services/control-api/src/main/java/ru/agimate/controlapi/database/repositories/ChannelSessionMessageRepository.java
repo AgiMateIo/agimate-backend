@@ -60,4 +60,11 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
 
     Optional<ChannelSessionMessage> findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(
             UUID sessionId);
+
+    /** Сессии агента, в которых были сообщения с момента {@code since} — для дневного сбора заметок. */
+    @Query("""
+            SELECT DISTINCT m.sessionId FROM ChannelSessionMessage m
+            WHERE m.agentId = :agentId AND m.createdAt > :since
+            """)
+    List<UUID> findSessionIdsByAgentSince(@Param("agentId") UUID agentId, @Param("since") java.time.LocalDateTime since);
 }

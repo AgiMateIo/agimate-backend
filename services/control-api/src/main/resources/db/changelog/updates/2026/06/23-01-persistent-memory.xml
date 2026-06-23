@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        Persistent memory коннектора persist-memory. Два слоя на агента (ключ — agent_id):
+        cold — свёрнутая память (один MD-файл, единственный writer = консолидация, CAS по version);
+        hot  — журнал заметок (append = INSERT, поэтому конкурентные записи не конфликтуют).
+        Консолидация клеймит hot-строки (consolidation_id + claimed_at), сворачивает в cold и
+        удаляет их в той же транзакции (см. update_memory). claimed_at — лиз для crash-recovery.
+    -->
+    <changeSet id="create-persistent-memory-cold" author="agimate">
+        <createTable tableName="persistent_memory_cold">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- Один файл cold на агента — бизнес-ключ. -->
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_persistent_memory_cold_agent"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="content" type="TEXT" defaultValue="">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Оптимистическая блокировка cold: update_memory пишет WHERE version = expected. -->
+            <column name="version" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="create-persistent-memory-hot" author="agimate">
+        <createTable tableName="persistent_memory_hot">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Откуда заметка (трейсинг); NULL для инлайн-заметок вне сессии. -->
+            <column name="session_id" type="UUID"/>
+            <column name="content" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Клейм консолидации: id партии + момент клейма (лиз). NULL = не сконсолидирована. -->
+            <column name="consolidation_id" type="UUID"/>
+            <column name="claimed_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Чтение заметок агента (get_memory_notes) и клейм консолидации фильтруют по agent_id. -->
+        <createIndex tableName="persistent_memory_hot" indexName="idx_persistent_memory_hot_agent">
+            <column name="agent_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

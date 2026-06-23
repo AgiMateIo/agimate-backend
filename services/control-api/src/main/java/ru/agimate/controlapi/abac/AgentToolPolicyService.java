@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.abac;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ public class AgentToolPolicyService {
 
     private final AgentToolPolicyRepository agentToolPolicyRepository;
     private final ToolPolicyDbEvaluatorService toolPolicyEvaluatorService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<AgentToolPolicy> getPoliciesByAgent(UUID userId, UUID agentId) {
         return agentToolPolicyRepository.findByUserIdAndAgentId(userId, agentId);
@@ -60,6 +62,7 @@ public class AgentToolPolicyService {
 
         AgentToolPolicy saved = agentToolPolicyRepository.save(policy);
         toolPolicyEvaluatorService.invalidateByAgent(agentId);
+        eventPublisher.publishEvent(new AgentToolPolicyChangedEvent(agentId, userId));
         return saved;
     }
 
@@ -84,14 +87,18 @@ public class AgentToolPolicyService {
 
         AgentToolPolicy saved = agentToolPolicyRepository.save(policy);
         toolPolicyEvaluatorService.invalidateByAgent(policy.getAgentId());
+        eventPublisher.publishEvent(new AgentToolPolicyChangedEvent(policy.getAgentId(), policy.getUserId()));
         return saved;
     }
 
     @Transactional
     public void deletePolicy(UUID userId, UUID id) {
         AgentToolPolicy policy = getPolicyById(userId, id);
+        UUID agentId = policy.getAgentId();
+        UUID ownerId = policy.getUserId();
         agentToolPolicyRepository.delete(policy);
-        toolPolicyEvaluatorService.invalidateByAgent(policy.getAgentId());
+        toolPolicyEvaluatorService.invalidateByAgent(agentId);
+        eventPublisher.publishEvent(new AgentToolPolicyChangedEvent(agentId, ownerId));
     }
 
     private void validateOwnership(AgentToolPolicy policy, UUID userId) {
