@@ -14,6 +14,10 @@ service AgentContext {
   rpc GetLlmCredentials(GetLlmCredentialsRequest) returns (LlmCredentials);
   rpc GetConnectorTools(GetConnectorToolsRequest) returns (GetConnectorToolsResponse);
   rpc ListAgentTools(ListAgentToolsRequest) returns (ListAgentToolsResponse);
+  // persist-memory: свёрнутая (cold) память и ещё не сконсолидированные заметки (hot) агента —
+  // воркер подмешивает их в системный промпт / запрос пользователя без вызова get_* тулов.
+  rpc GetMemory(GetMemoryRequest) returns (AgentMemory);
+  rpc GetMemoryNotes(GetMemoryNotesRequest) returns (GetMemoryNotesResponse);
 }
 
 message GetAgentSpecRequest {
@@ -137,4 +141,30 @@ message AgentToolDef {
 
 message ListAgentToolsResponse {
   repeated AgentToolDef tools = 1;
+}
+
+message GetMemoryRequest {
+  string workflow_id = 1;
+  string agent_id = 2;
+}
+
+// Свёрнутая (cold) память агента. version — для оптимистической записи через update_memory.
+message AgentMemory {
+  string content = 1;
+  int32 version = 2;
+}
+
+message GetMemoryNotesRequest {
+  string workflow_id = 1;
+  string agent_id = 2;
+}
+
+message MemoryNote {
+  string id = 1;
+  string content = 2;
+  string session_id = 3;
+}
+
+message GetMemoryNotesResponse {
+  repeated MemoryNote notes = 1;
 }

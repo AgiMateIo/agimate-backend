@@ -2,9 +2,11 @@ package ru.agimate.controlapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.abac.AccessEffect;
+import ru.agimate.controlapi.abac.AgentToolPolicyChangedEvent;
 import ru.agimate.controlapi.abac.ToolPolicyDbEvaluatorService;
 import ru.agimate.controlapi.abac.TriggerPolicyDbEvaluatorService;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffEntry;
@@ -36,6 +38,7 @@ public class AgentSkillPolicyService {
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
     private final ToolPolicyDbEvaluatorService toolPolicyEvaluatorService;
     private final TriggerPolicyDbEvaluatorService triggerPolicyEvaluatorService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PolicyDiffResponse previewAdd(UUID agentId, UUID skillId) {
         Set<UUID> desiredSkillIds = getCurrentSkillIds(agentId);
@@ -104,6 +107,9 @@ public class AgentSkillPolicyService {
         if (!diff.policiesToAdd().isEmpty() || !diff.policiesToRemove().isEmpty()) {
             toolPolicyEvaluatorService.invalidateByAgent(agentId);
             triggerPolicyEvaluatorService.invalidateByAgent(agentId);
+            // Skill bindings пишут AgentToolPolicy напрямую (минуя AgentToolPolicyService), поэтому
+            // событие издаём и здесь — иначе connector-enablement listener'ы не узнают об изменении.
+            eventPublisher.publishEvent(new AgentToolPolicyChangedEvent(agentId, userId));
             log.info("Applied policy diff for agent {}: +{} -{}", agentId,
                     diff.policiesToAdd().size(), diff.policiesToRemove().size());
         }

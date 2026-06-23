@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StreamUtils;
 import ru.agimate.controlapi.connectors.internal.board.BoardConnectorService;
+import ru.agimate.controlapi.connectors.internal.persistentmemory.PersistentMemoryConnectorService;
 import ru.agimate.controlapi.connectors.internal.time.TimeConnectorService;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.entities.SkillConnector;
@@ -44,7 +45,8 @@ public class SystemSkillBootstrap {
 
     private static final List<SystemSkill> SYSTEM_SKILLS = List.of(
             new SystemSkill("skills/board/SKILL.md", BoardConnectorService.CONNECTOR_CODE),
-            new SystemSkill("skills/time/SKILL.md", TimeConnectorService.CONNECTOR_CODE));
+            new SystemSkill("skills/time/SKILL.md", TimeConnectorService.CONNECTOR_CODE),
+            new SystemSkill("skills/persist-memory/SKILL.md", PersistentMemoryConnectorService.CONNECTOR_CODE));
 
     private final SkillRepository skillRepository;
     private final SkillConnectorRepository skillConnectorRepository;

@@ -54,6 +54,14 @@ import ru.agimate.agentworker.SkillSpec;
 import ru.agimate.agentworker.TeamContext;
 import ru.agimate.agentworker.TeamMember;
 import ru.agimate.agentworker.ToolAnnotations;
+import ru.agimate.agentworker.AgentMemory;
+import ru.agimate.agentworker.GetMemoryRequest;
+import ru.agimate.agentworker.GetMemoryNotesRequest;
+import ru.agimate.agentworker.GetMemoryNotesResponse;
+import ru.agimate.agentworker.MemoryNote;
+import ru.agimate.controlapi.connectors.internal.persistentmemory.PersistentMemoryService;
+import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
+import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -85,6 +93,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final AgentSkillService agentSkillService;
     private final AgentService agentService;
     private final SkillFileService skillFileService;
+    private final PersistentMemoryService persistentMemoryService;
 
     @Override
     public void getAgentSpec(GetAgentSpecRequest request, StreamObserver<AgentSpec> responseObserver) {
@@ -363,6 +372,43 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
         } catch (Exception e) {
             log.error("AgentContext.ListAgentTools failed pool={} agent={}",
                     poolId, request.getAgentId(), e);
+            handleError(e, responseObserver);
+        }
+    }
+
+    @Override
+    public void getMemory(GetMemoryRequest request, StreamObserver<AgentMemory> responseObserver) {
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            PersistentMemoryCold cold = persistentMemoryService.getCold(agentId).orElse(null);
+            AgentMemory response = AgentMemory.newBuilder()
+                    .setContent(cold == null ? "" : nullToEmpty(cold.getContent()))
+                    .setVersion(cold == null ? 0 : cold.getVersion())
+                    .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            handleError(e, responseObserver);
+        }
+    }
+
+    @Override
+    public void getMemoryNotes(GetMemoryNotesRequest request, StreamObserver<GetMemoryNotesResponse> responseObserver) {
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            GetMemoryNotesResponse.Builder builder = GetMemoryNotesResponse.newBuilder();
+            for (PersistentMemoryHot note : persistentMemoryService.getNotes(agentId)) {
+                MemoryNote.Builder noteBuilder = MemoryNote.newBuilder()
+                        .setId(note.getId().toString())
+                        .setContent(nullToEmpty(note.getContent()));
+                if (note.getSessionId() != null) {
+                    noteBuilder.setSessionId(note.getSessionId().toString());
+                }
+                builder.addNotes(noteBuilder.build());
+            }
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
             handleError(e, responseObserver);
         }
     }
