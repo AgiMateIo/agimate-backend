@@ -13,9 +13,10 @@ import java.util.UUID;
  * @param userId        владелец; {@code null} для глобальных internal-тасок
  * @param agentId       агент-инициатор; {@code null} вне tool-use потока (декларативные таски,
  *                      webhooks); у динамической таски восстанавливается из строки при срабатывании
- * @param agentSessionId сессия prompt-канала, из которого пришёл tool-вызов (id {@code ChannelSession}
- *                      строкой); {@code null} вне канального tool-use потока. Нужна тулам, которым
- *                      важен исходный канал (например {@code time.schedule} снимает с неё канал ответа)
+ * @param channelId     исходный канал вызова: для tool-вызова — канал prompt-сессии (резолвится на
+ *                      границе по {@code agentSessionId}); для динамической таски — снимок из строки
+ *                      {@code connector_jobs}. {@code null} вне канального контекста. Нужен тулам,
+ *                      которым важен исходный канал (например {@code time.schedule} — куда отвечать)
  * @param credentials   расшифрованные credentials; пустая мапа для internal и для webhook
  *                      hot path (валидация/нормализация не требует расшифровки)
  * @param webhookSecret секрет для валидации входящих webhook'ов; {@code null}, если не применимо
@@ -24,7 +25,7 @@ public record ConnectorContext(
         String identity,
         UUID userId,
         UUID agentId,
-        String agentSessionId,
+        UUID channelId,
         Map<String, String> credentials,
         String webhookSecret
 ) {

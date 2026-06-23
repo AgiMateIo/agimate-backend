@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        Исходный канал агента-инициатора (снимок на момент планирования): куда динамическая таска
+        (например time.schedule) адресует ответ. Реконструируется в ConnectorContext.channelId на
+        срабатывании. NULL у тасок, запланированных вне канального контекста.
+    -->
+    <changeSet id="add-connector-jobs-channel-id" author="agimate">
+        <addColumn tableName="connector_jobs">
+            <column name="channel_id" type="UUID"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

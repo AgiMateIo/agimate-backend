@@ -52,10 +52,10 @@ public class JobExecutionService {
                             "Integration credentials missing or disabled: " + row.getIdentity()));
             return contextFactory.forIntegration(credentials, null, null);
         }
-        // Полный контекст инициатора (userId/agentId сохранены в строке при планировании) —
+        // Полный контекст инициатора (userId/agentId/channelId сохранены в строке при планировании) —
         // динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.
-        // agentSessionId не сохраняется: исходный канал, если нужен, едет в args задачи.
-        return contextFactory.internal(row.getIdentity(), row.getUserId(), row.getAgentId(), null);
+        return contextFactory.internal(
+                row.getIdentity(), row.getUserId(), row.getAgentId(), row.getChannelId());
     }
 
     private static UUID parseIdentity(ConnectorJob row) {

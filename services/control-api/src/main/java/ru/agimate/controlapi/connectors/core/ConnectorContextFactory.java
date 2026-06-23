@@ -18,9 +18,9 @@ public class ConnectorContextFactory {
     private final IntegrationEncryptionService encryptionService;
 
     /** Полный контекст integration-коннектора: с расшифровкой credentials (тулы, таски). */
-    public ConnectorContext forIntegration(IntegrationCredentials credentials, UUID agentId, String agentSessionId) {
+    public ConnectorContext forIntegration(IntegrationCredentials credentials, UUID agentId, UUID channelId) {
         return build(credentials,
-                encryptionService.decryptCredentials(credentials.getEncryptedData()), agentId, agentSessionId);
+                encryptionService.decryptCredentials(credentials.getEncryptedData()), agentId, channelId);
     }
 
     /** Контекст с уже известной мапой credentials — когда расшифровка не нужна (lifecycle-вызовы). */
@@ -35,17 +35,17 @@ public class ConnectorContextFactory {
         return build(credentials, Map.of(), null, null);
     }
 
-    public ConnectorContext internal(String identity, UUID userId, UUID agentId, String agentSessionId) {
-        return new ConnectorContext(identity, userId, agentId, agentSessionId, Map.of(), null);
+    public ConnectorContext internal(String identity, UUID userId, UUID agentId, UUID channelId) {
+        return new ConnectorContext(identity, userId, agentId, channelId, Map.of(), null);
     }
 
     private ConnectorContext build(IntegrationCredentials credentials, Map<String, String> decrypted,
-                                   UUID agentId, String agentSessionId) {
+                                   UUID agentId, UUID channelId) {
         return new ConnectorContext(
                 credentials.getId().toString(),
                 credentials.getUserId(),
                 agentId,
-                agentSessionId,
+                channelId,
                 decrypted,
                 credentials.getWebhookSecret());
     }

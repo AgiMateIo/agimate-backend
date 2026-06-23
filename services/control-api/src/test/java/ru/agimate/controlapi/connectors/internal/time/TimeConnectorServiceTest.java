@@ -18,10 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("TimeConnectorService")
 class TimeConnectorServiceTest {
 
-    // taskService/triggerRouter/channelSessionRepository не нужны для метаданных и
-    // current_datetime — передаём null.
+    // taskService/triggerRouter не нужны для метаданных и current_datetime — передаём null.
     private final TimeConnectorService handler =
-            new TimeConnectorService(new TimeToolService(null, null, null));
+            new TimeConnectorService(new TimeToolService(null, null));
 
     private static ConnectorContext context() {
         return new ConnectorContext(null, null, null, null, Map.of(), null);

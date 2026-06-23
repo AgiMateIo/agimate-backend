@@ -68,6 +68,14 @@ public class ConnectorJob extends BaseEntity {
     @Column(name = "agent_id")
     private UUID agentId;
 
+    /**
+     * Исходный канал агента-инициатора (снимок на момент планирования): куда динамическая таска
+     * адресует ответ. Реконструируется в {@code ConnectorContext.channelId} на срабатывании.
+     * {@code null}, если таска запланирована вне канального контекста.
+     */
+    @Column(name = "channel_id")
+    private UUID channelId;
+
     /** Категория строки — см. {@link ConnectorJobKind}; определяет, действует ли бизнес-ключ. */
     @Enumerated(EnumType.STRING)
     @Column(name = "kind", nullable = false, columnDefinition = "TEXT")

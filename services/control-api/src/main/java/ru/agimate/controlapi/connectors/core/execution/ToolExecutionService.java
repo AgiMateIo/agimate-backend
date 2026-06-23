@@ -12,8 +12,10 @@ import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.controller.app.dto.ToolResultRequest;
+import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.IntegrationCredentials;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
+import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
 import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.tool.ToolCallLogService;
@@ -38,6 +40,7 @@ public class ToolExecutionService {
 
     private final ConnectorRegistry connectorRegistry;
     private final IntegrationCredentialsRepository integrationCredentialsRepository;
+    private final ChannelSessionRepository channelSessionRepository;
     private final ConnectorContextFactory contextFactory;
     private final ToolCallLogService toolCallLogService;
     private final AgentDeliveryService agentDeliveryService;
@@ -68,18 +71,31 @@ public class ToolExecutionService {
     }
 
     private ConnectorContext buildContext(ConnectorHandler handler, ToolCallLog toolCallLog) {
+        UUID channelId = resolveChannelId(toolCallLog.getAgentSessionId());
         if (handler instanceof IntegrationConnectorHandler) {
             IntegrationCredentials credentials = integrationCredentialsRepository
                     .findByIdAndUserIdNotDeleted(UUID.fromString(toolCallLog.getIdentity()), toolCallLog.getUserId())
                     .filter(IntegrationCredentials::isActive)
                     .orElseThrow(() -> new ConnectorException(
                             "Integration credentials missing or disabled: " + toolCallLog.getIdentity()));
-            return contextFactory.forIntegration(
-                    credentials, toolCallLog.getAgentId(), toolCallLog.getAgentSessionId());
+            return contextFactory.forIntegration(credentials, toolCallLog.getAgentId(), channelId);
         }
         return contextFactory.internal(
-                toolCallLog.getIdentity(), toolCallLog.getUserId(),
-                toolCallLog.getAgentId(), toolCallLog.getAgentSessionId());
+                toolCallLog.getIdentity(), toolCallLog.getUserId(), toolCallLog.getAgentId(), channelId);
+    }
+
+    /** Канал prompt-сессии, из которой пришёл вызов — доменный контекст для тулов; {@code null} вне канала. */
+    private UUID resolveChannelId(String agentSessionId) {
+        if (agentSessionId == null || agentSessionId.isBlank()) {
+            return null;
+        }
+        try {
+            return channelSessionRepository.findById(UUID.fromString(agentSessionId))
+                    .map(ChannelSession::getChannelId)
+                    .orElse(null);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private void deliver(ToolCallLog toolCallLog, String output, String error) {
