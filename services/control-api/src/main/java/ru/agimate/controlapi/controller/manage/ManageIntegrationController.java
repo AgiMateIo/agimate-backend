@@ -10,10 +10,13 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
+import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.integrations.IntegrationService;
+import ru.agimate.controlapi.connectors.integrations.mcp.McpToolService;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.database.entities.McpTool;
 import ru.agimate.controlapi.controller.manage.dto.CreateIntegrationRequest;
 import ru.agimate.controlapi.controller.manage.dto.IntegrationResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
@@ -37,6 +40,7 @@ public class ManageIntegrationController {
     private final IntegrationService integrationService;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorRepository connectorRepository;
+    private final McpToolService mcpToolService;
 
     @Operation(summary = "List integration credentials, optionally filtered by connectorCode")
     @GetMapping("/credentials/")
@@ -114,6 +118,37 @@ public class ManageIntegrationController {
     public SuccessResponse<List<ConnectorToolSpec>> listTools(@RequestParam String connectorCode) {
         IntegrationConnectorHandler handler = loadIntegrationHandler(connectorCode);
         return SuccessResponse.ok(handler.getTools().values().stream().toList());
+    }
+
+    @Operation(summary = "List tools discovered for a specific MCP integration instance (from cache)")
+    @GetMapping("/credentials/{credentialId}/tools/")
+    public SuccessResponse<List<ConnectorToolSpec>> listInstanceTools(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID credentialId
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        integrationService.getIntegrationCredentials(credentialId, userId); // owner-check / 404
+        return SuccessResponse.ok(mcpToolService.getCachedSpecs(credentialId));
+    }
+
+    @Operation(summary = "Re-discover tools of an MCP integration instance (refresh cache)")
+    @PostMapping("/credentials/{credentialId}/tools/refresh")
+    public SuccessResponse<List<ConnectorToolSpec>> refreshInstanceTools(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID credentialId
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        integrationService.getIntegrationCredentials(credentialId, userId); // owner-check / 404
+        try {
+            List<McpTool> fresh = mcpToolService.discover(credentialId);
+            if (fresh == null) {
+                throw new BadRequestStatusException("Not an MCP integration: " + credentialId);
+            }
+            mcpToolService.reconcile(credentialId, fresh);
+        } catch (ConnectorException e) {
+            throw new BadRequestStatusException(e.getMessage());
+        }
+        return SuccessResponse.ok(mcpToolService.getCachedSpecs(credentialId));
     }
 
     @Operation(summary = "List predefined triggers exposed by an integration connector")

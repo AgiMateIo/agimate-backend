@@ -29,6 +29,18 @@ public interface ConnectorHandler {
 
     Map<String, ConnectorToolSpec> getTools();
 
+    /**
+     * Спеки тулов для конкретного экземпляра коннектора. По умолчанию совпадают со
+     * статическими {@link #getTools()} — большинство коннекторов не зависят от instance.
+     * Динамические коннекторы (например MCP) переопределяют: набор тулов открывается в рантайме
+     * per-identity, поэтому здесь возвращают список под {@code context.identity()} (для MCP —
+     * из кэша {@code mcp_tool}). Контекст несёт identity; расшифровка credentials для листинга
+     * не требуется.
+     */
+    default Map<String, ConnectorToolSpec> getTools(ConnectorContext context) {
+        return getTools();
+    }
+
     default Map<String, JobSpecification> getJobs() {
         return Map.of();
     }

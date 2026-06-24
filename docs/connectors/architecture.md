@@ -23,6 +23,11 @@ ConnectorHandler                — connectorCode/Name, getTriggers, getTools, g
   попадает в `getTools()`/LLM-спеки и недоступен через `executeTool`; при `isJobOnly = false` метод
   доступен и как тула, и как задача.
 
+Тулы коннектора статичны и привязаны к `connectorCode` (строятся рефлексией один раз). Исключение —
+**динамические коннекторы** (MCP, см. ниже): набор тулов per-instance и открывается в рантайме. Для них
+SPI даёт context-aware перегрузку `getTools(ConnectorContext)` (дефолт — те же статические `getTools()`);
+gRPC-листинг (`GetConnectorTools`) единообразно зовёт её с контекстом по `identity` — без спец-кейсов.
+
 `BaseConnectorHandler` — единственный reflection-диспатчер: маппит `Map<String,Object> args` на параметры
 метода по именам, привязывает `ConnectorContext` через ThreadLocal (`ConnectorContextHolder`, set/clear
 только в базовом классе). `executeJob` диспатчит в **любой** `@Tool`-метод — задача может быть «вызовом
@@ -38,7 +43,33 @@ ConnectorHandler                — connectorCode/Name, getTriggers, getTools, g
 Существующие коннекторы: `integrations/telegram/` (TelegramConnectorService + TelegramToolService,
 декларативная таска `telegram.long_poll` в polling-режиме), `internal/board/` (BoardConnectorService +
 BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — текущее время +
-планирование отложенных задач агента, см. [«Планирование задач агентом»](#планирование-задач-агентом-time)).
+планирование отложенных задач агента, см. [«Планирование задач агентом»](#планирование-задач-агентом-time)),
+`integrations/mcp/` (MCP-коннектор к удалённым серверам, см. [«MCP-коннектор»](#mcp-коннектор)).
+
+### MCP-коннектор
+
+`integrations/mcp/` — универсальный коннектор к удалённому MCP-серверу (транспорт **Streamable HTTP**,
+auth — статический Bearer-токен/произвольные заголовки). Особенность: тулы **динамические и per-instance** —
+каждый экземпляр (строка `integration_credentials` = `url` + auth) отдаёт свой набор через `tools/list`.
+Поэтому `McpConnectorService implements IntegrationConnectorHandler` напрямую (без `BaseConnectorHandler` и
+`@Tool`-методов):
+
+- `getTools()` пуст (статических тулов нет); `getTools(ctx)` отдаёт список из кэша `mcp_tool` по `ctx.identity()`.
+- `validateCredentials` = хендшейк `initialize` (доступность + auth); `identifier` = URL сервера (канонический
+  ключ экземпляра).
+- `executeTool` проксирует в `tools/call`; путь исполнения (`ToolExecutionService`, свежие credentials по
+  `identity`) — общий, без изменений.
+
+**Кэш `mcp_tool`** (per-identity, сырые JSON-схемы текстом для фиделити произвольной JSON Schema —
+`JsonSchema` сохраняет нестандартные ключевые слова через `@JsonAnySetter`). Синк — `McpToolDiscoveryListener`
+(AFTER_COMMIT, аналог `ConnectorIdentityListener` для тасок): на create/modify — ре-дискавери `tools/list` →
+upsert + удаление пропавших; на delete — чистка по identity. Сетевой `tools/list` (`discover`) отделён от
+записи в БД (`reconcile`), чтобы не держать транзакцию на время сетевого вызова. Ручной ре-дискавери —
+`POST /manage/integrations/credentials/{id}/tools/refresh`; список закэшированных тулов (для UI политик) —
+`GET /manage/integrations/credentials/{id}/tools/`.
+
+ABAC: `AgentToolPolicy.connectorIdentity` скоупит политику на конкретный MCP-сервер; имена тулов для политик
+берутся из кэша. Периодический refresh по расписанию и MCP `resources`/`prompts` — вне scope (YAGNI).
 
 ## Выполнение
 

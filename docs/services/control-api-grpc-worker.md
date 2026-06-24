@@ -130,6 +130,15 @@ Errors:
 - `INVALID_ARGUMENT` — missing `tool_call_id`/`connector_code`/`tool_name`/UUID parsing.
 - `UNAUTHENTICATED` — bad pool key (handled by interceptor before the call ever reaches the service).
 
+### Tool discovery (`AgentContext.GetConnectorTools`)
+
+`GetConnectorToolsRequest` carries `connector_code` **and** `identity` (the `integration_credentials.id` /
+internal instance id). For static connectors `identity` is ignored — tools are derived from `@Tool` methods by
+reflection and are the same for every instance. For **dynamic** connectors (`mcp`) the tool set is per-instance:
+each MCP server (its own `integration_credentials` row) exposes a different toolset discovered at runtime via
+`tools/list` and cached in `mcp_tool`. The worker therefore **must** send `identity` when listing tools for an
+`mcp` connector; the backend resolves the per-instance tools from the cache (no remote call on this path).
+
 ## Active-run registry (`AgentRunRegistry`)
 
 Backed by the `trigger_log_agents` table — each row is an agent run, and its `pub_id` is the canonical

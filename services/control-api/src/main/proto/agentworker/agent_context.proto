@@ -104,6 +104,9 @@ message LlmCredentials {
 
 message GetConnectorToolsRequest {
   string connector_code = 1;
+  // identity экземпляра коннектора (integration_credentials.id). Обязателен для динамических
+  // коннекторов (mcp) — набор тулов per-instance; для статических игнорируется.
+  string identity = 2;
 }
 
 // MCP ToolAnnotations — поведенческие хинты тула.

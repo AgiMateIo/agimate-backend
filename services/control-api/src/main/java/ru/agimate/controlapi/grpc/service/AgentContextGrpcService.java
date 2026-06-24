@@ -11,6 +11,7 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
+import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillConnectorResponse;
@@ -300,11 +301,17 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             Connector connector = connectorRepository.findById(connectorCode)
                     .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
+            // Контекст для листинга: достаточно identity (динамические коннекторы вроде mcp читают
+            // тулы per-instance из кэша). Расшифровка credentials здесь не нужна.
+            String identity = request.getIdentity();
+            ConnectorContext listingContext = new ConnectorContext(
+                    identity.isEmpty() ? null : identity, null, null, null, Map.of(), null);
+
             Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> tools =
                     switch (connector.getType()) {
                         case INTEGRATION, INTERNAL_SERVICE -> connectorRegistry.findHandler(connectorCode)
                                 .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
-                                .getTools();
+                                .getTools(listingContext);
                         case APP, LOOPBACK -> throw new BadRequestStatusException(
                                 "Connector type " + connector.getType() + " does not expose static tool definitions");
                     };
