@@ -64,9 +64,12 @@ auth — статический Bearer-токен/произвольные за�
 `JsonSchema` сохраняет нестандартные ключевые слова через `@JsonAnySetter`). Синк — `McpToolDiscoveryListener`
 (AFTER_COMMIT, аналог `ConnectorIdentityListener` для тасок): на create/modify — ре-дискавери `tools/list` →
 upsert + удаление пропавших; на delete — чистка по identity. Сетевой `tools/list` (`discover`) отделён от
-записи в БД (`reconcile`), чтобы не держать транзакцию на время сетевого вызова. Ручной ре-дискавери —
-`POST /manage/integrations/credentials/{id}/tools/refresh`; список закэшированных тулов (для UI политик) —
-`GET /manage/integrations/credentials/{id}/tools/`.
+записи в БД (`reconcile`), чтобы не держать транзакцию на время сетевого вызова.
+
+Manage-API: `POST /manage/integrations/credentials/{id}/test` — единый «тест интеграции»: валидация
+credentials (для всех типов — доступность/auth платформы) + для MCP синхронная пересборка кэша тулов
+(возвращает `toolsDiscovered`/`toolsError`, не роняя сам тест). Список закэшированных тулов (для UI
+политик) — `GET /manage/integrations/credentials/{id}/tools/`.
 
 ABAC: `AgentToolPolicy.connectorIdentity` скоупит политику на конкретный MCP-сервер; имена тулов для политик
 берутся из кэша. Периодический refresh по расписанию и MCP `resources`/`prompts` — вне scope (YAGNI).

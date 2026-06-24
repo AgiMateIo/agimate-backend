@@ -14,8 +14,12 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.integrations.IntegrationService;
+import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.integrations.mcp.McpConnectorService;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolService;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.controller.manage.dto.IntegrationTestResponse;
+import ru.agimate.controlapi.database.entities.IntegrationCredentials;
 import ru.agimate.controlapi.database.entities.McpTool;
 import ru.agimate.controlapi.controller.manage.dto.CreateIntegrationRequest;
 import ru.agimate.controlapi.controller.manage.dto.IntegrationResponse;
@@ -131,24 +135,32 @@ public class ManageIntegrationController {
         return SuccessResponse.ok(mcpToolService.getCachedSpecs(credentialId));
     }
 
-    @Operation(summary = "Re-discover tools of an MCP integration instance (refresh cache)")
-    @PostMapping("/credentials/{credentialId}/tools/refresh")
-    public SuccessResponse<List<ConnectorToolSpec>> refreshInstanceTools(
+    @Operation(summary = "Test an integration: validate credentials (all types) and reload tools (MCP)")
+    @PostMapping("/credentials/{credentialId}/test")
+    public SuccessResponse<IntegrationTestResponse> testCredentials(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID credentialId
     ) {
         UUID userId = UUID.fromString(principal.id());
-        integrationService.getIntegrationCredentials(credentialId, userId); // owner-check / 404
-        try {
-            List<McpTool> fresh = mcpToolService.discover(credentialId);
-            if (fresh == null) {
-                throw new BadRequestStatusException("Not an MCP integration: " + credentialId);
+        IntegrationCredentials credentials = integrationService.getIntegrationCredentials(credentialId, userId);
+        IntegrationValidationResult validation = integrationService.validateExisting(credentialId, userId);
+
+        // Для динамических коннекторов (MCP) при валидных credentials пересобираем кэш тулов
+        // синхронно — ошибку tools/list возвращаем отдельным полем, не роняя сам тест.
+        Integer toolsDiscovered = null;
+        String toolsError = null;
+        if (validation.valid() && McpConnectorService.CONNECTOR_CODE.equals(credentials.getConnectorCode())) {
+            try {
+                List<McpTool> fresh = mcpToolService.discover(credentialId);
+                if (fresh != null) {
+                    mcpToolService.reconcile(credentialId, fresh);
+                    toolsDiscovered = fresh.size();
+                }
+            } catch (ConnectorException e) {
+                toolsError = e.getMessage();
             }
-            mcpToolService.reconcile(credentialId, fresh);
-        } catch (ConnectorException e) {
-            throw new BadRequestStatusException(e.getMessage());
         }
-        return SuccessResponse.ok(mcpToolService.getCachedSpecs(credentialId));
+        return SuccessResponse.ok(IntegrationTestResponse.from(validation, toolsDiscovered, toolsError));
     }
 
     @Operation(summary = "List predefined triggers exposed by an integration connector")

@@ -117,6 +117,18 @@ public class IntegrationService {
                 .orElseThrow(() -> new NotFoundStatusException("Integration not found"));
     }
 
+    /**
+     * Проверка существующей интеграции: расшифровка credentials + {@code validateCredentials}
+     * (доступность/auth платформы). Без сайд-эффектов — пригодно для всех типов интеграций.
+     * Подгрузку производного состояния (тулы MCP) делает вызывающий по результату.
+     */
+    public IntegrationValidationResult validateExisting(UUID id, UUID userId) {
+        IntegrationCredentials credentials = getIntegrationCredentials(id, userId);
+        IntegrationConnectorHandler handler = integrationHandler(credentials.getConnectorCode());
+        Map<String, String> decrypted = encryptionService.decryptCredentials(credentials.getEncryptedData());
+        return handler.validateCredentials(decrypted);
+    }
+
     @Transactional
     public void deleteIntegration(UUID id, UUID userId) {
         IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userId);

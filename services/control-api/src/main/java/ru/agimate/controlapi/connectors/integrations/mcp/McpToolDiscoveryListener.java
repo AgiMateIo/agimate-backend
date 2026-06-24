@@ -55,6 +55,7 @@ public class McpToolDiscoveryListener {
         if (!McpConnectorService.CONNECTOR_CODE.equals(connectorCode)) {
             return;
         }
+        log.info("Discovering MCP tools for {}", identity);
         try {
             UUID identityId = UUID.fromString(identity);
             List<McpTool> fresh = mcpToolService.discover(identityId);
@@ -62,7 +63,8 @@ public class McpToolDiscoveryListener {
                 mcpToolService.reconcile(identityId, fresh);
             }
         } catch (Exception e) {
-            log.warn("MCP tool discovery failed for {}: {}", identity, e.getMessage());
+            // полный стек — getMessage() у части исключений null и прячет причину
+            log.warn("MCP tool discovery failed for {}", identity, e);
         }
     }
 }
