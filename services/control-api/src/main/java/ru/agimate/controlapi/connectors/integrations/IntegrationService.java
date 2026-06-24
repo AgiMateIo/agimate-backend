@@ -10,9 +10,12 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
+import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
+import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
@@ -127,6 +130,20 @@ public class IntegrationService {
         IntegrationConnectorHandler handler = integrationHandler(credentials.getConnectorCode());
         Map<String, String> decrypted = encryptionService.decryptCredentials(credentials.getEncryptedData());
         return handler.validateCredentials(decrypted);
+    }
+
+    /**
+     * Тулы конкретного экземпляра интеграции через SPI {@code getTools(ctx)}: для динамических
+     * коннекторов (MCP) — из кэша по identity, для статических — их {@code @Tool}-набор.
+     * Контекст несёт только identity (расшифровка credentials для листинга не нужна).
+     */
+    public List<ConnectorToolSpec> getInstanceTools(UUID id, UUID userId) {
+        IntegrationCredentials credentials = getIntegrationCredentials(id, userId);
+        ConnectorHandler handler = connectorRegistry.findHandler(credentials.getConnectorCode())
+                .orElseThrow(() -> new BadRequestStatusException(
+                        "Unsupported platform: " + credentials.getConnectorCode()));
+        ConnectorContext context = contextFactory.internal(id.toString(), userId, null, null);
+        return List.copyOf(handler.getTools(context).values());
     }
 
     @Transactional

@@ -5,7 +5,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.controlapi.database.entities.IntegrationCredentials;
 import ru.agimate.controlapi.database.entities.McpTool;
@@ -87,13 +86,5 @@ public class McpToolService {
     @Transactional
     public int deleteByIdentity(UUID identityId) {
         return mcpToolRepository.deleteByIntegrationCredentialsId(identityId);
-    }
-
-    /** Закэшированные спеки тулов экземпляра (для manage-UI политик). */
-    @Transactional(readOnly = true)
-    public List<ConnectorToolSpec> getCachedSpecs(UUID identityId) {
-        return mcpToolRepository.findByIntegrationCredentialsId(identityId).stream()
-                .map(McpToolMapper::toSpec)
-                .toList();
     }
 }

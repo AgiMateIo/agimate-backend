@@ -124,15 +124,15 @@ public class ManageIntegrationController {
         return SuccessResponse.ok(handler.getTools().values().stream().toList());
     }
 
-    @Operation(summary = "List tools discovered for a specific MCP integration instance (from cache)")
+    @Operation(summary = "List tools of a specific integration instance via SPI "
+            + "(MCP — from discovered cache, static connectors — their tool set)")
     @GetMapping("/credentials/{credentialId}/tools/")
     public SuccessResponse<List<ConnectorToolSpec>> listInstanceTools(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID credentialId
     ) {
         UUID userId = UUID.fromString(principal.id());
-        integrationService.getIntegrationCredentials(credentialId, userId); // owner-check / 404
-        return SuccessResponse.ok(mcpToolService.getCachedSpecs(credentialId));
+        return SuccessResponse.ok(integrationService.getInstanceTools(credentialId, userId));
     }
 
     @Operation(summary = "Test an integration: validate credentials (all types) and reload tools (MCP)")

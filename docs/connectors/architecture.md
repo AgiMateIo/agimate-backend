@@ -68,8 +68,9 @@ upsert + удаление пропавших; на delete — чистка по 
 
 Manage-API: `POST /manage/integrations/credentials/{id}/test` — единый «тест интеграции»: валидация
 credentials (для всех типов — доступность/auth платформы) + для MCP синхронная пересборка кэша тулов
-(возвращает `toolsDiscovered`/`toolsError`, не роняя сам тест). Список закэшированных тулов (для UI
-политик) — `GET /manage/integrations/credentials/{id}/tools/`.
+(возвращает `toolsDiscovered`/`toolsError`, не роняя сам тест). Тулы экземпляра (для UI политик) —
+`GET /manage/integrations/credentials/{id}/tools/`: отдаёт через SPI `getTools(ctx)` (MCP — из кэша,
+статические коннекторы — их штатный набор), без спец-кейсов.
 
 ABAC: `AgentToolPolicy.connectorIdentity` скоупит политику на конкретный MCP-сервер; имена тулов для политик
 берутся из кэша. Периодический refresh по расписанию и MCP `resources`/`prompts` — вне scope (YAGNI).
