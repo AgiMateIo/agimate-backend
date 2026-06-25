@@ -172,7 +172,7 @@ public class BoardService {
         Trigger trigger = Trigger.createDirected(
                 BoardConnectorService.CONNECTOR_CODE,
                 board.getId().toString(),
-                "trigger.board.task_created",
+                "task_created",
                 triggerData,
                 TriggerContext.audience(audience)
         );
@@ -228,7 +228,7 @@ public class BoardService {
         Trigger trigger = Trigger.createDirected(
                 BoardConnectorService.CONNECTOR_CODE,
                 board.getId().toString(),
-                "trigger.board.task_status_changed",
+                "task_status_changed",
                 triggerData,
                 TriggerContext.audience(audience)
         );
@@ -309,7 +309,7 @@ public class BoardService {
         Trigger trigger = Trigger.createDirected(
                 BoardConnectorService.CONNECTOR_CODE,
                 board.getId().toString(),
-                "trigger.board.task_comment_created",
+                "task_comment_created",
                 triggerData,
                 TriggerContext.audience(audience)
         );

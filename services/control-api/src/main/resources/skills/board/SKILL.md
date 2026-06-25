@@ -174,13 +174,13 @@ BACKLOG → IN_PROGRESS → REVIEW → DONE
   "connectorCode": "board",
   "identity": "<boardPubId>",
   "id": "<уникальный ID триггера>",
-  "name": "trigger.board.<событие>",
+  "name": "board.<событие>",
   "data": { ... },
   "occurredAt": "2026-04-06T12:00:00Z"
 }
 ```
 
-### trigger.board.task_created
+### board.task_created
 
 Срабатывает при создании задачи на доске.
 
@@ -195,7 +195,7 @@ BACKLOG → IN_PROGRESS → REVIEW → DONE
 | `description` | string | Описание задачи |
 | `parentTaskPubId` | string? | PubId родительской задачи (если есть) |
 
-### trigger.board.task_status_changed
+### board.task_status_changed
 
 Срабатывает при изменении статуса задачи.
 
@@ -205,7 +205,7 @@ BACKLOG → IN_PROGRESS → REVIEW → DONE
 | `oldStatus` | string | Предыдущий статус |
 | `newStatus` | string | Новый статус |
 
-### trigger.board.task_comment_created
+### board.task_comment_created
 
 Срабатывает при добавлении комментария к задаче.
 

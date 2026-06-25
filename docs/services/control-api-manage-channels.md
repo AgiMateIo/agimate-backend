@@ -27,7 +27,7 @@ API specification for `/manage/channels/**` — управление **кана�
 
 | Ключ | Тип | Описание |
 |---|---|---|
-| `triggers` | string[] | Имена триггеров на `connectorCode` (например `["telegram.message_received"]`) |
+| `triggers` | string[] | Имена триггеров на `connectorCode` (например `["message_received"]`) |
 | `messageField` | string | Dot-path внутри `trigger.data` до текста сообщения пользователя |
 | `replyConnectorCode` | string | Коннектор для ответа (обычно совпадает с `connectorCode`) |
 | `replyIdentity` | string | Identity reply-коннектора |
@@ -54,7 +54,7 @@ Backend перед вызовом тула рекурсивно проходит
 
 ### Handler `telegram`
 
-Код-handler для Telegram. Требует `connectorCode = "telegram"`. Обрабатывает все пять триггеров (`message_received`, `photo_received`, `document_received`, `command_received`, `callback_query`) и отвечает текстом через `telegram.send_message` (адресат — `chatId` из исходного входящего).
+Код-handler для Telegram. Требует `connectorCode = "telegram"`. Обрабатывает все пять триггеров (`message_received`, `photo_received`, `document_received`, `command_received`, `callback_query`) и отвечает текстом через `send_message` (адресат — `chatId` из исходного входящего).
 
 `config` (см. `GET /handlers/` для схемы):
 
@@ -192,11 +192,11 @@ Backend перед вызовом тула рекурсивно проходит
       "identity": "018f...",
       "identityName": "My Telegram Bot",
       "config": {
-        "triggers": ["telegram.message_received"],
+        "triggers": ["message_received"],
         "messageField": "data.message.text",
         "replyConnectorCode": "telegram",
         "replyIdentity": "018f...",
-        "replyToolName": "telegram.send_message",
+        "replyToolName": "send_message",
         "replyToolParams": { "chat_id": "{trigger.data.message.chat_id}", "text": "{text}" }
       },
       "inputFilter": { "data.message.chat_id": 12345 },
@@ -224,11 +224,11 @@ Backend перед вызовом тула рекурсивно проходит
   "connectorCode": "telegram",
   "identity": "018f...",
   "config": {
-    "triggers": ["telegram.message_received"],
+    "triggers": ["message_received"],
     "messageField": "data.message.text",
     "replyConnectorCode": "telegram",
     "replyIdentity": "018f...",
-    "replyToolName": "telegram.send_message",
+    "replyToolName": "send_message",
     "replyToolParams": { "chat_id": "{trigger.data.message.chat_id}", "text": "{text}" }
   },
   "inputFilter": { "data.message.chat_id": 12345 }

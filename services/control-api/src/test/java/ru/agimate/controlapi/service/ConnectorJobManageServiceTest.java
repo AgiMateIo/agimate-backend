@@ -48,7 +48,7 @@ class ConnectorJobManageServiceTest {
                 .connectorCode("time")
                 .userId(USER_ID)
                 .kind(kind)
-                .name("time.fire")
+                .name("fire")
                 .type(type)
                 .config(config)
                 .args(Map.of("prompt", "test"))

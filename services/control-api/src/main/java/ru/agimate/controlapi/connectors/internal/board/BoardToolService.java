@@ -36,7 +36,7 @@ public class BoardToolService {
     private final AgenticTeamRepository agenticTeamRepository;
     private final BoardRepository boardRepository;
 
-    @Tool(name = "board.get_tasks", description = "Get all tasks from the board grouped by status",
+    @Tool(name = "get_tasks", description = "Get all tasks from the board grouped by status",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public Map<String, Object> getTasks() {
         Board board = resolveBoard(resolveAgent());
@@ -44,7 +44,7 @@ public class BoardToolService {
         return Map.of("tasks", result);
     }
 
-    @Tool(name = "board.create_task", description = "Create a new task on the board",
+    @Tool(name = "create_task", description = "Create a new task on the board",
             annotations = @ToolAnnotations(openWorldHint = false))
     public Map<String, Object> createTask(
             @ToolParam("Task type (EPIC, TASK, SUBTASK)") String type,
@@ -77,7 +77,7 @@ public class BoardToolService {
         return Map.of("task", result);
     }
 
-    @Tool(name = "board.change_task_status", description = "Change the status of a task",
+    @Tool(name = "change_task_status", description = "Change the status of a task",
             annotations = @ToolAnnotations(openWorldHint = false))
     public Map<String, Object> changeTaskStatus(
             @ToolParam("Task public ID") String taskId,
@@ -104,7 +104,7 @@ public class BoardToolService {
         return Map.of("task", result);
     }
 
-    @Tool(name = "board.get_comments", description = "Get comments for a task",
+    @Tool(name = "get_comments", description = "Get comments for a task",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public Map<String, Object> getComments(
             @ToolParam("Task public ID") String taskId) {
@@ -113,7 +113,7 @@ public class BoardToolService {
         return Map.of("comments", result);
     }
 
-    @Tool(name = "board.create_comment", description = "Create a comment on a task",
+    @Tool(name = "create_comment", description = "Create a comment on a task",
             annotations = @ToolAnnotations(openWorldHint = false))
     public Map<String, Object> createComment(
             @ToolParam("Task public ID") String taskId,

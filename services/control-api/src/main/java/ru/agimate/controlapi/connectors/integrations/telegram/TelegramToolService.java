@@ -30,7 +30,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class TelegramToolService {
 
-    public static final String TASK_LONG_POLL = "telegram.long_poll";
+    public static final String TASK_LONG_POLL = "long_poll";
     private static final int LONG_POLL_TIMEOUT_SEC = 20;
 
     private final TelegramApiClient telegramApiClient;
@@ -47,7 +47,7 @@ public class TelegramToolService {
     private final Map<String, Long> offsets = new ConcurrentHashMap<>();
     private final Set<String> webhookDeleted = ConcurrentHashMap.newKeySet();
 
-    @Tool(name = "telegram.send_message", description = "Send a text message",
+    @Tool(name = "send_message", description = "Send a text message",
             annotations = @ToolAnnotations(destructiveHint = false))
     public Map<String, Object> toolSendMessage(
             @ToolParam("Target chat ID") String chatId,
@@ -70,7 +70,7 @@ public class TelegramToolService {
         return lastResponse;
     }
 
-    @Tool(name = "telegram.send_photo", description = "Send a photo",
+    @Tool(name = "send_photo", description = "Send a photo",
             annotations = @ToolAnnotations(destructiveHint = false))
     public Map<String, Object> toolSendPhoto(
             @ToolParam("Target chat ID") String chatId,
@@ -84,7 +84,7 @@ public class TelegramToolService {
     }
 
     // edit_message перезаписывает прежний текст → destructiveHint=true (дефолт).
-    @Tool(name = "telegram.edit_message", description = "Edit a message")
+    @Tool(name = "edit_message", description = "Edit a message")
     public Map<String, Object> toolEditMessage(
             @ToolParam("Chat ID") String chatId,
             @ToolParam("Message ID to edit") String messageId,
@@ -96,7 +96,7 @@ public class TelegramToolService {
         return sendTelegramRequest("editMessageText", apiParams);
     }
 
-    @Tool(name = "telegram.delete_message", description = "Delete a message")
+    @Tool(name = "delete_message", description = "Delete a message")
     public Map<String, Object> toolDeleteMessage(
             @ToolParam("Chat ID") String chatId,
             @ToolParam("Message ID to delete") String messageId) {
@@ -106,7 +106,7 @@ public class TelegramToolService {
         return sendTelegramRequest("deleteMessage", apiParams);
     }
 
-    @Tool(name = "telegram.answer_callback_query", description = "Answer a callback query",
+    @Tool(name = "answer_callback_query", description = "Answer a callback query",
             annotations = @ToolAnnotations(destructiveHint = false))
     public Map<String, Object> toolAnswerCallbackQuery(
             @ToolParam("Callback query ID") String callbackQueryId,

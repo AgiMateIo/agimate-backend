@@ -88,14 +88,14 @@ class TelegramConnectorServiceTest {
         void tools() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
-            assertTrue(tools.containsKey("telegram.send_message"));
-            assertTrue(tools.containsKey("telegram.send_photo"));
-            assertTrue(tools.containsKey("telegram.edit_message"));
-            assertTrue(tools.containsKey("telegram.delete_message"));
-            assertTrue(tools.containsKey("telegram.answer_callback_query"));
+            assertTrue(tools.containsKey("send_message"));
+            assertTrue(tools.containsKey("send_photo"));
+            assertTrue(tools.containsKey("edit_message"));
+            assertTrue(tools.containsKey("delete_message"));
+            assertTrue(tools.containsKey("answer_callback_query"));
             assertFalse(tools.containsKey(TelegramToolService.TASK_LONG_POLL));
 
-            ConnectorToolSpec sendMessage = tools.get("telegram.send_message");
+            ConnectorToolSpec sendMessage = tools.get("send_message");
             assertEquals("Send a text message", sendMessage.description());
             assertNotNull(sendMessage.inputSchema());
             assertFalse(sendMessage.annotations().destructiveHint());
@@ -106,12 +106,12 @@ class TelegramConnectorServiceTest {
         void triggers() {
             var triggers = handler.getTriggers();
 
-            assertTrue(triggers.containsKey("telegram.message_received"));
-            assertTrue(triggers.containsKey("telegram.photo_received"));
-            assertTrue(triggers.containsKey("telegram.document_received"));
-            assertTrue(triggers.containsKey("telegram.command_received"));
-            assertTrue(triggers.containsKey("telegram.callback_query"));
-            assertEquals("Text message received", triggers.get("telegram.message_received").description());
+            assertTrue(triggers.containsKey("message_received"));
+            assertTrue(triggers.containsKey("photo_received"));
+            assertTrue(triggers.containsKey("document_received"));
+            assertTrue(triggers.containsKey("command_received"));
+            assertTrue(triggers.containsKey("callback_query"));
+            assertEquals("Text message received", triggers.get("message_received").description());
         }
     }
 
@@ -232,7 +232,7 @@ class TelegramConnectorServiceTest {
 
             Trigger result = handler.normalizeInbound(webhookContext(null), rawBody);
 
-            assertEquals("telegram.message_received", result.name());
+            assertEquals("message_received", result.name());
             assertEquals(IDENTITY, result.identity());
             assertEquals("Hello world", result.data().get("text"));
         }
@@ -252,7 +252,7 @@ class TelegramConnectorServiceTest {
             params.put("chatId", "100");
             params.put("text", "Hello");
 
-            var result = handler.executeTool(context(), "telegram.send_message", params);
+            var result = handler.executeTool(context(), "send_message", params);
 
             assertEquals(expectedResponse, result);
             verify(telegramApiClient).sendRequest(eq("sendMessage"), eq("token123"), argThat((Map<String, Object> p) ->
@@ -272,7 +272,7 @@ class TelegramConnectorServiceTest {
             params.put("replyToMessageId", "777");
             params.put("replyMarkup", "{\"keyboard\":[]}");
 
-            handler.executeTool(context(), "telegram.send_message", params);
+            handler.executeTool(context(), "send_message", params);
 
             verify(telegramApiClient).sendRequest(eq("sendMessage"), eq("token123"), argThat((Map<String, Object> p) ->
                     "777".equals(p.get("reply_to_message_id")) && !p.containsKey("reply_markup")));
@@ -286,7 +286,7 @@ class TelegramConnectorServiceTest {
             Map<String, Object> expectedResponse = Map.of("ok", true);
             when(telegramApiClient.sendRequest(eq("editMessageText"), eq("token123"), any())).thenReturn(expectedResponse);
 
-            var result = handler.executeTool(context(), "telegram.edit_message",
+            var result = handler.executeTool(context(), "edit_message",
                     Map.of("chatId", "100", "messageId", "456", "text", "Updated"));
 
             assertEquals(expectedResponse, result);
@@ -299,7 +299,7 @@ class TelegramConnectorServiceTest {
             when(telegramApiClient.sendRequest(eq("deleteMessage"), eq("token123"), any())).thenReturn(expectedResponse);
 
             var result = handler.executeTool(context(),
-                    "telegram.delete_message", Map.of("chatId", "100", "messageId", "456"));
+                    "delete_message", Map.of("chatId", "100", "messageId", "456"));
 
             assertEquals(expectedResponse, result);
         }
@@ -311,7 +311,7 @@ class TelegramConnectorServiceTest {
             when(telegramApiClient.sendRequest(eq("answerCallbackQuery"), eq("token123"), any())).thenReturn(expectedResponse);
 
             var result = handler.executeTool(context(),
-                    "telegram.answer_callback_query", Map.of("callbackQueryId", "cb1", "text", "Done"));
+                    "answer_callback_query", Map.of("callbackQueryId", "cb1", "text", "Done"));
 
             assertEquals(expectedResponse, result);
         }
@@ -358,7 +358,7 @@ class TelegramConnectorServiceTest {
             verify(telegramApiClient, times(1)).deleteWebhook("token123");
             verify(telegramApiClient).getUpdates("token123", 6L, 20);
             verify(triggerRouterService).routeWhTrigger(eq(USER_ID), argThat((Trigger t) ->
-                    "telegram.message_received".equals(t.name()) && IDENTITY.equals(t.identity())));
+                    "message_received".equals(t.name()) && IDENTITY.equals(t.identity())));
         }
 
         @Test

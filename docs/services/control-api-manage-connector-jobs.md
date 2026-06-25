@@ -33,7 +33,7 @@ A **connector job** is a scheduled background invocation of a connector tool. Th
 | `kind` | Origin | Deletable via API |
 |--------|--------|-------------------|
 | `SYSTEM` | Declared by the connector (`getJobs()`); the reconcile-sync owns the row — upsert/delete by business key `(connector_code, identity, name)`. `agentId` is always `null`. | No — pause it, or delete the integration |
-| `AGENT` | Scheduled by an agent at runtime (e.g. `time.schedule`). `agentId` is the initiating agent (also the delivery target for `time.fire`). | Yes |
+| `AGENT` | Scheduled by an agent at runtime (e.g. `time.schedule`). `agentId` is the initiating agent (also the delivery target for `fire`). | Yes |
 | `USER` | Created by the user via manage-API. Reserved — job creation is not yet implemented. `agentId` is the target agent if the job is addressed. | Yes |
 
 ### `status` vs `pausedAt` — two orthogonal dimensions
@@ -56,7 +56,7 @@ A **connector job** is a scheduled background invocation of a connector tool. Th
 | `CRON` | Next tick of a cron expression (Spring 6-field format, with seconds) | `{ "cron": "<expression>", "zone": "<IANA TZ>" }` |
 | `ONETIME` | Fires once, then `COMPLETED` | (empty or connector-specific) |
 
-`args` contains the arguments passed to the tool on each run. For `time.fire` this is `{ "prompt": "<text>" }`.
+`args` contains the arguments passed to the tool on each run. For `fire` this is `{ "prompt": "<text>" }`.
 
 ---
 
@@ -155,7 +155,7 @@ List the **current user's** connector jobs (all kinds), sorted by `nextRunAt` as
         "connectorCode": "time",
         "identity": null,
         "agentId": "0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77",
-        "name": "time.fire",
+        "name": "fire",
         "type": "PERIODIC",
         "config": { "intervalSeconds": 1800 },
         "args": { "prompt": "Summarise open PRs and post to the daily thread" },

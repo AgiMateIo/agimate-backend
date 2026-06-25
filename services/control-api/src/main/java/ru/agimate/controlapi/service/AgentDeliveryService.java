@@ -2,9 +2,11 @@ package ru.agimate.controlapi.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.delivery.AgentDeliveryHandler;
 import ru.agimate.controlapi.service.dto.IToolResult;
@@ -22,12 +24,15 @@ import java.util.stream.Collectors;
 public class AgentDeliveryService {
 
     private final Map<AgentType, AgentDeliveryHandler> handlers;
-    private final AgentService agentService;
+    private final AgentRepository agentRepository;
 
-    public AgentDeliveryService(List<AgentDeliveryHandler> handlerList, AgentService agentService) {
+    // Зависим от репозитория, а не от AgentService: доставка — низкоуровневый механизм, ему нужен
+    // лишь lookup агента. Инъекция высокоуровневого AgentService замыкала цикл бинов
+    // (ConnectorRegistry → telegram → triggerRouter → delivery → AgentService → ConnectorRegistry).
+    public AgentDeliveryService(List<AgentDeliveryHandler> handlerList, AgentRepository agentRepository) {
         this.handlers = handlerList.stream()
                 .collect(Collectors.toMap(AgentDeliveryHandler::getAgentType, Function.identity()));
-        this.agentService = agentService;
+        this.agentRepository = agentRepository;
     }
 
     public void deliverTrigger(TriggerLogAgent triggerLogAgent, Trigger trigger, Channels channels, InboundMessage inbound) {
@@ -43,7 +48,8 @@ public class AgentDeliveryService {
     }
 
     public void deliverToolResult(UUID agentId, IToolResult toolResult) {
-        Agent agent = agentService.findById(agentId);
+        Agent agent = agentRepository.findById(agentId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
         try {
             handlers.get(agent.getType()).deliverToolResult(agent, toolResult);
         } catch (Exception e) {

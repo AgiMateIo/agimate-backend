@@ -33,17 +33,17 @@ import java.util.UUID;
  * атомарное удаление заметок сконсолидированной партии).
  *
  * <p>Скрытые {@code @Job}-задачи (per-agent, {@code identity = agentId}): {@code daily} — обходит
- * сессии агента за сутки и адресует ему {@code notes-by-session} по каждой; {@code consolidation} —
+ * сессии агента за сутки и адресует ему {@code notes_by_session} по каждой; {@code consolidation} —
  * раз в час single-flight'ом клеймит накопленные заметки и шлёт {@code consolidate}.
  */
 @Service
 @RequiredArgsConstructor
 public class PersistentMemoryToolService {
 
-    static final String DAILY_JOB = "persist-memory.daily";
-    static final String CONSOLIDATION_JOB = "persist-memory.consolidation";
-    static final String NOTES_TRIGGER = "trigger.persist-memory.notes-by-session";
-    static final String CONSOLIDATE_TRIGGER = "trigger.persist-memory.consolidate";
+    static final String DAILY_JOB = "daily";
+    static final String CONSOLIDATION_JOB = "consolidation";
+    static final String NOTES_TRIGGER = "notes_by_session";
+    static final String CONSOLIDATE_TRIGGER = "consolidate";
 
     /** Сколько ждать до реклейма брошенной консолидации (лиз на заклеймленные заметки). */
     private static final long CONSOLIDATION_LEASE_SECONDS = 1_800;

@@ -91,7 +91,18 @@ ConnectorHandler                — connectorCode/Name, getTriggers, getTools, g
 Тулы коннектора статичны и привязаны к `connectorCode` (строятся рефлексией один раз). Исключение —
 **динамические коннекторы** (MCP, см. ниже): набор тулов per-instance и открывается в рантайме. Для них
 SPI даёт context-aware перегрузку `getTools(ConnectorContext)` (дефолт — те же статические `getTools()`);
-gRPC-листинг (`GetConnectorTools`) единообразно зовёт её с контекстом по `identity` — без спец-кейсов.
+gRPC-листинг (`GetConnectionTools(connection_id)`) единообразно зовёт её с контекстом по `identity` — без
+спец-кейсов. Воркер сперва получает доступные агенту экземпляры через `GetConnections(agent_id)`
+(привязки `agent_connections` → `connections`), затем по каждому зовёт `GetConnectionTools`.
+
+**Именование тулов и триггеров (единая форма).** Хранимое имя (`@Tool(name=…)`, ключи `getTriggers()`,
+`@Job`) — **голый локальный идентификатор** в `snake_case` без префиксов: `schedule`, `get_tasks`,
+`message_received`, `consolidate`, `daily`. Глобальную уникальность для LLM даёт `namespace`, который бэк
+выводит на экземпляр: `connector_code` для контекстных синглтонов (time/board/persist-memory — у агента ровно
+один) и `full_code` для multi-instance (`mcp_context7`, `telegram_<bot>`). Воркер строит agent-facing имя как
+`{namespace}.{name}` (`time.schedule`, `persist-memory.save_memory_note`, `mcp_context7.resolve-library-id`),
+а на `executeTool`/маршрутизации возвращает голое `name` — namespace только для показа. Тулы и триггеры
+именуются **одинаково**; различаются `PolicyKind` (TOOL/TRIGGER), поэтому префикс `trigger.` не нужен.
 
 `BaseConnectorHandler` — единственный reflection-диспатчер: маппит `Map<String,Object> args` на параметры
 метода по именам, привязывает `ConnectorContext` через ThreadLocal (`ConnectorContextHolder`, set/clear

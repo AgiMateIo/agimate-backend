@@ -14,6 +14,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
@@ -33,26 +34,24 @@ import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
-import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.SkillFileService;
 import ru.agimate.controlapi.service.SkillService;
-import ru.agimate.controlapi.service.dto.AgentToolSpec;
 import ru.agimate.agentworker.AgentContextGrpc;
 import ru.agimate.agentworker.AgentSpec;
-import ru.agimate.agentworker.AgentToolDef;
+import ru.agimate.agentworker.ConnectionRef;
 import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.GetAgentSpecRequest;
-import ru.agimate.agentworker.GetConnectorToolsRequest;
-import ru.agimate.agentworker.GetConnectorToolsResponse;
+import ru.agimate.agentworker.GetConnectionToolsRequest;
+import ru.agimate.agentworker.GetConnectionToolsResponse;
+import ru.agimate.agentworker.GetConnectionsRequest;
+import ru.agimate.agentworker.GetConnectionsResponse;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetSkillRequest;
 import ru.agimate.agentworker.GetSkillsRequest;
 import ru.agimate.agentworker.GetSkillsResponse;
 import ru.agimate.agentworker.GetTeamContextRequest;
-import ru.agimate.agentworker.ListAgentToolsRequest;
-import ru.agimate.agentworker.ListAgentToolsResponse;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.SkillConnectorRef;
 import ru.agimate.agentworker.SkillRef;
@@ -96,7 +95,6 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final ConnectionToolRepository connectionToolRepository;
     private final ConnectorRegistry connectorRegistry;
     private final AgentSkillService agentSkillService;
-    private final AgentService agentService;
     private final LlmProviderService llmProviderService;
     private final SkillService skillService;
     private final SkillFileService skillFileService;
@@ -290,22 +288,51 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     }
 
     @Override
-    public void getConnectorTools(GetConnectorToolsRequest request, StreamObserver<GetConnectorToolsResponse> responseObserver) {
+    public void getConnections(GetConnectionsRequest request, StreamObserver<GetConnectionsResponse> responseObserver) {
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
-            String connectorCode = request.getConnectorCode();
-            if (connectorCode.isEmpty()) {
-                throw Status.INVALID_ARGUMENT.withDescription("connector_code is required").asRuntimeException();
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            Agent agent = agentRepository.findById(agentId)
+                    .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
+            if (!agent.isEnabled()) {
+                responseObserver.onError(Status.FAILED_PRECONDITION
+                        .withDescription("Agent is disabled").asRuntimeException());
+                return;
             }
 
+            // Привязанные (agent_connections) активные экземпляры — гейт доступности на уровне коннектора.
+            GetConnectionsResponse.Builder builder = GetConnectionsResponse.newBuilder();
+            for (Connection connection : connectionRepository.findActiveBoundToAgent(agentId)) {
+                builder.addConnections(ConnectionRef.newBuilder()
+                        .setId(connection.getId().toString())
+                        .setConnectorCode(nullToEmpty(connection.getConnectorCode()))
+                        .setNamespace(namespaceOf(connection))
+                        .setName(nullToEmpty(connection.getName()))
+                        .build());
+            }
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("AgentContext.GetConnections failed pool={} agent={}", poolId, request.getAgentId(), e);
+            handleError(e, responseObserver);
+        }
+    }
+
+    @Override
+    public void getConnectionTools(GetConnectionToolsRequest request, StreamObserver<GetConnectionToolsResponse> responseObserver) {
+        String poolId = WorkerPoolContextHolder.current().poolId();
+        try {
+            UUID connectionId = parseUuid(request.getConnectionId(), "connection_id");
+            Connection connection = connectionRepository.findByIdNotDeleted(connectionId)
+                    .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
+            String connectorCode = connection.getConnectorCode();
             Connector connector = connectorRepository.findById(connectorCode)
                     .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
             // Контекст для листинга: достаточно identity (динамические коннекторы вроде mcp читают
             // тулы per-instance из кэша). Расшифровка credentials здесь не нужна.
-            String identity = request.getIdentity();
-            ConnectorContext listingContext = new ConnectorContext(
-                    identity.isEmpty() ? null : identity, null, null, null, Map.of(), null);
+            String identity = connectionId.toString();
+            ConnectorContext listingContext = new ConnectorContext(identity, null, null, null, Map.of(), null);
 
             // Источник тулов по toolBinding: STATIC — рефлексия handler'а; DYNAMIC — connection_tools.
             Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> tools =
@@ -313,22 +340,18 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                         case STATIC -> connectorRegistry.findHandler(connectorCode)
                                 .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
                                 .getTools(listingContext);
-                        case DYNAMIC -> appConnectionTools(identity);
+                        case DYNAMIC -> dynamicConnectionTools(connectionId);
                         case null -> throw new BadRequestStatusException(
                                 "Connector does not expose tool definitions: " + connectorCode);
                     };
 
-            // Стабильный handle экземпляра: из connections по identity; для статических singleton — код.
-            String fullCode = resolveFullCode(connectorCode, identity);
-
-            GetConnectorToolsResponse.Builder builder = GetConnectorToolsResponse.newBuilder();
+            String namespace = namespaceOf(connection);
+            GetConnectionToolsResponse.Builder builder = GetConnectionToolsResponse.newBuilder();
             tools.forEach((name, spec) -> {
                 ConnectorToolSpec.Builder toolBuilder = ConnectorToolSpec.newBuilder()
                         .setName(spec.name() != null ? spec.name() : name)
-                        .setFullCode(fullCode);
-                if (!identity.isEmpty()) {
-                    toolBuilder.setConnectionId(identity);
-                }
+                        .setConnectionId(identity)
+                        .setNamespace(namespace);
                 if (spec.title() != null) {
                     toolBuilder.setTitle(spec.title());
                 }
@@ -358,69 +381,31 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             responseObserver.onNext(builder.build());
             responseObserver.onCompleted();
         } catch (Exception e) {
-            log.error("AgentContext.GetConnectorTools failed pool={} connector={}",
-                    poolId, request.getConnectorCode(), e);
+            log.error("AgentContext.GetConnectionTools failed pool={} connection={}",
+                    poolId, request.getConnectionId(), e);
             handleError(e, responseObserver);
         }
     }
 
-    /** Тулы APP-экземпляра из {@code connection_tools} (динамические per-instance, как у mcp). */
-    private Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> appConnectionTools(String identity) {
-        if (identity == null || identity.isEmpty()) {
-            return Map.of();
-        }
-        UUID connectionId;
-        try {
-            connectionId = UUID.fromString(identity);
-        } catch (IllegalArgumentException e) {
-            return Map.of();
-        }
+    /**
+     * Неймспейс экземпляра для LLM-имени тула/триггера ({@code {namespace}.{name}}):
+     * INSTANCE-коннекторы (mcp/telegram — у агента их может быть несколько) → {@code full_code}
+     * (инстанс-уникальный handle); контекстные синглтоны (time/board/persist-memory — у агента ровно
+     * один на тип) → {@code connector_code} (короткий и однозначный).
+     */
+    private static String namespaceOf(Connection connection) {
+        String ns = connection.getIdentityScope() == IdentityScope.INSTANCE
+                ? connection.getFullCode()
+                : connection.getConnectorCode();
+        return nullToEmpty(ns);
+    }
+
+    /** Тулы динамического экземпляра (mcp/app) из {@code connection_tools}. */
+    private Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> dynamicConnectionTools(UUID connectionId) {
         Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> tools = new java.util.LinkedHashMap<>();
         connectionToolRepository.findActiveByConnectionId(connectionId)
                 .forEach(tool -> tools.put(tool.getName(), McpToolMapper.toSpec(tool)));
         return tools;
-    }
-
-    /** {@code full_code} экземпляра из connections по identity; для статических singleton — код коннектора. */
-    private String resolveFullCode(String connectorCode, String identity) {
-        if (identity == null || identity.isEmpty()) {
-            return connectorCode;
-        }
-        try {
-            return connectionRepository.findByIdNotDeleted(UUID.fromString(identity))
-                    .map(Connection::getFullCode)
-                    .orElse(connectorCode);
-        } catch (IllegalArgumentException e) {
-            return connectorCode;
-        }
-    }
-
-    @Override
-    public void listAgentTools(ListAgentToolsRequest request, StreamObserver<ListAgentToolsResponse> responseObserver) {
-        String poolId = WorkerPoolContextHolder.current().poolId();
-        try {
-            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            ListAgentToolsResponse.Builder builder = ListAgentToolsResponse.newBuilder();
-            for (AgentToolSpec spec : agentService.getAvailableToolSpecs(agentId)) {
-                AgentToolDef.Builder toolBuilder = AgentToolDef.newBuilder()
-                        .setName(spec.name());
-                if (spec.description() != null) {
-                    toolBuilder.setDescription(spec.description());
-                }
-                if (spec.parametersJsonSchema() != null) {
-                    String json = JsonUtils.writeValueAsString(spec.parametersJsonSchema());
-                    toolBuilder.setParametersJsonSchema(
-                            ByteString.copyFrom(json.getBytes(StandardCharsets.UTF_8)));
-                }
-                builder.addTools(toolBuilder.build());
-            }
-            responseObserver.onNext(builder.build());
-            responseObserver.onCompleted();
-        } catch (Exception e) {
-            log.error("AgentContext.ListAgentTools failed pool={} agent={}",
-                    poolId, request.getAgentId(), e);
-            handleError(e, responseObserver);
-        }
     }
 
     @Override

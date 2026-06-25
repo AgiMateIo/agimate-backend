@@ -38,15 +38,15 @@ import java.util.UUID;
  *
  * <p>{@code time.schedule} вставляет строку {@code connector_jobs} (ONETIME/PERIODIC/CRON); когда
  * приходит срок, {@code ConnectorJobScheduler} диспатчит скрытый {@link #fire} — он порождает
- * триггер {@code trigger.time.due}, адресованный агенту-инициатору (audience), и тот «просыпается».
+ * триггер {@code due} (agent-facing {@code time.due}), адресованный агенту-инициатору (audience), и тот «просыпается».
  */
 @Service
 @RequiredArgsConstructor
 public class TimeToolService {
 
     /** Имя скрытой таски-диспетчера и триггера агенту. */
-    static final String FIRE_TASK = "time.fire";
-    static final String DUE_TRIGGER = "trigger.time.due";
+    static final String FIRE_TASK = "fire";
+    static final String DUE_TRIGGER = "due";
 
     /** Срабатывание — лишь публикация триггера; итерация короткая. */
     private static final int FIRE_TIMEOUT_SECONDS = 60;
@@ -54,7 +54,7 @@ public class TimeToolService {
     private final ConnectorJobService jobService;
     private final TriggerRouterService triggerRouterService;
 
-    @Tool(name = "time.current_datetime", description = "Get the current date and time in UTC (ISO-8601)",
+    @Tool(name = "current_datetime", description = "Get the current date and time in UTC (ISO-8601)",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public Map<String, Object> currentDateTime() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
@@ -63,7 +63,7 @@ public class TimeToolService {
                 "zone", "UTC");
     }
 
-    @Tool(name = "time.schedule",
+    @Tool(name = "schedule",
             description = "Schedule a deferred task for yourself: you will be woken up with the given prompt "
                     + "once after a delay, repeatedly every N seconds, or on a cron schedule. "
                     + "Provide exactly one of: delaySeconds, intervalSeconds, cron.",
@@ -121,7 +121,7 @@ public class TimeToolService {
                 "nextRunAt", firstRunAt.toString());
     }
 
-    @Tool(name = "time.scheduled_tasks", description = "List your active (not yet completed) scheduled tasks",
+    @Tool(name = "scheduled_tasks", description = "List your active (not yet completed) scheduled tasks",
             annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false))
     public Map<String, Object> scheduledTasks() {
         ConnectorContext ctx = ConnectorContextHolder.current();
@@ -142,7 +142,7 @@ public class TimeToolService {
         return Map.of("tasks", tasks);
     }
 
-    @Tool(name = "time.cancel_scheduled", description = "Cancel one of your scheduled tasks by id",
+    @Tool(name = "cancel_scheduled", description = "Cancel one of your scheduled tasks by id",
             annotations = @ToolAnnotations(openWorldHint = false))
     public Map<String, Object> cancelScheduled(
             @ToolParam("Id of the scheduled task (from time.schedule / time.scheduled_tasks)") String id) {

@@ -193,7 +193,7 @@ List predefined tools for the given integration connector.
 {
   "response": [
     {
-      "name": "telegram.send_message",
+      "name": "send_message",
       "description": "Send a text message",
       "inputSchema": {
         "type": "object",
@@ -237,7 +237,7 @@ List predefined triggers for the given integration connector.
 {
   "response": [
     {
-      "name": "telegram.message_received",
+      "name": "message_received",
       "description": "Text message received",
       "params": ["chatId", "text", "from", "messageId"]
     }
@@ -249,7 +249,7 @@ List predefined triggers for the given integration connector.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | `string` | Trigger code (e.g., `telegram.message_received`) |
+| `name` | `string` | Trigger code (e.g., `message_received`) |
 | `description` | `string` | Human-readable trigger description |
 | `params` | `string[]` | Parameter names delivered with the trigger payload |
 

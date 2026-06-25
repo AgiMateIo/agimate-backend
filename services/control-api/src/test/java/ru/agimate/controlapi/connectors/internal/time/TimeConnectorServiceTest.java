@@ -34,19 +34,19 @@ class TimeConnectorServiceTest {
 
         Map<String, ConnectorToolSpec> tools = handler.getTools();
         assertEquals(4, tools.size());
-        assertNotNull(tools.get("time.current_datetime"));
-        assertTrue(tools.get("time.current_datetime").annotations().readOnlyHint());
-        assertNotNull(tools.get("time.schedule"));
-        assertNotNull(tools.get("time.scheduled_tasks"));
-        assertNotNull(tools.get("time.cancel_scheduled"));
+        assertNotNull(tools.get("current_datetime"));
+        assertTrue(tools.get("current_datetime").annotations().readOnlyHint());
+        assertNotNull(tools.get("schedule"));
+        assertNotNull(tools.get("scheduled_tasks"));
+        assertNotNull(tools.get("cancel_scheduled"));
         // fire — task-only, скрыта от LLM, но регистрируется как таска-диспетчер.
-        assertNull(tools.get("time.fire"));
+        assertNull(tools.get("fire"));
 
         assertEquals(1, handler.getJobs().size());
-        assertNotNull(handler.getJobs().get("time.fire"));
+        assertNotNull(handler.getJobs().get("fire"));
 
         assertEquals(1, handler.getTriggers().size());
-        assertNotNull(handler.getTriggers().get("trigger.time.due"));
+        assertNotNull(handler.getTriggers().get("due"));
     }
 
     @Test
@@ -54,7 +54,7 @@ class TimeConnectorServiceTest {
     void currentDateTime() {
         OffsetDateTime before = OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(5);
 
-        Map<String, Object> result = handler.executeTool(context(), "time.current_datetime", Map.of());
+        Map<String, Object> result = handler.executeTool(context(), "current_datetime", Map.of());
 
         assertEquals("UTC", result.get("zone"));
         OffsetDateTime parsed = OffsetDateTime.parse(

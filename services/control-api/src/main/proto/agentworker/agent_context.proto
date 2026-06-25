@@ -12,8 +12,12 @@ service AgentContext {
   rpc GetSkill(GetSkillRequest) returns (SkillSpec);
   rpc GetTeamContext(GetTeamContextRequest) returns (TeamContext);
   rpc GetLlmCredentials(GetLlmCredentialsRequest) returns (LlmCredentials);
-  rpc GetConnectorTools(GetConnectorToolsRequest) returns (GetConnectorToolsResponse);
-  rpc ListAgentTools(ListAgentToolsRequest) returns (ListAgentToolsResponse);
+  // Коннекторы, доступные агенту (binding'и agent_connections → connections). Воркер итерирует
+  // их и по каждому зовёт GetConnectionTools, чтобы собрать набор тулов.
+  rpc GetConnections(GetConnectionsRequest) returns (GetConnectionsResponse);
+  // Все тулы одного экземпляра коннектора (connections.id). ABAC доступности уже применён в
+  // GetConnections (вернулись только привязанные); пер-тул DENY-политики проверяются на ExecuteTool.
+  rpc GetConnectionTools(GetConnectionToolsRequest) returns (GetConnectionToolsResponse);
   // persist-memory: свёрнутая (cold) память и ещё не сконсолидированные заметки (hot) агента —
   // воркер подмешивает их в системный промпт / запрос пользователя без вызова get_* тулов.
   rpc GetMemory(GetMemoryRequest) returns (AgentMemory);
@@ -102,11 +106,30 @@ message LlmCredentials {
   string model = 4;
 }
 
-message GetConnectorToolsRequest {
-  string connector_code = 1;
-  // identity экземпляра коннектора (connections.id). Обязателен для динамических коннекторов
-  // (mcp, app) — набор тулов per-instance; для статических singleton игнорируется.
-  string identity = 2;
+message GetConnectionsRequest {
+  string agent_id = 1;
+}
+
+// Экземпляр коннектора, доступный агенту.
+message ConnectionRef {
+  string id = 1;              // connections.id (= identity на ExecuteTool / GetConnectionTools)
+  string connector_code = 2;  // тип коннектора (mcp, telegram, persist-memory, ...)
+  // Префикс LLM-имени: connector_code для синглтонов (time/board/persist-memory),
+  // full_code для инстансов (mcp_context7, telegram_<bot>). Воркер строит {namespace}.{name}.
+  string namespace = 3 [json_name = "namespace"];
+  string name = 4;            // человекочитаемое имя
+}
+
+message GetConnectionsResponse {
+  repeated ConnectionRef connections = 1;
+}
+
+message GetConnectionToolsRequest {
+  string connection_id = 1 [json_name = "connectionId"];  // connections.id
+}
+
+message GetConnectionToolsResponse {
+  repeated ConnectorToolSpec tools = 1;
 }
 
 // MCP ToolAnnotations — поведенческие хинты тула.
@@ -128,28 +151,10 @@ message ConnectorToolSpec {
   map<string, string> meta = 7 [json_name = "_meta"];    // MCP _meta
   // Экземпляр коннектора, которому принадлежит тул (= connections.id, как identity на ExecuteTool).
   string connection_id = 8 [json_name = "connectionId"];
-  // Стабильный клиентский handle экземпляра (mcp_context7). Воркер строит LLM-имя тула как
-  // {full_code}.{name} для глобальной уникальности; на ExecuteTool возвращает исходные
-  // (connector_code, identity=connection_id, name) — маршрутизация по wire не меняется.
-  string full_code = 9 [json_name = "fullCode"];
-}
-
-message GetConnectorToolsResponse {
-  repeated ConnectorToolSpec tools = 1;
-}
-
-message ListAgentToolsRequest {
-  string agent_id = 1;
-}
-
-message AgentToolDef {
-  string name = 1;
-  string description = 2;
-  bytes parameters_json_schema = 3;
-}
-
-message ListAgentToolsResponse {
-  repeated AgentToolDef tools = 1;
+  // Неймспейс экземпляра для LLM-имени (connector_code для синглтонов, full_code для инстансов).
+  // Воркер строит LLM-имя тула как {namespace}.{name} для глобальной уникальности; на ExecuteTool
+  // возвращает исходные (connector_code, identity=connection_id, name) — маршрутизация по wire не меняется.
+  string namespace = 9 [json_name = "namespace"];
 }
 
 message GetMemoryRequest {

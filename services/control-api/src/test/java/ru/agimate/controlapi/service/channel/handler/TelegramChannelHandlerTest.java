@@ -60,7 +60,7 @@ class TelegramChannelHandlerTest {
         void triggers() {
             assertEquals(5, handler.listOfTriggers(config).size());
             assertTrue(handler.listOfTriggers(config).stream()
-                    .anyMatch(t -> t.triggerName().equals("telegram.message_received")));
+                    .anyMatch(t -> t.triggerName().equals("message_received")));
         }
 
         @Test
@@ -69,7 +69,7 @@ class TelegramChannelHandlerTest {
             ToolDefinition tool = handler.listOfTools(config).get(0);
             assertEquals("telegram", tool.connectorCode());
             assertEquals(IDENTITY, tool.identity());
-            assertEquals("telegram.send_message", tool.toolName());
+            assertEquals("send_message", tool.toolName());
         }
 
         @Test
@@ -98,7 +98,7 @@ class TelegramChannelHandlerTest {
         @DisplayName("plain text message")
         void message() {
             String text = handler.handleInput(config,
-                    trigger("telegram.message_received", Map.of("chatId", 42, "text", "Привет"))).orElseThrow().text();
+                    trigger("message_received", Map.of("chatId", 42, "text", "Привет"))).orElseThrow().text();
             assertEquals("Привет", text);
         }
 
@@ -106,7 +106,7 @@ class TelegramChannelHandlerTest {
         @DisplayName("command keeps the full command line")
         void command() {
             String text = handler.handleInput(config,
-                    trigger("telegram.command_received", Map.of("chatId", 42, "text", "/start now"))).orElseThrow().text();
+                    trigger("command_received", Map.of("chatId", 42, "text", "/start now"))).orElseThrow().text();
             assertEquals("/start now", text);
         }
 
@@ -114,7 +114,7 @@ class TelegramChannelHandlerTest {
         @DisplayName("callback query is described")
         void callback() {
             String text = handler.handleInput(config,
-                    trigger("telegram.callback_query", Map.of("chatId", 42, "data", "yes"))).orElseThrow().text();
+                    trigger("callback_query", Map.of("chatId", 42, "data", "yes"))).orElseThrow().text();
             assertEquals("[Нажата кнопка] yes", text);
         }
 
@@ -122,7 +122,7 @@ class TelegramChannelHandlerTest {
         @DisplayName("photo without caption is described, no file fetched")
         void photo() {
             String text = handler.handleInput(config,
-                    trigger("telegram.photo_received", Map.of("chatId", 42))).orElseThrow().text();
+                    trigger("photo_received", Map.of("chatId", 42))).orElseThrow().text();
             assertEquals("[Пользователь отправил изображение]", text);
         }
 
@@ -130,7 +130,7 @@ class TelegramChannelHandlerTest {
         @DisplayName("photo caption is appended")
         void photoWithCaption() {
             String text = handler.handleInput(config,
-                    trigger("telegram.photo_received", Map.of("chatId", 42, "caption", "смотри"))).orElseThrow().text();
+                    trigger("photo_received", Map.of("chatId", 42, "caption", "смотри"))).orElseThrow().text();
             assertEquals("[Пользователь отправил изображение] смотри", text);
         }
 
@@ -138,7 +138,7 @@ class TelegramChannelHandlerTest {
         @DisplayName("document uses its file name")
         void document() {
             String text = handler.handleInput(config,
-                    trigger("telegram.document_received",
+                    trigger("document_received",
                             Map.of("chatId", 42, "document", Map.of("file_name", "report.pdf")))).orElseThrow().text();
             assertEquals("[Пользователь отправил документ: report.pdf]", text);
         }
@@ -153,7 +153,7 @@ class TelegramChannelHandlerTest {
         void allowed() {
             ChannelConfig filtered = new ChannelConfig(AGENT_ID, "telegram", IDENTITY, Map.of("allowedChatIds", List.of(42)));
             assertTrue(handler.handleInput(filtered,
-                    trigger("telegram.message_received", Map.of("chatId", 42, "text", "hi"))).isPresent());
+                    trigger("message_received", Map.of("chatId", 42, "text", "hi"))).isPresent());
         }
 
         @Test
@@ -161,14 +161,14 @@ class TelegramChannelHandlerTest {
         void filteredOut() {
             ChannelConfig filtered = new ChannelConfig(AGENT_ID, "telegram", IDENTITY, Map.of("allowedChatIds", List.of(42)));
             assertTrue(handler.handleInput(filtered,
-                    trigger("telegram.message_received", Map.of("chatId", 999, "text", "hi"))).isEmpty());
+                    trigger("message_received", Map.of("chatId", 999, "text", "hi"))).isEmpty());
         }
 
         @Test
         @DisplayName("empty list means all chats allowed")
         void emptyAllowsAll() {
             assertTrue(handler.handleInput(config,
-                    trigger("telegram.message_received", Map.of("chatId", 999, "text", "hi"))).isPresent());
+                    trigger("message_received", Map.of("chatId", 999, "text", "hi"))).isPresent());
         }
     }
 
@@ -189,7 +189,7 @@ class TelegramChannelHandlerTest {
             ToolCallRequest r = req.getValue();
             assertEquals("telegram", r.getConnectorCode());
             assertEquals(IDENTITY, r.getIdentity());
-            assertEquals("telegram.send_message", r.getName());
+            assertEquals("send_message", r.getName());
             assertEquals("call-1", r.getId());
             assertEquals("42", r.getInput().get("chatId"));
             assertEquals("Готово", r.getInput().get("text"));

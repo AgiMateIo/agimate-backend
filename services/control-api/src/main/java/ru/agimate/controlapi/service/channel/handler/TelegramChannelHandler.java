@@ -26,12 +26,12 @@ public class TelegramChannelHandler implements ChannelHandler {
     public static final String NAME = "telegram";
     private static final String CONNECTOR_CODE = "telegram";
 
-    private static final String TRIGGER_MESSAGE = "telegram.message_received";
-    private static final String TRIGGER_PHOTO = "telegram.photo_received";
-    private static final String TRIGGER_DOCUMENT = "telegram.document_received";
-    private static final String TRIGGER_COMMAND = "telegram.command_received";
-    private static final String TRIGGER_CALLBACK = "telegram.callback_query";
-    private static final String TOOL_SEND_MESSAGE = "telegram.send_message";
+    private static final String TRIGGER_MESSAGE = "message_received";
+    private static final String TRIGGER_PHOTO = "photo_received";
+    private static final String TRIGGER_DOCUMENT = "document_received";
+    private static final String TRIGGER_COMMAND = "command_received";
+    private static final String TRIGGER_CALLBACK = "callback_query";
+    private static final String TOOL_SEND_MESSAGE = "send_message";
     private static final String CFG_ALLOWED_CHAT_IDS = "allowedChatIds";
     private static final String CFG_DEFAULT_CHAT_ID = "defaultChatId";
 

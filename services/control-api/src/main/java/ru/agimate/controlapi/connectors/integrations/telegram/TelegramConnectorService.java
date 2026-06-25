@@ -151,19 +151,19 @@ public class TelegramConnectorService extends BaseConnectorHandler implements In
     @Override
     public Map<String, TriggerSpec> getTriggers() {
         Map<String, TriggerSpec> triggers = new LinkedHashMap<>();
-        triggers.put("telegram.message_received", new TriggerSpec(
+        triggers.put("message_received", new TriggerSpec(
                 "Text message received",
                 List.of("chatId", "text", "from", "messageId")));
-        triggers.put("telegram.photo_received", new TriggerSpec(
+        triggers.put("photo_received", new TriggerSpec(
                 "Photo received",
                 List.of("chatId", "photo", "caption", "from", "messageId")));
-        triggers.put("telegram.document_received", new TriggerSpec(
+        triggers.put("document_received", new TriggerSpec(
                 "Document received",
                 List.of("chatId", "document", "caption", "from", "messageId")));
-        triggers.put("telegram.command_received", new TriggerSpec(
+        triggers.put("command_received", new TriggerSpec(
                 "Bot command received",
                 List.of("chatId", "text", "command", "args", "from", "messageId")));
-        triggers.put("telegram.callback_query", new TriggerSpec(
+        triggers.put("callback_query", new TriggerSpec(
                 "Inline button pressed",
                 List.of("callbackQueryId", "data", "chatId", "messageId", "from")));
         return triggers;

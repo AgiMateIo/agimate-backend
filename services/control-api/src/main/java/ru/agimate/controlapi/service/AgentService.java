@@ -14,7 +14,6 @@ import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.agent.dto.AgentConfigResponse;
 import ru.agimate.controlapi.controller.agent.dto.AgentContextResponse;
 import ru.agimate.controlapi.controller.agent.dto.ToolDefinition;
-import ru.agimate.controlapi.service.dto.AgentToolSpec;
 import ru.agimate.controlapi.controller.manage.dto.AgentResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillSummary;
 import ru.agimate.controlapi.controller.manage.dto.CreateAgentRequest;
@@ -198,21 +197,6 @@ public class AgentService {
     }
 
     /**
-     * Same selection as {@link #getAvailableTools} but exposes the raw JSON Schema
-     * stored under {@code App.tools[name].parameters} (convention key).
-     */
-    public List<AgentToolSpec> getAvailableToolSpecs(UUID agentId) {
-        Agent agent = findById(agentId);
-
-        Set<String> allowedToolNames = availableToolNames(agent);
-        Map<String, AgentToolSpec> specMap = buildToolSpecMap(agent.getUserId());
-
-        return allowedToolNames.stream()
-                .map(name -> specMap.getOrDefault(name, new AgentToolSpec(name, null, null)))
-                .toList();
-    }
-
-    /**
      * Доступные агенту тулы = объединение тулов всех привязанных ({@code agent_connections}) активных
      * экземпляров, за вычетом DENY-правил (дефолт-allow). Источник имён по {@code toolBinding}:
      * STATIC — рефлексия handler'а, DYNAMIC — {@code connection_tools}.
@@ -256,25 +240,6 @@ public class AgentService {
                     : connectionTriggerRepository.findActiveByConnectionId(connection.getId()).stream()
                             .map(ConnectionTrigger::getName).collect(Collectors.toSet());
         };
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, AgentToolSpec> buildToolSpecMap(UUID userId) {
-        List<App> apps = appRepository.findByUserIdNotDeleted(userId);
-        Map<String, AgentToolSpec> map = new LinkedHashMap<>();
-
-        for (App app : apps) {
-            if (app.getTools() == null) continue;
-            for (var entry : app.getTools().entrySet()) {
-                String toolName = entry.getKey();
-                var value = (Map<String, Object>) entry.getValue();
-                String description = value.getOrDefault("description", "").toString();
-                Object parameters = value.get("parameters");
-                map.put(toolName, new AgentToolSpec(toolName, description, parameters));
-            }
-        }
-
-        return map;
     }
 
     @SuppressWarnings("unchecked")

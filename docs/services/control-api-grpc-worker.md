@@ -130,14 +130,31 @@ Errors:
 - `INVALID_ARGUMENT` — missing `tool_call_id`/`connector_code`/`tool_name`/UUID parsing.
 - `UNAUTHENTICATED` — bad pool key (handled by interceptor before the call ever reaches the service).
 
-### Tool discovery (`AgentContext.GetConnectorTools`)
+### Tool discovery (`AgentContext.GetConnections` → `GetConnectionTools`)
 
-`GetConnectorToolsRequest` carries `connector_code` **and** `identity` (the `integration_credentials.id` /
-internal instance id). For static connectors `identity` is ignored — tools are derived from `@Tool` methods by
-reflection and are the same for every instance. For **dynamic** connectors (`mcp`) the tool set is per-instance:
-each MCP server (its own `integration_credentials` row) exposes a different toolset discovered at runtime via
-`tools/list` and cached in `mcp_tool`. The worker therefore **must** send `identity` when listing tools for an
-`mcp` connector; the backend resolves the per-instance tools from the cache (no remote call on this path).
+Two steps, both keyed on `connections.id`:
+
+1. **`GetConnections(agent_id)` → `[ConnectionRef{id, connector_code, namespace, name}]`** — the connector
+   instances available to the agent. Source: active `agent_connections` bindings joined to `connections`
+   (enabled, not soft-deleted). This is the connector-level ABAC gate — only bound instances are returned.
+2. **`GetConnectionTools(connection_id)` → `[ConnectorToolSpec]`** — every tool of one instance. The backend
+   resolves `connector_code` from the connection, then by `tool_binding`: **STATIC** connectors (telegram,
+   time, board, persist-memory) derive tools from `@Tool` methods by reflection; **DYNAMIC** connectors
+   (`mcp`, device `app`) read the per-instance set from `connection_tools` (synced from `tools/list` /
+   device link, no remote call on this path). Each `ConnectorToolSpec` echoes `connection_id` (= `identity`
+   on `ExecuteTool`) and `namespace`; the worker builds the LLM-facing name as `{namespace}.{name}`.
+
+**Naming.** Stored tool/trigger names are **bare local identifiers** (`schedule`, `get_tasks`,
+`message_received`, `consolidate`) — no connector prefix. Global uniqueness for the LLM comes from the
+`namespace` the backend derives per instance: `connector_code` for context singletons (time/board/persist-memory
+— an agent has exactly one) and `full_code` for multi-instance connectors (`mcp_context7`, `telegram_<bot>`).
+So the agent sees `time.schedule`, `persist-memory.save_memory_note`, `mcp_context7.resolve-library-id`. On
+`ExecuteTool` the worker sends the **bare** `name` back (+ `connector_code`, `identity`) — namespace is
+presentation-only, wire routing unchanged.
+
+`GetConnectionTools` returns **all** tools of the instance — per-tool `DENY`/`ALLOW` policies
+(`agent_connection_policies`) are **not** applied at listing time; they are enforced on `ExecuteTool`
+(`PERMISSION_DENIED`). The worker may surface denied tools to the LLM; the call is rejected at execution.
 
 ## Active-run registry (`AgentRunRegistry`)
 

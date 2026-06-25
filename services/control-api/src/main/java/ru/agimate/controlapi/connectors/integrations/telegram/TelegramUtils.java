@@ -81,7 +81,7 @@ public class TelegramUtils {
         Map<String, Object> triggerData = new LinkedHashMap<>();
 
         if (update.containsKey("callback_query")) {
-            triggerName = "telegram.callback_query";
+            triggerName = "callback_query";
             Map<String, Object> callbackQuery = (Map<String, Object>) update.get("callback_query");
             triggerData.put("callbackQueryId", callbackQuery.get("id"));
             triggerData.put("data", callbackQuery.get("data"));
@@ -106,15 +106,15 @@ public class TelegramUtils {
             String text = (String) message.get("text");
 
             if (message.containsKey("photo")) {
-                triggerName = "telegram.photo_received";
+                triggerName = "photo_received";
                 triggerData.put("photo", message.get("photo"));
                 triggerData.put("caption", message.get("caption"));
             } else if (message.containsKey("document")) {
-                triggerName = "telegram.document_received";
+                triggerName = "document_received";
                 triggerData.put("document", message.get("document"));
                 triggerData.put("caption", message.get("caption"));
             } else if (text != null && text.startsWith("/")) {
-                triggerName = "telegram.command_received";
+                triggerName = "command_received";
                 triggerData.put("text", text);
                 String[] parts = text.split("\\s+", 2);
                 triggerData.put("command", parts[0]);
@@ -122,16 +122,16 @@ public class TelegramUtils {
                     triggerData.put("args", parts[1]);
                 }
             } else {
-                triggerName = "telegram.message_received";
+                triggerName = "message_received";
                 triggerData.put("text", text);
             }
         } else if (update.containsKey("channel_post")) {
             log.debug("Unsupported Telegram update type, keys: {}", update.keySet());
-            triggerName = "telegram.channel_post";
+            triggerName = "channel_post";
             triggerData.put("raw", update);
         } else {
             log.debug("Unsupported Telegram update type, keys: {}", update.keySet());
-            triggerName = "telegram.unknown";
+            triggerName = "unknown";
             triggerData.put("raw", update);
         }
 

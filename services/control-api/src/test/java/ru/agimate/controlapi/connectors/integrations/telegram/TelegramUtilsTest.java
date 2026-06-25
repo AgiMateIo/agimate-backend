@@ -137,7 +137,7 @@ class TelegramUtilsTest {
         void textMessage() {
             Trigger result = normalizeUpdate(message(Map.of("text", "Hello world")), IDENTITY);
 
-            assertEquals("telegram.message_received", result.name());
+            assertEquals("message_received", result.name());
             assertEquals("telegram", result.connectorCode());
             assertEquals(IDENTITY, result.identity());
             assertEquals("Hello world", result.data().get("text"));
@@ -150,7 +150,7 @@ class TelegramUtilsTest {
         void commandMessage() {
             Trigger result = normalizeUpdate(message(Map.of("text", "/start hello world")), IDENTITY);
 
-            assertEquals("telegram.command_received", result.name());
+            assertEquals("command_received", result.name());
             assertEquals("/start", result.data().get("command"));
             assertEquals("hello world", result.data().get("args"));
         }
@@ -162,7 +162,7 @@ class TelegramUtilsTest {
                     "photo", List.of(Map.of("file_id", "abc")),
                     "caption", "My photo")), IDENTITY);
 
-            assertEquals("telegram.photo_received", result.name());
+            assertEquals("photo_received", result.name());
             assertEquals("My photo", result.data().get("caption"));
         }
 
@@ -172,7 +172,7 @@ class TelegramUtilsTest {
             Trigger result = normalizeUpdate(message(Map.of(
                     "document", Map.of("file_id", "doc123", "file_name", "test.pdf"))), IDENTITY);
 
-            assertEquals("telegram.document_received", result.name());
+            assertEquals("document_received", result.name());
         }
 
         @Test
@@ -190,7 +190,7 @@ class TelegramUtilsTest {
 
             Trigger result = normalizeUpdate(update, IDENTITY);
 
-            assertEquals("telegram.callback_query", result.name());
+            assertEquals("callback_query", result.name());
             assertEquals("cb123", result.data().get("callbackQueryId"));
             assertEquals("button_clicked", result.data().get("data"));
             assertEquals(100, result.data().get("chatId"));
@@ -203,7 +203,7 @@ class TelegramUtilsTest {
 
             Trigger result = normalizeUpdate(update, IDENTITY);
 
-            assertEquals("telegram.unknown", result.name());
+            assertEquals("unknown", result.name());
             assertEquals(update, result.data().get("raw"));
         }
     }
