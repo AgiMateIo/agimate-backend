@@ -31,102 +31,21 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
             @Param("search") String search,
             Pageable pageable);
 
+    /**
+     * Кандидаты-получатели триггера: агенты пользователя с активным binding на connection
+     * (= identity триггера). Тонкая фильтрация (effect/params_filter) — в {@code ConnectionAccessEvaluator}.
+     */
     @Query("""
-            SELECT a FROM Agent a WHERE a.userId = :userId AND a.enabled = true
-            AND a.id IN (
-                SELECT DISTINCT p.agentId FROM AgentTriggerPolicy p
-                WHERE p.effect = ru.agimate.controlapi.abac.AccessEffect.ALLOW
-                AND (p.triggerName IS NULL OR p.triggerName = :triggerName)
-            )
+            SELECT a FROM Agent a, AgentConnection ac
+            WHERE ac.agentId = a.id
+              AND ac.connectionId = :connectionId
+              AND ac.deletedAt IS NULL
+              AND a.userId = :userId
+              AND a.enabled = true
             """)
-    List<Agent> findRoutableByUserIdAndTriggerName(
+    List<Agent> findBoundToConnection(
             @Param("userId") UUID userId,
-            @Param("triggerName") String triggerName);
-
-    @Query(value = """
-            WITH matched AS (
-                SELECT
-                    p.agent_id,
-                    p.effect,
-                    COALESCE(p.priority,
-                        (CASE WHEN p.connector_code IS NOT NULL THEN 1 ELSE 0 END) +
-                        (CASE WHEN p.connector_identity IS NOT NULL THEN 1 ELSE 0 END) +
-                        (CASE WHEN p.trigger_name IS NOT NULL THEN 1 ELSE 0 END)
-                    ) AS specificity
-                FROM agent_trigger_policies p
-                JOIN agents a ON a.id = p.agent_id
-                WHERE a.user_id = :userId
-                  AND a.enabled = true
-                  AND (p.connector_code IS NULL OR p.connector_code = :connectorCode)
-                  AND (p.connector_identity IS NULL OR CAST(:connectorIdentity AS TEXT) IS NULL OR p.connector_identity = :connectorIdentity)
-                  AND (p.trigger_name IS NULL OR p.trigger_name = :triggerName)
-            ),
-            max_spec AS (
-                SELECT agent_id, MAX(specificity) AS max_specificity
-                FROM matched
-                GROUP BY agent_id
-            ),
-            winning AS (
-                SELECT m.agent_id,
-                       bool_or(m.effect = 'DENY') AS has_deny
-                FROM matched m
-                JOIN max_spec ms ON m.agent_id = ms.agent_id
-                                AND m.specificity = ms.max_specificity
-                GROUP BY m.agent_id
-            )
-            SELECT a.* FROM agents a
-            JOIN winning w ON a.id = w.agent_id
-            WHERE NOT w.has_deny
-            """, nativeQuery = true)
-    List<Agent> findAllowedAgents(
-            @Param("userId") UUID userId,
-            @Param("connectorCode") String connectorCode,
-            @Param("connectorIdentity") String connectorIdentity,
-            @Param("triggerName") String triggerName);
-
-    @Query(value = """
-            WITH matched AS (
-                SELECT
-                    p.agent_id,
-                    p.effect,
-                    COALESCE(p.priority,
-                        (CASE WHEN p.connector_code IS NOT NULL THEN 1 ELSE 0 END) +
-                        (CASE WHEN p.connector_identity IS NOT NULL THEN 1 ELSE 0 END) +
-                        (CASE WHEN p.trigger_name IS NOT NULL THEN 1 ELSE 0 END)
-                    ) AS specificity
-                FROM agent_trigger_policies p
-                JOIN agents a ON a.id = p.agent_id
-                JOIN agentic_teams t ON a.agentic_team_id = t.id
-                WHERE a.user_id = :userId
-                  AND a.enabled = true
-                  AND t.id = :agenticTeamId
-                  AND (p.connector_code IS NULL OR p.connector_code = :connectorCode)
-                  AND (p.connector_identity IS NULL OR CAST(:connectorIdentity AS TEXT) IS NULL OR p.connector_identity = :connectorIdentity)
-                  AND (p.trigger_name IS NULL OR p.trigger_name = :triggerName)
-            ),
-            max_spec AS (
-                SELECT agent_id, MAX(specificity) AS max_specificity
-                FROM matched
-                GROUP BY agent_id
-            ),
-            winning AS (
-                SELECT m.agent_id,
-                       bool_or(m.effect = 'DENY') AS has_deny
-                FROM matched m
-                JOIN max_spec ms ON m.agent_id = ms.agent_id
-                                AND m.specificity = ms.max_specificity
-                GROUP BY m.agent_id
-            )
-            SELECT a.* FROM agents a
-            JOIN winning w ON a.id = w.agent_id
-            WHERE NOT w.has_deny
-            """, nativeQuery = true)
-    List<Agent> findAllowedAgentsForTeamId(
-            @Param("userId") UUID userId,
-            @Param("agenticTeamId") UUID agenticTeamId,
-            @Param("connectorCode") String connectorCode,
-            @Param("connectorIdentity") String connectorIdentity,
-            @Param("triggerName") String triggerName);
+            @Param("connectionId") UUID connectionId);
 
     List<Agent> findByUserIdAndAgenticTeamId(UUID userId, UUID agenticTeamId);
 

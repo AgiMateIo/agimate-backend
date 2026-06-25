@@ -6,11 +6,12 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.ExecutionLocus;
-import ru.agimate.controlapi.database.enums.SharingScope;
+import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.ToolBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
 import ru.agimate.controlapi.database.model.ConnectorCapabilities;
 
+import java.util.List;
 import java.util.Map;
 
 @Entity
@@ -54,10 +55,19 @@ public class Connector extends BaseEntity {
     @Column(name = "tool_binding", columnDefinition = "TEXT")
     private ToolBinding toolBinding;
 
-    /** Скоуп шаринга: PRIVATE / TEAM_SHARED / GLOBAL. */
+    /**
+     * Какие {@link IdentityScope} коннектор поддерживает (type-level). Подключение выбирает один из
+     * них в {@code connections.identity_scope}. Один элемент → выбора нет (telegram/mcp → INSTANCE,
+     * board → TEAM); несколько → выбор при создании (память → AGENT/TEAM).
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "supported_scopes", columnDefinition = "JSONB")
+    private List<IdentityScope> supportedScopes;
+
+    /** Дефолтный scope, если подключение его не указало (∈ {@link #supportedScopes}). */
     @Enumerated(EnumType.STRING)
-    @Column(name = "sharing_scope", columnDefinition = "TEXT")
-    private SharingScope sharingScope;
+    @Column(name = "default_scope", columnDefinition = "TEXT")
+    private IdentityScope defaultScope;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "features", columnDefinition = "JSONB")
@@ -65,14 +75,28 @@ public class Connector extends BaseEntity {
 
     /** Агрегат capabilities (для API/бутстрапа); рантайм читает отдельные поля. */
     public ConnectorCapabilities capabilities() {
-        return new ConnectorCapabilities(transportDirection, executionLocus, toolBinding, sharingScope);
+        return new ConnectorCapabilities(transportDirection, executionLocus, toolBinding,
+                supportedScopes, defaultScope);
     }
 
     public void applyCapabilities(ConnectorCapabilities c) {
         this.transportDirection = c.transportDirection();
         this.executionLocus = c.executionLocus();
         this.toolBinding = c.toolBinding();
-        this.sharingScope = c.sharingScope();
+        this.supportedScopes = c.supportedScopes();
+        this.defaultScope = c.defaultScope();
+    }
+
+    /** Scope по умолчанию для нового подключения: явный {@link #defaultScope} или единственный поддерживаемый. */
+    public IdentityScope resolveDefaultScope() {
+        if (defaultScope != null) {
+            return defaultScope;
+        }
+        return supportedScopes != null && !supportedScopes.isEmpty() ? supportedScopes.get(0) : null;
+    }
+
+    public boolean supportsScope(IdentityScope scope) {
+        return supportedScopes != null && supportedScopes.contains(scope);
     }
 
     /** Integration-коннектор = есть поля credentials (заменяет проверку по бывшему ConnectorType). */

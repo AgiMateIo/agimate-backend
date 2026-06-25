@@ -3,6 +3,7 @@ package ru.agimate.controlapi.database.entities;
 import jakarta.persistence.*;
 import lombok.*;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.controlapi.database.enums.IdentityScope;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -50,6 +51,23 @@ public class Connection extends BaseEntity {
 
     @Column(name = "user_id", nullable = false)
     private UUID userId;
+
+    /**
+     * Выбранный для этого подключения scope (∈ {@code connector.supportedScopes}). Определяет,
+     * под каким ключом ({@link #scopeId}) живёт состояние/identity экземпляра.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "identity_scope", nullable = false, columnDefinition = "TEXT")
+    private IdentityScope identityScope;
+
+    /**
+     * Носитель scope: {@code agentId} для {@code AGENT}, {@code teamId} для {@code TEAM},
+     * {@code userId} для {@code USER}; {@code null} для {@code INSTANCE}/{@code GLOBAL}
+     * (носитель — сам {@code id}). Контекстные коннекторы с одним {@code scope_id} разделяются
+     * несколькими агентами через {@code agent_connections} (например командная память).
+     */
+    @Column(name = "scope_id")
+    private UUID scopeId;
 
     @Column(name = "name", columnDefinition = "TEXT")
     private String name;

@@ -5,11 +5,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.controlapi.abac.AgentTriggerPolicyService;
+import ru.agimate.controlapi.abac.AccessDecision;
+import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
 import ru.agimate.controlapi.controller.app.dto.TriggerRequest;
 import ru.agimate.controlapi.database.entities.*;
+import ru.agimate.controlapi.database.enums.PolicyKind;
+import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
+import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 
 import java.util.ArrayList;
@@ -23,7 +27,8 @@ public class TriggerRouterService {
 
     private final TriggerLogService triggerLogService;
     private final TriggerLogProbeService triggerLogProbeService;
-    private final AgentTriggerPolicyService agentTriggerPolicyService;
+    private final ConnectionAccessEvaluator accessEvaluator;
+    private final AgentRepository agentRepository;
     private final AgentDeliveryService agentDeliveryService;
     private final ChannelRouteResolver channelRouteResolver;
 
@@ -61,19 +66,41 @@ public class TriggerRouterService {
     }
 
     /**
-     * Получатели триггера («кто»): грубый ABAC по identity ({@code findAllowedAgents}),
-     * сужение по {@link TriggerAudience} и тонкий per-agent input_filter по {@code trigger.data()}
-     * ({@code selectMatchingAllowPolicy}). Канал ({@code policy.channelId}) здесь не при чём — это слой «как».
+     * Получатели триггера («кто»): кандидаты с активным binding на connection (= identity триггера),
+     * сужение по {@link TriggerAudience}, затем per-agent ABAC через {@link ConnectionAccessEvaluator}
+     * (дефолт-allow + DENY-исключения + опциональный {@code params_filter} по {@code trigger.data()}).
+     * Канал («как») сюда не входит — chat-filtering применяется в {@code ChannelRouteResolver}.
      */
     private List<Agent> findRecipients(UUID userId, Trigger trigger) {
-        List<Agent> allowed = agentTriggerPolicyService.findAllowedAgents(
-                userId, trigger.connectorCode(), trigger.identity(), trigger.name());
-        List<Agent> targeted = TriggerAudience.filter(allowed, audienceOf(trigger));
+        UUID connectionId = tryParseUuid(trigger.identity());
+        if (connectionId == null) {
+            log.warn("Trigger {} has non-UUID identity '{}' — no recipients",
+                    trigger.name(), trigger.identity());
+            return List.of();
+        }
+        List<Agent> bound = agentRepository.findBoundToConnection(userId, connectionId);
+        List<Agent> targeted = TriggerAudience.filter(bound, audienceOf(trigger));
         return targeted.stream()
-                .filter(agent -> agentTriggerPolicyService.selectMatchingAllowPolicy(
-                        agent.getId(), trigger.connectorCode(), trigger.identity(),
-                        trigger.name(), trigger.data()).isPresent())
+                .filter(agent -> isTriggerAllowed(agent.getId(), connectionId, trigger))
                 .toList();
+    }
+
+    private boolean isTriggerAllowed(UUID agentId, UUID connectionId, Trigger trigger) {
+        AccessDecision decision = accessEvaluator.evaluate(
+                agentId, connectionId, PolicyKind.TRIGGER, trigger.name());
+        return decision.allowed()
+                && InputFilterEvaluator.matches(decision.paramsFilter(), trigger.data());
+    }
+
+    private static UUID tryParseUuid(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**

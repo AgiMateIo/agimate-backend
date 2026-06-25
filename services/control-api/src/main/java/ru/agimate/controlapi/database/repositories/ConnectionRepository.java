@@ -45,6 +45,31 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
 
     Optional<Connection> findByAppIdAndDeletedAtIsNull(UUID appId);
 
+    /** Активные экземпляры, привязанные к агенту через {@code agent_connections} (гейт доступности). */
+    @Query("""
+            SELECT c FROM Connection c, AgentConnection ac
+            WHERE ac.connectionId = c.id
+              AND ac.agentId = :agentId
+              AND ac.deletedAt IS NULL
+              AND c.deletedAt IS NULL
+              AND c.enabled = true
+            ORDER BY c.connectorCode, c.createdAt
+            """)
+    List<Connection> findActiveBoundToAgent(@Param("agentId") UUID agentId);
+
+    /**
+     * Существующая контекстная connection данного scope (для find-or-create при binding'е:
+     * командная/пользовательская/агентская). {@code (connector_code, scope_id)} среди активных.
+     */
+    @Query("""
+            SELECT c FROM Connection c
+            WHERE c.connectorCode = :connectorCode
+              AND c.scopeId = :scopeId
+              AND c.deletedAt IS NULL
+            """)
+    Optional<Connection> findActiveByConnectorCodeAndScopeId(@Param("connectorCode") String connectorCode,
+                                                             @Param("scopeId") UUID scopeId);
+
     boolean existsByConnectorCodeAndUserIdAndSubCodeAndDeletedAtIsNull(
             String connectorCode, UUID userId, String subCode);
 

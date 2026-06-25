@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        Binding «экземпляр коннектора доступен агенту» (M:N agents↔connections). Гейт доступности:
+        нет активной строки → коннектор агенту недоступен. Несколько агентов команды могут ссылаться
+        на одну connection (общий scope_id) — командная память/board.
+    -->
+    <changeSet id="create-agent-connections-table" author="agimate">
+        <createTable tableName="agent_connections">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_agent_connections_agent"
+                             references="agents(id)" deleteCascade="true"/>
+            </column>
+            <column name="connection_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_agent_connections_connection"
+                             references="connections(id)"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Один активный binding на (agent, connection). -->
+        <sql>
+            CREATE UNIQUE INDEX uq_agent_connections_active
+                ON agent_connections (agent_id, connection_id)
+                WHERE deleted_at IS NULL;
+        </sql>
+
+        <createIndex tableName="agent_connections" indexName="idx_agent_connections_agent_id">
+            <column name="agent_id"/>
+        </createIndex>
+        <createIndex tableName="agent_connections" indexName="idx_agent_connections_connection_id">
+            <column name="connection_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

@@ -50,14 +50,27 @@ public class Channel extends BaseEntity {
     @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
     private String connectorCode;
 
-    /** Identity источника: App.id или IntegrationCredentials.id строкой. */
+    /** Identity источника = {@code connections.id} строкой (бывш. App.id/IntegrationCredentials.id). */
     @Column(name = "identity", nullable = false, columnDefinition = "TEXT")
     private String identity;
+
+    /** Экземпляр коннектора, которому принадлежит канал (= {@link #identity} как UUID). */
+    @Column(name = "connection_id")
+    private UUID connectionId;
 
     /** Произвольные настройки handler-а (reply-цель, шаблоны, messageField и т.п.). */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "config", nullable = false, columnDefinition = "JSONB")
     private Map<String, Object> config;
+
+    /**
+     * Фильтр входящих по параметрам триггера (chat-filtering) — слой «как». Применяется при
+     * резолве маршрута ({@code ChannelRouteResolver}); не матчится → доставка по этому каналу
+     * пропускается. Раньше жил на trigger-политике через {@code channel_id}.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "input_filter", columnDefinition = "JSONB")
+    private Map<String, Object> inputFilter;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

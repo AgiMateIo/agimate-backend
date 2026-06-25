@@ -8,23 +8,17 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelHandlerResponse;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelResponse;
 import ru.agimate.controlapi.database.entities.Agent;
-import ru.agimate.controlapi.database.entities.AgentToolPolicy;
-import ru.agimate.controlapi.database.entities.AgentTriggerPolicy;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
-import ru.agimate.controlapi.database.repositories.AgentToolPolicyRepository;
-import ru.agimate.controlapi.database.repositories.AgentTriggerPolicyRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
@@ -35,10 +29,12 @@ import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.ToolDefinition;
 import ru.agimate.controlapi.service.channel.handler.dto.TriggerDefinition;
+import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -59,8 +55,7 @@ public class ChannelService {
     private final ConnectionTriggerRepository connectionTriggerRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ChannelHandlerRegistry channelHandlerRegistry;
-    private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
-    private final AgentToolPolicyRepository agentToolPolicyRepository;
+    private final ConnectionBindingService connectionBindingService;
 
     public Channel getById(UUID userId, UUID id) {
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(id)
@@ -117,11 +112,10 @@ public class ChannelService {
     }
 
     private Map<UUID, Map<String, Object>> resolveInputFilters(List<Channel> channels) {
-        List<UUID> ids = channels.stream().map(Channel::getId).toList();
         Map<UUID, Map<String, Object>> result = new HashMap<>();
-        for (AgentTriggerPolicy p : agentTriggerPolicyRepository.findByChannelIdIn(ids)) {
-            if (p.getChannelId() != null && p.getInputFilter() != null) {
-                result.put(p.getChannelId(), p.getInputFilter());
+        for (Channel c : channels) {
+            if (c.getInputFilter() != null) {
+                result.put(c.getId(), c.getInputFilter());
             }
         }
         return result;
@@ -179,24 +173,13 @@ public class ChannelService {
             validateTool(userId, t.connectorCode(), t.identity(), t.toolName());
         }
 
-        // Conflict checks before persisting anything.
-        for (TriggerDefinition t : triggers) {
-            AgentTriggerPolicy existing = agentTriggerPolicyRepository.findByCompositeKey(
-                    data.agentId(), data.connectorCode(), data.identity(), t.triggerName(), AccessEffect.ALLOW.name());
-            if (existing != null && existing.getChannelId() != null) {
-                throw new ConflictStatusException(
-                        "Trigger policy for '" + t.triggerName() + "' already linked to another channel");
-            }
-        }
-        for (ToolDefinition t : tools) {
-            AgentToolPolicy existing = agentToolPolicyRepository.findByCompositeKey(
-                    data.agentId(), t.connectorCode(), t.identity(), t.toolName(), AccessEffect.ALLOW.name());
-            if (existing != null && existing.getChannelId() != null) {
-                throw new ConflictStatusException(
-                        "Tool policy for '" + t.toolName() + "' already linked to another channel");
-            }
+        if (channelRepository.findByAgentIdAndConnectorCodeAndIdentityAndDeletedAtIsNull(
+                data.agentId(), data.connectorCode(), data.identity()).isPresent()) {
+            throw new ConflictStatusException(
+                    "Active channel already exists for this agent/connector/identity");
         }
 
+        UUID connectionId = parseUuid(data.identity(), "identity");
         Channel channel = channelRepository.save(Channel.builder()
                 .userId(userId)
                 .agentId(data.agentId())
@@ -204,20 +187,27 @@ public class ChannelService {
                 .channelHandler(handler.name())
                 .connectorCode(data.connectorCode())
                 .identity(data.identity())
+                .connectionId(connectionId)
+                .inputFilter(data.inputFilter())
                 .config(config)
                 .build());
 
-        String source = "channel:" + channel.getId();
-        for (TriggerDefinition t : triggers) {
-            upsertTriggerPolicy(userId, channel, data.connectorCode(), data.identity(),
-                    t.triggerName(), source, data.inputFilter());
-        }
+        // Доступ = binding: канал гарантирует binding на свой источник и на каждую reply-connection
+        // (default-allow заменяет прежнюю авто-выдачу ALLOW-политик). Binding'и переживают канал.
+        Set<UUID> toBind = new LinkedHashSet<>();
+        toBind.add(connectionId);
         for (ToolDefinition t : tools) {
-            upsertToolPolicy(userId, channel, t.connectorCode(), t.identity(), t.toolName(), source);
+            UUID replyConnection = tryParseUuid(t.identity());
+            if (replyConnection != null) {
+                toBind.add(replyConnection);
+            }
+        }
+        for (UUID cid : toBind) {
+            connectionBindingService.ensureBindingToExisting(userId, data.agentId(), cid);
         }
 
-        log.info("Created channel id={} handler={} for agent={} user={}",
-                channel.getId(), handler.name(), data.agentId(), userId);
+        log.info("Created channel id={} handler={} for agent={} user={} (bound {} connection(s))",
+                channel.getId(), handler.name(), data.agentId(), userId, toBind.size());
         return channel;
     }
 
@@ -244,27 +234,21 @@ public class ChannelService {
             channel.setConfig(data.config());
         }
 
-        Channel saved = channelRepository.save(channel);
-
         if (data.inputFilter() != null || data.clearInputFilter()) {
-            Map<String, Object> filter = data.clearInputFilter() ? null : data.inputFilter();
-            for (AgentTriggerPolicy policy : agentTriggerPolicyRepository.findByChannelIdIn(List.of(channel.getId()))) {
-                policy.setInputFilter(filter);
-                agentTriggerPolicyRepository.save(policy);
-            }
+            channel.setInputFilter(data.clearInputFilter() ? null : data.inputFilter());
         }
 
-        return saved;
+        return channelRepository.save(channel);
     }
 
     @Transactional
     public void delete(UUID userId, UUID id) {
         Channel channel = getById(userId, id);
-        agentTriggerPolicyRepository.deleteByChannelId(channel.getId());
-        agentToolPolicyRepository.deleteByChannelId(channel.getId());
         channel.setDeletedAt(LocalDateTime.now());
         channelRepository.save(channel);
-        log.info("Soft-deleted channel id={} (trigger/tool policies hard-deleted)", id);
+        // Binding'и не трогаем — их жизненный цикл отдельный (decision #1): доступ агента к
+        // коннектору сохраняется после удаления канала; отзывается явной отвязкой.
+        log.info("Soft-deleted channel id={} (bindings preserved)", id);
     }
 
     private ChannelHandler requireHandler(String name) {
@@ -281,45 +265,6 @@ public class ChannelService {
         } catch (ConnectorException e) {
             throw new BadRequestStatusException(e.getMessage());
         }
-    }
-
-    private void upsertTriggerPolicy(UUID userId, Channel channel, String connectorCode, String identity,
-                                     String triggerName, String source, Map<String, Object> inputFilter) {
-        AgentTriggerPolicy policy = agentTriggerPolicyRepository.findByCompositeKey(
-                channel.getAgentId(), connectorCode, identity, triggerName, AccessEffect.ALLOW.name());
-        if (policy == null) {
-            policy = AgentTriggerPolicy.builder()
-                    .userId(userId)
-                    .agentId(channel.getAgentId())
-                    .connectorCode(connectorCode)
-                    .connectorIdentity(identity)
-                    .triggerName(triggerName)
-                    .effect(AccessEffect.ALLOW)
-                    .build();
-        }
-        policy.setSource(source);
-        policy.setChannelId(channel.getId());
-        policy.setInputFilter(inputFilter);
-        agentTriggerPolicyRepository.save(policy);
-    }
-
-    private void upsertToolPolicy(UUID userId, Channel channel, String connectorCode, String identity,
-                                  String toolName, String source) {
-        AgentToolPolicy policy = agentToolPolicyRepository.findByCompositeKey(
-                channel.getAgentId(), connectorCode, identity, toolName, AccessEffect.ALLOW.name());
-        if (policy == null) {
-            policy = AgentToolPolicy.builder()
-                    .userId(userId)
-                    .agentId(channel.getAgentId())
-                    .connectorCode(connectorCode)
-                    .connectorIdentity(identity)
-                    .toolName(toolName)
-                    .effect(AccessEffect.ALLOW)
-                    .build();
-        }
-        policy.setSource(source);
-        policy.setChannelId(channel.getId());
-        agentToolPolicyRepository.save(policy);
     }
 
     private Set<String> triggerKeys(ChannelHandler handler, ChannelConfig config) {

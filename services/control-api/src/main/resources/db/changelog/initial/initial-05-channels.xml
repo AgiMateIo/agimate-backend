@@ -28,6 +28,10 @@
             <column name="identity" type="TEXT">
                 <constraints nullable="false"/>
             </column>
+            <!-- Экземпляр коннектора канала (= identity как UUID); источник маршрута. -->
+            <column name="connection_id" type="UUID"/>
+            <!-- Chat-filtering по параметрам триггера (слой «как»); раньше жил на trigger-политике. -->
+            <column name="input_filter" type="JSONB"/>
             <column name="config" type="JSONB">
                 <constraints nullable="false"/>
             </column>

@@ -30,6 +30,12 @@
             <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
+            <!-- Выбранный scope (∈ connectors.supported_scopes) и его носитель. -->
+            <column name="identity_scope" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- agentId/teamId/userId для AGENT/TEAM/USER; null для INSTANCE/GLOBAL. -->
+            <column name="scope_id" type="UUID"/>
             <column name="name" type="TEXT"/>
             <!-- Outbound-credentials (telegram/mcp): ссылка на secrets. null для internal/app. -->
             <column name="secret_id" type="UUID">
@@ -74,6 +80,11 @@
         </createIndex>
         <createIndex tableName="connections" indexName="idx_connections_app_id">
             <column name="app_id"/>
+        </createIndex>
+        <!-- find-or-create контекстной connection по (connector_code, scope_id). -->
+        <createIndex tableName="connections" indexName="idx_connections_connector_scope">
+            <column name="connector_code"/>
+            <column name="scope_id"/>
         </createIndex>
     </changeSet>
 

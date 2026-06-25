@@ -87,6 +87,7 @@ public class IntegrationService {
         // id нужен до шифрования секрета (AAD-привязка) и до webhook URL — сохраняем строку первой.
         Connection connection = connectionRepository.save(Connection.builder()
                 .id(UUIDUtils.generateUUIDv8())
+                .identityScope(ru.agimate.controlapi.database.enums.IdentityScope.INSTANCE)
                 .connectorCode(connectorCode)
                 .subCode(subCode)
                 .fullCode(FullCodes.fullCode(connectorCode, subCode))

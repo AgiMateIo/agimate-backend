@@ -5,9 +5,11 @@ import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.database.model.ConnectorCapabilities;
 import ru.agimate.controlapi.database.enums.ExecutionLocus;
-import ru.agimate.controlapi.database.enums.SharingScope;
+import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.ToolBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
+
+import java.util.List;
 
 /**
  * Фасад board-коннектора: тулы живут в {@link BoardToolService}, фоновых тасок и триггеров
@@ -32,11 +34,11 @@ public class BoardConnectorService extends BaseConnectorHandler implements Inter
         return "Board";
     }
 
-    /** Board шарится в рамках команды агента. */
+    /** Board шарится в рамках команды агента (identity = teamId). */
     @Override
     public ConnectorCapabilities capabilities() {
         return new ConnectorCapabilities(
-                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND,
-                ToolBinding.STATIC, SharingScope.TEAM_SHARED);
+                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.STATIC,
+                List.of(IdentityScope.TEAM), IdentityScope.TEAM);
     }
 }

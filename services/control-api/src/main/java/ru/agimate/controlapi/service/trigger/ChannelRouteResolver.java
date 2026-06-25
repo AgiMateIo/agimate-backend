@@ -8,6 +8,7 @@ import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.service.channel.ChannelSessionService;
+import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
@@ -96,6 +97,12 @@ public class ChannelRouteResolver {
             log.warn("No handler '{}' for channel {}; treating as direct route",
                     channel.getChannelHandler(), channel.getId());
             return ChannelResolution.direct();
+        }
+
+        // Chat-filtering канала (слой «как»): параметры триггера должны проходить input_filter.
+        if (!InputFilterEvaluator.matches(channel.getInputFilter(), trigger.data())) {
+            log.debug("Trigger '{}' filtered out by channel {} input_filter", trigger.name(), channel.getId());
+            return ChannelResolution.skip();
         }
 
         // Извлечение текста выполняет control-api для всех handler'ов (generic делает JSON-фолбэк);

@@ -9,7 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
-import ru.agimate.controlapi.abac.AccessEffect;
+import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.agent.dto.AgentConfigResponse;
 import ru.agimate.controlapi.controller.agent.dto.AgentContextResponse;
 import ru.agimate.controlapi.controller.agent.dto.ToolDefinition;
@@ -20,18 +21,26 @@ import ru.agimate.controlapi.controller.manage.dto.CreateAgentRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateAgentRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.AgentLlmResponse;
 import ru.agimate.controlapi.database.entities.Agent;
-import ru.agimate.controlapi.database.entities.AgentToolPolicy;
-import ru.agimate.controlapi.database.entities.AgentTriggerPolicy;
+import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.AgenticTeam;
 import ru.agimate.controlapi.database.entities.App;
+import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
+import ru.agimate.controlapi.database.entities.ConnectionTrigger;
+import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.PolicyKind;
+import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
-import ru.agimate.controlapi.database.repositories.AgentToolPolicyRepository;
-import ru.agimate.controlapi.database.repositories.AgentTriggerPolicyRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.AppRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorJobRepository;
+import ru.agimate.controlapi.database.repositories.ConnectorRepository;
+import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.util.AppKeyUtils;
 import ru.agimate.controlapi.util.GeneratedAppKey;
 
@@ -48,8 +57,14 @@ public class AgentService {
     public static final String AGENT_KEY_PREFIX = "agnt";
 
     private final AgentRepository agentRepository;
-    private final AgentToolPolicyRepository agentToolPolicyRepository;
-    private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
+    private final AgentConnectionRepository agentConnectionRepository;
+    private final ConnectionRepository connectionRepository;
+    private final ConnectorRepository connectorRepository;
+    private final ConnectorRegistry connectorRegistry;
+    private final ConnectionToolRepository connectionToolRepository;
+    private final ConnectionTriggerRepository connectionTriggerRepository;
+    private final ConnectionAccessEvaluator accessEvaluator;
+    private final ConnectionBindingService connectionBindingService;
     private final AgentSkillRepository agentSkillRepository;
     private final AgenticTeamRepository agenticTeamRepository;
     private final AppRepository appRepository;
@@ -116,15 +131,7 @@ public class AgentService {
     public AgentConfigResponse getConfigById(UUID agentId) {
         Agent agent = findById(agentId);
 
-        var toolPolicies = agentToolPolicyRepository.findByAgentId(agentId);
-        var triggerPolicies = agentTriggerPolicyRepository.findByAgentId(agentId);
-
-        Set<String> allowedToolNames = toolPolicies.stream()
-                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
-                .map(AgentToolPolicy::getToolName)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
+        Set<String> allowedToolNames = availableToolNames(agent);
         Map<String, ToolDefinition> toolDefinitionMap = buildToolDefinitionMap(agent.getUserId());
 
         List<ToolDefinition> toolDefinitions = allowedToolNames.stream()
@@ -132,11 +139,7 @@ public class AgentService {
                         new ToolDefinition(name, null, null)))
                 .toList();
 
-        List<String> triggerNames = triggerPolicies.stream()
-                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
-                .map(AgentTriggerPolicy::getTriggerName)
-                .filter(Objects::nonNull)
-                .toList();
+        List<String> triggerNames = List.copyOf(availableTriggerNames(agent));
 
         return new AgentConfigResponse(
                 agent.getId(),
@@ -185,14 +188,7 @@ public class AgentService {
     public List<ToolDefinition> getAvailableTools(UUID agentId) {
         Agent agent = findById(agentId);
 
-        var toolPolicies = agentToolPolicyRepository.findByAgentId(agentId);
-
-        Set<String> allowedToolNames = toolPolicies.stream()
-                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
-                .map(AgentToolPolicy::getToolName)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
+        Set<String> allowedToolNames = availableToolNames(agent);
         Map<String, ToolDefinition> toolDefinitionMap = buildToolDefinitionMap(agent.getUserId());
 
         return allowedToolNames.stream()
@@ -208,19 +204,58 @@ public class AgentService {
     public List<AgentToolSpec> getAvailableToolSpecs(UUID agentId) {
         Agent agent = findById(agentId);
 
-        var toolPolicies = agentToolPolicyRepository.findByAgentId(agentId);
-
-        Set<String> allowedToolNames = toolPolicies.stream()
-                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
-                .map(AgentToolPolicy::getToolName)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-
+        Set<String> allowedToolNames = availableToolNames(agent);
         Map<String, AgentToolSpec> specMap = buildToolSpecMap(agent.getUserId());
 
         return allowedToolNames.stream()
                 .map(name -> specMap.getOrDefault(name, new AgentToolSpec(name, null, null)))
                 .toList();
+    }
+
+    /**
+     * Доступные агенту тулы = объединение тулов всех привязанных ({@code agent_connections}) активных
+     * экземпляров, за вычетом DENY-правил (дефолт-allow). Источник имён по {@code toolBinding}:
+     * STATIC — рефлексия handler'а, DYNAMIC — {@code connection_tools}.
+     */
+    private Set<String> availableToolNames(Agent agent) {
+        return availableNames(agent, PolicyKind.TOOL);
+    }
+
+    private Set<String> availableTriggerNames(Agent agent) {
+        return availableNames(agent, PolicyKind.TRIGGER);
+    }
+
+    private Set<String> availableNames(Agent agent, PolicyKind kind) {
+        Set<String> names = new LinkedHashSet<>();
+        for (AgentConnection binding : agentConnectionRepository.findActiveByAgentId(agent.getId())) {
+            Connection connection = connectionRepository.findByIdNotDeleted(binding.getConnectionId()).orElse(null);
+            if (connection == null || !connection.isActive()) {
+                continue;
+            }
+            Connector connector = connectorRepository.findById(connection.getConnectorCode()).orElse(null);
+            if (connector == null || connector.getToolBinding() == null) {
+                continue;
+            }
+            for (String name : namesFor(connector, connection, kind)) {
+                if (accessEvaluator.evaluate(agent.getId(), connection.getId(), kind, name).allowed()) {
+                    names.add(name);
+                }
+            }
+        }
+        return names;
+    }
+
+    private Set<String> namesFor(Connector connector, Connection connection, PolicyKind kind) {
+        return switch (connector.getToolBinding()) {
+            case STATIC -> connectorRegistry.findHandler(connector.getCode())
+                    .map(h -> kind == PolicyKind.TOOL ? h.getTools().keySet() : h.getTriggers().keySet())
+                    .orElse(Set.of());
+            case DYNAMIC -> kind == PolicyKind.TOOL
+                    ? connectionToolRepository.findActiveByConnectionId(connection.getId()).stream()
+                            .map(ConnectionTool::getName).collect(Collectors.toSet())
+                    : connectionTriggerRepository.findActiveByConnectionId(connection.getId()).stream()
+                            .map(ConnectionTrigger::getName).collect(Collectors.toSet());
+        };
     }
 
     @SuppressWarnings("unchecked")
@@ -361,9 +396,8 @@ public class AgentService {
             throw new ForbiddenStatusException("Access denied");
         }
 
-        agentToolPolicyRepository.deleteByAgentId(agent.getId());
-        agentTriggerPolicyRepository.deleteByAgentId(agent.getId());
         connectorJobRepository.deleteByAgentId(agent.getId());
+        // agent_connections (+ их agent_connection_policies) удаляются каскадом по FK на agents.
         agentRepository.delete(agent);
 
         log.info("Deleted agent id={}", id);

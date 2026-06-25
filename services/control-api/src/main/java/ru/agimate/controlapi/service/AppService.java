@@ -78,6 +78,7 @@ public class AppService {
         // Регистрируем экземпляр в едином реестре connections (id = app.id → identity не меняется).
         connectionRepository.save(Connection.builder()
                 .id(saved.getId())
+                .identityScope(ru.agimate.controlapi.database.enums.IdentityScope.INSTANCE)
                 .connectorCode(saved.getConnectorCode())
                 .subCode(FullCodes.slug(saved.getConnectorCode(), saved.getName()))
                 .fullCode(FullCodes.fullCode(saved.getConnectorCode(), saved.getName()))

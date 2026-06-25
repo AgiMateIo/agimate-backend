@@ -2,217 +2,126 @@ package ru.agimate.controlapi.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.controlapi.abac.AccessEffect;
-import ru.agimate.controlapi.abac.AgentToolPolicyChangedEvent;
-import ru.agimate.controlapi.abac.ToolPolicyDbEvaluatorService;
-import ru.agimate.controlapi.abac.TriggerPolicyDbEvaluatorService;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffEntry;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffResponse;
+import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.AgentSkill;
-import ru.agimate.controlapi.database.entities.AgentToolPolicy;
-import ru.agimate.controlapi.database.entities.AgentTriggerPolicy;
+import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.SkillConnector;
-import ru.agimate.controlapi.database.enums.SkillConnectorType;
+import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
-import ru.agimate.controlapi.database.repositories.AgentToolPolicyRepository;
-import ru.agimate.controlapi.database.repositories.AgentTriggerPolicyRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.SkillConnectorRepository;
+import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Привязка скиллов к доступу агента в модели binding'ов. Скилл = набор коннекторов; «иметь скилл» =
+ * агент привязан ({@code agent_connections}) к этим коннекторам, дальше дефолт-allow открывает их
+ * тулы/триггеры. Контекстные коннекторы (board/memory/time) материализуются при привязке по своему
+ * scope; INSTANCE-коннекторы скилл привязать не может (нужен конкретный экземпляр) — пропускаются.
+ *
+ * <p><b>Add-only (на ревью):</b> применение скилла гарантирует binding'и, но снятие скилла binding
+ * <b>не</b> отзывает — иначе пришлось бы вести подсчёт ссылок (тот же коннектор могли включить канал
+ * или вручную). Отвязка — явная. Name-гранулярность скилла (конкретный тул/триггер) пока не
+ * переносится — скилл открывает коннектор целиком.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AgentSkillPolicyService {
 
-    private static final String SOURCE_SKILL = "skill";
-
     private final AgentSkillRepository agentSkillRepository;
     private final SkillConnectorRepository skillConnectorRepository;
-    private final AgentToolPolicyRepository agentToolPolicyRepository;
-    private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
-    private final ToolPolicyDbEvaluatorService toolPolicyEvaluatorService;
-    private final TriggerPolicyDbEvaluatorService triggerPolicyEvaluatorService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final AgentConnectionRepository agentConnectionRepository;
+    private final ConnectionRepository connectionRepository;
+    private final ConnectionBindingService connectionBindingService;
 
     public PolicyDiffResponse previewAdd(UUID agentId, UUID skillId) {
-        Set<UUID> desiredSkillIds = getCurrentSkillIds(agentId);
-        desiredSkillIds.add(skillId);
-        return computeDiff(agentId, desiredSkillIds);
+        Set<UUID> desired = getCurrentSkillIds(agentId);
+        desired.add(skillId);
+        return computeDiff(agentId, desired);
     }
 
     public PolicyDiffResponse previewRemove(UUID agentId, UUID skillId) {
-        Set<UUID> desiredSkillIds = getCurrentSkillIds(agentId);
-        desiredSkillIds.remove(skillId);
-        return computeDiff(agentId, desiredSkillIds);
+        Set<UUID> desired = getCurrentSkillIds(agentId);
+        desired.remove(skillId);
+        return computeDiff(agentId, desired);
     }
 
     public PolicyDiffResponse previewSync(UUID agentId) {
-        Set<UUID> desiredSkillIds = getCurrentSkillIds(agentId);
-        return computeDiff(agentId, desiredSkillIds);
+        return computeDiff(agentId, getCurrentSkillIds(agentId));
     }
 
     @Transactional
     public void applyDiff(UUID agentId, UUID userId) {
-        Set<UUID> desiredSkillIds = getCurrentSkillIds(agentId);
-        PolicyDiffResponse diff = computeDiff(agentId, desiredSkillIds);
-        executeDiff(agentId, userId, diff);
+        Set<String> desiredConnectors = desiredConnectorCodes(getCurrentSkillIds(agentId));
+        Set<String> bound = boundConnectorCodes(agentId);
+
+        int added = 0;
+        for (String connectorCode : desiredConnectors) {
+            if (bound.contains(connectorCode)) {
+                continue;
+            }
+            try {
+                connectionBindingService.bind(userId, agentId, connectorCode, null, null);
+                added++;
+            } catch (BadRequestStatusException e) {
+                // INSTANCE-коннектор (нужен явный экземпляр) или иной несовместимый scope — пропускаем.
+                log.warn("Skill cannot bind connector {} for agent {}: {}",
+                        connectorCode, agentId, e.getMessage());
+            }
+        }
+        if (added > 0) {
+            log.info("Applied skill bindings for agent {}: +{} connector(s)", agentId, added);
+        }
     }
 
+    /** Diff в терминах коннекторов: что добавится. Снятие не отзывает binding (add-only), поэтому toRemove пуст. */
     private PolicyDiffResponse computeDiff(UUID agentId, Set<UUID> desiredSkillIds) {
-        // Build desired policy set from skill connectors
-        Set<PolicyKey> desiredPolicies = buildDesiredPolicies(desiredSkillIds);
+        Set<String> desiredConnectors = desiredConnectorCodes(desiredSkillIds);
+        Set<String> bound = boundConnectorCodes(agentId);
 
-        // Load existing source="skill" policies
-        Set<PolicyKey> existingSkillPolicies = loadExistingSkillPolicies(agentId);
-
-        // Also load ALL existing policies to avoid duplicating manual ones
-        Set<PolicyKey> allExistingPolicies = loadAllExistingAllowPolicies(agentId);
-
-        // To add: desired but not yet existing (among ALL policies)
-        List<PolicyDiffEntry> toAdd = desiredPolicies.stream()
-                .filter(p -> !allExistingPolicies.contains(p))
-                .map(PolicyKey::toEntry)
-                .sorted(Comparator.comparing(PolicyDiffEntry::policyType)
-                        .thenComparing(PolicyDiffEntry::connectorCode, Comparator.nullsLast(Comparator.naturalOrder()))
-                        .thenComparing(PolicyDiffEntry::name, Comparator.nullsLast(Comparator.naturalOrder())))
+        List<PolicyDiffEntry> toAdd = desiredConnectors.stream()
+                .filter(c -> !bound.contains(c))
+                .sorted()
+                .map(c -> new PolicyDiffEntry("CONNECTOR", c, null))
                 .toList();
 
-        // To remove: existing source="skill" policies not in desired set
-        List<PolicyDiffEntry> toRemove = existingSkillPolicies.stream()
-                .filter(p -> !desiredPolicies.contains(p))
-                .map(PolicyKey::toEntry)
-                .sorted(Comparator.comparing(PolicyDiffEntry::policyType)
-                        .thenComparing(PolicyDiffEntry::connectorCode, Comparator.nullsLast(Comparator.naturalOrder()))
-                        .thenComparing(PolicyDiffEntry::name, Comparator.nullsLast(Comparator.naturalOrder())))
-                .toList();
-
-        return new PolicyDiffResponse(toAdd, toRemove);
+        return new PolicyDiffResponse(toAdd, List.of());
     }
 
-    private void executeDiff(UUID agentId, UUID userId, PolicyDiffResponse diff) {
-        for (PolicyDiffEntry entry : diff.policiesToAdd()) {
-            createPolicy(agentId, userId, entry);
-        }
-
-        for (PolicyDiffEntry entry : diff.policiesToRemove()) {
-            removePolicy(agentId, entry);
-        }
-
-        if (!diff.policiesToAdd().isEmpty() || !diff.policiesToRemove().isEmpty()) {
-            toolPolicyEvaluatorService.invalidateByAgent(agentId);
-            triggerPolicyEvaluatorService.invalidateByAgent(agentId);
-            // Skill bindings пишут AgentToolPolicy напрямую (минуя AgentToolPolicyService), поэтому
-            // событие издаём и здесь — иначе connector-enablement listener'ы не узнают об изменении.
-            eventPublisher.publishEvent(new AgentToolPolicyChangedEvent(agentId, userId));
-            log.info("Applied policy diff for agent {}: +{} -{}", agentId,
-                    diff.policiesToAdd().size(), diff.policiesToRemove().size());
-        }
-    }
-
-    private void createPolicy(UUID agentId, UUID userId, PolicyDiffEntry entry) {
-        if ("TOOL".equals(entry.policyType())) {
-            AgentToolPolicy policy = AgentToolPolicy.builder()
-                    .userId(userId)
-                    .agentId(agentId)
-                    .connectorCode(entry.connectorCode())
-                    .toolName(entry.name())
-                    .effect(AccessEffect.ALLOW)
-                    .source(SOURCE_SKILL)
-                    .description("Auto-managed by skill bindings")
-                    .build();
-            agentToolPolicyRepository.save(policy);
-        } else {
-            AgentTriggerPolicy policy = AgentTriggerPolicy.builder()
-                    .userId(userId)
-                    .agentId(agentId)
-                    .connectorCode(entry.connectorCode())
-                    .triggerName(entry.name())
-                    .effect(AccessEffect.ALLOW)
-                    .source(SOURCE_SKILL)
-                    .description("Auto-managed by skill bindings")
-                    .build();
-            agentTriggerPolicyRepository.save(policy);
-        }
-    }
-
-    private void removePolicy(UUID agentId, PolicyDiffEntry entry) {
-        if ("TOOL".equals(entry.policyType())) {
-            AgentToolPolicy policy = agentToolPolicyRepository.findByCompositeKey(
-                    agentId, entry.connectorCode(), null, entry.name(), AccessEffect.ALLOW.name());
-            if (policy != null && SOURCE_SKILL.equals(policy.getSource())) {
-                agentToolPolicyRepository.delete(policy);
-            }
-        } else {
-            AgentTriggerPolicy policy = agentTriggerPolicyRepository.findByCompositeKey(
-                    agentId, entry.connectorCode(), null, entry.name(), AccessEffect.ALLOW.name());
-            if (policy != null && SOURCE_SKILL.equals(policy.getSource())) {
-                agentTriggerPolicyRepository.delete(policy);
-            }
-        }
-    }
-
-    private Set<PolicyKey> buildDesiredPolicies(Set<UUID> skillIds) {
+    private Set<String> desiredConnectorCodes(Set<UUID> skillIds) {
         if (skillIds.isEmpty()) {
             return Set.of();
         }
+        return skillConnectorRepository.findBySkillIdIn(skillIds).stream()
+                .map(SkillConnector::getConnectorCode)
+                .collect(Collectors.toCollection(HashSet::new));
+    }
 
-        List<SkillConnector> connectors = skillConnectorRepository.findBySkillIdIn(skillIds);
-        Set<PolicyKey> desired = new HashSet<>();
-
-        for (SkillConnector sc : connectors) {
-            // type=null means connector-level access — create both TOOL and TRIGGER policies
-            if (sc.getType() == SkillConnectorType.TOOL || sc.getType() == null) {
-                desired.add(new PolicyKey("TOOL", sc.getConnectorCode(), sc.getName()));
-            }
-            if (sc.getType() == SkillConnectorType.TRIGGER || sc.getType() == null) {
-                desired.add(new PolicyKey("TRIGGER", sc.getConnectorCode(), sc.getName()));
-            }
+    private Set<String> boundConnectorCodes(UUID agentId) {
+        Set<String> codes = new HashSet<>();
+        for (AgentConnection binding : agentConnectionRepository.findActiveByAgentId(agentId)) {
+            connectionRepository.findByIdNotDeleted(binding.getConnectionId())
+                    .map(Connection::getConnectorCode)
+                    .ifPresent(codes::add);
         }
-
-        return desired;
-    }
-
-    private Set<PolicyKey> loadExistingSkillPolicies(UUID agentId) {
-        Set<PolicyKey> existing = new HashSet<>();
-
-        agentToolPolicyRepository.findByAgentIdAndSource(agentId, SOURCE_SKILL)
-                .forEach(p -> existing.add(new PolicyKey("TOOL", p.getConnectorCode(), p.getToolName())));
-
-        agentTriggerPolicyRepository.findByAgentIdAndSource(agentId, SOURCE_SKILL)
-                .forEach(p -> existing.add(new PolicyKey("TRIGGER", p.getConnectorCode(), p.getTriggerName())));
-
-        return existing;
-    }
-
-    private Set<PolicyKey> loadAllExistingAllowPolicies(UUID agentId) {
-        Set<PolicyKey> existing = new HashSet<>();
-
-        agentToolPolicyRepository.findByAgentId(agentId).stream()
-                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
-                .forEach(p -> existing.add(new PolicyKey("TOOL", p.getConnectorCode(), p.getToolName())));
-
-        agentTriggerPolicyRepository.findByAgentId(agentId).stream()
-                .filter(p -> p.getEffect() == AccessEffect.ALLOW)
-                .forEach(p -> existing.add(new PolicyKey("TRIGGER", p.getConnectorCode(), p.getTriggerName())));
-
-        return existing;
+        return codes;
     }
 
     private Set<UUID> getCurrentSkillIds(UUID agentId) {
         return agentSkillRepository.findByAgentId(agentId).stream()
                 .map(AgentSkill::getSkillId)
                 .collect(Collectors.toCollection(HashSet::new));
-    }
-
-    private record PolicyKey(String policyType, String connectorCode, String name) {
-        PolicyDiffEntry toEntry() {
-            return new PolicyDiffEntry(policyType, connectorCode, name);
-        }
     }
 }

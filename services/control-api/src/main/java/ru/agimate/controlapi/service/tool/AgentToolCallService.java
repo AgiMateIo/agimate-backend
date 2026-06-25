@@ -8,12 +8,14 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.abac.AccessDecision;
 import ru.agimate.controlapi.abac.AccessEffect;
-import ru.agimate.controlapi.abac.ToolPolicyDbEvaluatorService;
+import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
+import ru.agimate.controlapi.database.enums.PolicyKind;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.ConnectorService;
+import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.dto.IToolResult;
 
 import java.util.UUID;
@@ -24,7 +26,7 @@ public class AgentToolCallService {
 
     private final AgentService agentService;
     private final ToolCallLogService toolCallLogService;
-    private final ToolPolicyDbEvaluatorService toolPolicyDbEvaluatorService;
+    private final ConnectionAccessEvaluator accessEvaluator;
     private final ConnectorService connectorService;
 
     private sealed interface EvaluationResult {
@@ -42,8 +44,13 @@ public class AgentToolCallService {
             return classifyExisting(existing.get(), request);
         }
 
-        AccessDecision decision = toolPolicyDbEvaluatorService.evaluate(
-                agent.getId(), request.getConnectorCode(), request.getIdentity(), request.getName());
+        AccessDecision decision = accessEvaluator.evaluate(
+                agent.getId(), request.getIdentity(), PolicyKind.TOOL, request.getName());
+        // params_filter ограничивает аргументы вызова: разрешено только если они проходят фильтр.
+        if (decision.allowed() && decision.paramsFilter() != null
+                && !InputFilterEvaluator.matches(decision.paramsFilter(), request.getInput())) {
+            decision = AccessDecision.deny("Tool arguments rejected by params_filter", decision.matchedPolicyId());
+        }
 
         try {
             ToolCallLog log = toolCallLogService.createLog(agent, request,
