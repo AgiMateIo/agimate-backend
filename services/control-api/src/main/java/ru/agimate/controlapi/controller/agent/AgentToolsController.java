@@ -39,6 +39,6 @@ public class AgentToolsController {
             @AuthenticationPrincipal AgentPrincipal principal,
             @PathVariable("connectorCode") String connectorCode,
             @RequestParam(required = false) UUID identity) {
-        return SuccessResponse.ok(toolDefinitionService.getTools(connectorCode, identity));
+        return SuccessResponse.ok(toolDefinitionService.getTools(principal.userId(), connectorCode, identity));
     }
 }
