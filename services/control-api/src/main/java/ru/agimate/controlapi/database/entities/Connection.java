@@ -18,7 +18,7 @@ import java.util.UUID;
  *
  * <p>Уникальность среди активных строк: {@code (connector_code, user_id, sub_code)} и
  * {@code (full_code, user_id)} — partial unique индексы {@code WHERE deleted_at IS NULL}
- * (см. миграцию {@code 2026/06/25-03-connections.xml}). JPA {@code @UniqueConstraint} не выражает
+ * (см. миграцию {@code initial-24-connections.xml}). JPA {@code @UniqueConstraint} не выражает
  * partial — не декларируем.
  */
 @Entity
