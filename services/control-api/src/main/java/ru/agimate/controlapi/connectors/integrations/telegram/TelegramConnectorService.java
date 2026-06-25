@@ -8,8 +8,8 @@ import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
-import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
-import ru.agimate.controlapi.connectors.core.dto.TriggerSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
+import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import tools.jackson.databind.ObjectMapper;
@@ -78,7 +78,7 @@ public class TelegramConnectorService extends BaseConnectorHandler implements In
 
     /** Long-poll нужен только в polling-режиме; в webhook-режиме фоновых тасок нет. */
     @Override
-    public Map<String, JobSpecification> getJobs() {
+    public Map<String, JobSpec> getJobs() {
         return isPollingMode() ? super.getJobs() : Map.of();
     }
 
@@ -149,21 +149,21 @@ public class TelegramConnectorService extends BaseConnectorHandler implements In
     }
 
     @Override
-    public Map<String, TriggerSpecification> getTriggers() {
-        Map<String, TriggerSpecification> triggers = new LinkedHashMap<>();
-        triggers.put("telegram.message_received", new TriggerSpecification(
+    public Map<String, TriggerSpec> getTriggers() {
+        Map<String, TriggerSpec> triggers = new LinkedHashMap<>();
+        triggers.put("telegram.message_received", new TriggerSpec(
                 "Text message received",
                 List.of("chatId", "text", "from", "messageId")));
-        triggers.put("telegram.photo_received", new TriggerSpecification(
+        triggers.put("telegram.photo_received", new TriggerSpec(
                 "Photo received",
                 List.of("chatId", "photo", "caption", "from", "messageId")));
-        triggers.put("telegram.document_received", new TriggerSpecification(
+        triggers.put("telegram.document_received", new TriggerSpec(
                 "Document received",
                 List.of("chatId", "document", "caption", "from", "messageId")));
-        triggers.put("telegram.command_received", new TriggerSpecification(
+        triggers.put("telegram.command_received", new TriggerSpec(
                 "Bot command received",
                 List.of("chatId", "text", "command", "args", "from", "messageId")));
-        triggers.put("telegram.callback_query", new TriggerSpecification(
+        triggers.put("telegram.callback_query", new TriggerSpec(
                 "Inline button pressed",
                 List.of("callbackQueryId", "data", "chatId", "messageId", "from")));
         return triggers;

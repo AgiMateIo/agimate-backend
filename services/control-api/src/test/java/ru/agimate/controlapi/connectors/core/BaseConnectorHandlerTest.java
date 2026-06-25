@@ -9,7 +9,7 @@ import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.JsonSchema;
-import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
 import java.util.HashMap;
@@ -119,7 +119,7 @@ class BaseConnectorHandlerTest {
         @Test
         @DisplayName("строит PERIODIC-спеку из атрибутов аннотации")
         void buildsPeriodicSpecification() {
-            JobSpecification spec = handler.getJobs().get("test.periodic_task");
+            JobSpec spec = handler.getJobs().get("test.periodic_task");
 
             assertNotNull(spec);
             assertEquals(ConnectorJobType.PERIODIC, spec.type());
@@ -131,7 +131,7 @@ class BaseConnectorHandlerTest {
         @Test
         @DisplayName("строит CRON-спеку из атрибутов аннотации")
         void buildsCronSpecification() {
-            JobSpecification spec = handler.getJobs().get("test.cron_task");
+            JobSpec spec = handler.getJobs().get("test.cron_task");
 
             assertNotNull(spec);
             assertEquals(ConnectorJobType.CRON, spec.type());
@@ -149,7 +149,7 @@ class BaseConnectorHandlerTest {
         @Test
         @DisplayName("содержит @Job(isJobOnly = false)-метод")
         void includesDualTaskTool() {
-            JobSpecification spec = handler.getJobs().get("test.dual_task");
+            JobSpec spec = handler.getJobs().get("test.dual_task");
 
             assertNotNull(spec);
             assertEquals(ConnectorJobType.PERIODIC, spec.type());

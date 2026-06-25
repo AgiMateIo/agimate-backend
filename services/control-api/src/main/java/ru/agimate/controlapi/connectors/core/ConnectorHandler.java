@@ -2,8 +2,8 @@ package ru.agimate.controlapi.connectors.core;
 
 import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
-import ru.agimate.controlapi.connectors.core.dto.TriggerSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
+import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.database.model.ConnectorCapabilities;
 
 import java.util.Map;
@@ -33,7 +33,7 @@ public interface ConnectorHandler {
         return ConnectorCapabilities.internal();
     }
 
-    default Map<String, TriggerSpecification> getTriggers() {
+    default Map<String, TriggerSpec> getTriggers() {
         return Map.of();
     }
 
@@ -51,7 +51,7 @@ public interface ConnectorHandler {
         return getTools();
     }
 
-    default Map<String, JobSpecification> getJobs() {
+    default Map<String, JobSpec> getJobs() {
         return Map.of();
     }
 

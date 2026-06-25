@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
@@ -38,7 +38,7 @@ public class ConnectorIdentityListener {
                     event.connectorCode(), event.identity());
             return;
         }
-        for (JobSpecification spec : handler.getJobs().values()) {
+        for (JobSpec spec : handler.getJobs().values()) {
             jobService.upsert(event.connectorCode(), event.identity(), event.userId(), spec);
             log.info("Registered task {}/{}/{}", event.connectorCode(), event.identity(), spec.name());
         }

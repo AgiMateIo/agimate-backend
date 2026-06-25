@@ -16,7 +16,7 @@ import java.util.Map;
  * @param args       аргументы, передаваемые в метод при каждом запуске
  * @param timeoutSeconds лимит одной итерации (lease)
  */
-public record JobSpecification(
+public record JobSpec(
         String name,
         ConnectorJobType type,
         Map<String, Object> config,
@@ -24,7 +24,7 @@ public record JobSpecification(
         int timeoutSeconds
 ) {
 
-    public JobSpecification {
+    public JobSpec {
         config = config == null ? Map.of() : Map.copyOf(config);
         args = args == null ? Map.of() : Map.copyOf(args);
     }

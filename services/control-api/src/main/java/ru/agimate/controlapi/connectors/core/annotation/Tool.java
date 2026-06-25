@@ -27,5 +27,5 @@ public @interface Tool {
     ToolAnnotations annotations() default @ToolAnnotations;
 
     /** Произвольные строковые метаданные (MCP {@code _meta}). */
-    Meta[] meta() default {};
+    ToolMeta[] meta() default {};
 }

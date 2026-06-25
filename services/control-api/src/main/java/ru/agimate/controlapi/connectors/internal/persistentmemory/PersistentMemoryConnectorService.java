@@ -3,7 +3,7 @@ package ru.agimate.controlapi.connectors.internal.persistentmemory;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
-import ru.agimate.controlapi.connectors.core.dto.TriggerSpecification;
+import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 
 import java.util.List;
 import java.util.Map;
@@ -39,12 +39,12 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler imple
     }
 
     @Override
-    public Map<String, TriggerSpecification> getTriggers() {
+    public Map<String, TriggerSpec> getTriggers() {
         return Map.of(
-                PersistentMemoryToolService.NOTES_TRIGGER, new TriggerSpecification(
+                PersistentMemoryToolService.NOTES_TRIGGER, new TriggerSpec(
                         "Build memory notes from the messages of a session active in the last 24h",
                         List.of("sessionId", "messages")),
-                PersistentMemoryToolService.CONSOLIDATE_TRIGGER, new TriggerSpecification(
+                PersistentMemoryToolService.CONSOLIDATE_TRIGGER, new TriggerSpec(
                         "Consolidate accumulated hot notes into cold memory",
                         List.of("consolidationId", "notes")));
     }

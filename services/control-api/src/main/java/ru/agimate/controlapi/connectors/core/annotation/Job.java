@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.connectors.core.annotation;
 
-import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
 import java.lang.annotation.ElementType;
@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
 
 /**
  * Помечает {@code @Tool}-метод как фоновую задачу коннектора: метод образует
- * {@link JobSpecification} в {@code getJobs()} с расписанием по умолчанию из атрибутов аннотации.
+ * {@link JobSpec} в {@code getJobs()} с расписанием по умолчанию из атрибутов аннотации.
  *
  * <p>{@link #isJobOnly()} (по умолчанию {@code true}) управляет видимостью метода для LLM:
  * task-only метод не попадает в LLM-спеки ({@code getTools()}) и недоступен через

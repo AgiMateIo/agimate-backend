@@ -10,7 +10,7 @@ import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
-import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
@@ -107,7 +107,7 @@ public class TimeToolService {
             config = Map.of("cron", cron, "zone", resolvedZone);
         }
 
-        JobSpecification spec = new JobSpecification(
+        JobSpec spec = new JobSpec(
                 FIRE_TASK, type, config, Map.of("prompt", prompt), FIRE_TIMEOUT_SECONDS);
         // Снимок исходного канала вызова (ctx.channelId) на строку job: напоминание уйдёт агенту
         // с этим каналом как progress/answer (prompt у напоминания нет).

@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.enums.ConnectorJobKind;
 import ru.agimate.controlapi.database.enums.ConnectorJobStatus;
@@ -54,7 +54,7 @@ public class ConnectorJobService {
      * стартует чистую tx.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public ConnectorJob upsert(String connectorCode, String identity, UUID userId, JobSpecification spec) {
+    public ConnectorJob upsert(String connectorCode, String identity, UUID userId, JobSpec spec) {
         return doUpsert(connectorCode, identity, userId, spec);
     }
 
@@ -66,16 +66,16 @@ public class ConnectorJobService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void syncIdentity(String connectorCode, String identity, UUID userId,
-                             Collection<JobSpecification> specs) {
+                             Collection<JobSpec> specs) {
         if (specs.isEmpty()) {
             connectorJobRepository.deleteSystemByIdentity(connectorCode, identity);
             return;
         }
-        for (JobSpecification spec : specs) {
+        for (JobSpec spec : specs) {
             doUpsert(connectorCode, identity, userId, spec);
         }
         connectorJobRepository.deleteStale(connectorCode, identity,
-                specs.stream().map(JobSpecification::name).toList());
+                specs.stream().map(JobSpec::name).toList());
     }
 
     /**
@@ -112,7 +112,7 @@ public class ConnectorJobService {
      */
     @Transactional
     public ConnectorJob schedule(String connectorCode, String identity, UUID userId, UUID agentId,
-                                  UUID channelId, JobSpecification spec, LocalDateTime firstRunAt) {
+                                 UUID channelId, JobSpec spec, LocalDateTime firstRunAt) {
         if (agentId == null) {
             throw new ConnectorException("Dynamic task requires an initiating agent");
         }
@@ -145,7 +145,7 @@ public class ConnectorJobService {
         return connectorJobRepository.deleteOwned(taskId, connectorCode, userId, agentId) > 0;
     }
 
-    private ConnectorJob doUpsert(String connectorCode, String identity, UUID userId, JobSpecification spec) {
+    private ConnectorJob doUpsert(String connectorCode, String identity, UUID userId, JobSpec spec) {
         ConnectorJob row = connectorJobRepository.findByBusinessKey(connectorCode, identity, spec.name())
                 .orElseGet(() -> ConnectorJob.builder()
                         .connectorCode(connectorCode)

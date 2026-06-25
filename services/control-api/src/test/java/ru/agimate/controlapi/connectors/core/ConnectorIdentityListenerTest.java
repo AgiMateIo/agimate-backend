@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
@@ -30,9 +30,9 @@ class ConnectorIdentityListenerTest {
     private static final String IDENTITY = "integration-1";
     private static final UUID USER_ID = UUID.randomUUID();
 
-    private static final JobSpecification SPEC_A = new JobSpecification(
+    private static final JobSpec SPEC_A = new JobSpec(
             "test.task_a", ConnectorJobType.PERIODIC, Map.of("intervalSeconds", 0L), Map.of(), 60);
-    private static final JobSpecification SPEC_B = new JobSpecification(
+    private static final JobSpec SPEC_B = new JobSpec(
             "test.task_b", ConnectorJobType.CRON, Map.of("cron", "0 0 * * * *"), Map.of(), 300);
 
     @Mock

@@ -2,7 +2,7 @@ package ru.agimate.controlapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.controlapi.connectors.core.dto.TriggerSpecification;
+import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 
 import java.util.List;
 
@@ -18,7 +18,7 @@ public record TriggerSpecificationResponse(
         @Schema(description = "Available parameter names delivered by this trigger")
         List<String> params
 ) {
-    public static TriggerSpecificationResponse from(String name, TriggerSpecification spec) {
+    public static TriggerSpecificationResponse from(String name, TriggerSpec spec) {
         return new TriggerSpecificationResponse(name, spec.description(), spec.params());
     }
 }

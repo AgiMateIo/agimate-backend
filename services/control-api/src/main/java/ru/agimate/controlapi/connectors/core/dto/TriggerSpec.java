@@ -8,12 +8,12 @@ import java.util.List;
  * @param description человекочитаемое описание
  * @param params      имена параметров, доступных в {@code trigger.data}
  */
-public record TriggerSpecification(
+public record TriggerSpec(
         String description,
         List<String> params
 ) {
 
-    public TriggerSpecification {
+    public TriggerSpec {
         params = params == null ? List.of() : List.copyOf(params);
     }
 }

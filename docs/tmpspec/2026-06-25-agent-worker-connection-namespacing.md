@@ -29,7 +29,7 @@ message ConnectorToolSpec {
   bytes  input_schema  = 4 [json_name = "inputSchema"];
   bytes  output_schema = 5 [json_name = "outputSchema"];
   ToolAnnotations annotations = 6;
-  map<string, string> meta = 7 [json_name = "_meta"];
+  map<string, string> toolMeta = 7 [json_name = "_meta"];
   string connection_id = 8 [json_name = "connectionId"];  // НОВОЕ: экземпляр (= connections.id)
   string full_code     = 9 [json_name = "fullCode"];      // НОВОЕ: handle экземпляра (mcp_context7)
 }

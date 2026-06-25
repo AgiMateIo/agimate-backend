@@ -3,7 +3,7 @@ package ru.agimate.controlapi.connectors.internal.time;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
-import ru.agimate.controlapi.connectors.core.dto.TriggerSpecification;
+import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 
 import java.util.List;
 import java.util.Map;
@@ -33,8 +33,8 @@ public class TimeConnectorService extends BaseConnectorHandler implements Intern
     }
 
     @Override
-    public Map<String, TriggerSpecification> getTriggers() {
-        return Map.of(TimeToolService.DUE_TRIGGER, new TriggerSpecification(
+    public Map<String, TriggerSpec> getTriggers() {
+        return Map.of(TimeToolService.DUE_TRIGGER, new TriggerSpec(
                 "A scheduled task created via time.schedule is due", List.of("prompt")));
     }
 }

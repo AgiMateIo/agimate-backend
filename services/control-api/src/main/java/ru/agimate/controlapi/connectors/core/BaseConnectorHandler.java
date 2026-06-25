@@ -2,12 +2,12 @@ package ru.agimate.controlapi.connectors.core;
 
 import com.fasterxml.jackson.databind.JavaType;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.controlapi.connectors.core.annotation.Meta;
+import ru.agimate.controlapi.connectors.core.annotation.ToolMeta;
 import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
+import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec;
 
 import java.lang.reflect.InvocationTargetException;
@@ -88,20 +88,20 @@ public abstract class BaseConnectorHandler implements ConnectorHandler {
                 a.readOnlyHint(), a.destructiveHint(), a.idempotentHint(), a.openWorldHint());
     }
 
-    private static Map<String, String> toMeta(Meta[] meta) {
-        if (meta.length == 0) {
+    private static Map<String, String> toMeta(ToolMeta[] toolMeta) {
+        if (toolMeta.length == 0) {
             return null;
         }
         Map<String, String> map = new LinkedHashMap<>();
-        for (Meta m : meta) {
+        for (ToolMeta m : toolMeta) {
             map.put(m.key(), m.value());
         }
         return map;
     }
 
     @Override
-    public Map<String, JobSpecification> getJobs() {
-        Map<String, JobSpecification> specs = new LinkedHashMap<>();
+    public Map<String, JobSpec> getJobs() {
+        Map<String, JobSpec> specs = new LinkedHashMap<>();
         methodsByName.forEach((name, method) -> {
             Job task = method.getAnnotation(Job.class);
             if (task != null) {
@@ -111,13 +111,13 @@ public abstract class BaseConnectorHandler implements ConnectorHandler {
         return specs;
     }
 
-    private static JobSpecification toJobSpecification(String name, Job task) {
+    private static JobSpec toJobSpecification(String name, Job task) {
         Map<String, Object> config = switch (task.type()) {
             case ONETIME -> Map.of();
             case PERIODIC -> Map.of("intervalSeconds", task.intervalSeconds());
             case CRON -> Map.of("cron", task.cron(), "zone", task.zone());
         };
-        return new JobSpecification(name, task.type(), config, Map.of(), task.timeoutSeconds());
+        return new JobSpec(name, task.type(), config, Map.of(), task.timeoutSeconds());
     }
 
     @Override
