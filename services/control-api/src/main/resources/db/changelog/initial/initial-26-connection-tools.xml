@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        Тулы динамического экземпляра коннектора (MCP-серверы, device-apps): набор открывается в
+        рантайме (tools/list / device link) и кэшируется здесь. Схемы — сырым JSON-текстом для
+        фиделити произвольной JSON Schema. Статические коннекторы тулы отдают рефлексией.
+    -->
+    <changeSet id="create-connection-tools" author="agimate">
+        <createTable tableName="connection_tools">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="connection_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_connection_tools_connection"
+                             references="connections(id)"
+                             deleteCascade="true"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="TEXT"/>
+            <column name="description" type="TEXT"/>
+            <column name="input_schema" type="TEXT"/>
+            <column name="output_schema" type="TEXT"/>
+            <column name="annotations" type="TEXT"/>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Один тул с данным именем на экземпляр среди активных строк. -->
+        <sql>
+            CREATE UNIQUE INDEX uq_connection_tools_connection_name
+                ON connection_tools (connection_id, name)
+                WHERE deleted_at IS NULL;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -51,6 +51,9 @@
             <column name="last_started_at" type="TIMESTAMP"/>
             <column name="last_error" type="TEXT"/>
             <column name="paused_at" type="TIMESTAMP"/>
+            <!-- Исходный канал агента-инициатора (снимок при планировании): куда динамическая
+                 таска (time.schedule) адресует ответ. Реконструируется в ConnectorContext.channelId. -->
+            <column name="channel_id" type="UUID"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
