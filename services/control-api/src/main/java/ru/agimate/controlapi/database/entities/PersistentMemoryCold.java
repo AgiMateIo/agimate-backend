@@ -9,13 +9,13 @@ import ru.agimate.common.persistence.BaseEntity;
 import java.util.UUID;
 
 /**
- * Свёрнутая («cold») память агента — единственный MD-файл. Один ряд на агента
- * ({@code agent_id} уникален). Пишется только консолидацией; конкурентные записи
- * отсекаются оптимистической блокировкой по {@code version} (см. update_memory / CAS).
+ * Свёрнутая («cold») память — единственный MD-файл на scope ({@code scope_id}: agentId для AGENT,
+ * teamId для TEAM — командная память). Один ряд на scope ({@code scope_id} уникален). Пишется только
+ * консолидацией; конкурентные записи отсекаются оптимистической блокировкой по {@code version}.
  */
 @Entity
 @Table(name = "persistent_memory_cold", uniqueConstraints = @UniqueConstraint(
-        name = "uq_persistent_memory_cold_agent", columnNames = "agent_id"))
+        name = "uq_persistent_memory_cold_scope", columnNames = "scope_id"))
 @Getter
 @Setter
 @Builder
@@ -29,8 +29,9 @@ public class PersistentMemoryCold extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "agent_id", nullable = false)
-    private UUID agentId;
+    /** Носитель памяти: agentId (AGENT scope) или teamId (TEAM scope). */
+    @Column(name = "scope_id", nullable = false)
+    private UUID scopeId;
 
     @Column(name = "user_id", nullable = false)
     private UUID userId;

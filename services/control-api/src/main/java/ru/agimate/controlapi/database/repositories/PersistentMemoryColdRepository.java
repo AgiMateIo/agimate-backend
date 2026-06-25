@@ -11,7 +11,7 @@ import java.util.UUID;
 
 public interface PersistentMemoryColdRepository extends JpaRepository<PersistentMemoryCold, UUID> {
 
-    Optional<PersistentMemoryCold> findByAgentId(UUID agentId);
+    Optional<PersistentMemoryCold> findByScopeId(UUID scopeId);
 
     /**
      * Compare-and-swap записи cold: переписывает content и инкрементит version только если
@@ -22,9 +22,9 @@ public interface PersistentMemoryColdRepository extends JpaRepository<Persistent
     @Query("""
             UPDATE PersistentMemoryCold c
             SET c.content = :content, c.version = c.version + 1
-            WHERE c.agentId = :agentId AND c.version = :expectedVersion
+            WHERE c.scopeId = :scopeId AND c.version = :expectedVersion
             """)
-    int casUpdate(@Param("agentId") UUID agentId,
+    int casUpdate(@Param("scopeId") UUID scopeId,
                   @Param("content") String content,
                   @Param("expectedVersion") int expectedVersion);
 }

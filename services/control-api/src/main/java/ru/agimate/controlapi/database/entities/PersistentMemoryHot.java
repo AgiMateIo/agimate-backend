@@ -10,8 +10,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * «Hot» заметка памяти агента — строка журнала. Добавление = INSERT (append-only),
- * поэтому конкурентные записи не конфликтуют. Консолидация клеймит партию заметок
+ * «Hot» заметка памяти — строка журнала на scope ({@code scope_id}: agentId/teamId). Добавление =
+ * INSERT (append-only), поэтому конкурентные записи не конфликтуют. Консолидация клеймит партию заметок
  * ({@code consolidationId} + {@code claimedAt} как лиз), сворачивает их в cold и удаляет.
  */
 @Entity
@@ -29,8 +29,9 @@ public class PersistentMemoryHot extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "agent_id", nullable = false)
-    private UUID agentId;
+    /** Носитель памяти: agentId (AGENT scope) или teamId (TEAM scope). */
+    @Column(name = "scope_id", nullable = false)
+    private UUID scopeId;
 
     @Column(name = "user_id", nullable = false)
     private UUID userId;

@@ -4,19 +4,26 @@ import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
+import ru.agimate.controlapi.database.enums.ExecutionLocus;
+import ru.agimate.controlapi.database.enums.IdentityScope;
+import ru.agimate.controlapi.database.enums.ToolBinding;
+import ru.agimate.controlapi.database.enums.TransportDirection;
+import ru.agimate.controlapi.database.model.ConnectorCapabilities;
 
 import java.util.List;
 import java.util.Map;
 
 /**
- * Фасад коннектора persistent memory: hot/cold память агента. Тулы (get/update/note) и скрытые
+ * Фасад коннектора persistent memory: hot/cold память на scope. Тулы (get/update/note) и скрытые
  * дневная/часовая задачи живут в {@link PersistentMemoryToolService}.
  *
- * <p>Per-agent: декларативные {@code @Job} (daily/consolidation) регистрируются на {@code identity =
- * agentId} по {@code ConnectorCreatedEvent}, который издаёт {@link MemoryEnablementListener} при
- * выдаче агенту ALLOW-политики на этот коннектор.
+ * <p>Память хранится по {@code connections.scope_id}: при {@code identity_scope = AGENT} — личная
+ * (scope_id = agentId), при {@code TEAM} — общая для команды (scope_id = teamId). Привязка к агенту
+ * ({@code agent_connections}) материализует экземпляр под выбранный scope и регистрирует
+ * декларативные {@code @Job} (daily/consolidation) на {@code identity = connections.id}
+ * ({@code ConnectorCreatedEvent} из {@code ConnectionBindingService}).
  *
- * <p>Триггеры адресуются обратно агенту (audience): {@code notes-by-session} — собрать заметки по
+ * <p>Триггеры адресуются привязанным агентам (audience): {@code notes-by-session} — собрать заметки по
  * сессии, {@code consolidate} — свернуть накопленные заметки в cold.
  */
 @Component
@@ -36,6 +43,14 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler imple
     @Override
     public String connectorName() {
         return "Persistent Memory";
+    }
+
+    /** Память может быть личной (AGENT) или командной (TEAM) — выбирается при привязке. */
+    @Override
+    public ConnectorCapabilities capabilities() {
+        return new ConnectorCapabilities(
+                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.STATIC,
+                List.of(IdentityScope.AGENT, IdentityScope.TEAM), IdentityScope.AGENT);
     }
 
     @Override

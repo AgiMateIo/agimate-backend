@@ -6,7 +6,8 @@
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
     <!--
-        Persistent memory коннектора persist-memory. Два слоя на агента (ключ — agent_id):
+        Persistent memory коннектора persist-memory. Два слоя на scope (ключ — scope_id: agentId для
+        AGENT, teamId для TEAM — командная память):
         cold — свёрнутая память (один MD-файл, единственный writer = консолидация, CAS по version);
         hot  — журнал заметок (append = INSERT, поэтому конкурентные записи не конфликтуют).
         Консолидация клеймит hot-строки (consolidation_id + claimed_at), сворачивает в cold и
@@ -17,9 +18,9 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <!-- Один файл cold на агента — бизнес-ключ. -->
-            <column name="agent_id" type="UUID">
-                <constraints nullable="false" unique="true" uniqueConstraintName="uq_persistent_memory_cold_agent"/>
+            <!-- Один файл cold на scope (agentId/teamId) — бизнес-ключ. -->
+            <column name="scope_id" type="UUID">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_persistent_memory_cold_scope"/>
             </column>
             <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
@@ -45,7 +46,7 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="agent_id" type="UUID">
+            <column name="scope_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="user_id" type="UUID">
@@ -67,9 +68,9 @@
             </column>
         </createTable>
 
-        <!-- Чтение заметок агента (get_memory_notes) и клейм консолидации фильтруют по agent_id. -->
-        <createIndex tableName="persistent_memory_hot" indexName="idx_persistent_memory_hot_agent">
-            <column name="agent_id"/>
+        <!-- Чтение заметок (get_memory_notes) и клейм консолидации фильтруют по scope_id. -->
+        <createIndex tableName="persistent_memory_hot" indexName="idx_persistent_memory_hot_scope">
+            <column name="scope_id"/>
         </createIndex>
     </changeSet>
 

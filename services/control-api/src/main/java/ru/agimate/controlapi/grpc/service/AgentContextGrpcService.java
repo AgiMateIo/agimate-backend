@@ -427,7 +427,9 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     public void getMemory(GetMemoryRequest request, StreamObserver<AgentMemory> responseObserver) {
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            PersistentMemoryCold cold = persistentMemoryService.getCold(agentId).orElse(null);
+            UUID scopeId = persistentMemoryService.scopeIdForAgent(agentId).orElse(null);
+            PersistentMemoryCold cold = scopeId == null ? null
+                    : persistentMemoryService.getCold(scopeId).orElse(null);
             AgentMemory response = AgentMemory.newBuilder()
                     .setContent(cold == null ? "" : nullToEmpty(cold.getContent()))
                     .setVersion(cold == null ? 0 : cold.getVersion())
@@ -443,8 +445,10 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     public void getMemoryNotes(GetMemoryNotesRequest request, StreamObserver<GetMemoryNotesResponse> responseObserver) {
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            UUID scopeId = persistentMemoryService.scopeIdForAgent(agentId).orElse(null);
             GetMemoryNotesResponse.Builder builder = GetMemoryNotesResponse.newBuilder();
-            for (PersistentMemoryHot note : persistentMemoryService.getNotes(agentId)) {
+            for (PersistentMemoryHot note : (scopeId == null ? java.util.List.<PersistentMemoryHot>of()
+                    : persistentMemoryService.getNotes(scopeId))) {
                 MemoryNote.Builder noteBuilder = MemoryNote.newBuilder()
                         .setId(note.getId().toString())
                         .setContent(nullToEmpty(note.getContent()));

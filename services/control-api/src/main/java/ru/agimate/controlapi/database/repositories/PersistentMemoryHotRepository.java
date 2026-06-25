@@ -12,34 +12,34 @@ import java.util.UUID;
 
 public interface PersistentMemoryHotRepository extends JpaRepository<PersistentMemoryHot, UUID> {
 
-    /** Все заметки агента (сконсолидированные удаляются, поэтому всё в hot — ещё «pending»). */
-    List<PersistentMemoryHot> findByAgentIdOrderByCreatedAtAsc(UUID agentId);
+    /** Все заметки scope (сконсолидированные удаляются, поэтому всё в hot — ещё «pending»). */
+    List<PersistentMemoryHot> findByScopeIdOrderByCreatedAtAsc(UUID scopeId);
 
     /** Заметки конкретной партии консолидации — для доставки в триггер. */
     List<PersistentMemoryHot> findByConsolidationIdOrderByCreatedAtAsc(UUID consolidationId);
 
     /**
-     * Single-flight: есть ли у агента незавершённая консолидация (заклеймленные заметки,
+     * Single-flight: есть ли у scope незавершённая консолидация (заклеймленные заметки,
      * чей лиз ещё жив). {@code claimedAt >= leaseThreshold} — клейм не протух.
      */
     @Query("""
             SELECT COUNT(h) FROM PersistentMemoryHot h
-            WHERE h.agentId = :agentId AND h.consolidationId IS NOT NULL AND h.claimedAt >= :leaseThreshold
+            WHERE h.scopeId = :scopeId AND h.consolidationId IS NOT NULL AND h.claimedAt >= :leaseThreshold
             """)
-    long countInFlight(@Param("agentId") UUID agentId, @Param("leaseThreshold") LocalDateTime leaseThreshold);
+    long countInFlight(@Param("scopeId") UUID scopeId, @Param("leaseThreshold") LocalDateTime leaseThreshold);
 
     /**
-     * Клеймит под партию {@code consolidationId} все ещё-несконсолидированные заметки агента,
+     * Клеймит под партию {@code consolidationId} все ещё-несконсолидированные заметки scope,
      * включая реклейм брошенных (клейм протух: {@code claimedAt < leaseThreshold}).
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE PersistentMemoryHot h
             SET h.consolidationId = :consolidationId, h.claimedAt = :now
-            WHERE h.agentId = :agentId
+            WHERE h.scopeId = :scopeId
               AND (h.consolidationId IS NULL OR h.claimedAt < :leaseThreshold)
             """)
-    int claim(@Param("agentId") UUID agentId,
+    int claim(@Param("scopeId") UUID scopeId,
               @Param("consolidationId") UUID consolidationId,
               @Param("now") LocalDateTime now,
               @Param("leaseThreshold") LocalDateTime leaseThreshold);

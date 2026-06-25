@@ -61,8 +61,8 @@ public class PersistentMemoryToolService {
             + "Pass the returned version to update_memory when you rewrite it.",
             annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false))
     public Map<String, Object> getMemory() {
-        UUID agentId = requireAgent(ConnectorContextHolder.current());
-        PersistentMemoryCold cold = memoryService.getCold(agentId).orElse(null);
+        UUID scopeId = resolveScopeId(ConnectorContextHolder.current());
+        PersistentMemoryCold cold = memoryService.getCold(scopeId).orElse(null);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("content", cold == null ? "" : cold.getContent());
         result.put("version", cold == null ? 0 : cold.getVersion());
@@ -73,8 +73,8 @@ public class PersistentMemoryToolService {
             + "but not yet consolidated into cold memory.",
             annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false))
     public Map<String, Object> getMemoryNotes() {
-        UUID agentId = requireAgent(ConnectorContextHolder.current());
-        List<Map<String, Object>> notes = memoryService.getNotes(agentId).stream()
+        UUID scopeId = resolveScopeId(ConnectorContextHolder.current());
+        List<Map<String, Object>> notes = memoryService.getNotes(scopeId).stream()
                 .map(PersistentMemoryToolService::noteView)
                 .toList();
         return Map.of("notes", notes);
@@ -88,11 +88,11 @@ public class PersistentMemoryToolService {
             @ToolParam(value = "Session this note came from (optional, for tracing)", required = false)
             String sessionId) {
         ConnectorContext ctx = ConnectorContextHolder.current();
-        UUID agentId = requireAgent(ctx);
+        UUID scopeId = resolveScopeId(ctx);
         if (text == null || text.isBlank()) {
             throw new ConnectorException("text is required");
         }
-        PersistentMemoryHot note = memoryService.addNote(agentId, ctx.userId(), parseUuid(sessionId, "sessionId"), text);
+        PersistentMemoryHot note = memoryService.addNote(scopeId, ctx.userId(), parseUuid(sessionId, "sessionId"), text);
         return Map.of("id", note.getId().toString());
     }
 
@@ -107,37 +107,41 @@ public class PersistentMemoryToolService {
             @ToolParam(value = "Consolidation id from the consolidate trigger; deletes its notes", required = false)
             String consolidationId) {
         ConnectorContext ctx = ConnectorContextHolder.current();
-        UUID agentId = requireAgent(ctx);
+        UUID scopeId = resolveScopeId(ctx);
         if (text == null) {
             throw new ConnectorException("text is required");
         }
-        memoryService.updateMemory(agentId, ctx.userId(), text, version, parseUuid(consolidationId, "consolidationId"));
+        memoryService.updateMemory(scopeId, ctx.userId(), text, version, parseUuid(consolidationId, "consolidationId"));
         return Map.of("ok", true);
     }
 
-    // ===== Скрытые фоновые задачи (per-agent, identity = agentId) =====
+    // ===== Скрытые фоновые задачи (per-connection, identity = connections.id) =====
 
     @Tool(name = DAILY_JOB, description = "Internal: emit per-session note requests for the last 24h")
     @Job(type = ConnectorJobType.CRON, cron = "0 0 3 * * *", timeoutSeconds = JOB_TIMEOUT_SECONDS)
     public void daily() {
         ConnectorContext ctx = ConnectorContextHolder.current();
-        UUID agentId = requireAgent(ctx);
+        UUID connectionId = requireConnectionId(ctx);
         LocalDateTime since = LocalDateTime.now().minusHours(NOTES_LOOKBACK_HOURS);
-        for (UUID sessionId : messageRepository.findSessionIdsByAgentSince(agentId, since)) {
-            List<Map<String, Object>> messages = messageRepository.findBySessionIdOrderByTurnIdxAsc(sessionId).stream()
-                    .map(m -> {
-                        Map<String, Object> view = new LinkedHashMap<>();
-                        view.put("turnIdx", m.getTurnIdx());
-                        view.put("kind", m.getKind().name());
-                        view.put("text", m.getMessage());
-                        return view;
-                    })
-                    .toList();
-            if (messages.isEmpty()) {
-                continue;
+        // Сессии собираем по каждому привязанному агенту; для TEAM-памяти это все агенты команды,
+        // их заметки сольются в общий scope (save_memory_note резолвит scope_id из connection).
+        for (UUID agentId : memoryService.boundAgents(connectionId)) {
+            for (UUID sessionId : messageRepository.findSessionIdsByAgentSince(agentId, since)) {
+                List<Map<String, Object>> messages = messageRepository.findBySessionIdOrderByTurnIdxAsc(sessionId).stream()
+                        .map(m -> {
+                            Map<String, Object> view = new LinkedHashMap<>();
+                            view.put("turnIdx", m.getTurnIdx());
+                            view.put("kind", m.getKind().name());
+                            view.put("text", m.getMessage());
+                            return view;
+                        })
+                        .toList();
+                if (messages.isEmpty()) {
+                    continue;
+                }
+                routeToAgents(ctx, List.of(agentId), NOTES_TRIGGER,
+                        Map.of("sessionId", sessionId.toString(), "messages", messages));
             }
-            routeToAgent(ctx, agentId, NOTES_TRIGGER,
-                    Map.of("sessionId", sessionId.toString(), "messages", messages));
         }
     }
 
@@ -145,37 +149,59 @@ public class PersistentMemoryToolService {
     @Job(type = ConnectorJobType.CRON, cron = "0 0 * * * *", timeoutSeconds = JOB_TIMEOUT_SECONDS)
     public void consolidation() {
         ConnectorContext ctx = ConnectorContextHolder.current();
-        UUID agentId = requireAgent(ctx);
+        UUID connectionId = requireConnectionId(ctx);
+        UUID scopeId = resolveScopeId(ctx);
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime leaseThreshold = now.minusSeconds(CONSOLIDATION_LEASE_SECONDS);
-        // Single-flight: не плодим вторую консолидацию, пока идёт предыдущая (cold пишется CAS'ом).
-        if (memoryService.hasInFlightConsolidation(agentId, leaseThreshold)) {
+        // Single-flight по scope: не плодим вторую консолидацию, пока идёт предыдущая (cold — CAS).
+        if (memoryService.hasInFlightConsolidation(scopeId, leaseThreshold)) {
             return;
         }
         UUID consolidationId = UUID.randomUUID();
         List<PersistentMemoryHot> claimed =
-                memoryService.claimNotesForConsolidation(agentId, consolidationId, now, leaseThreshold);
+                memoryService.claimNotesForConsolidation(scopeId, consolidationId, now, leaseThreshold);
         if (claimed.isEmpty()) {
             return;
         }
         List<Map<String, Object>> notes = claimed.stream()
                 .map(PersistentMemoryToolService::noteView)
                 .toList();
-        routeToAgent(ctx, agentId, CONSOLIDATE_TRIGGER,
+        // Партия заклеймлена; любой из привязанных агентов может свернуть её (cold CAS сериализует запись).
+        routeToAgents(ctx, memoryService.boundAgents(connectionId), CONSOLIDATE_TRIGGER,
                 Map.of("consolidationId", consolidationId.toString(), "notes", notes));
     }
 
     // ===== helpers =====
 
-    /** Адресует directed-триггер обратно агенту (audience, без канала — фоновая задача). */
-    private void routeToAgent(ConnectorContext ctx, UUID agentId, String triggerName, Map<String, Object> data) {
+    /** Адресует directed-триггер привязанным агентам (audience, без канала — фоновая задача). */
+    private void routeToAgents(ConnectorContext ctx, List<UUID> agentIds, String triggerName,
+                               Map<String, Object> data) {
+        if (agentIds.isEmpty()) {
+            return;
+        }
         Trigger trigger = Trigger.createDirected(
                 PersistentMemoryConnectorService.CONNECTOR_CODE,
                 ctx.identity(),
                 triggerName,
                 data,
-                TriggerContext.audience(new TriggerAudience(null, List.of(agentId))));
+                TriggerContext.audience(new TriggerAudience(null, agentIds)));
         triggerRouterService.routeTrigger(ctx.userId(), trigger);
+    }
+
+    private UUID resolveScopeId(ConnectorContext ctx) {
+        return memoryService.scopeIdForConnection(requireConnectionId(ctx))
+                .orElseThrow(() -> new ConnectorException("persist-memory: connection has no scope"));
+    }
+
+    private static UUID requireConnectionId(ConnectorContext ctx) {
+        if (ctx.identity() == null) {
+            throw new ConnectorException("persist-memory requires a connection identity");
+        }
+        try {
+            return UUID.fromString(ctx.identity());
+        } catch (IllegalArgumentException e) {
+            throw new ConnectorException("Invalid connection identity: " + ctx.identity());
+        }
     }
 
     private static Map<String, Object> noteView(PersistentMemoryHot note) {

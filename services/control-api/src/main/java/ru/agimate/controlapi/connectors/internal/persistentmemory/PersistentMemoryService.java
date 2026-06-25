@@ -4,8 +4,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.database.entities.AgentConnection;
+import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
+import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.PersistentMemoryColdRepository;
 import ru.agimate.controlapi.database.repositories.PersistentMemoryHotRepository;
 
@@ -31,20 +35,45 @@ public class PersistentMemoryService {
 
     private final PersistentMemoryColdRepository coldRepository;
     private final PersistentMemoryHotRepository hotRepository;
+    private final ConnectionRepository connectionRepository;
+    private final AgentConnectionRepository agentConnectionRepository;
 
-    public Optional<PersistentMemoryCold> getCold(UUID agentId) {
-        return coldRepository.findByAgentId(agentId);
+    /** scope-носитель экземпляра по его {@code connections.id} (identity тулы/таски). */
+    public Optional<UUID> scopeIdForConnection(UUID connectionId) {
+        return connectionRepository.findByIdNotDeleted(connectionId).map(Connection::getScopeId);
     }
 
-    public List<PersistentMemoryHot> getNotes(UUID agentId) {
-        return hotRepository.findByAgentIdOrderByCreatedAtAsc(agentId);
+    /** scope-носитель памяти агента: scope_id его активной memory-привязки (AGENT→agentId, TEAM→teamId). */
+    public Optional<UUID> scopeIdForAgent(UUID agentId) {
+        for (AgentConnection b : agentConnectionRepository.findActiveByAgentId(agentId)) {
+            Connection c = connectionRepository.findByIdNotDeleted(b.getConnectionId()).orElse(null);
+            if (c != null && PersistentMemoryConnectorService.CONNECTOR_CODE.equals(c.getConnectorCode())) {
+                return Optional.ofNullable(c.getScopeId());
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** Все агенты, привязанные к данному memory-экземпляру (для роутинга фоновых триггеров по scope). */
+    public List<UUID> boundAgents(UUID connectionId) {
+        return agentConnectionRepository.findActiveByConnectionId(connectionId).stream()
+                .map(AgentConnection::getAgentId)
+                .toList();
+    }
+
+    public Optional<PersistentMemoryCold> getCold(UUID scopeId) {
+        return coldRepository.findByScopeId(scopeId);
+    }
+
+    public List<PersistentMemoryHot> getNotes(UUID scopeId) {
+        return hotRepository.findByScopeIdOrderByCreatedAtAsc(scopeId);
     }
 
     /** Добавляет заметку в hot (append). */
     @Transactional
-    public PersistentMemoryHot addNote(UUID agentId, UUID userId, UUID sessionId, String content) {
+    public PersistentMemoryHot addNote(UUID scopeId, UUID userId, UUID sessionId, String content) {
         return hotRepository.save(PersistentMemoryHot.builder()
-                .agentId(agentId)
+                .scopeId(scopeId)
                 .userId(userId)
                 .sessionId(sessionId)
                 .content(content)
@@ -59,15 +88,15 @@ public class PersistentMemoryService {
      * @param expectedVersion ожидаемая версия cold; {@code null} допустимо только для первой записи
      */
     @Transactional
-    public void updateMemory(UUID agentId, UUID userId, String content,
+    public void updateMemory(UUID scopeId, UUID userId, String content,
                              Integer expectedVersion, UUID consolidationId) {
-        PersistentMemoryCold cold = coldRepository.findByAgentId(agentId).orElse(null);
+        PersistentMemoryCold cold = coldRepository.findByScopeId(scopeId).orElse(null);
         if (cold == null) {
             if (expectedVersion != null && expectedVersion != 0) {
                 throw new ConnectorException("Memory changed: re-read it via get_memory and retry");
             }
             coldRepository.save(PersistentMemoryCold.builder()
-                    .agentId(agentId)
+                    .scopeId(scopeId)
                     .userId(userId)
                     .content(content)
                     .version(1)
@@ -77,7 +106,7 @@ public class PersistentMemoryService {
                 throw new ConnectorException(
                         "version is required: read current memory via get_memory and pass its version");
             }
-            int updated = coldRepository.casUpdate(agentId, content, expectedVersion);
+            int updated = coldRepository.casUpdate(scopeId, content, expectedVersion);
             if (updated == 0) {
                 throw new ConnectorException("Memory changed: re-read it via get_memory and retry");
             }
@@ -87,19 +116,19 @@ public class PersistentMemoryService {
         }
     }
 
-    /** Идёт ли у агента консолидация прямо сейчас (single-flight guard). */
-    public boolean hasInFlightConsolidation(UUID agentId, LocalDateTime leaseThreshold) {
-        return hotRepository.countInFlight(agentId, leaseThreshold) > 0;
+    /** Идёт ли у scope консолидация прямо сейчас (single-flight guard). */
+    public boolean hasInFlightConsolidation(UUID scopeId, LocalDateTime leaseThreshold) {
+        return hotRepository.countInFlight(scopeId, leaseThreshold) > 0;
     }
 
     /**
-     * Клеймит несконсолидированные заметки агента под новую партию и возвращает их.
+     * Клеймит несконсолидированные заметки scope под новую партию и возвращает их.
      * Пустой список — клеймить нечего.
      */
     @Transactional
-    public List<PersistentMemoryHot> claimNotesForConsolidation(UUID agentId, UUID consolidationId,
+    public List<PersistentMemoryHot> claimNotesForConsolidation(UUID scopeId, UUID consolidationId,
                                                                 LocalDateTime now, LocalDateTime leaseThreshold) {
-        int claimed = hotRepository.claim(agentId, consolidationId, now, leaseThreshold);
+        int claimed = hotRepository.claim(scopeId, consolidationId, now, leaseThreshold);
         if (claimed == 0) {
             return List.of();
         }
