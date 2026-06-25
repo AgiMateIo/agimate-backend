@@ -49,6 +49,11 @@ public class McpConnectorService implements IntegrationConnectorHandler {
     }
 
     @Override
+    public ru.agimate.controlapi.database.model.ConnectorCapabilities capabilities() {
+        return ru.agimate.controlapi.database.model.ConnectorCapabilities.dynamicIntegration();
+    }
+
+    @Override
     public Map<String, String> getCredentialFields() {
         Map<String, String> fields = new LinkedHashMap<>();
         fields.put(McpUtils.FIELD_URL, "Server URL (Streamable HTTP)");

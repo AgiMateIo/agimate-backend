@@ -6,6 +6,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.ConnectorType;
+import ru.agimate.controlapi.database.model.ConnectorCapabilities;
 
 import java.util.Map;
 
@@ -36,6 +37,16 @@ public class Connector extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "credential_fields", columnDefinition = "JSONB")
     private Map<String, String> credentialFields;
+
+    /**
+     * Type-level capability-дескриптор (4 оси): кто инициирует соединение, где исполняется тул,
+     * статические/динамические тулы, скоуп шаринга. Источник истины — код (SPI
+     * {@code capabilities()}), заполняется бутстрапом. Маршрутизация исполнения читает
+     * {@code capabilities.executionLocus}.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "capabilities", columnDefinition = "JSONB")
+    private ConnectorCapabilities capabilities;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "features", columnDefinition = "JSONB")

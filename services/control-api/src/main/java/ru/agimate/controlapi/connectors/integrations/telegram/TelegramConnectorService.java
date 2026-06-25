@@ -57,6 +57,11 @@ public class TelegramConnectorService extends BaseConnectorHandler implements In
         return "Telegram";
     }
 
+    @Override
+    public ru.agimate.controlapi.database.model.ConnectorCapabilities capabilities() {
+        return ru.agimate.controlapi.database.model.ConnectorCapabilities.staticIntegration();
+    }
+
     public boolean isPollingMode() {
         return MODE_POLLING.equalsIgnoreCase(mode);
     }

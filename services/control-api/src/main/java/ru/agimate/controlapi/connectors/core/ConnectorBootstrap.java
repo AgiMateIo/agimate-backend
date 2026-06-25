@@ -7,6 +7,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.ConnectorType;
+import ru.agimate.controlapi.database.model.ConnectorCapabilities;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 
 /**
@@ -35,11 +36,13 @@ public class ConnectorBootstrap {
                 .code("app")
                 .type(ConnectorType.APP)
                 .name("App")
+                .capabilities(ConnectorCapabilities.device())
                 .build());
         saveIfAbsent(Connector.builder()
                 .code("claude-code")
                 .type(ConnectorType.LOOPBACK)
                 .name("Claude Code")
+                .capabilities(ConnectorCapabilities.loopback())
                 .build());
 
         for (ConnectorHandler handler : connectorRegistry.getHandlers()) {
@@ -61,6 +64,7 @@ public class ConnectorBootstrap {
         connector.setCredentialFields(handler instanceof IntegrationConnectorHandler integration
                 ? integration.getCredentialFields()
                 : null);
+        connector.setCapabilities(handler.capabilities());
 
         connectorRepository.save(connector);
     }

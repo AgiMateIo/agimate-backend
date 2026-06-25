@@ -92,6 +92,9 @@ app:
   integration:
     encryption-key: "***REMOVED***"
     webhook-base-url: "http://localhost:8080/control"
+  secrets:
+    # KEK (master key) для envelope-шифрования секретов (AES-256, base64 32 байта).
+    encryption-key: "***REMOVED***"
   skill:
     dir: "./data/skills"
     max-file-size: 10485760

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+        Type-level capability-дескриптор коннектора (4 оси): transportDirection, executionLocus,
+        toolBinding, sharingScope. Источник истины — код (SPI capabilities()), заполняется
+        бутстрапом для handler-коннекторов. Для handler-less строк (app, claude-code) бэкфиллим
+        здесь — маршрутизация исполнения читает capabilities.executionLocus.
+    -->
+    <changeSet id="add-connectors-capabilities" author="agimate">
+        <addColumn tableName="connectors">
+            <column name="capabilities" type="JSONB"/>
+        </addColumn>
+
+        <!-- app: inbound-устройство, исполнение на устройстве, динамические тулы. -->
+        <sql>
+            UPDATE connectors SET capabilities =
+              '{"transportDirection":"INBOUND","executionLocus":"EXTERNAL","toolBinding":"DYNAMIC","sharingScope":"PRIVATE"}'::jsonb
+            WHERE code = 'app' AND capabilities IS NULL;
+        </sql>
+        <!-- claude-code (loopback): исполняет агент, control-api лишь авторизует. -->
+        <sql>
+            UPDATE connectors SET capabilities =
+              '{"transportDirection":"INBOUND","executionLocus":"AGENT","toolBinding":"STATIC","sharingScope":"PRIVATE"}'::jsonb
+            WHERE code = 'claude-code' AND capabilities IS NULL;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -4,6 +4,7 @@ import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.JobSpecification;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpecification;
+import ru.agimate.controlapi.database.model.ConnectorCapabilities;
 
 import java.util.Map;
 
@@ -21,6 +22,15 @@ public interface ConnectorHandler {
 
     default String connectorName() {
         return connectorCode();
+    }
+
+    /**
+     * Type-level capability-дескриптор (4 оси, см. {@link ConnectorCapabilities}). Источник истины —
+     * код; бутстрап персистит в каталог {@code connectors}. Дефолт — internal (backend-исполнение,
+     * статические тулы, приватный скоуп); коннекторы с иными осями переопределяют.
+     */
+    default ConnectorCapabilities capabilities() {
+        return ConnectorCapabilities.internal();
     }
 
     default Map<String, TriggerSpecification> getTriggers() {
