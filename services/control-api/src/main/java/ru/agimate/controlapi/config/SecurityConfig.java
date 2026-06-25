@@ -35,6 +35,7 @@ import ru.agimate.controlapi.controller.manage.ManageAppToolsController;
 import ru.agimate.controlapi.controller.manage.ManageAppTriggersController;
 import ru.agimate.controlapi.controller.manage.ManageToolCallLogsController;
 import ru.agimate.controlapi.controller.manage.ManageTriggerLogsController;
+import ru.agimate.controlapi.controller.manage.ManageAgentConnectionPolicyController;
 import ru.agimate.controlapi.controller.manage.ManageConnectorController;
 import ru.agimate.controlapi.controller.manage.ManageConnectorJobController;
 import ru.agimate.controlapi.controller.manage.ManageIntegrationController;
@@ -121,6 +122,7 @@ public class SecurityConfig {
                 ManageToolCallLogsController.PATH + "/**",
                 ManageAgentController.PATH + "/**",
                 ManageAgentSkillController.PATH + "/**",
+                ManageAgentConnectionPolicyController.PATH + "/**",
                 ManageAgenticTeamController.PATH + "/**",
                 ManageWebhookDeliveryLogsController.PATH + "/**",
                 ManageIntegrationController.PATH + "/**",

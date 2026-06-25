@@ -21,6 +21,8 @@ import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -64,6 +66,39 @@ public class ConnectionBindingService {
 
         Connection connection = resolveConnection(userId, agentId, connector, scope, explicitConnectionId);
         return ensureBinding(agentId, connection.getId());
+    }
+
+    /** Binding вместе с его connection — для manage-API (список/ответ на привязку). */
+    public record AgentConnectionView(AgentConnection binding, Connection connection) {}
+
+    /** Активные binding'и агента с их connection (для manage-листинга). */
+    public List<AgentConnectionView> listForAgent(UUID userId, UUID agentId) {
+        requireOwnedAgent(userId, agentId);
+        List<AgentConnectionView> views = new ArrayList<>();
+        for (AgentConnection b : agentConnectionRepository.findActiveByAgentId(agentId)) {
+            connectionRepository.findByIdNotDeleted(b.getConnectionId())
+                    .ifPresent(c -> views.add(new AgentConnectionView(b, c)));
+        }
+        return views;
+    }
+
+    /** Привязать и вернуть view (binding + connection) — для ответа manage-API. */
+    @Transactional
+    public AgentConnectionView bindAndView(UUID userId, UUID agentId, String connectorCode,
+                                           IdentityScope requestedScope, UUID explicitConnectionId) {
+        requireOwnedAgent(userId, agentId);
+        AgentConnection binding = bind(userId, agentId, connectorCode, requestedScope, explicitConnectionId);
+        Connection connection = connectionRepository.findByIdNotDeleted(binding.getConnectionId())
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found"));
+        return new AgentConnectionView(binding, connection);
+    }
+
+    private void requireOwnedAgent(UUID userId, UUID agentId) {
+        Agent agent = agentRepository.findById(agentId)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
+        if (!agent.getUserId().equals(userId)) {
+            throw new NotFoundStatusException("Agent not found: " + agentId);
+        }
     }
 
     /**

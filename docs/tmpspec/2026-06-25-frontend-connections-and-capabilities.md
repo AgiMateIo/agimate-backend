@@ -63,7 +63,8 @@
     "transportDirection": "OUTBOUND",   // OUTBOUND | INBOUND — кто инициирует соединение
     "executionLocus": "BACKEND",        // BACKEND | EXTERNAL | AGENT — где исполняется тул
     "toolBinding": "DYNAMIC",           // STATIC | DYNAMIC — фиксированный набор тулов или per-instance
-    "sharingScope": "PRIVATE"           // PRIVATE | TEAM_SHARED | GLOBAL
+    "supportedScopes": ["INSTANCE"],    // какие identity-scope коннектор поддерживает (выбор при привязке)
+    "defaultScope": "INSTANCE"          // scope по умолчанию (∈ supportedScopes)
   },
   "integrationMeta": { "credentialFields": { … } }   // только для интеграций (есть credentialFields)
 }
@@ -74,7 +75,8 @@
 | `transportDirection` | `OUTBOUND` / `INBOUND` | OUTBOUND — мы подключаемся к платформе (telegram/mcp); INBOUND — устройство к нам (app) |
 | `executionLocus` | `BACKEND` / `EXTERNAL` / `AGENT` | где физически выполняется тул |
 | `toolBinding` | `STATIC` / `DYNAMIC` | DYNAMIC → тулы per-instance, тянуть после подключения |
-| `sharingScope` | `PRIVATE` / `TEAM_SHARED` / `GLOBAL` | приватный / общий для команды / глобальный |
+| `supportedScopes` | массив из `INSTANCE` / `AGENT` / `TEAM` / `USER` / `GLOBAL` | какие scope коннектор поддерживает; >1 → показать выбор при привязке к агенту |
+| `defaultScope` | один из `supportedScopes` | предвыбранный scope |
 
 `capabilities` опционально (`null` — если у коннектора не задан дескриптор). Старые поля (`code`,
 `type`, `name`, `description`, `integrationMeta`) — без изменений.
