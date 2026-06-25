@@ -17,7 +17,6 @@ import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.manage.dto.ConnectorResponse;
 import ru.agimate.controlapi.controller.manage.dto.IntegrationMeta;
 import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.enums.ConnectorType;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 
 @RestController
@@ -31,17 +30,16 @@ public class ManageConnectorController {
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
 
-    @Operation(summary = "List available connectors with optional type filter and full-text search")
+    @Operation(summary = "List available connectors with optional full-text search")
     @GetMapping("/")
     public SuccessResponse<Page<ConnectorResponse>> getAll(
-            @RequestParam(required = false) ConnectorType type,
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         String normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
         PageRequest pageable = PageRequest.of(page, size, Sort.by("name").ascending());
-        Page<ConnectorResponse> response = connectorRepository.search(type, normalizedSearch, pageable)
+        Page<ConnectorResponse> response = connectorRepository.search(normalizedSearch, pageable)
                 .map(this::toResponse);
         return SuccessResponse.ok(response);
     }
@@ -55,7 +53,7 @@ public class ManageConnectorController {
     }
 
     private ConnectorResponse toResponse(Connector connector) {
-        if (connector.getType() == ConnectorType.INTEGRATION) {
+        if (connector.isIntegration()) {
             return connectorRegistry.findIntegrationHandler(connector.getCode())
                     .map(handler -> ConnectorResponse.from(connector, IntegrationMeta.from(handler)))
                     .orElseGet(() -> ConnectorResponse.from(connector));

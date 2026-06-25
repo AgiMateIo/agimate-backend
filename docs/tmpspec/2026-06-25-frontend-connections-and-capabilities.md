@@ -9,9 +9,12 @@
 
 1. **`IntegrationResponse` сменил форму**: `platformIdentifier` → **`subCode`** + новое поле
    **`fullCode`** (стабильный handle экземпляра, `mcp_context7`). **Breaking.**
-2. **`GET /manage/connectors/`** на каждом коннекторе отдаёт новый объект **`capabilities`**
-   (4 оси). Поле опционально (`null` для строк без дескриптора).
+2. **`GET /manage/connectors/`** на каждом коннекторе отдаёт объект **`capabilities`** (4 оси);
+   поле **`type` УДАЛЕНО** из `ConnectorResponse`, а **фильтр `?type=`** убран из листинга. **Breaking.**
 3. Имена тулов/триггеров и их эндпоинты по форме **не менялись**.
+
+> «Тип коннектора» больше не отдельное поле — выводится из `capabilities` (+ наличие
+> `integrationMeta.credentialFields` = это интеграция, которую можно подключить с кредами).
 
 ---
 
@@ -48,21 +51,21 @@
 
 ---
 
-## 2. `GET /manage/connectors/` — новый объект `capabilities`
+## 2. `GET /manage/connectors/` — `capabilities` вместо `type`
 
-На каждом элементе каталога коннекторов появляется `capabilities` (type-level, рядом с
-`integrationMeta`):
+`type` удалён; вместо него `capabilities` (4 оси) рядом с `integrationMeta`. Фильтр `?type=` в
+листинге убран — остаётся только `?search=`.
 
 ```jsonc
 {
-  "code": "mcp", "type": "INTEGRATION", "name": "MCP Server", "description": "…",
+  "code": "mcp", "name": "MCP Server", "description": "…",   // поля "type" БОЛЬШЕ НЕТ
   "capabilities": {
     "transportDirection": "OUTBOUND",   // OUTBOUND | INBOUND — кто инициирует соединение
     "executionLocus": "BACKEND",        // BACKEND | EXTERNAL | AGENT — где исполняется тул
     "toolBinding": "DYNAMIC",           // STATIC | DYNAMIC — фиксированный набор тулов или per-instance
     "sharingScope": "PRIVATE"           // PRIVATE | TEAM_SHARED | GLOBAL
   },
-  "integrationMeta": { "credentialFields": { … } }   // как раньше, только для INTEGRATION
+  "integrationMeta": { "credentialFields": { … } }   // только для интеграций (есть credentialFields)
 }
 ```
 

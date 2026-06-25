@@ -8,7 +8,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
@@ -26,9 +25,6 @@ import ru.agimate.controlapi.controller.manage.dto.IntegrationResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateIntegrationCredentialsRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateIntegrationRequest;
-import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.enums.ConnectorType;
-import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 
 import java.util.List;
 import java.util.UUID;
@@ -43,7 +39,6 @@ public class ManageIntegrationController {
 
     private final IntegrationService integrationService;
     private final ConnectorRegistry connectorRegistry;
-    private final ConnectorRepository connectorRepository;
     private final McpToolService mcpToolService;
 
     @Operation(summary = "List integration credentials, optionally filtered by connectorCode")
@@ -174,13 +169,8 @@ public class ManageIntegrationController {
     }
 
     private IntegrationConnectorHandler loadIntegrationHandler(String connectorCode) {
-        Connector connector = connectorRepository.findById(connectorCode)
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
-        if (connector.getType() != ConnectorType.INTEGRATION) {
-            throw new BadRequestStatusException(
-                    "Connector " + connectorCode + " is not an INTEGRATION type (got " + connector.getType() + ")");
-        }
         return connectorRegistry.findIntegrationHandler(connectorCode)
-                .orElseThrow(() -> new BadRequestStatusException("Unsupported platform: " + connectorCode));
+                .orElseThrow(() -> new BadRequestStatusException(
+                        "Connector is not an integration: " + connectorCode));
     }
 }

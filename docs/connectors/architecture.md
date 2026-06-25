@@ -22,10 +22,14 @@ AAD = `entity + owner_id` (нельзя расшифровать, перенес
 коннектора лежат в `secrets`, адресуются `connections.secret_id`; inbound-verifier устройства
 (`apps.key_*`) — невозвратный, в `secrets` не кладётся.
 
-**Capabilities** — type-level дескриптор на `connectors` (4 оси, `database/model/ConnectorCapabilities`):
-`transportDirection` (OUTBOUND/INBOUND), `executionLocus` (BACKEND/EXTERNAL/AGENT — роутинг исполнения
-тула), `toolBinding` (STATIC рефлексией / DYNAMIC из `connection_tools`), `sharingScope`. Источник
-истины — SPI `ConnectorHandler.capabilities()`, заполняется бутстрапом.
+**Capabilities** — type-level дескриптор на `connectors`, **разложен по 4 колонкам** (рантайм ветвится
+на них напрямую, без отдельного `ConnectorType` — он удалён): `transport_direction` (OUTBOUND/INBOUND),
+`execution_locus` (BACKEND/EXTERNAL/AGENT — `ConnectorService.pushToConnector` роутит исполнение),
+`tool_binding` (STATIC рефлексией / DYNAMIC из `connection_tools` — единое место листинга
+`ToolDefinitionService` + gRPC), `sharing_scope`. Источник истины — SPI
+`ConnectorHandler.capabilities()` (агрегат `ConnectorCapabilities`), заполняется бутстрапом
+(`Connector.applyCapabilities`). «Интеграция» (подключаемый юзером коннектор с кредами) =
+`credentialFields != null` (`Connector.isIntegration()`).
 
 **Динамические тулы/триггеры** экземпляра (MCP-серверы, device-apps) — `connection_tools` /
 `connection_triggers` (обобщают прежний `mcp_tool` + `apps.tools/triggers` JSONB; схемы сырым

@@ -19,6 +19,8 @@ import ru.agimate.controlapi.database.entities.AgentToolPolicy;
 import ru.agimate.controlapi.database.entities.AgentTriggerPolicy;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
+import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentToolPolicyRepository;
@@ -353,25 +355,28 @@ public class ChannelService {
     }
 
     /** Доступные триггеры экземпляра: статические из handler (SPI) + динамические из connection_triggers. */
+    /** Источник по toolBinding: STATIC — из handler (SPI), DYNAMIC — из connection_triggers. */
     private Set<String> lookupTriggerNames(Connector connector, UUID userId, String identity) {
         Connection connection = loadConnection(userId, connector.getCode(), identity);
-        Set<String> names = new HashSet<>();
-        connectorRegistry.findHandler(connector.getCode())
-                .ifPresent(handler -> names.addAll(handler.getTriggers().keySet()));
-        connectionTriggerRepository.findActiveByConnectionId(connection.getId())
-                .forEach(t -> names.add(t.getName()));
-        return names;
+        return switch (connector.getToolBinding()) {
+            case STATIC -> connectorRegistry.findHandler(connector.getCode())
+                    .map(handler -> handler.getTriggers().keySet()).orElse(Set.of());
+            case DYNAMIC -> connectionTriggerRepository.findActiveByConnectionId(connection.getId()).stream()
+                    .map(ConnectionTrigger::getName).collect(Collectors.toSet());
+            case null -> Set.of();
+        };
     }
 
-    /** Доступные тулы экземпляра: статические из handler (SPI) + динамические из connection_tools. */
+    /** Источник по toolBinding: STATIC — из handler (SPI), DYNAMIC — из connection_tools. */
     private Set<String> lookupToolNames(Connector connector, UUID userId, String identity) {
         Connection connection = loadConnection(userId, connector.getCode(), identity);
-        Set<String> names = new HashSet<>();
-        connectorRegistry.findHandler(connector.getCode())
-                .ifPresent(handler -> names.addAll(handler.getTools().keySet()));
-        connectionToolRepository.findActiveByConnectionId(connection.getId())
-                .forEach(t -> names.add(t.getName()));
-        return names;
+        return switch (connector.getToolBinding()) {
+            case STATIC -> connectorRegistry.findHandler(connector.getCode())
+                    .map(handler -> handler.getTools().keySet()).orElse(Set.of());
+            case DYNAMIC -> connectionToolRepository.findActiveByConnectionId(connection.getId()).stream()
+                    .map(ConnectionTool::getName).collect(Collectors.toSet());
+            case null -> Set.of();
+        };
     }
 
     private Connection loadConnection(UUID userId, String connectorCode, String identity) {

@@ -10,17 +10,17 @@
             <column name="code" type="TEXT">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="type" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
             <column name="name" type="TEXT">
                 <constraints nullable="false"/>
             </column>
             <column name="description" type="TEXT"/>
             <column name="credential_fields" type="JSONB"/>
-            <!-- Type-level capability-дескриптор (4 оси): transportDirection, executionLocus,
-                 toolBinding, sharingScope. Источник истины — SPI capabilities(), заполняется бутстрапом. -->
-            <column name="capabilities" type="JSONB"/>
+            <!-- Capability-дескриптор (4 оси), разложен по колонкам — рантайм ветвится на них.
+                 Источник истины — SPI capabilities(), заполняется бутстрапом. -->
+            <column name="transport_direction" type="TEXT"/>
+            <column name="execution_locus" type="TEXT"/>
+            <column name="tool_binding" type="TEXT"/>
+            <column name="sharing_scope" type="TEXT"/>
             <column name="features" type="JSONB"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
@@ -33,8 +33,6 @@
         <sql>
             ALTER TABLE connectors
                 ADD CONSTRAINT chk_connectors_code CHECK (code ~ '^[a-z0-9:\-]{3,128}$');
-            ALTER TABLE connectors
-                ADD CONSTRAINT chk_connectors_type CHECK (type IN ('APP', 'INTEGRATION', 'INTERNAL_SERVICE', 'LOOPBACK'));
         </sql>
     </changeSet>
 

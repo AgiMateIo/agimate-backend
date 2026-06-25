@@ -307,15 +307,15 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             ConnectorContext listingContext = new ConnectorContext(
                     identity.isEmpty() ? null : identity, null, null, null, Map.of(), null);
 
+            // Источник тулов по toolBinding: STATIC — рефлексия handler'а; DYNAMIC — connection_tools.
             Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> tools =
-                    switch (connector.getType()) {
-                        case INTEGRATION, INTERNAL_SERVICE -> connectorRegistry.findHandler(connectorCode)
+                    switch (connector.getToolBinding()) {
+                        case STATIC -> connectorRegistry.findHandler(connectorCode)
                                 .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
                                 .getTools(listingContext);
-                        // APP-тулы динамические per-instance: отдаём из connection_tools (как mcp).
-                        case APP -> appConnectionTools(identity);
-                        case LOOPBACK -> throw new BadRequestStatusException(
-                                "Connector type " + connector.getType() + " does not expose tool definitions");
+                        case DYNAMIC -> appConnectionTools(identity);
+                        case null -> throw new BadRequestStatusException(
+                                "Connector does not expose tool definitions: " + connectorCode);
                     };
 
             // Стабильный handle экземпляра: из connections по identity; для статических singleton — код.

@@ -6,7 +6,6 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.enums.ConnectorType;
 import ru.agimate.controlapi.database.model.ConnectorCapabilities;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 
@@ -15,7 +14,7 @@ import ru.agimate.controlapi.database.repositories.ConnectorRepository;
  * <ol>
  *   <li>статические строки {@code connectors} ({@code app}, {@code claude-code}) — только если отсутствуют;</li>
  *   <li>upsert строки {@code connectors} для каждого handler'а из registry — код-источник истины
- *       для name/type/credential_fields; description/features не затираются.</li>
+ *       для name/credential_fields/capabilities; description/features не затираются.</li>
  * </ol>
  *
  * <p>Задачи коннекторов на старте не регистрируются: декларативные таски интеграций заводятся
@@ -32,18 +31,8 @@ public class ConnectorBootstrap {
 
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
-        saveIfAbsent(Connector.builder()
-                .code("app")
-                .type(ConnectorType.APP)
-                .name("App")
-                .capabilities(ConnectorCapabilities.device())
-                .build());
-        saveIfAbsent(Connector.builder()
-                .code("claude-code")
-                .type(ConnectorType.LOOPBACK)
-                .name("Claude Code")
-                .capabilities(ConnectorCapabilities.loopback())
-                .build());
+        saveIfAbsent(buildStatic("app", "App", ConnectorCapabilities.device()));
+        saveIfAbsent(buildStatic("claude-code", "Claude Code", ConnectorCapabilities.loopback()));
 
         for (ConnectorHandler handler : connectorRegistry.getHandlers()) {
             upsertConnector(handler);
@@ -57,22 +46,25 @@ public class ConnectorBootstrap {
                         .code(handler.connectorCode())
                         .build());
 
-        connector.setType(handler instanceof IntegrationConnectorHandler
-                ? ConnectorType.INTEGRATION
-                : ConnectorType.INTERNAL_SERVICE);
         connector.setName(handler.connectorName());
         connector.setCredentialFields(handler instanceof IntegrationConnectorHandler integration
                 ? integration.getCredentialFields()
                 : null);
-        connector.setCapabilities(handler.capabilities());
+        connector.applyCapabilities(handler.capabilities());
 
         connectorRepository.save(connector);
+    }
+
+    private static Connector buildStatic(String code, String name, ConnectorCapabilities capabilities) {
+        Connector connector = Connector.builder().code(code).name(name).build();
+        connector.applyCapabilities(capabilities);
+        return connector;
     }
 
     private void saveIfAbsent(Connector connector) {
         if (!connectorRepository.existsById(connector.getCode())) {
             connectorRepository.save(connector);
-            log.info("Created connector: {} ({})", connector.getCode(), connector.getType());
+            log.info("Created connector: {}", connector.getCode());
         }
     }
 }

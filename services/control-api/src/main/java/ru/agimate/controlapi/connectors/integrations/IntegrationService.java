@@ -22,8 +22,8 @@ import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
 import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Secret;
-import ru.agimate.controlapi.database.enums.ConnectorType;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
@@ -63,7 +63,9 @@ public class IntegrationService {
     @Transactional
     public Connection createIntegration(UUID userId, String connectorCode,
                                         Map<String, String> credentials, String name) {
-        if (!connectorRepository.existsByCodeAndType(connectorCode, ConnectorType.INTEGRATION)) {
+        boolean isIntegration = connectorRepository.findById(connectorCode)
+                .map(Connector::isIntegration).orElse(false);
+        if (!isIntegration) {
             throw new BadRequestStatusException("Integration connector not found: " + connectorCode);
         }
 

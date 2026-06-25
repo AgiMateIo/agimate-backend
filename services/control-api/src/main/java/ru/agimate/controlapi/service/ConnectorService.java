@@ -8,8 +8,6 @@ import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.enums.ConnectorType;
-import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
@@ -39,7 +37,7 @@ public class ConnectorService {
 
         // Роутинг по execution locus: BACKEND — исполняем in-proc; EXTERNAL — пушим на устройство;
         // AGENT — исполняет агент, control-api лишь авторизует (молчаливо игнорируем доставку).
-        switch (resolveLocus(connector)) {
+        switch (connector.getExecutionLocus()) {
             case BACKEND -> toolExecutionService.executeTool(toolCallLog);
             case EXTERNAL -> {
                 // identity = connections.id; устройство берём по connection.app_id.
@@ -52,20 +50,9 @@ public class ConnectorService {
             }
             case AGENT -> log.warn("AGENT-locus connector called, ignoring. connectorCode={}, toolCall={}",
                     toolCallLog.getConnectorCode(), toolCallLog.getName());
+            case null -> throw new NotFoundStatusException(
+                    "Connector has no execution locus: " + toolCallLog.getConnectorCode());
         }
-    }
-
-    /** Execution locus из capabilities; null-safe fallback по типу для строк до бэкфилла capabilities. */
-    private static ExecutionLocus resolveLocus(Connector connector) {
-        if (connector.getCapabilities() != null && connector.getCapabilities().executionLocus() != null) {
-            return connector.getCapabilities().executionLocus();
-        }
-        ConnectorType type = connector.getType();
-        return switch (type) {
-            case APP -> ExecutionLocus.EXTERNAL;
-            case LOOPBACK -> ExecutionLocus.AGENT;
-            case INTEGRATION, INTERNAL_SERVICE -> ExecutionLocus.BACKEND;
-        };
     }
 
 }
