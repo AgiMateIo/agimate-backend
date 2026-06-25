@@ -20,13 +20,14 @@ import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
-import ru.agimate.controlapi.connectors.core.secret.SecretService;
+import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.ConnectorType;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
+import ru.agimate.common.util.CryptoUtils;
 import ru.agimate.common.util.UUIDUtils;
 
 import java.time.LocalDateTime;
@@ -57,7 +58,6 @@ public class IntegrationService {
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorContextFactory contextFactory;
     private final SecretService secretService;
-    private final IntegrationEncryptionService encryptionService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -80,7 +80,7 @@ public class IntegrationService {
             throw new ConflictStatusException("Integration already exists for " + connectorCode + ": " + subCode);
         }
 
-        String webhookSecret = handler.supportsWebhooks() ? encryptionService.generateSecureToken() : null;
+        String webhookSecret = handler.supportsWebhooks() ? CryptoUtils.randomHex(32) : null;
 
         // id нужен до шифрования секрета (AAD-привязка) и до webhook URL — сохраняем строку первой.
         Connection connection = connectionRepository.save(Connection.builder()

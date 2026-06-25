@@ -2,7 +2,7 @@ package ru.agimate.controlapi.connectors.core;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import ru.agimate.controlapi.connectors.core.secret.SecretService;
+import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.repositories.SecretRepository;

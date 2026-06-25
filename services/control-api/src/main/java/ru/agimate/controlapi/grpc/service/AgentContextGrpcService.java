@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
@@ -35,6 +34,7 @@ import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.service.AgentService;
+import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.SkillFileService;
 import ru.agimate.controlapi.service.SkillService;
@@ -85,8 +85,6 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.toJsonBytes;
 @Slf4j
 public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBase {
 
-    private static final String API_KEY_FIELD = "api_key";
-
     private final AgentRepository agentRepository;
     private final AgentSkillRepository agentSkillRepository;
     private final SkillRepository skillRepository;
@@ -96,10 +94,10 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final ConnectorRepository connectorRepository;
     private final ConnectionRepository connectionRepository;
     private final ConnectionToolRepository connectionToolRepository;
-    private final IntegrationEncryptionService encryptionService;
     private final ConnectorRegistry connectorRegistry;
     private final AgentSkillService agentSkillService;
     private final AgentService agentService;
+    private final LlmProviderService llmProviderService;
     private final SkillService skillService;
     private final SkillFileService skillFileService;
     private final PersistentMemoryService persistentMemoryService;
@@ -274,13 +272,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                 return;
             }
 
-            String apiKey = encryptionService.decryptCredentials(provider.getEncryptedApiKey())
-                    .get(API_KEY_FIELD);
-            if (apiKey == null) {
-                responseObserver.onError(Status.INTERNAL
-                        .withDescription("Provider has no api_key").asRuntimeException());
-                return;
-            }
+            String apiKey = llmProviderService.decryptApiKey(provider);
 
             LlmCredentials response = LlmCredentials.newBuilder()
                     .setProviderType(provider.getProviderType().name())

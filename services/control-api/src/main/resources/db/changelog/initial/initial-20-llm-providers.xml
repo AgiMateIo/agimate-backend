@@ -20,9 +20,10 @@
                 <constraints nullable="false"/>
             </column>
             <column name="base_url" type="TEXT"/>
-            <column name="encrypted_api_key" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
+            <!-- API-ключ хранится в secrets (envelope, entity=llm_provider, owner=llm_providers.id);
+                 nullable — проставляется сразу после insert провайдера (нужен id для AAD-привязки).
+                 Без FK: secrets создаётся позже в baseline, ссылка мягкая (lifecycle на уровне сервиса). -->
+            <column name="secret_id" type="UUID"/>
             <column name="api_key_mask" type="TEXT">
                 <constraints nullable="false"/>
             </column>

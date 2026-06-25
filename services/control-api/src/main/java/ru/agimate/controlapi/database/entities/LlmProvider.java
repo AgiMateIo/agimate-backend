@@ -44,8 +44,9 @@ public class LlmProvider extends BaseEntity {
     @Column(name = "base_url", columnDefinition = "TEXT")
     private String baseUrl;
 
-    @Column(name = "encrypted_api_key", nullable = false, columnDefinition = "TEXT")
-    private String encryptedApiKey;
+    /** Ссылка на {@code secrets} с API-ключом (envelope, entity = {@code llm_provider}). */
+    @Column(name = "secret_id")
+    private UUID secretId;
 
     @Column(name = "api_key_mask", nullable = false, columnDefinition = "TEXT")
     private String apiKeyMask;

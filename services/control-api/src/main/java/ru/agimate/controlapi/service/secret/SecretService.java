@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.connectors.core.secret;
+package ru.agimate.controlapi.service.secret;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

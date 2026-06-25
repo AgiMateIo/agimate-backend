@@ -8,16 +8,18 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreateLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.RefreshModelsResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest;
 import ru.agimate.controlapi.database.entities.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
+import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.llm.LlmModelDiscoveryService;
+import ru.agimate.controlapi.service.secret.SecretService;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -32,9 +34,11 @@ import java.util.UUID;
 public class LlmProviderService {
 
     private static final String API_KEY_FIELD = "api_key";
+    private static final String SECRET_ENTITY = "llm_provider";
 
     private final LlmProviderRepository llmProviderRepository;
-    private final IntegrationEncryptionService encryptionService;
+    private final SecretRepository secretRepository;
+    private final SecretService secretService;
     private final LlmModelDiscoveryService modelDiscoveryService;
 
     public List<LlmProviderResponse> listForUser(UUID userId) {
@@ -63,15 +67,19 @@ public class LlmProviderService {
             throw new ConflictStatusException("LLM provider with this name already exists");
         }
 
-        LlmProvider provider = LlmProvider.builder()
+        // id нужен до шифрования секрета (AAD-привязка) — сохраняем провайдера первым.
+        LlmProvider provider = llmProviderRepository.save(LlmProvider.builder()
                 .userId(userId)
                 .name(request.name())
                 .providerType(request.providerType())
                 .baseUrl(blankToNull(request.baseUrl()))
-                .encryptedApiKey(encryptionService.encryptCredentials(Map.of(API_KEY_FIELD, request.apiKey())))
                 .apiKeyMask(buildMask(request.apiKey()))
                 .enabled(request.enabled() == null || request.enabled())
-                .build();
+                .build());
+
+        Secret secret = secretService.store(SECRET_ENTITY, provider.getId(),
+                Map.of(API_KEY_FIELD, request.apiKey()));
+        provider.setSecretId(secret.getId());
         provider = llmProviderRepository.save(provider);
 
         log.info("Created LLM provider id={}, user={}, type={}",
@@ -95,7 +103,9 @@ public class LlmProviderService {
             provider.setBaseUrl(normalized);
         }
         if (request.apiKey() != null && !request.apiKey().isBlank()) {
-            provider.setEncryptedApiKey(encryptionService.encryptCredentials(Map.of(API_KEY_FIELD, request.apiKey())));
+            Secret secret = secretRepository.findById(provider.getSecretId())
+                    .orElseThrow(() -> new NotFoundStatusException("Secret not found for LLM provider " + id));
+            secretService.update(secret, provider.getId(), Map.of(API_KEY_FIELD, request.apiKey()));
             provider.setApiKeyMask(buildMask(request.apiKey()));
         }
         if (request.enabled() != null) {
@@ -110,7 +120,11 @@ public class LlmProviderService {
     @Transactional
     public void delete(UUID id, UUID userId) {
         LlmProvider provider = requireOwned(id, userId);
+        UUID secretId = provider.getSecretId();
         llmProviderRepository.delete(provider);
+        if (secretId != null) {
+            secretRepository.deleteById(secretId);
+        }
         log.info("Deleted LLM provider id={}", id);
     }
 
@@ -132,8 +146,9 @@ public class LlmProviderService {
     }
 
     public String decryptApiKey(LlmProvider provider) {
-        Map<String, String> decrypted = encryptionService.decryptCredentials(provider.getEncryptedApiKey());
-        String key = decrypted.get(API_KEY_FIELD);
+        Secret secret = secretRepository.findById(provider.getSecretId())
+                .orElseThrow(() -> new BadRequestStatusException("LLM provider has no stored API key"));
+        String key = secretService.reveal(secret, provider.getId()).get(API_KEY_FIELD);
         if (key == null) {
             throw new BadRequestStatusException("Stored credentials are missing api_key field");
         }

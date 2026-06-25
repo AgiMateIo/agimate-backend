@@ -159,6 +159,11 @@ public class CryptoUtils {
         return GCM_IV_LENGTH;
     }
 
+    /** Generate {@code numBytes} random bytes as a lowercase hex string (e.g. for opaque tokens). */
+    public static String randomHex(int numBytes) {
+        return java.util.HexFormat.of().formatHex(randomBytes(numBytes));
+    }
+
     /**
      * AES-256-GCM encryption with an explicit IV/nonce and optional AAD (additional authenticated
      * data). Unlike {@link #encryptAES256GCM} the IV is NOT prepended — caller stores it separately.

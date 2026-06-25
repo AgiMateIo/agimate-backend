@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.connectors.core.secret;
+package ru.agimate.controlapi.service.secret;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
