@@ -70,7 +70,27 @@ public class ConnectionBindingService {
         }
 
         Connection connection = resolveConnection(userId, agentId, connector, scope, explicitConnectionId);
+        if (scope != IdentityScope.INSTANCE) {
+            // Контекстный (scoped) коннектор — у агента он один: нельзя иметь и личную, и командную
+            // память одновременно (иначе gRPC GetMemory неоднозначен). INSTANCE (telegram/mcp) — можно много.
+            requireNoOtherContextBinding(agentId, connector.getCode(), connection.getId());
+        }
         return ensureBinding(agentId, connection.getId());
+    }
+
+    /** Бросает, если у агента уже есть binding на этот connector_code через ДРУГУЮ connection. */
+    private void requireNoOtherContextBinding(UUID agentId, String connectorCode, UUID targetConnectionId) {
+        for (AgentConnection b : agentConnectionRepository.findActiveByAgentId(agentId)) {
+            if (b.getConnectionId().equals(targetConnectionId)) {
+                continue; // та же connection — идемпотентная повторная привязка
+            }
+            connectionRepository.findByIdNotDeleted(b.getConnectionId())
+                    .filter(c -> connectorCode.equals(c.getConnectorCode()))
+                    .ifPresent(c -> {
+                        throw new BadRequestStatusException("Agent is already bound to " + connectorCode
+                                + " with a different scope — unbind it first");
+                    });
+        }
     }
 
     /** Binding вместе с его connection — для manage-API (список/ответ на привязку). */

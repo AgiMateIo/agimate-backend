@@ -73,6 +73,11 @@
 > UI: при привязке коннектора, если `capabilities.supportedScopes.length > 1` — показать выбор scope
 > (например, у памяти AGENT vs TEAM: «личная» vs «общая для команды»). Один scope — выбор не нужен.
 > Для INSTANCE-коннекторов сперва выбрать экземпляр (`connectionId`) из списка интеграций.
+>
+> **Контекстные (scoped) коннекторы — один на агента.** Коннектор без `INSTANCE` в `supportedScopes`
+> (память/board/time) можно привязать к агенту только в одном scope. Повторная привязка в другом
+> scope вернёт `400` («already bound … with a different scope — unbind it first») — сначала отвязать.
+> INSTANCE-коннекторы (telegram/mcp) можно привязывать во множестве экземпляров.
 
 ---
 
