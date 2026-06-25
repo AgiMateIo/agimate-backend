@@ -9,7 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
-import ru.agimate.controlapi.database.entities.McpTool;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
 
 import java.util.List;
 import java.util.UUID;
@@ -41,7 +41,7 @@ class McpToolDiscoveryListenerTest {
     @Test
     @DisplayName("created (mcp): discover → reconcile")
     void onCreated() {
-        List<McpTool> fresh = List.of(McpTool.builder().name("a").build());
+        List<ConnectionTool> fresh = List.of(ConnectionTool.builder().name("a").build());
         when(mcpToolService.discover(IDENTITY)).thenReturn(fresh);
 
         listener.onCreated(new ConnectorCreatedEvent(MCP, IDENTITY_STR, USER_ID));

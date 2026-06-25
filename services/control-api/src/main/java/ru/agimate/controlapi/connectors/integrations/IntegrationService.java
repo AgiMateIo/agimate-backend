@@ -14,44 +14,55 @@ import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.FullCodes;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
-import ru.agimate.controlapi.database.entities.IntegrationCredentials;
+import ru.agimate.controlapi.connectors.core.secret.SecretService;
+import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.ConnectorType;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
-import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
+import ru.agimate.controlapi.database.repositories.SecretRepository;
+import ru.agimate.common.util.UUIDUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Жизненный цикл integration-экземпляров (telegram/mcp) поверх единого реестра {@code connections}.
+ * Outbound-credentials хранятся в {@code secrets} (envelope) и адресуются {@code connection.secretId};
+ * {@code sub_code} = канонический identifier платформы, {@code full_code} = стабильный клиентский
+ * handle ({@code mcp_context7}).
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class IntegrationService {
 
+    private static final String SECRET_ENTITY = "connection";
+
     @Value("${app.integration.webhook-base-url}")
     private String webhookBaseUrl;
 
-    private final IntegrationCredentialsRepository integrationCredentialsRepository;
+    private final ConnectionRepository connectionRepository;
+    private final SecretRepository secretRepository;
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorContextFactory contextFactory;
+    private final SecretService secretService;
     private final IntegrationEncryptionService encryptionService;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public IntegrationCredentials createIntegration(
-            UUID userId,
-            String connectorCode,
-            Map<String, String> credentials,
-            String name
-    ) {
+    public Connection createIntegration(UUID userId, String connectorCode,
+                                        Map<String, String> credentials, String name) {
         if (!connectorRepository.existsByCodeAndType(connectorCode, ConnectorType.INTEGRATION)) {
             throw new BadRequestStatusException("Integration connector not found: " + connectorCode);
         }
@@ -63,158 +74,147 @@ public class IntegrationService {
             throw new ValidationErrorStatusException(validationResult.errorField(), validationResult.errorMessage());
         }
 
-        if (integrationCredentialsRepository.existsByConnectorCodeAndUserIdAndPlatformIdentifierAndDeletedAtIsNull(
-                connectorCode, userId, validationResult.identifier())) {
-            throw new ConflictStatusException("Integration already exists for " + connectorCode + ": " + validationResult.identifier());
+        String subCode = validationResult.identifier();
+        if (connectionRepository.existsByConnectorCodeAndUserIdAndSubCodeAndDeletedAtIsNull(
+                connectorCode, userId, subCode)) {
+            throw new ConflictStatusException("Integration already exists for " + connectorCode + ": " + subCode);
         }
 
-        // Encrypt credentials
-        String encryptedData = encryptionService.encryptCredentials(credentials);
+        String webhookSecret = handler.supportsWebhooks() ? encryptionService.generateSecureToken() : null;
 
-        // Generate webhook secret only if platform supports webhooks
-        String webhookSecret = handler.supportsWebhooks()
-                ? encryptionService.generateSecureToken()
-                : null;
-
-        IntegrationCredentials integrationCredentials = IntegrationCredentials.builder()
+        // id нужен до шифрования секрета (AAD-привязка) и до webhook URL — сохраняем строку первой.
+        Connection connection = connectionRepository.save(Connection.builder()
+                .id(UUIDUtils.generateUUIDv8())
                 .connectorCode(connectorCode)
+                .subCode(subCode)
+                .fullCode(FullCodes.fullCode(connectorCode, subCode))
                 .userId(userId)
                 .name(name)
-                .platformIdentifier(validationResult.identifier())
-                .encryptedData(encryptedData)
                 .webhookSecret(webhookSecret)
-                .build();
+                .build());
 
-        // Сначала save: id генерится в БД (uuidv7), а он нужен в webhook URL.
-        // На ошибке setupWebhook транзакция откатится вместе со вставкой.
-        integrationCredentials = integrationCredentialsRepository.save(integrationCredentials);
+        Secret secret = secretService.store(SECRET_ENTITY, connection.getId(), credentials);
+        connection.setSecretId(secret.getId());
+        connection = connectionRepository.save(connection);
 
         if (handler.supportsWebhooks()) {
-            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getId();
-            handler.setupWebhook(contextFactory.withCredentials(integrationCredentials, credentials, null), webhookUrl);
+            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + connection.getId();
+            handler.setupWebhook(contextFactory.withCredentials(connection, credentials, null), webhookUrl);
         }
 
-        log.info("Created integration {} for user {}: {} ({})",
-                integrationCredentials.getId(), userId, connectorCode, validationResult.identifier());
+        log.info("Created connection {} for user {}: {} ({})",
+                connection.getId(), userId, connectorCode, subCode);
 
         eventPublisher.publishEvent(new ConnectorCreatedEvent(
-                connectorCode, integrationCredentials.getId().toString(), integrationCredentials.getUserId()));
+                connectorCode, connection.getId().toString(), connection.getUserId()));
 
-        return integrationCredentials;
+        return connection;
     }
 
-    public List<IntegrationCredentials> getIntegrations(UUID userId) {
-        return integrationCredentialsRepository.findByUserIdNotDeleted(userId);
+    public List<Connection> getIntegrations(UUID userId) {
+        return connectionRepository.findByUserIdNotDeleted(userId);
     }
 
-    public List<IntegrationCredentials> getIntegrations(UUID userId, String connectorCode) {
+    public List<Connection> getIntegrations(UUID userId, String connectorCode) {
         if (connectorCode == null || connectorCode.isBlank()) {
             return getIntegrations(userId);
         }
-        return integrationCredentialsRepository.findByUserIdAndConnectorCodeNotDeleted(userId, connectorCode);
+        return connectionRepository.findByUserIdAndConnectorCodeNotDeleted(userId, connectorCode);
     }
 
-    public IntegrationCredentials getIntegrationCredentials(UUID integrationCredentialsId, UUID userId) {
-        return integrationCredentialsRepository.findByIdNotDeleted(integrationCredentialsId)
-                .filter(i -> i.getUserId().equals(userId))
+    public Connection getIntegrationCredentials(UUID connectionId, UUID userId) {
+        return connectionRepository.findByIdNotDeleted(connectionId)
+                .filter(c -> c.getUserId().equals(userId))
                 .orElseThrow(() -> new NotFoundStatusException("Integration not found"));
     }
 
     /**
      * Проверка существующей интеграции: расшифровка credentials + {@code validateCredentials}
      * (доступность/auth платформы). Без сайд-эффектов — пригодно для всех типов интеграций.
-     * Подгрузку производного состояния (тулы MCP) делает вызывающий по результату.
      */
     public IntegrationValidationResult validateExisting(UUID id, UUID userId) {
-        IntegrationCredentials credentials = getIntegrationCredentials(id, userId);
-        IntegrationConnectorHandler handler = integrationHandler(credentials.getConnectorCode());
-        Map<String, String> decrypted = encryptionService.decryptCredentials(credentials.getEncryptedData());
-        return handler.validateCredentials(decrypted);
+        Connection connection = getIntegrationCredentials(id, userId);
+        IntegrationConnectorHandler handler = integrationHandler(connection.getConnectorCode());
+        return handler.validateCredentials(revealCredentials(connection));
     }
 
     /**
-     * Тулы конкретного экземпляра интеграции через SPI {@code getTools(ctx)}: для динамических
-     * коннекторов (MCP) — из кэша по identity, для статических — их {@code @Tool}-набор.
-     * Контекст несёт только identity (расшифровка credentials для листинга не нужна).
+     * Тулы конкретного экземпляра через SPI {@code getTools(ctx)}: для динамических коннекторов
+     * (MCP) — из кэша по identity, для статических — их {@code @Tool}-набор.
      */
     public List<ConnectorToolSpec> getInstanceTools(UUID id, UUID userId) {
-        IntegrationCredentials credentials = getIntegrationCredentials(id, userId);
-        ConnectorHandler handler = connectorRegistry.findHandler(credentials.getConnectorCode())
+        Connection connection = getIntegrationCredentials(id, userId);
+        ConnectorHandler handler = connectorRegistry.findHandler(connection.getConnectorCode())
                 .orElseThrow(() -> new BadRequestStatusException(
-                        "Unsupported platform: " + credentials.getConnectorCode()));
+                        "Unsupported platform: " + connection.getConnectorCode()));
         ConnectorContext context = contextFactory.internal(id.toString(), userId, null, null);
         return List.copyOf(handler.getTools(context).values());
     }
 
     @Transactional
     public void deleteIntegration(UUID id, UUID userId) {
-        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userId);
+        Connection connection = getIntegrationCredentials(id, userId);
 
-        // Remove webhook if platform supports it
         try {
-            var handler = integrationHandler(integrationCredentials.getConnectorCode());
-            Map<String, String> credentials = encryptionService.decryptCredentials(integrationCredentials.getEncryptedData());
-            handler.removeWebhook(contextFactory.withCredentials(integrationCredentials, credentials, null));
+            var handler = integrationHandler(connection.getConnectorCode());
+            handler.removeWebhook(contextFactory.withCredentials(connection, revealCredentials(connection), null));
         } catch (Exception e) {
-            log.warn("Failed to remove webhook for integration {}: {}", id, e.getMessage());
+            log.warn("Failed to remove webhook for connection {}: {}", id, e.getMessage());
         }
 
-        integrationCredentialsRepository.softDelete(integrationCredentials.getId(), LocalDateTime.now());
-        log.info("Deleted integration {}", id);
+        connectionRepository.softDelete(connection.getId(), LocalDateTime.now());
+        log.info("Deleted connection {}", id);
 
         eventPublisher.publishEvent(new ConnectorDeletedEvent(
-                integrationCredentials.getConnectorCode(), integrationCredentials.getId().toString()));
+                connection.getConnectorCode(), connection.getId().toString()));
     }
 
     @Transactional
-    public IntegrationCredentials updateCredentials(UUID id, UUID userId, Map<String, String> credentials) {
-        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userId);
-        var handler = integrationHandler(integrationCredentials.getConnectorCode());
+    public Connection updateCredentials(UUID id, UUID userId, Map<String, String> credentials) {
+        Connection connection = getIntegrationCredentials(id, userId);
+        var handler = integrationHandler(connection.getConnectorCode());
 
         var validationResult = handler.validateCredentials(credentials);
         if (!validationResult.valid()) {
             throw new ValidationErrorStatusException(validationResult.errorField(), validationResult.errorMessage());
         }
 
-        // Ensure same platform identifier (same bot/account)
-        if (!integrationCredentials.getPlatformIdentifier().equals(validationResult.identifier())) {
+        // Same platform instance (same bot/account/server).
+        if (!connection.getSubCode().equals(validationResult.identifier())) {
             throw new BadRequestStatusException(
                     "Credentials belong to a different account: " + validationResult.identifier()
-                            + " (expected: " + integrationCredentials.getPlatformIdentifier() + ")");
+                            + " (expected: " + connection.getSubCode() + ")");
         }
 
-        // Re-encrypt
-        integrationCredentials.setEncryptedData(encryptionService.encryptCredentials(credentials));
+        Secret secret = secretRepository.findById(connection.getSecretId())
+                .orElseThrow(() -> new NotFoundStatusException("Secret not found for connection " + id));
+        secretService.update(secret, connection.getId(), credentials);
 
-        // Re-setup webhook if platform supports it
         if (handler.supportsWebhooks()) {
-            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + integrationCredentials.getId();
-            handler.setupWebhook(contextFactory.withCredentials(integrationCredentials, credentials, null), webhookUrl);
+            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + connection.getId();
+            handler.setupWebhook(contextFactory.withCredentials(connection, credentials, null), webhookUrl);
         }
-
-        IntegrationCredentials saved = integrationCredentialsRepository.save(integrationCredentials);
 
         eventPublisher.publishEvent(new ConnectorModifiedEvent(
-                saved.getConnectorCode(), saved.getId().toString(), saved.getUserId()));
+                connection.getConnectorCode(), connection.getId().toString(), connection.getUserId()));
 
-        return saved;
+        return connection;
     }
 
     @Transactional
-    public IntegrationCredentials patchIntegration(UUID id, UUID userId, Boolean enabled, String name) {
-        IntegrationCredentials integrationCredentials = getIntegrationCredentials(id, userId);
+    public Connection patchIntegration(UUID id, UUID userId, Boolean enabled, String name) {
+        Connection connection = getIntegrationCredentials(id, userId);
 
         boolean enabledChanged = false;
-        Boolean previousEnabled = integrationCredentials.getEnabled();
-        if (enabled != null && !enabled.equals(previousEnabled)) {
-            integrationCredentials.setEnabled(enabled);
+        if (enabled != null && !enabled.equals(connection.getEnabled())) {
+            connection.setEnabled(enabled);
             enabledChanged = true;
         }
         if (name != null) {
-            integrationCredentials.setName(name);
+            connection.setName(name);
         }
 
-        IntegrationCredentials saved = integrationCredentialsRepository.save(integrationCredentials);
+        Connection saved = connectionRepository.save(connection);
 
         if (enabledChanged) {
             if (Boolean.TRUE.equals(enabled)) {
@@ -227,6 +227,15 @@ public class IntegrationService {
         }
 
         return saved;
+    }
+
+    private Map<String, String> revealCredentials(Connection connection) {
+        if (connection.getSecretId() == null) {
+            return Map.of();
+        }
+        Secret secret = secretRepository.findById(connection.getSecretId())
+                .orElseThrow(() -> new NotFoundStatusException("Secret not found for connection " + connection.getId()));
+        return secretService.reveal(secret, connection.getId());
     }
 
     private IntegrationConnectorHandler integrationHandler(String connectorCode) {

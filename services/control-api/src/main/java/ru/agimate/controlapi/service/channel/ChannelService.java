@@ -17,17 +17,17 @@ import ru.agimate.controlapi.controller.manage.dto.channel.ChannelResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentToolPolicy;
 import ru.agimate.controlapi.database.entities.AgentTriggerPolicy;
-import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Channel;
+import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.entities.IntegrationCredentials;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentToolPolicyRepository;
 import ru.agimate.controlapi.database.repositories.AgentTriggerPolicyRepository;
-import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
-import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
@@ -52,8 +52,9 @@ public class ChannelService {
     private final ChannelRepository channelRepository;
     private final AgentRepository agentRepository;
     private final ConnectorRepository connectorRepository;
-    private final AppRepository appRepository;
-    private final IntegrationCredentialsRepository integrationCredentialsRepository;
+    private final ConnectionRepository connectionRepository;
+    private final ConnectionToolRepository connectionToolRepository;
+    private final ConnectionTriggerRepository connectionTriggerRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ChannelHandlerRegistry channelHandlerRegistry;
     private final AgentTriggerPolicyRepository agentTriggerPolicyRepository;
@@ -134,13 +135,11 @@ public class ChannelService {
             return Map.of();
         }
         Map<UUID, String> result = new HashMap<>();
-        for (App app : appRepository.findAllByIdInNotDeleted(identityIds)) {
-            result.put(app.getId(), app.getName());
-        }
-        for (IntegrationCredentials i : integrationCredentialsRepository.findAllByIdInNotDeleted(identityIds)) {
-            String name = i.getName() != null && !i.getName().isBlank()
-                    ? i.getName() : i.getPlatformIdentifier();
-            result.put(i.getId(), name);
+        for (UUID id : identityIds) {
+            connectionRepository.findByIdNotDeleted(id).ifPresent(c -> {
+                String name = c.getName() != null && !c.getName().isBlank() ? c.getName() : c.getSubCode();
+                result.put(c.getId(), name);
+            });
         }
         return result;
     }
@@ -353,63 +352,40 @@ public class ChannelService {
         }
     }
 
+    /** Доступные триггеры экземпляра: статические из handler (SPI) + динамические из connection_triggers. */
     private Set<String> lookupTriggerNames(Connector connector, UUID userId, String identity) {
-        return switch (connector.getType()) {
-            case APP -> {
-                App app = loadApp(userId, identity);
-                yield app.getTriggers() != null ? app.getTriggers().keySet() : Set.of();
-            }
-            case INTEGRATION -> {
-                loadIntegration(userId, connector.getCode(), identity);
-                ConnectorHandler handler = connectorRegistry.findHandler(connector.getCode())
-                        .orElseThrow(() -> new BadRequestStatusException("Unknown integration: " + connector.getCode()));
-                yield handler.getTriggers().keySet();
-            }
-            case INTERNAL_SERVICE, LOOPBACK ->
-                    throw new BadRequestStatusException("Connector type does not support triggers: " + connector.getType());
-        };
+        Connection connection = loadConnection(userId, connector.getCode(), identity);
+        Set<String> names = new HashSet<>();
+        connectorRegistry.findHandler(connector.getCode())
+                .ifPresent(handler -> names.addAll(handler.getTriggers().keySet()));
+        connectionTriggerRepository.findActiveByConnectionId(connection.getId())
+                .forEach(t -> names.add(t.getName()));
+        return names;
     }
 
+    /** Доступные тулы экземпляра: статические из handler (SPI) + динамические из connection_tools. */
     private Set<String> lookupToolNames(Connector connector, UUID userId, String identity) {
-        return switch (connector.getType()) {
-            case APP -> {
-                App app = loadApp(userId, identity);
-                yield app.getTools() != null ? app.getTools().keySet() : Set.of();
-            }
-            case INTEGRATION -> {
-                loadIntegration(userId, connector.getCode(), identity);
-                ConnectorHandler handler = connectorRegistry.findHandler(connector.getCode())
-                        .orElseThrow(() -> new BadRequestStatusException("Unknown integration: " + connector.getCode()));
-                yield handler.getTools().keySet();
-            }
-            case INTERNAL_SERVICE, LOOPBACK ->
-                    throw new BadRequestStatusException("Connector type does not support tools: " + connector.getType());
-        };
+        Connection connection = loadConnection(userId, connector.getCode(), identity);
+        Set<String> names = new HashSet<>();
+        connectorRegistry.findHandler(connector.getCode())
+                .ifPresent(handler -> names.addAll(handler.getTools().keySet()));
+        connectionToolRepository.findActiveByConnectionId(connection.getId())
+                .forEach(t -> names.add(t.getName()));
+        return names;
     }
 
-    private App loadApp(UUID userId, String identity) {
+    private Connection loadConnection(UUID userId, String connectorCode, String identity) {
         UUID identityId = parseUuid(identity, "identity");
-        App app = appRepository.findByIdAndUserIdNotDeleted(identityId, userId)
-                .orElseThrow(() -> new NotFoundStatusException("App not found: " + identity));
-        if (!app.isActive()) {
-            throw new BadRequestStatusException("App is not active: " + identity);
-        }
-        return app;
-    }
-
-    private IntegrationCredentials loadIntegration(UUID userId, String connectorCode, String identity) {
-        UUID identityId = parseUuid(identity, "identity");
-        IntegrationCredentials credentials = integrationCredentialsRepository
-                .findByIdAndUserIdNotDeleted(identityId, userId)
-                .orElseThrow(() -> new NotFoundStatusException("Integration not found: " + identity));
-        if (!credentials.getConnectorCode().equals(connectorCode)) {
+        Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(identityId, userId)
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + identity));
+        if (!connection.getConnectorCode().equals(connectorCode)) {
             throw new BadRequestStatusException(
-                    "Integration connector mismatch: expected " + connectorCode + " got " + credentials.getConnectorCode());
+                    "Connector mismatch: expected " + connectorCode + " got " + connection.getConnectorCode());
         }
-        if (!credentials.isActive()) {
-            throw new BadRequestStatusException("Integration is not active: " + identity);
+        if (!connection.isActive()) {
+            throw new BadRequestStatusException("Connection is not active: " + identity);
         }
-        return credentials;
+        return connection;
     }
 
     private UUID parseUuid(String value, String fieldName) {

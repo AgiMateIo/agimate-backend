@@ -9,9 +9,9 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
-import ru.agimate.controlapi.database.entities.IntegrationCredentials;
-import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 
 import java.util.Map;
 import java.util.UUID;
@@ -30,7 +30,7 @@ import java.util.UUID;
 public class JobExecutionService {
 
     private final ConnectorRegistry connectorRegistry;
-    private final IntegrationCredentialsRepository integrationCredentialsRepository;
+    private final ConnectionRepository connectionRepository;
     private final ConnectorContextFactory contextFactory;
 
     public Map<String, Object> executeJob(ConnectorJob row) {
@@ -45,12 +45,12 @@ public class JobExecutionService {
             // Credentials загружаются свежими на каждый запуск — обновление токена
             // подхватывается без рестарта. Нет/выключены — ошибка в last_error и retry:
             // в норме listener удаляет такие строки, так что это сигнал аномалии.
-            IntegrationCredentials credentials = integrationCredentialsRepository
+            Connection connection = connectionRepository
                     .findByIdNotDeleted(parseIdentity(row))
-                    .filter(IntegrationCredentials::isActive)
+                    .filter(Connection::isActive)
                     .orElseThrow(() -> new ConnectorException(
-                            "Integration credentials missing or disabled: " + row.getIdentity()));
-            return contextFactory.forIntegration(credentials, null, null);
+                            "Connection missing or disabled: " + row.getIdentity()));
+            return contextFactory.forConnection(connection, null, null);
         }
         // Полный контекст инициатора (userId/agentId/channelId сохранены в строке при планировании) —
         // динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.

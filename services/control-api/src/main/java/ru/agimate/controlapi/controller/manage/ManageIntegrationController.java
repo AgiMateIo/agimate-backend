@@ -19,8 +19,8 @@ import ru.agimate.controlapi.connectors.integrations.mcp.McpConnectorService;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolService;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.controller.manage.dto.IntegrationTestResponse;
-import ru.agimate.controlapi.database.entities.IntegrationCredentials;
-import ru.agimate.controlapi.database.entities.McpTool;
+import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.controller.manage.dto.CreateIntegrationRequest;
 import ru.agimate.controlapi.controller.manage.dto.IntegrationResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
@@ -142,16 +142,16 @@ public class ManageIntegrationController {
             @PathVariable UUID credentialId
     ) {
         UUID userId = UUID.fromString(principal.id());
-        IntegrationCredentials credentials = integrationService.getIntegrationCredentials(credentialId, userId);
+        Connection connection = integrationService.getIntegrationCredentials(credentialId, userId);
         IntegrationValidationResult validation = integrationService.validateExisting(credentialId, userId);
 
         // Для динамических коннекторов (MCP) при валидных credentials пересобираем кэш тулов
         // синхронно — ошибку tools/list возвращаем отдельным полем, не роняя сам тест.
         Integer toolsDiscovered = null;
         String toolsError = null;
-        if (validation.valid() && McpConnectorService.CONNECTOR_CODE.equals(credentials.getConnectorCode())) {
+        if (validation.valid() && McpConnectorService.CONNECTOR_CODE.equals(connection.getConnectorCode())) {
             try {
-                List<McpTool> fresh = mcpToolService.discover(credentialId);
+                List<ConnectionTool> fresh = mcpToolService.discover(credentialId);
                 if (fresh != null) {
                     mcpToolService.reconcile(credentialId, fresh);
                     toolsDiscovered = fresh.size();

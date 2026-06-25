@@ -11,7 +11,8 @@ import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
-import ru.agimate.controlapi.database.entities.McpTool;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
+import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 
 import java.util.List;
 import java.util.Map;
@@ -34,13 +35,13 @@ class McpConnectorServiceTest {
     @Mock
     private McpClient mcpClient;
     @Mock
-    private ru.agimate.controlapi.database.repositories.McpToolRepository mcpToolRepository;
+    private ConnectionToolRepository connectionToolRepository;
 
     private McpConnectorService service;
 
     @BeforeEach
     void setUp() {
-        service = new McpConnectorService(mcpClient, mcpToolRepository);
+        service = new McpConnectorService(mcpClient, connectionToolRepository);
     }
 
     private ConnectorContext ctx(String identity, Map<String, String> credentials) {
@@ -80,11 +81,11 @@ class McpConnectorServiceTest {
     class GetTools {
 
         @Test
-        @DisplayName("читает кэш mcp_tool по identity")
+        @DisplayName("читает кэш connection_tools по identity")
         void readsCacheByIdentity() {
-            when(mcpToolRepository.findByIntegrationCredentialsId(IDENTITY)).thenReturn(List.of(
-                    McpTool.builder().integrationCredentialsId(IDENTITY).name("search").build(),
-                    McpTool.builder().integrationCredentialsId(IDENTITY).name("fetch").build()));
+            when(connectionToolRepository.findActiveByConnectionId(IDENTITY)).thenReturn(List.of(
+                    ConnectionTool.builder().connectionId(IDENTITY).name("search").build(),
+                    ConnectionTool.builder().connectionId(IDENTITY).name("fetch").build()));
 
             Map<String, ConnectorToolSpec> tools = service.getTools(ctx(IDENTITY.toString(), Map.of()));
 

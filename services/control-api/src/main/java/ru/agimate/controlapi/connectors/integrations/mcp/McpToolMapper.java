@@ -6,26 +6,26 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.JsonSchema;
 import ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec;
-import ru.agimate.controlapi.database.entities.McpTool;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
 
 import java.util.UUID;
 
 /**
- * Маппинг тула MCP: сырой JSON из {@code tools/list} ↔ строка {@link McpTool} ↔ {@link ConnectorToolSpec}.
- * Схемы хранятся сырым текстом (фиделити), парсятся в {@link JsonSchema} лишь при отдаче спека —
- * {@code @JsonAnySetter} в {@link JsonSchema} гарантирует лосслесс round-trip.
+ * Маппинг тула MCP: сырой JSON из {@code tools/list} ↔ строка {@link ConnectionTool} ↔
+ * {@link ConnectorToolSpec}. Схемы хранятся сырым текстом (фиделити), парсятся в {@link JsonSchema}
+ * лишь при отдаче спека — {@code @JsonAnySetter} в {@link JsonSchema} гарантирует лосслесс round-trip.
  */
 @UtilityClass
 public class McpToolMapper {
 
     /** Сырой JSON тула ({@code tools/list[]}) → строка кэша. {@code null}, если нет имени. */
-    public static McpTool toEntity(UUID integrationCredentialsId, JsonNode tool) {
+    public static ConnectionTool toEntity(UUID connectionId, JsonNode tool) {
         String name = textOrNull(tool.get("name"));
         if (name == null || name.isBlank()) {
             return null;
         }
-        return McpTool.builder()
-                .integrationCredentialsId(integrationCredentialsId)
+        return ConnectionTool.builder()
+                .connectionId(connectionId)
                 .name(name)
                 .title(textOrNull(tool.get("title")))
                 .description(textOrNull(tool.get("description")))
@@ -36,7 +36,7 @@ public class McpToolMapper {
     }
 
     /** Строка кэша → MCP-совместимый спек для воркера/UI. */
-    public static ConnectorToolSpec toSpec(McpTool tool) {
+    public static ConnectorToolSpec toSpec(ConnectionTool tool) {
         return new ConnectorToolSpec(
                 tool.getName(),
                 tool.getTitle(),

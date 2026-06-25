@@ -9,7 +9,8 @@ import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
-import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
+import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
 import java.util.UUID;
@@ -22,7 +23,7 @@ public class IntegrationWebhookController {
 
     public static final String PATH = "/webhook/integration";
 
-    private final IntegrationCredentialsRepository integrationCredentialsRepository;
+    private final ConnectionRepository connectionRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorContextFactory contextFactory;
     private final TriggerRouterService triggerRouterService;
@@ -33,13 +34,13 @@ public class IntegrationWebhookController {
             @RequestBody String rawBody,
             HttpServletRequest request
     ) {
-        var integrationOpt = integrationCredentialsRepository.findByIdNotDeleted(integrationId);
+        var integrationOpt = connectionRepository.findByIdNotDeleted(integrationId);
         if (integrationOpt.isEmpty()) {
             log.warn("Webhook received for unknown integration: {}", integrationId);
             return ResponseEntity.ok("ok");
         }
 
-        var integrationCredentials = integrationOpt.get();
+        Connection integrationCredentials = integrationOpt.get();
         if (!integrationCredentials.isActive()) {
             log.debug("Webhook received for disabled integration: {}", integrationId);
             return ResponseEntity.ok("ok");

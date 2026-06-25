@@ -2,21 +2,24 @@ package ru.agimate.controlapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.controlapi.database.entities.IntegrationCredentials;
+import ru.agimate.controlapi.database.entities.Connection;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Schema(description = "Integration credentials details")
+@Schema(description = "Integration connection details")
 public record IntegrationResponse(
-        @Schema(description = "Integration credentials public ID")
+        @Schema(description = "Connection public ID")
         UUID id,
 
         @Schema(description = "Connector code")
         String connectorCode,
 
-        @Schema(description = "Platform identifier (e.g. bot username)")
-        String platformIdentifier,
+        @Schema(description = "Sub code — platform instance discriminator (e.g. bot username, MCP host)")
+        String subCode,
+
+        @Schema(description = "Full code — stable client handle (e.g. mcp_context7)")
+        String fullCode,
 
         @Schema(description = "Integration name")
         String name,
@@ -32,15 +35,16 @@ public record IntegrationResponse(
         @Schema(description = "Creation timestamp")
         LocalDateTime createdAt
 ) {
-    public static IntegrationResponse from(IntegrationCredentials ic) {
+    public static IntegrationResponse from(Connection c) {
         return new IntegrationResponse(
-                ic.getId(),
-                ic.getConnectorCode(),
-                ic.getPlatformIdentifier(),
-                ic.getName(),
-                ic.getEnabled(),
-                ic.getLastUsedAt(),
-                ic.getCreatedAt()
+                c.getId(),
+                c.getConnectorCode(),
+                c.getSubCode(),
+                c.getFullCode(),
+                c.getName(),
+                c.getEnabled(),
+                c.getLastUsedAt(),
+                c.getCreatedAt()
         );
     }
 }

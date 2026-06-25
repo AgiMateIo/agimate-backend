@@ -8,7 +8,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
-import ru.agimate.controlapi.database.repositories.McpToolRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 
 import java.net.URI;
 import java.util.LinkedHashMap;
@@ -36,7 +36,7 @@ public class McpConnectorService implements IntegrationConnectorHandler {
     public static final String CONNECTOR_CODE = McpUtils.CONNECTOR_CODE;
 
     private final McpClient mcpClient;
-    private final McpToolRepository mcpToolRepository;
+    private final ConnectionToolRepository connectionToolRepository;
 
     @Override
     public String connectorCode() {
@@ -88,20 +88,20 @@ public class McpConnectorService implements IntegrationConnectorHandler {
         return Map.of();
     }
 
-    /** Список тулов экземпляра из кэша {@code mcp_tool}; identity — {@code integration_credentials.id}. */
+    /** Список тулов экземпляра из кэша {@code connection_tools}; identity — {@code connections.id}. */
     @Override
     public Map<String, ConnectorToolSpec> getTools(ConnectorContext context) {
         if (context == null || context.identity() == null) {
             return Map.of();
         }
-        UUID identityId;
+        UUID connectionId;
         try {
-            identityId = UUID.fromString(context.identity());
+            connectionId = UUID.fromString(context.identity());
         } catch (IllegalArgumentException e) {
             return Map.of();
         }
         Map<String, ConnectorToolSpec> tools = new LinkedHashMap<>();
-        mcpToolRepository.findByIntegrationCredentialsId(identityId)
+        connectionToolRepository.findActiveByConnectionId(connectionId)
                 .forEach(tool -> tools.put(tool.getName(), McpToolMapper.toSpec(tool)));
         return tools;
     }

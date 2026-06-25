@@ -11,9 +11,16 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
+import ru.agimate.controlapi.connectors.core.FullCodes;
 import ru.agimate.controlapi.controller.app.dto.LinkDeviceRequest;
 import ru.agimate.controlapi.database.entities.App;
+import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
+import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.repositories.AppRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.security.AppSecurityUtils;
 import ru.agimate.controlapi.service.dto.AppCreateResult;
 import ru.agimate.controlapi.service.dto.AppTool;
@@ -37,6 +44,9 @@ public class AppService {
     public static final String APP_KEY_PREFIX = "appk";
 
     private final AppRepository appRepository;
+    private final ConnectionRepository connectionRepository;
+    private final ConnectionToolRepository connectionToolRepository;
+    private final ConnectionTriggerRepository connectionTriggerRepository;
 
     @Transactional
     public AppCreateResult createApp(UUID userId, String name, String description, String connectorCode) {
@@ -64,6 +74,18 @@ public class AppService {
                 .build();
 
         App saved = appRepository.save(app);
+
+        // Регистрируем экземпляр в едином реестре connections (id = app.id → identity не меняется).
+        connectionRepository.save(Connection.builder()
+                .id(saved.getId())
+                .connectorCode(saved.getConnectorCode())
+                .subCode(FullCodes.slug(saved.getConnectorCode(), saved.getName()))
+                .fullCode(FullCodes.fullCode(saved.getConnectorCode(), saved.getName()))
+                .userId(userId)
+                .name(saved.getName())
+                .appId(saved.getId())
+                .build());
+
         log.info("Created new app for user {}: {}", userId, saved.getId());
 
         return new AppCreateResult(saved, generatedKey.fullKey());
@@ -99,6 +121,8 @@ public class AppService {
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
         appRepository.softDelete(app.getId(), LocalDateTime.now());
+        connectionRepository.findByAppIdAndDeletedAtIsNull(app.getId())
+                .ifPresent(c -> connectionRepository.softDelete(c.getId(), LocalDateTime.now()));
         log.info("Soft deleted app: {}", id);
     }
 
@@ -183,7 +207,9 @@ public class AppService {
             app.setInfo(buildDeviceFeatures(linkDeviceRequest));
             app.setTriggers(linkDeviceRequest.triggers());
             app.setTools(linkDeviceRequest.tools());
-            return appRepository.save(app);
+            App saved = appRepository.save(app);
+            syncDeviceCatalog(saved.getId(), linkDeviceRequest);
+            return saved;
         }
 
         // If already linked to a different device — conflict
@@ -198,9 +224,39 @@ public class AppService {
         app.setTriggers(linkDeviceRequest.triggers());
         app.setTools(linkDeviceRequest.tools());
         app = appRepository.save(app);
+        syncDeviceCatalog(app.getId(), linkDeviceRequest);
         log.info("Linked device {} to app {}", linkDeviceRequest.deviceId(), app.getId());
 
         return app;
+    }
+
+    /**
+     * Зеркалит набор тулов/триггеров устройства в нормализованные {@code connection_tools}/
+     * {@code connection_triggers} (для проверки доступных тулов/триггеров в каналах/политиках).
+     * Полная замена: дискаверенный набор устройства — единственный источник истины для экземпляра.
+     */
+    private void syncDeviceCatalog(UUID connectionId, LinkDeviceRequest request) {
+        connectionToolRepository.deleteByConnectionId(connectionId);
+        connectionTriggerRepository.deleteByConnectionId(connectionId);
+
+        if (request.tools() != null) {
+            for (AppTool tool : parseTools(request.tools())) {
+                connectionToolRepository.save(ConnectionTool.builder()
+                        .connectionId(connectionId)
+                        .name(tool.name())
+                        .description(tool.description())
+                        .build());
+            }
+        }
+        if (request.triggers() != null) {
+            for (AppTrigger trigger : parseTriggers(request.triggers())) {
+                connectionTriggerRepository.save(ConnectionTrigger.builder()
+                        .connectionId(connectionId)
+                        .name(trigger.name())
+                        .description(trigger.description())
+                        .build());
+            }
+        }
     }
 
     private Map<String, Object> buildDeviceFeatures(LinkDeviceRequest request) {

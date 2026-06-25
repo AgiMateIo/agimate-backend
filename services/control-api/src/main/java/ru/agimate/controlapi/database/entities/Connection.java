@@ -2,8 +2,6 @@ package ru.agimate.controlapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.ColumnDefault;
-import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
 
 import java.time.LocalDateTime;
@@ -32,9 +30,12 @@ import java.util.UUID;
 @AllArgsConstructor
 public class Connection extends BaseEntity {
 
+    /**
+     * Назначается явно при создании ({@code UUIDUtils.generateUUIDv8()} для интеграций,
+     * {@code app.id} для APP, старый id при бэкфилле) — id = {@code identity} во всём downstream,
+     * поэтому не генерится БД.
+     */
     @Id
-    @Generated
-    @ColumnDefault("uuidv7()")
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 

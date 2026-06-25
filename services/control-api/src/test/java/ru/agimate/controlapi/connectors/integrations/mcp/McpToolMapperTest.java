@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.database.entities.McpTool;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
 
 import java.util.UUID;
 
@@ -30,7 +30,7 @@ class McpToolMapperTest {
         @Test
         @DisplayName("извлекает name/title/description и сохраняет сырые схемы текстом")
         void extractsFields() {
-            McpTool entity = McpToolMapper.toEntity(IDENTITY, tool("""
+            ConnectionTool entity = McpToolMapper.toEntity(IDENTITY, tool("""
                     {
                       "name": "search",
                       "title": "Search",
@@ -39,7 +39,7 @@ class McpToolMapperTest {
                       "annotations": {"readOnlyHint": true}
                     }"""));
 
-            assertEquals(IDENTITY, entity.getIntegrationCredentialsId());
+            assertEquals(IDENTITY, entity.getConnectionId());
             assertEquals("search", entity.getName());
             assertEquals("Search", entity.getTitle());
             assertEquals("Search the web", entity.getDescription());
@@ -67,7 +67,7 @@ class McpToolMapperTest {
                        "when":{"type":"string","format":"date-time","default":"now"},
                        "mode":{"anyOf":[{"type":"string"},{"type":"integer"}]}
                     },"required":["when"]}""";
-            McpTool entity = McpToolMapper.toEntity(IDENTITY, tool(
+            ConnectionTool entity = McpToolMapper.toEntity(IDENTITY, tool(
                     "{\"name\":\"t\",\"inputSchema\":" + rawSchema + "}"));
 
             ConnectorToolSpec spec = McpToolMapper.toSpec(entity);
@@ -82,7 +82,7 @@ class McpToolMapperTest {
         @Test
         @DisplayName("annotations парсятся в ToolAnnotationsSpec; пустые схемы → null")
         void parsesAnnotations() {
-            McpTool entity = McpToolMapper.toEntity(IDENTITY, tool("""
+            ConnectionTool entity = McpToolMapper.toEntity(IDENTITY, tool("""
                     {"name":"t","annotations":{"readOnlyHint":true,"destructiveHint":false,
                      "idempotentHint":true,"openWorldHint":false}}"""));
 

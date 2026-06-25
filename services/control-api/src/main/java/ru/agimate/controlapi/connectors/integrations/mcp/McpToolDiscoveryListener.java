@@ -8,7 +8,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
-import ru.agimate.controlapi.database.entities.McpTool;
+import ru.agimate.controlapi.database.entities.ConnectionTool;
 
 import java.util.List;
 import java.util.UUID;
@@ -58,7 +58,7 @@ public class McpToolDiscoveryListener {
         log.info("Discovering MCP tools for {}", identity);
         try {
             UUID identityId = UUID.fromString(identity);
-            List<McpTool> fresh = mcpToolService.discover(identityId);
+            List<ConnectionTool> fresh = mcpToolService.discover(identityId);
             if (fresh != null) {
                 mcpToolService.reconcile(identityId, fresh);
             }
