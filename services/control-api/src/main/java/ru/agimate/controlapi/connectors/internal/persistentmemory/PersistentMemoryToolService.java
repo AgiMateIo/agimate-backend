@@ -12,6 +12,7 @@ import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
+import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
@@ -54,6 +55,7 @@ public class PersistentMemoryToolService {
     private final PersistentMemoryService memoryService;
     private final TriggerRouterService triggerRouterService;
     private final ChannelSessionMessageRepository messageRepository;
+    private final AgentRepository agentRepository;
 
     // ===== Тулы =====
 
@@ -166,9 +168,13 @@ public class PersistentMemoryToolService {
         List<Map<String, Object>> notes = claimed.stream()
                 .map(PersistentMemoryToolService::noteView)
                 .toList();
-        // Партия заклеймлена; любой из привязанных агентов может свернуть её (cold CAS сериализует запись).
-        routeToAgents(ctx, memoryService.boundAgents(connectionId), CONSOLIDATE_TRIGGER,
-                Map.of("consolidationId", consolidationId.toString(), "notes", notes));
+        // Консолидация — одна единица работы на scope: шлём ОДНОМУ привязанному агенту (первому
+        // enabled, детерминированно), а не всем — иначе N агентов гоняют один и тот же LLM-свод
+        // (выиграл бы один по CAS, остальные впустую). Если enabled-агентов нет — скип; заметки
+        // остаются заклеймлены, лиз протухнет и следующий запуск повторит.
+        Map<String, Object> data = Map.of("consolidationId", consolidationId.toString(), "notes", notes);
+        agentRepository.findBoundToConnection(ctx.userId(), connectionId).stream().findFirst()
+                .ifPresent(agent -> routeToAgents(ctx, List.of(agent.getId()), CONSOLIDATE_TRIGGER, data));
     }
 
     // ===== helpers =====

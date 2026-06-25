@@ -42,6 +42,7 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
               AND ac.deletedAt IS NULL
               AND a.userId = :userId
               AND a.enabled = true
+            ORDER BY a.createdAt, a.id
             """)
     List<Agent> findBoundToConnection(
             @Param("userId") UUID userId,
