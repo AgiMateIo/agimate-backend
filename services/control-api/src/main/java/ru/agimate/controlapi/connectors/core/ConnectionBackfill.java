@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.connectors.core.secret.SecretService;
@@ -13,29 +14,34 @@ import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.entities.ConnectionTrigger;
-import ru.agimate.controlapi.database.entities.IntegrationCredentials;
-import ru.agimate.controlapi.database.entities.McpTool;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
-import ru.agimate.controlapi.database.repositories.IntegrationCredentialsRepository;
-import ru.agimate.controlapi.database.repositories.McpToolRepository;
 
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 /**
- * Одноразовый идемпотентный бэкфилл существующих данных в единый реестр {@code connections}:
+ * Одноразовый идемпотентный бэкфилл legacy-данных в единый реестр {@code connections} с последующим
+ * сносом старых таблиц. Выполняется на старте (после Liquibase-схемы), в одной транзакции —
+ * мигрировать → дропнуть, поэтому при сбое миграции таблицы не теряются (откат).
+ *
  * <ul>
  *   <li>{@code integration_credentials} → {@code connections} (id сохраняется) + перешифровка
- *       {@code encrypted_data} в {@code secrets} (envelope);</li>
+ *       {@code encrypted_data} (legacy single-key) в {@code secrets} (envelope);</li>
  *   <li>{@code mcp_tool} → {@code connection_tools};</li>
- *   <li>{@code apps} → {@code connections} (id = app.id, app_id = app.id) + {@code apps.tools/triggers}
- *       JSONB → {@code connection_tools/triggers}.</li>
+ *   <li>{@code apps} → {@code connections} (id = app.id, app_id) + {@code apps.tools/triggers}
+ *       JSONB → {@code connection_tools/triggers};</li>
+ *   <li>затем {@code DROP TABLE integration_credentials, mcp_tool}.</li>
  * </ul>
- * Идемпотентно по {@code connections.existsById}. Удаляется вместе со старыми таблицами на этапе drop.
+ *
+ * Legacy-таблицы читаются через JDBC (их JPA-сущности удалены). Идемпотентно по существованию
+ * таблиц и {@code connections.existsById}. Удалить компонент можно, когда все окружения мигрированы.
  */
 @Slf4j
 @Component
@@ -45,9 +51,8 @@ public class ConnectionBackfill {
 
     private static final String SECRET_ENTITY = "connection";
 
-    private final IntegrationCredentialsRepository integrationCredentialsRepository;
+    private final JdbcTemplate jdbc;
     private final AppRepository appRepository;
-    private final McpToolRepository mcpToolRepository;
     private final ConnectionRepository connectionRepository;
     private final ConnectionToolRepository connectionToolRepository;
     private final ConnectionTriggerRepository connectionTriggerRepository;
@@ -57,38 +62,58 @@ public class ConnectionBackfill {
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void backfill() {
-        int integrations = backfillIntegrations();
-        int tools = backfillMcpTools();
+        boolean hadIntegrations = tableExists("integration_credentials");
+        boolean hadMcpTools = tableExists("mcp_tool");
+        if (!hadIntegrations && !hadMcpTools && appsAllMigrated()) {
+            return; // уже мигрировано и снесено
+        }
+
+        int integrations = hadIntegrations ? backfillIntegrations() : 0;
+        int tools = hadMcpTools ? backfillMcpTools() : 0;
         int apps = backfillApps();
-        if (integrations + tools + apps > 0) {
-            log.info("Connection backfill: {} integrations, {} mcp tools, {} apps migrated",
+
+        if (hadMcpTools) {
+            jdbc.execute("DROP TABLE IF EXISTS mcp_tool");
+        }
+        if (hadIntegrations) {
+            jdbc.execute("DROP TABLE IF EXISTS integration_credentials CASCADE");
+        }
+
+        if (integrations + tools + apps > 0 || hadIntegrations || hadMcpTools) {
+            log.info("Connection backfill: {} integrations, {} mcp tools, {} apps migrated; legacy tables dropped",
                     integrations, tools, apps);
         }
     }
 
     private int backfillIntegrations() {
         int migrated = 0;
-        for (IntegrationCredentials ic : integrationCredentialsRepository.findAll()) {
-            if (connectionRepository.existsById(ic.getId())) {
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT id, connector_code, user_id, name, platform_identifier, encrypted_data,
+                       webhook_secret, enabled, last_used_at, deleted_at
+                FROM integration_credentials""");
+        for (Map<String, Object> row : rows) {
+            UUID id = (UUID) row.get("id");
+            if (connectionRepository.existsById(id)) {
                 continue;
             }
-            Map<String, String> decrypted = legacyEncryption.decryptCredentials(ic.getEncryptedData());
-            Secret secret = secretService.store(SECRET_ENTITY, ic.getId(), decrypted);
+            String connectorCode = (String) row.get("connector_code");
+            String platformIdentifier = (String) row.get("platform_identifier");
+            Map<String, String> decrypted = legacyEncryption.decryptCredentials((String) row.get("encrypted_data"));
+            Secret secret = secretService.store(SECRET_ENTITY, id, decrypted);
 
-            Connection connection = Connection.builder()
-                    .id(ic.getId())
-                    .connectorCode(ic.getConnectorCode())
-                    .subCode(ic.getPlatformIdentifier())
-                    .fullCode(FullCodes.fullCode(ic.getConnectorCode(), ic.getPlatformIdentifier()))
-                    .userId(ic.getUserId())
-                    .name(ic.getName())
+            connectionRepository.save(Connection.builder()
+                    .id(id)
+                    .connectorCode(connectorCode)
+                    .subCode(platformIdentifier)
+                    .fullCode(FullCodes.fullCode(connectorCode, platformIdentifier))
+                    .userId((UUID) row.get("user_id"))
+                    .name((String) row.get("name"))
                     .secretId(secret.getId())
-                    .webhookSecret(ic.getWebhookSecret())
-                    .enabled(ic.getEnabled())
-                    .lastUsedAt(ic.getLastUsedAt())
-                    .deletedAt(ic.getDeletedAt())
-                    .build();
-            connectionRepository.save(connection);
+                    .webhookSecret((String) row.get("webhook_secret"))
+                    .enabled((Boolean) row.get("enabled"))
+                    .lastUsedAt(toLdt(row.get("last_used_at")))
+                    .deletedAt(toLdt(row.get("deleted_at")))
+                    .build());
             migrated++;
         }
         return migrated;
@@ -96,20 +121,25 @@ public class ConnectionBackfill {
 
     private int backfillMcpTools() {
         int migrated = 0;
-        for (McpTool tool : mcpToolRepository.findAll()) {
-            UUID connectionId = tool.getIntegrationCredentialsId();
+        List<Map<String, Object>> rows = jdbc.queryForList("""
+                SELECT integration_credentials_id, name, title, description,
+                       input_schema, output_schema, annotations
+                FROM mcp_tool""");
+        for (Map<String, Object> row : rows) {
+            UUID connectionId = (UUID) row.get("integration_credentials_id");
+            String name = (String) row.get("name");
             if (!connectionRepository.existsById(connectionId)
-                    || connectionToolRepository.findActiveByConnectionIdAndName(connectionId, tool.getName()).isPresent()) {
+                    || connectionToolRepository.findActiveByConnectionIdAndName(connectionId, name).isPresent()) {
                 continue;
             }
             connectionToolRepository.save(ConnectionTool.builder()
                     .connectionId(connectionId)
-                    .name(tool.getName())
-                    .title(tool.getTitle())
-                    .description(tool.getDescription())
-                    .inputSchema(tool.getInputSchema())
-                    .outputSchema(tool.getOutputSchema())
-                    .annotations(tool.getAnnotations())
+                    .name(name)
+                    .title((String) row.get("title"))
+                    .description((String) row.get("description"))
+                    .inputSchema((String) row.get("input_schema"))
+                    .outputSchema((String) row.get("output_schema"))
+                    .annotations((String) row.get("annotations"))
                     .build());
             migrated++;
         }
@@ -133,7 +163,6 @@ public class ConnectionBackfill {
                     .enabled(app.getEnabled())
                     .deletedAt(app.getDeletedAt())
                     .build());
-
             mirrorCatalog(app);
             migrated++;
         }
@@ -155,6 +184,22 @@ public class ConnectionBackfill {
                     .description(description(value))
                     .build()));
         }
+    }
+
+    private boolean appsAllMigrated() {
+        return appRepository.findAll().stream().allMatch(a -> connectionRepository.existsById(a.getId()));
+    }
+
+    private boolean tableExists(String table) {
+        Boolean exists = jdbc.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM information_schema.tables
+                               WHERE table_schema = 'public' AND table_name = ?)""",
+                Boolean.class, table);
+        return Boolean.TRUE.equals(exists);
+    }
+
+    private static LocalDateTime toLdt(Object value) {
+        return value instanceof Timestamp ts ? ts.toLocalDateTime() : null;
     }
 
     @SuppressWarnings("unchecked")

@@ -2,6 +2,36 @@
 
 Единый SPI для internal- и integration-коннекторов. Пакет: `ru.agimate.controlapi.connectors`.
 
+## Реестр экземпляров (`connections`)
+
+Подключённый экземпляр любого коннектора — строка `connections` (`id` = `identity` во всём
+downstream: channels, ABAC-политики, trigger/tool-логи, `connector_jobs`). Сворачивает прежний
+`integration_credentials`; на `apps` ссылается через `app_id` (device-auth/linking не дублируются).
+
+- `connector_code` (тип, FK→`connectors`) + `sub_code` (дискриминатор экземпляра: telegram-username,
+  MCP-host, app-имя) → `full_code = connector_code + "_" + sub_code` (`mcp_context7`) — стабильный
+  клиентский handle и префикс неймспейса тулов. Сборка — `connectors/core/FullCodes`.
+- Уникальность среди активных строк: `(connector_code, user_id, sub_code)` и `(full_code, user_id)`
+  (partial unique `WHERE deleted_at IS NULL`).
+- `id` назначается явно при создании (`UUIDUtils.generateUUIDv8()` для интеграций, `app.id` для APP,
+  старый id при бэкфилле) — поэтому не генерится БД.
+
+**Секреты** (`secrets`) — envelope-шифрование (`connectors/core/secret`). На каждый секрет случайный
+DEK шифрует данные (AES-256-GCM); DEK шифруется KEK (один источник, `app.secrets.encryption-key`) с
+AAD = `entity + owner_id` (нельзя расшифровать, перенеся строку на другого владельца). Outbound-креды
+коннектора лежат в `secrets`, адресуются `connections.secret_id`; inbound-verifier устройства
+(`apps.key_*`) — невозвратный, в `secrets` не кладётся.
+
+**Capabilities** — type-level дескриптор на `connectors` (4 оси, `database/model/ConnectorCapabilities`):
+`transportDirection` (OUTBOUND/INBOUND), `executionLocus` (BACKEND/EXTERNAL/AGENT — роутинг исполнения
+тула), `toolBinding` (STATIC рефлексией / DYNAMIC из `connection_tools`), `sharingScope`. Источник
+истины — SPI `ConnectorHandler.capabilities()`, заполняется бутстрапом.
+
+**Динамические тулы/триггеры** экземпляра (MCP-серверы, device-apps) — `connection_tools` /
+`connection_triggers` (обобщают прежний `mcp_tool` + `apps.tools/triggers` JSONB; схемы сырым
+JSON-текстом для фиделити). Статические коннекторы тулы отдают рефлексией, в этих таблицах не
+материализуются.
+
 ## SPI (`connectors/core`)
 
 ```
@@ -33,8 +63,9 @@ gRPC-листинг (`GetConnectorTools`) единообразно зовёт е
 только в базовом классе). `executeJob` диспатчит в **любой** `@Tool`-метод — задача может быть «вызовом
 тулы по расписанию» (строка `connector_jobs` c `name` = имя тулы и `args` = её аргументы).
 
-`ConnectorContext`: `identity` (для integration — id из `integration_credentials` строкой; internal — `null`),
-`userId`, `agentId`, расшифрованные `credentials`, `webhookSecret`. Собирается только в `ConnectorContextFactory`.
+`ConnectorContext`: `identity` (= `connections.id` строкой; internal — `null`), `userId`, `agentId`,
+расшифрованные `credentials` (из `secrets` по `secret_id`), `webhookSecret`. Собирается только в
+`ConnectorContextFactory`.
 
 Исключения: внутри коннекторного слоя — только `ConnectorException` (его сообщение безопасно отдаётся
 агенту в error tool-result). `*StatusException` — строго на HTTP-границе
@@ -50,17 +81,17 @@ BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — 
 
 `integrations/mcp/` — универсальный коннектор к удалённому MCP-серверу (транспорт **Streamable HTTP**,
 auth — статический Bearer-токен/произвольные заголовки). Особенность: тулы **динамические и per-instance** —
-каждый экземпляр (строка `integration_credentials` = `url` + auth) отдаёт свой набор через `tools/list`.
+каждый экземпляр (строка `connections` = `url` + auth в `secrets`) отдаёт свой набор через `tools/list`.
 Поэтому `McpConnectorService implements IntegrationConnectorHandler` напрямую (без `BaseConnectorHandler` и
 `@Tool`-методов):
 
-- `getTools()` пуст (статических тулов нет); `getTools(ctx)` отдаёт список из кэша `mcp_tool` по `ctx.identity()`.
+- `getTools()` пуст (статических тулов нет); `getTools(ctx)` отдаёт список из `connection_tools` по `ctx.identity()`.
 - `validateCredentials` = хендшейк `initialize` (доступность + auth); `identifier` = URL сервера (канонический
-  ключ экземпляра).
+  ключ экземпляра, идёт в `sub_code`).
 - `executeTool` проксирует в `tools/call`; путь исполнения (`ToolExecutionService`, свежие credentials по
   `identity`) — общий, без изменений.
 
-**Кэш `mcp_tool`** (per-identity, сырые JSON-схемы текстом для фиделити произвольной JSON Schema —
+**Кэш `connection_tools`** (per-connection, сырые JSON-схемы текстом для фиделити произвольной JSON Schema —
 `JsonSchema` сохраняет нестандартные ключевые слова через `@JsonAnySetter`). Синк — `McpToolDiscoveryListener`
 (AFTER_COMMIT, аналог `ConnectorIdentityListener` для тасок): на create/modify — ре-дискавери `tools/list` →
 upsert + удаление пропавших; на delete — чистка по identity. Сетевой `tools/list` (`discover`) отделён от
