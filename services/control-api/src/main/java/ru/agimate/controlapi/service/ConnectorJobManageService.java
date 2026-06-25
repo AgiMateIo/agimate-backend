@@ -72,6 +72,30 @@ public class ConnectorJobManageService {
                 id, task.getConnectorCode(), task.getName(), userId);
     }
 
+    /**
+     * Запускает задачу немедленно: сдвигает {@code next_run_at} на «сейчас», scheduler подхватит её
+     * на ближайшем тике (≤1с). Только из статуса {@code PENDING} и не на паузе — schedule-каденс
+     * при этом сохраняется (следующий запуск пересчитается обычным образом после выполнения).
+     */
+    @Transactional
+    public void runNow(UUID id, UUID userId) {
+        ConnectorJob task = findOwnedTask(id, userId);
+        requireNotCompleted(task);
+        if (task.getPausedAt() != null) {
+            throw new BadRequestStatusException("Job is paused: resume it first");
+        }
+        if (task.getStatus() == ConnectorJobStatus.RUNNING) {
+            throw new BadRequestStatusException("Job is already running");
+        }
+        int updated = connectorJobRepository.runNow(task.getId(), userId, LocalDateTime.now());
+        if (updated == 0) {
+            // Гонка: scheduler успел claim'нуть строку между загрузкой и UPDATE.
+            throw new BadRequestStatusException("Job is already running");
+        }
+        log.info("Run-now connector task id={} ({}/{}) user={}",
+                id, task.getConnectorCode(), task.getName(), userId);
+    }
+
     @Transactional
     public void delete(UUID id, UUID userId) {
         ConnectorJob task = findOwnedTask(id, userId);

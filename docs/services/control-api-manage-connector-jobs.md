@@ -67,6 +67,7 @@ A **connector job** is a scheduled background invocation of a connector tool. Th
 | GET | `/control/manage/connector-jobs/` | List the user's jobs (paginated, filterable) |
 | POST | `/control/manage/connector-jobs/{id}/pause` | Pause a job |
 | POST | `/control/manage/connector-jobs/{id}/resume` | Resume a paused job |
+| POST | `/control/manage/connector-jobs/{id}/run-now` | Run a `PENDING` job immediately (scheduler picks it up within ~1s) |
 | DELETE | `/control/manage/connector-jobs/{id}` | Hard-delete a `USER` or `AGENT` job |
 
 ---
@@ -279,6 +280,41 @@ Idempotent: resuming a job that is not paused (`pausedAt == null`) is a no-op (r
 
 ---
 
+### POST `/control/manage/connector-jobs/{id}/run-now`
+
+Triggers an immediate run of a `PENDING` job by moving `nextRunAt` to "now". The pull-based scheduler claims the row on its next tick (within ~1s) and runs it through the normal claim/lease/retry path — there is no separate execution path and no risk of double execution.
+
+This is **fire-and-forget**: the call returns as soon as the row is nudged, not when the run finishes. Observe progress by re-reading the job — `status` moves `PENDING → RUNNING → PENDING` (or `COMPLETED` for a `ONETIME` job).
+
+Works for any `kind` (including `SYSTEM`) — e.g. to trigger a declarative daily job on demand. The schedule cadence is preserved: after the manual run completes, `nextRunAt` is recomputed as usual (next cron tick / `now + intervalSeconds`).
+
+Only a job that is `PENDING` and not paused can be run. A paused job must be resumed first; a `RUNNING` job is already executing; a `COMPLETED` `ONETIME` job is terminal.
+
+**Path parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | `uuid` | Job identifier |
+
+**Request body:** none.
+
+**Response `200`:** empty success envelope.
+
+```json
+{ "response": null }
+```
+
+**Errors:**
+
+| Status | Body | Condition |
+|--------|------|-----------|
+| 400 | `{ "error": { "message": "Job is already completed" } }` | Job `status` is `COMPLETED` |
+| 400 | `{ "error": { "message": "Job is paused: resume it first" } }` | `pausedAt` is set — resume before running |
+| 400 | `{ "error": { "message": "Job is already running" } }` | Job `status` is `RUNNING` (or the scheduler claimed it concurrently) |
+| 404 | `{ "error": { "message": "Job not found" } }` | Job does not exist or belongs to another user |
+
+---
+
 ### DELETE `/control/manage/connector-jobs/{id}`
 
 Hard-deletes a `USER` or `AGENT` job. If the job is currently `RUNNING`, the in-flight iteration finishes normally; the job is not rescheduled afterward.
@@ -316,6 +352,7 @@ This table shows which actions are available based on the job's current state. R
 |--------|---------------|-------|
 | **Pause** | `status != COMPLETED` AND `pausedAt == null` | Greys out for completed jobs and already-paused jobs |
 | **Resume** | `pausedAt != null` AND `status != COMPLETED` | Only relevant when the job is paused; completed jobs are terminal |
+| **Run now** | `status == PENDING` AND `pausedAt == null` | Greys out while `RUNNING`, `COMPLETED`, or paused. Fire-and-forget — refresh to see `status` change |
 | **Delete** | `kind != SYSTEM` | Available for `AGENT` and `USER` jobs regardless of `status` or `pausedAt` |
 
 Note: `status` and `pausedAt` are **orthogonal** — a job can be `RUNNING` and paused at the same time (current iteration finishes, then the job is not picked up again). Do not conflate them:

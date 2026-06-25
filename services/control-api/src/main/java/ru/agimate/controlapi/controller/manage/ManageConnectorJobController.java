@@ -59,6 +59,17 @@ public class ManageConnectorJobController {
         return SuccessResponse.empty();
     }
 
+    @Operation(summary = "Run a pending job now: scheduler picks it up within ~1s")
+    @PostMapping("/{id}/run-now")
+    public SuccessResponse<Void> runNow(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID id
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        connectorJobManageService.runNow(id, userId);
+        return SuccessResponse.empty();
+    }
+
     @Operation(summary = "Delete a job (USER/AGENT only; SYSTEM jobs are managed by the connector)")
     @DeleteMapping("/{id}")
     public SuccessResponse<Void> delete(

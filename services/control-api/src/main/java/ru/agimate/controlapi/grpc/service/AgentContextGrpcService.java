@@ -33,6 +33,7 @@ import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.SkillFileService;
+import ru.agimate.controlapi.service.SkillService;
 import ru.agimate.controlapi.service.dto.AgentToolSpec;
 import ru.agimate.agentworker.AgentContextGrpc;
 import ru.agimate.agentworker.AgentSpec;
@@ -93,6 +94,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final ConnectorRegistry connectorRegistry;
     private final AgentSkillService agentSkillService;
     private final AgentService agentService;
+    private final SkillService skillService;
     private final SkillFileService skillFileService;
     private final PersistentMemoryService persistentMemoryService;
 
@@ -201,7 +203,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
 
             String skillMd;
             try {
-                skillMd = skillFileService.readSkillMd(skill.getId());
+                skillMd = skillFileService.readSkillMd(skillService.resolveFileOwnerId(skill));
             } catch (NotFoundStatusException e) {
                 skillMd = "";
             }

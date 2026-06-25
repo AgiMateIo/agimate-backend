@@ -154,4 +154,20 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
             WHERE t.id = :id AND t.userId = :userId AND t.pausedAt IS NOT NULL
             """)
     int resume(@Param("id") UUID id, @Param("userId") UUID userId, @Param("nextRunAt") LocalDateTime nextRunAt);
+
+    /**
+     * «Запустить сейчас»: точечный UPDATE {@code next_run_at = now}, чтобы scheduler подхватил строку
+     * на ближайшем тике. Только {@code PENDING} и не на паузе — {@code RUNNING}/{@code COMPLETED}/
+     * приостановленные не трогаем. {@code PENDING} ⟹ {@code lease_until = NULL}, проверять lease не нужно.
+     * 0 строк = строка уже не в этом состоянии (например, scheduler успел её claim'нуть).
+     */
+    @Modifying
+    @Query("""
+            UPDATE ConnectorJob t
+            SET t.nextRunAt = :now
+            WHERE t.id = :id AND t.userId = :userId
+              AND t.status = ru.agimate.controlapi.database.enums.ConnectorJobStatus.PENDING
+              AND t.pausedAt IS NULL
+            """)
+    int runNow(@Param("id") UUID id, @Param("userId") UUID userId, @Param("now") LocalDateTime now);
 }
