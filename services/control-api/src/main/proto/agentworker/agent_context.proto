@@ -104,8 +104,8 @@ message LlmCredentials {
 
 message GetConnectorToolsRequest {
   string connector_code = 1;
-  // identity экземпляра коннектора (integration_credentials.id). Обязателен для динамических
-  // коннекторов (mcp) — набор тулов per-instance; для статических игнорируется.
+  // identity экземпляра коннектора (connections.id). Обязателен для динамических коннекторов
+  // (mcp, app) — набор тулов per-instance; для статических singleton игнорируется.
   string identity = 2;
 }
 
@@ -126,6 +126,12 @@ message ConnectorToolSpec {
   bytes output_schema = 5 [json_name = "outputSchema"];  // MCP outputSchema (JSON Schema)
   ToolAnnotations annotations = 6;                       // MCP annotations
   map<string, string> meta = 7 [json_name = "_meta"];    // MCP _meta
+  // Экземпляр коннектора, которому принадлежит тул (= connections.id, как identity на ExecuteTool).
+  string connection_id = 8 [json_name = "connectionId"];
+  // Стабильный клиентский handle экземпляра (mcp_context7). Воркер строит LLM-имя тула как
+  // {full_code}.{name} для глобальной уникальности; на ExecuteTool возвращает исходные
+  // (connector_code, identity=connection_id, name) — маршрутизация по wire не меняется.
+  string full_code = 9 [json_name = "fullCode"];
 }
 
 message GetConnectorToolsResponse {

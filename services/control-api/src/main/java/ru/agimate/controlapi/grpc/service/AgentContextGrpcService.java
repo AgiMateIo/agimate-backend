@@ -13,6 +13,10 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.integrations.IntegrationEncryptionService;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
+import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillConnectorResponse;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -90,6 +94,8 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final AgentLlmRepository agentLlmRepository;
     private final LlmProviderRepository llmProviderRepository;
     private final ConnectorRepository connectorRepository;
+    private final ConnectionRepository connectionRepository;
+    private final ConnectionToolRepository connectionToolRepository;
     private final IntegrationEncryptionService encryptionService;
     private final ConnectorRegistry connectorRegistry;
     private final AgentSkillService agentSkillService;
@@ -314,14 +320,23 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                         case INTEGRATION, INTERNAL_SERVICE -> connectorRegistry.findHandler(connectorCode)
                                 .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
                                 .getTools(listingContext);
-                        case APP, LOOPBACK -> throw new BadRequestStatusException(
-                                "Connector type " + connector.getType() + " does not expose static tool definitions");
+                        // APP-тулы динамические per-instance: отдаём из connection_tools (как mcp).
+                        case APP -> appConnectionTools(identity);
+                        case LOOPBACK -> throw new BadRequestStatusException(
+                                "Connector type " + connector.getType() + " does not expose tool definitions");
                     };
+
+            // Стабильный handle экземпляра: из connections по identity; для статических singleton — код.
+            String fullCode = resolveFullCode(connectorCode, identity);
 
             GetConnectorToolsResponse.Builder builder = GetConnectorToolsResponse.newBuilder();
             tools.forEach((name, spec) -> {
                 ConnectorToolSpec.Builder toolBuilder = ConnectorToolSpec.newBuilder()
-                        .setName(spec.name() != null ? spec.name() : name);
+                        .setName(spec.name() != null ? spec.name() : name)
+                        .setFullCode(fullCode);
+                if (!identity.isEmpty()) {
+                    toolBuilder.setConnectionId(identity);
+                }
                 if (spec.title() != null) {
                     toolBuilder.setTitle(spec.title());
                 }
@@ -354,6 +369,37 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             log.error("AgentContext.GetConnectorTools failed pool={} connector={}",
                     poolId, request.getConnectorCode(), e);
             handleError(e, responseObserver);
+        }
+    }
+
+    /** Тулы APP-экземпляра из {@code connection_tools} (динамические per-instance, как у mcp). */
+    private Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> appConnectionTools(String identity) {
+        if (identity == null || identity.isEmpty()) {
+            return Map.of();
+        }
+        UUID connectionId;
+        try {
+            connectionId = UUID.fromString(identity);
+        } catch (IllegalArgumentException e) {
+            return Map.of();
+        }
+        Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> tools = new java.util.LinkedHashMap<>();
+        connectionToolRepository.findActiveByConnectionId(connectionId)
+                .forEach(tool -> tools.put(tool.getName(), McpToolMapper.toSpec(tool)));
+        return tools;
+    }
+
+    /** {@code full_code} экземпляра из connections по identity; для статических singleton — код коннектора. */
+    private String resolveFullCode(String connectorCode, String identity) {
+        if (identity == null || identity.isEmpty()) {
+            return connectorCode;
+        }
+        try {
+            return connectionRepository.findByIdNotDeleted(UUID.fromString(identity))
+                    .map(Connection::getFullCode)
+                    .orElse(connectorCode);
+        } catch (IllegalArgumentException e) {
+            return connectorCode;
         }
     }
 
