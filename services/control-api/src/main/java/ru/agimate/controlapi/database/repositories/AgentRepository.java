@@ -36,10 +36,13 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
      * (= identity триггера). Тонкая фильтрация (effect/params_filter) — в {@code ConnectionAccessEvaluator}.
      */
     @Query("""
-            SELECT a FROM Agent a, AgentConnection ac
+            SELECT a FROM Agent a, AgentConnection ac, Connection c
             WHERE ac.agentId = a.id
-              AND ac.connectionId = :connectionId
+              AND ac.connectionId = c.id
+              AND c.id = :connectionId
               AND ac.deletedAt IS NULL
+              AND c.deletedAt IS NULL
+              AND c.enabled = true
               AND a.userId = :userId
               AND a.enabled = true
             ORDER BY a.createdAt, a.id

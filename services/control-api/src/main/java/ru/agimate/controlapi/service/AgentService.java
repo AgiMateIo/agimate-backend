@@ -396,8 +396,15 @@ public class AgentService {
             throw new ForbiddenStatusException("Access denied");
         }
 
-        connectorJobRepository.deleteByAgentId(agent.getId());
-        // agent_connections (+ их agent_connection_policies) удаляются каскадом по FK на agents.
+        // Отвязываем все коннекторы: контекстные экземпляры без оставшихся binding'ов сворачиваются
+        // (soft-delete connection + ConnectorDeletedEvent → снятие SYSTEM-джоб). Без этого после
+        // FK-каскада connection и её cron-джобы (не привязаны к agent_id) остались бы висеть.
+        for (AgentConnection binding : agentConnectionRepository.findActiveByAgentId(agent.getId())) {
+            connectionBindingService.unbind(userId, agent.getId(), binding.getConnectionId());
+        }
+        connectorJobRepository.deleteByAgentId(agent.getId()); // динамические AGENT-джобы
+        accessEvaluator.invalidateByAgent(agent.getId());
+        // Оставшиеся (soft-deleted) agent_connections + их политики снимутся каскадом по FK на agents.
         agentRepository.delete(agent);
 
         log.info("Deleted agent id={}", id);

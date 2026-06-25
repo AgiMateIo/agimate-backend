@@ -218,24 +218,6 @@ public class PersistentMemoryToolService {
         return view;
     }
 
-    /**
-     * Агент контекста: при tool-вызове — {@code agentId} инициатора; в фоновой задаче — из
-     * {@code identity} строки {@code connector_jobs} ({@code agentId} там {@code null}).
-     */
-    private static UUID requireAgent(ConnectorContext ctx) {
-        if (ctx.agentId() != null) {
-            return ctx.agentId();
-        }
-        if (ctx.identity() != null) {
-            try {
-                return UUID.fromString(ctx.identity());
-            } catch (IllegalArgumentException e) {
-                throw new ConnectorException("Invalid agent identity: " + ctx.identity());
-            }
-        }
-        throw new ConnectorException("persist-memory requires an agent context");
-    }
-
     private static UUID parseUuid(String value, String field) {
         if (value == null || value.isBlank()) {
             return null;

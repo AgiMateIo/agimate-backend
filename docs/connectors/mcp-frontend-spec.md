@@ -177,29 +177,30 @@ UX-трактовка:
 
 ---
 
-## [5] Выдать тулы агенту (ABAC-политики)
+## [5] Выдать тулы агенту (binding + политики)
 
-Доступ агента к тулам — через политики. Для MCP политику скоупим на **конкретный сервер** через
-`connectorIdentity = credentialId`.
+> **Изменилось.** Эндпоинты `/manage/agent-tool-policies/*` и `/manage/agent-trigger-policies/*`
+> **удалены**. Модель теперь — «коннектор доступен агенту = binding», с дефолт-allow и
+> уточняющими политиками. Полный контракт — `docs/tmpspec/2026-06-26-frontend-agent-bindings-and-policies.md`.
 
-`POST /manage/agent-tool-policies/`
+Чтобы выдать MCP-сервер агенту — **привязать** его экземпляр (INSTANCE-коннектор → нужен `connectionId`):
+
+`POST /manage/agents/{agentId}/connections/`
 ```json
-{
-  "agentId": "0193....-uuid",
-  "connectorCode": "mcp",
-  "connectorIdentity": "0193f0c2-...-credentialId",
-  "toolName": "query-docs",
-  "effect": "ALLOW",
-  "priority": null,
-  "description": "Context7 docs lookup"
-}
+{ "connectorCode": "mcp", "connectionId": "0193f0c2-...-connectionId" }
 ```
-- `toolName: null` = wildcard на все тулы этого сервера (выдать весь сервер разом).
-- `effect`: `ALLOW` | `DENY`.
-- `connectorIdentity` обязателен для MCP — иначе политика распространится на все MCP-серверы пользователя.
+После binding все тулы сервера доступны по умолчанию (default-allow). Чтобы ограничить — правила на
+binding (`AgentConnection.id` из ответа выше):
 
-Список/изменение/удаление: `GET|PUT|DELETE /manage/agent-tool-policies/{policyId}`,
-список по агенту — `GET /manage/agent-tool-policies/?agentId={uuid}` (пагинация).
+`POST /manage/agent-connections/{agentConnectionId}/policies/`
+```json
+{ "kind": "TOOL", "name": "query-docs", "effect": "DENY" }
+```
+- `name: null` = правило на весь коннектор (binding-wide); «только N тулов» = binding-wide `DENY` + точечные `ALLOW`.
+- `paramsFilter` (опц.) ограничивает аргументы вызова.
+
+Список привязок — `GET /manage/agents/{agentId}/connections/`; правила —
+`GET|POST|PATCH|DELETE /manage/agent-connections/{agentConnectionId}/policies/...`.
 
 ---
 

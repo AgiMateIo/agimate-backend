@@ -22,13 +22,15 @@ public interface AgentConnectionRepository extends JpaRepository<AgentConnection
     Optional<AgentConnection> findActiveBinding(@Param("agentId") UUID agentId,
                                                 @Param("connectionId") UUID connectionId);
 
-    @Query("SELECT ac FROM AgentConnection ac WHERE ac.agentId = :agentId AND ac.deletedAt IS NULL")
+    @Query("""
+            SELECT ac FROM AgentConnection ac
+            WHERE ac.agentId = :agentId AND ac.deletedAt IS NULL
+            ORDER BY ac.createdAt, ac.id
+            """)
     List<AgentConnection> findActiveByAgentId(@Param("agentId") UUID agentId);
 
     @Query("SELECT ac FROM AgentConnection ac WHERE ac.connectionId = :connectionId AND ac.deletedAt IS NULL")
     List<AgentConnection> findActiveByConnectionId(@Param("connectionId") UUID connectionId);
-
-    boolean existsByAgentIdAndConnectionIdAndDeletedAtIsNull(UUID agentId, UUID connectionId);
 
     @Modifying
     @Query("UPDATE AgentConnection ac SET ac.deletedAt = :now WHERE ac.id = :id")

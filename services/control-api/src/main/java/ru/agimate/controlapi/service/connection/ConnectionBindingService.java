@@ -3,11 +3,13 @@ package ru.agimate.controlapi.service.connection;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.UUIDUtils;
+import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -15,6 +17,7 @@ import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.IdentityScope;
+import ru.agimate.controlapi.database.repositories.AgentConnectionPolicyRepository;
 import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
@@ -45,7 +48,9 @@ public class ConnectionBindingService {
     private final ConnectorRepository connectorRepository;
     private final ConnectionRepository connectionRepository;
     private final AgentConnectionRepository agentConnectionRepository;
+    private final AgentConnectionPolicyRepository policyRepository;
     private final AgentRepository agentRepository;
+    private final ConnectionAccessEvaluator accessEvaluator;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -119,6 +124,10 @@ public class ConnectionBindingService {
                 .orElseThrow(() -> new NotFoundStatusException("Binding not found"));
         LocalDateTime now = LocalDateTime.now();
         agentConnectionRepository.softDelete(binding.getId(), now);
+        // Снимаем правила этого binding'а — иначе при ре-привязке (новый binding id) они осиротеют.
+        policyRepository.softDeleteByAgentConnectionId(binding.getId(), now);
+        // Сбрасываем кэш решений, чтобы отзыв применился сразу (а не через TTL).
+        invalidate(agentId, connectionId);
 
         Connection connection = connectionRepository.findByIdNotDeleted(connectionId).orElse(null);
         if (connection == null || connection.getIdentityScope() == IdentityScope.INSTANCE) {
@@ -146,7 +155,31 @@ public class ConnectionBindingService {
 
         UUID scopeId = scopeIdFor(scope, userId, agentId);
         return connectionRepository.findActiveByConnectorCodeAndScopeId(connector.getCode(), scopeId)
-                .orElseGet(() -> materializeContextConnection(userId, connector, scope, scopeId));
+                .map(c -> requireOwner(c, userId))
+                .orElseGet(() -> materializeOrReread(userId, connector, scope, scopeId));
+    }
+
+    /**
+     * Defense-in-depth: найденная по {@code (connector_code, scope_id)} connection обязана принадлежать
+     * вызывающему. Сейчас недостижимо (scope_id выводится из owned-сущностей), но страхует от регрессий,
+     * если когда-нибудь появится смена команды агента.
+     */
+    private Connection requireOwner(Connection connection, UUID userId) {
+        if (!connection.getUserId().equals(userId)) {
+            throw new NotFoundStatusException("Connection not found");
+        }
+        return connection;
+    }
+
+    /** Материализация с обработкой гонки: параллельный bind того же scope → перечитываем существующую. */
+    private Connection materializeOrReread(UUID userId, Connector connector, IdentityScope scope, UUID scopeId) {
+        try {
+            return materializeContextConnection(userId, connector, scope, scopeId);
+        } catch (DataIntegrityViolationException e) {
+            return connectionRepository.findActiveByConnectorCodeAndScopeId(connector.getCode(), scopeId)
+                    .map(c -> requireOwner(c, userId))
+                    .orElseThrow(() -> e);
+        }
     }
 
     private UUID scopeIdFor(IdentityScope scope, UUID userId, UUID agentId) {
@@ -191,10 +224,27 @@ public class ConnectionBindingService {
     }
 
     private AgentConnection ensureBinding(UUID agentId, UUID connectionId) {
-        return agentConnectionRepository.findActiveBinding(agentId, connectionId)
-                .orElseGet(() -> agentConnectionRepository.save(AgentConnection.builder()
-                        .agentId(agentId)
-                        .connectionId(connectionId)
-                        .build()));
+        AgentConnection binding = agentConnectionRepository.findActiveBinding(agentId, connectionId)
+                .orElseGet(() -> saveBinding(agentId, connectionId));
+        // Свежий binding мог иметь закэшированный deny — сбрасываем, чтобы доступ применился сразу.
+        invalidate(agentId, connectionId);
+        return binding;
+    }
+
+    private AgentConnection saveBinding(UUID agentId, UUID connectionId) {
+        try {
+            return agentConnectionRepository.save(AgentConnection.builder()
+                    .agentId(agentId)
+                    .connectionId(connectionId)
+                    .build());
+        } catch (DataIntegrityViolationException e) {
+            // Гонка против uq_agent_connections_active — перечитываем созданный параллельно binding.
+            return agentConnectionRepository.findActiveBinding(agentId, connectionId).orElseThrow(() -> e);
+        }
+    }
+
+    private void invalidate(UUID agentId, UUID connectionId) {
+        accessEvaluator.invalidateByAgent(agentId);
+        accessEvaluator.invalidateByConnection(connectionId);
     }
 }
