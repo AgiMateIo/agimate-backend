@@ -18,7 +18,6 @@ import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
-import ru.agimate.controlapi.controller.manage.dto.SkillConnectorResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.AgentSkill;
@@ -36,8 +35,6 @@ import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.AgentSkillService;
-import ru.agimate.controlapi.service.SkillFileService;
-import ru.agimate.controlapi.service.SkillService;
 import ru.agimate.agentworker.AgentContextGrpc;
 import ru.agimate.agentworker.AgentSpec;
 import ru.agimate.agentworker.ConnectionRef;
@@ -53,7 +50,6 @@ import ru.agimate.agentworker.GetSkillsRequest;
 import ru.agimate.agentworker.GetSkillsResponse;
 import ru.agimate.agentworker.GetTeamContextRequest;
 import ru.agimate.agentworker.LlmCredentials;
-import ru.agimate.agentworker.SkillConnectorRef;
 import ru.agimate.agentworker.SkillRef;
 import ru.agimate.agentworker.SkillSpec;
 import ru.agimate.agentworker.TeamContext;
@@ -96,8 +92,6 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final ConnectorRegistry connectorRegistry;
     private final AgentSkillService agentSkillService;
     private final LlmProviderService llmProviderService;
-    private final SkillService skillService;
-    private final SkillFileService skillFileService;
     private final PersistentMemoryService persistentMemoryService;
 
     @Override
@@ -162,15 +156,8 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                 SkillRef.Builder skillBuilder = SkillRef.newBuilder()
                         .setSkillId(skillPubId.toString())
                         .setName(nullToEmpty(skill.skillName()))
-                        .setDescription(nullToEmpty(skill.description()));
-                for (SkillConnectorResponse connector : skill.connectors()) {
-                    skillBuilder.addConnectors(SkillConnectorRef.newBuilder()
-                            .setId(connector.id() == null ? "" : connector.id().toString())
-                            .setConnectorCode(nullToEmpty(connector.connectorCode()))
-                            .setType(connector.type() == null ? "" : connector.type().name())
-                            .setName(nullToEmpty(connector.name()))
-                            .build());
-                }
+                        .setDescription(nullToEmpty(skill.description()))
+                        .addAllConnectorCodes(skill.connectorCodes());
                 builder.addSkills(skillBuilder.build());
             }
             responseObserver.onNext(builder.build());
@@ -203,12 +190,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                     "version", skill.getVersion()
             )).getBytes(StandardCharsets.UTF_8);
 
-            String skillMd;
-            try {
-                skillMd = skillFileService.readSkillMd(skillService.resolveFileOwnerId(skill));
-            } catch (NotFoundStatusException e) {
-                skillMd = "";
-            }
+            String skillMd = nullToEmpty(skill.getMdContent());
 
             SkillSpec response = SkillSpec.newBuilder()
                     .setSkillId(skill.getId().toString())

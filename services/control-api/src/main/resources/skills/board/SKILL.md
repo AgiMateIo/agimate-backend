@@ -1,6 +1,7 @@
 ---
 name: AgiMate Kanban Board
 description: Работа с Kanban-доской команды агентов — создание задач (EPIC/TASK/SUBTASK), продвижение по статусам, комментарии-журнал и реакция на триггеры доски.
+connectors: [board]
 ---
 
 # Skill: AgiMate Kanban Board

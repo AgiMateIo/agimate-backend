@@ -359,7 +359,7 @@ Returns available tools for a specific connector.
 
 ### GET `/control/agent/skills/`
 
-Returns a paginated list of skills assigned to the authenticated agent (via `agent_skills` bindings).
+Returns a paginated list of skills assigned to the authenticated agent.
 
 **Query parameters:**
 
@@ -374,16 +374,13 @@ Returns a paginated list of skills assigned to the authenticated agent (via `age
   "response": {
     "content": [
       {
-        "id": "01951234-abcd-ef01-2345-6789abcdef01",
-        "agentPubId": "01951234-abcd-ef01-2345-000000000002",
-        "skillPubId": "01951234-abcd-ef01-2345-000000000003",
-        "skillName": "smart-home-control",
-        "needsReinstall": false,
-        "createdAt": "2026-03-10T14:30:00",
-        "updatedAt": "2026-04-01T09:15:22"
+        "skillId": "0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77",
+        "skillName": "Daily Standup",
+        "description": "Generates daily standup summaries",
+        "connectorCodes": ["board", "time"]
       }
     ],
-    "totalElements": 5,
+    "totalElements": 2,
     "totalPages": 1,
     "size": 20,
     "number": 0,
@@ -396,46 +393,12 @@ Returns a paginated list of skills assigned to the authenticated agent (via `age
 
 | Field | Type | Nullable | Description |
 |-------|------|----------|-------------|
-| `id` | `UUID` | no | Binding ID |
-| `agentPubId` | `UUID` | no | Agent public ID |
-| `skillPubId` | `UUID` | no | Skill public ID (use for ZIP download) |
+| `skillId` | `UUID` | no | Skill public ID |
 | `skillName` | `string` | yes | Skill name (`null` if skill was deleted) |
-| `needsReinstall` | `boolean` | no | `true` if skill version changed since binding |
-| `createdAt` | `string` | no | ISO datetime without timezone (`yyyy-MM-dd'T'HH:mm:ss`) |
-| `updatedAt` | `string` | no | ISO datetime without timezone |
+| `description` | `string` | yes | Skill description |
+| `connectorCodes` | `string[]` | no | Connector codes required by the skill (empty array if none) |
 
-Results are sorted by `created_at DESC`.
-
----
-
-### GET `/control/agent/skills/{skillPubId}.zip`
-
-Downloads all files of a skill as a ZIP archive. Only available for skills assigned to this agent. For featured skill clones, files are served from the parent skill's storage.
-
-**Path parameters:**
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `skillPubId` | `UUID` | Public ID of the skill (the `.zip` suffix is part of the URL pattern) |
-
-**Response `200`:**
-
-Binary ZIP stream.
-
-| Header | Value |
-|--------|-------|
-| `Content-Type` | `application/zip` |
-| `Content-Disposition` | `attachment; filename="{skill.name}.zip"` |
-
-The ZIP preserves relative paths as stored (e.g., `SKILL.md`, `tools/my_tool.py`).
-
-**Error responses:**
-
-| Status | Condition |
-|--------|-----------|
-| 400 | ZIP creation failed (I/O error) — `{ "error": { "message": "Failed to create skill archive" } }` |
-| 403 | Skill belongs to a different user |
-| 404 | Skill not found, soft-deleted, or not assigned to this agent |
+Results are sorted by binding `created_at DESC`.
 
 ---
 

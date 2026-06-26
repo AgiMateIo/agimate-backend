@@ -9,19 +9,20 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.ConflictStatusException;
+import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffResponse;
-import ru.agimate.controlapi.controller.manage.dto.SkillConnectorResponse;
+import ru.agimate.controlapi.controller.manage.dto.SkillConnectorStatus;
 import ru.agimate.controlapi.database.entities.AgentSkill;
+import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Skill;
-import ru.agimate.controlapi.database.entities.SkillConnector;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,7 @@ public class AgentSkillService {
     private final AgentSkillRepository agentSkillRepository;
     private final AgentRepository agentRepository;
     private final SkillRepository skillRepository;
+    private final ConnectionRepository connectionRepository;
     private final AgentSkillPolicyService agentSkillPolicyService;
 
     public Page<AgentSkillResponse> getAgentSkills(UUID agentId, UUID userId, int page, int size) {
@@ -55,12 +57,18 @@ public class AgentSkillService {
                 : skillRepository.findByIdInNotDeleted(skillIds).stream()
                         .collect(Collectors.toMap(Skill::getId, s -> s));
 
+        Map<String, UUID> agentConnections = agentConnectionsByCode(agentId);
+
         return agentSkills.map(as -> {
             Skill skill = skillMap.get(as.getSkillId());
             String name = skill != null ? skill.getName() : null;
             boolean needsReinstall = skill != null
                     && (as.getInstalledSkillVersion() == null || skill.getVersion() > as.getInstalledSkillVersion());
-            return AgentSkillResponse.from(as, name, needsReinstall);
+            List<SkillConnectorStatus> connectors = skill == null ? List.of()
+                    : skill.getConnectorCodes().stream()
+                            .map(code -> new SkillConnectorStatus(code, agentConnections.get(code)))
+                            .toList();
+            return AgentSkillResponse.from(as, name, connectors, needsReinstall);
         });
     }
 
@@ -76,38 +84,21 @@ public class AgentSkillService {
     }
 
     /**
-     * Aggregate skill name/description and attached connectors for the given ids.
+     * Aggregate skill name/description and required connector codes for the given ids.
      * Caller is responsible for any authorization — this method has no ownership check.
-     * Soft-deleted skills are filtered out at the JPQL level.
+     * Soft-deleted skills are filtered out.
      */
     public Map<UUID, AgentSkillWithConnectorsResponse> resolveSkillsById(List<UUID> skillIds) {
         if (skillIds.isEmpty()) {
             return Map.of();
         }
-        Map<UUID, String> nameById = new HashMap<>();
-        Map<UUID, String> descriptionById = new HashMap<>();
-        Map<UUID, List<SkillConnectorResponse>> connectorsById = new HashMap<>();
-
-        for (Object[] row : skillRepository.findNamesAndConnectorsByIdIn(skillIds)) {
-            UUID id = (UUID) row[0];
-            String name = (String) row[1];
-            String description = (String) row[2];
-            SkillConnector sc = (SkillConnector) row[3];
-            nameById.putIfAbsent(id, name);
-            descriptionById.putIfAbsent(id, description);
-            List<SkillConnectorResponse> bucket = connectorsById.computeIfAbsent(id, k -> new ArrayList<>());
-            if (sc != null) {
-                bucket.add(SkillConnectorResponse.from(sc));
-            }
-        }
-
         Map<UUID, AgentSkillWithConnectorsResponse> result = new HashMap<>();
-        for (UUID id : nameById.keySet()) {
-            result.put(id, new AgentSkillWithConnectorsResponse(
-                    id,
-                    nameById.get(id),
-                    descriptionById.get(id),
-                    connectorsById.getOrDefault(id, List.of())
+        for (Skill skill : skillRepository.findByIdInNotDeleted(skillIds)) {
+            result.put(skill.getId(), new AgentSkillWithConnectorsResponse(
+                    skill.getId(),
+                    skill.getName(),
+                    skill.getDescription(),
+                    skill.getConnectorCodes()
             ));
         }
         return result;
@@ -116,7 +107,7 @@ public class AgentSkillService {
     @Transactional
     public AgentSkillResponse create(UUID agentId, UUID skillId, UUID userId) {
         verifyAgentOwnership(agentId, userId);
-        var skill = verifySkillOwnership(skillId, userId);
+        Skill skill = verifySkillAccessible(skillId, userId);
 
         AgentSkill agentSkill = AgentSkill.builder()
                 .userId(userId)
@@ -134,7 +125,12 @@ public class AgentSkillService {
         agentSkillPolicyService.applyDiff(agentId, userId);
 
         log.info("Bound skill {} to agent {} for user {}", skillId, agentId, userId);
-        return AgentSkillResponse.from(agentSkill, skill.getName(), false);
+
+        Map<String, UUID> agentConnections = agentConnectionsByCode(agentId);
+        List<SkillConnectorStatus> connectors = skill.getConnectorCodes().stream()
+                .map(code -> new SkillConnectorStatus(code, agentConnections.get(code)))
+                .toList();
+        return AgentSkillResponse.from(agentSkill, skill.getName(), connectors, false);
     }
 
     @Transactional
@@ -185,11 +181,11 @@ public class AgentSkillService {
 
         return switch (action) {
             case "add" -> {
-                verifySkillOwnership(skillId, userId);
+                verifySkillAccessible(skillId, userId);
                 yield agentSkillPolicyService.previewAdd(agentId, skillId);
             }
             case "remove" -> {
-                verifySkillOwnership(skillId, userId);
+                verifySkillAccessible(skillId, userId);
                 yield agentSkillPolicyService.previewRemove(agentId, skillId);
             }
             case "sync" -> agentSkillPolicyService.previewSync(agentId);
@@ -197,11 +193,13 @@ public class AgentSkillService {
         };
     }
 
-    public Skill findAssignedSkill(UUID agentId, UUID skillId, UUID userId) {
-        agentSkillRepository.findByAgentIdAndSkillId(agentId, skillId)
-                .orElseThrow(() -> new NotFoundStatusException("Skill not found"));
-
-        return verifySkillOwnership(skillId, userId);
+    /** Активные коннекшены агента, отображённые connectorCode → connectionId (первый по порядку на код). */
+    private Map<String, UUID> agentConnectionsByCode(UUID agentId) {
+        Map<String, UUID> byCode = new HashMap<>();
+        for (Connection connection : connectionRepository.findActiveBoundToAgent(agentId)) {
+            byCode.putIfAbsent(connection.getConnectorCode(), connection.getId());
+        }
+        return byCode;
     }
 
     private void verifyAgentOwnership(UUID agentId, UUID userId) {
@@ -212,11 +210,12 @@ public class AgentSkillService {
         }
     }
 
-    private Skill verifySkillOwnership(UUID skillId, UUID userId) {
+    /** Скилл доступен для привязки, если он свой или публичный (клонировать не требуется). */
+    private Skill verifySkillAccessible(UUID skillId, UUID userId) {
         var skill = skillRepository.findByIdNotDeleted(skillId)
                 .orElseThrow(() -> new NotFoundStatusException("Skill not found"));
-        if (!skill.getUserId().equals(userId)) {
-            throw new NotFoundStatusException("Skill not found");
+        if (!skill.getUserId().equals(userId) && !skill.getIsPublic()) {
+            throw new ForbiddenStatusException("Access denied");
         }
         return skill;
     }

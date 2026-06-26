@@ -46,33 +46,18 @@ public class ManageSkillController {
         return SuccessResponse.ok(skillService.getMySkills(userId, search, connectorCode, page, size));
     }
 
-    @Operation(summary = "List public skills (non-featured) with optional search and connector filter")
+    @Operation(summary = "List public skills with optional search and connector filter")
     @GetMapping("/public/")
     public SuccessResponse<Page<SkillResponse>> getPublicSkills(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String connectorCode,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(skillService.getPublicSkills(userId, search, connectorCode, page, size));
+        return SuccessResponse.ok(skillService.getPublicSkills(search, connectorCode, page, size));
     }
 
-    @Operation(summary = "List featured skills with optional search and connector filter")
-    @GetMapping("/featured/")
-    public SuccessResponse<Page<SkillResponse>> getFeaturedSkills(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) String connectorCode,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
-    ) {
-        UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(skillService.getFeaturedSkills(userId, search, connectorCode, page, size));
-    }
-
-    @Operation(summary = "Get skill details with SKILL.md content")
+    @Operation(summary = "Get skill details with SKILL.md body")
     @GetMapping("/{id}")
     public SuccessResponse<SkillDetailResponse> getSkillDetail(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -141,15 +126,5 @@ public class ManageSkillController {
         UUID userId = UUID.fromString(principal.id());
         skillService.delete(id, userId);
         return SuccessResponse.empty();
-    }
-
-    @Operation(summary = "Clone a public skill to own collection")
-    @PostMapping("/{id}/clone")
-    public SuccessResponse<SkillResponse> cloneSkill(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id
-    ) {
-        UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(skillService.clone(id, userId));
     }
 }

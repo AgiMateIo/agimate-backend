@@ -41,7 +41,6 @@ import ru.agimate.controlapi.controller.manage.ManageConnectorJobController;
 import ru.agimate.controlapi.controller.manage.ManageIntegrationController;
 import ru.agimate.controlapi.controller.manage.ManageLlmProviderController;
 import ru.agimate.controlapi.controller.manage.ManageSkillController;
-import ru.agimate.controlapi.controller.manage.ManageSkillFileController;
 import ru.agimate.controlapi.controller.manage.ManageToolsController;
 import ru.agimate.controlapi.controller.manage.ManageWebhookDeliveryLogsController;
 import ru.agimate.controlapi.controller.webhook.IntegrationWebhookController;
@@ -128,7 +127,6 @@ public class SecurityConfig {
                 ManageIntegrationController.PATH + "/**",
                 ManageBoardController.PATH + "/**",
                 ManageSkillController.PATH + "/**",
-                ManageSkillFileController.PATH + "/**",
                 ManageConnectorController.PATH + "/**",
                 ManageConnectorJobController.PATH + "/**",
                 ManageCentrifugoTokenController.PATH + "/**",

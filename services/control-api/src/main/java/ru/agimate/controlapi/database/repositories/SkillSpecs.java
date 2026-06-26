@@ -1,11 +1,8 @@
 package ru.agimate.controlapi.database.repositories;
 
-import jakarta.persistence.criteria.Root;
-import jakarta.persistence.criteria.Subquery;
 import lombok.experimental.UtilityClass;
 import org.springframework.data.jpa.domain.Specification;
 import ru.agimate.controlapi.database.entities.Skill;
-import ru.agimate.controlapi.database.entities.SkillConnector;
 
 import java.util.UUID;
 
@@ -20,31 +17,14 @@ public class SkillSpecs {
         return (root, query, cb) -> cb.equal(root.get("userId"), userId);
     }
 
-    public static Specification<Skill> publicNotFeatured() {
-        return (root, query, cb) -> cb.and(
-                cb.isTrue(root.get("isPublic")),
-                cb.isFalse(root.get("isFeatured"))
-        );
+    public static Specification<Skill> isPublic() {
+        return (root, query, cb) -> cb.isTrue(root.get("isPublic"));
     }
 
-    public static Specification<Skill> featured() {
-        return (root, query, cb) -> cb.and(
-                cb.isTrue(root.get("isPublic")),
-                cb.isTrue(root.get("isFeatured"))
-        );
-    }
-
+    /** Скилл требует коннектор {@code connectorCode}: проверка членства в массиве connector_codes. */
     public static Specification<Skill> hasConnector(String connectorCode) {
-        return (root, query, cb) -> {
-            Subquery<Long> subquery = query.subquery(Long.class);
-            Root<SkillConnector> sc = subquery.from(SkillConnector.class);
-            subquery.select(cb.literal(1L));
-            subquery.where(
-                    cb.equal(sc.get("skill").get("id"), root.get("id")),
-                    cb.equal(sc.get("connectorCode"), connectorCode)
-            );
-            return cb.exists(subquery);
-        };
+        return (root, query, cb) -> cb.isNotNull(
+                cb.function("array_position", Integer.class, root.get("connectorCodes"), cb.literal(connectorCode)));
     }
 
     public static Specification<Skill> searchByNameOrDescription(String search) {

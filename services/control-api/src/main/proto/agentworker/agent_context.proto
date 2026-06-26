@@ -43,18 +43,12 @@ message GetSkillsRequest {
   string agent_id = 2;
 }
 
-message SkillConnectorRef {
-  string id = 1;
-  string connector_code = 2;
-  string type = 3;
-  string name = 4;
-}
-
 message SkillRef {
   string skill_id = 1;
   string name = 2;
   string description = 3;
-  repeated SkillConnectorRef connectors = 4;
+  // Коды коннекторов, которые требует скилл (mcp, telegram, time, board, persist-memory, ...).
+  repeated string connector_codes = 4 [json_name = "connectorCodes"];
 }
 
 message GetSkillsResponse {

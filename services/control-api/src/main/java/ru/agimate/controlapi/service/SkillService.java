@@ -9,12 +9,14 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.controller.error.SkillConflictException;
-import ru.agimate.controlapi.controller.manage.dto.*;
+import ru.agimate.controlapi.controller.manage.dto.AgentSummaryResponse;
+import ru.agimate.controlapi.controller.manage.dto.CreateSkillRequest;
+import ru.agimate.controlapi.controller.manage.dto.SkillDetailResponse;
+import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
+import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
@@ -22,8 +24,8 @@ import ru.agimate.controlapi.database.repositories.SkillSpecs;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -34,26 +36,19 @@ public class SkillService {
     private static final int MAX_PAGE_SIZE = 100;
 
     private final SkillRepository skillRepository;
-    private final SkillFileService skillFileService;
-    private final SkillConnectorService skillConnectorService;
     private final AgentRepository agentRepository;
 
     public Page<SkillResponse> getMySkills(UUID userId, String search, String connectorCode, int page, int size) {
         return findSkills(SkillSpecs.ownedBy(userId), search, connectorCode, page, size);
     }
 
-    public Page<SkillResponse> getPublicSkills(UUID userId, String search, String connectorCode, int page, int size) {
-        return findSkillsWithMyCopy(SkillSpecs.publicNotFeatured(), userId, search, connectorCode, page, size);
-    }
-
-    public Page<SkillResponse> getFeaturedSkills(UUID userId, String search, String connectorCode, int page, int size) {
-        return findSkillsWithMyCopy(SkillSpecs.featured(), userId, search, connectorCode, page, size);
+    public Page<SkillResponse> getPublicSkills(String search, String connectorCode, int page, int size) {
+        return findSkills(SkillSpecs.isPublic(), search, connectorCode, page, size);
     }
 
     public SkillDetailResponse getSkillDetail(UUID id, UUID userId) {
         Skill skill = findAccessibleSkill(id, userId);
-        String skillMd = skillFileService.readSkillMd(resolveFileOwnerId(skill));
-        return SkillDetailResponse.from(skill, skillMd);
+        return SkillDetailResponse.from(skill);
     }
 
     public Page<AgentSummaryResponse> getSkillAgents(UUID id, UUID userId, String search, int page, int size) {
@@ -66,15 +61,17 @@ public class SkillService {
 
     @Transactional
     public SkillResponse create(UUID userId, CreateSkillRequest request) {
-        SkillFrontmatterParser.Frontmatter frontmatter = SkillFrontmatterParser.parse(request.skillMd());
+        SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(request.skillMd());
 
-        if (skillRepository.existsByUserIdAndNameNotDeleted(userId, frontmatter.name())) {
-            throw new ConflictStatusException("Skill with name '" + frontmatter.name() + "' already exists");
+        if (skillRepository.existsByUserIdAndNameNotDeleted(userId, parsed.name())) {
+            throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
         }
 
         Skill skill = Skill.builder()
-                .name(frontmatter.name())
-                .description(frontmatter.description())
+                .name(parsed.name())
+                .description(parsed.description())
+                .mdContent(parsed.body())
+                .connectorCodes(new ArrayList<>(parsed.connectors()))
                 .userId(userId)
                 .isPublic(request.resolveIsPublic())
                 .build();
@@ -82,10 +79,8 @@ public class SkillService {
         try {
             skill = skillRepository.save(skill);
         } catch (DataIntegrityViolationException e) {
-            throw new ConflictStatusException("Skill with name '" + frontmatter.name() + "' already exists");
+            throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
         }
-
-        skillFileService.saveSkillMd(skill.getId(), request.skillMd());
 
         log.info("Created skill '{}' id={} for user={}", skill.getName(), skill.getId(), userId);
         return SkillResponse.from(skill);
@@ -94,27 +89,26 @@ public class SkillService {
     @Transactional
     public SkillResponse update(UUID id, UUID userId, UpdateSkillRequest request) {
         Skill skill = findOwnedSkill(id, userId);
-        requireNotFeaturedClone(skill);
 
-        SkillFrontmatterParser.Frontmatter frontmatter = SkillFrontmatterParser.parse(request.skillMd());
+        SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(request.skillMd());
 
-        if (!skill.getName().equals(frontmatter.name())
-                && skillRepository.existsByUserIdAndNameNotDeleted(userId, frontmatter.name())) {
-            throw new ConflictStatusException("Skill with name '" + frontmatter.name() + "' already exists");
+        if (!skill.getName().equals(parsed.name())
+                && skillRepository.existsByUserIdAndNameNotDeleted(userId, parsed.name())) {
+            throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
         }
 
-        skill.setName(frontmatter.name());
-        skill.setDescription(frontmatter.description());
+        skill.setName(parsed.name());
+        skill.setDescription(parsed.description());
+        skill.setMdContent(parsed.body());
+        skill.setConnectorCodes(new ArrayList<>(parsed.connectors()));
         skill.setIsPublic(request.resolveIsPublic());
         skill.setVersion(skill.getVersion() + 1);
 
         try {
             skill = skillRepository.save(skill);
         } catch (DataIntegrityViolationException e) {
-            throw new ConflictStatusException("Skill with name '" + frontmatter.name() + "' already exists");
+            throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
         }
-
-        skillFileService.saveSkillMd(skill.getId(), request.skillMd());
 
         log.info("Updated skill '{}' id={} version={}", skill.getName(), id, skill.getVersion());
         return SkillResponse.from(skill);
@@ -123,55 +117,8 @@ public class SkillService {
     @Transactional
     public void delete(UUID id, UUID userId) {
         Skill skill = findOwnedSkill(id, userId);
-        requireNotFeaturedClone(skill);
         skillRepository.softDelete(skill.getId(), LocalDateTime.now());
-        skillFileService.deleteAll(skill.getId());
         log.info("Soft-deleted skill '{}' id={}", skill.getName(), id);
-    }
-
-    @Transactional
-    public SkillResponse clone(UUID id, UUID userId) {
-        Skill source = findAccessibleSkill(id, userId);
-
-        if (source.getUserId().equals(userId)) {
-            throw new BadRequestStatusException("Cannot clone your own skill");
-        }
-
-        skillRepository.findByUserIdAndNameNotDeleted(userId, source.getName())
-                .ifPresent(existing -> {
-                    throw new SkillConflictException(
-                            "Skill with name '" + source.getName() + "' already exists in your collection",
-                            existing.getId()
-                    );
-                });
-
-        Skill clone = Skill.builder()
-                .name(source.getName())
-                .description(source.getDescription())
-                .userId(userId)
-                .parentId(source.getId())
-                .isPublic(false)
-                .build();
-
-        try {
-            clone = skillRepository.save(clone);
-        } catch (DataIntegrityViolationException e) {
-            throw new ConflictStatusException("Skill with name '" + source.getName() + "' already exists in your collection");
-        }
-
-        if (!source.getIsFeatured()) {
-            skillFileService.copyAll(source.getId(), clone.getId());
-        }
-        skillConnectorService.cloneBindings(source, clone);
-
-        log.info("Cloned skill '{}' from id={} to id={} for user={}", source.getName(), source.getId(), clone.getId(), userId);
-        return SkillResponse.from(clone);
-    }
-
-    @Transactional
-    public void touchUpdatedAt(UUID id, UUID userId) {
-        Skill skill = findOwnedSkill(id, userId);
-        skillRepository.touchUpdatedAt(skill.getId(), LocalDateTime.now());
     }
 
     public Skill findOwnedSkill(UUID id, UUID userId) {
@@ -192,26 +139,8 @@ public class SkillService {
         return skill;
     }
 
-    public UUID resolveFileOwnerId(Skill skill) {
-        if (isFeaturedClone(skill)) {
-            return skill.getParentId();
-        }
-        return skill.getId();
-    }
-
-    public void requireNotFeaturedClone(Skill skill) {
-        if (isFeaturedClone(skill)) {
-            throw new ForbiddenStatusException("Cannot edit a featured skill clone");
-        }
-    }
-
-    private boolean isFeaturedClone(Skill skill) {
-        return skill.getParentId() != null
-                && skillRepository.existsByIdAndIsFeaturedTrue(skill.getParentId());
-    }
-
-    private Page<Skill> querySkills(Specification<Skill> filter, String search, String connectorCode, int page, int size) {
-        PageRequest pageRequest = buildPageRequest(page, size);
+    private Page<SkillResponse> findSkills(Specification<Skill> filter, String search, String connectorCode, int page, int size) {
+        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
         Specification<Skill> spec = SkillSpecs.notDeleted().and(filter);
         if (search != null && !search.isBlank()) {
             spec = spec.and(SkillSpecs.searchByNameOrDescription(search));
@@ -219,34 +148,6 @@ public class SkillService {
         if (connectorCode != null && !connectorCode.isBlank()) {
             spec = spec.and(SkillSpecs.hasConnector(connectorCode));
         }
-        return skillRepository.findAll(spec, pageRequest);
-    }
-
-    private Page<SkillResponse> findSkills(Specification<Skill> filter, String search, String connectorCode, int page, int size) {
-        return querySkills(filter, search, connectorCode, page, size).map(SkillResponse::from);
-    }
-
-    private Page<SkillResponse> findSkillsWithMyCopy(Specification<Skill> filter, UUID userId, String search, String connectorCode, int page, int size) {
-        Page<Skill> skills = querySkills(filter, search, connectorCode, page, size);
-        Set<UUID> ids = skills.getContent().stream().map(Skill::getId).collect(Collectors.toSet());
-        Map<UUID, UUID> myCopyMap = buildMyCopyMap(ids, userId);
-        return skills.map(skill -> SkillResponse.from(skill, myCopyMap.get(skill.getId())));
-    }
-
-    private Map<UUID, UUID> buildMyCopyMap(Set<UUID> parentIds, UUID userId) {
-        if (parentIds.isEmpty()) {
-            return Map.of();
-        }
-        return skillRepository.findMyClonesByParentIds(parentIds, userId)
-                .stream()
-                .collect(Collectors.toMap(
-                        row -> (UUID) row[0],
-                        row -> (UUID) row[1],
-                        (existing, replacement) -> existing
-                ));
-    }
-
-    private PageRequest buildPageRequest(int page, int size) {
-        return PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
+        return skillRepository.findAll(spec, pageRequest).map(SkillResponse::from);
     }
 }

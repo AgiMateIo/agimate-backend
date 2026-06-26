@@ -63,7 +63,6 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | GET    | `/control/agent/connectors/tools/`                 | List all connector tools (stub)      |
 | GET    | `/control/agent/connectors/tools/{connectorId}`    | Get connector tools                  |
 | GET    | `/control/agent/skills/`                            | List agent's skills (paginated)      |
-| GET    | `/control/agent/skills/{skillPubId}.zip`            | Download skill files as ZIP          |
 
 ### App Management (JWT)
 
@@ -105,15 +104,13 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | Method | Path                                            | Description                                                |
 |--------|-------------------------------------------------|------------------------------------------------------------|
 | GET    | `/control/manage/skills/`                        | List own skills (search, connector filter, pagination)     |
-| GET    | `/control/manage/skills/public/`                 | List public non-featured skills                             |
-| GET    | `/control/manage/skills/featured/`               | List featured skills                                        |
-| GET    | `/control/manage/skills/{pubId}`                 | Get skill detail with `SKILL.md` content                    |
-| GET    | `/control/manage/skills/{pubId}/agents/`         | List my agents that use this skill (paginated, search)      |
+| GET    | `/control/manage/skills/public/`                 | List ALL public skills                                      |
+| GET    | `/control/manage/skills/{id}`                    | Get skill detail with SKILL.md body (`mdContent`)           |
+| GET    | `/control/manage/skills/{id}/agents/`            | List my agents that use this skill (paginated, search)      |
 | POST   | `/control/manage/skills/`                        | Create skill from JSON                                      |
-| POST   | `/control/manage/skills/upload`                  | Create skill from uploaded `SKILL.md` file                  |
-| PUT    | `/control/manage/skills/{pubId}`                 | Update skill (bumps version)                                |
-| DELETE | `/control/manage/skills/{pubId}`                 | Soft-delete skill                                           |
-| POST   | `/control/manage/skills/{pubId}/clone`           | Clone a public/featured skill into the user's collection    |
+| POST   | `/control/manage/skills/upload`                  | Create skill from uploaded SKILL.md file                    |
+| PUT    | `/control/manage/skills/{id}`                    | Update skill (bumps version)                                |
+| DELETE | `/control/manage/skills/{id}`                    | Soft-delete skill                                           |
 
 ### Tool Management (JWT)
 

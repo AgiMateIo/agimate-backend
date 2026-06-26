@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.AgentSkill;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Schema(description = "Agent-skill binding response")
@@ -21,7 +22,10 @@ public record AgentSkillResponse(
         @Schema(description = "Skill name")
         String skillName,
 
-        @Schema(description = "Whether the skill's connectors have changed since installation")
+        @Schema(description = "Connectors required by the skill and the agent's connection for each (null = not connected)")
+        List<SkillConnectorStatus> connectors,
+
+        @Schema(description = "Whether the skill version advanced since installation")
         boolean needsReinstall,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -32,12 +36,14 @@ public record AgentSkillResponse(
         @Schema(description = "When the binding was last updated")
         LocalDateTime updatedAt
 ) {
-    public static AgentSkillResponse from(AgentSkill agentSkill, String skillName, boolean needsReinstall) {
+    public static AgentSkillResponse from(AgentSkill agentSkill, String skillName,
+                                          List<SkillConnectorStatus> connectors, boolean needsReinstall) {
         return new AgentSkillResponse(
                 agentSkill.getId(),
                 agentSkill.getAgentId(),
                 agentSkill.getSkillId(),
                 skillName,
+                connectors,
                 needsReinstall,
                 agentSkill.getCreatedAt(),
                 agentSkill.getUpdatedAt()

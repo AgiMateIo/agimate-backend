@@ -38,7 +38,7 @@ public class ManageAgentSkillController {
         return SuccessResponse.ok(agentSkillService.getAgentSkills(agentId, userId, page, size));
     }
 
-    @Operation(summary = "Bind a skill to an agent (also creates ALLOW policies from skill connectors)")
+    @Operation(summary = "Bind an own or public skill to an agent (also binds the skill's connectors)")
     @PostMapping("/")
     public SuccessResponse<AgentSkillResponse> createAgentSkill(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -49,7 +49,7 @@ public class ManageAgentSkillController {
         return SuccessResponse.ok(agentSkillService.create(agentId, request.skillId(), userId));
     }
 
-    @Operation(summary = "Unbind a skill from an agent (also removes unused skill-sourced policies)")
+    @Operation(summary = "Unbind a skill from an agent (connector bindings are add-only, not revoked)")
     @DeleteMapping("/{skillId}")
     public SuccessResponse<Void> deleteAgentSkill(
             @AuthenticationPrincipal AgimateUserPrincipal principal,

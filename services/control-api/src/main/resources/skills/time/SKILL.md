@@ -1,6 +1,7 @@
 ---
 name: AgiMate Time
 description: Текущее время в UTC и планирование отложенных задач самому себе — одноразовые напоминания, периодические запуски и cron-расписания.
+connectors: [time]
 ---
 
 # Skill: AgiMate Time

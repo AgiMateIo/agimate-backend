@@ -1,6 +1,7 @@
 ---
 name: AgiMate Memory
 description: Долговременная память агента — сохранение фактов заметками во время диалога и их консолидация в свёрнутую память по триггерам.
+connectors: [persist-memory]
 ---
 
 # Skill: AgiMate Memory

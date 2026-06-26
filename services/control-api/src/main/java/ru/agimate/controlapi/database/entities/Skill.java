@@ -4,9 +4,13 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -30,6 +34,16 @@ public class Skill extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    /** Тело SKILL.md без frontmatter — контент скилла. */
+    @Column(name = "md_content", nullable = false, columnDefinition = "TEXT")
+    private String mdContent;
+
+    /** Коннекторы, которые требует скилл (Postgres {@code text[]}). */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "connector_codes", nullable = false, columnDefinition = "text[]")
+    @Builder.Default
+    private List<String> connectorCodes = new ArrayList<>();
+
     @Column(name = "version", nullable = false)
     @Builder.Default
     private Integer version = 1;
@@ -40,13 +54,6 @@ public class Skill extends BaseEntity {
     @Column(name = "is_public", nullable = false)
     @Builder.Default
     private Boolean isPublic = false;
-
-    @Column(name = "is_featured", nullable = false)
-    @Builder.Default
-    private Boolean isFeatured = false;
-
-    @Column(name = "parent_id")
-    private UUID parentId;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;

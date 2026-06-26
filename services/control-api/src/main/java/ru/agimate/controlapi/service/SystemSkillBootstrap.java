@@ -8,29 +8,24 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StreamUtils;
-import ru.agimate.controlapi.connectors.internal.board.BoardConnectorService;
-import ru.agimate.controlapi.connectors.internal.persistentmemory.PersistentMemoryConnectorService;
-import ru.agimate.controlapi.connectors.internal.time.TimeConnectorService;
 import ru.agimate.controlapi.database.entities.Skill;
-import ru.agimate.controlapi.database.entities.SkillConnector;
-import ru.agimate.controlapi.database.repositories.SkillConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
- * Сидинг системных скиллов в БД + файловое хранилище при старте приложения.
+ * Сидинг системных скиллов в БД при старте приложения.
  *
  * <p>Скилл лежит как classpath-ресурс ({@code resources/skills/.../SKILL.md}), владелец —
- * синтетический {@link #SYSTEM_USER_ID}, публикуется как public + featured. Операция идемпотентна:
- * строка ищется по {@code (userId, name)}; при изменении контента файл перезаписывается и
- * инкрементируется {@code version}. Привязка к коннектору — wildcard ({@code type/name = null} =
- * весь коннектор).
+ * синтетический {@link #SYSTEM_USER_ID}, публикуется как public (его можно привязать к агенту
+ * напрямую, без клонирования). Имя/описание/коннекторы берутся из frontmatter, тело — в
+ * {@code md_content}. Операция идемпотентна: строка ищется по {@code (userId, name)}; при изменении
+ * тела или набора коннекторов поля перезаписываются и инкрементируется {@code version}.
  */
 @Slf4j
 @Component
@@ -38,74 +33,53 @@ import java.util.UUID;
 public class SystemSkillBootstrap {
 
     /** Синтетический владелец системных скиллов (реального пользователя в control-api нет). */
-    public static final UUID SYSTEM_USER_ID = new UUID(0L, 0L);
+    public static final java.util.UUID SYSTEM_USER_ID = new java.util.UUID(0L, 0L);
 
-    /** Скилл из classpath-ресурса {@code resource}, привязанный целиком к коннектору {@code connectorCode}. */
-    private record SystemSkill(String resource, String connectorCode) {}
-
-    private static final List<SystemSkill> SYSTEM_SKILLS = List.of(
-            new SystemSkill("skills/board/SKILL.md", BoardConnectorService.CONNECTOR_CODE),
-            new SystemSkill("skills/time/SKILL.md", TimeConnectorService.CONNECTOR_CODE),
-            new SystemSkill("skills/persist-memory/SKILL.md", PersistentMemoryConnectorService.CONNECTOR_CODE));
+    private static final List<String> SYSTEM_SKILL_RESOURCES = List.of(
+            "skills/board/SKILL.md",
+            "skills/time/SKILL.md",
+            "skills/persist-memory/SKILL.md");
 
     private final SkillRepository skillRepository;
-    private final SkillConnectorRepository skillConnectorRepository;
-    private final SkillFileService skillFileService;
 
     @EventListener(ApplicationReadyEvent.class)
     @Transactional
     public void bootstrap() {
-        for (SystemSkill def : SYSTEM_SKILLS) {
-            Skill skill = seedSkill(def.resource());
-            bindConnector(skill, def.connectorCode());
+        for (String resource : SYSTEM_SKILL_RESOURCES) {
+            seedSkill(resource);
         }
     }
 
-    private Skill seedSkill(String resourcePath) {
+    private void seedSkill(String resourcePath) {
         String content = readResource(resourcePath);
-        SkillFrontmatterParser.Frontmatter frontmatter = SkillFrontmatterParser.parse(content);
+        SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(content);
+        List<String> connectors = new ArrayList<>(parsed.connectors());
 
-        Optional<Skill> existing = skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, frontmatter.name());
+        Optional<Skill> existing = skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, parsed.name());
         if (existing.isEmpty()) {
             Skill skill = skillRepository.save(Skill.builder()
-                    .name(frontmatter.name())
-                    .description(frontmatter.description())
+                    .name(parsed.name())
+                    .description(parsed.description())
+                    .mdContent(parsed.body())
+                    .connectorCodes(connectors)
                     .userId(SYSTEM_USER_ID)
                     .isPublic(true)
-                    .isFeatured(true)
                     .build());
-            skillFileService.saveSkillMd(skill.getId(), content);
-            log.info("Seeded system skill '{}' id={}", skill.getName(), skill.getId());
-            return skill;
+            log.info("Seeded system skill '{}' id={} connectors={}", skill.getName(), skill.getId(), connectors);
+            return;
         }
 
         Skill skill = existing.get();
-        boolean changed = !skillFileService.skillMdExists(skill.getId())
-                || !content.equals(skillFileService.readSkillMd(skill.getId()));
+        boolean changed = !parsed.body().equals(skill.getMdContent())
+                || !connectors.equals(skill.getConnectorCodes());
         if (changed) {
-            skill.setDescription(frontmatter.description());
+            skill.setDescription(parsed.description());
+            skill.setMdContent(parsed.body());
+            skill.setConnectorCodes(connectors);
             skill.setVersion(skill.getVersion() + 1);
             skillRepository.save(skill);
-            skillFileService.saveSkillMd(skill.getId(), content);
             log.info("Updated system skill '{}' id={} to version={}", skill.getName(), skill.getId(), skill.getVersion());
         }
-        return skill;
-    }
-
-    private void bindConnector(Skill skill, String connectorCode) {
-        boolean alreadyBound = skillConnectorRepository.findBySkillId(skill.getId()).stream()
-                .anyMatch(sc -> connectorCode.equals(sc.getConnectorCode()));
-        if (alreadyBound) {
-            return;
-        }
-        skillConnectorRepository.save(SkillConnector.builder()
-                .skill(skill)
-                .userId(skill.getUserId())
-                .connectorCode(connectorCode)
-                .type(null)
-                .name(null)
-                .build());
-        log.info("Bound connector '{}' to system skill '{}' id={}", connectorCode, skill.getName(), skill.getId());
     }
 
     private String readResource(String path) {

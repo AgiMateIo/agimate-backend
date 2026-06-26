@@ -4,6 +4,8 @@ import lombok.experimental.UtilityClass;
 import org.yaml.snakeyaml.Yaml;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @UtilityClass
@@ -11,9 +13,13 @@ public class SkillFrontmatterParser {
 
     private static final String FRONTMATTER_DELIMITER = "---";
 
-    public record Frontmatter(String name, String description) {}
+    /**
+     * Разобранный SKILL.md: {@code name}/{@code description}/{@code connectors} из frontmatter и
+     * {@code body} — тело без заголовков (всё после закрывающего {@code ---}).
+     */
+    public record ParsedSkill(String name, String description, List<String> connectors, String body) {}
 
-    public static Frontmatter parse(String content) {
+    public static ParsedSkill parse(String content) {
         if (content == null || content.isBlank()) {
             throw new BadRequestStatusException("SKILL.md content is empty");
         }
@@ -59,7 +65,26 @@ public class SkillFrontmatterParser {
         String description = frontmatter.containsKey("description")
                 ? String.valueOf(frontmatter.get("description")).strip()
                 : null;
+        List<String> connectors = parseConnectors(frontmatter.get("connectors"));
 
-        return new Frontmatter(name, description);
+        // Тело — всё после строки закрывающего ---.
+        int closeLineEnd = trimmed.indexOf('\n', secondDelimiter + 1);
+        String body = closeLineEnd < 0 ? "" : trimmed.substring(closeLineEnd + 1).strip();
+
+        return new ParsedSkill(name, description, connectors, body);
+    }
+
+    private static List<String> parseConnectors(Object value) {
+        List<String> result = new ArrayList<>();
+        if (value instanceof List<?> list) {
+            for (Object item : list) {
+                if (item != null && !item.toString().isBlank()) {
+                    result.add(item.toString().strip());
+                }
+            }
+        } else if (value != null && !value.toString().isBlank()) {
+            result.add(value.toString().strip());
+        }
+        return result;
     }
 }

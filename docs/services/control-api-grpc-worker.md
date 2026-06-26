@@ -15,7 +15,7 @@ credentials from the backend and execute tools through the Tool Gateway.
 | Service                 | RPCs (PoC)                                                                                        | Status   |
 |-------------------------|---------------------------------------------------------------------------------------------------|----------|
 | `WorkerControl`         | `HealthCheck`                                                                                     | done     |
-| `AgentContext`          | `GetAgentSpec`, `GetSkill`, `GetTeamContext`, `GetLlmCredentials`                                 | done     |
+| `AgentContext`          | `GetAgentSpec`, `GetSkills`, `GetSkill`, `GetTeamContext`, `GetLlmCredentials`, `GetConnections`, `GetConnectionTools`, `GetMemory`, `GetMemoryNotes` | done     |
 | `ToolGateway`           | `ExecuteTool` (sync). `ExecuteToolStream/Batch/Async` reserved → return `UNIMPLEMENTED`           | partial  |
 | `AgentSessionMessages`  | `Append`, `GetHistory`                                                                            | done     |
 | `AgentRunRegistry`      | `RegisterRun`, `GetActiveRun`, `ReleaseRun`                                                       | done     |
@@ -116,6 +116,34 @@ grpcurl -plaintext \
 ```
 
 Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → `UNAUTHENTICATED`.
+
+## Skills (`AgentContext.GetSkills` / `GetSkill`)
+
+### `GetSkills(workflow_id, agent_id)` → `GetSkillsResponse`
+
+Returns all skills bound to the agent as a list of `SkillRef`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `skill_id` | `string` | Skill UUID |
+| `name` | `string` | Skill display name |
+| `description` | `string` | Skill description |
+| `connector_codes` | `repeated string` | Connector codes required by the skill (e.g. `time`, `board`, `mcp`) |
+
+### `GetSkill(workflow_id, skill_id, version)` → `SkillSpec`
+
+Returns the full spec for a single skill:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `skill_id` | `string` | Skill UUID |
+| `version` | `string` | Skill version at time of fetch |
+| `name` | `string` | Skill display name |
+| `description` | `string` | Skill description |
+| `definition_json` | `bytes` | Reserved (JSON definition, not used in current PoC) |
+| `skill_md` | `string` | SKILL.md **body without frontmatter** — the markdown instructions for the agent |
+
+Note: `skill_md` contains only the body text. Name, description, and connector codes are separate fields; the frontmatter is not re-emitted.
 
 ## Tool execution
 

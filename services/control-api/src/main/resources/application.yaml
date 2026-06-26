@@ -95,10 +95,6 @@ app:
   secrets:
     # KEK (master key) для envelope-шифрования секретов (AES-256, base64 32 байта).
     encryption-key: "***REMOVED***"
-  skill:
-    dir: "./data/skills"
-    max-file-size: 10485760
-    max-files-per-skill: 10
 
 dbos:
   enabled: false

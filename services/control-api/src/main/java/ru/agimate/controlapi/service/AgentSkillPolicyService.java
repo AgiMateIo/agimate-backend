@@ -10,11 +10,11 @@ import ru.agimate.controlapi.controller.manage.dto.PolicyDiffResponse;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.entities.SkillConnector;
+import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
-import ru.agimate.controlapi.database.repositories.SkillConnectorRepository;
+import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 
 import java.util.HashSet;
@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 public class AgentSkillPolicyService {
 
     private final AgentSkillRepository agentSkillRepository;
-    private final SkillConnectorRepository skillConnectorRepository;
+    private final SkillRepository skillRepository;
     private final AgentConnectionRepository agentConnectionRepository;
     private final ConnectionRepository connectionRepository;
     private final ConnectionBindingService connectionBindingService;
@@ -104,8 +104,9 @@ public class AgentSkillPolicyService {
         if (skillIds.isEmpty()) {
             return Set.of();
         }
-        return skillConnectorRepository.findBySkillIdIn(skillIds).stream()
-                .map(SkillConnector::getConnectorCode)
+        return skillRepository.findByIdInNotDeleted(skillIds).stream()
+                .map(Skill::getConnectorCodes)
+                .flatMap(List::stream)
                 .collect(Collectors.toCollection(HashSet::new));
     }
 
