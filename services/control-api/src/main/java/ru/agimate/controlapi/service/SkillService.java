@@ -9,9 +9,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.controlapi.connectors.core.ConnectorHandler;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.manage.dto.AgentSummaryResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateSkillRequest;
 import ru.agimate.controlapi.controller.manage.dto.SkillDetailResponse;
@@ -25,7 +28,10 @@ import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -37,6 +43,7 @@ public class SkillService {
 
     private final SkillRepository skillRepository;
     private final AgentRepository agentRepository;
+    private final ConnectorRegistry connectorRegistry;
 
     public Page<SkillResponse> getMySkills(UUID userId, String search, String connectorCode, int page, int size) {
         return findSkills(SkillSpecs.ownedBy(userId), search, connectorCode, page, size);
@@ -62,6 +69,7 @@ public class SkillService {
     @Transactional
     public SkillResponse create(UUID userId, CreateSkillRequest request) {
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(request.skillMd());
+        validateConnectorCodes(parsed.connectors());
 
         if (skillRepository.existsByUserIdAndNameNotDeleted(userId, parsed.name())) {
             throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
@@ -91,6 +99,7 @@ public class SkillService {
         Skill skill = findOwnedSkill(id, userId);
 
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(request.skillMd());
+        validateConnectorCodes(parsed.connectors());
 
         if (!skill.getName().equals(parsed.name())
                 && skillRepository.existsByUserIdAndNameNotDeleted(userId, parsed.name())) {
@@ -149,5 +158,26 @@ public class SkillService {
             spec = spec.and(SkillSpecs.hasConnector(connectorCode));
         }
         return skillRepository.findAll(spec, pageRequest).map(SkillResponse::from);
+    }
+
+    /**
+     * Коды коннекторов скилла должны существовать в каталоге (registry). Иначе скилл нельзя было бы
+     * осмысленно привязать — при bind'е такой код всё равно пропускается ({@code AgentSkillPolicyService}),
+     * поэтому отсекаем мусор на входе. Пустой список (скилл без коннекторов) допустим.
+     */
+    private void validateConnectorCodes(List<String> codes) {
+        if (codes.isEmpty()) {
+            return;
+        }
+        Set<String> known = connectorRegistry.getHandlers().stream()
+                .map(ConnectorHandler::connectorCode)
+                .collect(Collectors.toSet());
+        List<String> unknown = codes.stream()
+                .filter(code -> !known.contains(code))
+                .distinct()
+                .toList();
+        if (!unknown.isEmpty()) {
+            throw new BadRequestStatusException("Unknown connector code(s): " + String.join(", ", unknown));
+        }
     }
 }

@@ -348,6 +348,7 @@ The backend parses the frontmatter (`name`, `description`, `connectors`) and sto
 | Status | Condition |
 |--------|-----------|
 | 400 | `skillMd` is empty, missing frontmatter, missing `name` field, or YAML is invalid |
+| 400 | `Unknown connector code(s): …` — frontmatter `connectors` lists a code not present in the connector registry |
 | 409 | A skill with this `name` already exists for the user |
 
 ---
@@ -405,7 +406,7 @@ Update an existing skill. Bumps `version` by 1, re-parses `name`, `description`,
 
 | Status | Condition |
 |--------|-----------|
-| 400 | Invalid SKILL.md (see `POST /`) |
+| 400 | Invalid SKILL.md or unknown connector code(s) (see `POST /`) |
 | 403 | Caller is not the owner |
 | 404 | Skill not found or soft-deleted |
 | 409 | Renaming would collide with an existing skill name in the user's collection |
