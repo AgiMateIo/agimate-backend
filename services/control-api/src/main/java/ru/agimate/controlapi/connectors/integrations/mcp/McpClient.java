@@ -2,6 +2,7 @@ package ru.agimate.controlapi.connectors.integrations.mcp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -11,6 +12,10 @@ import org.springframework.web.client.RestClient;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.URI;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -39,7 +44,11 @@ public class McpClient {
     private final RestClient restClient;
     private final AtomicLong requestId = new AtomicLong(1);
 
-    public McpClient() {
+    /** SSRF: разрешать ли цели на приватных/loopback-адресах (true — только для локальной разработки). */
+    private final boolean allowPrivateTargets;
+
+    public McpClient(@Value("${app.connectors.mcp.allow-private-targets:false}") boolean allowPrivateTargets) {
+        this.allowPrivateTargets = allowPrivateTargets;
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(TIMEOUT);
         factory.setReadTimeout(TIMEOUT);
@@ -84,6 +93,7 @@ public class McpClient {
     private record Session(String sessionId, ServerInfo serverInfo) {}
 
     private Session openSession(ServerConfig config) {
+        validateTarget(config.url());
         Map<String, Object> params = Map.of(
                 "protocolVersion", PROTOCOL_VERSION,
                 "capabilities", Map.of(),
@@ -192,6 +202,54 @@ public class McpClient {
             throw new ConnectorException("MCP server error: " + msg);
         }
         return message.path("result");
+    }
+
+    /**
+     * SSRF-guard: до любого запроса проверяем, что URL ведёт на публичный http(s)-адрес. Резолвим
+     * хост и блокируем loopback / link-local (включая {@code 169.254.169.254}) / site-local /
+     * any-local / multicast и IPv6 unique-local. Резолв на каждом вызове (а не разово при создании
+     * connection) сужает окно DNS-rebinding, но полностью его не закрывает. Флаг
+     * {@code app.connectors.mcp.allow-private-targets} снимает проверку для локальной разработки.
+     */
+    private void validateTarget(String url) {
+        if (allowPrivateTargets) {
+            return;
+        }
+        URI uri;
+        try {
+            uri = URI.create(url);
+        } catch (IllegalArgumentException e) {
+            throw new ConnectorException("Invalid MCP server URL");
+        }
+        String scheme = uri.getScheme();
+        if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
+            throw new ConnectorException("MCP server URL must use http or https");
+        }
+        String host = uri.getHost();
+        if (host == null || host.isBlank()) {
+            throw new ConnectorException("MCP server URL has no host");
+        }
+        InetAddress[] addresses;
+        try {
+            addresses = InetAddress.getAllByName(host);
+        } catch (UnknownHostException e) {
+            throw new ConnectorException("Cannot resolve MCP server host: " + host);
+        }
+        for (InetAddress address : addresses) {
+            if (isBlockedAddress(address)) {
+                throw new ConnectorException(
+                        "MCP server URL resolves to a non-public address and is not allowed");
+            }
+        }
+    }
+
+    private static boolean isBlockedAddress(InetAddress address) {
+        if (address.isLoopbackAddress() || address.isAnyLocalAddress() || address.isLinkLocalAddress()
+                || address.isSiteLocalAddress() || address.isMulticastAddress()) {
+            return true;
+        }
+        // IPv6 unique-local (fc00::/7) — InetAddress.isSiteLocalAddress его не покрывает.
+        return address instanceof Inet6Address && (address.getAddress()[0] & 0xfe) == 0xfc;
     }
 
     private JsonNode parseSseResponse(String body, long id) {

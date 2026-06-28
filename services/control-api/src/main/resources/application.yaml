@@ -95,6 +95,11 @@ app:
   secrets:
     # KEK (master key) для envelope-шифрования секретов (AES-256, base64 32 байта).
     encryption-key: "***REMOVED***"
+  connectors:
+    mcp:
+      # SSRF-guard: разрешать ли MCP-серверы на приватных/loopback/link-local адресах.
+      # В проде держим false; true — для локальной разработки против localhost-серверов.
+      allow-private-targets: false
 
 dbos:
   enabled: false
