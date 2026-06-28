@@ -174,8 +174,16 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             Skill skill = skillRepository.findByIdNotDeleted(skillId)
                     .orElseThrow(() -> new NotFoundStatusException("Skill not found: " + skillId));
 
-            int requestedVersion = request.getVersion().isEmpty() ? skill.getVersion()
-                    : Integer.parseInt(request.getVersion());
+            int requestedVersion;
+            if (request.getVersion().isEmpty()) {
+                requestedVersion = skill.getVersion();
+            } else {
+                try {
+                    requestedVersion = Integer.parseInt(request.getVersion());
+                } catch (NumberFormatException e) {
+                    throw new BadRequestStatusException("Invalid skill version: " + request.getVersion());
+                }
+            }
             if (!skill.getVersion().equals(requestedVersion)) {
                 responseObserver.onError(Status.FAILED_PRECONDITION
                         .withDescription("Skill version mismatch: requested=" + requestedVersion

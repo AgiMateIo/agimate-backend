@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StreamUtils;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
@@ -43,10 +43,15 @@ public class SystemSkillBootstrap {
     private final SkillRepository skillRepository;
 
     @EventListener(ApplicationReadyEvent.class)
-    @Transactional
     public void bootstrap() {
+        // Без объемлющей транзакции: каждый вызов репозитория идёт в своей tx, поэтому конфликт
+        // уникального индекса на одном скилле (гонка нод на холодном старте) не отравляет остальные.
         for (String resource : SYSTEM_SKILL_RESOURCES) {
-            seedSkill(resource);
+            try {
+                seedSkill(resource);
+            } catch (Exception e) {
+                log.error("Failed to seed system skill {}: {}", resource, e.getMessage());
+            }
         }
     }
 
@@ -56,7 +61,12 @@ public class SystemSkillBootstrap {
         List<String> connectors = new ArrayList<>(parsed.connectors());
 
         Optional<Skill> existing = skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, parsed.name());
-        if (existing.isEmpty()) {
+        if (existing.isPresent()) {
+            updateIfChanged(existing.get(), parsed, connectors);
+            return;
+        }
+
+        try {
             Skill skill = skillRepository.save(Skill.builder()
                     .name(parsed.name())
                     .description(parsed.description())
@@ -66,20 +76,25 @@ public class SystemSkillBootstrap {
                     .isPublic(true)
                     .build());
             log.info("Seeded system skill '{}' id={} connectors={}", skill.getName(), skill.getId(), connectors);
-            return;
+        } catch (DataIntegrityViolationException e) {
+            // Параллельная нода успела вставить тот же (user_id, name) — перечитываем и досинкиваем тело.
+            skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, parsed.name())
+                    .ifPresent(s -> updateIfChanged(s, parsed, connectors));
         }
+    }
 
-        Skill skill = existing.get();
+    private void updateIfChanged(Skill skill, SkillFrontmatterParser.ParsedSkill parsed, List<String> connectors) {
         boolean changed = !parsed.body().equals(skill.getMdContent())
                 || !connectors.equals(skill.getConnectorCodes());
-        if (changed) {
-            skill.setDescription(parsed.description());
-            skill.setMdContent(parsed.body());
-            skill.setConnectorCodes(connectors);
-            skill.setVersion(skill.getVersion() + 1);
-            skillRepository.save(skill);
-            log.info("Updated system skill '{}' id={} to version={}", skill.getName(), skill.getId(), skill.getVersion());
+        if (!changed) {
+            return;
         }
+        skill.setDescription(parsed.description());
+        skill.setMdContent(parsed.body());
+        skill.setConnectorCodes(connectors);
+        skill.setVersion(skill.getVersion() + 1);
+        skillRepository.save(skill);
+        log.info("Updated system skill '{}' id={} to version={}", skill.getName(), skill.getId(), skill.getVersion());
     }
 
     private String readResource(String path) {

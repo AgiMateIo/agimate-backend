@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Синк кэша {@code mcp_tool} по lifecycle-событиям MCP-экземпляров (аналог
+ * Синк кэша {@code connection_tools} по lifecycle-событиям MCP-экземпляров (аналог
  * {@code ConnectorIdentityListener} для тасок): на create/modify — ре-дискавери тулов
  * ({@code tools/list} → перезапись), на delete — чистка строк по identity.
  *

@@ -8,7 +8,7 @@ import java.util.Map;
 
 /**
  * Коннектор к внешней платформе: живёт от имени пользователя по его credentials
- * ({@code integration_credentials}), опционально принимает входящие webhooks.
+ * (секрет адресуется {@code connections.secret_id}), опционально принимает входящие webhooks.
  */
 public interface IntegrationConnectorHandler extends ConnectorHandler {
 

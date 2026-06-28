@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.Connection;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,6 +18,9 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
 
     @Query("SELECT c FROM Connection c WHERE c.id = :id AND c.deletedAt IS NULL")
     Optional<Connection> findByIdNotDeleted(@Param("id") UUID id);
+
+    @Query("SELECT c FROM Connection c WHERE c.id IN :ids AND c.deletedAt IS NULL")
+    List<Connection> findByIdInNotDeleted(@Param("ids") Collection<UUID> ids);
 
     @Query("SELECT c FROM Connection c WHERE c.id = :id AND c.userId = :userId AND c.deletedAt IS NULL")
     Optional<Connection> findByIdAndUserIdNotDeleted(@Param("id") UUID id, @Param("userId") UUID userId);

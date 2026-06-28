@@ -48,7 +48,7 @@ public class ConnectorJob extends BaseEntity {
     private String connectorCode;
 
     /**
-     * Идентификатор экземпляра коннектора: для integration — id из {@code integration_credentials}
+     * Идентификатор экземпляра коннектора: для integration — id из {@code connections}
      * строкой (как в {@code ToolCallLog}); у динамических задач — identity tool-вызова инициатора
      * (восстанавливается в {@code ConnectorContext} на срабатывании); {@code null}, если экземпляр
      * не применим.

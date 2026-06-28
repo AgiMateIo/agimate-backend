@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffEntry;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffResponse;
 import ru.agimate.controlapi.database.entities.AgentConnection;
@@ -75,8 +76,10 @@ public class AgentSkillPolicyService {
             try {
                 connectionBindingService.bind(userId, agentId, connectorCode, null, null);
                 added++;
-            } catch (BadRequestStatusException e) {
-                // INSTANCE-коннектор (нужен явный экземпляр) или иной несовместимый scope — пропускаем.
+            } catch (BadRequestStatusException | NotFoundStatusException e) {
+                // INSTANCE-коннектор (нужен явный экземпляр), несовместимый scope или неизвестный
+                // connector_code (скилл объявил коннектор, которого нет в каталоге) — пропускаем:
+                // способность просто «не обеспечена», привязка скилла из-за этого падать не должна.
                 log.warn("Skill cannot bind connector {} for agent {}: {}",
                         connectorCode, agentId, e.getMessage());
             }
@@ -111,13 +114,15 @@ public class AgentSkillPolicyService {
     }
 
     private Set<String> boundConnectorCodes(UUID agentId) {
-        Set<String> codes = new HashSet<>();
-        for (AgentConnection binding : agentConnectionRepository.findActiveByAgentId(agentId)) {
-            connectionRepository.findByIdNotDeleted(binding.getConnectionId())
-                    .map(Connection::getConnectorCode)
-                    .ifPresent(codes::add);
+        List<UUID> connectionIds = agentConnectionRepository.findActiveByAgentId(agentId).stream()
+                .map(AgentConnection::getConnectionId)
+                .toList();
+        if (connectionIds.isEmpty()) {
+            return Set.of();
         }
-        return codes;
+        return connectionRepository.findByIdInNotDeleted(connectionIds).stream()
+                .map(Connection::getConnectorCode)
+                .collect(Collectors.toCollection(HashSet::new));
     }
 
     private Set<UUID> getCurrentSkillIds(UUID agentId) {

@@ -26,7 +26,9 @@ import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Управление binding'ом «коннектор доступен агенту» ({@code agent_connections}) — гейт доступности.
@@ -99,10 +101,17 @@ public class ConnectionBindingService {
     /** Активные binding'и агента с их connection (для manage-листинга). */
     public List<AgentConnectionView> listForAgent(UUID userId, UUID agentId) {
         requireOwnedAgent(userId, agentId);
+        List<AgentConnection> bindings = agentConnectionRepository.findActiveByAgentId(agentId);
+        List<UUID> connectionIds = bindings.stream().map(AgentConnection::getConnectionId).toList();
+        Map<UUID, Connection> byId = connectionIds.isEmpty() ? Map.of()
+                : connectionRepository.findByIdInNotDeleted(connectionIds).stream()
+                        .collect(Collectors.toMap(Connection::getId, c -> c));
         List<AgentConnectionView> views = new ArrayList<>();
-        for (AgentConnection b : agentConnectionRepository.findActiveByAgentId(agentId)) {
-            connectionRepository.findByIdNotDeleted(b.getConnectionId())
-                    .ifPresent(c -> views.add(new AgentConnectionView(b, c)));
+        for (AgentConnection b : bindings) {
+            Connection c = byId.get(b.getConnectionId());
+            if (c != null) {
+                views.add(new AgentConnectionView(b, c));
+            }
         }
         return views;
     }

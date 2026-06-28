@@ -37,7 +37,7 @@ public class TelegramToolService {
     private final TriggerRouterService triggerRouterService;
 
     /**
-     * Per‑integration cache long‑poll'а (ключ — identity, т.е. id integration_credentials):
+     * Per‑integration cache long‑poll'а (ключ — identity, т.е. {@code connections.id}):
      *   {@code offsets} — следующий update_id, передаваемый в getUpdates;
      *   {@code webhookDeleted} — флаг «уже вызывали deleteWebhook» (Telegram не любит держать
      *   и webhook, и getUpdates одновременно — 409 Conflict).

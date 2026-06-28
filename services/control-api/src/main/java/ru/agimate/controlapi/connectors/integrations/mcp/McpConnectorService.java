@@ -18,12 +18,12 @@ import java.util.UUID;
 /**
  * Универсальный коннектор к удалённому MCP-серверу (Streamable HTTP). В отличие от обычных
  * коннекторов тулы динамические и per-instance: каждый экземпляр (строка
- * {@code integration_credentials} = URL + auth) отдаёт свой набор через {@code tools/list}.
+ * {@code connections} = URL + auth в {@code secrets}) отдаёт свой набор через {@code tools/list}.
  * Поэтому реализуем {@link IntegrationConnectorHandler} напрямую (без {@code BaseConnectorHandler}
  * и {@code @Tool}-методов):
  * <ul>
  *   <li>{@link #getTools()} — статических тулов нет (пусто);</li>
- *   <li>{@link #getTools(ConnectorContext)} — список из кэша {@code mcp_tool} по {@code identity}
+ *   <li>{@link #getTools(ConnectorContext)} — список из кэша {@code connection_tools} по {@code identity}
  *       (наполняется {@link McpToolDiscoveryListener} на create/modify интеграции);</li>
  *   <li>{@link #executeTool} — проксирование в {@code tools/call}.</li>
  * </ul>
