@@ -216,11 +216,13 @@ USER/AGENT; см. `docs/services/control-api-manage-connector-jobs.md`). Lifecyc
   (`ONETIME`/`PERIODIC`/`CRON`), `name = time.fire`, `args = {prompt}`. Возвращает `id`.
 - `time.scheduled_tasks` / `time.cancel_scheduled(id)` — список/отмена своих задач.
 - `time.fire` — скрытая (`@Tool(internal = true)`) цель диспатча: на срок порождает триггер
-  `trigger.time.due` (data `{prompt}`), адресованный агенту-инициатору через `TriggerAudience`.
+  `due` (agent-facing `time.due`, data `{prompt}`), адресованный агенту-инициатору через `TriggerAudience`.
 
-Доставка: `TriggerRouterService.routeToAgent(userId, trigger)` — user-scoped (без привязки к команде,
-в отличие от `routeInternalTrigger`), сужает кандидатов до audience. Агент получит напоминание, только
-если у него есть осознанная ALLOW-политика на `time`/`trigger.time.due` — дефолтных политик не заводим.
+Доставка: `TriggerRouterService.routeTrigger(userId, trigger)` (единая точка входа; `routeWhTrigger`/
+`routeAppTrigger` — тонкие обёртки) сужает кандидатов до audience (агент-инициатор), затем применяет
+ABAC. Модель — **дефолт-allow при binding**: напоминание доставляется, потому что у агента есть активный
+binding на time-коннектор (его заводит сам time-скилл) — отдельная ALLOW-политика не нужна и не
+создаётся, явное правило требуется лишь для **DENY**. Нет binding'а (скилл не привязан) — доставки нет.
 
 ## Lifecycle
 
