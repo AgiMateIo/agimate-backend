@@ -53,8 +53,8 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("исключает @Job(isJobOnly = true)-методы")
-        void excludesTaskOnlyMethods() {
+        @DisplayName("исключает @Job-методы")
+        void excludesJobMethods() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
             assertFalse(tools.containsKey("test.periodic_task"));
@@ -62,11 +62,11 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("включает @Job(isJobOnly = false)-метод как тулу")
-        void exposesDualTaskAsTool() {
+        @DisplayName("исключает @Tool(internal = true)-метод")
+        void excludesInternalTools() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
-            assertTrue(tools.containsKey("test.dual_task"));
+            assertFalse(tools.containsKey("test.internal_target"));
         }
 
         @Test
@@ -147,13 +147,9 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("содержит @Job(isJobOnly = false)-метод")
-        void includesDualTaskTool() {
-            JobSpec spec = handler.getJobs().get("test.dual_task");
-
-            assertNotNull(spec);
-            assertEquals(ConnectorJobType.PERIODIC, spec.type());
-            assertEquals(10L, spec.config().get("intervalSeconds"));
+        @DisplayName("не содержит @Tool(internal = true)-метод (это не декларативная джоба)")
+        void excludesInternalTarget() {
+            assertFalse(handler.getJobs().containsKey("test.internal_target"));
         }
     }
 
@@ -189,19 +185,17 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
-        @DisplayName("отклоняет @Job(isJobOnly = true)-метод")
-        void rejectsTaskOnlyMethod() {
+        @DisplayName("отклоняет @Job-метод")
+        void rejectsJobMethod() {
             assertThrows(ConnectorException.class,
                     () -> handler.executeTool(CONTEXT, "test.periodic_task", Map.of()));
         }
 
         @Test
-        @DisplayName("вызывает @Job(isJobOnly = false)-метод как тулу")
-        void invokesDualTaskAsTool() {
-            Map<String, Object> result = handler.executeTool(CONTEXT, "test.dual_task", Map.of());
-
-            assertTrue(result.isEmpty());
-            assertEquals(1, toolService.dualRuns);
+        @DisplayName("отклоняет @Tool(internal = true)-метод")
+        void rejectsInternalTool() {
+            assertThrows(ConnectorException.class,
+                    () -> handler.executeTool(CONTEXT, "test.internal_target", Map.of()));
         }
 
         @Test
@@ -256,6 +250,15 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
+        @DisplayName("диспатчит @Tool(internal = true)-метод (паттерн time.fire)")
+        void invokesInternalTargetAsJob() {
+            Map<String, Object> result = handler.executeJob(CONTEXT, "test.internal_target", Map.of());
+
+            assertTrue(result.isEmpty());
+            assertEquals(1, toolService.internalRuns);
+        }
+
+        @Test
         @DisplayName("отклоняет неизвестную таску")
         void rejectsUnknownTask() {
             assertThrows(ConnectorException.class,
@@ -279,7 +282,7 @@ class BaseConnectorHandlerTest {
 
         ConnectorContext observedContext;
         int periodicRuns;
-        int dualRuns;
+        int internalRuns;
 
         @Tool(name = "test.echo", description = "Echo text back")
         public Map<String, Object> echo(@ToolParam("Text") String text, @ToolParam("Count") String count) {
@@ -307,11 +310,11 @@ class BaseConnectorHandlerTest {
         public void cronTask() {
         }
 
-        @Tool(name = "test.dual_task", description = "Both an LLM tool and a scheduled task")
-        @Job(intervalSeconds = 10, isJobOnly = false)
-        public void dualTask() {
+        @Tool(name = "test.internal_target", description = "Hidden dispatch target (job-scheduled, not an LLM tool)",
+                internal = true)
+        public void internalTarget() {
             observedContext = ConnectorContextHolder.current();
-            dualRuns++;
+            internalRuns++;
         }
 
         @Tool(name = "test.typed", description = "Non-String typed params")

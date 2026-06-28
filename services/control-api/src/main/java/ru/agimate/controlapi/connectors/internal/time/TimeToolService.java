@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorContextHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
@@ -165,12 +164,13 @@ public class TimeToolService {
     }
 
     /**
-     * Скрытая таска-диспетчер: исполняется scheduler'ом по сроку строки {@code connector_jobs}.
-     * Контекст реконструирован из строки ({@code userId}/{@code agentId}/{@code channelId} инициатора),
-     * поэтому адресуем триггер обратно агенту через audience. Не видна LLM ({@code isJobOnly}).
+     * Скрытая цель диспатча: исполняется scheduler'ом по сроку динамической строки {@code connector_jobs}
+     * ({@code kind=AGENT}), которую завёл {@link #schedule}. Контекст реконструирован из строки
+     * ({@code userId}/{@code agentId}/{@code channelId} инициатора), поэтому адресуем триггер обратно
+     * агенту через audience. {@code internal = true} — не видна LLM, но остаётся целью {@code executeJob};
+     * намеренно НЕ {@code @Job}, иначе reconcile завёл бы фоновую SYSTEM-строку без агента-инициатора.
      */
-    @Tool(name = FIRE_TASK, description = "Internal: deliver a scheduled task to its agent")
-    @Job(isJobOnly = true)
+    @Tool(name = FIRE_TASK, description = "Internal: deliver a scheduled task to its agent", internal = true)
     public void fire(@ToolParam("Prompt to deliver to the agent") String prompt) {
         ConnectorContext ctx = ConnectorContextHolder.current();
         if (ctx.agentId() == null) {

@@ -9,15 +9,19 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Помечает {@code @Tool}-метод как фоновую задачу коннектора: метод образует
- * {@link JobSpec} в {@code getJobs()} с расписанием по умолчанию из атрибутов аннотации.
+ * Помечает {@code @Tool}-метод как декларативную фоновую задачу коннектора: метод образует
+ * {@link JobSpec} в {@code getJobs()} с расписанием из атрибутов аннотации. При материализации
+ * экземпляра коннектора reconcile-синк заводит на неё строку {@code connector_jobs}
+ * ({@code kind=SYSTEM}, по одной на identity, без агента-инициатора).
  *
- * <p>{@link #isJobOnly()} (по умолчанию {@code true}) управляет видимостью метода для LLM:
- * task-only метод не попадает в LLM-спеки ({@code getTools()}) и недоступен через
- * {@code executeTool}. При {@code isJobOnly = false} метод доступен и как тула, и как таска.
+ * <p>Декларативная задача всегда скрыта от LLM (нет в {@code getTools()}, недоступна через
+ * {@code executeTool}) — это фоновый процесс, а не тула агента. Для скрытой цели диспатча,
+ * которую планируют динамически (строки {@code kind=AGENT}, напр. {@code time.fire}), {@code @Job}
+ * не нужен — пометьте обычный {@code @Tool} как {@code @Tool(internal = true)}, иначе reconcile завёл бы
+ * на неё фоновую SYSTEM-строку без инициатора.
  *
- * <p>Обратное всегда верно: {@code executeJob} умеет вызывать и обычные {@code @Tool}-методы,
- * поэтому «вызов тулы по расписанию» не требует отдельного task-метода.
+ * <p>{@code executeJob} умеет вызывать любой {@code @Tool}-метод, поэтому «вызов тулы по расписанию»
+ * не требует отдельного метода-джобы.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
@@ -35,7 +39,4 @@ public @interface Job {
 
     /** Лимит одной итерации в секундах; по истечении lease строка подхватывается заново. */
     int timeoutSeconds() default 300;
-
-    /** {@code true} — метод только таска (скрыт от LLM); {@code false} — метод доступен и как тула. */
-    boolean isJobOnly() default true;
 }

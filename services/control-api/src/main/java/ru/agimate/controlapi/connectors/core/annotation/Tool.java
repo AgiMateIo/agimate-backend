@@ -28,4 +28,11 @@ public @interface Tool {
 
     /** Произвольные строковые метаданные (MCP {@code _meta}). */
     ToolMeta[] meta() default {};
+
+    /**
+     * {@code true} — метод скрыт от LLM (нет в {@code getTools()}, недоступен через {@code executeTool}),
+     * но остаётся целью диспатча через {@code executeJob} (динамические строки {@code connector_jobs},
+     * напр. {@code time.fire}). Для декларативных фоновых задач используйте {@link Job} — они скрыты сами.
+     */
+    boolean internal() default false;
 }

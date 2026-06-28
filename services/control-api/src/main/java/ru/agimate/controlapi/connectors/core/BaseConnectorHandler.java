@@ -23,9 +23,10 @@ import java.util.Map;
  * строит спеки и выполняет вызовы с привязкой {@link ConnectorContext} через
  * {@link ConnectorContextHolder} (set/clear только здесь).
  *
- * <p>Метод с {@link Job}{@code (isJobOnly = true)} не попадает в {@link #getTools()} и
- * недоступен через {@link #executeTool}; {@link #executeJob} диспатчит в любой {@code @Tool}-метод,
- * поэтому таска может быть и «вызовом тулы по расписанию».
+ * <p>Декларативная джоба ({@link Job}) и внутренний метод ({@code @Tool(internal = true)}) скрыты
+ * от LLM — не попадают в {@link #getTools()} и недоступны через {@link #executeTool}; при этом
+ * {@link #executeJob} диспатчит в любой {@code @Tool}-метод, поэтому таска может быть и «вызовом
+ * тулы по расписанию».
  */
 public abstract class BaseConnectorHandler implements ConnectorHandler {
 
@@ -59,7 +60,7 @@ public abstract class BaseConnectorHandler implements ConnectorHandler {
     private static Map<String, ConnectorToolSpec> buildToolSpecs(Map<String, Method> methodsByName) {
         Map<String, ConnectorToolSpec> specs = new LinkedHashMap<>();
         methodsByName.forEach((name, method) -> {
-            if (!isJobOnly(method)) {
+            if (!hiddenFromLlm(method)) {
                 specs.put(name, toToolSpec(name, method));
             }
         });
@@ -123,15 +124,20 @@ public abstract class BaseConnectorHandler implements ConnectorHandler {
     @Override
     public Map<String, Object> executeTool(ConnectorContext context, String toolName, Map<String, Object> args) {
         Method method = methodsByName.get(toolName);
-        if (method == null || isJobOnly(method)) {
+        if (method == null || hiddenFromLlm(method)) {
             throw new ConnectorException("Unknown tool: " + toolName);
         }
         return invoke(context, method, args);
     }
 
-    private static boolean isJobOnly(Method method) {
-        Job task = method.getAnnotation(Job.class);
-        return task != null && task.isJobOnly();
+    /**
+     * Метод скрыт от LLM (нет в {@link #getTools()}, недоступен через {@link #executeTool}), если это
+     * декларативная джоба ({@link Job}) или внутренняя цель диспатча ({@code @Tool(internal = true)}).
+     * В обоих случаях метод всё ещё вызывается через {@link #executeJob} по строке/расписанию.
+     */
+    private static boolean hiddenFromLlm(Method method) {
+        return method.isAnnotationPresent(Job.class)
+                || method.getAnnotation(Tool.class).internal();
     }
 
     @Override

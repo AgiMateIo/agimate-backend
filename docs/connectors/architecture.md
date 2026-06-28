@@ -83,10 +83,13 @@ ConnectorHandler                — connectorCode/Name, getTriggers, getTools, g
   `annotations`/`_meta`); параметры описываются `@ToolParam`. `getTools()` отдаёт `ConnectorToolSpec`
   (MCP): `inputSchema`/`outputSchema` строятся рефлексией (`ToolSchemaReflector`, без сторонних библиотек),
   `annotations` — поведенческие хинты (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`,
-  пессимистичные дефолты). Методы с `@Job` — фоновые задачи: аннотация несёт расписание по умолчанию
-  (`type`, `intervalSeconds`/`cron`/`zone`, `timeoutSeconds`). По умолчанию `isJobOnly = true` — метод не
-  попадает в `getTools()`/LLM-спеки и недоступен через `executeTool`; при `isJobOnly = false` метод
-  доступен и как тула, и как задача.
+  пессимистичные дефолты). Методы с `@Job` — **декларативные** фоновые задачи: аннотация несёт расписание
+  (`type`, `intervalSeconds`/`cron`/`zone`, `timeoutSeconds`), на материализации экземпляра reconcile-синк
+  заводит на каждую строку `connector_jobs` (`kind=SYSTEM`, по одной на identity). `@Job` всегда скрыт от
+  LLM (нет в `getTools()`, недоступен через `executeTool`) — это фоновый процесс, а не тула.
+  Скрытую **цель динамического диспатча** (строки `kind=AGENT`, напр. `time.fire`) `@Job` помечать нельзя
+  (reconcile завёл бы её как SYSTEM без агента-инициатора) — для этого обычный `@Tool(internal = true)`:
+  скрыт от LLM, но остаётся целью `executeJob`.
 
 Тулы коннектора статичны и привязаны к `connectorCode` (строятся рефлексией один раз). Исключение —
 **динамические коннекторы** (MCP, см. ниже): набор тулов per-instance и открывается в рантайме. Для них
@@ -205,7 +208,7 @@ USER/AGENT; см. `docs/services/control-api-manage-connector-jobs.md`). Lifecyc
 - `time.schedule(prompt, delaySeconds|intervalSeconds|cron[,zone])` — вставляет динамическую строку
   (`ONETIME`/`PERIODIC`/`CRON`), `name = time.fire`, `args = {prompt}`. Возвращает `id`.
 - `time.scheduled_tasks` / `time.cancel_scheduled(id)` — список/отмена своих задач.
-- `time.fire` — скрытая (`@Job isJobOnly`) задача-диспетчер: на срок порождает триггер
+- `time.fire` — скрытая (`@Tool(internal = true)`) цель диспатча: на срок порождает триггер
   `trigger.time.due` (data `{prompt}`), адресованный агенту-инициатору через `TriggerAudience`.
 
 Доставка: `TriggerRouterService.routeToAgent(userId, trigger)` — user-scoped (без привязки к команде,
