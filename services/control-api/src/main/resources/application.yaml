@@ -125,6 +125,7 @@ centrifugo:
   api-key: ""
   privateKey: ""
   publicKey: ""
+  token-ttl-seconds: 3600
 
 grpc:
   server:

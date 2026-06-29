@@ -23,8 +23,6 @@ public class ManageCentrifugoTokenController {
 
     public static final String PATH = "/manage/centrifugo";
 
-    private static final long TOKEN_EXPIRATION_SECONDS = 3600; // 1 hour
-
     private final CentrifugoService centrifugoService;
     private final CentrifugoProperties centrifugoProperties;
 
@@ -39,13 +37,9 @@ public class ManageCentrifugoTokenController {
         String userId = principal.id();
         String channel = "user:" + userId;
 
-        String connectionToken = centrifugoService.generateConnectionToken(
-                userId, TOKEN_EXPIRATION_SECONDS
-        );
-
-        String subscriptionToken = centrifugoService.generateSubscriptionToken(
-                userId, channel, TOKEN_EXPIRATION_SECONDS
-        );
+        long ttl = centrifugoProperties.getTokenTtlSeconds();
+        String connectionToken = centrifugoService.generateConnectionToken(userId, ttl);
+        String subscriptionToken = centrifugoService.generateSubscriptionToken(userId, channel, ttl);
 
         String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
 

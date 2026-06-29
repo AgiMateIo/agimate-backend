@@ -27,8 +27,6 @@ public class AppCentrifugoTokenController {
 
     public static final String PATH = AppRegistrationController.PATH + "/centrifugo";
 
-    private static final long TOKEN_EXPIRATION_SECONDS = 3600; // 1 hour
-
     private final CentrifugoService centrifugoService;
     private final AppService appService;
 
@@ -54,16 +52,9 @@ public class AppCentrifugoTokenController {
         String deviceId = deviceChannelTokenRequest.deviceId();
         String channel = "device:" + deviceId;
 
-        String connectionToken = centrifugoService.generateConnectionToken(
-                deviceId,
-                TOKEN_EXPIRATION_SECONDS
-        );
-
-        String subscriptionToken = centrifugoService.generateSubscriptionToken(
-                deviceId,
-                channel,
-                TOKEN_EXPIRATION_SECONDS
-        );
+        long ttl = centrifugoProperties.getTokenTtlSeconds();
+        String connectionToken = centrifugoService.generateConnectionToken(deviceId, ttl);
+        String subscriptionToken = centrifugoService.generateSubscriptionToken(deviceId, channel, ttl);
 
         String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
 

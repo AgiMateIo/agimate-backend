@@ -17,4 +17,6 @@ public class CentrifugoProperties {
     private String apiKey;
     private String privateKey;
     private String publicKey;
+    /** TTL of issued connection/subscription tokens, seconds. */
+    private long tokenTtlSeconds = 3600;
 }

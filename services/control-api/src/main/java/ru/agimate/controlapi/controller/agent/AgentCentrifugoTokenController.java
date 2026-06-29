@@ -23,8 +23,6 @@ public class AgentCentrifugoTokenController {
 
     public static final String PATH = AgentController.PATH + "/centrifugo";
 
-    private static final long TOKEN_EXPIRATION_SECONDS = 3600; // 1 hour
-
     private final CentrifugoService centrifugoService;
 
     private final CentrifugoProperties centrifugoProperties;
@@ -40,16 +38,9 @@ public class AgentCentrifugoTokenController {
         String agentId = principal.agentId().toString();
         String channel = "agent:" + agentId;
 
-        String connectionToken = centrifugoService.generateConnectionToken(
-                agentId,
-                TOKEN_EXPIRATION_SECONDS
-        );
-
-        String subscriptionToken = centrifugoService.generateSubscriptionToken(
-                agentId,
-                channel,
-                TOKEN_EXPIRATION_SECONDS
-        );
+        long ttl = centrifugoProperties.getTokenTtlSeconds();
+        String connectionToken = centrifugoService.generateConnectionToken(agentId, ttl);
+        String subscriptionToken = centrifugoService.generateSubscriptionToken(agentId, channel, ttl);
 
         String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
 

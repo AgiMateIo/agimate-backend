@@ -16,7 +16,7 @@ public record AgentSkillWithConnectorsResponse(
         @Schema(description = "Skill description")
         String description,
 
-        @Schema(description = "Connectors required by the skill")
+        @Schema(description = "Connector codes (types) required by the skill", example = "[\"board\", \"time\"]")
         List<String> connectorCodes
 ) {
 }
