@@ -6,8 +6,8 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.Map;
 
-@Schema(description = "Request to create a new integration")
-public record CreateIntegrationRequest(
+@Schema(description = "Request to create a new connector connection")
+public record CreateConnectionRequest(
         @NotBlank
         @Schema(description = "Connector code", example = "telegram")
         String connectorCode,
@@ -16,6 +16,6 @@ public record CreateIntegrationRequest(
         @Schema(description = "Platform credentials", example = "{\"token\": \"123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11\"}")
         Map<String, String> credentials,
 
-        @Schema(description = "Optional integration name", example = "My Telegram Bot")
+        @Schema(description = "Optional connection name", example = "My Telegram Bot")
         String name
 ) {}

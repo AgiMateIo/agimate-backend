@@ -12,12 +12,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.controller.manage.dto.ConnectorResponse;
 import ru.agimate.controlapi.controller.manage.dto.IntegrationMeta;
+import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
+
+import java.util.List;
 
 @RestController
 @RequestMapping(ManageConnectorController.PATH)
@@ -50,6 +56,27 @@ public class ManageConnectorController {
         Connector connector = connectorRepository.findById(code)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + code));
         return SuccessResponse.ok(toResponse(connector));
+    }
+
+    @Operation(summary = "List predefined tools exposed by an integration connector type")
+    @GetMapping("/{code}/tools/")
+    public SuccessResponse<List<ConnectorToolSpec>> getTools(@PathVariable String code) {
+        IntegrationConnectorHandler handler = integrationHandler(code);
+        return SuccessResponse.ok(handler.getTools().values().stream().toList());
+    }
+
+    @Operation(summary = "List predefined triggers exposed by an integration connector type")
+    @GetMapping("/{code}/triggers/")
+    public SuccessResponse<List<TriggerSpecificationResponse>> getTriggers(@PathVariable String code) {
+        IntegrationConnectorHandler handler = integrationHandler(code);
+        return SuccessResponse.ok(handler.getTriggers().entrySet().stream()
+                .map(e -> TriggerSpecificationResponse.from(e.getKey(), e.getValue()))
+                .toList());
+    }
+
+    private IntegrationConnectorHandler integrationHandler(String code) {
+        return connectorRegistry.findIntegrationHandler(code)
+                .orElseThrow(() -> new BadRequestStatusException("Connector is not an integration: " + code));
     }
 
     private ConnectorResponse toResponse(Connector connector) {

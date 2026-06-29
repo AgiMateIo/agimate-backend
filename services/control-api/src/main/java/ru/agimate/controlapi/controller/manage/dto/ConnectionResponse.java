@@ -3,13 +3,14 @@ package ru.agimate.controlapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.enums.IdentityScope;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Schema(description = "Integration connection details")
-public record IntegrationResponse(
-        @Schema(description = "Connection public ID")
+@Schema(description = "Connector connection (instance) details")
+public record ConnectionResponse(
+        @Schema(description = "Connection public ID (= identity downstream)")
         UUID id,
 
         @Schema(description = "Connector code")
@@ -21,10 +22,13 @@ public record IntegrationResponse(
         @Schema(description = "Full code — stable client handle (e.g. mcp_context7)")
         String fullCode,
 
-        @Schema(description = "Integration name")
+        @Schema(description = "Identity scope of the instance")
+        IdentityScope scope,
+
+        @Schema(description = "Connection name")
         String name,
 
-        @Schema(description = "Whether integration is enabled")
+        @Schema(description = "Whether the connection is enabled")
         Boolean enabled,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -35,12 +39,13 @@ public record IntegrationResponse(
         @Schema(description = "Creation timestamp")
         LocalDateTime createdAt
 ) {
-    public static IntegrationResponse from(Connection c) {
-        return new IntegrationResponse(
+    public static ConnectionResponse from(Connection c) {
+        return new ConnectionResponse(
                 c.getId(),
                 c.getConnectorCode(),
                 c.getSubCode(),
                 c.getFullCode(),
+                c.getIdentityScope(),
                 c.getName(),
                 c.getEnabled(),
                 c.getLastUsedAt(),

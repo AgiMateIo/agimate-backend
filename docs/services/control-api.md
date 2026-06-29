@@ -175,20 +175,27 @@ Control API for connector registration, tool delivery, trigger submission, and A
 |--------|---------------------------------|------------------------------------|
 | GET    | `/control/manage/tool-call-logs/` | List tool call logs (filter by apiKeyPubId) |
 
-### Integration Management (JWT)
+### Connections Management (JWT)
 
-> For full request/response schemas see [control-api-manage-integrations.md](control-api-manage-integrations.md).
+> For full request/response schemas see [control-api-manage-connections.md](control-api-manage-connections.md).
 
-| Method | Path                                                             | Description                                                    |
-|--------|------------------------------------------------------------------|----------------------------------------------------------------|
-| GET    | `/control/manage/integrations/credentials/`                       | List integration credentials (optional `?connectorCode=`)      |
-| POST   | `/control/manage/integrations/credentials/`                       | Create integration credentials                                 |
-| GET    | `/control/manage/integrations/credentials/{credentialId}`         | Get integration credentials details                            |
-| PATCH  | `/control/manage/integrations/credentials/{credentialId}/`        | Update integration settings (enabled, name)                    |
-| PUT    | `/control/manage/integrations/credentials/{credentialId}/secret`  | Update integration secret (credential values)                  |
-| DELETE | `/control/manage/integrations/credentials/{credentialId}`         | Delete integration credentials                                 |
-| GET    | `/control/manage/integrations/tools/?connectorCode={code}`        | List predefined tools exposed by an integration connector      |
-| GET    | `/control/manage/integrations/triggers/?connectorCode={code}`     | List predefined triggers exposed by an integration connector   |
+| Method | Path                                                  | Description                                                       |
+|--------|-------------------------------------------------------|------------------------------------------------------------------|
+| GET    | `/control/manage/connections/`                        | List the user's connections (filters `?connectorCode=&scope=&enabled=`) |
+| POST   | `/control/manage/connections/`                        | Create a connection (credentials; integration connectors only)   |
+| GET    | `/control/manage/connections/{connectionId}`          | Get connection details                                           |
+| PATCH  | `/control/manage/connections/{connectionId}`          | Update connection settings (enabled, name)                       |
+| PUT    | `/control/manage/connections/{connectionId}/secret`   | Update connection secret (credential values)                     |
+| DELETE | `/control/manage/connections/{connectionId}`          | Delete a connection                                             |
+| GET    | `/control/manage/connections/{connectionId}/tools/`   | List tools of a connection instance (SPI)                        |
+| POST   | `/control/manage/connections/{connectionId}/test`     | Validate credentials + (MCP) reload tools                        |
+
+Predefined tools/triggers of a connector **type** moved to the catalog:
+
+| Method | Path                                          | Description                                            |
+|--------|-----------------------------------------------|--------------------------------------------------------|
+| GET    | `/control/manage/connectors/{code}/tools/`    | Predefined tools of an integration connector type      |
+| GET    | `/control/manage/connectors/{code}/triggers/` | Predefined triggers of an integration connector type   |
 
 ### Integration Webhooks (Public)
 
@@ -230,7 +237,7 @@ control-api integrates with Centrifugo for real-time messaging:
 
 ## Integration Flow (Telegram, etc.)
 
-1. User creates integration via `POST /manage/integrations/credentials/` with platform token
+1. User creates a connection via `POST /manage/connections/` with platform token
    - Token validated against platform API (e.g., Telegram getMe)
    - Outbound Connector created with predefined triggers/tools
    - Token encrypted (AES-GCM) and stored

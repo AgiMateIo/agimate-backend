@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.enums.IdentityScope;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -38,6 +39,22 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
     List<Connection> findByUserIdAndConnectorCodeNotDeleted(
             @Param("userId") UUID userId,
             @Param("connectorCode") String connectorCode);
+
+    /** Connection пользователя с опциональными фильтрами по реальным полям (null = не фильтровать). */
+    @Query("""
+            SELECT c FROM Connection c
+            WHERE c.userId = :userId
+              AND c.deletedAt IS NULL
+              AND (:connectorCode IS NULL OR c.connectorCode = :connectorCode)
+              AND (:scope IS NULL OR c.identityScope = :scope)
+              AND (:enabled IS NULL OR c.enabled = :enabled)
+            ORDER BY c.connectorCode, c.createdAt DESC
+            """)
+    List<Connection> findByUserIdFiltered(
+            @Param("userId") UUID userId,
+            @Param("connectorCode") String connectorCode,
+            @Param("scope") IdentityScope scope,
+            @Param("enabled") Boolean enabled);
 
     @Query("""
             SELECT c FROM Connection c

@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.connectors.integrations;
+package ru.agimate.controlapi.service.connection;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +10,8 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
+import ru.agimate.common.util.CryptoUtils;
+import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorHandler;
@@ -20,15 +22,15 @@ import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
-import ru.agimate.controlapi.service.secret.SecretService;
+import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Secret;
+import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
-import ru.agimate.common.util.CryptoUtils;
-import ru.agimate.common.util.UUIDUtils;
+import ru.agimate.controlapi.service.secret.SecretService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,16 +38,16 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Жизненный цикл integration-экземпляров (telegram/mcp) поверх единого реестра {@code connections}.
- * Outbound-credentials хранятся в {@code secrets} (envelope) и адресуются {@code connection.secretId};
- * {@code sub_code} = канонический identifier платформы, {@code full_code} = стабильный клиентский
- * handle ({@code mcp_context7}).
+ * Жизненный цикл connector-экземпляров (telegram/mcp) поверх единого реестра {@code connections}.
+ * Создание/секрет/тест валидны для integration-коннекторов (тип с {@code credentialFields}); listing
+ * отдаёт все connection пользователя с фильтрами по реальным полям. Outbound-credentials — в
+ * {@code secrets} (envelope), адресуются {@code connection.secretId}.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class IntegrationService {
+public class ConnectionService {
 
     private static final String SECRET_ENTITY = "connection";
 
@@ -61,8 +63,8 @@ public class IntegrationService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public Connection createIntegration(UUID userId, String connectorCode,
-                                        Map<String, String> credentials, String name) {
+    public Connection create(UUID userId, String connectorCode,
+                             Map<String, String> credentials, String name) {
         boolean isIntegration = connectorRepository.findById(connectorCode)
                 .map(Connector::isIntegration).orElse(false);
         if (!isIntegration) {
@@ -79,7 +81,7 @@ public class IntegrationService {
         String subCode = validationResult.identifier();
         if (connectionRepository.existsByConnectorCodeAndUserIdAndSubCodeAndDeletedAtIsNull(
                 connectorCode, userId, subCode)) {
-            throw new ConflictStatusException("Integration already exists for " + connectorCode + ": " + subCode);
+            throw new ConflictStatusException("Connection already exists for " + connectorCode + ": " + subCode);
         }
 
         String webhookSecret = handler.supportsWebhooks() ? CryptoUtils.randomHex(32) : null;
@@ -87,7 +89,7 @@ public class IntegrationService {
         // id нужен до шифрования секрета (AAD-привязка) и до webhook URL — сохраняем строку первой.
         Connection connection = connectionRepository.save(Connection.builder()
                 .id(UUIDUtils.generateUUIDv8())
-                .identityScope(ru.agimate.controlapi.database.enums.IdentityScope.INSTANCE)
+                .identityScope(IdentityScope.INSTANCE)
                 .connectorCode(connectorCode)
                 .subCode(subCode)
                 .fullCode(FullCodes.fullCode(connectorCode, subCode))
@@ -114,29 +116,24 @@ public class IntegrationService {
         return connection;
     }
 
-    public List<Connection> getIntegrations(UUID userId) {
-        return connectionRepository.findByUserIdNotDeleted(userId);
+    /** Connection пользователя с фильтрами по реальным полям (все параметры опциональны). */
+    public List<Connection> list(UUID userId, String connectorCode, IdentityScope scope, Boolean enabled) {
+        String code = (connectorCode == null || connectorCode.isBlank()) ? null : connectorCode;
+        return connectionRepository.findByUserIdFiltered(userId, code, scope, enabled);
     }
 
-    public List<Connection> getIntegrations(UUID userId, String connectorCode) {
-        if (connectorCode == null || connectorCode.isBlank()) {
-            return getIntegrations(userId);
-        }
-        return connectionRepository.findByUserIdAndConnectorCodeNotDeleted(userId, connectorCode);
-    }
-
-    public Connection getIntegrationCredentials(UUID connectionId, UUID userId) {
+    public Connection getOwnedConnection(UUID connectionId, UUID userId) {
         return connectionRepository.findByIdNotDeleted(connectionId)
                 .filter(c -> c.getUserId().equals(userId))
-                .orElseThrow(() -> new NotFoundStatusException("Integration not found"));
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found"));
     }
 
     /**
-     * Проверка существующей интеграции: расшифровка credentials + {@code validateCredentials}
-     * (доступность/auth платформы). Без сайд-эффектов — пригодно для всех типов интеграций.
+     * Проверка существующего экземпляра: расшифровка credentials + {@code validateCredentials}
+     * (доступность/auth платформы). Без сайд-эффектов — пригодно для всех integration-типов.
      */
-    public IntegrationValidationResult validateExisting(UUID id, UUID userId) {
-        Connection connection = getIntegrationCredentials(id, userId);
+    public IntegrationValidationResult validate(UUID id, UUID userId) {
+        Connection connection = getOwnedConnection(id, userId);
         IntegrationConnectorHandler handler = integrationHandler(connection.getConnectorCode());
         return handler.validateCredentials(revealCredentials(connection));
     }
@@ -145,8 +142,8 @@ public class IntegrationService {
      * Тулы конкретного экземпляра через SPI {@code getTools(ctx)}: для динамических коннекторов
      * (MCP) — из кэша по identity, для статических — их {@code @Tool}-набор.
      */
-    public List<ConnectorToolSpec> getInstanceTools(UUID id, UUID userId) {
-        Connection connection = getIntegrationCredentials(id, userId);
+    public List<ConnectorToolSpec> getConnectionTools(UUID id, UUID userId) {
+        Connection connection = getOwnedConnection(id, userId);
         ConnectorHandler handler = connectorRegistry.findHandler(connection.getConnectorCode())
                 .orElseThrow(() -> new BadRequestStatusException(
                         "Unsupported platform: " + connection.getConnectorCode()));
@@ -155,8 +152,8 @@ public class IntegrationService {
     }
 
     @Transactional
-    public void deleteIntegration(UUID id, UUID userId) {
-        Connection connection = getIntegrationCredentials(id, userId);
+    public void delete(UUID id, UUID userId) {
+        Connection connection = getOwnedConnection(id, userId);
 
         try {
             var handler = integrationHandler(connection.getConnectorCode());
@@ -173,8 +170,8 @@ public class IntegrationService {
     }
 
     @Transactional
-    public Connection updateCredentials(UUID id, UUID userId, Map<String, String> credentials) {
-        Connection connection = getIntegrationCredentials(id, userId);
+    public Connection updateSecret(UUID id, UUID userId, Map<String, String> credentials) {
+        Connection connection = getOwnedConnection(id, userId);
         var handler = integrationHandler(connection.getConnectorCode());
 
         var validationResult = handler.validateCredentials(credentials);
@@ -205,8 +202,8 @@ public class IntegrationService {
     }
 
     @Transactional
-    public Connection patchIntegration(UUID id, UUID userId, Boolean enabled, String name) {
-        Connection connection = getIntegrationCredentials(id, userId);
+    public Connection update(UUID id, UUID userId, Boolean enabled, String name) {
+        Connection connection = getOwnedConnection(id, userId);
 
         boolean enabledChanged = false;
         if (enabled != null && !enabled.equals(connection.getEnabled())) {

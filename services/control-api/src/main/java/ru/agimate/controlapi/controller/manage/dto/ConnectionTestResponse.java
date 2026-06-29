@@ -4,9 +4,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
 
-@Schema(description = "Result of testing an integration: credential validation + (MCP) tool reload")
+@Schema(description = "Result of testing a connection: credential validation + (MCP) tool reload")
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public record IntegrationTestResponse(
+public record ConnectionTestResponse(
         @Schema(description = "Whether credentials are valid / server reachable")
         boolean valid,
 
@@ -28,9 +28,9 @@ public record IntegrationTestResponse(
         @Schema(description = "Tool discovery error (credentials valid, but tools/list failed); null if ok")
         String toolsError
 ) {
-    public static IntegrationTestResponse from(IntegrationValidationResult validation,
-                                               Integer toolsDiscovered, String toolsError) {
-        return new IntegrationTestResponse(
+    public static ConnectionTestResponse from(IntegrationValidationResult validation,
+                                              Integer toolsDiscovered, String toolsError) {
+        return new ConnectionTestResponse(
                 validation.valid(),
                 validation.identifier(),
                 validation.displayName(),
