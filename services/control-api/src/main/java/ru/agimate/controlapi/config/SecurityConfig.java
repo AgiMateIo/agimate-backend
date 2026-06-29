@@ -43,7 +43,7 @@ import ru.agimate.controlapi.controller.manage.ManageLlmProviderController;
 import ru.agimate.controlapi.controller.manage.ManageSkillController;
 import ru.agimate.controlapi.controller.manage.ManageToolsController;
 import ru.agimate.controlapi.controller.manage.ManageWebhookDeliveryLogsController;
-import ru.agimate.controlapi.controller.webhook.IntegrationWebhookController;
+import ru.agimate.controlapi.controller.webhook.ConnectionWebhookController;
 import ru.agimate.controlapi.security.AgentAuthFilter;
 import ru.agimate.controlapi.security.AppAuthFilter;
 import ru.agimate.controlapi.security.JwtAuthenticationFilter;
@@ -188,7 +188,7 @@ public class SecurityConfig {
                         "/favicon.ico",
                         "/docs/**",
                         "/actuator/health",
-                        IntegrationWebhookController.PATH + "/**"
+                        ConnectionWebhookController.PATH + "/**"
                 ).permitAll()
                 .anyRequest().authenticated()
         );

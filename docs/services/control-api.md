@@ -197,11 +197,11 @@ Predefined tools/triggers of a connector **type** moved to the catalog:
 | GET    | `/control/manage/connectors/{code}/tools/`    | Predefined tools of an integration connector type      |
 | GET    | `/control/manage/connectors/{code}/triggers/` | Predefined triggers of an integration connector type   |
 
-### Integration Webhooks (Public)
+### Connection Webhooks (Public)
 
-| Method | Path                                                | Description                     |
-|--------|-----------------------------------------------------|---------------------------------|
-| POST   | `/control/webhook/integration/{integrationPubId}`    | Receive inbound webhook events  |
+| Method | Path                                  | Description                                                        |
+|--------|---------------------------------------|--------------------------------------------------------------------|
+| POST   | `/control/webhook/{connectionId}`     | Receive inbound webhook events for a connection (integration types) |
 
 ### Public
 

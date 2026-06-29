@@ -103,7 +103,7 @@ public class ConnectionService {
         connection = connectionRepository.save(connection);
 
         if (handler.supportsWebhooks()) {
-            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + connection.getId();
+            String webhookUrl = webhookBaseUrl + "/webhook/" + connection.getId();
             handler.setupWebhook(contextFactory.withCredentials(connection, credentials, null), webhookUrl);
         }
 
@@ -191,7 +191,7 @@ public class ConnectionService {
         secretService.update(secret, connection.getId(), credentials);
 
         if (handler.supportsWebhooks()) {
-            String webhookUrl = webhookBaseUrl + "/webhook/integration/" + connection.getId();
+            String webhookUrl = webhookBaseUrl + "/webhook/" + connection.getId();
             handler.setupWebhook(contextFactory.withCredentials(connection, credentials, null), webhookUrl);
         }
 

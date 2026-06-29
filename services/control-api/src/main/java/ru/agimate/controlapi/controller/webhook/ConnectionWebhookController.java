@@ -17,61 +17,61 @@ import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping(IntegrationWebhookController.PATH)
+@RequestMapping(ConnectionWebhookController.PATH)
 @RequiredArgsConstructor
-public class IntegrationWebhookController {
+public class ConnectionWebhookController {
 
-    public static final String PATH = "/webhook/integration";
+    public static final String PATH = "/webhook";
 
     private final ConnectionRepository connectionRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorContextFactory contextFactory;
     private final TriggerRouterService triggerRouterService;
 
-    @PostMapping("/{integrationId}")
+    @PostMapping("/{connectionId}")
     public ResponseEntity<String> handleWebhook(
-            @PathVariable UUID integrationId,
+            @PathVariable UUID connectionId,
             @RequestBody String rawBody,
             HttpServletRequest request
     ) {
-        var integrationOpt = connectionRepository.findByIdNotDeleted(integrationId);
-        if (integrationOpt.isEmpty()) {
-            log.warn("Webhook received for unknown integration: {}", integrationId);
+        var connectionOpt = connectionRepository.findByIdNotDeleted(connectionId);
+        if (connectionOpt.isEmpty()) {
+            log.warn("Webhook received for unknown connection: {}", connectionId);
             return ResponseEntity.ok("ok");
         }
 
-        Connection integrationCredentials = integrationOpt.get();
-        if (!integrationCredentials.isActive()) {
-            log.debug("Webhook received for disabled integration: {}", integrationId);
+        Connection connection = connectionOpt.get();
+        if (!connection.isActive()) {
+            log.debug("Webhook received for disabled connection: {}", connectionId);
             return ResponseEntity.ok("ok");
         }
 
         IntegrationConnectorHandler handler = connectorRegistry
-                .findIntegrationHandler(integrationCredentials.getConnectorCode())
+                .findIntegrationHandler(connection.getConnectorCode())
                 .orElse(null);
         if (handler == null) {
-            log.warn("Webhook received for integration without handler: {}", integrationId);
+            log.warn("Webhook received for connection without integration handler: {}", connectionId);
             return ResponseEntity.ok("ok");
         }
 
         // Guard: platform must support webhooks
         if (!handler.supportsWebhooks()) {
-            log.warn("Webhook received for non-webhook platform: {}", integrationId);
+            log.warn("Webhook received for non-webhook platform: {}", connectionId);
             return ResponseEntity.notFound().build();
         }
 
-        ConnectorContext context = contextFactory.forWebhook(integrationCredentials);
+        ConnectorContext context = contextFactory.forWebhook(connection);
 
         if (!handler.validateWebhookRequest(context, request)) {
-            log.warn("Webhook validation failed for integration: {}", integrationId);
+            log.warn("Webhook validation failed for connection: {}", connectionId);
             return ResponseEntity.ok("ok");
         }
 
         try {
             var trigger = handler.normalizeInbound(context, rawBody);
-            triggerRouterService.routeWhTrigger(integrationCredentials.getUserId(), trigger);
+            triggerRouterService.routeWhTrigger(connection.getUserId(), trigger);
         } catch (Exception e) {
-            log.error("Failed to process webhook for integration {}: {}", integrationId, e.getMessage());
+            log.error("Failed to process webhook for connection {}: {}", connectionId, e.getMessage());
         }
 
         return ResponseEntity.ok("ok");
