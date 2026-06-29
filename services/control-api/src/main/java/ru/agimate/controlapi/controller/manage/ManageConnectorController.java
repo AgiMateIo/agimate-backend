@@ -22,6 +22,7 @@ import ru.agimate.controlapi.controller.manage.dto.IntegrationMeta;
 import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
+import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 
 import java.util.List;
 
@@ -35,6 +36,7 @@ public class ManageConnectorController {
 
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
+    private final ToolDefinitionService toolDefinitionService;
 
     @Operation(summary = "List available connectors with optional full-text search")
     @GetMapping("/")
@@ -58,11 +60,19 @@ public class ManageConnectorController {
         return SuccessResponse.ok(toResponse(connector));
     }
 
-    @Operation(summary = "List predefined tools exposed by an integration connector type")
+    @Operation(summary = "List the connector type's predefined tools (STATIC connectors; empty for DYNAMIC)")
     @GetMapping("/{code}/tools/")
     public SuccessResponse<List<ConnectorToolSpec>> getTools(@PathVariable String code) {
-        IntegrationConnectorHandler handler = integrationHandler(code);
-        return SuccessResponse.ok(handler.getTools().values().stream().toList());
+        return SuccessResponse.ok(toolDefinitionService.getCatalogTools(code).values().stream().toList());
+    }
+
+    @Operation(summary = "Get the parameter schema of a single catalog tool")
+    @GetMapping("/{code}/tools/{toolName}")
+    public SuccessResponse<ConnectorToolSpec> getTool(
+            @PathVariable String code,
+            @PathVariable String toolName
+    ) {
+        return SuccessResponse.ok(toolDefinitionService.getCatalogTool(code, toolName));
     }
 
     @Operation(summary = "List predefined triggers exposed by an integration connector type")

@@ -39,7 +39,6 @@ import ru.agimate.controlapi.controller.manage.ManageConnectorJobController;
 import ru.agimate.controlapi.controller.manage.ManageConnectionController;
 import ru.agimate.controlapi.controller.manage.ManageLlmProviderController;
 import ru.agimate.controlapi.controller.manage.ManageSkillController;
-import ru.agimate.controlapi.controller.manage.ManageToolsController;
 import ru.agimate.controlapi.controller.manage.ManageWebhookDeliveryLogsController;
 import ru.agimate.controlapi.controller.webhook.ConnectionWebhookController;
 import ru.agimate.controlapi.security.AgentAuthFilter;
@@ -127,8 +126,7 @@ public class SecurityConfig {
                 ManageConnectorJobController.PATH + "/**",
                 ManageCentrifugoTokenController.PATH + "/**",
                 ManageLlmProviderController.PATH + "/**",
-                ManageChannelController.PATH + "/**",
-                ManageToolsController.PATH + "/**"
+                ManageChannelController.PATH + "/**"
         );
 
         applyCommonSecurityConfig(http);

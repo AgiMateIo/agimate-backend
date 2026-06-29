@@ -83,8 +83,11 @@ Control API for connector registration, tool delivery, trigger submission, and A
 
 | Method | Path                                 | Description                                                                   |
 |--------|--------------------------------------|-------------------------------------------------------------------------------|
-| GET    | `/control/manage/connectors/`         | List connectors (paginated, filter by `type`, search by `name`/`description`) |
-| GET    | `/control/manage/connectors/{code}`   | Get connector by code (includes `integrationMeta` when `type=INTEGRATION`)    |
+| GET    | `/control/manage/connectors/`               | List connectors (paginated, filter by `type`, search by `name`/`description`) |
+| GET    | `/control/manage/connectors/{code}`         | Get connector by code (includes `integrationMeta` when `type=INTEGRATION`)    |
+| GET    | `/control/manage/connectors/{code}/tools/`           | Catalog (type-level) tools (STATIC connectors; empty for DYNAMIC)    |
+| GET    | `/control/manage/connectors/{code}/tools/{toolName}` | Parameter schema of a single catalog tool                           |
+| GET    | `/control/manage/connectors/{code}/triggers/`        | Catalog (type-level) triggers (integration connectors)              |
 
 ### Connector Jobs (JWT)
 
@@ -111,18 +114,6 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | POST   | `/control/manage/skills/upload`                  | Create skill from uploaded SKILL.md file                    |
 | PUT    | `/control/manage/skills/{id}`                    | Update skill (bumps version)                                |
 | DELETE | `/control/manage/skills/{id}`                    | Soft-delete skill                                           |
-
-### Tool Management (JWT)
-
-| Method | Path                        | Description              |
-|--------|-----------------------------|--------------------------|
-| GET    | `/control/manage/tools/`     | List all device tools    |
-
-### Trigger Management (JWT)
-
-| Method | Path                            | Description                        |
-|--------|---------------------------------|------------------------------------|
-| GET    | `/control/manage/triggers/`      | List all device triggers           |
 
 ### Trigger Logs (JWT)
 

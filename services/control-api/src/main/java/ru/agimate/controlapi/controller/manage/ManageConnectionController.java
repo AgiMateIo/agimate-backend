@@ -22,6 +22,7 @@ import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.service.connection.ConnectionService;
+import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 
 import java.util.List;
 import java.util.UUID;
@@ -35,6 +36,7 @@ public class ManageConnectionController {
     public static final String PATH = "/manage/connections";
 
     private final ConnectionService connectionService;
+    private final ToolDefinitionService toolDefinitionService;
     private final McpToolService mcpToolService;
 
     @Operation(summary = "List the user's connections, filtered by connector code / scope / enabled")
@@ -117,7 +119,8 @@ public class ManageConnectionController {
             @PathVariable UUID connectionId
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(connectionService.getConnectionTools(connectionId, userId));
+        return SuccessResponse.ok(
+                toolDefinitionService.getConnectionTools(userId, connectionId).values().stream().toList());
     }
 
     @Operation(summary = "Test a connection: validate credentials (all types) and reload tools (MCP)")

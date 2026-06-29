@@ -12,13 +12,10 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.CryptoUtils;
 import ru.agimate.common.util.UUIDUtils;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
-import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.FullCodes;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
-import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
@@ -136,19 +133,6 @@ public class ConnectionService {
         Connection connection = getOwnedConnection(id, userId);
         IntegrationConnectorHandler handler = integrationHandler(connection.getConnectorCode());
         return handler.validateCredentials(revealCredentials(connection));
-    }
-
-    /**
-     * Тулы конкретного экземпляра через SPI {@code getTools(ctx)}: для динамических коннекторов
-     * (MCP) — из кэша по identity, для статических — их {@code @Tool}-набор.
-     */
-    public List<ConnectorToolSpec> getConnectionTools(UUID id, UUID userId) {
-        Connection connection = getOwnedConnection(id, userId);
-        ConnectorHandler handler = connectorRegistry.findHandler(connection.getConnectorCode())
-                .orElseThrow(() -> new BadRequestStatusException(
-                        "Unsupported platform: " + connection.getConnectorCode()));
-        ConnectorContext context = contextFactory.internal(id.toString(), userId, null, null);
-        return List.copyOf(handler.getTools(context).values());
     }
 
     @Transactional

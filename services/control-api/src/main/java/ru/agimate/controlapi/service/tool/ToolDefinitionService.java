@@ -10,6 +10,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
+import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
@@ -59,6 +60,36 @@ public class ToolDefinitionService {
             throw new NotFoundStatusException("Tool not found: " + toolName);
         }
         return tool;
+    }
+
+    /** Type-level (catalog) tools of a connector: STATIC → reflection; DYNAMIC → empty (no type tools). */
+    public Map<String, ConnectorToolSpec> getCatalogTools(String connectorCode) {
+        Connector connector = connectorRepository.findById(connectorCode)
+                .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
+        return switch (connector.getToolBinding()) {
+            case STATIC -> connectorRegistry.findHandler(connectorCode)
+                    .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
+                    .getTools(listingContext(null));
+            case DYNAMIC -> Map.of();
+            case null -> throw new BadRequestStatusException(
+                    "Connector does not expose tool definitions: " + connectorCode);
+        };
+    }
+
+    /** Schema of a single catalog (type-level) tool. */
+    public ConnectorToolSpec getCatalogTool(String connectorCode, String toolName) {
+        ConnectorToolSpec tool = getCatalogTools(connectorCode).get(toolName);
+        if (tool == null) {
+            throw new NotFoundStatusException("Tool not found: " + toolName);
+        }
+        return tool;
+    }
+
+    /** Tools of a specific owned connection instance (connector code resolved from the connection). */
+    public Map<String, ConnectorToolSpec> getConnectionTools(UUID userId, UUID connectionId) {
+        Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
+        return getTools(userId, connection.getConnectorCode(), connectionId);
     }
 
     /** Тулы динамического экземпляра из {@code connection_tools}; identity проверяется на владельца. */
