@@ -17,10 +17,13 @@ import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.entities.ConnectionTrigger;
+import ru.agimate.controlapi.database.entities.Connector;
+import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
+import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.security.AppSecurityUtils;
 import ru.agimate.controlapi.service.dto.AppCreateResult;
 import ru.agimate.controlapi.service.dto.AppTool;
@@ -47,6 +50,7 @@ public class AppService {
     private final ConnectionRepository connectionRepository;
     private final ConnectionToolRepository connectionToolRepository;
     private final ConnectionTriggerRepository connectionTriggerRepository;
+    private final ConnectorRepository connectorRepository;
 
     @Transactional
     public AppCreateResult createApp(UUID userId, String name, String description, String connectorCode) {
@@ -59,9 +63,14 @@ public class AppService {
             throw new ConflictStatusException("An app with this name already exists");
         }
 
-        GeneratedAppKey generatedKey = AppKeyUtils.generate(APP_KEY_PREFIX);
+        Connector connector = connectorRepository.findById(connectorCode)
+                .orElseThrow(() -> new BadRequestStatusException("Unknown connector: " + connectorCode));
+        if (!connector.supportsScope(IdentityScope.INSTANCE)) {
+            throw new BadRequestStatusException(
+                    "Connector '" + connectorCode + "' does not support device app instances");
+        }
 
-        // todo: check connectorCode by using connector repository and check coonector.type
+        GeneratedAppKey generatedKey = AppKeyUtils.generate(APP_KEY_PREFIX);
 
         App app = App.builder()
                 .userId(userId)

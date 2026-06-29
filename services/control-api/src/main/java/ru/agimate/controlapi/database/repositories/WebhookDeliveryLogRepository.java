@@ -22,8 +22,9 @@ public interface WebhookDeliveryLogRepository extends JpaRepository<WebhookDeliv
     @Query("""
             SELECT w FROM WebhookDeliveryLog w
             JOIN w.triggerLogAgent tla
-            WHERE tla.agent.id = :agentId
+            JOIN tla.triggerLog tl
+            WHERE tl.userId = :userId AND tla.agent.id = :agentId
             ORDER BY w.deliveredAt DESC
             """)
-    Page<WebhookDeliveryLog> findByAgentId(UUID agentId, Pageable pageable);
+    Page<WebhookDeliveryLog> findByUserIdAndAgentId(UUID userId, UUID agentId, Pageable pageable);
 }

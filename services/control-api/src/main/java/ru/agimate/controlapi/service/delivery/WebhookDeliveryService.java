@@ -139,7 +139,7 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
     public Page<WebhookDeliveryLogResponse> getDeliveryLogs(UUID userId, UUID agentId, int page, int size) {
         Page<WebhookDeliveryLog> logs;
         if (agentId != null) {
-            logs = webhookDeliveryLogRepository.findByAgentId(agentId, PageRequest.of(page, size));
+            logs = webhookDeliveryLogRepository.findByUserIdAndAgentId(userId, agentId, PageRequest.of(page, size));
         } else {
             logs = webhookDeliveryLogRepository.findByUserId(userId, PageRequest.of(page, size));
         }

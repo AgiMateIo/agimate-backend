@@ -119,8 +119,11 @@ public class AgentService {
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
     }
 
-    public AgentResponse getById(UUID id) {
+    public AgentResponse getById(UUID id, UUID userId) {
         Agent agent = findById(id);
+        if (!agent.getUserId().equals(userId)) {
+            throw new NotFoundStatusException("Agent not found");
+        }
         var team = resolveTeam(agent.getAgenticTeamId());
         var skills = loadSkillSummaries(List.of(id)).getOrDefault(id, List.of());
         var llms = agentLlmService.listForAgents(List.of(id)).getOrDefault(id, List.of());

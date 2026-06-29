@@ -149,6 +149,7 @@ public class ConnectionBindingService {
     /** Отвязать; контекстный экземпляр без оставшихся binding'ов сворачивается (снятие джоб). */
     @Transactional
     public void unbind(UUID userId, UUID agentId, UUID connectionId) {
+        requireOwnedAgent(userId, agentId);
         AgentConnection binding = agentConnectionRepository.findActiveBinding(agentId, connectionId)
                 .orElseThrow(() -> new NotFoundStatusException("Binding not found"));
         LocalDateTime now = LocalDateTime.now();

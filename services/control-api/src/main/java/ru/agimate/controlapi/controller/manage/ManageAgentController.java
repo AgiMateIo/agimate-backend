@@ -60,7 +60,8 @@ public class ManageAgentController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId
     ) {
-        return SuccessResponse.ok(agentService.getById(agentId));
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentService.getById(agentId, userId));
     }
 
     @Operation(summary = "Update an agent")
