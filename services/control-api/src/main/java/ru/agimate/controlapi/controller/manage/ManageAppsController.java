@@ -13,7 +13,10 @@ import ru.agimate.controlapi.controller.manage.dto.*;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.service.AppService;
 import ru.agimate.controlapi.service.dto.AppCreateResult;
+import ru.agimate.controlapi.service.dto.AppTool;
+import ru.agimate.controlapi.service.dto.AppTrigger;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -100,6 +103,26 @@ public class ManageAppsController {
         UUID userId = UUID.fromString(principal.id());
         appService.deleteApp(appId, userId);
         return SuccessResponse.empty();
+    }
+
+    @Operation(summary = "Get tools of an app", description = "Returns available tools for a specific app")
+    @GetMapping("/{appId}/tools/")
+    public SuccessResponse<List<AppTool>> getAppTools(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID appId
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(appService.getToolsByAppIdAndUser(appId, userId));
+    }
+
+    @Operation(summary = "Get triggers of an app", description = "Returns available triggers for a specific app")
+    @GetMapping("/{appId}/triggers/")
+    public SuccessResponse<List<AppTrigger>> getAppTriggers(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID appId
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(appService.getTriggersByAppIdAndUser(appId, userId));
     }
 
     @Operation(summary = "Regenerate an app key",

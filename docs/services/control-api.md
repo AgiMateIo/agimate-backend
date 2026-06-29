@@ -74,8 +74,8 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | PUT    | `/control/manage/apps/{appId}`                   | Update app                       |
 | DELETE | `/control/manage/apps/{appId}`                   | Delete app (soft)                |
 | POST   | `/control/manage/apps/{appId}/regenerate`        | Regenerate auth key              |
-| GET    | `/control/manage/apps/{appId}/detail`            | Get app detail with device info  |
-| POST   | `/control/manage/apps/{appId}/disconnect`        | Disconnect device from app       |
+| GET    | `/control/manage/apps/{appId}/tools/`            | List the app's tools (was `/manage/app-tools/{appId}`)    |
+| GET    | `/control/manage/apps/{appId}/triggers/`         | List the app's triggers (was `/manage/app-triggers/{appId}`) |
 
 ### Connector Catalog (JWT)
 

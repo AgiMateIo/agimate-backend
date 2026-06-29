@@ -31,8 +31,6 @@ import ru.agimate.controlapi.controller.manage.ManageBoardController;
 import ru.agimate.controlapi.controller.manage.ManageCentrifugoTokenController;
 import ru.agimate.controlapi.controller.manage.ManageChannelController;
 import ru.agimate.controlapi.controller.manage.ManageAppsController;
-import ru.agimate.controlapi.controller.manage.ManageAppToolsController;
-import ru.agimate.controlapi.controller.manage.ManageAppTriggersController;
 import ru.agimate.controlapi.controller.manage.ManageToolCallLogsController;
 import ru.agimate.controlapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.controlapi.controller.manage.ManageAgentConnectionPolicyController;
@@ -115,8 +113,6 @@ public class SecurityConfig {
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
                 ManageAppsController.PATH + "/**",
-                ManageAppToolsController.PATH + "/**",
-                ManageAppTriggersController.PATH + "/**",
                 ManageTriggerLogsController.PATH + "/**",
                 ManageToolCallLogsController.PATH + "/**",
                 ManageAgentController.PATH + "/**",

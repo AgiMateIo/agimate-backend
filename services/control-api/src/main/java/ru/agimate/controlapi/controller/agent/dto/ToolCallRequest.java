@@ -23,7 +23,7 @@ public class ToolCallRequest implements IToolCall {
     @NotNull(message = "Connector code is required")
     private String connectorCode;
 
-    @Schema(description = "Connector identity for ABAC")
+    @Schema(description = "Connection instance handle (connections.id as string) for ABAC routing")
     private String identity;
 
     @Schema(
