@@ -172,6 +172,21 @@ public class ConnectionBindingService {
         }
     }
 
+    /**
+     * Отвязать connection от всех агентов (например, при удалении App-экземпляра): soft-delete всех
+     * активных binding'ов + их политик + сброс кэша решений. Сам экземпляр connection не трогаем — его
+     * жизненным циклом управляет владелец (AppService удаляет connection отдельно).
+     */
+    @Transactional
+    public void detachConnection(UUID connectionId) {
+        LocalDateTime now = LocalDateTime.now();
+        for (AgentConnection binding : agentConnectionRepository.findActiveByConnectionId(connectionId)) {
+            agentConnectionRepository.softDelete(binding.getId(), now);
+            policyRepository.softDeleteByAgentConnectionId(binding.getId(), now);
+            invalidate(binding.getAgentId(), connectionId);
+        }
+    }
+
     private Connection resolveConnection(UUID userId, UUID agentId, Connector connector,
                                          IdentityScope scope, UUID explicitConnectionId) {
         if (scope == IdentityScope.INSTANCE) {

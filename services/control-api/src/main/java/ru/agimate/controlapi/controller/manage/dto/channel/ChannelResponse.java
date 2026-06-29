@@ -15,10 +15,10 @@ public record ChannelResponse(
         String channelHandler,
         String connectorCode,
         String identity,
-        @Schema(description = "Denormalized display name of the identity (App.name or IntegrationCredentials.name); null if missing or deleted")
+        @Schema(description = "Denormalized display name of the identity (Connection.name / App.name); null if missing or deleted")
         String identityName,
         Map<String, Object> config,
-        @Schema(description = "Optional input filter stored on the linked AgentTriggerPolicy; null if no filter is configured")
+        @Schema(description = "Optional input filter stored on the Channel; null if no filter is configured")
         Map<String, Object> inputFilter,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

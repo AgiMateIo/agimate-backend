@@ -64,7 +64,7 @@ public class ToolDefinitionService {
     /** Тулы динамического экземпляра из {@code connection_tools}; identity проверяется на владельца. */
     private Map<String, ConnectorToolSpec> dynamicTools(UUID userId, UUID identity) {
         if (identity == null) {
-            return Map.of();
+            throw new BadRequestStatusException("This connector requires an instance identity (connectionId)");
         }
         // Ownership-скоуп: экземпляр должен принадлежать вызывающему (иначе IDOR).
         connectionRepository.findByIdAndUserIdNotDeleted(identity, userId)

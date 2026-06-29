@@ -28,7 +28,7 @@ public class ManageWebhookDeliveryLogsController {
 
     @Operation(
             summary = "List webhook delivery logs",
-            description = "Returns webhook delivery logs for the current user with optional filtering by API key"
+            description = "Returns the current user's webhook delivery logs, optionally filtered by agent id"
     )
     @GetMapping("/")
     public SuccessResponse<Page<WebhookDeliveryLogResponse>> getDeliveryLogs(

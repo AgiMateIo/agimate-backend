@@ -63,7 +63,7 @@ public class ManageAgentConnectionPolicyController {
             @RequestBody UpdateAgentConnectionPolicyRequest request) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(AgentConnectionPolicyResponse.from(policyService.update(
-                userId, policyId, request.effect(), request.paramsFilter(), request.description())));
+                userId, agentConnectionId, policyId, request.effect(), request.paramsFilter(), request.description())));
     }
 
     @Operation(summary = "Delete an access rule")
@@ -73,7 +73,7 @@ public class ManageAgentConnectionPolicyController {
             @PathVariable UUID agentConnectionId,
             @PathVariable UUID policyId) {
         UUID userId = UUID.fromString(principal.id());
-        policyService.delete(userId, policyId);
+        policyService.delete(userId, agentConnectionId, policyId);
         return SuccessResponse.empty();
     }
 }

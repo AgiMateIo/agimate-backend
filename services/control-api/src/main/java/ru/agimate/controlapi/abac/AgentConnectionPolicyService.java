@@ -69,9 +69,10 @@ public class AgentConnectionPolicyService {
     }
 
     @Transactional
-    public AgentConnectionPolicy update(UUID userId, UUID id, AccessEffect effect,
+    public AgentConnectionPolicy update(UUID userId, UUID agentConnectionId, UUID id, AccessEffect effect,
                                         Map<String, Object> paramsFilter, String description) {
         AgentConnectionPolicy policy = getPolicyById(userId, id);
+        requireInBinding(policy, agentConnectionId);
         if (effect != null) {
             policy.setEffect(effect);
         }
@@ -85,10 +86,18 @@ public class AgentConnectionPolicyService {
     }
 
     @Transactional
-    public void delete(UUID userId, UUID id) {
+    public void delete(UUID userId, UUID agentConnectionId, UUID id) {
         AgentConnectionPolicy policy = getPolicyById(userId, id);
+        requireInBinding(policy, agentConnectionId);
         policyRepository.softDelete(id, LocalDateTime.now());
         invalidate(policy.getAgentConnectionId());
+    }
+
+    /** Правило должно принадлежать binding'у из пути — иначе путь вводит в заблуждение (несоответствие). */
+    private void requireInBinding(AgentConnectionPolicy policy, UUID agentConnectionId) {
+        if (!policy.getAgentConnectionId().equals(agentConnectionId)) {
+            throw new NotFoundStatusException("Policy not found");
+        }
     }
 
     private AgentConnection ownedBinding(UUID userId, UUID agentConnectionId) {

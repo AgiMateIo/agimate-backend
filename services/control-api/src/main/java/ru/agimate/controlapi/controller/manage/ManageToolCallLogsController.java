@@ -25,7 +25,7 @@ public class ManageToolCallLogsController {
 
     @Operation(
             summary = "List tool use logs",
-            description = "Returns tool use logs with optional filtering by API key"
+            description = "Returns the current user's tool use logs, optionally filtered by agent id"
     )
     @GetMapping("/")
     public SuccessResponse<Page<ToolCallLogResponse>> getToolCallLogs(

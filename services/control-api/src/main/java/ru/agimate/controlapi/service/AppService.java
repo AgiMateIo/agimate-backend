@@ -25,6 +25,7 @@ import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.security.AppSecurityUtils;
+import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.dto.AppCreateResult;
 import ru.agimate.controlapi.service.dto.AppTool;
 import ru.agimate.controlapi.service.dto.AppTrigger;
@@ -51,6 +52,7 @@ public class AppService {
     private final ConnectionToolRepository connectionToolRepository;
     private final ConnectionTriggerRepository connectionTriggerRepository;
     private final ConnectorRepository connectorRepository;
+    private final ConnectionBindingService connectionBindingService;
 
     @Transactional
     public AppCreateResult createApp(UUID userId, String name, String description, String connectorCode) {
@@ -130,9 +132,14 @@ public class AppService {
                 .filter(k -> k.getUserId().equals(userId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
-        appRepository.softDelete(app.getId(), LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        appRepository.softDelete(app.getId(), now);
         connectionRepository.findByAppIdAndDeletedAtIsNull(app.getId())
-                .ifPresent(c -> connectionRepository.softDelete(c.getId(), LocalDateTime.now()));
+                .ifPresent(c -> {
+                    // Каскад: снять binding'и/политики агентов на этот экземпляр, затем свернуть connection.
+                    connectionBindingService.detachConnection(c.getId());
+                    connectionRepository.softDelete(c.getId(), now);
+                });
         log.info("Soft deleted app: {}", id);
     }
 
