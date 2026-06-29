@@ -198,10 +198,22 @@ public class BoardService {
                 parentTaskId);
     }
 
-    @Transactional
-    public BoardTaskResponse changeTaskStatus(UUID taskId, UUID userId, UpdateBoardTaskStatusRequest request) {
+    /**
+     * Загрузить задачу. Если {@code boardId} задан (REST-путь, вложенный в доску) — проверить
+     * принадлежность задачи доске; {@code null} (агентский тул оперирует по taskId) — без проверки.
+     */
+    private BoardTask requireTaskInBoard(UUID boardId, UUID taskId) {
         BoardTask task = boardTaskRepository.findById(taskId)
                 .orElseThrow(() -> new NotFoundStatusException("Task not found"));
+        if (boardId != null && !task.getBoardId().equals(boardId)) {
+            throw new NotFoundStatusException("Task not found");
+        }
+        return task;
+    }
+
+    @Transactional
+    public BoardTaskResponse changeTaskStatus(UUID boardId, UUID taskId, UUID userId, UpdateBoardTaskStatusRequest request) {
+        BoardTask task = requireTaskInBoard(boardId, taskId);
         Board board = boardRepository.findById(task.getBoardId())
                 .orElseThrow(() -> new NotFoundStatusException("Board not found"));
         validateBoardOwnership(board, userId);
@@ -253,9 +265,8 @@ public class BoardService {
 
     // ---- Comments ----
 
-    public List<BoardTaskCommentResponse> getComments(UUID taskId, UUID userId) {
-        BoardTask task = boardTaskRepository.findById(taskId)
-                .orElseThrow(() -> new NotFoundStatusException("Task not found"));
+    public List<BoardTaskCommentResponse> getComments(UUID boardId, UUID taskId, UUID userId) {
+        BoardTask task = requireTaskInBoard(boardId, taskId);
         Board board = boardRepository.findById(task.getBoardId())
                 .orElseThrow(() -> new NotFoundStatusException("Board not found"));
         validateBoardOwnership(board, userId);
@@ -275,9 +286,8 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardTaskCommentResponse createComment(UUID taskId, UUID userId, CreateBoardTaskCommentRequest request) {
-        BoardTask task = boardTaskRepository.findById(taskId)
-                .orElseThrow(() -> new NotFoundStatusException("Task not found"));
+    public BoardTaskCommentResponse createComment(UUID boardId, UUID taskId, UUID userId, CreateBoardTaskCommentRequest request) {
+        BoardTask task = requireTaskInBoard(boardId, taskId);
         Board board = boardRepository.findById(task.getBoardId())
                 .orElseThrow(() -> new NotFoundStatusException("Board not found"));
         validateBoardOwnership(board, userId);

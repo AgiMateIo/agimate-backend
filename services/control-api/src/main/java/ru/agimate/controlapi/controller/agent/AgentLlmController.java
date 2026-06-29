@@ -29,7 +29,7 @@ public class AgentLlmController {
             summary = "List LLM bindings with decrypted credentials",
             description = "Returns all enabled LLM bindings of the current agent including decrypted apiKey"
     )
-    @GetMapping
+    @GetMapping("/")
     public SuccessResponse<List<AgentLlmRuntimeResponse>> list(
             @AuthenticationPrincipal AgentPrincipal principal
     ) {

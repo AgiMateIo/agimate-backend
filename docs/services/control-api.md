@@ -162,12 +162,12 @@ Control API for connector registration, tool delivery, trigger submission, and A
 |--------|--------------------------------------------------------|-------------------------------|
 | GET    | `/control/manage/boards/`                               | List boards                   |
 | POST   | `/control/manage/boards/`                               | Create board                  |
-| GET    | `/control/manage/boards/{pubId}`                        | Get board                     |
-| GET    | `/control/manage/boards/{boardPubId}/tasks/`            | Get board tasks by status     |
-| POST   | `/control/manage/boards/{boardPubId}/tasks/`            | Create board task             |
-| PATCH  | `/control/manage/boards/tasks/{taskPubId}/status`       | Update task status            |
-| GET    | `/control/manage/boards/tasks/{taskPubId}/comments/`    | Get task comments             |
-| POST   | `/control/manage/boards/tasks/{taskPubId}/comments/`    | Create task comment           |
+| GET    | `/control/manage/boards/{boardId}`                              | Get board                     |
+| GET    | `/control/manage/boards/{boardId}/tasks/`                       | Get board tasks by status     |
+| POST   | `/control/manage/boards/{boardId}/tasks/`                       | Create board task             |
+| PATCH  | `/control/manage/boards/{boardId}/tasks/{taskId}/status`        | Update task status            |
+| GET    | `/control/manage/boards/{boardId}/tasks/{taskId}/comments/`     | Get task comments             |
+| POST   | `/control/manage/boards/{boardId}/tasks/{taskId}/comments/`     | Create task comment           |
 
 ### Tool Call Logs (JWT)
 

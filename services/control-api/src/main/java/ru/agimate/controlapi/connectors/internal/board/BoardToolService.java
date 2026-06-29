@@ -100,7 +100,7 @@ public class BoardToolService {
         }
 
         var request = new UpdateBoardTaskStatusRequest(taskStatus, agent.getId());
-        var result = boardService.changeTaskStatus(taskUuid, userId(), request);
+        var result = boardService.changeTaskStatus(null, taskUuid, userId(), request);
         return Map.of("task", result);
     }
 
@@ -109,7 +109,7 @@ public class BoardToolService {
     public Map<String, Object> getComments(
             @ToolParam("Task public ID") String taskId) {
         UUID taskUuid = UUID.fromString(taskId);
-        var result = boardService.getComments(taskUuid, userId());
+        var result = boardService.getComments(null, taskUuid, userId());
         return Map.of("comments", result);
     }
 
@@ -122,7 +122,7 @@ public class BoardToolService {
 
         UUID taskUuid = UUID.fromString(taskId);
         var request = new CreateBoardTaskCommentRequest(agent.getId(), content);
-        var result = boardService.createComment(taskUuid, userId(), request);
+        var result = boardService.createComment(null, taskUuid, userId(), request);
         return Map.of("comment", result);
     }
 
