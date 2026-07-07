@@ -123,8 +123,10 @@ public class TriggerRouterService {
 
     /**
      * Персистентность и доставка. Работает с {@link TriggerLog}/{@link TriggerLogAgent};
-     * {@code sessionId} запуска берётся из prompt-канала. Сбой доставки одного получателя
-     * не должен ронять остальных — изолируем по маршруту.
+     * {@code sessionId} запуска резолвится здесь один раз (prompt-канал, иначе answer) и
+     * уезжает воркеру явным полем {@code AgentMessage.sessionId} — правило определено только
+     * на этой стороне. Сбой доставки одного получателя не должен ронять остальных —
+     * изолируем по маршруту.
      */
     private void dispatch(TriggerLog triggerLog, Trigger trigger, List<TriggerRoute> routes) {
         if (routes.isEmpty()) {
@@ -138,7 +140,7 @@ public class TriggerRouterService {
                         .triggerLog(triggerLog)
                         .agent(route.agent())
                         .destination(route.agent().getType().name())
-                        .sessionId(route.promptSessionId())
+                        .sessionId(route.sessionId())
                         .build();
                 // Persist before delivery so the DB-generated id (the canonical run_id == DBOS
                 // workflow id) is populated; delivery and the run registry rely on this id.
@@ -162,9 +164,19 @@ public class TriggerRouterService {
             return new TriggerRoute(agent, null, null);
         }
 
-        /** sessionId prompt-канала — single-writer ключ запуска; null для прямой доставки. */
-        private UUID promptSessionId() {
-            return channels != null && channels.prompt() != null ? channels.prompt().sessionId() : null;
+        /**
+         * Single-writer/history ключ запуска: сессия prompt-канала, иначе answer-канала;
+         * null для прямой доставки. Единственное место, где это правило определено —
+         * воркер получает готовое значение в {@code AgentMessage.sessionId}.
+         */
+        private UUID sessionId() {
+            if (channels == null) {
+                return null;
+            }
+            if (channels.prompt() != null && channels.prompt().sessionId() != null) {
+                return channels.prompt().sessionId();
+            }
+            return channels.answer() != null ? channels.answer().sessionId() : null;
         }
     }
 }

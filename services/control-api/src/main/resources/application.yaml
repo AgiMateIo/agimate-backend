@@ -108,13 +108,6 @@ dbos:
     username: "dbos_app"
     password: ""
     schema: "dbos"
-  workflows:
-    agent-workflow:
-      queue-name: "agent_runs"
-      name: "start_agent"
-      class-name: "AgentWorkflow"
-      instance-name: "default"
-      # agent_runs вместо triggers + channel_messages; class_name = AgentWorkflow, workflow_name = start_agent
 
 
 centrifugo:

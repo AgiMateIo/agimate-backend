@@ -13,7 +13,9 @@ public class DbosProperties {
 
     private boolean enabled;
     private SystemDatabase systemDatabase = new SystemDatabase();
-    private Workflows workflows = new Workflows();
+
+    // Queue/workflow/class/instance names are NOT config: they are the code contract with the
+    // worker, shared via ru.agimate.agentworker.WorkerProtocol (libs/agentworker-proto).
 
     @Getter
     @Setter
@@ -22,20 +24,5 @@ public class DbosProperties {
         private String username;
         private String password;
         private String schema = "dbos";
-    }
-
-    @Getter
-    @Setter
-    public static class Workflows {
-        private Workflow agentWorkflow = new Workflow();
-    }
-
-    @Getter
-    @Setter
-    public static class Workflow {
-        private String queueName;
-        private String name;
-        private String className;
-        private String instanceName;
     }
 }

@@ -57,6 +57,7 @@ public class WebhookDeliveryService implements AgentDeliveryHandler {
                 agent.getId().toString(),
                 triggerLogAgent.getId().toString(),
                 type,
+                triggerLogAgent.getSessionId() != null ? triggerLogAgent.getSessionId().toString() : null,
                 channels,
                 inbound,
                 trigger);

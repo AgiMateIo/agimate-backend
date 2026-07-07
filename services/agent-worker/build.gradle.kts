@@ -4,7 +4,6 @@ plugins {
     id("io.spring.dependency-management")
 }
 
-val grpcVersion = "1.68.1"
 val springAiVersion = "2.0.0"
 
 group = "ru.agimate.agentworker"
@@ -32,7 +31,6 @@ dependencies {
 
     // Spring Boot — headless (non-web) DBOS queue consumer.
     implementation("org.springframework.boot:spring-boot-starter")
-    implementation("org.springframework.boot:spring-boot-starter-validation")
 
     // Spring AI OpenAI model module (no starter: the ChatModel is built per-call
     // from dynamic per-agent credentials, so we avoid the autoconfigured bean).
@@ -44,8 +42,9 @@ dependencies {
     // Bounded cache for per-credentials chat models (reuses the underlying HTTP clients).
     implementation("com.github.ben-manes.caffeine:caffeine")
 
-    // gRPC client transport (stubs come transitively from :libs:agentworker-proto).
-    implementation("io.grpc:grpc-netty-shaded:$grpcVersion")
+    // gRPC client transport (stubs come transitively from :libs:agentworker-proto,
+    // version from the root constraints block).
+    implementation("io.grpc:grpc-netty-shaded")
 
     // Postgres driver for the DBOS system database.
     runtimeOnly("org.postgresql:postgresql")

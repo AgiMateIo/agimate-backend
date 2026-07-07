@@ -13,8 +13,15 @@ final class SessionSupport {
     private SessionSupport() {
     }
 
-    /** The session that keys single-writer/history: the prompt channel's, else the answer channel's. */
+    /**
+     * The session that keys single-writer/history. The rule lives on the producer: control-api
+     * resolves it once and ships {@code AgentMessage.sessionId}. The channel-derived fallback
+     * (prompt's, else answer's) only covers messages enqueued before the field existed.
+     */
     static String sessionId(AgentMessage message) {
+        if (message.sessionId() != null && !message.sessionId().isEmpty()) {
+            return message.sessionId();
+        }
         Channels channels = message.channels();
         if (channels == null) {
             return null;

@@ -4,9 +4,6 @@ plugins {
     id("io.spring.dependency-management")
 }
 
-val grpcVersion = "1.68.1"
-val protobufVersion = "3.25.5"
-
 group = "ru.agimate.controlapi"
 version = findProperty("buildVersion") ?: "0.1.0"
 
@@ -54,9 +51,10 @@ dependencies {
 
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 
-    // gRPC server runtime for the worker protocol (stubs come from :libs:agentworker-proto).
-    implementation("io.grpc:grpc-netty-shaded:$grpcVersion")
-    implementation("io.grpc:grpc-services:$grpcVersion")
+    // gRPC server runtime for the worker protocol (stubs come from :libs:agentworker-proto,
+    // versions from the root constraints block).
+    implementation("io.grpc:grpc-netty-shaded")
+    implementation("io.grpc:grpc-services")
 
     // Lombok for code generation
     compileOnly("org.projectlombok:lombok")
@@ -65,8 +63,8 @@ dependencies {
     // Testing Dependencies
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("io.grpc:grpc-inprocess:$grpcVersion")
-    testImplementation("io.grpc:grpc-testing:$grpcVersion")
+    testImplementation("io.grpc:grpc-inprocess")
+    testImplementation("io.grpc:grpc-testing")
 }
 
 tasks.withType<JavaCompile> {

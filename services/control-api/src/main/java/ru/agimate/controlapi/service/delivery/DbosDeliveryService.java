@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
-import ru.agimate.controlapi.config.DbosProperties;
+import ru.agimate.agentworker.WorkerProtocol;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
@@ -21,7 +21,6 @@ import ru.agimate.controlapi.service.trigger.Trigger;
 public class DbosDeliveryService implements AgentDeliveryHandler {
 
     private final ObjectProvider<DBOSClient> clientProvider;
-    private final DbosProperties props;
 
     @Override
     public AgentType getAgentType() {
@@ -37,29 +36,31 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         Agent agent = triggerLogAgent.getAgent();
         String agentId = agent.getId().toString();
 
-        DbosProperties.Workflow workflow = props.getWorkflows().getAgentWorkflow();
-        String type = "trigger";
+        // Informational only — the worker discriminates on channels.prompt, but the field
+        // should not lie to other consumers (metrics/logging); same rule as the other handlers.
+        String type = channels != null ? "channel_message" : "trigger";
         String runId = triggerLogAgent.getId().toString();
-        AgentMessage<Trigger> message = new AgentMessage<>(agentId, runId, type, channels, inbound, trigger);
+        String sessionId = triggerLogAgent.getSessionId() != null ? triggerLogAgent.getSessionId().toString() : null;
+        AgentMessage<Trigger> message = new AgentMessage<>(agentId, runId, type, sessionId, channels, inbound, trigger);
 
-        // The router workflow gets a derived id (":router") so the bare runId is free for the
-        // run-stage workflow the router enqueues (run_id == that run's DBOS workflow id, which
-        // steering addresses via DBOS.send / AgentRunRegistry).
+        // Contract names and the router-id scheme come from the shared WorkerProtocol (compiled
+        // into both services): the router gets a derived id so the bare runId is free for the
+        // run-stage workflow (run_id == its DBOS workflow id, which steering addresses).
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
-                workflow.getName(),
-                workflow.getClassName(),
-                workflow.getQueueName()
+                WorkerProtocol.AGENT_WORKFLOW,
+                WorkerProtocol.AGENT_CLASS,
+                WorkerProtocol.AGENT_QUEUE
         )
-                .withInstanceName(workflow.getInstanceName())
+                .withInstanceName(WorkerProtocol.INSTANCE)
                 .withSerialization(SerializationStrategy.PORTABLE)
-                .withWorkflowId(runId + ":router")
+                .withWorkflowId(WorkerProtocol.routerWorkflowId(runId))
                 .withQueuePartitionKey(agentId);
         client.enqueueWorkflow(options, new Object[]{message});
 
         log.debug("{} '{}' enqueued to DBOS queue '{}' for agent '{}'",
                 type,
                 triggerLogAgent.getTriggerLog().getName(),
-                workflow.getQueueName(),
+                WorkerProtocol.AGENT_QUEUE,
                 agentId);
     }
 }
