@@ -81,6 +81,12 @@ public class TimeToolService {
             throw new ConnectorException("prompt is required");
         }
 
+        // Слабые OpenAI-shim модели не опускают неиспользуемые optional-параметры, а шлют
+        // zero-values (0, "") — трактуем их как отсутствие значения, иначе modes всегда > 1.
+        delaySeconds = delaySeconds != null && delaySeconds == 0 ? null : delaySeconds;
+        intervalSeconds = intervalSeconds != null && intervalSeconds == 0 ? null : intervalSeconds;
+        cron = cron != null && cron.isBlank() ? null : cron;
+
         ConnectorJobType type;
         Map<String, Object> config;
         LocalDateTime firstRunAt;

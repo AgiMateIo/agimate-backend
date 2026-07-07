@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.dto.AgentMessage;
+import ru.agimate.controlapi.service.dto.IToolResult;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -62,5 +63,12 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
                 triggerLogAgent.getTriggerLog().getName(),
                 WorkerProtocol.AGENT_QUEUE,
                 agentId);
+    }
+
+    /** Push не нужен: воркер сам забирает результат тулы поллингом {@code GetToolResult} по gRPC. */
+    @Override
+    public void deliverToolResult(Agent agent, IToolResult toolResult) {
+        log.debug("tool result '{}' for agent '{}' awaits the worker's GetToolResult poll",
+                toolResult.getId(), agent.getId());
     }
 }
