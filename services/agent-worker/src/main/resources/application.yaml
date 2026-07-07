@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: agent-worker
+  main:
+    # Headless worker: no embedded web server.
+    web-application-type: none
+
+# Worker configuration. Values here are defaults; override any of them via
+# environment variables (relaxed binding), e.g. AGENT_GRPC_TARGET, AGENT_DBOS_DATABASE_URL.
+agent:
+  grpc:
+    target: "localhost:9091"
+    use-tls: false
+    ca-cert:
+    auth-token: ""
+    request-timeout: 10s
+    connect-timeout: 5s
+  agent:
+    id: "agent-default"
+    version: "0.1.0"
+    workflow-id: "wf-default"
+  concurrency:
+    agent-runs: 3
+    llm: 3
+    tool: 8
+  app:
+    url: "https://agimate.io"
+    title: "AgiMate"
+    category: "cloud-agent"
+    user-agent: "AgiMate managed agent (agimate.io)"
+  session:
+    # queue | steer | interrupt — behaviour on a message into an already-active session.
+    on-active-message: queue
+  dbos:
+    app-name: "agent-worker"
+    database-url: "jdbc:postgresql://localhost:5432/dbos_db"
+    username: "user"
+    password: "password"
+    schema: "dbos"
+    application-version:
+
+logging:
+  level:
+    ru.agimate.agentworker: INFO
