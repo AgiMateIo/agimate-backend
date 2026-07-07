@@ -15,8 +15,11 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
 
     /**
      * RegisterRun: the worker acquires the session writer slot for an existing run row.
-     * Flipping to RUNNING trips the partial unique index if another run already holds
-     * the session — that is the single-writer guard (DataIntegrityViolationException).
+     * The claim is conditional in the statement itself ({@code NOT EXISTS} another RUNNING
+     * holder, self excluded for the idempotent re-affirm) — a busy slot is the regular
+     * {@code updated == 0} outcome, not a constraint violation. The partial unique index
+     * stays as the invariant backstop for true races (two concurrent claims can both pass
+     * {@code NOT EXISTS} under READ COMMITTED; the loser hits the index).
      * Guarded to non-terminal statuses: a late/replayed register on a DONE/FAILED/CANCELLED
      * row must not flip it back to RUNNING (that would re-occupy the session slot with a
      * run that has already finished and will never release it).
@@ -31,6 +34,11 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
             WHERE t.id = :runId
               AND t.status IN (ru.agimate.controlapi.database.enums.RunStatus.ENQUEUED,
                                ru.agimate.controlapi.database.enums.RunStatus.RUNNING)
+              AND NOT EXISTS (
+                  SELECT 1 FROM TriggerLogAgent h
+                  WHERE h.sessionId = :sessionId
+                    AND h.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
+                    AND h.id <> :runId)
             """)
     int markRunning(@Param("runId") UUID runId,
                     @Param("sessionId") UUID sessionId,
@@ -38,8 +46,16 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
                     @Param("acquiredAt") LocalDateTime acquiredAt);
 
     /**
+     * The session slot's holder as the claim sees it: the RUNNING row regardless of
+     * {@code expires_at} — the partial unique index (and thus {@code markRunning}) ignores
+     * expiry, so an expired holder still blocks the claim until evicted.
+     */
+    Optional<TriggerLogAgent> findBySessionIdAndStatus(UUID sessionId, RunStatus status);
+
+    /**
      * GetActiveRun: the single live writer for the session, if any.
-     * Expired RUNNING rows are treated as inactive (no sweeper needed).
+     * Expired RUNNING rows are treated as inactive reads; the claim path evicts them
+     * via {@code reclaimDeadHolder}.
      */
     @Query("""
             SELECT t FROM TriggerLogAgent t

@@ -80,6 +80,13 @@ binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example
 `grpc` (target/tls/auth-token), `agent` (id/workflow-id), `concurrency` (agent-runs/llm/tool),
 `session` (on-active-message), `dbos` (system database — must match control-api's).
 
+### gRPC client resilience
+`AgentWorkerClient` retries `UNAVAILABLE` at the transport level with exponential backoff
+(~63s budget) — a routine control-api restart is waited out instead of killing the run. This
+sits below DBOS step retries and also covers the non-step call sites (inline LLM credentials
+fetch, `OutboundPublisher` sends). `ABORTED` is a business outcome and never retried; other
+statuses fail fast as `ControlApiCallException` (serializable, unlike the raw gRPC exception).
+
 ## Run
 ```bash
 cd services

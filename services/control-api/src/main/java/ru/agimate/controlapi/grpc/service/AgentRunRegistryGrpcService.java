@@ -37,18 +37,26 @@ public class AgentRunRegistryGrpcService extends AgentRunRegistryGrpc.AgentRunRe
             UUID sessionPubId = parseUuid(request.getSessionPubId(), "session_pub_id");
             UUID runId = parseUuid(request.getRunId(), "run_id");
 
-            AgentRunRegistryService.ActiveRunView view =
-                    agentRunRegistryService.registerRun(sessionPubId, runId, request.getTtlSeconds());
+            Optional<AgentRunRegistryService.ActiveRunView> view = registerEvictingDeadHolder(
+                    sessionPubId, runId, request.getTtlSeconds());
+            if (view.isEmpty()) {
+                responseObserver.onError(Status.ABORTED
+                        .withDescription("Another active run holds this session; INTERRUPT must release it first")
+                        .asRuntimeException());
+                return;
+            }
 
             log.debug("AgentRunRegistry.RegisterRun pool={} session={} run={}", poolId, sessionPubId, runId);
             responseObserver.onNext(RegisterRunResponse.newBuilder()
-                    .setActiveRun(AgentRunRegistryMapper.toProto(view))
+                    .setActiveRun(AgentRunRegistryMapper.toProto(view.get()))
                     .build());
             responseObserver.onCompleted();
         } catch (NotFoundStatusException e) {
             responseObserver.onError(Status.NOT_FOUND.withDescription(e.getMessage()).asRuntimeException());
         } catch (DataIntegrityViolationException e) {
-            // Partial unique index tripped: another run already holds this session's slot.
+            // Backstop for a true race only: two concurrent claims can both pass the statement's
+            // NOT EXISTS under READ COMMITTED and the loser trips the partial unique index. The
+            // regular busy-slot outcome is Optional.empty() above, not this exception.
             responseObserver.onError(Status.ABORTED
                     .withDescription("Another active run holds this session; INTERRUPT must release it first")
                     .asRuntimeException());
@@ -58,6 +66,22 @@ public class AgentRunRegistryGrpcService extends AgentRunRegistryGrpc.AgentRunRe
             log.error("AgentRunRegistry.RegisterRun failed pool={}", poolId, e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
         }
+    }
+
+    /**
+     * Register with one dead-holder eviction round: on a busy slot, evict a holder that provably
+     * no longer needs it (expired lease or dead DBOS workflow — e.g. the run errored during a
+     * control-api outage without releasing) and retry once. A live holder — or a lost race for
+     * the freed slot — stays {@link Optional#empty()} for the ABORTED mapping above.
+     */
+    private Optional<AgentRunRegistryService.ActiveRunView> registerEvictingDeadHolder(
+            UUID sessionPubId, UUID runId, int ttlSeconds) {
+        Optional<AgentRunRegistryService.ActiveRunView> view =
+                agentRunRegistryService.registerRun(sessionPubId, runId, ttlSeconds);
+        if (view.isPresent() || !agentRunRegistryService.reclaimDeadHolder(sessionPubId)) {
+            return view;
+        }
+        return agentRunRegistryService.registerRun(sessionPubId, runId, ttlSeconds);
     }
 
     @Override

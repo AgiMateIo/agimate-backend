@@ -107,21 +107,44 @@ public class AgentWorkerClient {
     }
 
     /**
+     * Transport-level retry budget for UNAVAILABLE: covers a routine control-api restart
+     * (sleeps 1+2+4+8+16+32 ≈ 63s total) so an in-flight run waits it out instead of dying.
+     */
+    private static final int UNAVAILABLE_MAX_ATTEMPTS = 7;
+    private static final long UNAVAILABLE_INITIAL_BACKOFF_MS = 1_000;
+
+    /**
      * Runs one RPC, converting {@link StatusRuntimeException} into the serializable
      * {@link ControlApiCallException}. ABORTED is an expected outcome (busy active-run claim), so
-     * it logs quietly; everything else logs the full chain here because the wrapper drops the
-     * cause on purpose.
+     * it logs quietly and never retries; UNAVAILABLE (control-api restarting/unreachable) retries
+     * with backoff up to {@link #UNAVAILABLE_MAX_ATTEMPTS}; everything else logs the full chain
+     * here because the wrapper drops the cause on purpose.
      */
     private static <T> T call(String rpc, Supplier<T> op) {
-        try {
-            return op.get();
-        } catch (StatusRuntimeException e) {
-            if (e.getStatus().getCode() == Status.Code.ABORTED) {
-                log.debug("control-api RPC {}: {}", rpc, e.getMessage());
-            } else {
+        long backoffMs = UNAVAILABLE_INITIAL_BACKOFF_MS;
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return op.get();
+            } catch (StatusRuntimeException e) {
+                if (e.getStatus().getCode() == Status.Code.ABORTED) {
+                    log.debug("control-api RPC {}: {}", rpc, e.getMessage());
+                    throw new ControlApiCallException(rpc, e.getStatus());
+                }
+                if (e.getStatus().getCode() == Status.Code.UNAVAILABLE && attempt < UNAVAILABLE_MAX_ATTEMPTS) {
+                    log.info("control-api RPC {} unavailable (attempt {}/{}), retrying in {} ms",
+                            rpc, attempt, UNAVAILABLE_MAX_ATTEMPTS, backoffMs);
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new ControlApiCallException(rpc, e.getStatus());
+                    }
+                    backoffMs *= 2;
+                    continue;
+                }
                 log.warn("control-api RPC {} failed", rpc, e);
+                throw new ControlApiCallException(rpc, e.getStatus());
             }
-            throw new ControlApiCallException(rpc, e.getStatus());
         }
     }
 

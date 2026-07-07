@@ -195,16 +195,24 @@ Lifecycle (`status` column, orthogonal to `result`/`error`):
 `DONE` (released) / `FAILED` / `CANCELLED` (pre-empted by INTERRUPT).
 
 - `RegisterRun(session_pub_id, run_id, ttl_seconds)` — flips the run to `RUNNING`, sets `expires_at = now + ttl`
-  (server default ~3600s, no heartbeat). Returns the `ActiveRun`.
+  (server default ~3600s, no heartbeat). Returns the `ActiveRun`. The claim is a conditional UPDATE
+  (`NOT EXISTS` another RUNNING holder) — a busy slot is a regular outcome, not a constraint violation. On a
+  busy slot the server evicts a holder that provably no longer needs it — expired lease (the partial unique
+  index ignores `expires_at`, so the claim is where TTL takeover actually happens) or dead DBOS workflow
+  (`run_id` == workflow id; terminal state or missing record — e.g. the run errored during a control-api
+  outage and never released) — marks it `FAILED` and retries once; only a live holder yields `ABORTED`.
 - `GetActiveRun(session_pub_id)` — the single live writer for the session; expired `RUNNING` rows count as
   inactive (`active=false`). No sweeper needed.
 - `ReleaseRun(session_pub_id, run_id)` — release-own: only the run holding the slot can release it, so a late
   Release from a pre-empted run is a no-op (`released=false`).
 
 **Single-writer invariant**: at most one `RUNNING` run per session, enforced by a partial unique index
-`uq_trigger_log_agents_active_session ON (session_pub_id) WHERE status = 'RUNNING'`. Because the slot is a
-partial index (not a PK upsert), an INTERRUPT take-over must first move the pre-empted run out of `RUNNING`
-(`CANCELLED`) before the new run's `RegisterRun`; otherwise `RegisterRun` is rejected with `ABORTED`.
+`uq_trigger_log_agents_active_session ON (session_pub_id) WHERE status = 'RUNNING'`. The index is the
+invariant backstop, not the detection mechanism: the claim's `NOT EXISTS` makes a busy slot an explicit
+outcome, and the index only trips on a true race (two concurrent claims both passing `NOT EXISTS` under
+READ COMMITTED — the loser gets `ABORTED`). An INTERRUPT take-over must first move the pre-empted run out
+of `RUNNING` (`CANCELLED`) before the new run's `RegisterRun`; otherwise `RegisterRun` is rejected with
+`ABORTED`.
 
 `AgentSessionMessages.Append` is hardened independently: the insert into `channel_session_messages` uses
 `ON CONFLICT (session_id, turn_idx) DO NOTHING` and returns the actual `turn_idx` values, so a DBOS-replay /
