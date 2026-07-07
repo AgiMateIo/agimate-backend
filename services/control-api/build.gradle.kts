@@ -47,7 +47,7 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp")
 
-    implementation("dev.dbos:transact:0.9.0")
+    implementation("dev.dbos:transact:1.0.0")
 
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 

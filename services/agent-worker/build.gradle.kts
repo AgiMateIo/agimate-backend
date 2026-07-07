@@ -40,7 +40,7 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-openai")
 
     // DBOS durable workflows / queues (same lib the control-api producer uses).
-    implementation("dev.dbos:transact:0.9.0")
+    implementation("dev.dbos:transact:1.0.0")
 
     // Bounded cache for per-credentials chat models (reuses the underlying HTTP clients).
     implementation("com.github.ben-manes.caffeine:caffeine")
