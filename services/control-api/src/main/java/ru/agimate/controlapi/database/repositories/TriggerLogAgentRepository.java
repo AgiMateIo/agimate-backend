@@ -17,6 +17,9 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
      * RegisterRun: the worker acquires the session writer slot for an existing run row.
      * Flipping to RUNNING trips the partial unique index if another run already holds
      * the session — that is the single-writer guard (DataIntegrityViolationException).
+     * Guarded to non-terminal statuses: a late/replayed register on a DONE/FAILED/CANCELLED
+     * row must not flip it back to RUNNING (that would re-occupy the session slot with a
+     * run that has already finished and will never release it).
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
@@ -26,6 +29,8 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
                 t.expiresAt = :expiresAt,
                 t.updatedAt = :acquiredAt
             WHERE t.id = :runId
+              AND t.status IN (ru.agimate.controlapi.database.enums.RunStatus.ENQUEUED,
+                               ru.agimate.controlapi.database.enums.RunStatus.RUNNING)
             """)
     int markRunning(@Param("runId") UUID runId,
                     @Param("sessionId") UUID sessionId,

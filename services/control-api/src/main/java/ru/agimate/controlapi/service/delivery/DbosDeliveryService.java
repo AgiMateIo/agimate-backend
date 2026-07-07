@@ -42,6 +42,9 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         String runId = triggerLogAgent.getId().toString();
         AgentMessage<Trigger> message = new AgentMessage<>(agentId, runId, type, channels, inbound, trigger);
 
+        // The router workflow gets a derived id (":router") so the bare runId is free for the
+        // run-stage workflow the router enqueues (run_id == that run's DBOS workflow id, which
+        // steering addresses via DBOS.send / AgentRunRegistry).
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 workflow.getName(),
                 workflow.getClassName(),
@@ -49,7 +52,7 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         )
                 .withInstanceName(workflow.getInstanceName())
                 .withSerialization(SerializationStrategy.PORTABLE)
-                .withWorkflowId(runId)
+                .withWorkflowId(runId + ":router")
                 .withQueuePartitionKey(agentId);
         client.enqueueWorkflow(options, new Object[]{message});
 
