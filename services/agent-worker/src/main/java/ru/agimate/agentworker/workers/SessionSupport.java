@@ -1,11 +1,11 @@
 package ru.agimate.agentworker.workers;
 
 import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.dto.ChannelInfo;
 import ru.agimate.agentworker.dto.Channels;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
+import ru.agimate.agentworker.grpc.ControlApiCallException;
 
 /** Shared session-resolution and active-run claim helpers for the router and the run stage. */
 final class SessionSupport {
@@ -40,8 +40,8 @@ final class SessionSupport {
         try {
             client.registerRun(agentId, session, runId, ttl);
             return true;
-        } catch (StatusRuntimeException e) {
-            if (e.getStatus().getCode() == Status.Code.ABORTED) {
+        } catch (ControlApiCallException e) {
+            if (e.code() == Status.Code.ABORTED) {
                 return false;
             }
             throw e;

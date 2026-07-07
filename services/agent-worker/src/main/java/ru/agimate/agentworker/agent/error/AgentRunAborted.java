@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.agent;
+package ru.agimate.agentworker.agent.error;
 
 /**
  * Terminal but expected end of an agent run. Raised from anywhere in the run body to unwind to a

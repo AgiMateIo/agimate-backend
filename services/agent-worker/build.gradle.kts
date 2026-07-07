@@ -26,6 +26,9 @@ dependencyManagement {
 }
 
 dependencies {
+    // Shared utilities (CryptoUtils, ...).
+    implementation(project(":libs:common"))
+
     // Generated agent-worker gRPC/protobuf stubs (shared with control-api).
     implementation(project(":libs:agentworker-proto"))
 

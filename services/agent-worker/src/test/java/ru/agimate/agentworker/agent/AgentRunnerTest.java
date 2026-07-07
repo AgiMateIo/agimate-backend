@@ -1,5 +1,9 @@
 package ru.agimate.agentworker.agent;
 
+import ru.agimate.agentworker.agent.error.AgentRunAborted;
+import ru.agimate.agentworker.agent.error.LlmCallError;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

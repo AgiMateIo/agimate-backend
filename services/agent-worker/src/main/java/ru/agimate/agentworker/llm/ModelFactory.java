@@ -8,6 +8,7 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.config.AgentProperties;
+import ru.agimate.common.util.CryptoUtils;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -21,7 +22,7 @@ import java.util.Set;
  * backend returns other {@code provider_type}s). No agent/advisor is built here — the turn
  * loop is driven manually so the model call can be queued separately from tool calls.
  *
- * <p>Models are cached per {@code (baseUrl, apiKey, model)}: {@code OpenAiChatModel.build()}
+ * <p>Models are cached per {@code (baseUrl, sha256(apiKey), model)}: {@code OpenAiChatModel.build()}
  * eagerly constructs sync+async OpenAI clients (each with its own OkHttp connection pool and
  * dispatcher) and exposes no way to close them, so building per call would leak a client pair
  * per LLM request and never reuse connections. Credentials are dynamic per agent, hence a
@@ -52,7 +53,10 @@ public class ModelFactory {
             .expireAfterAccess(Duration.ofMinutes(30))
             .build();
 
-    private record ModelKey(String baseUrl, String apiKey, String model) {}
+    /** Cache key. Carries a SHA-256 of the api key, never the secret itself (records auto-expose
+     * every field via {@code toString()}, so a plaintext key would be one debug log away from
+     * leaking); the plaintext for building the client travels via the {@code build} closure. */
+    private record ModelKey(String baseUrl, String apiKeyHash, String model) {}
 
     public ModelFactory(AgentProperties props) {
         this.app = props.getApp();
@@ -63,18 +67,18 @@ public class ModelFactory {
         if (!OPENAI_COMPATIBLE.contains(providerType)) {
             throw new IllegalArgumentException("Unsupported provider_type: " + creds.getProviderType());
         }
-        ModelKey key = new ModelKey(emptyToNull(creds.getBaseUrl()), creds.getApiKey(), creds.getModel());
-        return models.get(key, this::buildModel);
+        ModelKey key = new ModelKey(emptyToNull(creds.getBaseUrl()), CryptoUtils.sha256Hex(creds.getApiKey()), creds.getModel());
+        return models.get(key, k -> buildModel(k.baseUrl(), creds));
     }
 
-    private OpenAiChatModel buildModel(ModelKey key) {
-        log.info("building chat model: baseUrl={} model={}", key.baseUrl(), key.model());
+    private OpenAiChatModel buildModel(String baseUrl, LlmCredentials creds) {
+        log.info("building chat model: baseUrl={} model={}", baseUrl, creds.getModel());
         OpenAiChatOptions options = OpenAiChatOptions.builder()
-                .baseUrl(key.baseUrl())
-                .apiKey(key.apiKey())
-                .model(key.model())
+                .baseUrl(baseUrl)
+                .apiKey(creds.getApiKey())
+                .model(creds.getModel())
                 .timeout(REQUEST_TIMEOUT)
-                .customHeaders(requestHeaders(key.baseUrl()))
+                .customHeaders(requestHeaders(baseUrl))
                 .build();
         return OpenAiChatModel.builder().options(options).build();
     }

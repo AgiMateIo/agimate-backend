@@ -3,6 +3,8 @@ package ru.agimate.agentworker.grpc;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.StringValue;
 import io.grpc.Channel;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.AgentContextGrpc;
@@ -55,6 +57,7 @@ import ru.agimate.agentworker.config.AgentProperties;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Blocking gRPC facade over control-api's worker services. Exposes only the RPCs the
@@ -64,6 +67,10 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>{@code getToolResult} is polled by the tool worker and intentionally carries no
  * deadline of its own — its polling budget is enforced by the caller.
+ *
+ * <p>Failures surface as {@link ControlApiCallException}, never as the raw
+ * {@link StatusRuntimeException} — DBOS java-serializes workflow/step failures and the gRPC
+ * exception is not serializable (see the wrapper's javadoc).
  */
 @Component
 @Slf4j
@@ -99,50 +106,70 @@ public class AgentWorkerClient {
         return agentContext.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Runs one RPC, converting {@link StatusRuntimeException} into the serializable
+     * {@link ControlApiCallException}. ABORTED is an expected outcome (busy active-run claim), so
+     * it logs quietly; everything else logs the full chain here because the wrapper drops the
+     * cause on purpose.
+     */
+    private static <T> T call(String rpc, Supplier<T> op) {
+        try {
+            return op.get();
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode() == Status.Code.ABORTED) {
+                log.debug("control-api RPC {}: {}", rpc, e.getMessage());
+            } else {
+                log.warn("control-api RPC {} failed", rpc, e);
+            }
+            throw new ControlApiCallException(rpc, e.getStatus());
+        }
+    }
+
     // ---- AgentContext ----------------------------------------------------------------
 
     public AgentSpec getAgentSpec(String agentId) {
-        return ctx().getAgentSpec(GetAgentSpecRequest.newBuilder()
-                .setWorkflowId(workflowId()).setAgentId(agentId).build());
+        return call("GetAgentSpec", () -> ctx().getAgentSpec(GetAgentSpecRequest.newBuilder()
+                .setWorkflowId(workflowId()).setAgentId(agentId).build()));
     }
 
     public GetSkillsResponse getSkills(String agentId) {
-        return ctx().getSkills(GetSkillsRequest.newBuilder()
-                .setWorkflowId(workflowId()).setAgentId(agentId).build());
+        return call("GetSkills", () -> ctx().getSkills(GetSkillsRequest.newBuilder()
+                .setWorkflowId(workflowId()).setAgentId(agentId).build()));
     }
 
     public SkillSpec getSkill(String skillId) {
-        return ctx().getSkill(GetSkillRequest.newBuilder()
-                .setWorkflowId(workflowId()).setSkillId(skillId).build());
+        return call("GetSkill", () -> ctx().getSkill(GetSkillRequest.newBuilder()
+                .setWorkflowId(workflowId()).setSkillId(skillId).build()));
     }
 
     public TeamContext getTeamContext(String teamId) {
-        return ctx().getTeamContext(GetTeamContextRequest.newBuilder()
-                .setWorkflowId(workflowId()).setTeamId(teamId).build());
+        return call("GetTeamContext", () -> ctx().getTeamContext(GetTeamContextRequest.newBuilder()
+                .setWorkflowId(workflowId()).setTeamId(teamId).build()));
     }
 
     public LlmCredentials getLlmCredentials(String agentId) {
-        return ctx().getLlmCredentials(GetLlmCredentialsRequest.newBuilder()
-                .setWorkflowId(workflowId()).setAgentId(agentId).build());
+        return call("GetLlmCredentials", () -> ctx().getLlmCredentials(GetLlmCredentialsRequest.newBuilder()
+                .setWorkflowId(workflowId()).setAgentId(agentId).build()));
     }
 
     public GetConnectionsResponse getConnections(String agentId) {
-        return ctx().getConnections(GetConnectionsRequest.newBuilder().setAgentId(agentId).build());
+        return call("GetConnections", () -> ctx().getConnections(
+                GetConnectionsRequest.newBuilder().setAgentId(agentId).build()));
     }
 
     public GetConnectionToolsResponse getConnectionTools(String connectionId) {
-        return ctx().getConnectionTools(GetConnectionToolsRequest.newBuilder()
-                .setConnectionId(connectionId).build());
+        return call("GetConnectionTools", () -> ctx().getConnectionTools(GetConnectionToolsRequest.newBuilder()
+                .setConnectionId(connectionId).build()));
     }
 
     public AgentMemory getMemory(String agentId) {
-        return ctx().getMemory(GetMemoryRequest.newBuilder()
-                .setWorkflowId(workflowId()).setAgentId(agentId).build());
+        return call("GetMemory", () -> ctx().getMemory(GetMemoryRequest.newBuilder()
+                .setWorkflowId(workflowId()).setAgentId(agentId).build()));
     }
 
     public GetMemoryNotesResponse getMemoryNotes(String agentId) {
-        return ctx().getMemoryNotes(GetMemoryNotesRequest.newBuilder()
-                .setWorkflowId(workflowId()).setAgentId(agentId).build());
+        return call("GetMemoryNotes", () -> ctx().getMemoryNotes(GetMemoryNotesRequest.newBuilder()
+                .setWorkflowId(workflowId()).setAgentId(agentId).build()));
     }
 
     // ---- AgentSessionMessages --------------------------------------------------------
@@ -169,17 +196,19 @@ public class AgentWorkerClient {
             }
             req.addMessages(m);
         }
-        AppendResponse resp = sessions.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS).append(req.build());
+        AppendRequest request = req.build();
+        AppendResponse resp = call("Append", () ->
+                sessions.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS).append(request));
         return resp.getAssignedTurnIndicesList();
     }
 
     public GetHistoryResponse getHistory(String agentPubId, String sessionPubId, int lastNMessages) {
-        return sessions.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+        return call("GetHistory", () -> sessions.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .getHistory(GetHistoryRequest.newBuilder()
                         .setAgentPubId(agentPubId)
                         .setSessionPubId(sessionPubId)
                         .setLastNMessages(lastNMessages)
-                        .build());
+                        .build()));
     }
 
     // ---- ToolGateway -----------------------------------------------------------------
@@ -187,7 +216,7 @@ public class AgentWorkerClient {
     public ExecuteToolAsyncAck executeToolAsync(
             String toolCallId, String connectorCode, String identity, String toolName,
             byte[] input, String agentId, String agentSessionId) {
-        return tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+        return call("ExecuteToolAsync", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .executeToolAsync(ExecuteToolRequest.newBuilder()
                         .setToolCallId(toolCallId)
                         .setConnectorCode(connectorCode)
@@ -197,58 +226,58 @@ public class AgentWorkerClient {
                         .setAgentId(agentId)
                         .setWorkflowId(workflowId())
                         .setAgentSessionId(agentSessionId)
-                        .build());
+                        .build()));
     }
 
     /** Single poll of the tool result; deadline applied so a hung backend does not block forever. */
     public GetToolResultResponse getToolResult(String agentId, String toolCallId) {
-        return tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+        return call("GetToolResult", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .getToolResult(GetToolResultRequest.newBuilder()
-                        .setAgentId(agentId).setToolCallId(toolCallId).build());
+                        .setAgentId(agentId).setToolCallId(toolCallId).build()));
     }
 
     // ---- ChannelGateway --------------------------------------------------------------
 
     public SendChannelMessageResponse sendChannelMessage(
             String agentId, String channelId, String sessionId, String messageId, String text) {
-        return channels.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+        return call("SendChannelMessage", () -> channels.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .sendChannelMessage(SendChannelMessageRequest.newBuilder()
                         .setAgentId(agentId)
                         .setChannelId(channelId)
                         .setSessionId(sessionId)
                         .setMessageId(messageId)
                         .setMessage(OutboundMessage.newBuilder().setText(text).build())
-                        .build());
+                        .build()));
     }
 
     // ---- WorkerControl ---------------------------------------------------------------
 
     public SendMessageResponse sendMessage(WorkerMessageType type, String content) {
-        return workerControl.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
-                .sendMessage(SendMessageRequest.newBuilder().setType(type).setContent(content).build());
+        return call("SendMessage", () -> workerControl.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+                .sendMessage(SendMessageRequest.newBuilder().setType(type).setContent(content).build()));
     }
 
     // ---- AgentRunRegistry ------------------------------------------------------------
 
-    /** Atomic claim of a session's active-run slot; the gRPC status is ABORTED when already held. */
+    /** Atomic claim of a session's active-run slot; the status code is ABORTED when already held. */
     public RegisterRunResponse registerRun(String agentPubId, String sessionPubId, String runId, int ttlSeconds) {
-        return registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+        return call("RegisterRun", () -> registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .registerRun(RegisterRunRequest.newBuilder()
                         .setAgentPubId(agentPubId)
                         .setSessionPubId(sessionPubId)
                         .setRunId(runId)
                         .setTtlSeconds(ttlSeconds)
-                        .build());
+                        .build()));
     }
 
     public GetActiveRunResponse getActiveRun(String sessionPubId) {
-        return registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
-                .getActiveRun(GetActiveRunRequest.newBuilder().setSessionPubId(sessionPubId).build());
+        return call("GetActiveRun", () -> registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+                .getActiveRun(GetActiveRunRequest.newBuilder().setSessionPubId(sessionPubId).build()));
     }
 
     public ReleaseRunResponse releaseRun(String sessionPubId, String runId) {
-        return registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+        return call("ReleaseRun", () -> registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .releaseRun(ReleaseRunRequest.newBuilder()
-                        .setSessionPubId(sessionPubId).setRunId(runId).build());
+                        .setSessionPubId(sessionPubId).setRunId(runId).build()));
     }
 }

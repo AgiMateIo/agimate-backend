@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.agent;
+package ru.agimate.agentworker.agent.error;
 
 /**
  * Raised by the dispatcher when the LLM workflow reports an HTTP/API error (returned as a

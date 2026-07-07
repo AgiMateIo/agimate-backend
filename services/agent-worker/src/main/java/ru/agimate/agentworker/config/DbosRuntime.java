@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.llm.LlmMessageMapper;
 import ru.agimate.agentworker.llm.ModelFactory;
-import ru.agimate.agentworker.workers.AgentRunCore;
+import ru.agimate.agentworker.workers.run.AgentRunCore;
 import ru.agimate.agentworker.workers.AgentRunWorkflow;
 import ru.agimate.agentworker.workers.AgentRunWorkflowImpl;
 import ru.agimate.agentworker.workers.AgentWorkflow;
@@ -59,15 +59,21 @@ public class DbosRuntime implements SmartLifecycle {
         this.dbos = new DBOS(config);
 
         // Register queues (per-worker concurrency from config). The run queue is partitioned by
-        // session with global concurrency=1 → exactly one executing run per session across the fleet.
+        // session with concurrency=1: DBOS applies queue limits per partition, so this means
+        // exactly one executing run per session across the fleet. No worker-level cap is
+        // expressible on a partitioned queue (limits are per-partition only) — per-worker load is
+        // bounded downstream by the llm/tool queues, which do the actual work.
         AgentProperties.Concurrency c = props.getConcurrency();
-        dbos.registerQueue(new Queue(Queues.AGENT_QUEUE).withWorkerConcurrency(c.getAgentRuns()));
+        Queue agentQueue = new Queue(Queues.AGENT_QUEUE)
+                .withWorkerConcurrency(c.getAgentRuns());
         Queue execQueue = new Queue(Queues.AGENT_EXEC_QUEUE)
                 .withPartitioningEnabled(true)
-                .withConcurrency(1)
-                .withWorkerConcurrency(c.getAgentRuns());
-        Queue llmQueue = new Queue(Queues.LLM_QUEUE).withWorkerConcurrency(c.getLlm());
-        Queue toolQueue = new Queue(Queues.TOOL_QUEUE).withWorkerConcurrency(c.getTool());
+                .withConcurrency(1);
+        Queue llmQueue = new Queue(Queues.LLM_QUEUE)
+                .withWorkerConcurrency(c.getLlm());
+        Queue toolQueue = new Queue(Queues.TOOL_QUEUE)
+                .withWorkerConcurrency(c.getTool());
+        dbos.registerQueue(agentQueue);
         dbos.registerQueue(execQueue);
         dbos.registerQueue(llmQueue);
         dbos.registerQueue(toolQueue);

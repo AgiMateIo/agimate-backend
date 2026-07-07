@@ -1,6 +1,6 @@
-package ru.agimate.agentworker.workers;
+package ru.agimate.agentworker.workers.run;
 
-import ru.agimate.agentworker.agent.ToolDef;
+import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.agent.ToolRegistry;
 
 import java.util.List;

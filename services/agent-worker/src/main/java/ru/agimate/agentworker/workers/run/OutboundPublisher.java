@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.agent;
+package ru.agimate.agentworker.workers.run;
 
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.dto.ChannelInfo;

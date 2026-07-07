@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.workers;
+package ru.agimate.agentworker.workers.run;
 
 /**
  * Persistence identity of a run: present → restore history and append every turn; null → a

@@ -8,8 +8,12 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.HexFormat;
 
 /**
  * Utility class for cryptographic operations using AES-256-GCM encryption.
@@ -161,7 +165,21 @@ public class CryptoUtils {
 
     /** Generate {@code numBytes} random bytes as a lowercase hex string (e.g. for opaque tokens). */
     public static String randomHex(int numBytes) {
-        return java.util.HexFormat.of().formatHex(randomBytes(numBytes));
+        return HexFormat.of().formatHex(randomBytes(numBytes));
+    }
+
+    /** SHA-256 of {@code data} as a lowercase hex string (e.g. for secret fingerprints/lookups). */
+    public static String sha256Hex(byte[] data) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(data));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 algorithm not available", e);
+        }
+    }
+
+    /** SHA-256 of the UTF-8 bytes of {@code value} as a lowercase hex string. */
+    public static String sha256Hex(String value) {
+        return sha256Hex(value.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

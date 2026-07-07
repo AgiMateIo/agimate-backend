@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.agent;
+package ru.agimate.agentworker.agent.error;
 
 /**
  * Clean exit from the agent loop on an INTERRUPT steering signal. The run catches it, skips the

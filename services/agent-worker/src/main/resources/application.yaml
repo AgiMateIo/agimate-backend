@@ -4,6 +4,14 @@ spring:
   main:
     # Headless worker: no embedded web server.
     web-application-type: none
+    banner-mode: off
+  profiles:
+    active: "local"
+
+logging:
+  level:
+    root: INFO
+    ru.agimate.agentworker: DEBUG
 
 # Worker configuration. Values here are defaults; override any of them via
 # environment variables (relaxed binding), e.g. AGENT_GRPC_TARGET, AGENT_DBOS_DATABASE_URL.
@@ -38,6 +46,3 @@ agent:
     schema: "dbos"
     application-version:
 
-logging:
-  level:
-    ru.agimate.agentworker: INFO

@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.workers;
+package ru.agimate.agentworker.workers.run;
 
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.DisplayName;

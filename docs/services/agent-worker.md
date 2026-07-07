@@ -15,15 +15,17 @@ Two layers, kept deliberately separate (mirrors the Python worker):
 - **DBOS surface** (`workers/`, `config/DbosRuntime`) — durable workflows/steps + queue wiring.
 
 ### `agent/` — pure logic
+Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
+
 | Type | Responsibility |
 |---|---|
-| `AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
+| `model/AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
+| `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
 | `MessageCodec` | (De)serialize messages to the `message_json` bytes persisted as history + timeline/progress text projections. |
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, identity)`; `{namespace}.{name}` naming; schema parsing. |
 | `PromptBuilder` | System prompt (agent/team/skills/memory), untrusted-trigger wrapping, skill selection, memory notes. |
 | `SimpleAgent` | The manual turn-loop (LLM call + tool dispatch injected; optional steering checkpoint). |
 | `AgentRunner` | Assemble the message list, map terminal failures to `AgentRunAborted`. |
-| `OutboundPublisher` | Route progress/answer/error to channels by role; deterministic `message_id` for idempotent replays. |
 
 ### `llm/` — Spring AI (OpenAI)
 `ModelFactory` builds an `OpenAiChatModel` **per call** from backend `LlmCredentials`.
@@ -39,9 +41,12 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 | `LlmCallWorkflow.llmCall` | `llm_calls` | One model request; credentials fetched inline (never checkpointed). |
 | `ToolCallWorkflow.toolCall` | `tool_calls` | One backend tool call (`ExecuteToolAsync` + poll `GetToolResult`); never raises. |
 
-`AgentRunCore` holds the invariant run body: a `prepare_context` step (spec/team/skills → prompt
+The package root is what DBOS sees: the four workflow pairs, `Queues`, the router↔run
+`ControlSignal` and the claim helper. The run-body machinery lives in `workers/run`:
+`AgentRunCore` holds the invariant run body — a `prepare_context` step (spec/team/skills → prompt
 + `ToolRegistry`), history restore/append steps, the loop (via `AgentDispatcher` binding the
-LLM/tool queues), and failure reporting.
+LLM/tool queues), and failure reporting; `OutboundPublisher` routes progress/answer/error to
+channels by role with deterministic `message_id`s for idempotent replays.
 
 ### Producer contract (shared code, not config)
 The queue/class/workflow/instance names (`agent_runs`/`AgentWorkflow`/`start_agent`/`default`)

@@ -64,7 +64,7 @@ Full list with defaults: `services/agent-worker/.env.example`.
 | `AGENT_GRPC_AUTH_TOKEN`           | Worker-pool authkey (Bearer), must match a control-api pool key    |
 | `AGENT_AGENT_ID`                  | Worker/agent deployment id                                         |
 | `AGENT_AGENT_WORKFLOW_ID`         | Workflow id sent on AgentContext RPCs                              |
-| `AGENT_CONCURRENCY_AGENT_RUNS`    | Concurrent agent runs per worker (default 3)                       |
+| `AGENT_CONCURRENCY_AGENT_RUNS`    | Per-worker concurrency of the run-router queue (default 3)         |
 | `AGENT_CONCURRENCY_LLM`           | Concurrent model requests per worker (default 3)                   |
 | `AGENT_CONCURRENCY_TOOL`          | Concurrent backend tool calls per worker (default 8)               |
 | `AGENT_SESSION_ON_ACTIVE_MESSAGE` | Policy on a message into an active session: `queue`/`steer`/`interrupt` |

@@ -1,14 +1,13 @@
 package ru.agimate.controlapi.util;
 
+import ru.agimate.common.util.CryptoUtils;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.HexFormat;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 
@@ -188,13 +187,7 @@ public final class AppKeyUtils {
      * @return lowercase hex string of SHA256 hash
      */
     public static String hashSecret(byte[] secret) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(secret);
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 algorithm not available", e);
-        }
+        return CryptoUtils.sha256Hex(secret);
     }
 
     /**

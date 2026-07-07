@@ -10,8 +10,8 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.stereotype.Component;
-import ru.agimate.agentworker.agent.AgentChatMessage;
-import ru.agimate.agentworker.agent.ToolDef;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.ToolDef;
 
 import java.util.ArrayList;
 import java.util.List;

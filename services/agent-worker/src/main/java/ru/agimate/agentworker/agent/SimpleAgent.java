@@ -1,6 +1,11 @@
 package ru.agimate.agentworker.agent;
 
 import lombok.extern.slf4j.Slf4j;
+import ru.agimate.agentworker.agent.error.AgentInterrupted;
+import ru.agimate.agentworker.agent.error.LlmCallError;
+import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.ToolDef;
 
 import java.util.ArrayList;
 import java.util.List;

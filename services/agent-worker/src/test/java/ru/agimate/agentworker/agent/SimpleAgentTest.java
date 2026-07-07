@@ -1,5 +1,9 @@
 package ru.agimate.agentworker.agent;
 
+import ru.agimate.agentworker.agent.error.AgentInterrupted;
+import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

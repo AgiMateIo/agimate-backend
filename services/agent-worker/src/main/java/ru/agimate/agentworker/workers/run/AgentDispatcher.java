@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.workers;
+package ru.agimate.agentworker.workers.run;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,11 +7,14 @@ import dev.dbos.transact.StartWorkflowOptions;
 import dev.dbos.transact.workflow.Queue;
 import dev.dbos.transact.workflow.WorkflowHandle;
 import lombok.extern.slf4j.Slf4j;
-import ru.agimate.agentworker.agent.AgentChatMessage;
-import ru.agimate.agentworker.agent.LlmCallError;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.SimpleAgent;
-import ru.agimate.agentworker.agent.ToolDef;
+import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.agent.ToolRegistry;
+import ru.agimate.agentworker.workers.LlmCallWorkflow;
+import ru.agimate.agentworker.workers.Queues;
+import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,9 +55,9 @@ public class AgentDispatcher implements SimpleAgent.LlmCaller, SimpleAgent.ToolD
 
     @Override
     public AgentChatMessage call(List<AgentChatMessage> messages, List<ToolDef> toolDefs) {
-        WorkflowHandle<LlmCallResult, ? extends Exception> handle =
+        WorkflowHandle<LlmCallWorkflow.Result, ? extends Exception> handle =
                 dbos.startWorkflow(() -> llm.llmCall(messages, toolDefs, agentId), new StartWorkflowOptions(llmQueue));
-        LlmCallResult result = await(handle);
+        LlmCallWorkflow.Result result = await(handle);
         if (result.failed()) {
             throw new LlmCallError(result.statusCode(), result.message());
         }
@@ -78,7 +81,7 @@ public class AgentDispatcher implements SimpleAgent.LlmCaller, SimpleAgent.ToolD
                         "unknown tool name from model: " + tc.name() + "; available tools: " + registry.names())));
                 continue;
             }
-            WorkflowHandle<ToolCallOutcome, ? extends Exception> handle = dbos.startWorkflow(
+            WorkflowHandle<ToolCallWorkflow.Outcome, ? extends Exception> handle = dbos.startWorkflow(
                     () -> tool.toolCall(bt.connectorCode(), bt.name(), tc.argumentsJson(), toolCallId, agentId, sessionId, bt.identity()),
                     new StartWorkflowOptions(toolQueue));
             pending.add(new Pending(tc, toolCallId, handle, null));
@@ -90,7 +93,7 @@ public class AgentDispatcher implements SimpleAgent.LlmCaller, SimpleAgent.ToolD
                 results.add(p.immediate);
                 continue;
             }
-            ToolCallOutcome outcome = await(p.handle);
+            ToolCallWorkflow.Outcome outcome = await(p.handle);
             if (outcome.error() != null) {
                 results.add(failed(p.call, p.toolCallId(), outcome.error()));
             } else {
@@ -132,7 +135,7 @@ public class AgentDispatcher implements SimpleAgent.LlmCaller, SimpleAgent.ToolD
 
     private record Pending(AgentChatMessage.ToolCall call,
                            String toolCallId,
-                           WorkflowHandle<ToolCallOutcome, ? extends Exception> handle,
+                           WorkflowHandle<ToolCallWorkflow.Outcome, ? extends Exception> handle,
                            AgentChatMessage.ToolResult immediate) {
     }
 }

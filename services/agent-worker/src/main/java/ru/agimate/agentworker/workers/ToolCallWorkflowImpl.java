@@ -14,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * Tool worker: one backend tool call per queue item. Issues {@code ExecuteToolAsync} and polls
  * {@code GetToolResult} inside a single durable step. The workflow never raises — failures come
- * back in {@link ToolCallOutcome#error()} so DBOS does not log them as workflow exceptions. The
+ * back in {@link Outcome#error()} so DBOS does not log them as workflow exceptions. The
  * {@code toolCallId} arrives as a workflow argument (identical across replays), so replays issue
  * the same {@code ExecuteToolAsync} and poll the same id.
  */
@@ -35,17 +35,17 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
 
     @Override
     @Workflow(name = Queues.TOOL_WORKFLOW)
-    public ToolCallOutcome toolCall(String connectorCode, String backendName, String argsJson,
+    public Outcome toolCall(String connectorCode, String backendName, String argsJson,
                                     String toolCallId, String agentId, String agentSessionId, String identity) {
         try {
             String outputJson = dbos.runStep(
                     () -> callConnectorTool(connectorCode, backendName, argsJson, toolCallId, identity, agentId, agentSessionId),
                     "call_connector_tool");
-            return ToolCallOutcome.ok(outputJson);
+            return Outcome.ok(outputJson);
         } catch (Exception e) {
             log.warn("tool {} (connector={}) failed: {}", backendName, connectorCode, e.getMessage());
             String msg = e.getMessage();
-            return ToolCallOutcome.error(msg != null && !msg.isBlank() ? msg : e.getClass().getSimpleName());
+            return Outcome.error(msg != null && !msg.isBlank() ? msg : e.getClass().getSimpleName());
         }
     }
 

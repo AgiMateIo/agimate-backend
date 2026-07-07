@@ -1,6 +1,7 @@
 package ru.agimate.agentworker.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
 
 import java.util.ArrayList;
 import java.util.List;

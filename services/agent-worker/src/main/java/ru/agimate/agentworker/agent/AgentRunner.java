@@ -1,5 +1,11 @@
 package ru.agimate.agentworker.agent;
 
+import ru.agimate.agentworker.agent.error.AgentRunAborted;
+import ru.agimate.agentworker.agent.error.LlmCallError;
+import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.ToolDef;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;

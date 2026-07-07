@@ -3,9 +3,8 @@ package ru.agimate.agentworker.workers;
 import ru.agimate.agentworker.dto.AgentMessage;
 
 /**
- * Run stage: the actual agent run, consumed from the partitioned {@code agent_exec} queue
- * (concurrency=1 per session → one writer per session). Its DBOS workflow id equals {@code run_id}
- * so steering can address it. Registers the session slot at start and releases it in finally.
+ * One agent run per partitioned {@code agent_exec} queue item; the DBOS workflow id equals
+ * {@code run_id}, so steering can address the run.
  */
 public interface AgentRunWorkflow {
 

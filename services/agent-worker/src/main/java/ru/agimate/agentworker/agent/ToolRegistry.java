@@ -3,6 +3,8 @@ package ru.agimate.agentworker.agent;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import ru.agimate.agentworker.ConnectorToolSpec;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.ToolDef;
 
 import java.util.ArrayList;
 import java.util.HashMap;

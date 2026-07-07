@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.agent;
+package ru.agimate.agentworker.agent.model;
 
 /**
  * A tool definition handed to the LLM. {@code name} is the sanitized identifier the model sees

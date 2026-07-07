@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.agent;
+package ru.agimate.agentworker.agent.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 

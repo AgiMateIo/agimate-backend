@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.workers;
+package ru.agimate.agentworker.workers.run;
 
 import dev.dbos.transact.DBOS;
 import dev.dbos.transact.workflow.Queue;
@@ -17,17 +17,20 @@ import ru.agimate.agentworker.SkillRef;
 import ru.agimate.agentworker.SkillSpec;
 import ru.agimate.agentworker.TeamContext;
 import ru.agimate.agentworker.WorkerMessageType;
-import ru.agimate.agentworker.agent.AgentChatMessage;
-import ru.agimate.agentworker.agent.AgentRunAborted;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.agent.AgentRunner;
 import ru.agimate.agentworker.agent.MessageCodec;
-import ru.agimate.agentworker.agent.OutboundPublisher;
 import ru.agimate.agentworker.agent.PromptBuilder;
 import ru.agimate.agentworker.agent.SimpleAgent;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.dto.Trigger;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
+import ru.agimate.agentworker.workers.ControlSignal;
+import ru.agimate.agentworker.workers.LlmCallWorkflow;
+import ru.agimate.agentworker.workers.Queues;
+import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
 import java.time.Duration;
 import java.util.ArrayList;
