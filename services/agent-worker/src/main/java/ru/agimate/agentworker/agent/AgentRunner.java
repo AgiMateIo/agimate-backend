@@ -26,16 +26,12 @@ public class AgentRunner {
     private final String context;
     private final Consumer<List<AgentChatMessage>> onNewMessages;
     private final SimpleAgent.Checkpointer checkpointer;
+    private final Consumer<String> onInterimAnswer;
 
     public AgentRunner(SimpleAgent.LlmCaller llmCaller, SimpleAgent.ToolDispatcher toolDispatcher,
                        List<ToolDef> toolDefs, int maxTurns, String context,
-                       Consumer<List<AgentChatMessage>> onNewMessages) {
-        this(llmCaller, toolDispatcher, toolDefs, maxTurns, context, onNewMessages, null);
-    }
-
-    public AgentRunner(SimpleAgent.LlmCaller llmCaller, SimpleAgent.ToolDispatcher toolDispatcher,
-                       List<ToolDef> toolDefs, int maxTurns, String context,
-                       Consumer<List<AgentChatMessage>> onNewMessages, SimpleAgent.Checkpointer checkpointer) {
+                       Consumer<List<AgentChatMessage>> onNewMessages, SimpleAgent.Checkpointer checkpointer,
+                       Consumer<String> onInterimAnswer) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;
@@ -43,6 +39,7 @@ public class AgentRunner {
         this.context = context;
         this.onNewMessages = onNewMessages;
         this.checkpointer = checkpointer;
+        this.onInterimAnswer = onInterimAnswer;
     }
 
     /**
@@ -57,7 +54,8 @@ public class AgentRunner {
         messages.addAll(history);
         messages.add(initialRequest);
 
-        SimpleAgent agent = new SimpleAgent(llmCaller, toolDispatcher, toolDefs, maxTurns, onNewMessages, checkpointer);
+        SimpleAgent agent = new SimpleAgent(llmCaller, toolDispatcher, toolDefs, maxTurns, onNewMessages,
+                checkpointer, onInterimAnswer);
         try {
             return agent.run(messages);
         } catch (MaxTurnsExceeded e) {

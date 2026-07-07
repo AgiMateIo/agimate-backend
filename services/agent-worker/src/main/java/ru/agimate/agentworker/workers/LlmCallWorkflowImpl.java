@@ -45,7 +45,8 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             creds = client.getLlmCredentials(agentId);
         } catch (StatusRuntimeException e) {
             log.warn("LLM credentials unavailable ({}): {}", e.getStatus().getCode(), e.getStatus().getDescription());
-            return LlmCallResult.failure(null, e.getStatus().getDescription());
+            String detail = e.getStatus().getDescription();
+            return LlmCallResult.failure(null, detail != null ? detail : e.getStatus().getCode().toString());
         }
         log.info("LLM credentials: provider={} model={}", creds.getProviderType(), creds.getModel());
 
@@ -63,11 +64,17 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             OpenAIServiceException svc = findServiceException(e);
             if (svc != null) {
                 log.warn("LLM HTTP error (status={}): {}", svc.statusCode(), svc.getMessage());
-                return LlmCallResult.failure(svc.statusCode(), svc.getMessage());
+                return LlmCallResult.failure(svc.statusCode(), nonBlankMessage(svc));
             }
             log.warn("LLM API error: {}", e.getMessage());
-            return LlmCallResult.failure(null, e.getMessage());
+            return LlmCallResult.failure(null, nonBlankMessage(e));
         }
+    }
+
+    /** The exception's message, or its class name when the message is absent. */
+    private static String nonBlankMessage(Throwable t) {
+        String msg = t.getMessage();
+        return (msg != null && !msg.isBlank()) ? msg : t.getClass().getSimpleName();
     }
 
     /** Walk the cause chain for an OpenAI service exception carrying an HTTP status. */

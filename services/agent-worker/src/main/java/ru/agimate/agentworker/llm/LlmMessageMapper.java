@@ -47,13 +47,19 @@ public class LlmMessageMapper {
         return out;
     }
 
-    /** Convert a non-streaming chat response to an assistant message (text + tool calls). */
+    /** Metadata key Spring AI's OpenAI module stores the provider's reasoning content under. */
+    private static final String REASONING_CONTENT_KEY = "reasoningContent";
+
+    /** Convert a non-streaming chat response to an assistant message (text + tool calls + thinking). */
     public AgentChatMessage fromResponse(ChatResponse response) {
         AssistantMessage out = response.getResult().getOutput();
         List<AgentChatMessage.ToolCall> toolCalls = out.getToolCalls().stream()
                 .map(tc -> new AgentChatMessage.ToolCall(tc.id(), tc.name(), tc.arguments()))
                 .toList();
-        return AgentChatMessage.assistant(out.getText(), false, toolCalls);
+        // Reasoning models (DeepSeek, Ollama, ...) surface their thinking here; the flag drives
+        // the 💭 progress marker and the "thinking..." timeline projection.
+        boolean thinking = out.getMetadata().get(REASONING_CONTENT_KEY) instanceof String s && !s.isBlank();
+        return AgentChatMessage.assistant(out.getText(), thinking, toolCalls);
     }
 
     /** Tool definitions as no-op callbacks (execution is manual; the callback body is never called). */

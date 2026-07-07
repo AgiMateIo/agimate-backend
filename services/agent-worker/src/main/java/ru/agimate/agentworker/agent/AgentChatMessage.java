@@ -1,5 +1,7 @@
 package ru.agimate.agentworker.agent;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.util.List;
 
 /**
@@ -8,12 +10,16 @@ import java.util.List;
  * (greenfield: the Java worker owns its history JSON) and mapped to Spring AI messages only at
  * model-call time. One instance is one conversation turn message.
  *
+ * <p>{@code ignoreUnknown} keeps old history readable after the format gains fields; the compact
+ * constructor normalizes absent lists so consumers can stream them unguarded.
+ *
  * @param role        who produced the message
  * @param text        user/assistant text ({@code null} for a tool-result message)
  * @param thinking    the assistant emitted reasoning this turn (drives the 💭 progress marker)
  * @param toolCalls   tool calls requested by an assistant message (empty otherwise)
  * @param toolResults results carried by a tool message (empty otherwise)
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record AgentChatMessage(
         Role role,
         String text,
@@ -21,6 +27,11 @@ public record AgentChatMessage(
         List<ToolCall> toolCalls,
         List<ToolResult> toolResults
 ) {
+    public AgentChatMessage {
+        toolCalls = toolCalls != null ? toolCalls : List.of();
+        toolResults = toolResults != null ? toolResults : List.of();
+    }
+
     public enum Role {SYSTEM, USER, ASSISTANT, TOOL}
 
     /** An LLM-requested tool call. {@code argumentsJson} is the raw JSON arguments string. */
@@ -41,8 +52,7 @@ public record AgentChatMessage(
     }
 
     public static AgentChatMessage assistant(String text, boolean thinking, List<ToolCall> toolCalls) {
-        return new AgentChatMessage(Role.ASSISTANT, text, thinking,
-                toolCalls != null ? toolCalls : List.of(), List.of());
+        return new AgentChatMessage(Role.ASSISTANT, text, thinking, toolCalls, List.of());
     }
 
     public static AgentChatMessage toolResults(List<ToolResult> results) {
@@ -50,6 +60,6 @@ public record AgentChatMessage(
     }
 
     public boolean hasToolCalls() {
-        return toolCalls != null && !toolCalls.isEmpty();
+        return !toolCalls.isEmpty();
     }
 }

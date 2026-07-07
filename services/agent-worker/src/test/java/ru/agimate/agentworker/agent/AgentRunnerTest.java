@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 class AgentRunnerTest {
 
     private static AgentRunner runner(SimpleAgent.LlmCaller llm, int maxTurns) {
-        return new AgentRunner(llm, calls -> List.of(), List.of(), maxTurns, "for test", null);
+        return new AgentRunner(llm, calls -> List.of(), List.of(), maxTurns, "for test", null, null, null);
     }
 
     private static String runOnce(AgentRunner runner) {

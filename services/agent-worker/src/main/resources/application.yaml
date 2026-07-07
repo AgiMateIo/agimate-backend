@@ -17,7 +17,6 @@ agent:
     connect-timeout: 5s
   agent:
     id: "agent-default"
-    version: "0.1.0"
     workflow-id: "wf-default"
   concurrency:
     agent-runs: 3

@@ -43,19 +43,23 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 + `ToolRegistry`), history restore/append steps, the loop (via `AgentDispatcher` binding the
 LLM/tool queues), and failure reporting.
 
-### Producer contract (must match control-api)
-The router is `class=AgentWorkflow`, `workflow=start_agent`, `instance=default`, queue
-`agent_runs`, `SerializationStrategy.PORTABLE`. In Java DBOS these come from
-`@WorkflowClassName("AgentWorkflow")` + `@Workflow(name="start_agent")` + `registerProxy(iface,
-impl, "default")`. control-api's `DbosDeliveryService` enqueues the router with a **`:router`**
-workflow id so the bare `run_id` is free for the run-stage workflow (`run_id ==` that workflow's
-DBOS id, which steering addresses).
+### Producer contract (shared code, not config)
+The queue/class/workflow/instance names (`agent_runs`/`AgentWorkflow`/`start_agent`/`default`)
+and the router workflow-id scheme live in **`ru.agimate.agentworker.WorkerProtocol`**
+(`libs/agentworker-proto`), compiled into both control-api and the worker — the contract cannot
+drift. In Java DBOS the names bind via `@WorkflowClassName` + `@Workflow(name=...)` +
+`registerProxy(iface, impl, instance)`; serialization is `PORTABLE`. control-api enqueues the
+router under `WorkerProtocol.routerWorkflowId(runId)` (`runId + ":router"`) so the bare `run_id`
+is free for the run-stage workflow (`run_id ==` that workflow's DBOS id, which steering
+addresses).
 
 ### Channels & session
 The enqueued `Channels` envelope has three roles (`prompt`/`progress`/`answer`), each resolved
 with a fallback. The presence of `channels.prompt` — not the always-`"trigger"` `type` field —
-is the channel-vs-trigger discriminator. History/session is keyed on the `prompt` (else `answer`)
-channel's `session_id`.
+is the channel-vs-trigger discriminator. The single-writer/history session key is resolved
+**once by control-api** (prompt channel's session, else answer's) and shipped as the explicit
+`AgentMessage.sessionId` field — the worker does not re-derive it (a channel-based fallback
+remains only for messages enqueued before the field existed).
 
 ### Steering (session.on-active-message)
 - **queue** (default): a message into an active session waits on the partitioned run queue and

@@ -71,7 +71,7 @@ public class AgentWorkflowImpl implements AgentWorkflow {
             return;
         }
         switch (session.getOnActiveMessage()) {
-            case STEER -> steer(holderRunId, message);
+            case STEER -> steer(holderRunId, message, sessionId);
             case INTERRUPT -> {
                 interrupt(holderRunId);
                 enqueueRun(message, sessionId);
@@ -90,9 +90,25 @@ public class AgentWorkflowImpl implements AgentWorkflow {
         log.info("enqueued run {} on {} (partition={})", message.runId(), Queues.AGENT_EXEC_QUEUE, partitionKey);
     }
 
-    /** STEER: deliver the new message to the active run's control mailbox; do not start a new run. */
-    private void steer(String holderRunId, AgentMessage message) {
+    /**
+     * STEER: deliver the new message to the active run's control mailbox. The holder may have
+     * passed its final drain (or finished) before the send landed — then the mailbox is never
+     * read, so re-check and fall back to a normal run. Residual window: the holder drained the
+     * message AND finished between the send and the re-check (duplicate handling) — narrower
+     * than the silent loss it replaces.
+     */
+    private void steer(String holderRunId, AgentMessage message, String sessionId) {
         dbos.send(holderRunId, ControlSignal.steer(message).toJson(), Queues.CONTROL_TOPIC);
+        String stillActive = dbos.runStep(() -> {
+            GetActiveRunResponse active = client.getActiveRun(sessionId);
+            return active.getActive() ? active.getActiveRun().getRunId() : null;
+        }, new StepOptions("recheck_active_run").withMaxAttempts(3));
+        if (!holderRunId.equals(stillActive)) {
+            log.info("steer target {} no longer active; enqueueing message run_id={} as its own run",
+                    holderRunId, message.runId());
+            enqueueRun(message, sessionId);
+            return;
+        }
         log.info("steered message run_id={} into active run {}", message.runId(), holderRunId);
     }
 

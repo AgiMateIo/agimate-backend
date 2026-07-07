@@ -218,11 +218,12 @@ public class AgentRunCore {
             modelRequest = AgentChatMessage.user(base + "\n\n" + prepared.memoryNotes());
         }
 
-        // Steering (steer/interrupt policies) drains the control mailbox at each turn boundary.
+        // Steering (steer/interrupt policies) drains the control mailbox at each turn boundary;
+        // an answer completed right before a steer folds in is delivered as an interim answer.
         SimpleAgent.Checkpointer checkpointer = drainControl ? (msgs, phase) -> drainControlTopic() : null;
 
         AgentRunner runner = new AgentRunner(dispatcher, dispatcher, registry.toolDefs(), MAX_AGENT_TURNS,
-                context, onNewMessages, checkpointer);
+                context, onNewMessages, checkpointer, output::answer);
         String answer = runner.run(prepared.systemPrompt(), historyForClosure, modelRequest);
         log.info("LLM answered: {}", answer);
         output.answer(answer);

@@ -15,11 +15,13 @@ graph TB
     subgraph "Services"
         UserAPI[user-api<br/>:8080/user/]
         ControlAPI[control-api<br/>:8080/control + :9091 gRPC TLS]
+        AgentWorker[agent-worker<br/>headless DBOS consumer]
     end
 
     subgraph "Databases"
         UserDB[(am_user_db)]
         ControlDB[(am_control_db)]
+        DbosDB[(dbos_db<br/>DBOS system DB)]
     end
 
     subgraph "External"
@@ -35,6 +37,9 @@ graph TB
 
     UserAPI --> UserDB
     ControlAPI --> ControlDB
+    ControlAPI -->|enqueue agent runs| DbosDB
+    AgentWorker -->|consume DBOS queues| DbosDB
+    AgentWorker -.->|gRPC :9091| ControlAPI
 
     UserAPI --> OAuth
     ControlAPI --> Centrifugo
@@ -49,8 +54,14 @@ Authentication service handling OAuth2 login (Google, Yandex), JWT token managem
 ### control-api
 Control API for device registration, tool delivery, trigger submission, and AI agent integration. Integrates with Centrifugo for real-time push to devices and agents. Agents authenticate via API Key, invoke tools on devices, receive tool results and trigger events through Centrifugo channels.
 
+### agent-worker
+Headless (non-web) Spring Boot worker running the AI-agent loop: consumes agent runs from DBOS queues (Postgres-backed, enqueued by control-api), drives an LLM turn loop (Spring AI) with backend tools, and talks to control-api over gRPC :9091 (worker-pool Bearer auth). Shares the DBOS system database with control-api. See [services/agent-worker.md](services/agent-worker.md).
+
 ### libs/common
 Shared library containing exception hierarchy, REST response wrappers (`SuccessResponse`, `ErrorResponse`), JWT/API Key utilities, and `UUIDUtils` (UUIDv8 generation).
+
+### libs/agentworker-proto
+Shared worker-protocol contract: gRPC/protobuf stubs generated from `agentworker/*.proto` plus `WorkerProtocol` (the DBOS queue/workflow contract names and the router workflow-id scheme), compiled into both control-api and agent-worker.
 
 ## Authentication Flows
 

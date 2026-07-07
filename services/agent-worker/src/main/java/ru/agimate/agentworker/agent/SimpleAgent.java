@@ -52,20 +52,18 @@ public class SimpleAgent {
     private final int maxTurns;
     private final Consumer<List<AgentChatMessage>> onNewMessages;
     private final Checkpointer checkpointer;
+    private final Consumer<String> onInterimAnswer;
 
     public SimpleAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, List<ToolDef> toolDefs,
-                       int maxTurns, Consumer<List<AgentChatMessage>> onNewMessages) {
-        this(llmCaller, toolDispatcher, toolDefs, maxTurns, onNewMessages, null);
-    }
-
-    public SimpleAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, List<ToolDef> toolDefs,
-                       int maxTurns, Consumer<List<AgentChatMessage>> onNewMessages, Checkpointer checkpointer) {
+                       int maxTurns, Consumer<List<AgentChatMessage>> onNewMessages, Checkpointer checkpointer,
+                       Consumer<String> onInterimAnswer) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;
         this.maxTurns = maxTurns;
         this.onNewMessages = onNewMessages;
         this.checkpointer = checkpointer;
+        this.onInterimAnswer = onInterimAnswer;
     }
 
     /**
@@ -89,6 +87,12 @@ public class SimpleAgent {
                     throw new AgentInterrupted();
                 }
                 if (!cp.injected().isEmpty()) {
+                    // A steer folded in just as the assistant finished: deliver the completed
+                    // answer now — otherwise the reply to the earlier message would be persisted
+                    // to history but never reach the user's channel.
+                    if (onInterimAnswer != null && assistant.text() != null && !assistant.text().isEmpty()) {
+                        onInterimAnswer.accept(assistant.text());
+                    }
                     messages.addAll(cp.injected());
                     notify(cp.injected());
                     continue;

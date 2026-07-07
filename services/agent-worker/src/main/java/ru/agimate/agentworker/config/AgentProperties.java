@@ -45,7 +45,6 @@ public class AgentProperties {
     @Setter
     public static class Agent {
         private String id = "agent-default";
-        private String version = "0.1.0";
         private String workflowId = "wf-default";
     }
 

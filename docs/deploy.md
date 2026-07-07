@@ -42,6 +42,37 @@
 | `GRPC_SERVER_SECURITY_PRIVATEKEY`       | Path to PEM private key                                           |
 | `WORKER_POOLS_AUTHKEYS_0`, ..._N        | Worker pool authkeys, one per pool. See `control-api-grpc-worker`. |
 
+### DBOS (control-api)
+
+| Variable                        | Description                                                    |
+|---------------------------------|----------------------------------------------------------------|
+| `DBOS_ENABLED`                  | Enable DBOS delivery of agent runs (`true`/`false`)            |
+| `DBOS_SYSTEM_DATABASE_URL`      | JDBC URL of the DBOS system Postgres (shared with agent-worker) |
+| `DBOS_SYSTEM_DATABASE_USERNAME` | DBOS Postgres user                                             |
+| `DBOS_SYSTEM_DATABASE_PASSWORD` | DBOS Postgres password                                         |
+| `DBOS_SYSTEM_DATABASE_SCHEMA`   | DBOS schema (default `dbos`)                                   |
+
+### agent-worker
+
+Full list with defaults: `services/agent-worker/.env.example`.
+
+| Variable                          | Description                                                        |
+|-----------------------------------|--------------------------------------------------------------------|
+| `AGENT_GRPC_TARGET`               | control-api worker gRPC endpoint (default `localhost:9091`)        |
+| `AGENT_GRPC_USE_TLS`              | Enable TLS to control-api (`true` in production)                   |
+| `AGENT_GRPC_CA_CERT`              | PEM CA cert path for TLS verification (optional)                   |
+| `AGENT_GRPC_AUTH_TOKEN`           | Worker-pool authkey (Bearer), must match a control-api pool key    |
+| `AGENT_AGENT_ID`                  | Worker/agent deployment id                                         |
+| `AGENT_AGENT_WORKFLOW_ID`         | Workflow id sent on AgentContext RPCs                              |
+| `AGENT_CONCURRENCY_AGENT_RUNS`    | Concurrent agent runs per worker (default 3)                       |
+| `AGENT_CONCURRENCY_LLM`           | Concurrent model requests per worker (default 3)                   |
+| `AGENT_CONCURRENCY_TOOL`          | Concurrent backend tool calls per worker (default 8)               |
+| `AGENT_SESSION_ON_ACTIVE_MESSAGE` | Policy on a message into an active session: `queue`/`steer`/`interrupt` |
+| `AGENT_DBOS_DATABASE_URL`         | JDBC URL of the DBOS system Postgres (same as control-api's)       |
+| `AGENT_DBOS_USERNAME`             | DBOS Postgres user                                                 |
+| `AGENT_DBOS_PASSWORD`             | DBOS Postgres password                                             |
+| `AGENT_DBOS_SCHEMA`               | DBOS schema (default `dbos`)                                       |
+
 ## Key Generation
 
 ### JWT Keys (ES256)
@@ -70,6 +101,8 @@ Centrifugo uses the same ES256 key format as JWT. Generate using the JWT key gen
 | 8088 | All                  | Management (health, metrics, prometheus)      |
 | 9090 | user-api             | gRPC server for internal s2s interactions     |
 | 9091 | control-api           | gRPC server for Generic Worker protocol (TLS) |
+
+agent-worker exposes no ports (headless, non-web): it consumes DBOS queues from Postgres and dials out to control-api :9091.
 
 ## Spring Profiles
 
@@ -101,6 +134,7 @@ Configure via standard Spring datasource properties or environment variables:
 # Create deployment JARs
 ./gradlew :user-api:bootJar
 ./gradlew :control-api:bootJar
+./gradlew :agent-worker:bootJar
 ```
 
 JARs are created in `services/{service}/build/libs/`.
