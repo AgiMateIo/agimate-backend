@@ -3,10 +3,12 @@ rootProject.name = "services"
 // Services
 include(
     "user-api",
-    "control-api"
+    "control-api",
+    "agent-worker"
 )
 
 // libs
 include(
-    ":libs:common"
+    ":libs:common",
+    ":libs:agentworker-proto"
 )

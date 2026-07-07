@@ -219,7 +219,7 @@ Polling-RPC за результатом async-tool **не предусмотре
 
 ### 5.2 Proto-контракты
 
-Proto-файлы лежат в `services/control-api/src/main/proto/agentworker/`, package `ru.agimate.agentworker`:
+Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/agentworker/`, package `ru.agimate.agentworker`:
 
 | Файл | Сервис | Реализованные RPC |
 |---|---|---|
@@ -295,7 +295,7 @@ services/control-api/src/main/java/ru/agimate/controlapi/
         ├── WorkerControlGrpcService.java
         ├── AgentContextGrpcService.java
         └── ToolGatewayGrpcService.java
-services/control-api/src/main/proto/agentworker/
+services/libs/agentworker-proto/src/main/proto/agentworker/
     ├── worker_control.proto
     ├── agent_context.proto
     └── tool_gateway.proto

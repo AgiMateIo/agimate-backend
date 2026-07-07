@@ -21,7 +21,7 @@ credentials from the backend and execute tools through the Tool Gateway.
 | `AgentRunRegistry`      | `RegisterRun`, `GetActiveRun`, `ReleaseRun`                                                       | done     |
 | `WorkflowReporting`     | —                                                                                                 | post-PoC |
 
-Source proto files: `services/control-api/src/main/proto/agentworker/`.
+Source proto files: `services/libs/agentworker-proto/src/main/proto/agentworker/`.
 
 ## Authentication
 

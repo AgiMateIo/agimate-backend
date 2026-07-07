@@ -2,7 +2,6 @@ plugins {
     java
     id("org.springframework.boot")
     id("io.spring.dependency-management")
-    id("com.google.protobuf") version "0.9.4"
 }
 
 val grpcVersion = "1.68.1"
@@ -24,6 +23,9 @@ repositories {
 dependencies {
     // Internal Project Dependencies
     implementation(project(":libs:common"))
+    // Generated agent-worker gRPC/protobuf stubs (shared with agent-worker).
+    // Brings grpc-protobuf, grpc-stub and protobuf-java transitively (api).
+    implementation(project(":libs:agentworker-proto"))
 
     // Spring Boot Starters
     implementation("org.springframework.boot:spring-boot-starter-validation")
@@ -52,13 +54,9 @@ dependencies {
 
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
 
-    // gRPC for worker protocol
+    // gRPC server runtime for the worker protocol (stubs come from :libs:agentworker-proto).
     implementation("io.grpc:grpc-netty-shaded:$grpcVersion")
-    implementation("io.grpc:grpc-protobuf:$grpcVersion")
-    implementation("io.grpc:grpc-stub:$grpcVersion")
     implementation("io.grpc:grpc-services:$grpcVersion")
-    implementation("com.google.protobuf:protobuf-java:$protobufVersion")
-    compileOnly("org.apache.tomcat:annotations-api:6.0.53")
 
     // Lombok for code generation
     compileOnly("org.projectlombok:lombok")
@@ -69,24 +67,6 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("io.grpc:grpc-inprocess:$grpcVersion")
     testImplementation("io.grpc:grpc-testing:$grpcVersion")
-}
-
-protobuf {
-    protoc {
-        artifact = "com.google.protobuf:protoc:$protobufVersion"
-    }
-    plugins {
-        create("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:$grpcVersion"
-        }
-    }
-    generateProtoTasks {
-        all().forEach { task ->
-            task.plugins {
-                create("grpc")
-            }
-        }
-    }
 }
 
 tasks.withType<JavaCompile> {

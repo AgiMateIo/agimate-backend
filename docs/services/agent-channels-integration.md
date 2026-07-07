@@ -92,7 +92,7 @@
 
 ## 4. Новый gRPC сервис `ChannelGateway`
 
-Proto: `services/control-api/src/main/proto/agentworker/channel_gateway.proto`. Package — `ru.agimate.agentworker` (тот же, что и `ToolGateway`). Аутентификация — стандартный worker-pool Bearer-токен через `WorkerPoolAuthInterceptor` (см. agimate-worker-protocol-spec.md §1.3).
+Proto: `services/libs/agentworker-proto/src/main/proto/agentworker/channel_gateway.proto`. Package — `ru.agimate.agentworker` (тот же, что и `ToolGateway`). Аутентификация — стандартный worker-pool Bearer-токен через `WorkerPoolAuthInterceptor` (см. agimate-worker-protocol-spec.md §1.3).
 
 ```proto
 service ChannelGateway {
