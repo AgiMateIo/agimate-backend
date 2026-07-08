@@ -3,6 +3,7 @@ package ru.agimate.controlapi.database.repositories;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import ru.agimate.controlapi.database.entities.AgentSkill;
@@ -31,4 +32,8 @@ public interface AgentSkillRepository extends JpaRepository<AgentSkill, UUID> {
             ORDER BY s.name
             """)
     List<Object[]> findSkillSummariesByAgentIdIn(@Param("agentIds") Collection<UUID> agentIds);
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM AgentSkill a WHERE a.skillId = :skillId")
+    int deleteBySkillId(@Param("skillId") UUID skillId);
 }

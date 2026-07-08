@@ -8,6 +8,12 @@ import ru.agimate.common.persistence.BaseEntity;
 
 import java.util.UUID;
 
+/**
+ * Привязка «скилл установлен на агента» — M:N между {@code agents} и {@code skills}.
+ * FK: {@code agent_id → agents(id)} ON DELETE CASCADE (жёсткое удаление агента снимает привязки);
+ * {@code skill_id → skills(id)} без каскада — скиллы удаляются мягко, привязки чистит
+ * {@code SkillService.delete}.
+ */
 @Entity
 @Table(name = "agent_skills", uniqueConstraints = @UniqueConstraint(columnNames = {"agent_id", "skill_id"}))
 @Getter

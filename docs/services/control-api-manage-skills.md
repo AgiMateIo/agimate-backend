@@ -415,7 +415,9 @@ Update an existing skill. Bumps `version` by 1, re-parses `name`, `description`,
 
 ### DELETE `/control/manage/skills/{id}`
 
-Soft-deletes the skill.
+Soft-deletes the skill and removes all its agent bindings (`agent_skills`), including bindings made
+by other users while the skill was public. No policy recompute is needed: skill policies are
+add-only, unbinding never revokes connector bindings.
 
 **Response `200`:** empty success envelope:
 ```json

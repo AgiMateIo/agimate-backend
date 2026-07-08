@@ -22,6 +22,7 @@ import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
+import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.SkillSpecs;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
@@ -43,6 +44,7 @@ public class SkillService {
 
     private final SkillRepository skillRepository;
     private final AgentRepository agentRepository;
+    private final AgentSkillRepository agentSkillRepository;
     private final ConnectorRegistry connectorRegistry;
 
     public Page<SkillResponse> getMySkills(UUID userId, String search, String connectorCode, int page, int size) {
@@ -127,7 +129,10 @@ public class SkillService {
     public void delete(UUID id, UUID userId) {
         Skill skill = findOwnedSkill(id, userId);
         skillRepository.softDelete(skill.getId(), LocalDateTime.now());
-        log.info("Soft-deleted skill '{}' id={}", skill.getName(), id);
+        // Привязки (включая чужие — скилл могли ставить как публичный) удаляем сразу: политики
+        // add-only (AgentSkillPolicyService), так что пересчёт по агентам не требуется.
+        int unbound = agentSkillRepository.deleteBySkillId(skill.getId());
+        log.info("Soft-deleted skill '{}' id={}, unbound from {} agent(s)", skill.getName(), id, unbound);
     }
 
     public Skill findOwnedSkill(UUID id, UUID userId) {
