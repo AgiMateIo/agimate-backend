@@ -15,6 +15,8 @@ public interface ChannelSessionRepository extends JpaRepository<ChannelSession, 
 
     List<ChannelSession> findByChannelIdOrderByLastMessageAtDesc(UUID channelId);
 
+    List<ChannelSession> findByChannelIdInOrderByLastMessageAtDesc(List<UUID> channelIds);
+
     @Query("""
             SELECT s FROM ChannelSession s
             WHERE s.channelId = :channelId

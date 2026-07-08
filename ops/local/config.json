@@ -49,6 +49,15 @@
         },
         "force_push_join_leave": false,
         "force_recovery": false
+      },
+      {
+        "name": "webchat",
+        "allow_subscribe_for_client": false,
+        "allow_publish_for_client": false,
+        "history_size": 100,
+        "history_ttl": "24h",
+        "force_push_join_leave": false,
+        "force_recovery": true
       }
     ]
   }

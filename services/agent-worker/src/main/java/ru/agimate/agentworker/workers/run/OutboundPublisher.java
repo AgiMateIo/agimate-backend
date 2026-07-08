@@ -71,7 +71,7 @@ public class OutboundPublisher {
         seq.put(stream, n + 1);
         var reply = client.sendChannelMessage(
                 agentId, channel.channelId(), channel.sessionId() != null ? channel.sessionId() : "",
-                messageId, text);
+                messageId, text, stream);
         log.info("SendChannelMessage acked [{}]: session_id={} message_id={}",
                 stream, reply.getSessionId(), reply.getMessageId());
     }

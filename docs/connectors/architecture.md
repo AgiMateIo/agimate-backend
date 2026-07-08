@@ -124,7 +124,9 @@ gRPC-листинг (`GetConnectionTools(connection_id)`) единообразн
 декларативная таска `telegram.long_poll` в polling-режиме), `internal/board/` (BoardConnectorService +
 BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — текущее время +
 планирование отложенных задач агента, см. [«Планирование задач агентом»](#планирование-задач-агентом-time)),
-`integrations/mcp/` (MCP-коннектор к удалённым серверам, см. [«MCP-коннектор»](#mcp-коннектор)).
+`integrations/mcp/` (MCP-коннектор к удалённым серверам, см. [«MCP-коннектор»](#mcp-коннектор)),
+`internal/webchat/` (чат с агентом из фронта; scope `USER` — одна connection на пользователя, без
+тулов/джоб, см. `docs/connectors/webchat.md`).
 
 ### MCP-коннектор
 

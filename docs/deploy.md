@@ -183,6 +183,8 @@ Key configuration options in `config.json`:
 |-----------|--------------------------------------------|------------------------------------|
 | `device`  | `device:{deviceId}:(actions\|triggers)`    | Device-related events              |
 | `agent`   | `agent:{apiKeyPubId}`                      | Agent events (tool results, triggers) |
+| `user`    | `user:{userId}`                            | User events for the management UI  |
+| `webchat` | `webchat:{sessionId}`                      | Webchat session messages (history+recovery enabled) |
 
 - Publish/Subscribe restricted to server-side only
 - History: 100 messages, 24h TTL

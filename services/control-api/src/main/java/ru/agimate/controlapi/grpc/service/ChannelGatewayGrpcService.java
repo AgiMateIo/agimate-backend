@@ -72,9 +72,10 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
             UUID channelId = parseUuid(request.getChannelId(), "channel_id");
             UUID sessionId = parseOptionalUuid(request.getSessionId(), "session_id");
             String messageId = emptyToNull(request.getMessageId());
+            String stream = emptyToNull(request.getStream());
             OutboundMessage outbound = ChannelGatewayMapper.toOutboundMessage(request.getMessage());
 
-            var result = channelMessageOutboundService.send(agentId, channelId, sessionId, outbound, messageId);
+            var result = channelMessageOutboundService.send(agentId, channelId, sessionId, outbound, messageId, stream);
 
             SendChannelMessageResponse response = SendChannelMessageResponse.newBuilder()
                     .setSessionId(result.session().getId().toString())

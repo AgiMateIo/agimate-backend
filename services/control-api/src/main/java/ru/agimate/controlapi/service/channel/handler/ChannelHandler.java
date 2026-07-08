@@ -54,6 +54,15 @@ public interface ChannelHandler {
     Optional<InboundMessage> handleInput(ChannelConfig config, Trigger trigger);
 
     /**
+     * Доставлять ли промежуточный вывод агента (progress) в этот канал. {@code true} → роутер
+     * заполняет progress-роль в {@code Channels} тем же каналом, и worker шлёт progress-строки
+     * через {@link #handleOutput} (с {@code stream="progress"}) наравне с финальным answer.
+     */
+    default boolean deliverProgress(ChannelConfig config) {
+        return false;
+    }
+
+    /**
      * Отправляет ответ модели в канал: выбирает тул и аргументы и вызывает его через
      * {@link AgentToolCallService#processToolCall} (идемпотентность + проверка ABAC). Ключ
      * идемпотентности — {@link OutboundDispatch#messageId()}; адрес ответа — из

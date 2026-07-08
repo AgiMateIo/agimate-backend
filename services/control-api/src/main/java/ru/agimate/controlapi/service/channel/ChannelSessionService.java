@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -34,6 +35,10 @@ public class ChannelSessionService {
         return channelSessionRepository.findByChannelIdOrderByLastMessageAtDesc(channelId);
     }
 
+    public List<ChannelSession> listByChannelIds(List<UUID> channelIds) {
+        return channelSessionRepository.findByChannelIdInOrderByLastMessageAtDesc(channelIds);
+    }
+
     @Transactional
     public ChannelSession findOrCreateActive(Channel channel, String firstMessageHint) {
         LocalDateTime threshold = LocalDateTime.now().minus(SESSION_TTL);
@@ -41,6 +46,12 @@ public class ChannelSessionService {
         if (!active.isEmpty()) {
             return active.get(0);
         }
+        return createNew(channel, firstMessageHint);
+    }
+
+    /** Всегда новая сессия, минуя TTL-эвристику — для каналов с явным выбором сессии (webchat). */
+    @Transactional
+    public ChannelSession createNew(Channel channel, String firstMessageHint) {
         ChannelSession session = ChannelSession.builder()
                 .channelId(channel.getId())
                 .title(buildTitle(firstMessageHint))
@@ -49,6 +60,22 @@ public class ChannelSessionService {
         ChannelSession saved = channelSessionRepository.save(session);
         log.info("Created new channel session id={} for channel id={}", saved.getId(), channel.getId());
         return saved;
+    }
+
+    /** Открытая (не закрытая) сессия данного канала; empty при чужом канале или closed. */
+    public Optional<ChannelSession> findOpen(UUID sessionId, UUID channelId) {
+        return channelSessionRepository.findById(sessionId)
+                .filter(s -> s.getChannelId().equals(channelId))
+                .filter(s -> s.getClosedAt() == null);
+    }
+
+    /** Проставить заголовок от первого сообщения, если он ещё пуст. */
+    @Transactional
+    public void setTitleIfEmpty(ChannelSession session, String hint) {
+        if (session.getTitle() == null && hint != null && !hint.isBlank()) {
+            session.setTitle(buildTitle(hint));
+            channelSessionRepository.save(session);
+        }
     }
 
     @Transactional

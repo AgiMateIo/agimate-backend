@@ -146,6 +146,7 @@ message SendChannelMessageRequest {
   string session_id = 3;       // pubId сессии; пусто = найти активную или создать новую
   string message_id = 4;       // для идемпотентности; пусто = control-api сгенерирует
   OutboundMessage message = 5; // контент ответа
+  string stream = 6;           // роль потока: "progress" | "answer" | "error"; пусто = answer
 }
 message SendChannelMessageResponse {
   string session_id = 1;       // pubId сессии (особенно полезно, если session_id был пуст)

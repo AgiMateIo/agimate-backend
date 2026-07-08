@@ -49,6 +49,8 @@ message SendChannelMessageRequest {
   // Id исходящего сообщения от агента — ключ идемпотентности диспатча ответа. Может быть пустым.
   string message_id = 4;
   OutboundMessage message = 5;
+  // Роль потока вывода агента: "progress" | "answer" | "error"; пустое = answer (старые воркеры).
+  string stream = 6;
 }
 
 message SendChannelMessageResponse {

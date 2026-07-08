@@ -262,7 +262,7 @@ public class AgentWorkerClient {
     // ---- ChannelGateway --------------------------------------------------------------
 
     public SendChannelMessageResponse sendChannelMessage(
-            String agentId, String channelId, String sessionId, String messageId, String text) {
+            String agentId, String channelId, String sessionId, String messageId, String text, String stream) {
         return call("SendChannelMessage", () -> channels.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .sendChannelMessage(SendChannelMessageRequest.newBuilder()
                         .setAgentId(agentId)
@@ -270,6 +270,7 @@ public class AgentWorkerClient {
                         .setSessionId(sessionId)
                         .setMessageId(messageId)
                         .setMessage(OutboundMessage.newBuilder().setText(text).build())
+                        .setStream(stream)
                         .build()));
     }
 

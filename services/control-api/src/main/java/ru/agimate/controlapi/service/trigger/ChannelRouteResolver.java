@@ -114,16 +114,47 @@ public class ChannelRouteResolver {
             return ChannelResolution.skip();
         }
 
-        ChannelSession session = channelSessionService.findOrCreateActive(channel, null);
-        ChannelInfo prompt = new ChannelInfo(channel.getId(), session.getId(), null);
-        return ChannelResolution.channel(Channels.ofPrompt(prompt), inbound.get());
+        ChannelSession session = resolveSession(channel, trigger);
+        ChannelInfo info = new ChannelInfo(channel.getId(), session.getId(), null);
+        // progress-роль тем же каналом, если handler доставляет промежуточный вывод (webchat);
+        // answer не заполняем — worker сам фолбэчится на prompt.
+        Channels channels = handler.deliverProgress(cc)
+                ? new Channels(info, info, null)
+                : Channels.ofPrompt(info);
+        return ChannelResolution.channel(channels, inbound.get());
+    }
+
+    /**
+     * Сессия входящего: объявленная продюсером в prompt-{@link ChannelInfo} (webchat — фронт выбирает
+     * сессию явно), если она открыта и принадлежит каналу; иначе активная/новая по TTL-эвристике.
+     */
+    private ChannelSession resolveSession(Channel channel, Trigger trigger) {
+        UUID declaredSessionId = declaredPromptSessionId(trigger);
+        if (declaredSessionId != null) {
+            Optional<ChannelSession> declared = channelSessionService.findOpen(declaredSessionId, channel.getId());
+            if (declared.isPresent()) {
+                return declared.get();
+            }
+            log.warn("Declared session {} not open for channel {} - falling back to active session",
+                    declaredSessionId, channel.getId());
+        }
+        return channelSessionService.findOrCreateActive(channel, null);
     }
 
     private static UUID declaredPromptChannelId(Trigger trigger) {
-        if (trigger.context() == null || trigger.context().channels() == null
-                || trigger.context().channels().prompt() == null) {
+        ChannelInfo prompt = declaredPrompt(trigger);
+        return prompt != null ? prompt.channelId() : null;
+    }
+
+    private static UUID declaredPromptSessionId(Trigger trigger) {
+        ChannelInfo prompt = declaredPrompt(trigger);
+        return prompt != null ? prompt.sessionId() : null;
+    }
+
+    private static ChannelInfo declaredPrompt(Trigger trigger) {
+        if (trigger.context() == null || trigger.context().channels() == null) {
             return null;
         }
-        return trigger.context().channels().prompt().channelId();
+        return trigger.context().channels().prompt();
     }
 }
