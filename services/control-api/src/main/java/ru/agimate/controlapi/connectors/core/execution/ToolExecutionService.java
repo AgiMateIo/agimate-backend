@@ -60,11 +60,11 @@ public class ToolExecutionService {
             }
 
             deliver(toolCallLog, JsonUtils.writeValueAsString(result), null);
-            log.debug("Executed tool '{}' on connector {}",
-                    toolCallLog.getName(), toolCallLog.getConnectorCode());
+            log.debug("Executed tool '{}.{}'",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName());
         } catch (Exception e) {
-            log.error("Failed to execute tool '{}' on connector {}: {}",
-                    toolCallLog.getName(), toolCallLog.getConnectorCode(), e.getMessage());
+            log.error("Failed to execute '{}.{}'",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName());
             String error = e instanceof ConnectorException ? e.getMessage() : "Tool execution failed";
             deliver(toolCallLog, null, error);
         }
