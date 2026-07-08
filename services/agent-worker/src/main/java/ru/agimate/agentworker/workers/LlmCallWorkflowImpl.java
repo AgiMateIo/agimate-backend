@@ -53,7 +53,11 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
         // bug) must come back as a failure value, not escape the workflow past the error mapping.
         try {
             OpenAiChatModel model = modelFactory.build(creds);
+            // Runtime-опции НЕ мержатся с default-options модели (Spring AI 2.0 buildRequestPrompt
+            // берёт options промпта как есть), а билдер без model подставляет DEFAULT_CHAT_MODEL
+            // (gpt-5-mini) — модель из кредов обязана стоять здесь, иначе провайдер получит дефолт.
             OpenAiChatOptions options = OpenAiChatOptions.builder()
+                    .model(creds.getModel())
                     .toolCallbacks(mapper.toolCallbacks(toolDefs))
                     .build();
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages), options);
