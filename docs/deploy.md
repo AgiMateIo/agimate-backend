@@ -52,6 +52,10 @@
 | `DBOS_SYSTEM_DATABASE_PASSWORD` | DBOS Postgres password                                         |
 | `DBOS_SYSTEM_DATABASE_SCHEMA`   | DBOS schema (default `dbos`)                                   |
 
+**Startup order on a `dev.dbos:transact` upgrade: agent-worker first, then control-api.** Only the
+worker's DBOS runtime migrates the shared system schema at launch; control-api's `DBOSClient` never
+migrates and fails enqueues until the schema is current.
+
 ### agent-worker
 
 Full list with defaults: `services/agent-worker/.env.example`.
