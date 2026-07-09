@@ -117,7 +117,7 @@ public class TimeToolService {
         // Снимок исходного канала вызова (ctx.channelId) на строку job: напоминание уйдёт агенту
         // с этим каналом как progress/answer (prompt у напоминания нет).
         ConnectorJob row = jobService.schedule(
-                TimeConnectorService.CONNECTOR_CODE, ctx.identity(), ctx.userId(),
+                TimeConnectorService.CONNECTOR_CODE, ctx.connectionId(), ctx.userId(),
                 ctx.agentId(), ctx.channelId(), spec, firstRunAt);
 
         return Map.of(
@@ -185,7 +185,7 @@ public class TimeToolService {
         TriggerAudience audience = new TriggerAudience(null, List.of(ctx.agentId()));
         Trigger trigger = Trigger.createDirected(
                 TimeConnectorService.CONNECTOR_CODE,
-                ctx.identity(),
+                ctx.connectionId(),
                 DUE_TRIGGER,
                 Map.of("prompt", prompt == null ? "" : prompt),
                 fireContext(audience, ctx.channelId()));

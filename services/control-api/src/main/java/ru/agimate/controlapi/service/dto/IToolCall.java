@@ -5,7 +5,7 @@ import java.util.Map;
 public interface IToolCall {
     String getId();
     String getConnectorCode();
-    String getIdentity();
+    String getConnectionId();
     String getName();
     Map<String, Object> getInput();
 }

@@ -44,7 +44,7 @@ class ConnectorJobSchedulerTest {
         return ConnectorJob.builder()
                 .id(UUID.randomUUID())
                 .connectorCode("test")
-                .identity("identity-1")
+                .connectionId("connectionId-1")
                 .name("test.task")
                 .type(type)
                 .config(config)

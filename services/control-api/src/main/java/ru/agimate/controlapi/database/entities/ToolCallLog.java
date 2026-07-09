@@ -41,8 +41,8 @@ public class ToolCallLog extends BaseEntity {
     @Column(name = "connector_code", columnDefinition = "TEXT")
     private String connectorCode;
 
-    @Column(name = "identity", columnDefinition = "TEXT")
-    private String identity;
+    @Column(name = "connection_id", columnDefinition = "TEXT")
+    private String connectionId;
 
     @Column(name = "external_id", nullable = false, columnDefinition = "TEXT")
     private String externalId;

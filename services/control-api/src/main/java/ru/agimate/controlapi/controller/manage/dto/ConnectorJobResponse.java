@@ -22,8 +22,8 @@ public record ConnectorJobResponse(
         @Schema(description = "Connector code")
         String connectorCode,
 
-        @Schema(description = "Connector instance identity (integration credentials id, board pubId, ...)")
-        String identity,
+        @Schema(description = "Connector instance id (connections.id)")
+        String connectionId,
 
         @Schema(description = "Initiating (or target) agent ID; null for SYSTEM tasks")
         UUID agentId,
@@ -63,7 +63,7 @@ public record ConnectorJobResponse(
                 task.getId(),
                 task.getKind(),
                 task.getConnectorCode(),
-                task.getIdentity(),
+                task.getConnectionId(),
                 task.getAgentId(),
                 task.getName(),
                 task.getType(),

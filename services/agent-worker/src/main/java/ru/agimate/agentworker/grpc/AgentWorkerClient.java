@@ -237,13 +237,13 @@ public class AgentWorkerClient {
     // ---- ToolGateway -----------------------------------------------------------------
 
     public ExecuteToolAsyncAck executeToolAsync(
-            String toolCallId, String connectorCode, String identity, String toolName,
+            String toolCallId, String connectorCode, String connectionId, String toolName,
             byte[] input, String agentId, String agentSessionId) {
         return call("ExecuteToolAsync", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .executeToolAsync(ExecuteToolRequest.newBuilder()
                         .setToolCallId(toolCallId)
                         .setConnectorCode(connectorCode)
-                        .setIdentity(identity)
+                        .setConnectionId(connectionId)
                         .setToolName(toolName)
                         .setInput(ByteString.copyFrom(input))
                         .setAgentId(agentId)

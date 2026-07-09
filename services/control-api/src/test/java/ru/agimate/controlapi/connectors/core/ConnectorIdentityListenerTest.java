@@ -61,22 +61,22 @@ class ConnectorIdentityListenerTest {
     }
 
     @Test
-    @DisplayName("modified: пересинхронизация задач identity")
+    @DisplayName("modified: пересинхронизация задач connectionId")
     void onModified() {
         when(handler.getJobs()).thenReturn(Map.of("test.task_a", SPEC_A));
 
         listener.onModified(new ConnectorModifiedEvent("test", IDENTITY, USER_ID));
 
-        verify(jobService).syncIdentity(eq("test"), eq(IDENTITY), eq(USER_ID),
+        verify(jobService).syncConnectionJobs(eq("test"), eq(IDENTITY), eq(USER_ID),
                 argThat(specs -> specs.size() == 1 && specs.contains(SPEC_A)));
     }
 
     @Test
-    @DisplayName("deleted: удаление всех задач identity")
+    @DisplayName("deleted: удаление всех задач connectionId")
     void onDeleted() {
         listener.onDeleted(new ConnectorDeletedEvent("test", IDENTITY));
 
-        verify(jobService).deleteByIdentity("test", IDENTITY);
+        verify(jobService).deleteByConnectionId("test", IDENTITY);
     }
 
     @Test

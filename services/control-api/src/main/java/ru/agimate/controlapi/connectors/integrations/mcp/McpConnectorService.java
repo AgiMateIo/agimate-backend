@@ -23,7 +23,7 @@ import java.util.UUID;
  * и {@code @Tool}-методов):
  * <ul>
  *   <li>{@link #getTools()} — статических тулов нет (пусто);</li>
- *   <li>{@link #getTools(ConnectorContext)} — список из кэша {@code connection_tools} по {@code identity}
+ *   <li>{@link #getTools(ConnectorContext)} — список из кэша {@code connection_tools} по {@code connectionId}
  *       (наполняется {@link McpToolDiscoveryListener} на create/modify интеграции);</li>
  *   <li>{@link #executeTool} — проксирование в {@code tools/call}.</li>
  * </ul>
@@ -88,15 +88,15 @@ public class McpConnectorService implements IntegrationConnectorHandler {
         return Map.of();
     }
 
-    /** Список тулов экземпляра из кэша {@code connection_tools}; identity — {@code connections.id}. */
+    /** Список тулов экземпляра из кэша {@code connection_tools}; connectionId — {@code connections.id}. */
     @Override
     public Map<String, ConnectorToolSpec> getTools(ConnectorContext context) {
-        if (context == null || context.identity() == null) {
+        if (context == null || context.connectionId() == null) {
             return Map.of();
         }
         UUID connectionId;
         try {
-            connectionId = UUID.fromString(context.identity());
+            connectionId = UUID.fromString(context.connectionId());
         } catch (IllegalArgumentException e) {
             return Map.of();
         }

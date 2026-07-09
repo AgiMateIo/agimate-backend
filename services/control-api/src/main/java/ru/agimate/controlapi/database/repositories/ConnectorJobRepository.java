@@ -22,53 +22,53 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
     @Query("""
             SELECT t FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
-              AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
+              AND ((:connectionId IS NULL AND t.connectionId IS NULL) OR t.connectionId = :connectionId)
               AND t.name = :name
               AND t.kind = ru.agimate.controlapi.database.enums.ConnectorJobKind.SYSTEM
             """)
     Optional<ConnectorJob> findByBusinessKey(
             @Param("connectorCode") String connectorCode,
-            @Param("identity") String identity,
+            @Param("connectionId") String connectionId,
             @Param("name") String name);
 
     @Modifying
     @Query("""
             DELETE FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
-              AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
+              AND ((:connectionId IS NULL AND t.connectionId IS NULL) OR t.connectionId = :connectionId)
             """)
-    int deleteByIdentity(
+    int deleteByConnectionId(
             @Param("connectorCode") String connectorCode,
-            @Param("identity") String identity);
+            @Param("connectionId") String connectionId);
 
     /**
-     * Удаляет SYSTEM-строки identity, чьи name больше не декларируются коннектором.
+     * Удаляет SYSTEM-строки connection_id, чьи name больше не декларируются коннектором.
      * Динамические задачи (USER/AGENT) пересинк деклараций не трогает.
      */
     @Modifying
     @Query("""
             DELETE FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
-              AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
+              AND ((:connectionId IS NULL AND t.connectionId IS NULL) OR t.connectionId = :connectionId)
               AND t.kind = ru.agimate.controlapi.database.enums.ConnectorJobKind.SYSTEM
               AND t.name NOT IN :keepNames
             """)
     int deleteStale(
             @Param("connectorCode") String connectorCode,
-            @Param("identity") String identity,
+            @Param("connectionId") String connectionId,
             @Param("keepNames") Collection<String> keepNames);
 
-    /** Удаляет все SYSTEM-строки identity — когда коннектор больше не декларирует ни одной задачи. */
+    /** Удаляет все SYSTEM-строки connection_id — когда коннектор больше не декларирует ни одной задачи. */
     @Modifying
     @Query("""
             DELETE FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
-              AND ((:identity IS NULL AND t.identity IS NULL) OR t.identity = :identity)
+              AND ((:connectionId IS NULL AND t.connectionId IS NULL) OR t.connectionId = :connectionId)
               AND t.kind = ru.agimate.controlapi.database.enums.ConnectorJobKind.SYSTEM
             """)
-    int deleteSystemByIdentity(
+    int deleteSystemByConnectionId(
             @Param("connectorCode") String connectorCode,
-            @Param("identity") String identity);
+            @Param("connectionId") String connectionId);
 
     /** Активные (не COMPLETED) динамические задачи агента — для list. */
     @Query("""

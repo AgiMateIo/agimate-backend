@@ -86,7 +86,7 @@ public class AppService {
 
         App saved = appRepository.save(app);
 
-        // Регистрируем экземпляр в едином реестре connections (id = app.id → identity не меняется).
+        // Регистрируем экземпляр в едином реестре connections (id = app.id → connectionId не меняется).
         connectionRepository.save(Connection.builder()
                 .id(saved.getId())
                 .identityScope(ru.agimate.controlapi.database.enums.IdentityScope.INSTANCE)

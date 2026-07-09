@@ -7,7 +7,7 @@ import java.util.UUID;
 public interface TriggerLogWithAgentsCountProjection {
     UUID getId();
     String getConnectorCode();
-    String getIdentity();
+    String getConnectionId();
     String getExternalId();
     String getName();
     LocalDateTime getOccurredAt();

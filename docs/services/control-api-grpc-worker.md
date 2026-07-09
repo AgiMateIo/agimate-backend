@@ -169,7 +169,7 @@ Two steps, both keyed on `connections.id`:
    resolves `connector_code` from the connection, then by `tool_binding`: **STATIC** connectors (telegram,
    time, board, persist-memory) derive tools from `@Tool` methods by reflection; **DYNAMIC** connectors
    (`mcp`, device `app`) read the per-instance set from `connection_tools` (synced from `tools/list` /
-   device link, no remote call on this path). Each `ConnectorToolSpec` echoes `connection_id` (= `identity`
+   device link, no remote call on this path). Each `ConnectorToolSpec` echoes `connection_id` (= `connection_id`
    on `ExecuteTool`) and `namespace`; the worker builds the LLM-facing name as `{namespace}.{name}`.
 
 **Naming.** Stored tool/trigger names are **bare local identifiers** (`schedule`, `get_tasks`,
@@ -177,7 +177,7 @@ Two steps, both keyed on `connections.id`:
 `namespace` the backend derives per instance: `connector_code` for context singletons (time/board/persist-memory
 — an agent has exactly one) and `full_code` for multi-instance connectors (`mcp_context7`, `telegram_<bot>`).
 So the agent sees `time.schedule`, `persist-memory.save_memory_note`, `mcp_context7.resolve-library-id`. On
-`ExecuteTool` the worker sends the **bare** `name` back (+ `connector_code`, `identity`) — namespace is
+`ExecuteTool` the worker sends the **bare** `name` back (+ `connector_code`, `connection_id`) — namespace is
 presentation-only, wire routing unchanged.
 
 `GetConnectionTools` returns **all** tools of the instance — per-tool `DENY`/`ALLOW` policies

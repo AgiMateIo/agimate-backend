@@ -40,10 +40,10 @@ public class ConnectorService {
         switch (connector.getExecutionLocus()) {
             case BACKEND -> toolExecutionService.executeTool(toolCallLog);
             case EXTERNAL -> {
-                // identity = connections.id; устройство берём по connection.app_id.
+                // connectionId = connections.id; устройство берём по connection.app_id.
                 Connection connection = connectionRepository
-                        .findByIdNotDeleted(UUID.fromString(toolCallLog.getIdentity()))
-                        .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + toolCallLog.getIdentity()));
+                        .findByIdNotDeleted(UUID.fromString(toolCallLog.getConnectionId()))
+                        .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + toolCallLog.getConnectionId()));
                 var app = appRepository.findByIdAndUserIdNotDeleted(connection.getAppId(), toolCallLog.getUserId())
                         .orElseThrow(() -> new NotFoundStatusException("App not found: " + connection.getAppId()));
                 centrifugoService.publishMessage("device:" + app.getDeviceId(), "toolCall", ToolCallPayload.from(toolCallLog));

@@ -110,7 +110,7 @@ class WebchatChannelHandlerTest {
                 .userId(USER_ID)
                 .agentId(AGENT_ID)
                 .connectorCode("webchat")
-                .identity(IDENTITY)
+                .connectionId(UUID.fromString(IDENTITY))
                 .build();
 
         @Test

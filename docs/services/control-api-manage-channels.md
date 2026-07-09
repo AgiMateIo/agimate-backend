@@ -16,7 +16,7 @@ API specification for `/manage/channels/**` — управление **кана�
 Канал больше **не** хранит trigger/reply-поля по отдельности. Вместо этого у него:
 
 - `channelHandler` — имя обработчика (`ChannelHandler`), реализованного в коде; задаёт логику преобразования триггеров во входящие сообщения и ответа модели в вызовы тулов;
-- `connectorCode` + `identity` — источник триггеров (и, как правило, ответов);
+- `connectorCode` + `connectionId` — источник триггеров (и, как правило, ответов);
 - `config` — произвольная карта настроек, которую интерпретирует конкретный handler.
 
 Набор триггеров и тулов канала вычисляет сам handler (`listOfTriggers(config)` / `listOfTools(config)`); под них при создании генерируются `AgentTriggerPolicy` / `AgentToolPolicy` (по одной на каждый триггер/тул, с `channel_id`).
@@ -70,7 +70,7 @@ Backend перед вызовом тула рекурсивно проходит
   "name": "TG bot",
   "channelHandler": "telegram",
   "connectorCode": "telegram",
-  "identity": "018f...",
+  "connectionId": "018f...",
   "config": { "allowedChatIds": [12345] }
 }
 ```
@@ -117,8 +117,8 @@ Backend перед вызовом тула рекурсивно проходит
 | `name` | string | Отображаемое имя |
 | `channelHandler` | string | Имя обработчика (например `generic`) |
 | `connectorCode` | string | Коннектор источника триггеров |
-| `identity` | string | `App.id` (для APP) или `IntegrationCredentials.id` (для INTEGRATION) |
-| `identityName` | string? | Денормализованное имя identity (`App.name` / `IntegrationCredentials.name`/`platformIdentifier`). `null`, если удалён/невалиден |
+| `connectionId` | string | `App.id` (для APP) или `IntegrationCredentials.id` (для INTEGRATION) |
+| `connectionName` | string? | Денормализованное имя connectionId (`App.name` / `IntegrationCredentials.name`/`platformIdentifier`). `null`, если удалён/невалиден |
 | `config` | object | Настройки handler-а (для `generic` — см. таблицу выше) |
 | `inputFilter` | object? | Денормализованный фильтр со связанной `AgentTriggerPolicy`. `null`, если не задан |
 | `createdAt` | datetime | |
@@ -189,8 +189,8 @@ Backend перед вызовом тула рекурсивно проходит
       "name": "Telegram support bot",
       "channelHandler": "generic",
       "connectorCode": "telegram",
-      "identity": "018f...",
-      "identityName": "My Telegram Bot",
+      "connectionId": "018f...",
+      "connectionName": "My Telegram Bot",
       "config": {
         "triggers": ["message_received"],
         "messageField": "data.message.text",
@@ -213,7 +213,7 @@ Backend перед вызовом тула рекурсивно проходит
 
 ### POST `/control/manage/channels/`
 
-Создаёт канал и `AgentTriggerPolicy`/`AgentToolPolicy` (effect=ALLOW, `channel_id`=<new>) — по одной на каждый триггер/тул handler-а. Если для тех же `(agent, connector, identity, name)` уже была ALLOW-policy **без** `channel_id`, она апгрейдится (присваивается `channel_id`, а триггерной — `input_filter`).
+Создаёт канал и `AgentTriggerPolicy`/`AgentToolPolicy` (effect=ALLOW, `channel_id`=<new>) — по одной на каждый триггер/тул handler-а. Если для тех же `(agent, connector, connectionId, name)` уже была ALLOW-policy **без** `channel_id`, она апгрейдится (присваивается `channel_id`, а триггерной — `input_filter`).
 
 **Request body:**
 ```json
@@ -222,7 +222,7 @@ Backend перед вызовом тула рекурсивно проходит
   "name": "Telegram support bot",
   "channelHandler": "generic",
   "connectorCode": "telegram",
-  "identity": "018f...",
+  "connectionId": "018f...",
   "config": {
     "triggers": ["message_received"],
     "messageField": "data.message.text",
@@ -235,14 +235,14 @@ Backend перед вызовом тула рекурсивно проходит
 }
 ```
 
-Обязательны `agentId`, `name`, `channelHandler`, `connectorCode`, `identity`, `config`. `inputFilter` — опционален.
+Обязательны `agentId`, `name`, `channelHandler`, `connectorCode`, `connectionId`, `config`. `inputFilter` — опционален.
 
 **Валидация бэкенда:**
 
 1. Агент существует и принадлежит пользователю → иначе `404`/`403`.
 2. `channelHandler` зарегистрирован → иначе `400`.
 3. `handler.validateConfig(config)` → иначе `400` (сообщение от handler-а).
-4. Для каждого триггера из `handler.listOfTriggers(config)`: коннектор существует, `identity` валиден и активен, триггер есть в `App.triggers` (APP) или `ConnectorHandler.getTriggers()` (INTEGRATION); `INTERNAL_SERVICE`/`LOOPBACK` → `400`.
+4. Для каждого триггера из `handler.listOfTriggers(config)`: коннектор существует, `connectionId` валиден и активен, триггер есть в `App.triggers` (APP) или `ConnectorHandler.getTriggers()` (INTEGRATION); `INTERNAL_SERVICE`/`LOOPBACK` → `400`.
 5. Для каждого тула из `handler.listOfTools(config)`: аналогично, тул есть в `App.tools` / `ConnectorHandler.getTools()`.
 6. Нет ALLOW trigger/tool-policy, привязанной к другому каналу → иначе `409`.
 
@@ -266,7 +266,7 @@ Backend перед вызовом тула рекурсивно проходит
 - `config` — **полная замена** (валидируется через handler). Набор триггеров/тулов должен совпасть с текущим, иначе `400` («recreate the channel»).
 - `inputFilter` — обновляет фильтр на связанных trigger-policy. `clearInputFilter: true` (+ `inputFilter: null`) снимает фильтр.
 
-**Не меняется через PATCH:** `agentId`, `channelHandler`, `connectorCode`, `identity` и набор триггеров/тулов. Для смены — пересоздать канал.
+**Не меняется через PATCH:** `agentId`, `channelHandler`, `connectorCode`, `connectionId` и набор триггеров/тулов. Для смены — пересоздать канал.
 
 **Response 200:** `ChannelResponse`.
 
@@ -315,7 +315,7 @@ Soft delete (`deletedAt = NOW()`). Связанные trigger/tool-policy **уд
 
 ## Notes
 
-- Один активный канал на `(agent, connector, identity)` — частичный UNIQUE-индекс `uq_channels_agent_connector_identity_active` (`WHERE deleted_at IS NULL`). Маршрут триггера определяется наличием такого канала, а не `policy.channel_id`.
+- Один активный канал на `(agent, connector, connectionId)` — частичный UNIQUE-индекс `uq_channels_agent_connector_identity_active` (`WHERE deleted_at IS NULL`). Маршрут триггера определяется наличием такого канала, а не `policy.channel_id`.
 - Soft delete канала не удаляет историю сессий/сообщений.
 - Извлечение текста входящего выполняет control-api для **всех** handler-ов через `handler.handleInput()`: `generic` — по `config.messageField`, при пустом результате — JSON `trigger.data`; код-handler'ы (`telegram`) — собственная логика. **Воркеру** отдаётся готовый `InboundMessage` + `Channels` в `AgentMessage`; `messageField`/`triggerMessageField` больше не передаются. Скачивание медиа — Фаза 2.
 - `AgentMessage` для воркера минимизирован: `InboundMessage` = `{ text, parts }` (без `replyContext`/`conversationKey` — адрес ответа control-api берёт из `ChannelSessionMessage.triggerInput`); wire-DTO сериализуются с `NON_NULL`. **Воркеру**: `triggerInput` для gRPC `append` возвращать из `payload.data`, а не из `inbound`.

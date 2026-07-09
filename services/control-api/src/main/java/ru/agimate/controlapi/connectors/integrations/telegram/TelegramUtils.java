@@ -76,7 +76,7 @@ public class TelegramUtils {
      * промежуточной сериализации в JSON и обратно.
      */
     @SuppressWarnings("unchecked")
-    public static Trigger normalizeUpdate(Map<String, Object> update, String identity) {
+    public static Trigger normalizeUpdate(Map<String, Object> update, String connectionId) {
         String triggerName;
         Map<String, Object> triggerData = new LinkedHashMap<>();
 
@@ -135,6 +135,6 @@ public class TelegramUtils {
             triggerData.put("raw", update);
         }
 
-        return Trigger.createBasic(CONNECTOR_CODE, identity, triggerName, triggerData);
+        return Trigger.createBasic(CONNECTOR_CODE, connectionId, triggerName, triggerData);
     }
 }

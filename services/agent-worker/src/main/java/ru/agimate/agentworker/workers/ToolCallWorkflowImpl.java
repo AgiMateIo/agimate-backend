@@ -36,10 +36,10 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
     @Override
     @Workflow(name = Queues.TOOL_WORKFLOW)
     public Outcome toolCall(String connectorCode, String backendName, String argsJson,
-                                    String toolCallId, String agentId, String agentSessionId, String identity) {
+                                    String toolCallId, String agentId, String agentSessionId, String connectionId) {
         try {
             String outputJson = dbos.runStep(
-                    () -> callConnectorTool(connectorCode, backendName, argsJson, toolCallId, identity, agentId, agentSessionId),
+                    () -> callConnectorTool(connectorCode, backendName, argsJson, toolCallId, connectionId, agentId, agentSessionId),
                     "call_connector_tool");
             return Outcome.ok(outputJson);
         } catch (Exception e) {
@@ -50,8 +50,8 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
     }
 
     private String callConnectorTool(String connectorCode, String toolName, String argsJson,
-                                     String toolCallId, String identity, String agentId, String agentSessionId) {
-        client.executeToolAsync(toolCallId, connectorCode, identity, toolName,
+                                     String toolCallId, String connectionId, String agentId, String agentSessionId) {
+        client.executeToolAsync(toolCallId, connectorCode, connectionId, toolName,
                 argsJson.getBytes(StandardCharsets.UTF_8), agentId, agentSessionId);
         long deadline = System.currentTimeMillis() + POLL_TIMEOUT_MS;
         while (true) {

@@ -100,7 +100,7 @@ public class ConnectorJobScheduler {
 
     private static String jobKey(ConnectorJob row) {
         return row.getConnectorCode() + "/"
-                + (row.getIdentity() == null ? "global" : row.getIdentity()) + "/"
+                + (row.getConnectionId() == null ? "global" : row.getConnectionId()) + "/"
                 + row.getName();
     }
 

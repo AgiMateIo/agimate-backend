@@ -14,24 +14,24 @@ public record ChannelResponse(
         String name,
         String channelHandler,
         String connectorCode,
-        String identity,
-        @Schema(description = "Denormalized display name of the identity (Connection.name / App.name); null if missing or deleted")
-        String identityName,
+        String connectionId,
+        @Schema(description = "Denormalized display name of the connection (Connection.name); null if missing or deleted")
+        String connectionName,
         Map<String, Object> config,
         @Schema(description = "Optional input filter stored on the Channel; null if no filter is configured")
         Map<String, Object> inputFilter,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
-    public static ChannelResponse from(Channel c, String identityName, Map<String, Object> inputFilter) {
+    public static ChannelResponse from(Channel c, String connectionName, Map<String, Object> inputFilter) {
         return new ChannelResponse(
                 c.getId(),
                 c.getAgentId(),
                 c.getName(),
                 c.getChannelHandler(),
                 c.getConnectorCode(),
-                c.getIdentity(),
-                identityName,
+                c.getConnectionId() == null ? null : c.getConnectionId().toString(),
+                connectionName,
                 c.getConfig(),
                 inputFilter,
                 c.getCreatedAt(),

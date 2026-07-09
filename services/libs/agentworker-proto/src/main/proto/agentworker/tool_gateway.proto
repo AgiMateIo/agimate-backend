@@ -14,7 +14,7 @@ service ToolGateway {
 message ExecuteToolRequest {
   string tool_call_id = 1;
   string connector_code = 2;
-  string identity = 3;
+  string connection_id = 3 [json_name = "connectionId"];
   string tool_name = 4;
   bytes input = 5;
   string agent_id = 6;

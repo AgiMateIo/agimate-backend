@@ -101,7 +101,7 @@ public class GenericChannelHandler implements ChannelHandler {
         ToolCallRequest request = ToolCallRequest.builder()
                 .id(dispatch.messageId())
                 .connectorCode(replyConnector(config))
-                .identity(replyIdentity(config))
+                .connectionId(replyIdentity(config))
                 .name(replyTool(config))
                 .input(args)
                 .build();

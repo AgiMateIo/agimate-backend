@@ -82,7 +82,7 @@ public class AgentDispatcher implements SimpleAgent.LlmCaller, SimpleAgent.ToolD
                 continue;
             }
             WorkflowHandle<ToolCallWorkflow.Outcome, ? extends Exception> handle = dbos.startWorkflow(
-                    () -> tool.toolCall(bt.connectorCode(), bt.name(), tc.argumentsJson(), toolCallId, agentId, sessionId, bt.identity()),
+                    () -> tool.toolCall(bt.connectorCode(), bt.name(), tc.argumentsJson(), toolCallId, agentId, sessionId, bt.connectionId()),
                     new StartWorkflowOptions(toolQueue));
             pending.add(new Pending(tc, toolCallId, handle, null));
         }

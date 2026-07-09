@@ -10,7 +10,7 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record Trigger(
         String connectorCode,
-        String identity,
+        String connectionId,
         String name,
         String id,
         Map<String, Object> data,
@@ -18,10 +18,10 @@ public record Trigger(
         TriggerContext context
 ) {
 
-    public static Trigger createBasic(String connectorCode, String identity, String name, Map<String, Object> data) {
+    public static Trigger createBasic(String connectorCode, String connectionId, String name, Map<String, Object> data) {
         return new Trigger(
                 connectorCode,
-                identity,
+                connectionId,
                 name, UUID.randomUUID().toString(),
                 data,
                 Instant.now().toString(),
@@ -29,11 +29,11 @@ public record Trigger(
         );
     }
 
-    public static Trigger createDirected(String connectorCode, String identity, String name,
+    public static Trigger createDirected(String connectorCode, String connectionId, String name,
                                          Map<String, Object> data, TriggerContext context) {
         return new Trigger(
                 connectorCode,
-                identity,
+                connectionId,
                 name, UUID.randomUUID().toString(),
                 data,
                 Instant.now().toString(),

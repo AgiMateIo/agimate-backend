@@ -87,7 +87,7 @@ class ContextBuilderTest {
             ToolRegistry.BackendTool backend = prepared.toolMap().get("board__get_tasks");
             assertEquals("board", backend.connectorCode());
             assertEquals("get_tasks", backend.name());
-            assertEquals("conn-1", backend.identity());
+            assertEquals("conn-1", backend.connectionId());
             assertTrue(prepared.memoryNotes().contains("- note one"));
         }
     }

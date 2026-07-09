@@ -38,7 +38,7 @@ public class TriggerLogService {
         TriggerLog triggerLog = TriggerLog.builder()
                 .userId(userId)
                 .connectorCode(trigger.connectorCode())
-                .identity(trigger.identity())
+                .connectionId(trigger.connectionId())
                 .externalId(trigger.id() != null ? trigger.id() : "")
                 .name(trigger.name())
                 .occurredAt(occurredAt)

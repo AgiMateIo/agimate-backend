@@ -57,7 +57,7 @@ public class ChannelMessageOutboundService {
                 ? messageId : UUID.randomUUID().toString();
 
         ChannelConfig config = new ChannelConfig(
-                channel.getAgentId(), channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
+                channel.getAgentId(), channel.getConnectorCode(), channel.getConnectionId().toString(), channel.getConfig());
         OutboundDispatch dispatch = new OutboundDispatch(
                 effectiveMessageId, stream, channel.getId(), session.getId(), replyContext);
 

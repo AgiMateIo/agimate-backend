@@ -12,7 +12,7 @@ public record BindConnectionRequest(
         @Schema(description = "Connector code to bind", requiredMode = Schema.RequiredMode.REQUIRED)
         String connectorCode,
 
-        @Schema(description = "Chosen identity scope (∈ connector.supportedScopes). " +
+        @Schema(description = "Chosen connectionId scope (∈ connector.supportedScopes). " +
                 "Omit to use the connector default. Ignored for INSTANCE (connection is explicit).",
                 nullable = true)
         IdentityScope scope,

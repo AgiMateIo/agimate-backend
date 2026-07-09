@@ -134,7 +134,7 @@ public class TelegramConnectorService extends BaseConnectorHandler implements In
     @SuppressWarnings("unchecked")
     public Trigger normalizeInbound(ConnectorContext context, String rawBody) {
         Map<String, Object> update = objectMapper.readValue(rawBody, Map.class);
-        return TelegramUtils.normalizeUpdate(update, context.identity());
+        return TelegramUtils.normalizeUpdate(update, context.connectionId());
     }
 
     @Override

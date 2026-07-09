@@ -319,10 +319,9 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             Connector connector = connectorRepository.findById(connectorCode)
                     .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
-            // Контекст для листинга: достаточно identity (динамические коннекторы вроде mcp читают
+            // Контекст для листинга: достаточно connection_id (динамические коннекторы вроде mcp читают
             // тулы per-instance из кэша). Расшифровка credentials здесь не нужна.
-            String identity = connectionId.toString();
-            ConnectorContext listingContext = new ConnectorContext(identity, null, null, null, Map.of(), null);
+            ConnectorContext listingContext = new ConnectorContext(connectionId.toString(), null, null, null, Map.of(), null);
 
             // Источник тулов по toolBinding: STATIC — рефлексия handler'а; DYNAMIC — connection_tools.
             Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> tools =
@@ -340,7 +339,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             tools.forEach((name, spec) -> {
                 ConnectorToolSpec.Builder toolBuilder = ConnectorToolSpec.newBuilder()
                         .setName(spec.name() != null ? spec.name() : name)
-                        .setConnectionId(identity)
+                        .setConnectionId(connectionId.toString())
                         .setNamespace(namespace);
                 if (spec.title() != null) {
                     toolBuilder.setTitle(spec.title());

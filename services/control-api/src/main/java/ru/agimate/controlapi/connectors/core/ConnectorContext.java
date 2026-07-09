@@ -6,10 +6,8 @@ import java.util.UUID;
 /**
  * Контекст выполнения тулы/таски/webhook-вызова коннектора.
  *
- * @param identity      идентификатор экземпляра коннектора: для integration —
- *                      {@code connections.id} строкой (как в {@code ToolCallLog});
- *                      для internal — identity из tool-вызова (например pubId доски),
- *                      {@code null} если экземпляр не применим
+ * @param connectionId  идентификатор экземпляра коннектора — {@code connections.id} строкой
+ *                      (как в {@code ToolCallLog}); {@code null}, если экземпляр не применим
  * @param userId        владелец; {@code null} для глобальных internal-тасок
  * @param agentId       агент-инициатор; {@code null} вне tool-use потока (декларативные таски,
  *                      webhooks); у динамической таски восстанавливается из строки при срабатывании
@@ -22,7 +20,7 @@ import java.util.UUID;
  * @param webhookSecret секрет для валидации входящих webhook'ов; {@code null}, если не применимо
  */
 public record ConnectorContext(
-        String identity,
+        String connectionId,
         UUID userId,
         UUID agentId,
         UUID channelId,

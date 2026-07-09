@@ -61,11 +61,11 @@ class McpToolDiscoveryListenerTest {
     }
 
     @Test
-    @DisplayName("deleted (mcp): чистка кэша по identity")
+    @DisplayName("deleted (mcp): чистка кэша по connectionId")
     void onDeleted() {
         listener.onDeleted(new ConnectorDeletedEvent(MCP, IDENTITY_STR));
 
-        verify(mcpToolService).deleteByIdentity(IDENTITY);
+        verify(mcpToolService).deleteByConnectionId(IDENTITY);
     }
 
     @Test

@@ -13,7 +13,7 @@ import java.util.Optional;
  *
  * <p>Каждая реализация — отдельный bean с уникальным {@link #name()}, имя пишется в
  * {@code channels.channel_handler}. Поведение задаётся кодом, данные конкретного канала —
- * в {@link ChannelConfig} (connectorCode + identity + settings).
+ * в {@link ChannelConfig} (connectorCode + connectionId + settings).
  *
  * <p>Вызовы тулов внутри {@link #handleOutput} идут через штатную подсистему вызова тулов,
  * поэтому ABAC-политики соблюдаются. {@link #listOfTriggers} и {@link #listOfTools} нужны,
@@ -36,14 +36,14 @@ public interface ChannelHandler {
 
     /**
      * Входящие триггеры, которые обрабатывает канал с данным {@code config}.
-     * Биндятся на {@link ChannelConfig#connectorCode()}/{@link ChannelConfig#identity()} канала
+     * Биндятся на {@link ChannelConfig#connectorCode()}/{@link ChannelConfig#connectionId()} канала
      * при генерации {@code AgentTriggerPolicy}.
      */
     List<TriggerDefinition> listOfTriggers(ChannelConfig config);
 
     /**
-     * Тулы (connector+identity+name), которые handler может вызвать на исходящих —
-     * для генерации {@code AgentToolPolicy}. Reply-цель может отличаться от connector/identity канала.
+     * Тулы (connector+connectionId+name), которые handler может вызвать на исходящих —
+     * для генерации {@code AgentToolPolicy}. Reply-цель может отличаться от connector/connectionId канала.
      */
     List<ToolDefinition> listOfTools(ChannelConfig config);
 

@@ -4,7 +4,7 @@
 
 ## Реестр экземпляров (`connections`)
 
-Подключённый экземпляр любого коннектора — строка `connections` (`id` = `identity` во всём
+Подключённый экземпляр любого коннектора — строка `connections` (`id` = `connection_id` во всём
 downstream: channels, ABAC-политики, trigger/tool-логи, `connector_jobs`). Сворачивает прежний
 `integration_credentials`; на `apps` ссылается через `app_id` (device-auth/linking не дублируются).
 
@@ -60,7 +60,7 @@ JSON-текстом для фиделити). Статические конне�
   Покрывает deny-list (точечные DENY) и allow-list (binding-wide DENY + точечные ALLOW).
 
 `ConnectionAccessEvaluator` — единая точка: `evaluate(agentId, connectionId, kind, name)` → гейт по
-binding + прецеденс. `identity` тула/триггера = `connections.id`. Листинг доступного агенту
+binding + прецеденс. `connection_id` тула/триггера = `connections.id`. Листинг доступного агенту
 (`AgentService`) — объединение тулов/триггеров привязанных экземпляров за вычетом DENY.
 
 **Каналы** — слой «как» (`channels.connection_id` → экземпляр). Создание канала гарантирует binding на
@@ -85,7 +85,7 @@ ConnectorHandler                — connectorCode/Name, getTriggers, getTools, g
   `annotations` — поведенческие хинты (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`,
   пессимистичные дефолты). Методы с `@Job` — **декларативные** фоновые задачи: аннотация несёт расписание
   (`type`, `intervalSeconds`/`cron`/`zone`, `timeoutSeconds`), на материализации экземпляра reconcile-синк
-  заводит на каждую строку `connector_jobs` (`kind=SYSTEM`, по одной на identity). `@Job` всегда скрыт от
+  заводит на каждую строку `connector_jobs` (`kind=SYSTEM`, по одной на connection_id). `@Job` всегда скрыт от
   LLM (нет в `getTools()`, недоступен через `executeTool`) — это фоновый процесс, а не тула.
   Скрытую **цель динамического диспатча** (строки `kind=AGENT`, напр. `time.fire`) `@Job` помечать нельзя
   (reconcile завёл бы её как SYSTEM без агента-инициатора) — для этого обычный `@Tool(internal = true)`:
@@ -94,7 +94,7 @@ ConnectorHandler                — connectorCode/Name, getTriggers, getTools, g
 Тулы коннектора статичны и привязаны к `connectorCode` (строятся рефлексией один раз). Исключение —
 **динамические коннекторы** (MCP, см. ниже): набор тулов per-instance и открывается в рантайме. Для них
 SPI даёт context-aware перегрузку `getTools(ConnectorContext)` (дефолт — те же статические `getTools()`);
-gRPC-листинг (`GetConnectionTools(connection_id)`) единообразно зовёт её с контекстом по `identity` — без
+gRPC-листинг (`GetConnectionTools(connection_id)`) единообразно зовёт её с контекстом по `connection_id` — без
 спец-кейсов. Воркер сперва получает доступные агенту экземпляры через `GetConnections(agent_id)`
 (привязки `agent_connections` → `connections`), затем по каждому зовёт `GetConnectionTools`.
 
@@ -112,7 +112,7 @@ gRPC-листинг (`GetConnectionTools(connection_id)`) единообразн
 только в базовом классе). `executeJob` диспатчит в **любой** `@Tool`-метод — задача может быть «вызовом
 тулы по расписанию» (строка `connector_jobs` c `name` = имя тулы и `args` = её аргументы).
 
-`ConnectorContext`: `identity` (= `connections.id` строкой; internal — `null`), `userId`, `agentId`,
+`ConnectorContext`: `connection_id` (= `connections.id` строкой; internal — `null`), `userId`, `agentId`,
 расшифрованные `credentials` (из `secrets` по `secret_id`), `webhookSecret`. Собирается только в
 `ConnectorContextFactory`.
 
@@ -136,11 +136,11 @@ auth — статический Bearer-токен/произвольные за�
 Поэтому `McpConnectorService implements IntegrationConnectorHandler` напрямую (без `BaseConnectorHandler` и
 `@Tool`-методов):
 
-- `getTools()` пуст (статических тулов нет); `getTools(ctx)` отдаёт список из `connection_tools` по `ctx.identity()`.
+- `getTools()` пуст (статических тулов нет); `getTools(ctx)` отдаёт список из `connection_tools` по `ctx.connectionId()`.
 - `validateCredentials` = хендшейк `initialize` (доступность + auth); `identifier` = URL сервера (канонический
   ключ экземпляра, идёт в `sub_code`).
 - `executeTool` проксирует в `tools/call`; путь исполнения (`ToolExecutionService`, свежие credentials по
-  `identity`) — общий, без изменений.
+  `connection_id`) — общий, без изменений.
 
 **SSRF-guard.** URL задаёт пользователь, а запрос делает бэкенд — перед каждым обращением (`probe`/
 `tools/list`/`tools/call`, единый чокпоинт `McpClient.openSession`) проверяем цель: схема только
@@ -152,7 +152,7 @@ auth — статический Bearer-токен/произвольные за�
 **Кэш `connection_tools`** (per-connection, сырые JSON-схемы текстом для фиделити произвольной JSON Schema —
 `JsonSchema` сохраняет нестандартные ключевые слова через `@JsonAnySetter`). Синк — `McpToolDiscoveryListener`
 (AFTER_COMMIT, аналог `ConnectorIdentityListener` для тасок): на create/modify — ре-дискавери `tools/list` →
-upsert + удаление пропавших; на delete — чистка по identity. Сетевой `tools/list` (`discover`) отделён от
+upsert + удаление пропавших; на delete — чистка по connection_id. Сетевой `tools/list` (`discover`) отделён от
 записи в БД (`reconcile`), чтобы не держать транзакцию на время сетевого вызова.
 
 Manage-API: `POST /manage/integrations/credentials/{id}/test` — единый «тест интеграции»: валидация
@@ -169,11 +169,11 @@ ABAC: доступ к MCP-серверу — binding агента на его co
 
 - **Тулы**: `AgentToolCallService` → ABAC → `ToolCallLog` → `ConnectorService.pushToConnector` →
   `execution/ToolExecutionService` (`@Async`): по типу хендлера собирает Context (integration —
-  свежие credentials по `log.identity`), вызывает `executeTool`, пишет результат в лог и доставляет агенту.
+  свежие credentials по `log.connectionId`), вызывает `executeTool`, пишет результат в лог и доставляет агенту.
 - **Задачи**: `jobs/ConnectorJobScheduler` (`@Scheduled` 1s) атомарно claim'ит готовые строки
   `connector_jobs` (`FOR UPDATE SKIP LOCKED`, lease = `now + timeout_seconds`), исполняет в virtual
   threads через `jobs/JobExecutionService` вне транзакции. `JobExecutionService` реконструирует
-  полный `ConnectorContext` из строки (`identity` + `user_id` + `agent_id`), поэтому задача исполняется
+  полный `ConnectorContext` из строки (`connection_id` + `user_id` + `agent_id`), поэтому задача исполняется
   с контекстом инициатора — так же, как если бы агент вызвал тулу сам.
 
 ## connector_jobs
@@ -182,19 +182,19 @@ ABAC: доступ к MCP-серверу — binding агента на его co
 повтор, long-poll), `CRON` (`config.cron`/`zone`). Ошибка любой задачи → retry через 60s в `last_error`.
 Crash recovery — по истечении `lease_until` строку подхватывает любая нода. `user_id` (NOT NULL) — владелец;
 `agent_id` (nullable) — инициатор динамической задачи. `args` — аргументы метода; контекст инициатора
-не в `args`, а в колонках (`identity`/`user_id`/`agent_id`).
+не в `args`, а в колонках (`connection_id`/`user_id`/`agent_id`).
 
 Категории строк различает явный дискриминатор `kind`:
 
-| `kind` | `identity` | `agent_id` | уникальность | пишется | живёт |
+| `kind` | `connection_id` | `agent_id` | уникальность | пишется | живёт |
 |---|---|---|---|---|---|
-| **SYSTEM** — декларативная (интеграция) | id credentials | `null` | бизнес-ключ `(connector_code, identity, name)`, partial unique `WHERE kind = 'SYSTEM'` | listener upsert/sync из `getJobs()` | до удаления интеграции |
-| **AGENT** — динамическая | identity tool-вызова (может быть `null`) | id агента-инициатора | нет — идентифицируется `id`, дубли легитимны | тула коннектора (напр. `time.schedule`) → `ConnectorJobService.schedule(...)` | до срабатывания (`ONETIME`→`COMPLETED`) / отмены |
+| **SYSTEM** — декларативная (интеграция) | id credentials | `null` | бизнес-ключ `(connector_code, connection_id, name)`, partial unique `WHERE kind = 'SYSTEM'` | listener upsert/sync из `getJobs()` | до удаления интеграции |
+| **AGENT** — динамическая | connection_id tool-вызова (может быть `null`) | id агента-инициатора | нет — идентифицируется `id`, дубли легитимны | тула коннектора (напр. `time.schedule`) → `ConnectorJobService.schedule(...)` | до срабатывания (`ONETIME`→`COMPLETED`) / отмены |
 | **USER** — пользовательская | — | целевой агент (если адресная) | нет | manage-API (зарезервировано, ещё не реализовано) | — |
 
 Уникальность бизнес-ключа — инвариант reconcile-синка SYSTEM-строк (`findByBusinessKey` →
 `Optional`); пересинк деклараций (`syncIdentity`/`deleteStale`) не трогает чужие `kind`. Удаление
-интеграции (`deleteByIdentity`) сносит все строки identity, включая динамические — без credentials
+интеграции (`deleteByConnectionId`) сносит все строки connection_id, включая динамические — без credentials
 они неисполнимы.
 
 `paused_at` — пользовательская пауза: пока поле не `NULL`, scheduler строку не подхватывает
@@ -228,12 +228,12 @@ binding на time-коннектор (его заводит сам time-скил
 
 ## Lifecycle
 
-- События `ConnectorCreatedEvent/ConnectorModifiedEvent (connectorCode, identity, userId)` и
-  `ConnectorDeletedEvent (connectorCode, identity)` публикует `IntegrationService`
+- События `ConnectorCreatedEvent/ConnectorModifiedEvent (connectorCode, connection_id, userId)` и
+  `ConnectorDeletedEvent (connectorCode, connection_id)` публикует `IntegrationService`
   (create/enable, updateCredentials, delete/disable). `userId` → `connector_jobs.user_id`.
 - `ConnectorIdentityListener` (AFTER_COMMIT) превращает их в **декларативные** строки `connector_jobs`
   из `handler.getJobs()`: created → upsert, modified → sync (upsert + удаление stale), deleted →
-  delete by identity. Касается только интеграций; динамические задачи агента сюда не попадают.
+  delete by connection_id. Касается только интеграций; динамические задачи агента сюда не попадают.
 - `ConnectorBootstrap` (ApplicationReadyEvent) — upsert каталога `connectors` из registry
   (код — источник истины для name/type/credential_fields). Задачи на старте не регистрируются:
   декларативные заводятся по `ConnectorCreatedEvent`, динамические — агентом через тулы.

@@ -22,7 +22,7 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 | `model/AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
 | `MessageCodec` | (De)serialize messages to the `message_json` bytes persisted as history + timeline/progress text projections. |
-| `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, identity)`; `{namespace}.{name}` naming; schema parsing. |
+| `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id)`; `{namespace}.{name}` naming; schema parsing. |
 | `context/ContextProfile` | Input-type profile (`DIALOGUE`/`SYSTEM_TRIGGER`) — the declarative context-assembly policy (skill bodies, trigger guidance, untrusted wrapping), chosen at the run entry point. |
 | `context/ContextBuilder` | The assembly seam: `build(profile, materials) → PreparedContext` — the one place that reads "how is the context built for this kind of input". |
 | `context/SystemPromptBuilder` | System prompt (agent/team/skills/memory) + trigger-batch skill selection. |

@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Единый реестр экземпляров коннекторов. {@code id} = {@code identity} во всём downstream
+ * Единый реестр экземпляров коннекторов. {@code id} = {@code connectionId} во всём downstream
  * (channels, policies, trigger_logs, tool_call_logs, connector_jobs). Сворачивает
  * {@code integration_credentials}; на {@code apps} ссылается через {@link #appId} (данные
  * устройства/auth не дублируются).
@@ -33,7 +33,7 @@ public class Connection extends BaseEntity {
 
     /**
      * Назначается явно при создании ({@code UUIDUtils.generateUUIDv8()} для интеграций,
-     * {@code app.id} для APP, старый id при бэкфилле) — id = {@code identity} во всём downstream,
+     * {@code app.id} для APP, старый id при бэкфилле) — id = {@code connectionId} во всём downstream,
      * поэтому не генерится БД.
      */
     @Id
@@ -54,7 +54,7 @@ public class Connection extends BaseEntity {
 
     /**
      * Выбранный для этого подключения scope (∈ {@code connector.supportedScopes}). Определяет,
-     * под каким ключом ({@link #scopeId}) живёт состояние/identity экземпляра.
+     * под каким ключом ({@link #scopeId}) живёт состояние/connectionId экземпляра.
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "identity_scope", nullable = false, columnDefinition = "TEXT")

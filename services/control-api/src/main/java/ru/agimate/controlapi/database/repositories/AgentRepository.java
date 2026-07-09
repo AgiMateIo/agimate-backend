@@ -33,7 +33,7 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
 
     /**
      * Кандидаты-получатели триггера: агенты пользователя с активным binding на connection
-     * (= identity триггера). Тонкая фильтрация (effect/params_filter) — в {@code ConnectionAccessEvaluator}.
+     * (= connectionId триггера). Тонкая фильтрация (effect/params_filter) — в {@code ConnectionAccessEvaluator}.
      */
     @Query("""
             SELECT a FROM Agent a, AgentConnection ac, Connection c

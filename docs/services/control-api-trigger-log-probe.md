@@ -59,7 +59,7 @@ Response 200 (найдено):
   "response": {
     "id": "<UUID>",
     "connectorCode": "telegram",
-    "identity": "<UUID>",
+    "connectionId": "<UUID>",
     "externalId": "...",
     "name": "trigger.message.new",
     "occurredAt": "2026-05-12T14:33:10",
@@ -81,7 +81,7 @@ Response 404 (ещё не сматчилось — UI продолжает по�
 2. Пользователь отправляет в Telegram-бот (или Slack, или через app endpoint) сообщение, содержащее `code`.
 3. UI поллит `GET /manage/trigger-logs/probe/match?code=...&since=<issuedAt>` каждые 1–2 сек.
 4. При матче UI получает полный `TriggerLog` и сам предзаполняет форму `POST /manage/channels/`:
-   - `connectorCode = triggerLog.connectorCode`, `identity = triggerLog.identity`
+   - `connectorCode = triggerLog.connectorCode`, `connectionId = triggerLog.connectionId`
    - `channelHandler = "generic"` (по умолчанию), `config.triggers = [triggerLog.name]`
    - reply-сторону в `config` (`replyConnectorCode`/`replyIdentity`/`replyToolName`) по умолчанию можно подставить из trigger-стороны (UI решает).
    - `input` показывается пользователю как образец payload — он может выбрать поля для `input_filter`.

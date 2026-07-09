@@ -68,11 +68,11 @@ class JobExecutionServiceTest {
                 new ConnectorContextFactory(secretRepository, secretService));
     }
 
-    private ConnectorJob row(String connectorCode, String identity) {
+    private ConnectorJob row(String connectorCode, String connectionId) {
         return ConnectorJob.builder()
                 .id(UUID.randomUUID())
                 .connectorCode(connectorCode)
-                .identity(identity)
+                .connectionId(connectionId)
                 .name("some.task")
                 .type(ConnectorJobType.PERIODIC)
                 .args(Map.of("arg", "value"))
@@ -97,7 +97,7 @@ class JobExecutionServiceTest {
 
         verify(integrationHandler).executeJob(
                 argThat((ConnectorContext ctx) ->
-                        CONNECTION_ID.toString().equals(ctx.identity())
+                        CONNECTION_ID.toString().equals(ctx.connectionId())
                                 && USER_ID.equals(ctx.userId())
                                 && "t1".equals(ctx.credentials().get("token"))),
                 eq("some.task"),
@@ -129,20 +129,20 @@ class JobExecutionServiceTest {
     }
 
     @Test
-    @DisplayName("integration: некорректный identity → ConnectorException")
+    @DisplayName("integration: некорректный connectionId → ConnectorException")
     void integrationInvalidIdentity() {
         assertThrows(ConnectorException.class,
                 () -> service.executeJob(row("telegram", "not-a-uuid")));
     }
 
     @Test
-    @DisplayName("internal: голый контекст с identity строки")
+    @DisplayName("internal: голый контекст с connectionId строки")
     void internalContext() {
         service.executeJob(row("board", null));
 
         verify(internalHandler).executeJob(
                 argThat((ConnectorContext ctx) ->
-                        ctx.identity() == null && ctx.userId() == null && ctx.credentials().isEmpty()),
+                        ctx.connectionId() == null && ctx.userId() == null && ctx.credentials().isEmpty()),
                 eq("some.task"),
                 eq(Map.of("arg", "value")));
     }

@@ -50,7 +50,7 @@ public class ChannelGatewayGrpcService extends ChannelGatewayGrpc.ChannelGateway
                         .setChannelId(channel.getId().toString())
                         .setName(channel.getName())
                         .setConnectorCode(channel.getConnectorCode())
-                        .setIdentity(nullToEmpty(channel.getIdentity()))
+                        .setConnectionId(channel.getConnectionId().toString())
                         .build());
             }
             log.debug("ChannelGateway.ListChannels pool={} agent={} count={}", poolId, agentId, channels.size());

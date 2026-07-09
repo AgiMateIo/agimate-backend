@@ -64,11 +64,11 @@ class TelegramChannelHandlerTest {
         }
 
         @Test
-        @DisplayName("reply tool is send_message bound to channel connector/identity")
+        @DisplayName("reply tool is send_message bound to channel connector/connectionId")
         void tools() {
             ToolDefinition tool = handler.listOfTools(config).get(0);
             assertEquals("telegram", tool.connectorCode());
-            assertEquals(IDENTITY, tool.identity());
+            assertEquals(IDENTITY, tool.connectionId());
             assertEquals("send_message", tool.toolName());
         }
 
@@ -188,7 +188,7 @@ class TelegramChannelHandlerTest {
             verify(toolCallService).processToolCall(eq(AGENT_ID), req.capture());
             ToolCallRequest r = req.getValue();
             assertEquals("telegram", r.getConnectorCode());
-            assertEquals(IDENTITY, r.getIdentity());
+            assertEquals(IDENTITY, r.getConnectionId());
             assertEquals("send_message", r.getName());
             assertEquals("call-1", r.getId());
             assertEquals("42", r.getInput().get("chatId"));

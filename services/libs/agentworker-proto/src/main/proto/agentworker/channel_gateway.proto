@@ -19,7 +19,7 @@ message ChannelDescriptor {
   string channel_id = 1;
   string name = 2;
   string connector_code = 3;   // коннектор, к которому привязан канал
-  string identity = 4;         // identity коннектора (может быть пустым)
+  string connection_id = 4 [json_name = "connectionId"];   // connections.id канала (= connections.id)
 }
 
 message ListChannelsResponse {

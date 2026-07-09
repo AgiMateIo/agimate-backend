@@ -45,7 +45,7 @@ public class AgentToolCallService {
         }
 
         AccessDecision decision = accessEvaluator.evaluate(
-                agent.getId(), request.getIdentity(), PolicyKind.TOOL, request.getName());
+                agent.getId(), request.getConnectionId(), PolicyKind.TOOL, request.getName());
         // params_filter ограничивает аргументы вызова: разрешено только если они проходят фильтр.
         if (decision.allowed() && decision.paramsFilter() != null
                 && !InputFilterEvaluator.matches(decision.paramsFilter(), request.getInput())) {

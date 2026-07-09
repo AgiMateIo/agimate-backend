@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Schema(description = "Connector connection (instance) details")
 public record ConnectionResponse(
-        @Schema(description = "Connection public ID (= identity downstream)")
+        @Schema(description = "Connection public ID (= connection_id downstream)")
         UUID id,
 
         @Schema(description = "Connector code")

@@ -31,14 +31,14 @@ public class AgentToolsController {
     @Operation(
             summary = "Get available tools for a connector",
             description = "Returns tool definitions for the given connector code. Tool source is resolved " +
-                    "from the connector's toolBinding; dynamic connectors need an instance identity.",
+                    "from the connector's toolBinding; dynamic connectors need an instance connectionId.",
             security = @SecurityRequirement(name = "ApiKey")
     )
     @GetMapping("/{connectorCode}")
     public SuccessResponse<Map<String, ConnectorToolSpec>> getTools(
             @AuthenticationPrincipal AgentPrincipal principal,
             @PathVariable("connectorCode") String connectorCode,
-            @RequestParam(required = false) UUID identity) {
-        return SuccessResponse.ok(toolDefinitionService.getTools(principal.userId(), connectorCode, identity));
+            @RequestParam(required = false) UUID connectionId) {
+        return SuccessResponse.ok(toolDefinitionService.getTools(principal.userId(), connectorCode, connectionId));
     }
 }

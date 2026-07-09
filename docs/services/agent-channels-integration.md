@@ -58,7 +58,7 @@
 ```jsonc
 {
   "connectorCode": "telegram",
-  "identity": "018f-...",                  // pubId инстанса (App / IntegrationCredentials)
+  "connectionId": "018f-...",                  // pubId инстанса (App / IntegrationCredentials)
   "id": "<triggerLog.externalId>",
   "name": "trigger.message.new",
   "data": {
@@ -111,7 +111,7 @@ message ChannelDescriptor {
   string channel_id = 1;             // pubId канала
   string name = 2;
   string connector_code = 3;         // коннектор, к которому привязан канал
-  string identity = 4;               // identity коннектора (может быть пустым)
+  string connection_id = 4;   // connections.id канала (= connections.id)
 }
 message ListChannelsResponse {
   repeated ChannelDescriptor channels = 1;
@@ -272,7 +272,7 @@ Backend не присылает уведомление о закрытии се�
 Просто чтобы понимать контекст. Пользователь в UI создаёт канал, заполняя:
 
 - какому агенту канал принадлежит,
-- `channelHandler` (например `generic`), `connectorCode` + `identity` источника,
+- `channelHandler` (например `generic`), `connectorCode` + `connectionId` источника,
 - `config` обработчика — для `generic`: список `triggers`, `messageField` (dot-path до текста), reply-цель (`replyConnectorCode`/`replyIdentity`/`replyToolName`) и `replyToolParams` (шаблон),
 - опциональный `inputFilter` (фильтр по полям `trigger.data`).
 

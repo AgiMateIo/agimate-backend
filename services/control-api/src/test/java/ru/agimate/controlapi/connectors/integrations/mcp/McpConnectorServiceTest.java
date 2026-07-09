@@ -44,8 +44,8 @@ class McpConnectorServiceTest {
         service = new McpConnectorService(mcpClient, connectionToolRepository);
     }
 
-    private ConnectorContext ctx(String identity, Map<String, String> credentials) {
-        return new ConnectorContext(identity, null, null, null, credentials, null);
+    private ConnectorContext ctx(String connectionId, Map<String, String> credentials) {
+        return new ConnectorContext(connectionId, null, null, null, credentials, null);
     }
 
     @Nested
@@ -81,7 +81,7 @@ class McpConnectorServiceTest {
     class GetTools {
 
         @Test
-        @DisplayName("читает кэш connection_tools по identity")
+        @DisplayName("читает кэш connection_tools по connectionId")
         void readsCacheByIdentity() {
             when(connectionToolRepository.findActiveByConnectionId(IDENTITY)).thenReturn(List.of(
                     ConnectionTool.builder().connectionId(IDENTITY).name("search").build(),
@@ -101,7 +101,7 @@ class McpConnectorServiceTest {
         }
 
         @Test
-        @DisplayName("identity отсутствует/невалиден: пусто")
+        @DisplayName("connectionId отсутствует/невалиден: пусто")
         void blankIdentity() {
             assertTrue(service.getTools(ctx(null, Map.of())).isEmpty());
             assertTrue(service.getTools(ctx("not-a-uuid", Map.of())).isEmpty());

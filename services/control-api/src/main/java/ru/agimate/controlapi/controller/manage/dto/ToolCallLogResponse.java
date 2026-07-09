@@ -20,8 +20,8 @@ public record ToolCallLogResponse(
         @Schema(description = "Connector code")
         String connectorCode,
 
-        @Schema(description = "Connector identity")
-        String identity,
+        @Schema(description = "Connector instance id (connections.id)")
+        String connectionId,
 
         @Schema(description = "Agent session identifier")
         String agentSessionId,
@@ -57,7 +57,7 @@ public record ToolCallLogResponse(
                 toolCallLog.getId(),
                 toolCallLog.getAgentId(),
                 toolCallLog.getConnectorCode(),
-                toolCallLog.getIdentity(),
+                toolCallLog.getConnectionId(),
                 toolCallLog.getAgentSessionId(),
                 toolCallLog.getExternalId(),
                 toolCallLog.getName(),

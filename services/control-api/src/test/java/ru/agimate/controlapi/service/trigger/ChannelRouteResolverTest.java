@@ -34,7 +34,8 @@ class ChannelRouteResolverTest {
 
     private static final UUID AGENT_ID = UUID.randomUUID();
     private static final UUID CHANNEL_ID = UUID.randomUUID();
-    private static final String IDENTITY = UUID.randomUUID().toString();
+    private static final UUID CONNECTION_ID = UUID.randomUUID();
+    private static final String IDENTITY = CONNECTION_ID.toString();
 
     @Mock
     private ChannelRepository channelRepository;
@@ -58,13 +59,13 @@ class ChannelRouteResolverTest {
                 .agentId(AGENT_ID)
                 .channelHandler("webchat")
                 .connectorCode("webchat")
-                .identity(IDENTITY)
+                .connectionId(CONNECTION_ID)
                 .build();
     }
 
     private void stubChannelLookupByTriple() {
-        when(channelRepository.findByAgentIdAndConnectorCodeAndIdentityAndDeletedAtIsNull(
-                AGENT_ID, "webchat", IDENTITY)).thenReturn(Optional.of(channel));
+        when(channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
+                AGENT_ID, "webchat", CONNECTION_ID)).thenReturn(Optional.of(channel));
         when(channelHandlerRegistry.find("webchat")).thenReturn(Optional.of(handler));
         when(handler.handleInput(any(ChannelConfig.class), any(Trigger.class)))
                 .thenReturn(Optional.of(InboundMessage.text("hi")));

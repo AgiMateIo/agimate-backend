@@ -10,7 +10,7 @@ public interface ToolCallWorkflow {
             String toolCallId,
             String agentId,
             String agentSessionId,
-            String identity);
+            String connectionId);
 
     /**
      * The workflow never raises (so DBOS does not log tool failures as workflow exceptions); the

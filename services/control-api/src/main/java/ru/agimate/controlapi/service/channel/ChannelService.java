@@ -101,12 +101,12 @@ public class ChannelService {
         if (channels.isEmpty()) {
             return List.of();
         }
-        Map<UUID, String> nameById = resolveIdentityNames(channels);
+        Map<UUID, String> nameById = resolveConnectionNames(channels);
         Map<UUID, Map<String, Object>> inputFilterByChannelId = resolveInputFilters(channels);
         return channels.stream()
                 .map(c -> ChannelResponse.from(
                         c,
-                        nameById.get(tryParseUuid(c.getIdentity())),
+                        nameById.get(c.getConnectionId()),
                         inputFilterByChannelId.get(c.getId())))
                 .toList();
     }
@@ -121,17 +121,17 @@ public class ChannelService {
         return result;
     }
 
-    private Map<UUID, String> resolveIdentityNames(List<Channel> channels) {
-        Set<UUID> identityIds = new HashSet<>();
+    private Map<UUID, String> resolveConnectionNames(List<Channel> channels) {
+        Set<UUID> connectionIds = new HashSet<>();
         for (Channel c : channels) {
-            UUID id = tryParseUuid(c.getIdentity());
-            if (id != null) identityIds.add(id);
+            UUID id = c.getConnectionId();
+            if (id != null) connectionIds.add(id);
         }
-        if (identityIds.isEmpty()) {
+        if (connectionIds.isEmpty()) {
             return Map.of();
         }
         Map<UUID, String> result = new HashMap<>();
-        for (UUID id : identityIds) {
+        for (UUID id : connectionIds) {
             connectionRepository.findByIdNotDeleted(id).ifPresent(c -> {
                 String name = c.getName() != null && !c.getName().isBlank() ? c.getName() : c.getSubCode();
                 result.put(c.getId(), name);
@@ -159,7 +159,7 @@ public class ChannelService {
 
         ChannelHandler handler = requireHandler(data.channelHandler());
         Map<String, Object> config = data.config() != null ? data.config() : Map.of();
-        ChannelConfig channelConfig = new ChannelConfig(data.agentId(), data.connectorCode(), data.identity(), config);
+        ChannelConfig channelConfig = new ChannelConfig(data.agentId(), data.connectorCode(), data.connectionId(), config);
         validateConfig(handler, channelConfig);
 
         List<TriggerDefinition> triggers = handler.listOfTriggers(channelConfig);
@@ -167,26 +167,25 @@ public class ChannelService {
 
         // Validate that the source connector and every trigger/tool actually exist for this user.
         for (TriggerDefinition t : triggers) {
-            validateTrigger(userId, data.connectorCode(), data.identity(), t.triggerName());
+            validateTrigger(userId, data.connectorCode(), data.connectionId(), t.triggerName());
         }
         for (ToolDefinition t : tools) {
-            validateTool(userId, t.connectorCode(), t.identity(), t.toolName());
+            validateTool(userId, t.connectorCode(), t.connectionId(), t.toolName());
         }
 
-        if (channelRepository.findByAgentIdAndConnectorCodeAndIdentityAndDeletedAtIsNull(
-                data.agentId(), data.connectorCode(), data.identity()).isPresent()) {
+        UUID connectionId = parseUuid(data.connectionId(), "connectionId");
+        if (channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
+                data.agentId(), data.connectorCode(), connectionId).isPresent()) {
             throw new ConflictStatusException(
-                    "Active channel already exists for this agent/connector/identity");
+                    "Active channel already exists for this agent/connector/connectionId");
         }
 
-        UUID connectionId = parseUuid(data.identity(), "identity");
         Channel channel = channelRepository.save(Channel.builder()
                 .userId(userId)
                 .agentId(data.agentId())
                 .name(data.name())
                 .channelHandler(handler.name())
                 .connectorCode(data.connectorCode())
-                .identity(data.identity())
                 .connectionId(connectionId)
                 .inputFilter(data.inputFilter())
                 .config(config)
@@ -197,7 +196,7 @@ public class ChannelService {
         Set<UUID> toBind = new LinkedHashSet<>();
         toBind.add(connectionId);
         for (ToolDefinition t : tools) {
-            UUID replyConnection = tryParseUuid(t.identity());
+            UUID replyConnection = tryParseUuid(t.connectionId());
             if (replyConnection != null) {
                 toBind.add(replyConnection);
             }
@@ -221,8 +220,8 @@ public class ChannelService {
 
         if (data.config() != null) {
             ChannelHandler handler = requireHandler(channel.getChannelHandler());
-            ChannelConfig oldCfg = new ChannelConfig(channel.getAgentId(), channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
-            ChannelConfig newCfg = new ChannelConfig(channel.getAgentId(), channel.getConnectorCode(), channel.getIdentity(), data.config());
+            ChannelConfig oldCfg = new ChannelConfig(channel.getAgentId(), channel.getConnectorCode(), channel.getConnectionId().toString(), channel.getConfig());
+            ChannelConfig newCfg = new ChannelConfig(channel.getAgentId(), channel.getConnectorCode(), channel.getConnectionId().toString(), data.config());
             validateConfig(handler, newCfg);
             // Trigger/tool set is fixed at creation — changing it requires recreating the channel,
             // otherwise the generated policies would drift out of sync.
@@ -275,24 +274,24 @@ public class ChannelService {
 
     private Set<String> toolKeys(ChannelHandler handler, ChannelConfig config) {
         return handler.listOfTools(config).stream()
-                .map(t -> t.connectorCode() + "|" + t.identity() + "|" + t.toolName())
+                .map(t -> t.connectorCode() + "|" + t.connectionId() + "|" + t.toolName())
                 .collect(Collectors.toSet());
     }
 
-    private void validateTrigger(UUID userId, String connectorCode, String identity, String triggerName) {
+    private void validateTrigger(UUID userId, String connectorCode, String connectionId, String triggerName) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
-        Set<String> available = lookupTriggerNames(connector, userId, identity);
+        Set<String> available = lookupTriggerNames(connector, userId, connectionId);
         if (!available.contains(triggerName)) {
             throw new BadRequestStatusException(
                     "Trigger '" + triggerName + "' not available on connector '" + connectorCode + "'");
         }
     }
 
-    private void validateTool(UUID userId, String connectorCode, String identity, String toolName) {
+    private void validateTool(UUID userId, String connectorCode, String connectionId, String toolName) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Reply connector not found: " + connectorCode));
-        Set<String> available = lookupToolNames(connector, userId, identity);
+        Set<String> available = lookupToolNames(connector, userId, connectionId);
         if (!available.contains(toolName)) {
             throw new BadRequestStatusException(
                     "Tool '" + toolName + "' not available on connector '" + connectorCode + "'");
@@ -301,8 +300,8 @@ public class ChannelService {
 
     /** Доступные триггеры экземпляра: статические из handler (SPI) + динамические из connection_triggers. */
     /** Источник по toolBinding: STATIC — из handler (SPI), DYNAMIC — из connection_triggers. */
-    private Set<String> lookupTriggerNames(Connector connector, UUID userId, String identity) {
-        Connection connection = loadConnection(userId, connector.getCode(), identity);
+    private Set<String> lookupTriggerNames(Connector connector, UUID userId, String connectionId) {
+        Connection connection = loadConnection(userId, connector.getCode(), connectionId);
         return switch (connector.getToolBinding()) {
             case STATIC -> connectorRegistry.findHandler(connector.getCode())
                     .map(handler -> handler.getTriggers().keySet()).orElse(Set.of());
@@ -313,8 +312,8 @@ public class ChannelService {
     }
 
     /** Источник по toolBinding: STATIC — из handler (SPI), DYNAMIC — из connection_tools. */
-    private Set<String> lookupToolNames(Connector connector, UUID userId, String identity) {
-        Connection connection = loadConnection(userId, connector.getCode(), identity);
+    private Set<String> lookupToolNames(Connector connector, UUID userId, String connectionId) {
+        Connection connection = loadConnection(userId, connector.getCode(), connectionId);
         return switch (connector.getToolBinding()) {
             case STATIC -> connectorRegistry.findHandler(connector.getCode())
                     .map(handler -> handler.getTools().keySet()).orElse(Set.of());
@@ -324,16 +323,16 @@ public class ChannelService {
         };
     }
 
-    private Connection loadConnection(UUID userId, String connectorCode, String identity) {
-        UUID identityId = parseUuid(identity, "identity");
+    private Connection loadConnection(UUID userId, String connectorCode, String connectionId) {
+        UUID identityId = parseUuid(connectionId, "connectionId");
         Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(identityId, userId)
-                .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + identity));
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
         if (!connection.getConnectorCode().equals(connectorCode)) {
             throw new BadRequestStatusException(
                     "Connector mismatch: expected " + connectorCode + " got " + connection.getConnectorCode());
         }
         if (!connection.isActive()) {
-            throw new BadRequestStatusException("Connection is not active: " + identity);
+            throw new BadRequestStatusException("Connection is not active: " + connectionId);
         }
         return connection;
     }
@@ -351,7 +350,7 @@ public class ChannelService {
             String name,
             String channelHandler,
             String connectorCode,
-            String identity,
+            String connectionId,
             Map<String, Object> config,
             Map<String, Object> inputFilter
     ) {}

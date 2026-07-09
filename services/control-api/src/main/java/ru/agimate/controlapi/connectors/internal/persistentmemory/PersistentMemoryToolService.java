@@ -32,7 +32,7 @@ import java.util.UUID;
  * {@code save_memory_note} (append заметки в hot), {@code update_memory} (CAS-запись cold +
  * атомарное удаление заметок сконсолидированной партии).
  *
- * <p>Скрытые {@code @Job}-задачи (per-agent, {@code identity = agentId}): {@code daily} — обходит
+ * <p>Скрытые {@code @Job}-задачи (per-connection, {@code connection_id = connections.id}): {@code daily} — обходит
  * сессии агента за сутки и адресует ему {@code notes_by_session} по каждой; {@code consolidation} —
  * раз в час single-flight'ом клеймит накопленные заметки и шлёт {@code consolidate}.
  */
@@ -117,7 +117,7 @@ public class PersistentMemoryToolService {
         return Map.of("ok", true);
     }
 
-    // ===== Скрытые фоновые задачи (per-connection, identity = connections.id) =====
+    // ===== Скрытые фоновые задачи (per-connection, connectionId = connections.id) =====
 
     @Tool(name = DAILY_JOB, description = "Internal: emit per-session note requests for the last 24h")
     @Job(type = ConnectorJobType.CRON, cron = "0 0 3 * * *", timeoutSeconds = JOB_TIMEOUT_SECONDS)
@@ -187,7 +187,7 @@ public class PersistentMemoryToolService {
         }
         Trigger trigger = Trigger.createDirected(
                 PersistentMemoryConnectorService.CONNECTOR_CODE,
-                ctx.identity(),
+                ctx.connectionId(),
                 triggerName,
                 data,
                 TriggerContext.audience(new TriggerAudience(null, agentIds)));
@@ -200,13 +200,13 @@ public class PersistentMemoryToolService {
     }
 
     private static UUID requireConnectionId(ConnectorContext ctx) {
-        if (ctx.identity() == null) {
-            throw new ConnectorException("persist-memory requires a connection identity");
+        if (ctx.connectionId() == null) {
+            throw new ConnectorException("persist-memory requires a connection connectionId");
         }
         try {
-            return UUID.fromString(ctx.identity());
+            return UUID.fromString(ctx.connectionId());
         } catch (IllegalArgumentException e) {
-            throw new ConnectorException("Invalid connection identity: " + ctx.identity());
+            throw new ConnectorException("Invalid connection connectionId: " + ctx.connectionId());
         }
     }
 

@@ -17,8 +17,8 @@ import java.util.regex.Pattern;
  *
  * <p>The model sees sanitized, namespaced names ({@code {namespace}.{name}} → dots replaced) so
  * two instances exposing a same-named tool stay distinguishable; dispatch resolves a sanitized
- * name back to {@code (connector_code, backend name, identity=connection_id)} so the wire call to
- * {@code ExecuteTool} is unchanged (routing by instance identity).
+ * name back to {@code (connector_code, backend name, connectionId=connection_id)} so the wire call to
+ * {@code ExecuteTool} is unchanged (routing by instance connectionId).
  */
 public final class ToolRegistry {
 
@@ -31,7 +31,7 @@ public final class ToolRegistry {
     public record ConnectorTools(String connectorCode, List<ConnectorToolSpec> tools) {}
 
     /** Resolved backend routing for a sanitized tool name. */
-    public record BackendTool(String connectorCode, String name, String identity) {}
+    public record BackendTool(String connectorCode, String name, String connectionId) {}
 
     private final List<ToolDef> toolDefs;
     private final Map<String, BackendTool> sanitizedToBackend;

@@ -38,7 +38,7 @@ public class PersistentMemoryService {
     private final ConnectionRepository connectionRepository;
     private final AgentConnectionRepository agentConnectionRepository;
 
-    /** scope-носитель экземпляра по его {@code connections.id} (identity тулы/таски). */
+    /** scope-носитель экземпляра по его {@code connections.id} (connectionId тулы/таски). */
     public Optional<UUID> scopeIdForConnection(UUID connectionId) {
         return connectionRepository.findByIdNotDeleted(connectionId).map(Connection::getScopeId);
     }

@@ -14,8 +14,8 @@ import java.util.UUID;
 
 /**
  * Канал взаимодействия агента с пользователем (как строится диалог). Бизнес-ключ
- * {@code (agent_id, connector_code, identity)} уникален среди активных каналов — обеспечивается
- * частичным индексом {@code uq_channels_agent_connector_identity_active} ({@code WHERE deleted_at IS NULL}).
+ * {@code (agent_id, connector_code, connection_id)} уникален среди активных каналов — обеспечивается
+ * частичным индексом {@code uq_channels_agent_connector_connection_active} ({@code WHERE deleted_at IS NULL}).
  * JPA {@code @UniqueConstraint} частичное условие не выражает, поэтому здесь не дублируется.
  */
 @Entity
@@ -50,12 +50,8 @@ public class Channel extends BaseEntity {
     @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
     private String connectorCode;
 
-    /** Identity источника = {@code connections.id} строкой (бывш. App.id/IntegrationCredentials.id). */
-    @Column(name = "identity", nullable = false, columnDefinition = "TEXT")
-    private String identity;
-
-    /** Экземпляр коннектора, которому принадлежит канал (= {@link #identity} как UUID). */
-    @Column(name = "connection_id")
+    /** Экземпляр коннектора, которому принадлежит канал ({@code connections.id}); источник маршрута триггера. */
+    @Column(name = "connection_id", nullable = false)
     private UUID connectionId;
 
     /** Произвольные настройки handler-а (reply-цель, шаблоны, messageField и т.п.). */

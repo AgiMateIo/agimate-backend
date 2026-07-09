@@ -34,7 +34,7 @@ public class BoardConnectorService extends BaseConnectorHandler implements Inter
         return "Board";
     }
 
-    /** Board шарится в рамках команды агента (identity = teamId). */
+    /** Board шарится в рамках команды агента (scope_id = teamId). */
     @Override
     public ConnectorCapabilities capabilities() {
         return new ConnectorCapabilities(

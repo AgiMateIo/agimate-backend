@@ -74,7 +74,7 @@ class ToolRegistryTest {
             ToolRegistry.BackendTool bt = reg.resolve("mcp_ctx7__search");
             assertEquals("mcp", bt.connectorCode());
             assertEquals("search", bt.name());
-            assertEquals("conn-2", bt.identity());
+            assertEquals("conn-2", bt.connectionId());
             assertNull(reg.resolve("unknown_tool"));
         }
 

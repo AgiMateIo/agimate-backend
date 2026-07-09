@@ -233,7 +233,7 @@ class TelegramConnectorServiceTest {
             Trigger result = handler.normalizeInbound(webhookContext(null), rawBody);
 
             assertEquals("message_received", result.name());
-            assertEquals(IDENTITY, result.identity());
+            assertEquals(IDENTITY, result.connectionId());
             assertEquals("Hello world", result.data().get("text"));
         }
     }
@@ -358,7 +358,7 @@ class TelegramConnectorServiceTest {
             verify(telegramApiClient, times(1)).deleteWebhook("token123");
             verify(telegramApiClient).getUpdates("token123", 6L, 20);
             verify(triggerRouterService).routeWhTrigger(eq(USER_ID), argThat((Trigger t) ->
-                    "message_received".equals(t.name()) && IDENTITY.equals(t.identity())));
+                    "message_received".equals(t.name()) && IDENTITY.equals(t.connectionId())));
         }
 
         @Test

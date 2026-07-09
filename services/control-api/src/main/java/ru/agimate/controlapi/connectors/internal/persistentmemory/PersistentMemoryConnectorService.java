@@ -20,7 +20,7 @@ import java.util.Map;
  * <p>Память хранится по {@code connections.scope_id}: при {@code identity_scope = AGENT} — личная
  * (scope_id = agentId), при {@code TEAM} — общая для команды (scope_id = teamId). Привязка к агенту
  * ({@code agent_connections}) материализует экземпляр под выбранный scope и регистрирует
- * декларативные {@code @Job} (daily/consolidation) на {@code identity = connections.id}
+ * декларативные {@code @Job} (daily/consolidation) на {@code connectionId = connections.id}
  * ({@code ConnectorCreatedEvent} из {@code ConnectionBindingService}).
  *
  * <p>Триггеры адресуются привязанным агентам (audience): {@code notes-by-session} — собрать заметки по

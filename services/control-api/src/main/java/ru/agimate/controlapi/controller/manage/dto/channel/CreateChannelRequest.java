@@ -26,8 +26,8 @@ public record CreateChannelRequest(
         String connectorCode,
 
         @NotBlank
-        @Schema(description = "Connector identity (App.id or IntegrationCredentials.id)")
-        String identity,
+        @Schema(description = "Connector instance id (connections.id)")
+        String connectionId,
 
         @NotNull
         @Schema(description = "Handler-specific configuration (settings map)")

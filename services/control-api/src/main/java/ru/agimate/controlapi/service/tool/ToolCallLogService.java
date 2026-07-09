@@ -40,7 +40,7 @@ public class ToolCallLogService {
                 .agentId(agent.getId())
                 .userId(agent.getUserId())
                 .connectorCode(toolCall.getConnectorCode())
-                .identity(toolCall.getIdentity())
+                .connectionId(toolCall.getConnectionId())
                 .externalId(toolCall.getId())
                 .name(toolCall.getName())
                 .input(toolCall.getInput())
@@ -56,7 +56,7 @@ public class ToolCallLogService {
     public ToolCallLog recordOutput(App app, IToolResult toolResult) {
         var toolCallLog = getByExternalId(toolResult.getId());
 
-        if (!app.getId().toString().equals(toolCallLog.getIdentity())) {
+        if (!app.getId().toString().equals(toolCallLog.getConnectionId())) {
             throw new ForbiddenStatusException("Incorrect device");
         }
 

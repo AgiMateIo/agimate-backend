@@ -94,7 +94,7 @@ class WebchatServiceTest {
                 .userId(USER_ID)
                 .agentId(AGENT_ID)
                 .connectorCode("webchat")
-                .identity(CONNECTION_ID.toString())
+                .connectionId(CONNECTION_ID)
                 .build();
         session = ChannelSession.builder().id(SESSION_ID).channelId(CHANNEL_ID).build();
     }
@@ -113,8 +113,8 @@ class WebchatServiceTest {
             when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(agent));
             when(connectionBindingService.bind(USER_ID, AGENT_ID, "webchat", null, null))
                     .thenReturn(binding());
-            when(channelRepository.findByAgentIdAndConnectorCodeAndIdentityAndDeletedAtIsNull(
-                    AGENT_ID, "webchat", CONNECTION_ID.toString())).thenReturn(Optional.of(channel));
+            when(channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
+                    AGENT_ID, "webchat", CONNECTION_ID)).thenReturn(Optional.of(channel));
             when(channelSessionService.createNew(channel, null)).thenReturn(session);
 
             WebchatSessionResponse response = webchatService.startSession(USER_ID, AGENT_ID);
@@ -130,8 +130,8 @@ class WebchatServiceTest {
             when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(agent));
             when(connectionBindingService.bind(USER_ID, AGENT_ID, "webchat", null, null))
                     .thenReturn(binding());
-            when(channelRepository.findByAgentIdAndConnectorCodeAndIdentityAndDeletedAtIsNull(
-                    AGENT_ID, "webchat", CONNECTION_ID.toString())).thenReturn(Optional.empty());
+            when(channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
+                    AGENT_ID, "webchat", CONNECTION_ID)).thenReturn(Optional.empty());
             when(channelService.create(eq(USER_ID), any())).thenReturn(channel);
             when(channelSessionService.createNew(channel, null)).thenReturn(session);
 
@@ -143,7 +143,7 @@ class WebchatServiceTest {
             assertEquals(AGENT_ID, data.getValue().agentId());
             assertEquals("webchat", data.getValue().channelHandler());
             assertEquals("webchat", data.getValue().connectorCode());
-            assertEquals(CONNECTION_ID.toString(), data.getValue().identity());
+            assertEquals(CONNECTION_ID.toString(), data.getValue().connectionId());
         }
     }
 
@@ -157,7 +157,7 @@ class WebchatServiceTest {
         }
 
         @Test
-        @DisplayName("триггер несёт webchat/identity, targetAgentIds=[agent] и prompt(channel, session)")
+        @DisplayName("триггер несёт webchat/connectionId, targetAgentIds=[agent] и prompt(channel, session)")
         void routesDirectedTrigger() {
             stubOwnedSession();
 
@@ -172,7 +172,7 @@ class WebchatServiceTest {
             verify(triggerRouterService).routeTrigger(eq(USER_ID), captor.capture());
             Trigger trigger = captor.getValue();
             assertEquals("webchat", trigger.connectorCode());
-            assertEquals(CONNECTION_ID.toString(), trigger.identity());
+            assertEquals(CONNECTION_ID.toString(), trigger.connectionId());
             assertEquals("message_received", trigger.name());
             assertEquals("привет", trigger.data().get("text"));
             assertEquals(SESSION_ID.toString(), trigger.data().get("sessionId"));

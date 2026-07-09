@@ -21,7 +21,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Тулы и таски Telegram-коннектора. Контекст (credentials, identity, userId) приходит через
+ * Тулы и таски Telegram-коннектора. Контекст (credentials, connectionId, userId) приходит через
  * {@link ConnectorContextHolder}, привязку делает {@code BaseConnectorHandler} в
  * {@code TelegramConnectorService}.
  */
@@ -37,7 +37,7 @@ public class TelegramToolService {
     private final TriggerRouterService triggerRouterService;
 
     /**
-     * Per‑integration cache long‑poll'а (ключ — identity, т.е. {@code connections.id}):
+     * Per‑integration cache long‑poll'а (ключ — connectionId, т.е. {@code connections.id}):
      *   {@code offsets} — следующий update_id, передаваемый в getUpdates;
      *   {@code webhookDeleted} — флаг «уже вызывали deleteWebhook» (Telegram не любит держать
      *   и webhook, и getUpdates одновременно — 409 Conflict).
@@ -131,25 +131,25 @@ public class TelegramToolService {
     @SuppressWarnings("unchecked")
     public void longPoll() {
         ConnectorContext ctx = ConnectorContextHolder.current();
-        String identity = ctx.identity();
+        String connectionId = ctx.connectionId();
         String token = ctx.credentials().get("token");
         if (token == null || token.isBlank()) {
-            throw new ConnectorException("Integration " + identity + " has no telegram token");
+            throw new ConnectorException("Integration " + connectionId + " has no telegram token");
         }
 
-        if (webhookDeleted.add(identity)) {
+        if (webhookDeleted.add(connectionId)) {
             try {
                 telegramApiClient.deleteWebhook(token);
             } catch (Exception e) {
                 // Не логируем e.getMessage() / не передаём cause: Spring RestClient может вложить
                 // URL вида /bot{token}/... в текст или стек, что утечёт токен в логи.
                 log.warn("Failed to deleteWebhook before polling for {}: {}",
-                        identity, e.getClass().getSimpleName());
-                webhookDeleted.remove(identity); // дать шанс ретраю на следующем tick'е
+                        connectionId, e.getClass().getSimpleName());
+                webhookDeleted.remove(connectionId); // дать шанс ретраю на следующем tick'е
             }
         }
 
-        Long offset = offsets.get(identity);
+        Long offset = offsets.get(connectionId);
         Map<String, Object> response;
         try {
             response = telegramApiClient.getUpdates(token, offset, LONG_POLL_TIMEOUT_SEC);
@@ -174,7 +174,7 @@ public class TelegramToolService {
         for (Map<String, Object> update : updates) {
             Number updateId = (Number) update.get("update_id");
             if (updateId != null) {
-                offsets.put(identity, updateId.longValue() + 1);
+                offsets.put(connectionId, updateId.longValue() + 1);
             }
             dispatch(ctx, update);
         }
@@ -182,11 +182,11 @@ public class TelegramToolService {
 
     private void dispatch(ConnectorContext ctx, Map<String, Object> update) {
         try {
-            Trigger trigger = TelegramUtils.normalizeUpdate(update, ctx.identity());
+            Trigger trigger = TelegramUtils.normalizeUpdate(update, ctx.connectionId());
             triggerRouterService.routeWhTrigger(ctx.userId(), trigger);
         } catch (Exception e) {
             log.error("Failed to dispatch update for integration {}: {}",
-                    ctx.identity(), e.getMessage());
+                    ctx.connectionId(), e.getMessage());
         }
     }
 

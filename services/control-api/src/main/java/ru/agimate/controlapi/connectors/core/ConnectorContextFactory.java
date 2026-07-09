@@ -37,8 +37,8 @@ public class ConnectorContextFactory {
         return build(connection, Map.of(), null, null);
     }
 
-    public ConnectorContext internal(String identity, UUID userId, UUID agentId, UUID channelId) {
-        return new ConnectorContext(identity, userId, agentId, channelId, Map.of(), null);
+    public ConnectorContext internal(String connectionId, UUID userId, UUID agentId, UUID channelId) {
+        return new ConnectorContext(connectionId, userId, agentId, channelId, Map.of(), null);
     }
 
     private Map<String, String> decryptCredentials(Connection connection) {

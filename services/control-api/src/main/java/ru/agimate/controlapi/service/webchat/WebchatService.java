@@ -76,16 +76,16 @@ public class WebchatService {
         Agent agent = requireOwnedAgent(userId, agentId);
         AgentConnection binding = connectionBindingService.bind(
                 userId, agentId, WebchatConnectorService.CONNECTOR_CODE, null, null);
-        String identity = binding.getConnectionId().toString();
+        UUID connectionId = binding.getConnectionId();
 
-        Channel channel = channelRepository.findByAgentIdAndConnectorCodeAndIdentityAndDeletedAtIsNull(
-                        agentId, WebchatConnectorService.CONNECTOR_CODE, identity)
+        Channel channel = channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
+                        agentId, WebchatConnectorService.CONNECTOR_CODE, connectionId)
                 .orElseGet(() -> channelService.create(userId, new ChannelService.CreateChannelData(
                         agentId,
                         "Webchat: " + agent.getName(),
                         WebchatChannelHandler.NAME,
                         WebchatConnectorService.CONNECTOR_CODE,
-                        identity,
+                        connectionId.toString(),
                         Map.of(),
                         null)));
 
@@ -139,7 +139,7 @@ public class WebchatService {
 
         Trigger trigger = Trigger.createDirected(
                 WebchatConnectorService.CONNECTOR_CODE,
-                channel.getIdentity(),
+                channel.getConnectionId().toString(),
                 WebchatConnectorService.TRIGGER_MESSAGE_RECEIVED,
                 Map.of(
                         "sessionId", session.getId().toString(),

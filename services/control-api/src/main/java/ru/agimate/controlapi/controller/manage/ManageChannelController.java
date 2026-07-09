@@ -77,7 +77,7 @@ public class ManageChannelController {
                 request.name(),
                 request.channelHandler(),
                 request.connectorCode(),
-                request.identity(),
+                request.connectionId(),
                 request.config(),
                 request.inputFilter()
         ));

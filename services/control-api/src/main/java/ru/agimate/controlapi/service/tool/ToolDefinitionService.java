@@ -22,10 +22,10 @@ import java.util.UUID;
 
 /**
  * Единое место листинга тулов экземпляра — источник определяется {@code toolBinding}:
- * STATIC → рефлексия handler'а ({@code getTools(ctx)}); DYNAMIC → {@code connection_tools} по identity.
+ * STATIC → рефлексия handler'а ({@code getTools(ctx)}); DYNAMIC → {@code connection_tools} по connectionId.
  * Сюда же делегируют agent- и gRPC-листинги, чтобы не дублировать ветвление.
  *
- * <p>DYNAMIC-листинг скоупится по владельцу: {@code identity} (= connections.id) проверяется на
+ * <p>DYNAMIC-листинг скоупится по владельцу: {@code connectionId} (= connections.id) проверяется на
  * принадлежность {@code userId} — иначе IDOR (чужой экземпляр). STATIC-набор — определения уровня
  * типа коннектора, не привязаны к владельцу.
  */
@@ -40,22 +40,22 @@ public class ToolDefinitionService {
     private final ConnectionRepository connectionRepository;
     private final ConnectionToolRepository connectionToolRepository;
 
-    public Map<String, ConnectorToolSpec> getTools(UUID userId, String connectorCode, UUID identity) {
+    public Map<String, ConnectorToolSpec> getTools(UUID userId, String connectorCode, UUID connectionId) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
         return switch (connector.getToolBinding()) {
             case STATIC -> connectorRegistry.findHandler(connectorCode)
                     .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
-                    .getTools(listingContext(identity));
-            case DYNAMIC -> dynamicTools(userId, identity);
+                    .getTools(listingContext(connectionId));
+            case DYNAMIC -> dynamicTools(userId, connectionId);
             case null -> throw new BadRequestStatusException(
                     "Connector does not expose tool definitions: " + connectorCode);
         };
     }
 
-    public ConnectorToolSpec getTool(UUID userId, String connectorCode, String toolName, UUID identity) {
-        ConnectorToolSpec tool = getTools(userId, connectorCode, identity).get(toolName);
+    public ConnectorToolSpec getTool(UUID userId, String connectorCode, String toolName, UUID connectionId) {
+        ConnectorToolSpec tool = getTools(userId, connectorCode, connectionId).get(toolName);
         if (tool == null) {
             throw new NotFoundStatusException("Tool not found: " + toolName);
         }
@@ -92,22 +92,22 @@ public class ToolDefinitionService {
         return getTools(userId, connection.getConnectorCode(), connectionId);
     }
 
-    /** Тулы динамического экземпляра из {@code connection_tools}; identity проверяется на владельца. */
-    private Map<String, ConnectorToolSpec> dynamicTools(UUID userId, UUID identity) {
-        if (identity == null) {
-            throw new BadRequestStatusException("This connector requires an instance identity (connectionId)");
+    /** Тулы динамического экземпляра из {@code connection_tools}; connectionId проверяется на владельца. */
+    private Map<String, ConnectorToolSpec> dynamicTools(UUID userId, UUID connectionId) {
+        if (connectionId == null) {
+            throw new BadRequestStatusException("This connector requires an instance connectionId (connectionId)");
         }
         // Ownership-скоуп: экземпляр должен принадлежать вызывающему (иначе IDOR).
-        connectionRepository.findByIdAndUserIdNotDeleted(identity, userId)
-                .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + identity));
+        connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
         Map<String, ConnectorToolSpec> tools = new LinkedHashMap<>();
-        connectionToolRepository.findActiveByConnectionId(identity)
+        connectionToolRepository.findActiveByConnectionId(connectionId)
                 .forEach(tool -> tools.put(tool.getName(), McpToolMapper.toSpec(tool)));
         return tools;
     }
 
-    private static ConnectorContext listingContext(UUID identity) {
-        return new ConnectorContext(identity == null ? null : identity.toString(),
+    private static ConnectorContext listingContext(UUID connectionId) {
+        return new ConnectorContext(connectionId == null ? null : connectionId.toString(),
                 null, null, null, Map.of(), null);
     }
 }

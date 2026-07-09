@@ -139,7 +139,7 @@ class TelegramUtilsTest {
 
             assertEquals("message_received", result.name());
             assertEquals("telegram", result.connectorCode());
-            assertEquals(IDENTITY, result.identity());
+            assertEquals(IDENTITY, result.connectionId());
             assertEquals("Hello world", result.data().get("text"));
             assertEquals(100, result.data().get("chatId"));
             assertEquals(456, result.data().get("messageId"));

@@ -34,7 +34,7 @@ public class ToolGatewayMapper {
         return ToolCallRequest.builder()
                 .id(request.getToolCallId())
                 .connectorCode(request.getConnectorCode())
-                .identity(emptyToNull(request.getIdentity()))
+                .connectionId(emptyToNull(request.getConnectionId()))
                 .name(request.getToolName())
                 .input(input)
                 .agentSessionId(emptyToNull(request.getAgentSessionId()))

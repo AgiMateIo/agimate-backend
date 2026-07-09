@@ -106,7 +106,7 @@ message GetConnectionsRequest {
 
 // Экземпляр коннектора, доступный агенту.
 message ConnectionRef {
-  string id = 1;              // connections.id (= identity на ExecuteTool / GetConnectionTools)
+  string id = 1;              // connections.id (= connection_id на ExecuteTool / GetConnectionTools)
   string connector_code = 2;  // тип коннектора (mcp, telegram, persist-memory, ...)
   // Префикс LLM-имени: connector_code для синглтонов (time/board/persist-memory),
   // full_code для инстансов (mcp_context7, telegram_<bot>). Воркер строит {namespace}.{name}.
@@ -143,11 +143,11 @@ message ConnectorToolSpec {
   bytes output_schema = 5 [json_name = "outputSchema"];  // MCP outputSchema (JSON Schema)
   ToolAnnotations annotations = 6;                       // MCP annotations
   map<string, string> meta = 7 [json_name = "_meta"];    // MCP _meta
-  // Экземпляр коннектора, которому принадлежит тул (= connections.id, как identity на ExecuteTool).
+  // Экземпляр коннектора, которому принадлежит тул (= connections.id, как connection_id на ExecuteTool).
   string connection_id = 8 [json_name = "connectionId"];
   // Неймспейс экземпляра для LLM-имени (connector_code для синглтонов, full_code для инстансов).
   // Воркер строит LLM-имя тула как {namespace}.{name} для глобальной уникальности; на ExecuteTool
-  // возвращает исходные (connector_code, identity=connection_id, name) — маршрутизация по wire не меняется.
+  // возвращает исходные (connector_code, connection_id, name) — маршрутизация по wire не меняется.
   string namespace = 9 [json_name = "namespace"];
 }
 

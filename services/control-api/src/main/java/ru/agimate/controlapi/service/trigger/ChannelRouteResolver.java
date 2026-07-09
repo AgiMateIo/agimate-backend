@@ -19,7 +19,7 @@ import java.util.UUID;
 
 /**
  * «Как»-слой роутинга: для уже отобранного получателя решает, как строится взаимодействие —
- * канал (заданный в триггере либо активный для {@code (agent, connector, identity)}) или прямая
+ * канал (заданный в триггере либо активный для {@code (agent, connector, connectionId)}) или прямая
  * доставка. Policy/audience («кто») сюда не входят.
  */
 @Slf4j
@@ -72,7 +72,7 @@ public class ChannelRouteResolver {
 
     /**
      * Канал для агента: если продюсер задал prompt-канал в {@link TriggerContext} (declared) — берём его,
-     * но только для агента-владельца канала; иначе резолвим per-agent по тройке {@code (agent, connector, identity)}.
+     * но только для агента-владельца канала; иначе резолвим per-agent по тройке {@code (agent, connector, connectionId)}.
      */
     private Channel resolveChannel(Agent agent, Trigger trigger) {
         UUID declaredChannelId = declaredPromptChannelId(trigger);
@@ -87,8 +87,14 @@ public class ChannelRouteResolver {
             }
             return declared;
         }
-        return channelRepository.findByAgentIdAndConnectorCodeAndIdentityAndDeletedAtIsNull(
-                agent.getId(), trigger.connectorCode(), trigger.identity()).orElse(null);
+        UUID connectionId;
+        try {
+            connectionId = UUID.fromString(trigger.connectionId());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return null;
+        }
+        return channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
+                agent.getId(), trigger.connectorCode(), connectionId).orElse(null);
     }
 
     private ChannelResolution resolveInbound(Channel channel, Trigger trigger) {
@@ -108,7 +114,7 @@ public class ChannelRouteResolver {
         // Извлечение текста выполняет control-api для всех handler'ов (generic делает JSON-фолбэк);
         // empty == «триггер не для этого канала» (фильтр) → доставку пропускаем.
         ChannelConfig cc = new ChannelConfig(
-                channel.getAgentId(), channel.getConnectorCode(), channel.getIdentity(), channel.getConfig());
+                channel.getAgentId(), channel.getConnectorCode(), channel.getConnectionId().toString(), channel.getConfig());
         Optional<InboundMessage> inbound = handler.handleInput(cc, trigger);
         if (inbound.isEmpty()) {
             return ChannelResolution.skip();

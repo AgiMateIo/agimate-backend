@@ -66,16 +66,16 @@ public class TriggerRouterService {
     }
 
     /**
-     * Получатели триггера («кто»): кандидаты с активным binding на connection (= identity триггера),
+     * Получатели триггера («кто»): кандидаты с активным binding на connection (= connectionId триггера),
      * сужение по {@link TriggerAudience}, затем per-agent ABAC через {@link ConnectionAccessEvaluator}
      * (дефолт-allow + DENY-исключения + опциональный {@code params_filter} по {@code trigger.data()}).
      * Канал («как») сюда не входит — chat-filtering применяется в {@code ChannelRouteResolver}.
      */
     private List<Agent> findRecipients(UUID userId, Trigger trigger) {
-        UUID connectionId = tryParseUuid(trigger.identity());
+        UUID connectionId = tryParseUuid(trigger.connectionId());
         if (connectionId == null) {
-            log.warn("Trigger {} has non-UUID identity '{}' — no recipients",
-                    trigger.name(), trigger.identity());
+            log.warn("Trigger {} has non-UUID connectionId '{}' — no recipients",
+                    trigger.name(), trigger.connectionId());
             return List.of();
         }
         List<Agent> bound = agentRepository.findBoundToConnection(userId, connectionId);

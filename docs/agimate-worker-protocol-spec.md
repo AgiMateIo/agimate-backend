@@ -267,7 +267,7 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
   - ABAC через `ToolPolicyDbEvaluatorService` (внутри `processToolCall`),
   - audit через `ToolCallLogService` — все вызовы пишутся в `tool_call_logs` независимо от reporting'а воркера (см. §2.8),
   - доставка через `ConnectorService.pushToConnector`.
-- В proto `ExecuteToolRequest` добавлены поля `connector_code`, `identity`, `agent_session_id` — нужны для прямой стыковки с текущей моделью `ToolCallRequest`. Ожидается, что воркер выводит их из `SkillSpec` / workflow payload.
+- В proto `ExecuteToolRequest` добавлены поля `connector_code`, `connection_id`, `agent_session_id` — нужны для прямой стыковки с текущей моделью `ToolCallRequest`. Ожидается, что воркер выводит их из `SkillSpec` / workflow payload.
 - Маппинг ошибок:
   - `ForbiddenStatusException` (ABAC отказал) → **`PERMISSION_DENIED`** — для воркера это валидный tool-результат (см. §3.6), не сетевая ошибка;
   - `ConflictStatusException` (тот же `tool_call_id` с другим input) → **`ABORTED`**;

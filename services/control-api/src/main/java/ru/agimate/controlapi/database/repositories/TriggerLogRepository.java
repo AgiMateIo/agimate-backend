@@ -15,7 +15,7 @@ import java.util.UUID;
 public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
 
     @Query("""
-            SELECT t.id AS id, t.connectorCode AS connectorCode, t.identity AS identity,
+            SELECT t.id AS id, t.connectorCode AS connectorCode, t.connectionId AS connectionId,
                    t.externalId AS externalId, t.name AS name,
                    t.occurredAt AS occurredAt, t.input AS input, t.createdAt AS createdAt,
                    SIZE(t.triggerLogAgents) AS agentsCount

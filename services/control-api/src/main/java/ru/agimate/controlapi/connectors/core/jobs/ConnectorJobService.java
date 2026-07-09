@@ -43,7 +43,7 @@ public class ConnectorJobService {
     }
 
     /**
-     * Создаёт или обновляет строку по бизнес‑ключу {@code (connectorCode, identity, name)}.
+     * Создаёт или обновляет строку по бизнес‑ключу {@code (connectorCode, connectionId, name)}.
      * Новая строка получает {@code status=PENDING}, {@code next_run_at=now()} — scheduler
      * подхватит её на ближайшем тике. COMPLETED-строка (выполненный ONETIME) взводится заново.
      *
@@ -54,38 +54,38 @@ public class ConnectorJobService {
      * стартует чистую tx.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public ConnectorJob upsert(String connectorCode, String identity, UUID userId, JobSpec spec) {
-        return doUpsert(connectorCode, identity, userId, spec);
+    public ConnectorJob upsert(String connectorCode, String connectionId, UUID userId, JobSpec spec) {
+        return doUpsert(connectorCode, connectionId, userId, spec);
     }
 
     /**
-     * Приводит набор SYSTEM-задач identity в соответствие с декларацией коннектора: upsert всех
+     * Приводит набор SYSTEM-задач connectionId в соответствие с декларацией коннектора: upsert всех
      * актуальных + удаление строк, чьи {@code name} больше не возвращаются {@code getJobs()}.
-     * Динамические задачи (USER/AGENT) на этом identity пересинк не трогает.
+     * Динамические задачи (USER/AGENT) на этом connectionId пересинк не трогает.
      * {@code REQUIRES_NEW} — по той же причине, что и {@link #upsert}.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void syncIdentity(String connectorCode, String identity, UUID userId,
+    public void syncConnectionJobs(String connectorCode, String connectionId, UUID userId,
                              Collection<JobSpec> specs) {
         if (specs.isEmpty()) {
-            connectorJobRepository.deleteSystemByIdentity(connectorCode, identity);
+            connectorJobRepository.deleteSystemByConnectionId(connectorCode, connectionId);
             return;
         }
         for (JobSpec spec : specs) {
-            doUpsert(connectorCode, identity, userId, spec);
+            doUpsert(connectorCode, connectionId, userId, spec);
         }
-        connectorJobRepository.deleteStale(connectorCode, identity,
+        connectorJobRepository.deleteStale(connectorCode, connectionId,
                 specs.stream().map(JobSpec::name).toList());
     }
 
     /**
-     * Удаляет все строки identity, включая динамические (USER/AGENT) — вызывается при удалении
+     * Удаляет все строки connectionId, включая динамические (USER/AGENT) — вызывается при удалении
      * интеграции, когда без credentials они всё равно неисполнимы.
      * {@code REQUIRES_NEW} — по той же причине, что и {@link #upsert}: вызов из AFTER_COMMIT listener'а.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int deleteByIdentity(String connectorCode, String identity) {
-        return connectorJobRepository.deleteByIdentity(connectorCode, identity);
+    public int deleteByConnectionId(String connectorCode, String connectionId) {
+        return connectorJobRepository.deleteByConnectionId(connectorCode, connectionId);
     }
 
     /**
@@ -111,14 +111,14 @@ public class ConnectorJobService {
      * {@code firstRunAt} — момент первого срабатывания (для ONETIME это и есть единственный запуск).
      */
     @Transactional
-    public ConnectorJob schedule(String connectorCode, String identity, UUID userId, UUID agentId,
+    public ConnectorJob schedule(String connectorCode, String connectionId, UUID userId, UUID agentId,
                                  UUID channelId, JobSpec spec, LocalDateTime firstRunAt) {
         if (agentId == null) {
             throw new ConnectorException("Dynamic task requires an initiating agent");
         }
         ConnectorJob row = ConnectorJob.builder()
                 .connectorCode(connectorCode)
-                .identity(identity)
+                .connectionId(connectionId)
                 .userId(userId)
                 .agentId(agentId)
                 .channelId(channelId)
@@ -145,11 +145,11 @@ public class ConnectorJobService {
         return connectorJobRepository.deleteOwned(taskId, connectorCode, userId, agentId) > 0;
     }
 
-    private ConnectorJob doUpsert(String connectorCode, String identity, UUID userId, JobSpec spec) {
-        ConnectorJob row = connectorJobRepository.findByBusinessKey(connectorCode, identity, spec.name())
+    private ConnectorJob doUpsert(String connectorCode, String connectionId, UUID userId, JobSpec spec) {
+        ConnectorJob row = connectorJobRepository.findByBusinessKey(connectorCode, connectionId, spec.name())
                 .orElseGet(() -> ConnectorJob.builder()
                         .connectorCode(connectorCode)
-                        .identity(identity)
+                        .connectionId(connectionId)
                         .kind(ConnectorJobKind.SYSTEM)
                         .name(spec.name())
                         .status(ConnectorJobStatus.PENDING)

@@ -26,7 +26,7 @@ import java.util.UUID;
 
 /**
  * Асинхронное выполнение тулы коннектора по записи {@link ToolCallLog}: контекст собирается
- * по типу хендлера (integration — со свежими credentials по {@code identity}), результат
+ * по типу хендлера (integration — со свежими credentials по {@code connectionId}), результат
  * пишется в лог и доставляется агенту.
  *
  * <p>Ошибки не синхронны для вызывающего: отсутствие credentials и любые сбои выполнения
@@ -56,7 +56,7 @@ public class ToolExecutionService {
 
             if (handler instanceof IntegrationConnectorHandler) {
                 connectionRepository.updateLastUsedAt(
-                        UUID.fromString(toolCallLog.getIdentity()), LocalDateTime.now());
+                        UUID.fromString(toolCallLog.getConnectionId()), LocalDateTime.now());
             }
 
             deliver(toolCallLog, JsonUtils.writeValueAsString(result), null);
@@ -74,14 +74,14 @@ public class ToolExecutionService {
         UUID channelId = resolveChannelId(toolCallLog.getAgentSessionId());
         if (handler instanceof IntegrationConnectorHandler) {
             Connection connection = connectionRepository
-                    .findByIdAndUserIdNotDeleted(UUID.fromString(toolCallLog.getIdentity()), toolCallLog.getUserId())
+                    .findByIdAndUserIdNotDeleted(UUID.fromString(toolCallLog.getConnectionId()), toolCallLog.getUserId())
                     .filter(Connection::isActive)
                     .orElseThrow(() -> new ConnectorException(
-                            "Connection missing or disabled: " + toolCallLog.getIdentity()));
+                            "Connection missing or disabled: " + toolCallLog.getConnectionId()));
             return contextFactory.forConnection(connection, toolCallLog.getAgentId(), channelId);
         }
         return contextFactory.internal(
-                toolCallLog.getIdentity(), toolCallLog.getUserId(), toolCallLog.getAgentId(), channelId);
+                toolCallLog.getConnectionId(), toolCallLog.getUserId(), toolCallLog.getAgentId(), channelId);
     }
 
     /** Канал prompt-сессии, из которой пришёл вызов — доменный контекст для тулов; {@code null} вне канала. */

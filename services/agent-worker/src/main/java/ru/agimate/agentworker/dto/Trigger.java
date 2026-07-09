@@ -13,7 +13,7 @@ import java.util.Map;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record Trigger(
         String connectorCode,
-        String identity,
+        String connectionId,
         String name,
         String id,
         Map<String, Object> data,

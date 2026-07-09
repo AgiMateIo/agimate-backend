@@ -4,7 +4,7 @@ package ru.agimate.controlapi.database.enums;
  * Кто создал строку {@code connector_jobs} и как она управляется.
  * <ul>
  *   <li>{@link #SYSTEM} — декларативная задача коннектора ({@code getJobs()}): строкой владеет
- *       reconcile-синк (upsert/удаление по бизнес-ключу {@code (connector_code, identity,
+ *       reconcile-синк (upsert/удаление по бизнес-ключу {@code (connector_code, connectionId,
  *       name)}); уникальность бизнес-ключа в БД действует только на эти строки.
  *       {@code agent_id IS NULL}.</li>
  *   <li>{@link #AGENT} — запланирована агентом в рантайме (например {@code time.schedule});

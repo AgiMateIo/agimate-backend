@@ -47,13 +47,13 @@ public class ConnectionAccessEvaluator {
         return cache.get(key, k -> doEvaluate(agentId, connectionId, kind, name));
     }
 
-    /** Удобный вход с identity-строкой (= connections.id). Невалидный UUID → deny. */
-    public AccessDecision evaluate(UUID agentId, String identity, PolicyKind kind, String name) {
+    /** Удобный вход с connection_id-строкой (= connections.id). Невалидный UUID → deny. */
+    public AccessDecision evaluate(UUID agentId, String connectionIdStr, PolicyKind kind, String name) {
         UUID connectionId;
         try {
-            connectionId = UUID.fromString(identity);
+            connectionId = UUID.fromString(connectionIdStr);
         } catch (IllegalArgumentException | NullPointerException e) {
-            return AccessDecision.deny("Invalid connection identity: " + identity);
+            return AccessDecision.deny("Invalid connection id: " + connectionIdStr);
         }
         return evaluate(agentId, connectionId, kind, name);
     }

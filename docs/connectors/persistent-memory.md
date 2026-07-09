@@ -51,7 +51,7 @@
 
 «Память включена» = у агента есть **ALLOW**-`AgentToolPolicy` на `connector_code = persist-memory`.
 `AgentToolPolicyService` издаёт generic `AgentToolPolicyChangedEvent`; `MemoryEnablementListener`
-перечитывает политики и транслирует в lifecycle экземпляра коннектора с `identity = agentId`:
+перечитывает политики и транслирует в lifecycle экземпляра коннектора с `scope_id = agentId`:
 `ConnectorCreatedEvent` (есть ALLOW) или `ConnectorDeletedEvent` (нет). Дальше штатный
 `ConnectorIdentityListener` пишет/удаляет декларативные `@Job` (daily + consolidation) в
 `connector_jobs` на этого агента. Оба пути идемпотентны.

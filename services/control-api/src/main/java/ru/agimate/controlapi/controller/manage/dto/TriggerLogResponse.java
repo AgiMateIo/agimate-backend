@@ -17,8 +17,8 @@ public record TriggerLogResponse(
         @Schema(description = "Connector code")
         String connectorCode,
 
-        @Schema(description = "Identity")
-        String identity,
+        @Schema(description = "Connector instance id (connections.id)")
+        String connectionId,
 
         @Schema(description = "Trigger ID")
         String externalId,
@@ -44,7 +44,7 @@ public record TriggerLogResponse(
         return new TriggerLogResponse(
                 projection.getId(),
                 projection.getConnectorCode(),
-                projection.getIdentity(),
+                projection.getConnectionId(),
                 projection.getExternalId(),
                 projection.getName(),
                 projection.getOccurredAt(),
@@ -59,7 +59,7 @@ public record TriggerLogResponse(
         return new TriggerLogResponse(
                 entity.getId(),
                 entity.getConnectorCode(),
-                entity.getIdentity(),
+                entity.getConnectionId(),
                 entity.getExternalId(),
                 entity.getName(),
                 entity.getOccurredAt(),

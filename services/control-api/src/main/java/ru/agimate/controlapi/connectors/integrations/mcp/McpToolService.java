@@ -88,7 +88,7 @@ public class McpToolService {
     }
 
     @Transactional
-    public int deleteByIdentity(UUID connectionId) {
+    public int deleteByConnectionId(UUID connectionId) {
         return connectionToolRepository.deleteByConnectionId(connectionId);
     }
 

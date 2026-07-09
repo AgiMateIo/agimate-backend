@@ -32,7 +32,7 @@ A **connector job** is a scheduled background invocation of a connector tool. Th
 
 | `kind` | Origin | Deletable via API |
 |--------|--------|-------------------|
-| `SYSTEM` | Declared by the connector (`getJobs()`); the reconcile-sync owns the row — upsert/delete by business key `(connector_code, identity, name)`. `agentId` is always `null`. | No — pause it, or delete the integration |
+| `SYSTEM` | Declared by the connector (`getJobs()`); the reconcile-sync owns the row — upsert/delete by business key `(connector_code, connectionId, name)`. `agentId` is always `null`. | No — pause it, or delete the integration |
 | `AGENT` | Scheduled by an agent at runtime (e.g. `time.schedule`). `agentId` is the initiating agent (also the delivery target for `fire`). | Yes |
 | `USER` | Created by the user via manage-API. Reserved — job creation is not yet implemented. `agentId` is the target agent if the job is addressed. | Yes |
 
@@ -83,7 +83,7 @@ Returned in the list endpoint and also as the item schema for reference in per-j
 | `id` | `uuid` | no | Job identifier — use in all subsequent calls |
 | `kind` | `string` (`SYSTEM` \| `USER` \| `AGENT`) | no | Who created the job and how it is managed |
 | `connectorCode` | `string` | no | Connector that owns this job (e.g. `"time"`) |
-| `identity` | `string` | yes | Connector instance identity (integration credentials ID, board pubId, etc.) |
+| `connectionId` | `string` | yes | Connector instance connectionId (integration credentials ID, board pubId, etc.) |
 | `agentId` | `uuid` | yes | Initiating or target agent ID; `null` for `SYSTEM` jobs |
 | `name` | `string` | no | Tool name dispatched to the connector (e.g. `"time.fire"`) |
 | `type` | `string` (`PERIODIC` \| `CRON` \| `ONETIME`) | no | Schedule type |
@@ -153,7 +153,7 @@ List the **current user's** connector jobs (all kinds), sorted by `nextRunAt` as
         "id": "019eb28d-0000-7c31-a4f0-aabbccddeeff",
         "kind": "AGENT",
         "connectorCode": "time",
-        "identity": null,
+        "connectionId": null,
         "agentId": "0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77",
         "name": "fire",
         "type": "PERIODIC",
@@ -169,7 +169,7 @@ List the **current user's** connector jobs (all kinds), sorted by `nextRunAt` as
         "id": "019eb290-0000-7c31-a4f0-112233445566",
         "kind": "SYSTEM",
         "connectorCode": "telegram",
-        "identity": "0193b8e3-1111-7c31-a4f0-556677889900",
+        "connectionId": "0193b8e3-1111-7c31-a4f0-556677889900",
         "agentId": null,
         "name": "telegram.long_poll",
         "type": "PERIODIC",
@@ -365,5 +365,5 @@ Note: `status` and `pausedAt` are **orthogonal** — a job can be `RUNNING` and 
 ## Related behaviour
 
 - Deleting an **agent** deletes all jobs bound to it (`agentId`).
-- Deleting an **integration** deletes all jobs of its identity, including dynamic ones.
+- Deleting an **integration** deletes all jobs of its connectionId, including dynamic ones.
 - The agent tool `time.cancel_scheduled` removes only jobs the agent created itself (`kind = AGENT`); user-created jobs targeting the agent can be removed only through this API.

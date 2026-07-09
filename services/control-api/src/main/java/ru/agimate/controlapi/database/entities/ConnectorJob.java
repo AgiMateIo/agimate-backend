@@ -23,7 +23,7 @@ import java.util.UUID;
  * tool-сервиса коннектора с аргументами {@link #args}. В {@link #config} лежат только
  * параметры расписания ({@code intervalSeconds}, {@code cron}, {@code zone}).
  *
- * <p>Уникальность бизнес-ключа {@code (connector_code, identity, name)} действует только на
+ * <p>Уникальность бизнес-ключа {@code (connector_code, connection_id, name)} действует только на
  * {@code kind = SYSTEM} (partial unique index, см. {@code 2026/06/11-01-connector-jobs-kind-paused.xml};
  * {@code @UniqueConstraint} в JPA не умеет в partial) — это инвариант reconcile-синка
  * ({@code findByBusinessKey} возвращает {@code Optional}). USER/AGENT-строки идентифицируются
@@ -48,13 +48,12 @@ public class ConnectorJob extends BaseEntity {
     private String connectorCode;
 
     /**
-     * Идентификатор экземпляра коннектора: для integration — id из {@code connections}
-     * строкой (как в {@code ToolCallLog}); у динамических задач — identity tool-вызова инициатора
-     * (восстанавливается в {@code ConnectorContext} на срабатывании); {@code null}, если экземпляр
-     * не применим.
+     * Идентификатор экземпляра коннектора: {@code connections.id} строкой (как в {@code ToolCallLog});
+     * у динамических задач — connection_id tool-вызова инициатора (восстанавливается в
+     * {@code ConnectorContext} на срабатывании); {@code null}, если экземпляр не применим.
      */
-    @Column(name = "identity", columnDefinition = "TEXT")
-    private String identity;
+    @Column(name = "connection_id", columnDefinition = "TEXT")
+    private String connectionId;
 
     /** Владелец задачи: пользователь, создавший интеграцию, либо владелец агента-инициатора. */
     @Column(name = "user_id", nullable = false)

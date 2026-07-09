@@ -19,7 +19,7 @@ import java.util.UUID;
 /**
  * Исполняет одну итерацию строки {@code connector_jobs}: находит handler по
  * {@code connector_code}, собирает {@link ConnectorContext} (для integration — со свежими
- * credentials по {@code identity}) и диспатчит {@code name}/{@code args}.
+ * credentials по {@code connectionId}) и диспатчит {@code name}/{@code args}.
  *
  * <p>Вызывается из virtual thread'а scheduler'а вне транзакции — long-poll может держать
  * поток десятки секунд, коннект к БД на это время не занимается.
@@ -49,20 +49,20 @@ public class JobExecutionService {
                     .findByIdNotDeleted(parseIdentity(row))
                     .filter(Connection::isActive)
                     .orElseThrow(() -> new ConnectorException(
-                            "Connection missing or disabled: " + row.getIdentity()));
+                            "Connection missing or disabled: " + row.getConnectionId()));
             return contextFactory.forConnection(connection, null, null);
         }
         // Полный контекст инициатора (userId/agentId/channelId сохранены в строке при планировании) —
         // динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.
         return contextFactory.internal(
-                row.getIdentity(), row.getUserId(), row.getAgentId(), row.getChannelId());
+                row.getConnectionId(), row.getUserId(), row.getAgentId(), row.getChannelId());
     }
 
     private static UUID parseIdentity(ConnectorJob row) {
         try {
-            return UUID.fromString(row.getIdentity());
+            return UUID.fromString(row.getConnectionId());
         } catch (Exception e) {
-            throw new ConnectorException("Invalid integration identity: " + row.getIdentity());
+            throw new ConnectorException("Invalid integration connectionId: " + row.getConnectionId());
         }
     }
 }

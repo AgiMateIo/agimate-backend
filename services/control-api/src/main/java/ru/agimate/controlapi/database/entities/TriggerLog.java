@@ -16,7 +16,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "trigger_logs", uniqueConstraints =
-        @UniqueConstraint(columnNames = {"user_id", "connector_code", "identity", "name", "external_id"}))
+        @UniqueConstraint(columnNames = {"user_id", "connector_code", "connection_id", "name", "external_id"}))
 @Getter
 @Setter
 @Builder
@@ -36,8 +36,8 @@ public class TriggerLog extends BaseEntity {
     @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
     private String connectorCode;
 
-    @Column(name = "identity", nullable = false, columnDefinition = "TEXT")
-    private String identity;
+    @Column(name = "connection_id", nullable = false, columnDefinition = "TEXT")
+    private String connectionId;
 
     @Column(name = "external_id", nullable = false, columnDefinition = "TEXT")
     private String externalId;

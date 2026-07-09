@@ -35,12 +35,12 @@ public class ConnectorIdentityListener {
         ConnectorHandler handler = connectorRegistry.findHandler(event.connectorCode()).orElse(null);
         if (handler == null) {
             log.warn("ConnectorCreatedEvent({}, {}): no handler in registry — skipping",
-                    event.connectorCode(), event.identity());
+                    event.connectorCode(), event.connectionId());
             return;
         }
         for (JobSpec spec : handler.getJobs().values()) {
-            jobService.upsert(event.connectorCode(), event.identity(), event.userId(), spec);
-            log.info("Registered task {}/{}/{}", event.connectorCode(), event.identity(), spec.name());
+            jobService.upsert(event.connectorCode(), event.connectionId(), event.userId(), spec);
+            log.info("Registered task {}/{}/{}", event.connectorCode(), event.connectionId(), spec.name());
         }
     }
 
@@ -49,20 +49,20 @@ public class ConnectorIdentityListener {
         ConnectorHandler handler = connectorRegistry.findHandler(event.connectorCode()).orElse(null);
         if (handler == null) {
             log.warn("ConnectorModifiedEvent({}, {}): no handler in registry — skipping",
-                    event.connectorCode(), event.identity());
+                    event.connectorCode(), event.connectionId());
             return;
         }
-        jobService.syncIdentity(event.connectorCode(), event.identity(), event.userId(),
+        jobService.syncConnectionJobs(event.connectorCode(), event.connectionId(), event.userId(),
                 handler.getJobs().values());
-        log.info("Synced tasks for {}/{}", event.connectorCode(), event.identity());
+        log.info("Synced tasks for {}/{}", event.connectorCode(), event.connectionId());
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onDeleted(ConnectorDeletedEvent event) {
-        int removed = jobService.deleteByIdentity(event.connectorCode(), event.identity());
+        int removed = jobService.deleteByConnectionId(event.connectorCode(), event.connectionId());
         if (removed > 0) {
             log.info("Removed {} task row(s) for {}/{}",
-                    removed, event.connectorCode(), event.identity());
+                    removed, event.connectorCode(), event.connectionId());
         }
     }
 }

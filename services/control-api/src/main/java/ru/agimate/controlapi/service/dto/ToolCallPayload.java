@@ -7,7 +7,7 @@ import java.util.Map;
 public record ToolCallPayload(
         String id,
         String connectorCode,
-        String identity,
+        String connectionId,
         String name,
         Map<String, Object> input,
         String agentSessionId
@@ -16,7 +16,7 @@ public record ToolCallPayload(
         return new ToolCallPayload(
                 log.getExternalId(),
                 log.getConnectorCode(),
-                log.getIdentity(),
+                log.getConnectionId(),
                 log.getName(),
                 log.getInput(),
                 log.getAgentSessionId()

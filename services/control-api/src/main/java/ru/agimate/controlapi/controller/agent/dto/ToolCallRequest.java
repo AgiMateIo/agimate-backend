@@ -24,7 +24,7 @@ public class ToolCallRequest implements IToolCall {
     private String connectorCode;
 
     @Schema(description = "Connection instance handle (connections.id as string) for ABAC routing")
-    private String identity;
+    private String connectionId;
 
     @Schema(
             description = "Full name of tool",

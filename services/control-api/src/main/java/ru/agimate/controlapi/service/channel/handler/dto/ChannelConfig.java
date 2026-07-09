@@ -8,16 +8,16 @@ import java.util.UUID;
 /**
  * Дескриптор канала, передаваемый в {@link ChannelHandler}.
  *
- * <p>{@code agentId}, {@code connectorCode}, {@code identity} — первого класса (отдельные колонки
+ * <p>{@code agentId}, {@code connectorCode}, {@code connectionId} — первого класса (отдельные колонки
  * {@code channels}). {@code agentId} — владелец канала; под ним {@code handleOutput} диспатчит
  * reply-тул (использовать чужой канал нельзя — проверка владения на границе сервиса). По
- * {@code connectorCode}/{@code identity} handler вызывает тулы/читает триггеры нужного коннектора.
+ * {@code connectorCode}/{@code connectionId} handler вызывает тулы/читает триггеры нужного коннектора.
  * {@code settings} — произвольные настройки конкретного handler'а (десериализуются им самостоятельно).
  */
 public record ChannelConfig(
         UUID agentId,
         String connectorCode,
-        String identity,
+        String connectionId,
         Map<String, Object> settings
 ) {
 
