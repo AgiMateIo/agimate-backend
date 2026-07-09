@@ -273,7 +273,7 @@ Backend не присылает уведомление о закрытии се�
 
 - какому агенту канал принадлежит,
 - `channelHandler` (например `generic`), `connectorCode` + `connectionId` источника,
-- `config` обработчика — для `generic`: список `triggers`, `messageField` (dot-path до текста), reply-цель (`replyConnectorCode`/`replyIdentity`/`replyToolName`) и `replyToolParams` (шаблон),
+- `config` обработчика — для `generic`: список `triggers`, `messageField` (dot-path до текста), reply-цель (`replyConnectorCode`/`replyConnectionId`/`replyToolName`) и `replyToolParams` (шаблон),
 - опциональный `inputFilter` (фильтр по полям `trigger.data`).
 
 Подробнее: [`control-api-manage-channels.md`](control-api-manage-channels.md).

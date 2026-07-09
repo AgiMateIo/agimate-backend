@@ -22,7 +22,7 @@ import java.util.Optional;
  * <ul>
  *   <li>{@code triggers} — список имён триггеров;</li>
  *   <li>{@code messageField} — dot-path в {@code trigger.data} до текста сообщения;</li>
- *   <li>{@code replyConnectorCode}/{@code replyIdentity}/{@code replyToolName} — reply-цель;</li>
+ *   <li>{@code replyConnectorCode}/{@code replyConnectionId}/{@code replyToolName} — reply-цель;</li>
  *   <li>{@code replyToolParams} — шаблон с плейсхолдерами {@code {text}} и {@code {trigger.*}}.</li>
  * </ul>
  */
@@ -34,7 +34,7 @@ public class GenericChannelHandler implements ChannelHandler {
     private static final String K_TRIGGERS = "triggers";
     private static final String K_MESSAGE_FIELD = "messageField";
     private static final String K_REPLY_CONNECTOR = "replyConnectorCode";
-    private static final String K_REPLY_IDENTITY = "replyIdentity";
+    private static final String K_REPLY_CONNECTION_ID = "replyConnectionId";
     private static final String K_REPLY_TOOL = "replyToolName";
     private static final String K_REPLY_PARAMS = "replyToolParams";
 
@@ -52,14 +52,14 @@ public class GenericChannelHandler implements ChannelHandler {
                 "Dot-path внутри trigger.data до текста сообщения (например data.message.text)"));
         props.put(K_REPLY_CONNECTOR, ConfigSchema.prop("string", "Reply connector",
                 "Код коннектора для отправки ответа"));
-        props.put(K_REPLY_IDENTITY, ConfigSchema.prop("string", "Reply identity",
-                "Identity reply-коннектора"));
+        props.put(K_REPLY_CONNECTION_ID, ConfigSchema.prop("string", "Reply connection",
+                "connection_id reply-коннектора"));
         props.put(K_REPLY_TOOL, ConfigSchema.prop("string", "Reply tool",
                 "Тул, отправляющий ответ"));
         props.put(K_REPLY_PARAMS, ConfigSchema.prop("object", "Шаблон параметров",
                 "Шаблон параметров тула с плейсхолдерами {text} и {trigger.*}"));
         return ConfigSchema.schema(props,
-                K_TRIGGERS, K_MESSAGE_FIELD, K_REPLY_CONNECTOR, K_REPLY_IDENTITY, K_REPLY_TOOL, K_REPLY_PARAMS);
+                K_TRIGGERS, K_MESSAGE_FIELD, K_REPLY_CONNECTOR, K_REPLY_CONNECTION_ID, K_REPLY_TOOL, K_REPLY_PARAMS);
     }
 
     @Override
@@ -69,7 +69,7 @@ public class GenericChannelHandler implements ChannelHandler {
 
     @Override
     public List<ToolDefinition> listOfTools(ChannelConfig config) {
-        return List.of(new ToolDefinition(replyConnector(config), replyIdentity(config), replyTool(config)));
+        return List.of(new ToolDefinition(replyConnector(config), replyConnectionId(config), replyTool(config)));
     }
 
     @Override
@@ -79,7 +79,7 @@ public class GenericChannelHandler implements ChannelHandler {
         }
         require(messageField(config), "config.messageField");
         require(replyConnector(config), "config.replyConnectorCode");
-        require(replyIdentity(config), "config.replyIdentity");
+        require(replyConnectionId(config), "config.replyConnectionId");
         require(replyTool(config), "config.replyToolName");
         if (replyParams(config) == null) {
             throw new ConnectorException("config.replyToolParams is required");
@@ -101,7 +101,7 @@ public class GenericChannelHandler implements ChannelHandler {
         ToolCallRequest request = ToolCallRequest.builder()
                 .id(dispatch.messageId())
                 .connectorCode(replyConnector(config))
-                .connectionId(replyIdentity(config))
+                .connectionId(replyConnectionId(config))
                 .name(replyTool(config))
                 .input(args)
                 .build();
@@ -127,8 +127,8 @@ public class GenericChannelHandler implements ChannelHandler {
         return asString(config.setting(K_REPLY_CONNECTOR));
     }
 
-    private String replyIdentity(ChannelConfig config) {
-        return asString(config.setting(K_REPLY_IDENTITY));
+    private String replyConnectionId(ChannelConfig config) {
+        return asString(config.setting(K_REPLY_CONNECTION_ID));
     }
 
     private String replyTool(ChannelConfig config) {
