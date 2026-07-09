@@ -22,7 +22,7 @@ import java.util.Optional;
  * <ul>
  *   <li>{@code triggers} — список имён триггеров;</li>
  *   <li>{@code messageField} — dot-path в {@code trigger.data} до текста сообщения;</li>
- *   <li>{@code replyConnectorCode}/{@code replyConnectionId}/{@code replyToolName} — reply-цель;</li>
+ *   <li>{@code replyConnectionId}/{@code replyToolName} — reply-цель (коннектор выводится из connectionId);</li>
  *   <li>{@code replyToolParams} — шаблон с плейсхолдерами {@code {text}} и {@code {trigger.*}}.</li>
  * </ul>
  */
@@ -33,7 +33,6 @@ public class GenericChannelHandler implements ChannelHandler {
 
     private static final String K_TRIGGERS = "triggers";
     private static final String K_MESSAGE_FIELD = "messageField";
-    private static final String K_REPLY_CONNECTOR = "replyConnectorCode";
     private static final String K_REPLY_CONNECTION_ID = "replyConnectionId";
     private static final String K_REPLY_TOOL = "replyToolName";
     private static final String K_REPLY_PARAMS = "replyToolParams";
@@ -50,16 +49,14 @@ public class GenericChannelHandler implements ChannelHandler {
                 "Имена триггеров коннектора, которые слушает канал"));
         props.put(K_MESSAGE_FIELD, ConfigSchema.prop("string", "Поле сообщения",
                 "Dot-path внутри trigger.data до текста сообщения (например data.message.text)"));
-        props.put(K_REPLY_CONNECTOR, ConfigSchema.prop("string", "Reply connector",
-                "Код коннектора для отправки ответа"));
         props.put(K_REPLY_CONNECTION_ID, ConfigSchema.prop("string", "Reply connection",
-                "connection_id reply-коннектора"));
+                "connection_id reply-цели (коннектор выводится из него)"));
         props.put(K_REPLY_TOOL, ConfigSchema.prop("string", "Reply tool",
                 "Тул, отправляющий ответ"));
         props.put(K_REPLY_PARAMS, ConfigSchema.prop("object", "Шаблон параметров",
                 "Шаблон параметров тула с плейсхолдерами {text} и {trigger.*}"));
         return ConfigSchema.schema(props,
-                K_TRIGGERS, K_MESSAGE_FIELD, K_REPLY_CONNECTOR, K_REPLY_CONNECTION_ID, K_REPLY_TOOL, K_REPLY_PARAMS);
+                K_TRIGGERS, K_MESSAGE_FIELD, K_REPLY_CONNECTION_ID, K_REPLY_TOOL, K_REPLY_PARAMS);
     }
 
     @Override
@@ -69,7 +66,7 @@ public class GenericChannelHandler implements ChannelHandler {
 
     @Override
     public List<ToolDefinition> listOfTools(ChannelConfig config) {
-        return List.of(new ToolDefinition(replyConnector(config), replyConnectionId(config), replyTool(config)));
+        return List.of(new ToolDefinition(replyConnectionId(config), replyTool(config)));
     }
 
     @Override
@@ -78,7 +75,6 @@ public class GenericChannelHandler implements ChannelHandler {
             throw new ConnectorException("config.triggers must be a non-empty list of trigger names");
         }
         require(messageField(config), "config.messageField");
-        require(replyConnector(config), "config.replyConnectorCode");
         require(replyConnectionId(config), "config.replyConnectionId");
         require(replyTool(config), "config.replyToolName");
         if (replyParams(config) == null) {
@@ -100,7 +96,6 @@ public class GenericChannelHandler implements ChannelHandler {
                 replyParams(config), outbound.text(), dispatch.replyContext());
         ToolCallRequest request = ToolCallRequest.builder()
                 .id(dispatch.messageId())
-                .connectorCode(replyConnector(config))
                 .connectionId(replyConnectionId(config))
                 .name(replyTool(config))
                 .input(args)
@@ -121,10 +116,6 @@ public class GenericChannelHandler implements ChannelHandler {
 
     private String messageField(ChannelConfig config) {
         return asString(config.setting(K_MESSAGE_FIELD));
-    }
-
-    private String replyConnector(ChannelConfig config) {
-        return asString(config.setting(K_REPLY_CONNECTOR));
     }
 
     private String replyConnectionId(ChannelConfig config) {

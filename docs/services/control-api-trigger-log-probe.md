@@ -83,7 +83,7 @@ Response 404 (ещё не сматчилось — UI продолжает по�
 4. При матче UI получает полный `TriggerLog` и сам предзаполняет форму `POST /manage/channels/`:
    - `connectorCode = triggerLog.connectorCode`, `connectionId = triggerLog.connectionId`
    - `channelHandler = "generic"` (по умолчанию), `config.triggers = [triggerLog.name]`
-   - reply-сторону в `config` (`replyConnectorCode`/`replyConnectionId`/`replyToolName`) по умолчанию можно подставить из trigger-стороны (UI решает).
+   - reply-сторону в `config` (`replyConnectionId`/`replyToolName`) по умолчанию можно подставить из trigger-стороны (UI решает).
    - `input` показывается пользователю как образец payload — он может выбрать поля для `input_filter`.
 
 ## Поток (Delivery diagnostic, future)

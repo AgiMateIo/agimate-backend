@@ -170,7 +170,7 @@ public class ChannelService {
             validateTrigger(userId, data.connectorCode(), data.connectionId(), t.triggerName());
         }
         for (ToolDefinition t : tools) {
-            validateTool(userId, t.connectorCode(), t.connectionId(), t.toolName());
+            validateTool(userId, t.connectionId(), t.toolName());
         }
 
         UUID connectionId = parseUuid(data.connectionId(), "connectionId");
@@ -274,7 +274,7 @@ public class ChannelService {
 
     private Set<String> toolKeys(ChannelHandler handler, ChannelConfig config) {
         return handler.listOfTools(config).stream()
-                .map(t -> t.connectorCode() + "|" + t.connectionId() + "|" + t.toolName())
+                .map(t -> t.connectionId() + "|" + t.toolName())
                 .collect(Collectors.toSet());
     }
 
@@ -288,7 +288,10 @@ public class ChannelService {
         }
     }
 
-    private void validateTool(UUID userId, String connectorCode, String connectionId, String toolName) {
+    private void validateTool(UUID userId, String connectionId, String toolName) {
+        // Reply-коннектор выводится из connection (connections.connector_code) — в config не хранится.
+        Connection connection = loadConnection(userId, connectionId);
+        String connectorCode = connection.getConnectorCode();
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Reply connector not found: " + connectorCode));
         Set<String> available = lookupToolNames(connector, userId, connectionId);
@@ -323,16 +326,21 @@ public class ChannelService {
         };
     }
 
-    private Connection loadConnection(UUID userId, String connectorCode, String connectionId) {
-        UUID identityId = parseUuid(connectionId, "connectionId");
-        Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(identityId, userId)
+    private Connection loadConnection(UUID userId, String connectionId) {
+        UUID id = parseUuid(connectionId, "connectionId");
+        Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(id, userId)
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
+        if (!connection.isActive()) {
+            throw new BadRequestStatusException("Connection is not active: " + connectionId);
+        }
+        return connection;
+    }
+
+    private Connection loadConnection(UUID userId, String connectorCode, String connectionId) {
+        Connection connection = loadConnection(userId, connectionId);
         if (!connection.getConnectorCode().equals(connectorCode)) {
             throw new BadRequestStatusException(
                     "Connector mismatch: expected " + connectorCode + " got " + connection.getConnectorCode());
-        }
-        if (!connection.isActive()) {
-            throw new BadRequestStatusException("Connection is not active: " + connectionId);
         }
         return connection;
     }

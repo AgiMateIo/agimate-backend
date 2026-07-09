@@ -7,13 +7,16 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.ToolCallLogResponse;
 import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.App;
+import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ToolCallLogRepository;
 import ru.agimate.controlapi.service.dto.IToolResult;
 import ru.agimate.controlapi.service.dto.IToolCall;
@@ -28,6 +31,7 @@ import java.util.UUID;
 public class ToolCallLogService {
 
     private final ToolCallLogRepository toolCallLogRepository;
+    private final ConnectionRepository connectionRepository;
 
     public Optional<ToolCallLog> findByExternalIdAndAgentId(String externalId, UUID agentId) {
         return toolCallLogRepository.findByExternalIdAndAgentId(externalId, agentId);
@@ -39,7 +43,7 @@ public class ToolCallLogService {
         var toolCallLog = ToolCallLog.builder()
                 .agentId(agent.getId())
                 .userId(agent.getUserId())
-                .connectorCode(toolCall.getConnectorCode())
+                .connectorCode(resolveConnectorCode(toolCall, agent.getUserId()))
                 .connectionId(toolCall.getConnectionId())
                 .externalId(toolCall.getId())
                 .name(toolCall.getName())
@@ -50,6 +54,24 @@ public class ToolCallLogService {
                 .build();
 
         return toolCallLogRepository.save(toolCallLog);
+    }
+
+    /**
+     * Connector code необязателен в запросе (например generic-reply его не хранит) — выводим из
+     * connection ({@code connections.connector_code}) по {@code connectionId}, когда не задан.
+     */
+    private String resolveConnectorCode(IToolCall toolCall, UUID userId) {
+        String code = toolCall.getConnectorCode();
+        if (code != null && !code.isBlank()) {
+            return code;
+        }
+        String connectionId = toolCall.getConnectionId();
+        if (connectionId == null || connectionId.isBlank()) {
+            throw new BadRequestStatusException("connectorCode or connectionId is required");
+        }
+        return connectionRepository.findByIdAndUserIdNotDeleted(UUID.fromString(connectionId), userId)
+                .map(Connection::getConnectorCode)
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
     }
 
     @Transactional

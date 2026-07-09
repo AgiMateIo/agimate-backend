@@ -62,7 +62,7 @@ public class TelegramChannelHandler implements ChannelHandler {
 
     @Override
     public List<ToolDefinition> listOfTools(ChannelConfig config) {
-        return List.of(new ToolDefinition(config.connectorCode(), config.connectionId(), TOOL_SEND_MESSAGE));
+        return List.of(new ToolDefinition(config.connectionId(), TOOL_SEND_MESSAGE));
     }
 
     @Override

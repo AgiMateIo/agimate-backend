@@ -29,7 +29,6 @@ API specification for `/manage/channels/**` — управление **кана�
 |---|---|---|
 | `triggers` | string[] | Имена триггеров на `connectorCode` (например `["message_received"]`) |
 | `messageField` | string | Dot-path внутри `trigger.data` до текста сообщения пользователя |
-| `replyConnectorCode` | string | Коннектор для ответа (обычно совпадает с `connectorCode`) |
 | `replyConnectionId` | string | connection_id reply-коннектора |
 | `replyToolName` | string | Тул, отправляющий ответ |
 | `replyToolParams` | object | JSON-шаблон параметров тула с плейсхолдерами (см. ниже) |
@@ -163,7 +162,7 @@ Backend перед вызовом тула рекурсивно проходит
   "response": [
     {
       "name": "generic",
-      "configFields": { "type": "object", "properties": { "triggers": { "type": "array", "items": { "type": "string" }, "title": "Триггеры", "description": "..." }, "messageField": { "type": "string", "title": "Поле сообщения", "description": "..." } }, "required": ["triggers", "messageField", "replyConnectorCode", "replyConnectionId", "replyToolName", "replyToolParams"] }
+      "configFields": { "type": "object", "properties": { "triggers": { "type": "array", "items": { "type": "string" }, "title": "Триггеры", "description": "..." }, "messageField": { "type": "string", "title": "Поле сообщения", "description": "..." } }, "required": ["triggers", "messageField", "replyConnectionId", "replyToolName", "replyToolParams"] }
     },
     {
       "name": "telegram",
@@ -194,7 +193,6 @@ Backend перед вызовом тула рекурсивно проходит
       "config": {
         "triggers": ["message_received"],
         "messageField": "data.message.text",
-        "replyConnectorCode": "telegram",
         "replyConnectionId": "018f...",
         "replyToolName": "send_message",
         "replyToolParams": { "chat_id": "{trigger.data.message.chat_id}", "text": "{text}" }
@@ -226,7 +224,6 @@ Backend перед вызовом тула рекурсивно проходит
   "config": {
     "triggers": ["message_received"],
     "messageField": "data.message.text",
-    "replyConnectorCode": "telegram",
     "replyConnectionId": "018f...",
     "replyToolName": "send_message",
     "replyToolParams": { "chat_id": "{trigger.data.message.chat_id}", "text": "{text}" }
