@@ -173,7 +173,7 @@ BACKLOG → IN_PROGRESS → REVIEW → DONE
 ```json
 {
   "connectorCode": "board",
-  "identity": "<boardPubId>",
+  "connectionId": "<board connection_id>",
   "id": "<уникальный ID триггера>",
   "name": "board.<событие>",
   "data": { ... },

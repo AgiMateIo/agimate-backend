@@ -6,7 +6,7 @@
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
     <!--
-        Единый реестр экземпляров коннекторов. id = identity во всём downstream (channels, policies,
+        Единый реестр экземпляров коннекторов. id = connection_id во всём downstream (channels, policies,
         trigger_logs, tool_call_logs, connector_jobs). Outbound-секрет (telegram/mcp) — в secrets
         (secret_id); APP-экземпляр ссылается на устройство через app_id (apps).
     -->
