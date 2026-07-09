@@ -49,10 +49,12 @@ The package root is what DBOS sees: the four workflow pairs, `Queues`, the route
 `ControlSignal` and the claim helper. The run-body machinery lives in `workers/run`:
 `AgentRunCore` holds the invariant run body — a `prepare_context` step
 (`ContextMaterialsFetcher` gRPC fetch scoped by the `ContextProfile` → pure
-`ContextBuilder.build` → `PreparedContext`), history restore/append steps, the loop (via
-`AgentDispatcher` binding the LLM/tool queues), and failure reporting; `OutboundPublisher`
-routes progress/answer/error to channels by role with deterministic `message_id`s for
-idempotent replays. `PreparedContext` stays in `workers/run` — its FQCN is pinned by the DBOS
+`ContextBuilder.build` → `PreparedContext`), the loop, and failure reporting — delegating the
+distinct concerns to collaborators: `SessionHistoryStore` (history restore/append steps +
+turn-idx bookkeeping), `ControlMailbox` (steer/interrupt drain), and
+`LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared `WorkflowHandles`
+await). `OutboundPublisher` routes progress/answer/error to channels by role with deterministic
+`message_id`s for idempotent replays. `PreparedContext` stays in `workers/run` — its FQCN is pinned by the DBOS
 checkpoint (in-flight runs replay the serialized step result across deploys). See
 [agent-context-design.md](../agent-context-design.md) for the context-assembly design.
 

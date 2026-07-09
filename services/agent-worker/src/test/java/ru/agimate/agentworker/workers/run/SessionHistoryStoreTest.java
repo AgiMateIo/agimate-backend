@@ -9,7 +9,7 @@ import ru.agimate.agentworker.MessageKind;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-class AgentRunCoreTest {
+class SessionHistoryStoreTest {
 
     private static HistoryMessage msg(int turnIdx) {
         return HistoryMessage.newBuilder()
@@ -28,12 +28,12 @@ class AgentRunCoreTest {
         for (int i = 10; i <= 59; i++) {
             resp.addMessages(msg(i));
         }
-        assertEquals(60, AgentRunCore.nextTurnIdx(resp.build()));
+        assertEquals(60, SessionHistoryStore.nextTurnIdx(resp.build()));
     }
 
     @Test
     @DisplayName("empty history starts at turn 0")
     void emptyHistory() {
-        assertEquals(0, AgentRunCore.nextTurnIdx(GetHistoryResponse.getDefaultInstance()));
+        assertEquals(0, SessionHistoryStore.nextTurnIdx(GetHistoryResponse.getDefaultInstance()));
     }
 }

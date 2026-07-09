@@ -7,13 +7,9 @@ import dev.dbos.transact.StartWorkflowOptions;
 import dev.dbos.transact.workflow.Queue;
 import dev.dbos.transact.workflow.WorkflowHandle;
 import lombok.extern.slf4j.Slf4j;
-import ru.agimate.agentworker.agent.model.AgentChatMessage;
-import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.SimpleAgent;
-import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.agent.ToolRegistry;
-import ru.agimate.agentworker.workers.LlmCallWorkflow;
-import ru.agimate.agentworker.workers.Queues;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
 import java.util.ArrayList;
@@ -22,46 +18,31 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Per-run binding of {@link SimpleAgent}'s injected callables to the worker queues. Each LLM/tool
- * call is enqueued as a child workflow (its own concurrency-limited queue) and awaited. Tool calls
- * are all enqueued in order first, then awaited, so they run concurrently on the tool queue while
- * the enqueue order stays deterministic across DBOS replays. Holds no persistence/output state.
+ * Per-run {@link SimpleAgent.ToolDispatcher}: enqueues every tool call in deterministic order first,
+ * then awaits them, so they run concurrently on the tool queue while the enqueue order stays stable
+ * across DBOS replays. Never throws for a tool failure — a failed call comes back as a failed
+ * {@link AgentChatMessage.ToolResult}. Holds no persistence/output state.
  */
 @Slf4j
-public class AgentDispatcher implements SimpleAgent.LlmCaller, SimpleAgent.ToolDispatcher {
+class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final DBOS dbos;
-    private final LlmCallWorkflow llm;
     private final ToolCallWorkflow tool;
-    private final Queue llmQueue;
     private final Queue toolQueue;
     private final String agentId;
     private final String sessionId;
     private final ToolRegistry registry;
 
-    public AgentDispatcher(DBOS dbos, LlmCallWorkflow llm, ToolCallWorkflow tool, Queue llmQueue, Queue toolQueue,
-                           String agentId, String sessionId, ToolRegistry registry) {
+    ToolCallDispatcher(DBOS dbos, ToolCallWorkflow tool, Queue toolQueue, String agentId, String sessionId,
+                       ToolRegistry registry) {
         this.dbos = dbos;
-        this.llm = llm;
         this.tool = tool;
-        this.llmQueue = llmQueue;
         this.toolQueue = toolQueue;
         this.agentId = agentId;
         this.sessionId = sessionId;
         this.registry = registry;
-    }
-
-    @Override
-    public AgentChatMessage call(List<AgentChatMessage> messages, List<ToolDef> toolDefs) {
-        WorkflowHandle<LlmCallWorkflow.Result, ? extends Exception> handle =
-                dbos.startWorkflow(() -> llm.llmCall(messages, toolDefs, agentId), new StartWorkflowOptions(llmQueue));
-        LlmCallWorkflow.Result result = await(handle);
-        if (result.failed()) {
-            throw new LlmCallError(result.statusCode(), result.message());
-        }
-        return result.assistant();
     }
 
     @Override
@@ -93,7 +74,7 @@ public class AgentDispatcher implements SimpleAgent.LlmCaller, SimpleAgent.ToolD
                 results.add(p.immediate);
                 continue;
             }
-            ToolCallWorkflow.Outcome outcome = await(p.handle);
+            ToolCallWorkflow.Outcome outcome = WorkflowHandles.await(p.handle);
             if (outcome.error() != null) {
                 results.add(failed(p.call, p.toolCallId(), outcome.error()));
             } else {
@@ -120,16 +101,6 @@ public class AgentDispatcher implements SimpleAgent.LlmCaller, SimpleAgent.ToolD
             return MAPPER.writeValueAsString(Map.of("error", error != null ? error : "unknown error"));
         } catch (JsonProcessingException e) {
             return "{\"error\":\"unserializable error message\"}";
-        }
-    }
-
-    private static <T> T await(WorkflowHandle<T, ? extends Exception> handle) {
-        try {
-            return handle.getResult();
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
         }
     }
 
