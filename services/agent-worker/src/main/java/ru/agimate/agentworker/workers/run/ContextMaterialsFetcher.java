@@ -63,7 +63,7 @@ public class ContextMaterialsFetcher {
         TeamContext teamCtx = spec.getTeamId().isBlank() ? null : client.getTeamContext(spec.getTeamId());
         AgentMemory memory = client.getMemory(agentId);
         GetMemoryNotesResponse notesResp = client.getMemoryNotes(agentId);
-        log.info("{} path; {} skill(s) listed, {} in scope",
+        log.debug("{} path; {} skill(s) listed, {} in scope",
                 profile == ContextProfile.DIALOGUE ? "dialogue" : "trigger", listed.size(), scoped.size());
 
         GetConnectionsResponse connsResp = client.getConnections(agentId);

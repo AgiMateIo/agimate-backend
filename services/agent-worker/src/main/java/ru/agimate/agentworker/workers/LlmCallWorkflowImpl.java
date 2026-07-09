@@ -47,7 +47,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             log.warn("LLM credentials unavailable: {}", e.getMessage());
             return Result.failure(null, e.getMessage());
         }
-        log.info("LLM credentials: provider={} model={}", creds.getProviderType(), creds.getModel());
+        log.debug("LLM credentials: provider={} model={}", creds.getProviderType(), creds.getModel());
 
         // Model construction stays inside the try: an unsupported provider_type (or a mapping
         // bug) must come back as a failure value, not escape the workflow past the error mapping.

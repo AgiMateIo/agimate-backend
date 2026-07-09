@@ -72,8 +72,12 @@ public class OutboundPublisher {
         var reply = client.sendChannelMessage(
                 agentId, channel.channelId(), channel.sessionId() != null ? channel.sessionId() : "",
                 messageId, text, stream);
-        log.info("SendChannelMessage acked [{}]: session_id={} message_id={}",
-                stream, reply.getSessionId(), reply.getMessageId());
+        // Progress is chatty (one send per narration line) → DEBUG; answer/error are part of the
+        // per-run story → one INFO line, with the ack ids kept at DEBUG for both.
+        log.debug("sent [{}]: session_id={} message_id={}", stream, reply.getSessionId(), reply.getMessageId());
+        if (!"progress".equals(stream)) {
+            log.info("sent [{}]", stream);
+        }
     }
 
     /** Deterministic UUID (v3/MD5) from a stable name so replays produce identical ids. */

@@ -6,6 +6,7 @@ import dev.dbos.transact.workflow.StepOptions;
 import dev.dbos.transact.workflow.Workflow;
 import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.error.AgentInterrupted;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
@@ -61,41 +62,46 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
         String sessionId = SessionSupport.sessionId(message);
         OutboundPublisher output = new OutboundPublisher(client, message.agentId(), message.channels(), message.runId());
 
-        // Durable step: idempotent re-affirm on replay (checkpointed result) + retries on
-        // transient gRPC errors. ABORTED (slot held by another run) comes back as false.
-        boolean acquired = sessionId == null || dbos.runStep(
-                () -> SessionSupport.tryRegister(client, message.agentId(), sessionId, message.runId(),
-                        session.getRunTtlSeconds()),
-                new StepOptions("register_run").withMaxAttempts(3));
-        if (!acquired) {
-            // Anomaly: the partition queue serialized us behind the holder, yet the slot is still
-            // taken — the previous run died without releasing (slot frees on TTL). Report instead
-            // of dropping silently: the user gets a notice, the backend gets the detail.
-            log.warn("session {} already has an active run; aborting run {}", sessionId, message.runId());
-            core.reportFailure(output, new AgentRunAborted(BUSY_NOTICE,
-                    "session " + sessionId + " slot is held by another run; dropping run " + message.runId()));
-            return;
-        }
-
-        try {
-            if (message.promptChannel() != null) {
-                runChannel(message, output);
-            } else {
-                runTrigger(message, output);
+        // Tag every run-body line with a short run id (the child LLM/tool workflows run on their own
+        // threads and won't carry it — that's fine, their lines are DEBUG detail).
+        try (MDC.MDCCloseable __ = MDC.putCloseable("run", shortRun(message.runId()))) {
+            // Durable step: idempotent re-affirm on replay (checkpointed result) + retries on
+            // transient gRPC errors. ABORTED (slot held by another run) comes back as false.
+            boolean acquired = sessionId == null || dbos.runStep(
+                    () -> SessionSupport.tryRegister(client, message.agentId(), sessionId, message.runId(),
+                            session.getRunTtlSeconds()),
+                    new StepOptions("register_run").withMaxAttempts(3));
+            if (!acquired) {
+                // Anomaly: the partition queue serialized us behind the holder, yet the slot is still
+                // taken — the previous run died without releasing (slot frees on TTL). Report instead
+                // of dropping silently: the user gets a notice, the backend gets the detail.
+                log.warn("session {} already active; aborting this run", sessionId);
+                core.reportFailure(output, new AgentRunAborted(BUSY_NOTICE,
+                        "session " + sessionId + " slot is held by another run; dropping run " + message.runId()));
+                return;
             }
-        } catch (AgentRunAborted e) {
-            log.warn(e.systemDetail());
-            core.reportFailure(output, e);
-        } catch (AgentInterrupted e) {
-            log.info("run {} interrupted by steering; releasing without a final answer", message.runId());
-        } finally {
-            if (sessionId != null) {
-                try {
-                    // Durable step: retried on transient gRPC errors so the slot rarely leaks to TTL.
-                    dbos.runStep(() -> client.releaseRun(sessionId, message.runId()).getReleased(),
-                            new StepOptions("release_run").withMaxAttempts(3));
-                } catch (Exception e) {
-                    log.warn("releaseRun failed for run {} (TTL will reclaim): {}", message.runId(), e.getMessage());
+
+            try {
+                if (message.promptChannel() != null) {
+                    runChannel(message, output);
+                } else {
+                    runTrigger(message, output);
+                }
+                log.info("run finished [{}]", message.promptChannel() != null ? "channel" : "trigger");
+            } catch (AgentRunAborted e) {
+                log.warn(e.systemDetail());
+                core.reportFailure(output, e);
+            } catch (AgentInterrupted e) {
+                log.info("interrupted by steering; releasing without a final answer");
+            } finally {
+                if (sessionId != null) {
+                    try {
+                        // Durable step: retried on transient gRPC errors so the slot rarely leaks to TTL.
+                        dbos.runStep(() -> client.releaseRun(sessionId, message.runId()).getReleased(),
+                                new StepOptions("release_run").withMaxAttempts(3));
+                    } catch (Exception e) {
+                        log.warn("releaseRun failed (TTL will reclaim): {}", e.getMessage());
+                    }
                 }
             }
         }
@@ -108,8 +114,7 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
                     + message.runId() + " agent_id=" + message.agentId() + ")");
         }
         String prompt = message.inbound().text();
-        log.info("run_agent channel: run_id={} agent_id={} channel={}", message.runId(), message.agentId(),
-                promptCh.channelId());
+        log.info("run started [channel]: agent={} channel={}", message.agentId(), promptCh.channelId());
 
         PreparedContext prepared = core.prepareContext(message.agentId(), ContextProfile.DIALOGUE, null);
         core.run(message.agentId(), prepared, AgentChatMessage.user(prompt),
@@ -119,16 +124,24 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
 
     private void runTrigger(AgentMessage message, OutboundPublisher output) {
         Trigger payload = message.payload();
-        log.info("run_agent trigger: run_id={} agent_id={} connector={} name={}", message.runId(),
+        log.info("run started [trigger]: agent={} connector={} name={}",
                 message.agentId(), payload.connectorCode(), payload.name());
 
         PreparedContext prepared = core.prepareContext(message.agentId(), ContextProfile.SYSTEM_TRIGGER,
                 List.of(payload));
         String request = RequestBuilder.buildUntrustedTriggerRequest(payload);
-        String answer = core.run(message.agentId(), prepared, AgentChatMessage.user(request),
+        core.run(message.agentId(), prepared, AgentChatMessage.user(request),
                 sessionBinding(message, payload.name()), output,
                 "for agent_id=" + message.agentId() + " trigger=" + payload.name(), drainControl());
-        log.info("trigger handled for agent_id={} event={}; answer: {}", message.agentId(), payload.name(), answer);
+    }
+
+    /**
+     * Last 8 hex of the run's UUID — enough to correlate a run's lines in the console. Taken from the
+     * tail (random {@code rand_b}), not the head: run ids are UUIDv7, whose leading hex encode the
+     * millisecond clock and stay identical for runs within the same ~65s window.
+     */
+    private static String shortRun(String runId) {
+        return runId != null && runId.length() >= 8 ? runId.substring(runId.length() - 8) : runId;
     }
 
     /** Drain the control mailbox only when the session policy actually delivers steering signals. */

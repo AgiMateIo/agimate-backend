@@ -28,7 +28,9 @@ public final class ContextBuilder {
         }
 
         ToolRegistry registry = ToolRegistry.build(materials.connectorTools());
-        log.info("loaded {} tool def(s): {}", registry.toolDefs().size(), registry.names());
+        log.info("context ready [{}]: {} tool(s)",
+                profile == ContextProfile.DIALOGUE ? "dialogue" : "trigger", registry.toolDefs().size());
+        log.debug("tools: {}", registry.names());
 
         String memoryNotes = RequestBuilder.renderMemoryNotes(materials.notes());
         return new PreparedContext(systemPrompt, memoryNotes, registry.toolDefs(), registry.backendMap());

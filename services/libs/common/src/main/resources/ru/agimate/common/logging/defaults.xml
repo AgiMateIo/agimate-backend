@@ -10,7 +10,7 @@
         <appender name="CONSOLE_PRETTY_LOCAL" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
                 <!--@formatter:off-->
-				<pattern>%d{ISO8601} %boldCyan([%-10.10thread]) %highlight(%-5level) %magenta(%-20.28logger{36}:%-4.4line) - %replace(Request ID: [%X{x-request-id}]){'Request ID: \[\]', ''} %msg%n</pattern>
+				<pattern>%d{ISO8601} %boldCyan([%-10.10thread]) %highlight(%-5level) %magenta(%-20.28logger{36}:%-4.4line) - %replace(Request ID: [%X{x-request-id}]){'Request ID: \[\]', ''} %replace(run=[%X{run}] ){'run=\[\] ', ''}%msg%n</pattern>
 				<!--@formatter:on-->
             </encoder>
         </appender>
@@ -24,7 +24,7 @@
         <appender name="CONSOLE_PRETTY" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
                 <!--@formatter:off-->
-				<pattern>%d{ISO8601} %boldCyan([%-10.10thread]) %highlight(%-5level) - %replace(Request ID: [%X{x-request-id}]){'Request ID: \[\]', ''} %msg%n</pattern>
+				<pattern>%d{ISO8601} %boldCyan([%-10.10thread]) %highlight(%-5level) - %replace(Request ID: [%X{x-request-id}]){'Request ID: \[\]', ''} %replace(run=[%X{run}] ){'run=\[\] ', ''}%msg%n</pattern>
 				<!--@formatter:on-->
             </encoder>
             <filter class="ch.qos.logback.classic.filter.ThresholdFilter">

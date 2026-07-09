@@ -87,7 +87,7 @@ public class AgentWorkflowImpl implements AgentWorkflow {
                 new StartWorkflowOptions(execQueue)
                         .withWorkflowId(message.runId())
                         .withQueuePartitionKey(partitionKey));
-        log.info("enqueued run {} on {} (partition={})", message.runId(), Queues.AGENT_EXEC_QUEUE, partitionKey);
+        log.debug("enqueued run {} on {} (partition={})", message.runId(), Queues.AGENT_EXEC_QUEUE, partitionKey);
     }
 
     /**

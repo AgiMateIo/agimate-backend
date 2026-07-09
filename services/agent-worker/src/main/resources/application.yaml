@@ -11,7 +11,9 @@ spring:
 logging:
   level:
     root: INFO
-    ru.agimate.agentworker: DEBUG
+    # INFO = the clean per-run story (start → context → turns → answer → finish).
+    # Flip to DEBUG for the full trace: credentials/model, tool names, per-progress sends, gRPC retries.
+    ru.agimate.agentworker: INFO
 
 # Worker configuration. Values here are defaults; override any of them via
 # environment variables (relaxed binding), e.g. AGENT_GRPC_TARGET, AGENT_DBOS_DATABASE_URL.

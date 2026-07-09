@@ -107,7 +107,8 @@ public class SimpleAgent {
                 return text;
             }
 
-            log.info("turn {}: dispatching {} tool call(s)", turn, assistant.toolCalls().size());
+            log.info("turn {}: dispatching {} tool call(s): {}", turn, assistant.toolCalls().size(),
+                    assistant.toolCalls().stream().map(AgentChatMessage.ToolCall::name).toList());
             List<AgentChatMessage.ToolResult> results = toolDispatcher.dispatchAll(assistant.toolCalls());
             AgentChatMessage toolMsg = AgentChatMessage.toolResults(results);
             messages.add(toolMsg);

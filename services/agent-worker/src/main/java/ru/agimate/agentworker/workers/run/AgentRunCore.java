@@ -122,8 +122,7 @@ public class AgentRunCore {
         if (session != null) {
             SessionHistory sessionHistory = getSessionHistory(agentId, session.sessionPubId());
             history = sessionHistory.messages();
-            log.info("loaded {} historical message(s) for session; next turn idx {}",
-                    history.size(), sessionHistory.nextTurnIdx());
+            log.info("history: {} message(s), next turn {}", history.size(), sessionHistory.nextTurnIdx());
             nextTurnIdx[0] = sessionHistory.nextTurnIdx();
             List<Integer> assigned = appendSessionMessages(agentId, session.sessionPubId(), session.runId(), nextTurnIdx[0],
                     List.of(new AgentWorkerClient.AppendItem(MessageKind.REQUEST,
@@ -169,7 +168,6 @@ public class AgentRunCore {
         AgentRunner runner = new AgentRunner(dispatcher, dispatcher, registry.toolDefs(), MAX_AGENT_TURNS,
                 context, onNewMessages, checkpointer, output::answer);
         String answer = runner.run(prepared.systemPrompt(), historyForClosure, modelRequest);
-        log.info("LLM answered: {}", answer);
         output.answer(answer);
         return answer;
     }
