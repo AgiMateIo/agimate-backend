@@ -3,27 +3,19 @@ package ru.agimate.agentworker.workers.run;
 import dev.dbos.transact.DBOS;
 import dev.dbos.transact.workflow.Queue;
 import lombok.extern.slf4j.Slf4j;
-import ru.agimate.agentworker.AgentMemory;
-import ru.agimate.agentworker.AgentSpec;
-import ru.agimate.agentworker.ConnectionRef;
-import ru.agimate.agentworker.GetConnectionToolsResponse;
-import ru.agimate.agentworker.GetConnectionsResponse;
 import ru.agimate.agentworker.GetHistoryResponse;
-import ru.agimate.agentworker.GetMemoryNotesResponse;
-import ru.agimate.agentworker.GetSkillsResponse;
 import ru.agimate.agentworker.HistoryMessage;
 import ru.agimate.agentworker.MessageKind;
-import ru.agimate.agentworker.SkillRef;
-import ru.agimate.agentworker.SkillSpec;
-import ru.agimate.agentworker.TeamContext;
 import ru.agimate.agentworker.WorkerMessageType;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.agent.AgentRunner;
 import ru.agimate.agentworker.agent.MessageCodec;
-import ru.agimate.agentworker.agent.PromptBuilder;
 import ru.agimate.agentworker.agent.SimpleAgent;
 import ru.agimate.agentworker.agent.ToolRegistry;
+import ru.agimate.agentworker.agent.context.ContextBuilder;
+import ru.agimate.agentworker.agent.context.ContextProfile;
+import ru.agimate.agentworker.agent.context.RequestBuilder;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.dto.Trigger;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
@@ -34,10 +26,8 @@ import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Shared agent-run core used by the orchestrator workflow — one implementation of the invariant run
@@ -54,6 +44,7 @@ public class AgentRunCore {
 
     private final DBOS dbos;
     private final AgentWorkerClient client;
+    private final ContextMaterialsFetcher fetcher;
     private final LlmCallWorkflow llm;
     private final ToolCallWorkflow tool;
     private final Queue llmQueue;
@@ -63,6 +54,7 @@ public class AgentRunCore {
                         Queue llmQueue, Queue toolQueue) {
         this.dbos = dbos;
         this.client = client;
+        this.fetcher = new ContextMaterialsFetcher(client);
         this.llm = llm;
         this.tool = tool;
         this.llmQueue = llmQueue;
@@ -70,60 +62,13 @@ public class AgentRunCore {
     }
 
     /**
-     * Fetch agent spec/team/skills/tools and derive the prompt + tool registry in one durable step.
-     * {@code batch} null → dialogue (list every skill, no body, toolset spans every skill's
-     * connectors); a trigger batch → only the skill(s) declaring an event's connector are in scope
-     * (list all, inject their {@code skill_md}, append the trigger guidance, scope the toolset).
+     * Fetch the agent's materials and compose the prompt + tool registry in one durable step.
+     * The {@code profile} carries the assembly policy (see {@link ContextProfile}); {@code batch}
+     * is the trigger batch for {@link ContextProfile#SYSTEM_TRIGGER}, null for dialogue.
      */
-    public PreparedContext prepareContext(String agentId, List<Trigger> batch) {
-        return dbos.runStep(() -> doPrepareContext(agentId, batch), "prepare_context");
-    }
-
-    private PreparedContext doPrepareContext(String agentId, List<Trigger> batch) {
-        GetSkillsResponse skillsResp = client.getSkills(agentId);
-        List<SkillRef> listed = skillsResp.getSkillsList();
-
-        List<SkillSpec> loadedSkills = new ArrayList<>();
-        List<SkillRef> scoped;
-        if (batch == null) {
-            scoped = listed;
-        } else {
-            scoped = PromptBuilder.selectBatchSkills(listed, batch);
-            for (SkillRef s : scoped) {
-                loadedSkills.add(client.getSkill(s.getSkillId()));
-            }
-        }
-        Set<String> required = new LinkedHashSet<>();
-        for (SkillRef s : scoped) {
-            required.addAll(s.getConnectorCodesList());
-        }
-
-        AgentSpec spec = client.getAgentSpec(agentId);
-        TeamContext teamCtx = spec.getTeamId().isBlank() ? null : client.getTeamContext(spec.getTeamId());
-        AgentMemory memory = client.getMemory(agentId);
-        GetMemoryNotesResponse notesResp = client.getMemoryNotes(agentId);
-        String memoryNotes = PromptBuilder.renderMemoryNotes(notesResp.getNotesList());
-
-        String systemPrompt = PromptBuilder.build(spec, teamCtx, listed, loadedSkills, memory);
-        if (batch != null) {
-            systemPrompt = systemPrompt + "\n\n" + PromptBuilder.TRIGGER_GUIDANCE;
-        }
-        log.info("{} path; {} skill(s) listed, {} in scope", batch == null ? "dialogue" : "trigger",
-                listed.size(), scoped.size());
-
-        GetConnectionsResponse connsResp = client.getConnections(agentId);
-        List<ToolRegistry.ConnectorTools> loadedTools = new ArrayList<>();
-        for (ConnectionRef conn : connsResp.getConnectionsList()) {
-            if (!required.contains(conn.getConnectorCode())) {
-                continue;
-            }
-            GetConnectionToolsResponse toolsResp = client.getConnectionTools(conn.getId());
-            loadedTools.add(new ToolRegistry.ConnectorTools(conn.getConnectorCode(), toolsResp.getToolsList()));
-        }
-        ToolRegistry registry = ToolRegistry.build(loadedTools);
-        log.info("loaded {} tool def(s): {}", registry.toolDefs().size(), registry.names());
-
-        return new PreparedContext(systemPrompt, memoryNotes, registry.toolDefs(), registry.backendMap());
+    public PreparedContext prepareContext(String agentId, ContextProfile profile, List<Trigger> batch) {
+        return dbos.runStep(() -> ContextBuilder.build(profile, fetcher.fetch(agentId, profile, batch)),
+                "prepare_context");
     }
 
     /** History slice plus the next free turn index (derived from the server's turn_idx). */
@@ -215,11 +160,7 @@ public class AgentRunCore {
 
         // Hot memory notes ride alongside the user prompt but are never persisted (only the original
         // initial request was appended above); they are re-fetched each run, like the system prompt.
-        AgentChatMessage modelRequest = initialRequest;
-        if (prepared.memoryNotes() != null) {
-            String base = initialRequest.text() != null ? initialRequest.text() : "";
-            modelRequest = AgentChatMessage.user(base + "\n\n" + prepared.memoryNotes());
-        }
+        AgentChatMessage modelRequest = RequestBuilder.withMemoryNotes(initialRequest, prepared.memoryNotes());
 
         // Steering (steer/interrupt policies) drains the control mailbox at each turn boundary;
         // an answer completed right before a steer folds in is delivered as an interim answer.
@@ -269,7 +210,7 @@ public class AgentRunCore {
             return message.inbound().text();
         }
         if (message.payload() != null) {
-            return PromptBuilder.buildUntrustedTriggerRequest(message.payload());
+            return RequestBuilder.buildUntrustedTriggerRequest(message.payload());
         }
         return null;
     }

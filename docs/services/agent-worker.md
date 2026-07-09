@@ -23,7 +23,11 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
 | `MessageCodec` | (De)serialize messages to the `message_json` bytes persisted as history + timeline/progress text projections. |
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, identity)`; `{namespace}.{name}` naming; schema parsing. |
-| `PromptBuilder` | System prompt (agent/team/skills/memory), untrusted-trigger wrapping, skill selection, memory notes. |
+| `context/ContextProfile` | Input-type profile (`DIALOGUE`/`SYSTEM_TRIGGER`) — the declarative context-assembly policy (skill bodies, trigger guidance, untrusted wrapping), chosen at the run entry point. |
+| `context/ContextBuilder` | The assembly seam: `build(profile, materials) → PreparedContext` — the one place that reads "how is the context built for this kind of input". |
+| `context/SystemPromptBuilder` | System prompt (agent/team/skills/memory) + trigger-batch skill selection. |
+| `context/RequestBuilder` | User-turn assembly: untrusted-trigger wrapping, memory-notes rendering/mixing. |
+| `context/ContextMaterials` | Raw, already-scoped materials record consumed by `ContextBuilder`. |
 | `SimpleAgent` | The manual turn-loop (LLM call + tool dispatch injected; optional steering checkpoint). |
 | `AgentRunner` | Assemble the message list, map terminal failures to `AgentRunAborted`. |
 
@@ -43,10 +47,14 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 
 The package root is what DBOS sees: the four workflow pairs, `Queues`, the router↔run
 `ControlSignal` and the claim helper. The run-body machinery lives in `workers/run`:
-`AgentRunCore` holds the invariant run body — a `prepare_context` step (spec/team/skills → prompt
-+ `ToolRegistry`), history restore/append steps, the loop (via `AgentDispatcher` binding the
-LLM/tool queues), and failure reporting; `OutboundPublisher` routes progress/answer/error to
-channels by role with deterministic `message_id`s for idempotent replays.
+`AgentRunCore` holds the invariant run body — a `prepare_context` step
+(`ContextMaterialsFetcher` gRPC fetch scoped by the `ContextProfile` → pure
+`ContextBuilder.build` → `PreparedContext`), history restore/append steps, the loop (via
+`AgentDispatcher` binding the LLM/tool queues), and failure reporting; `OutboundPublisher`
+routes progress/answer/error to channels by role with deterministic `message_id`s for
+idempotent replays. `PreparedContext` stays in `workers/run` — its FQCN is pinned by the DBOS
+checkpoint (in-flight runs replay the serialized step result across deploys). See
+[agent-context-design.md](../agent-context-design.md) for the context-assembly design.
 
 ### Producer contract (shared code, not config)
 The queue/class/workflow/instance names (`agent_runs`/`AgentWorkflow`/`start_agent`/`default`)

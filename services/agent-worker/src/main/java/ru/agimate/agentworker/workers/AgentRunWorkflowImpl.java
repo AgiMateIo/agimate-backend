@@ -13,7 +13,8 @@ import ru.agimate.agentworker.workers.run.AgentRunCore;
 import ru.agimate.agentworker.workers.run.OutboundPublisher;
 import ru.agimate.agentworker.workers.run.PreparedContext;
 import ru.agimate.agentworker.workers.run.SessionBinding;
-import ru.agimate.agentworker.agent.PromptBuilder;
+import ru.agimate.agentworker.agent.context.ContextProfile;
+import ru.agimate.agentworker.agent.context.RequestBuilder;
 import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.dto.ChannelInfo;
@@ -110,7 +111,7 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
         log.info("run_agent channel: run_id={} agent_id={} channel={}", message.runId(), message.agentId(),
                 promptCh.channelId());
 
-        PreparedContext prepared = core.prepareContext(message.agentId(), null);
+        PreparedContext prepared = core.prepareContext(message.agentId(), ContextProfile.DIALOGUE, null);
         core.run(message.agentId(), prepared, AgentChatMessage.user(prompt),
                 sessionBinding(message, prompt), output,
                 "for agent_id=" + message.agentId() + " channel=" + promptCh.channelId(), drainControl());
@@ -121,8 +122,9 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
         log.info("run_agent trigger: run_id={} agent_id={} connector={} name={}", message.runId(),
                 message.agentId(), payload.connectorCode(), payload.name());
 
-        PreparedContext prepared = core.prepareContext(message.agentId(), List.of(payload));
-        String request = PromptBuilder.buildUntrustedTriggerRequest(payload);
+        PreparedContext prepared = core.prepareContext(message.agentId(), ContextProfile.SYSTEM_TRIGGER,
+                List.of(payload));
+        String request = RequestBuilder.buildUntrustedTriggerRequest(payload);
         String answer = core.run(message.agentId(), prepared, AgentChatMessage.user(request),
                 sessionBinding(message, payload.name()), output,
                 "for agent_id=" + message.agentId() + " trigger=" + payload.name(), drainControl());
