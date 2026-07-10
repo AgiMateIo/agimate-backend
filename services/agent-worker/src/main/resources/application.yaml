@@ -38,8 +38,6 @@ agent:
     category: "cloud-agent"
     user-agent: "AgiMate managed agent (agimate.io)"
   session:
-    # queue | steer | interrupt — behaviour on a message into an already-active session.
-    on-active-message: queue
   dbos:
     app-name: "agent-worker"
     database-url: "jdbc:postgresql://localhost:5432/dbos_db"

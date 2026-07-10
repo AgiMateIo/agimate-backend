@@ -13,6 +13,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
+import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.grpc.mapper.ToolGatewayMapper;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
@@ -34,13 +35,14 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase {
 
     private final AgentToolCallService agentToolCallService;
+    private final TriggerLogAgentRepository triggerLogAgentRepository;
 
     @Override
     public void executeToolAsync(ExecuteToolRequest request, StreamObserver<ExecuteToolAsyncAck> responseObserver) {
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            ToolCallRequest toolCall = ToolGatewayMapper.toToolCallRequest(request);
+            ToolCallRequest toolCall = ToolGatewayMapper.toToolCallRequest(request, resolveSessionId(request));
             String toolCallId = agentToolCallService.processToolCall(agentId, toolCall);
             log.info("ToolGateway.ExecuteToolAsync ok pool={} agent={} workflow={} tool={} toolCallId={}",
                     poolId, agentId, request.getWorkflowId(), request.getToolName(), toolCallId);
@@ -69,6 +71,23 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
                     poolId, request.getWorkflowId(), e);
             responseObserver.onError(Status.INTERNAL
                     .withDescription(e.getMessage()).asRuntimeException());
+        }
+    }
+
+    /**
+     * Протокол v2: воркер шлёт trigger_id рана; сессию (доменный контекст тулов — канал prompt'а)
+     * резолвит эта сторона из строки рана. Пустой/неизвестный trigger_id → null (тул вне канала).
+     */
+    private String resolveSessionId(ExecuteToolRequest request) {
+        if (request.getTriggerId().isEmpty()) {
+            return null;
+        }
+        try {
+            return triggerLogAgentRepository.findById(UUID.fromString(request.getTriggerId()))
+                    .map(run -> run.getSessionId() != null ? run.getSessionId().toString() : null)
+                    .orElse(null);
+        } catch (IllegalArgumentException e) {
+            return null;
         }
     }
 

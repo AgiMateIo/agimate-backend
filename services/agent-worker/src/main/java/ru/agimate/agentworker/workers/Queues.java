@@ -24,8 +24,6 @@ public final class Queues {
     public static final String RUN_CLASS = "AgentRunWorkflow";
     public static final String RUN_WORKFLOW = "run_agent";
 
-    // DBOS mailbox topic for steering signals delivered to an active run.
-    public static final String CONTROL_TOPIC = "control";
 
     // Internal queues splitting LLM traffic from tool traffic.
     public static final String LLM_QUEUE = "llm_calls";

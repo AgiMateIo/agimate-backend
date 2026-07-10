@@ -14,7 +14,7 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.emptyToNull;
 @UtilityClass
 public class ToolGatewayMapper {
 
-    public static ToolCallRequest toToolCallRequest(ExecuteToolRequest request) {
+    public static ToolCallRequest toToolCallRequest(ExecuteToolRequest request, String agentSessionId) {
         if (request.getToolCallId().isEmpty()) {
             throw Status.INVALID_ARGUMENT.withDescription("tool_call_id is required").asRuntimeException();
         }
@@ -37,7 +37,7 @@ public class ToolGatewayMapper {
                 .connectionId(emptyToNull(request.getConnectionId()))
                 .name(request.getToolName())
                 .input(input)
-                .agentSessionId(emptyToNull(request.getAgentSessionId()))
+                .agentSessionId(agentSessionId)
                 .build();
     }
 }

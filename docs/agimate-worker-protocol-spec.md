@@ -227,7 +227,7 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
 | `agent_context.proto` | `AgentContext` | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials` |
 | `message_log.proto` | `MessageLog` | `SaveMessage` (v2 этап 3: воркер — единственный писатель истории; доставка — проекция записи) |
 | `tool_gateway.proto` | `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` |
-| `agent_run_registry.proto` | `AgentRunRegistry` | `RegisterRun`, `GetActiveRun`, `ReleaseRun` |
+| `agent_run_registry.proto` | `AgentRunRegistry` | `RegisterRun(agent_id, trigger_id)` → `{status, session_key}`, `ReleaseRun` (v2: сессию резолвит бэк; steering удалён) |
 
 `workflow_reporting.proto` намеренно **не создан** — `WorkflowReporting` сервис в PoC отсутствует.
 

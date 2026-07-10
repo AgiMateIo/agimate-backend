@@ -18,7 +18,7 @@ credentials from the backend and execute tools through the Tool Gateway.
 | `AgentContext`          | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials`           | done     |
 | `MessageLog`            | `SaveMessage` — единая запись событий диалога, доставка как её проекция                            | done     |
 | `ToolGateway`           | `ExecuteToolAsync`, `GetToolResult`                                                               | done     |
-| `AgentRunRegistry`      | `RegisterRun`, `GetActiveRun`, `ReleaseRun`                                                       | done     |
+| `AgentRunRegistry`      | `RegisterRun(agent_id, trigger_id)` → `{status ACQUIRED|BUSY|NO_SESSION, session_key}`, `ReleaseRun` | done     |
 | `WorkflowReporting`     | —                                                                                                 | post-PoC |
 
 Source proto files: `services/libs/agentworker-proto/src/main/proto/agentworker/`.
@@ -189,39 +189,38 @@ presentation-only, wire routing unchanged.
 (`agent_connection_policies`) are **not** applied at listing time; they are enforced on `ExecuteTool`
 (`PERMISSION_DENIED`). The worker may surface denied tools to the LLM; the call is rejected at execution.
 
-## Active-run registry (`AgentRunRegistry`)
+## Active-run registry (`AgentRunRegistry`, протокол v2)
 
-Backed by the `trigger_log_agents` table — each row is an agent run, and its `pub_id` is the canonical
-**`run_id` == DBOS `workflow_id`**. There is no separate `workflow_id` field: to STEER/INTERRUPT the active
-run, the worker addresses the workflow whose id equals `run_id`.
+Backed by the `trigger_log_agents` table — each row is an agent run, and its id is the canonical
+**`run_id` == `trigger_id` == DBOS `workflow_id`**. Воркер оперирует только `trigger_id`; сессию
+single-writer'а резолвит бэк и возвращает как `session_key` — партиционный ключ очереди
+`agent_exec` (concurrency=1 на партицию сериализует раны сессии; steering удалён — сообщение
+в занятую сессию просто ждёт очереди).
 
 Lifecycle (`status` column, orthogonal to `result`/`error`):
 `ENQUEUED` (created by the backend at trigger routing) → `RUNNING` (worker acquired the session slot) →
-`DONE` (released) / `FAILED` / `CANCELLED` (pre-empted by INTERRUPT).
+`DONE` (released) / `FAILED` (evicted dead holder).
 
-- `RegisterRun(session_pub_id, run_id, ttl_seconds)` — flips the run to `RUNNING`, sets `expires_at = now + ttl`
-  (server default ~3600s, no heartbeat). Returns the `ActiveRun`. The claim is a conditional UPDATE
-  (`NOT EXISTS` another RUNNING holder) — a busy slot is a regular outcome, not a constraint violation. On a
-  busy slot the server evicts a holder that provably no longer needs it — expired lease (the partial unique
-  index ignores `expires_at`, so the claim is where TTL takeover actually happens) or dead DBOS workflow
-  (`run_id` == workflow id; terminal state or missing record — e.g. the run errored during a control-api
-  outage and never released) — marks it `FAILED` and retries once; only a live holder yields `ABORTED`.
-- `GetActiveRun(session_pub_id)` — the single live writer for the session; expired `RUNNING` rows count as
-  inactive (`active=false`). No sweeper needed.
-- `ReleaseRun(session_pub_id, run_id)` — release-own: only the run holding the slot can release it, so a late
-  Release from a pre-empted run is a no-op (`released=false`).
+- `RegisterRun(agent_id, trigger_id, ttl_seconds)` → `{status: ACQUIRED|BUSY|NO_SESSION, session_key}` —
+  flips the run to `RUNNING`, sets `expires_at = now + ttl` (server default ~3600s, no heartbeat). The claim
+  is a conditional UPDATE (`NOT EXISTS` another RUNNING holder) — a busy slot is a regular `BUSY` response,
+  not an error. On a busy slot the server evicts a holder that provably no longer needs it — expired lease
+  (the partial unique index ignores `expires_at`, so the claim is where TTL takeover actually happens) or
+  dead DBOS workflow (terminal state or missing record — e.g. the run errored during a control-api outage
+  and never released) — marks it `FAILED` and retries once; only a live holder yields `BUSY`.
+  `NO_SESSION` — direct-ран без сессии, сериализовать нечего.
+- `ReleaseRun(agent_id, trigger_id)` — release-own: only the run holding the slot can release it, so a late
+  Release is a no-op (`released=false`).
 
 **Single-writer invariant**: at most one `RUNNING` run per session, enforced by a partial unique index
-`uq_trigger_log_agents_active_session ON (session_pub_id) WHERE status = 'RUNNING'`. The index is the
+`uq_trigger_log_agents_active_session ON (session_id) WHERE status = 'RUNNING'`. The index is the
 invariant backstop, not the detection mechanism: the claim's `NOT EXISTS` makes a busy slot an explicit
 outcome, and the index only trips on a true race (two concurrent claims both passing `NOT EXISTS` under
-READ COMMITTED — the loser gets `ABORTED`). An INTERRUPT take-over must first move the pre-empted run out
-of `RUNNING` (`CANCELLED`) before the new run's `RegisterRun`; otherwise `RegisterRun` is rejected with
-`ABORTED`.
+READ COMMITTED — the loser gets `BUSY`).
 
-`AgentSessionMessages.Append` is hardened independently: the insert into `channel_session_messages` uses
-`ON CONFLICT (session_id, turn_idx) DO NOTHING` and returns the actual `turn_idx` values, so a DBOS-replay /
-retry of the same run is idempotent without poisoning the transaction.
+`MessageLog.SaveMessage` is hardened independently: the insert into `channel_session_messages` uses
+`ON CONFLICT (run_id, seq) DO NOTHING`, so a DBOS-replay / retry of the same run is idempotent without
+poisoning the transaction.
 
 ## What's intentionally out of scope (PoC)
 

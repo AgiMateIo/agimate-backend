@@ -19,7 +19,9 @@ message ExecuteToolRequest {
   bytes input = 5;
   string agent_id = 6;
   string workflow_id = 7;
-  string agent_session_id = 8;
+  // Ран-источник вызова (trigger_log_agents.id); сессию/канал для доменного контекста
+  // тулов бэк резолвит сам из снапшота рана.
+  string trigger_id = 8;
 }
 
 message ExecuteToolAsyncAck {

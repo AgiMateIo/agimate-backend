@@ -11,7 +11,6 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
-import ru.agimate.controlapi.service.dto.AgentMessage;
 import ru.agimate.controlapi.service.dto.IToolResult;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -36,17 +35,15 @@ public class DbosTransport implements AgentTransport {
         }
         Agent agent = triggerLogAgent.getAgent();
         String agentId = agent.getId().toString();
-
-        // Informational only — the worker discriminates on channels.prompt, but the field
-        // should not lie to other consumers (metrics/logging); same rule as the other transports.
-        String type = channels != null ? "channel_message" : "trigger";
         String runId = triggerLogAgent.getId().toString();
-        String sessionId = triggerLogAgent.getSessionId() != null ? triggerLogAgent.getSessionId().toString() : null;
-        AgentMessage<Trigger> message = new AgentMessage<>(agentId, runId, type, sessionId, channels, inbound, trigger);
+
+        // Протокол v2: payload минимален — всё остальное (блоки, тулы, история, каналы)
+        // воркер забирает одним GetRunContext(agent_id, trigger_id) по этому runId.
+        WorkerRunMessage message = new WorkerRunMessage(agentId, runId);
 
         // Contract names and the router-id scheme come from the shared WorkerProtocol (compiled
         // into both services): the router gets a derived id so the bare runId is free for the
-        // run-stage workflow (run_id == its DBOS workflow id, which steering addresses).
+        // run-stage workflow (run_id == its DBOS workflow id).
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 WorkerProtocol.AGENT_WORKFLOW,
                 WorkerProtocol.AGENT_CLASS,
@@ -58,8 +55,7 @@ public class DbosTransport implements AgentTransport {
                 .withQueuePartitionKey(agentId);
         client.enqueueWorkflow(options, new Object[]{message});
 
-        log.debug("{} '{}' enqueued to DBOS queue '{}' for agent '{}'",
-                type,
+        log.debug("run '{}' enqueued to DBOS queue '{}' for agent '{}'",
                 triggerLogAgent.getTriggerLog().getName(),
                 WorkerProtocol.AGENT_QUEUE,
                 agentId);

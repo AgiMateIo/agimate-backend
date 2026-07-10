@@ -9,7 +9,9 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
@@ -34,6 +36,7 @@ import static org.mockito.Mockito.when;
 @DisplayName("AgentRunRegistryService")
 class AgentRunRegistryServiceTest {
 
+    private static final UUID AGENT_ID = UUID.randomUUID();
     private static final UUID SESSION_ID = UUID.randomUUID();
     private static final UUID RUN_ID = UUID.randomUUID();
     private static final UUID HOLDER_RUN_ID = UUID.randomUUID();
@@ -44,37 +47,78 @@ class AgentRunRegistryServiceTest {
     private final ObjectProvider<DBOSClient> clientProvider = mock(ObjectProvider.class);
     private final AgentRunRegistryService service = new AgentRunRegistryService(repository, clientProvider);
 
+    private void givenRun(UUID sessionId, RunStatus status) {
+        when(repository.findById(RUN_ID)).thenReturn(Optional.of(TriggerLogAgent.builder()
+                .id(RUN_ID)
+                .agent(Agent.builder().id(AGENT_ID).build())
+                .sessionId(sessionId)
+                .status(status)
+                .build()));
+    }
+
     @Nested
-    @DisplayName("registerRun: занятый слот — обычный исход, не исключение")
+    @DisplayName("registerRun: воркер знает только trigger_id, сессию резолвит бэк")
     class RegisterRun {
 
         @Test
-        @DisplayName("markRunning не прошёл, но ран жив (ENQUEUED) — конфликт слота, Optional.empty")
-        void busySlotIsEmptyOutcome() {
-            when(repository.markRunning(eq(RUN_ID), eq(SESSION_ID), any(), any())).thenReturn(0);
-            when(repository.findById(RUN_ID)).thenReturn(Optional.of(
-                    TriggerLogAgent.builder().id(RUN_ID).status(RunStatus.ENQUEUED).build()));
+        @DisplayName("слот взят: ACQUIRED + session_key")
+        void acquired() {
+            givenRun(SESSION_ID, RunStatus.ENQUEUED);
+            when(repository.markRunning(eq(RUN_ID), eq(SESSION_ID), any(), any())).thenReturn(1);
 
-            assertTrue(service.registerRun(SESSION_ID, RUN_ID, 60).isEmpty());
+            var result = service.registerRun(AGENT_ID, RUN_ID, 60);
+
+            assertEquals(AgentRunRegistryService.SlotStatus.ACQUIRED, result.status());
+            assertEquals(SESSION_ID, result.sessionId());
+        }
+
+        @Test
+        @DisplayName("direct-ран без сессии: NO_SESSION, статус строки не трогается")
+        void noSession() {
+            givenRun(null, RunStatus.ENQUEUED);
+
+            var result = service.registerRun(AGENT_ID, RUN_ID, 60);
+
+            assertEquals(AgentRunRegistryService.SlotStatus.NO_SESSION, result.status());
+            verify(repository, never()).markRunning(any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("markRunning не прошёл, но ран жив (ENQUEUED) — BUSY с session_key")
+        void busySlot() {
+            givenRun(SESSION_ID, RunStatus.ENQUEUED);
+            when(repository.markRunning(eq(RUN_ID), eq(SESSION_ID), any(), any())).thenReturn(0);
+
+            var result = service.registerRun(AGENT_ID, RUN_ID, 60);
+
+            assertEquals(AgentRunRegistryService.SlotStatus.BUSY, result.status());
+            assertEquals(SESSION_ID, result.sessionId());
         }
 
         @Test
         @DisplayName("строки рана нет — NotFound")
         void missingRunRejected() {
-            when(repository.markRunning(eq(RUN_ID), eq(SESSION_ID), any(), any())).thenReturn(0);
             when(repository.findById(RUN_ID)).thenReturn(Optional.empty());
 
-            assertThrows(NotFoundStatusException.class, () -> service.registerRun(SESSION_ID, RUN_ID, 60));
+            assertThrows(NotFoundStatusException.class, () -> service.registerRun(AGENT_ID, RUN_ID, 60));
         }
 
         @Test
         @DisplayName("поздний register на завершённый ран (DONE) — NotFound, слот не переоккупируется")
         void terminalRunRejected() {
+            givenRun(SESSION_ID, RunStatus.DONE);
             when(repository.markRunning(eq(RUN_ID), eq(SESSION_ID), any(), any())).thenReturn(0);
-            when(repository.findById(RUN_ID)).thenReturn(Optional.of(
-                    TriggerLogAgent.builder().id(RUN_ID).status(RunStatus.DONE).build()));
 
-            assertThrows(NotFoundStatusException.class, () -> service.registerRun(SESSION_ID, RUN_ID, 60));
+            assertThrows(NotFoundStatusException.class, () -> service.registerRun(AGENT_ID, RUN_ID, 60));
+        }
+
+        @Test
+        @DisplayName("ран чужого агента — BadRequest")
+        void foreignAgentRejected() {
+            givenRun(SESSION_ID, RunStatus.ENQUEUED);
+
+            assertThrows(BadRequestStatusException.class,
+                    () -> service.registerRun(UUID.randomUUID(), RUN_ID, 60));
         }
     }
 

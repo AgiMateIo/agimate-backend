@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
@@ -34,56 +35,61 @@ public class AgentRunRegistryService {
     private final TriggerLogAgentRepository triggerLogAgentRepository;
     private final ObjectProvider<DBOSClient> dbosClientProvider;
 
-    /** Immutable view of the active run, materialized inside the transaction. */
-    public record ActiveRunView(
-            UUID agentId,
-            UUID sessionId,
-            UUID runId,
-            LocalDateTime acquiredAt,
-            LocalDateTime expiresAt
-    ) {}
+    public enum SlotStatus { ACQUIRED, BUSY, NO_SESSION }
+
+    /** Итог claim'а: статус слота + ключ сериализации (sessionId; null у direct-рана). */
+    public record RegisterResult(SlotStatus status, UUID sessionId) {}
 
     /**
-     * Atomic claim of the session slot: {@code markRunning} flips the run to RUNNING only when no
-     * other RUNNING holder exists ({@code NOT EXISTS} inside the statement) — a busy slot is a
-     * regular outcome, not an exception.
+     * Atomic claim of the session slot by the run's own id (протокол v2: воркер знает только
+     * trigger_id, сессию резолвит эта сторона). {@code markRunning} flips the run to RUNNING only
+     * when no other RUNNING holder exists ({@code NOT EXISTS} inside the statement) — a busy slot
+     * is a regular outcome, not an exception. Direct-ран (без сессии) — {@code NO_SESSION}, статус
+     * строки не меняется.
      *
-     * @return the active run view, or {@link Optional#empty()} when another run holds the slot
      * @throws NotFoundStatusException when the run row is missing or already terminal
      */
     @Transactional
-    public Optional<ActiveRunView> registerRun(UUID sessionId, UUID runId, int ttlSeconds) {
+    public RegisterResult registerRun(UUID agentId, UUID triggerId, int ttlSeconds) {
+        TriggerLogAgent run = requireRun(agentId, triggerId);
+        UUID sessionId = run.getSessionId();
+        if (sessionId == null) {
+            return new RegisterResult(SlotStatus.NO_SESSION, null);
+        }
+
         int ttl = ttlSeconds > 0 ? ttlSeconds : DEFAULT_TTL_SECONDS;
         LocalDateTime acquiredAt = LocalDateTime.now();
         LocalDateTime expiresAt = acquiredAt.plusSeconds(ttl);
 
-        int updated = triggerLogAgentRepository.markRunning(runId, sessionId, expiresAt, acquiredAt);
+        int updated = triggerLogAgentRepository.markRunning(triggerId, sessionId, expiresAt, acquiredAt);
         if (updated == 0) {
-            // Either the run row is gone/terminal (late replay after finish) or the slot is held.
-            triggerLogAgentRepository.findById(runId)
-                    .filter(r -> r.getStatus() == RunStatus.ENQUEUED || r.getStatus() == RunStatus.RUNNING)
-                    .orElseThrow(() -> new NotFoundStatusException("Run not found: " + runId));
-            return Optional.empty();
+            // Either the run row is terminal (late replay after finish) or the slot is held.
+            if (run.getStatus() != RunStatus.ENQUEUED && run.getStatus() != RunStatus.RUNNING) {
+                throw new NotFoundStatusException("Run not found: " + triggerId);
+            }
+            return new RegisterResult(SlotStatus.BUSY, sessionId);
         }
 
-        TriggerLogAgent run = triggerLogAgentRepository.findById(runId)
-                .orElseThrow(() -> new NotFoundStatusException("Run not found: " + runId));
         log.debug("RegisterRun session={} run={} agent={} expiresAt={}",
-                sessionId, runId, run.getAgent().getId(), expiresAt);
-        return Optional.of(toView(run));
-    }
-
-    public Optional<ActiveRunView> getActiveRun(UUID sessionId) {
-        return triggerLogAgentRepository
-                .findActiveBySession(sessionId, LocalDateTime.now())
-                .map(this::toView);
+                sessionId, triggerId, agentId, expiresAt);
+        return new RegisterResult(SlotStatus.ACQUIRED, sessionId);
     }
 
     @Transactional
-    public boolean releaseRun(UUID runId) {
-        boolean released = triggerLogAgentRepository.releaseOwn(runId, RunStatus.DONE) == 1;
-        log.debug("ReleaseRun run={} released={}", runId, released);
+    public boolean releaseRun(UUID agentId, UUID triggerId) {
+        requireRun(agentId, triggerId);
+        boolean released = triggerLogAgentRepository.releaseOwn(triggerId, RunStatus.DONE) == 1;
+        log.debug("ReleaseRun run={} released={}", triggerId, released);
         return released;
+    }
+
+    private TriggerLogAgent requireRun(UUID agentId, UUID triggerId) {
+        TriggerLogAgent run = triggerLogAgentRepository.findById(triggerId)
+                .orElseThrow(() -> new NotFoundStatusException("Run not found: " + triggerId));
+        if (!run.getAgent().getId().equals(agentId)) {
+            throw new BadRequestStatusException("Run " + triggerId + " does not belong to agent " + agentId);
+        }
+        return run;
     }
 
     /**
@@ -136,13 +142,4 @@ public class AgentRunRegistryService {
         return true;
     }
 
-    private ActiveRunView toView(TriggerLogAgent run) {
-        return new ActiveRunView(
-                run.getAgent().getId(),
-                run.getSessionId(),
-                run.getId(),
-                run.getUpdatedAt(),
-                run.getExpiresAt()
-        );
-    }
 }

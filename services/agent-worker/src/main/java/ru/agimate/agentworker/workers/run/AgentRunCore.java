@@ -23,8 +23,8 @@ import java.util.function.Consumer;
  * {@link AgentRunner}, record output, report failures). History arrives pre-assembled in the
  * {@link PreparedContext} (backend-side window/filter); all dialogue events go out through the
  * run's {@link MessageLog} — persistence and channel delivery are its backend-side projections.
- * Steering lives in {@link ControlMailbox}, LLM/tool dispatch in
- * {@link LlmCallDispatcher}/{@link ToolCallDispatcher}. Durable checkpoints are {@code dbos.runStep};
+ * LLM/tool dispatch in {@link LlmCallDispatcher}/{@link ToolCallDispatcher}. Durable checkpoints
+ * are {@code dbos.runStep};
  * the LLM/tool calls are enqueued as child workflows.
  */
 @Slf4j
@@ -72,8 +72,8 @@ public class AgentRunCore {
      * delivers). Only the rendered user prompt is durable — ephemeral blocks (memory notes) ride
      * alongside the model turn and are never part of the persisted dialogue.
      */
-    public String run(String agentId, PreparedContext prepared, MessageLog messages,
-                      String sessionPubId, String context, boolean drainControl) {
+    public String run(String agentId, String triggerId, PreparedContext prepared, MessageLog messages,
+                      String context) {
         ToolRegistry registry = prepared.registry();
 
         Consumer<List<AgentChatMessage>> onNewMessages = newMsgs -> {
@@ -89,17 +89,12 @@ public class AgentRunCore {
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt());
         AgentChatMessage modelRequest = withEphemeralSuffix(initialRequest, prepared.ephemeralUserSuffix());
 
-        // Steering (steer/interrupt policies) drains the control mailbox at each turn boundary;
-        // an answer completed right before a steer folds in is delivered as an interim answer.
-        ControlMailbox mailbox = new ControlMailbox(dbos);
-        SimpleAgent.Checkpointer checkpointer = drainControl ? (msgs, phase) -> mailbox.drain() : null;
-
         LlmCallDispatcher llmDispatcher = new LlmCallDispatcher(dbos, llm, llmQueue, agentId);
         ToolCallDispatcher toolDispatcher = new ToolCallDispatcher(dbos, tool, toolQueue, agentId,
-                sessionPubId != null ? sessionPubId : "", registry);
+                triggerId, registry);
 
         AgentRunner runner = new AgentRunner(llmDispatcher, toolDispatcher, registry.toolDefs(), MAX_AGENT_TURNS,
-                context, onNewMessages, checkpointer, messages::answer);
+                context, onNewMessages);
         String answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
         messages.answer(answer);
         return answer;

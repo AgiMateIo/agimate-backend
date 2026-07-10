@@ -10,8 +10,6 @@ import ru.agimate.agentworker.AgentContextGrpc;
 import ru.agimate.agentworker.AgentRunRegistryGrpc;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.ExecuteToolRequest;
-import ru.agimate.agentworker.GetActiveRunRequest;
-import ru.agimate.agentworker.GetActiveRunResponse;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetRunContextRequest;
 import ru.agimate.agentworker.RunContext;
@@ -158,7 +156,7 @@ public class AgentWorkerClient {
 
     public ExecuteToolAsyncAck executeToolAsync(
             String toolCallId, String connectorCode, String connectionId, String toolName,
-            byte[] input, String agentId, String agentSessionId) {
+            byte[] input, String agentId, String triggerId) {
         return call("ExecuteToolAsync", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .executeToolAsync(ExecuteToolRequest.newBuilder()
                         .setToolCallId(toolCallId)
@@ -168,7 +166,7 @@ public class AgentWorkerClient {
                         .setInput(ByteString.copyFrom(input))
                         .setAgentId(agentId)
                         .setWorkflowId(workflowId())
-                        .setAgentSessionId(agentSessionId)
+                        .setTriggerId(triggerId)
                         .build()));
     }
 
@@ -188,25 +186,19 @@ public class AgentWorkerClient {
 
     // ---- AgentRunRegistry ------------------------------------------------------------
 
-    /** Atomic claim of a session's active-run slot; the status code is ABORTED when already held. */
-    public RegisterRunResponse registerRun(String agentPubId, String sessionPubId, String runId, int ttlSeconds) {
+    /** Claim слота сессии по trigger_id; BUSY — обычный статус в ответе, сессию резолвит бэк. */
+    public RegisterRunResponse registerRun(String agentId, String triggerId, int ttlSeconds) {
         return call("RegisterRun", () -> registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .registerRun(RegisterRunRequest.newBuilder()
-                        .setAgentPubId(agentPubId)
-                        .setSessionPubId(sessionPubId)
-                        .setRunId(runId)
+                        .setAgentId(agentId)
+                        .setTriggerId(triggerId)
                         .setTtlSeconds(ttlSeconds)
                         .build()));
     }
 
-    public GetActiveRunResponse getActiveRun(String sessionPubId) {
-        return call("GetActiveRun", () -> registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
-                .getActiveRun(GetActiveRunRequest.newBuilder().setSessionPubId(sessionPubId).build()));
-    }
-
-    public ReleaseRunResponse releaseRun(String sessionPubId, String runId) {
+    public ReleaseRunResponse releaseRun(String agentId, String triggerId) {
         return call("ReleaseRun", () -> registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .releaseRun(ReleaseRunRequest.newBuilder()
-                        .setSessionPubId(sessionPubId).setRunId(runId).build()));
+                        .setAgentId(agentId).setTriggerId(triggerId).build()));
     }
 }

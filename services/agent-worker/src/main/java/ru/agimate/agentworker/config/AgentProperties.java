@@ -74,19 +74,12 @@ public class AgentProperties {
         private String userAgent = "AgiMate managed agent (agimate.io)";
     }
 
-    /** Behaviour when a message arrives for a session that already has an active run. */
+    /** Параметры session-слота рана. Сообщение в занятую сессию ждёт очереди (steering удалён). */
     @Getter
     @Setter
     public static class Session {
-        private OnActiveMessage onActiveMessage = OnActiveMessage.QUEUE;
         /** TTL backstop on the active-run slot; server default (~3600s) when 0. */
         private int runTtlSeconds = 3600;
-
-        public enum OnActiveMessage {
-            QUEUE,
-            STEER,
-            INTERRUPT
-        }
     }
 
     /**

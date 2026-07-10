@@ -37,13 +37,12 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 ### `workers/` — DBOS surface
 | Workflow | Queue | Role |
 |---|---|---|
-| `AgentWorkflow.startAgent` | `agent_runs` | **Router**: atomic `RegisterRun` claim → enqueue the run; on a busy session applies the policy (queue/steer/interrupt). |
-| `AgentRunWorkflow.runAgent` | `agent_exec` | **Run stage** (partitioned by session, concurrency=1 → one writer per session): register/release the slot, drive `AgentRunCore` (the run body is uniform — dialogue vs trigger is server-side policy). |
+| `AgentWorkflow.startAgent` | `agent_runs` | **Router** (v2): payload `{agentId, runId}`; `RegisterRun` claim возвращает `session_key` (сессию резолвит бэк) → enqueue рана с этим partition key. |
+| `AgentRunWorkflow.runAgent` | `agent_exec` | **Run stage** (partitioned by `session_key`, concurrency=1 → one writer per session): re-affirm/release слота, drive `AgentRunCore` (the run body is uniform — dialogue vs trigger is server-side policy). |
 | `LlmCallWorkflow.llmCall` | `llm_calls` | One model request; credentials fetched inline (never checkpointed). |
 | `ToolCallWorkflow.toolCall` | `tool_calls` | One backend tool call (`ExecuteToolAsync` + poll `GetToolResult`); never raises. |
 
-The package root is what DBOS sees: the four workflow pairs, `Queues`, the router↔run
-`ControlSignal` and the claim helper. The run-body machinery lives in `workers/run`:
+The package root is what DBOS sees: the four workflow pairs and `Queues`. The run-body machinery lives in `workers/run`:
 `AgentRunCore` holds the invariant run body — a `prepare_context` step
 (`ContextMaterialsFetcher`: one `GetRunContext(agent_id, trigger_id)` call → pure
 `ContextBuilder.build` render → `PreparedContext`), the loop, and failure reporting — delegating the
@@ -67,27 +66,18 @@ router under `WorkerProtocol.routerWorkflowId(runId)` (`runId + ":router"`) so t
 is free for the run-stage workflow (`run_id ==` that workflow's DBOS id, which steering
 addresses).
 
-### Channels & session
-The enqueued `Channels` envelope has three roles (`prompt`/`progress`/`answer`), each resolved
-with a fallback. The presence of `channels.prompt` — not the always-`"trigger"` `type` field —
-is the channel-vs-trigger discriminator. The single-writer/history session key is resolved
-**once by control-api** (prompt channel's session, else answer's) and shipped as the explicit
-`AgentMessage.sessionId` field — the worker does not re-derive it (a channel-based fallback
-remains only for messages enqueued before the field existed).
-
-### Steering (session.on-active-message)
-- **queue** (default): a message into an active session waits on the partitioned run queue and
-  runs after the current run releases the slot — fixes the `turn_idx` race via single-writer.
-- **steer**: the new message is delivered to the active run's DBOS `control` mailbox and folded
-  in at the next turn boundary; no new run starts.
-- **interrupt**: the active run is asked to stop gracefully (`AgentInterrupted`, no hard cancel)
-  and a new run is enqueued behind it.
+### Session serialization (протокол v2, без steering)
+Воркер не знает `sessionId`: `RegisterRun(agent_id, trigger_id)` резолвит сессию на бэке и
+возвращает `session_key` — партиционный ключ `agent_exec` (concurrency=1 → один исполняющийся
+ран на сессию). Сообщение в занятую сессию просто ждёт своей очереди; BUSY на старте run-стадии —
+аномалия (мёртвый держатель до TTL/eviction), репортится пользователю. Steering (steer/interrupt
+в живой ран) удалён — вернётся отдельным дизайном, если понадобится.
 
 ## Configuration
 Bound from `application.yaml` under `agent.*`; every value is overridable via env (relaxed
 binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example`. Key sections:
 `grpc` (target/tls/auth-token), `agent` (id/workflow-id), `concurrency` (agent-runs/llm/tool),
-`session` (on-active-message), `dbos` (system database — must match control-api's).
+`session` (run-ttl-seconds), `dbos` (system database — must match control-api's).
 
 The worker owns the DBOS system-schema migrations (`withMigrate(true)` in `DbosRuntime`): on a
 `dev.dbos:transact` upgrade start the worker before control-api, whose `DBOSClient` does not

@@ -6,22 +6,22 @@ import dev.dbos.transact.workflow.Workflow;
 import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-import ru.agimate.agentworker.agent.error.AgentInterrupted;
+import ru.agimate.agentworker.RegisterRunResponse;
+import ru.agimate.agentworker.RunSlotStatus;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
+import ru.agimate.agentworker.config.AgentProperties;
+import ru.agimate.agentworker.dto.AgentMessage;
+import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.workers.run.AgentRunCore;
 import ru.agimate.agentworker.workers.run.MessageLog;
 import ru.agimate.agentworker.workers.run.PreparedContext;
-import ru.agimate.agentworker.config.AgentProperties;
-import ru.agimate.agentworker.dto.AgentMessage;
-import ru.agimate.agentworker.dto.Trigger;
-import ru.agimate.agentworker.grpc.AgentWorkerClient;
-
 
 /**
  * Run stage: the invariant agent-run body, consumed from the partitioned {@code agent_exec} queue
- * (one writer per session). Registers the session slot at start (idempotent by its own run id;
- * ABORTED → abnormal, exit) and releases it in {@code finally}. Routes channel vs trigger and runs
- * the loop via {@link AgentRunCore}.
+ * (one writer per session). Re-affirms the session slot at start (idempotent by its own run id;
+ * BUSY → anomaly, report and exit) and releases it in {@code finally}. The body is uniform —
+ * dialogue vs trigger is server-side policy (ContextSpec), the worker renders blocks and runs the
+ * loop via {@link AgentRunCore}.
  */
 @Slf4j
 @WorkflowClassName(Queues.RUN_CLASS)
@@ -48,41 +48,38 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
     @Override
     @Workflow(name = Queues.RUN_WORKFLOW)
     public void runAgent(AgentMessage message) {
-        String sessionId = SessionSupport.sessionId(message);
         MessageLog messages = core.messageLog(message.agentId(), message.runId());
 
         // Tag every run-body line with a short run id (the child LLM/tool workflows run on their own
         // threads and won't carry it — that's fine, their lines are DEBUG detail).
         try (MDC.MDCCloseable __ = MDC.putCloseable("run", shortRun(message.runId()))) {
             // Durable step: idempotent re-affirm on replay (checkpointed result) + retries on
-            // transient gRPC errors. ABORTED (slot held by another run) comes back as false.
-            boolean acquired = sessionId == null || dbos.runStep(
-                    () -> SessionSupport.tryRegister(client, message.agentId(), sessionId, message.runId(),
-                            session.getRunTtlSeconds()),
+            // transient gRPC errors. BUSY — the slot is held by another run.
+            RegisterRunResponse slot = dbos.runStep(
+                    () -> client.registerRun(message.agentId(), message.runId(), session.getRunTtlSeconds()),
                     new StepOptions("register_run").withMaxAttempts(3));
-            if (!acquired) {
+            if (slot.getStatus() == RunSlotStatus.RUN_SLOT_STATUS_BUSY) {
                 // Anomaly: the partition queue serialized us behind the holder, yet the slot is still
                 // taken — the previous run died without releasing (slot frees on TTL). Report instead
                 // of dropping silently: the user gets a notice, the backend gets the detail.
-                log.warn("session {} already active; aborting this run", sessionId);
+                log.warn("session slot busy; aborting run {}", message.runId());
                 core.reportFailure(messages, new AgentRunAborted(BUSY_NOTICE,
-                        "session " + sessionId + " slot is held by another run; dropping run " + message.runId()));
+                        "session slot is held by another run; dropping run " + message.runId()));
                 return;
             }
+            boolean hasSession = slot.getStatus() == RunSlotStatus.RUN_SLOT_STATUS_ACQUIRED;
 
             try {
-                runBody(message, sessionId, messages);
-                log.info("run finished [{}]", message.promptChannel() != null ? "channel" : "trigger");
+                runBody(message, messages);
+                log.info("run finished");
             } catch (AgentRunAborted e) {
                 log.warn(e.systemDetail());
                 core.reportFailure(messages, e);
-            } catch (AgentInterrupted e) {
-                log.info("interrupted by steering; releasing without a final answer");
             } finally {
-                if (sessionId != null) {
+                if (hasSession) {
                     try {
                         // Durable step: retried on transient gRPC errors so the slot rarely leaks to TTL.
-                        dbos.runStep(() -> client.releaseRun(sessionId, message.runId()).getReleased(),
+                        dbos.runStep(() -> client.releaseRun(message.agentId(), message.runId()).getReleased(),
                                 new StepOptions("release_run").withMaxAttempts(3));
                     } catch (Exception e) {
                         log.warn("releaseRun failed (TTL will reclaim): {}", e.getMessage());
@@ -92,26 +89,16 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
         }
     }
 
-    /**
-     * The run body is uniform: the backend assembles the context per its own policy
-     * (dialogue vs trigger lives in ContextSpec server-side), the worker renders the blocks and
-     * runs the loop. The rendered user prompt is both the model turn and the persisted request.
-     */
-    private void runBody(AgentMessage message, String sessionId, MessageLog messages) {
-        Trigger payload = message.payload();
-        log.info("run started [{}]: agent={} connector={} name={}",
-                message.promptChannel() != null ? "channel" : "trigger",
-                message.agentId(),
-                payload != null ? payload.connectorCode() : "-",
-                payload != null ? payload.name() : "-");
+    private void runBody(AgentMessage message, MessageLog messages) {
+        log.info("run started: agent={} run={}", message.agentId(), message.runId());
 
         // Ack «агент получил» — первый диалоговый durable-шаг (seq 0), до сборки контекста:
         // фиксация получения не зависит от успеха prepare_context.
         messages.inbound();
 
         PreparedContext prepared = core.prepareContext(message.agentId(), message.runId());
-        core.run(message.agentId(), prepared, messages, sessionId,
-                "for agent_id=" + message.agentId() + " run=" + message.runId(), drainControl());
+        core.run(message.agentId(), message.runId(), prepared, messages,
+                "for agent_id=" + message.agentId() + " run=" + message.runId());
     }
 
     /**
@@ -122,10 +109,4 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
     private static String shortRun(String runId) {
         return runId != null && runId.length() >= 8 ? runId.substring(runId.length() - 8) : runId;
     }
-
-    /** Drain the control mailbox only when the session policy actually delivers steering signals. */
-    private boolean drainControl() {
-        return session.getOnActiveMessage() != AgentProperties.Session.OnActiveMessage.QUEUE;
-    }
-
 }

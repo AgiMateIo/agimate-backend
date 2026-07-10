@@ -4,7 +4,7 @@ import ru.agimate.agentworker.dto.AgentMessage;
 
 /**
  * One agent run per partitioned {@code agent_exec} queue item; the DBOS workflow id equals
- * {@code run_id}, so steering can address the run.
+ * {@code run_id}.
  */
 public interface AgentRunWorkflow {
 
