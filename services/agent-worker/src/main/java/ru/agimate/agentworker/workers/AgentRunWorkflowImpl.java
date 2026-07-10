@@ -6,8 +6,6 @@ import dev.dbos.transact.workflow.Workflow;
 import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-import ru.agimate.agentworker.RegisterRunResponse;
-import ru.agimate.agentworker.RunSlotStatus;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.agentworker.dto.AgentMessage;
@@ -55,10 +53,11 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
         try (MDC.MDCCloseable __ = MDC.putCloseable("run", shortRun(message.runId()))) {
             // Durable step: idempotent re-affirm on replay (checkpointed result) + retries on
             // transient gRPC errors. BUSY — the slot is held by another run.
-            RegisterRunResponse slot = dbos.runStep(
-                    () -> client.registerRun(message.agentId(), message.runId(), session.getRunTtlSeconds()),
+            SlotClaim slot = dbos.runStep(
+                    () -> SlotClaim.from(client.registerRun(
+                            message.agentId(), message.runId(), session.getRunTtlSeconds())),
                     new StepOptions("register_run").withMaxAttempts(3));
-            if (slot.getStatus() == RunSlotStatus.RUN_SLOT_STATUS_BUSY) {
+            if (slot.busy()) {
                 // Anomaly: the partition queue serialized us behind the holder, yet the slot is still
                 // taken — the previous run died without releasing (slot frees on TTL). Report instead
                 // of dropping silently: the user gets a notice, the backend gets the detail.
@@ -67,7 +66,7 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
                         "session slot is held by another run; dropping run " + message.runId()));
                 return;
             }
-            boolean hasSession = slot.getStatus() == RunSlotStatus.RUN_SLOT_STATUS_ACQUIRED;
+            boolean hasSession = slot.acquired();
 
             try {
                 runBody(message, messages);

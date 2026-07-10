@@ -7,7 +7,6 @@ import dev.dbos.transact.workflow.StepOptions;
 import dev.dbos.transact.workflow.Workflow;
 import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
-import ru.agimate.agentworker.RegisterRunResponse;
 import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
@@ -44,16 +43,17 @@ public class AgentWorkflowImpl implements AgentWorkflow {
     public void startAgent(AgentMessage message) {
         // Durable step: the claim outcome is checkpointed (a crash-replay must not re-claim a slot
         // the finished run has already released) and transient gRPC errors get step retries.
-        RegisterRunResponse slot = dbos.runStep(
-                () -> client.registerRun(message.agentId(), message.runId(), session.getRunTtlSeconds()),
+        SlotClaim slot = dbos.runStep(
+                () -> SlotClaim.from(client.registerRun(
+                        message.agentId(), message.runId(), session.getRunTtlSeconds())),
                 new StepOptions("register_run").withMaxAttempts(3));
 
-        String partitionKey = slot.getSessionKey().isBlank() ? message.runId() : slot.getSessionKey();
+        String partitionKey = slot.sessionKey().isBlank() ? message.runId() : slot.sessionKey();
         dbos.startWorkflow(() -> run.runAgent(message),
                 new StartWorkflowOptions(execQueue)
                         .withWorkflowId(message.runId())
                         .withQueuePartitionKey(partitionKey));
         log.debug("enqueued run {} on {} (slot={}, partition={})",
-                message.runId(), Queues.AGENT_EXEC_QUEUE, slot.getStatus(), partitionKey);
+                message.runId(), Queues.AGENT_EXEC_QUEUE, slot.status(), partitionKey);
     }
 }
