@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class WebhookDeliveryService implements AgentDeliveryHandler {
+public class WebhookTransport implements AgentTransport {
 
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
     private static final int MAX_RESPONSE_BODY_LENGTH = 10000;

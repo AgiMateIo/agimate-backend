@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.WebhookDeliveryLogResponse;
-import ru.agimate.controlapi.service.delivery.WebhookDeliveryService;
+import ru.agimate.controlapi.service.delivery.WebhookTransport;
 
 import java.util.UUID;
 
@@ -24,7 +24,7 @@ public class ManageWebhookDeliveryLogsController {
 
     public static final String PATH = "/manage/webhook-deliveries";
 
-    private final WebhookDeliveryService webhookDeliveryService;
+    private final WebhookTransport webhookTransport;
 
     @Operation(
             summary = "List webhook delivery logs",
@@ -38,6 +38,6 @@ public class ManageWebhookDeliveryLogsController {
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(webhookDeliveryService.getDeliveryLogs(userId, agentId, page, size));
+        return SuccessResponse.ok(webhookTransport.getDeliveryLogs(userId, agentId, page, size));
     }
 }

@@ -19,7 +19,7 @@ import ru.agimate.controlapi.service.trigger.Trigger;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DbosDeliveryService implements AgentDeliveryHandler {
+public class DbosTransport implements AgentTransport {
 
     private final ObjectProvider<DBOSClient> clientProvider;
 
@@ -38,7 +38,7 @@ public class DbosDeliveryService implements AgentDeliveryHandler {
         String agentId = agent.getId().toString();
 
         // Informational only — the worker discriminates on channels.prompt, but the field
-        // should not lie to other consumers (metrics/logging); same rule as the other handlers.
+        // should not lie to other consumers (metrics/logging); same rule as the other transports.
         String type = channels != null ? "channel_message" : "trigger";
         String runId = triggerLogAgent.getId().toString();
         String sessionId = triggerLogAgent.getSessionId() != null ? triggerLogAgent.getSessionId().toString() : null;

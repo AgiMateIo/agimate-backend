@@ -8,7 +8,7 @@ import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
-import ru.agimate.controlapi.service.delivery.AgentDeliveryHandler;
+import ru.agimate.controlapi.service.delivery.AgentTransport;
 import ru.agimate.controlapi.service.dto.IToolResult;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -23,22 +23,22 @@ import java.util.stream.Collectors;
 @Service
 public class AgentDeliveryService {
 
-    private final Map<AgentType, AgentDeliveryHandler> handlers;
+    private final Map<AgentType, AgentTransport> transports;
     private final AgentRepository agentRepository;
 
     // Зависим от репозитория, а не от AgentService: доставка — низкоуровневый механизм, ему нужен
     // лишь lookup агента. Инъекция высокоуровневого AgentService замыкала цикл бинов
     // (ConnectorRegistry → telegram → triggerRouter → delivery → AgentService → ConnectorRegistry).
-    public AgentDeliveryService(List<AgentDeliveryHandler> handlerList, AgentRepository agentRepository) {
-        this.handlers = handlerList.stream()
-                .collect(Collectors.toMap(AgentDeliveryHandler::getAgentType, Function.identity()));
+    public AgentDeliveryService(List<AgentTransport> transportList, AgentRepository agentRepository) {
+        this.transports = transportList.stream()
+                .collect(Collectors.toMap(AgentTransport::getAgentType, Function.identity()));
         this.agentRepository = agentRepository;
     }
 
     public void deliverTrigger(TriggerLogAgent triggerLogAgent, Trigger trigger, Channels channels, InboundMessage inbound) {
         Agent agent = triggerLogAgent.getAgent();
         try {
-            handlers.get(agent.getType()).deliverTrigger(triggerLogAgent, trigger, channels, inbound);
+            transports.get(agent.getType()).deliverTrigger(triggerLogAgent, trigger, channels, inbound);
         } catch (Exception e) {
             triggerLogAgent.setError(e.getMessage());
             log.warn("Failed to send trigger '{}' to agent '{}' via {}: {}",
@@ -51,7 +51,7 @@ public class AgentDeliveryService {
         Agent agent = agentRepository.findById(agentId)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
         try {
-            handlers.get(agent.getType()).deliverToolResult(agent, toolResult);
+            transports.get(agent.getType()).deliverToolResult(agent, toolResult);
         } catch (Exception e) {
             log.warn("Failed to deliver tool result '{}' to agent '{}' via {}: {}",
                     toolResult.getId(), agent.getId(), agent.getType(), e.getMessage());

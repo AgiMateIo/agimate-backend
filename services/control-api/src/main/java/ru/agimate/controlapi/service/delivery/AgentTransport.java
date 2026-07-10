@@ -9,7 +9,7 @@ import ru.agimate.controlapi.service.dto.IToolResult;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
-public interface AgentDeliveryHandler {
+public interface AgentTransport {
 
     AgentType getAgentType();
 

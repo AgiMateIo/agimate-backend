@@ -16,7 +16,7 @@ import ru.agimate.controlapi.service.trigger.Trigger;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class CentrifugoDeliveryService implements AgentDeliveryHandler {
+public class CentrifugoTransport implements AgentTransport {
 
     private final CentrifugoService centrifugoService;
 
