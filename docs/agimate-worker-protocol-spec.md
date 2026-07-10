@@ -223,9 +223,12 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
 
 | Файл | Сервис | Реализованные RPC |
 |---|---|---|
-| `worker_control.proto` | `WorkerControl` | `HealthCheck` |
-| `agent_context.proto` | `AgentContext` | `GetAgentSpec`, `GetSkill`, `GetTeamContext`, `GetLlmCredentials` |
-| `tool_gateway.proto` | `ToolGateway` | `ExecuteTool` (sync); `ExecuteToolStream`/`Batch`/`Async` → `UNIMPLEMENTED` |
+| `worker_control.proto` | `WorkerControl` | `HealthCheck`, `SendMessage` |
+| `agent_context.proto` | `AgentContext` | `GetRunContext` (протокол v2: весь контекст рана одним вызовом), `GetLlmCredentials` |
+| `tool_gateway.proto` | `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` |
+| `agent_session_messages.proto` | `AgentSessionMessages` | `Append`, `GetHistory` (уйдут в SaveMessage на этапе 3 v2) |
+| `channel_gateway.proto` | `ChannelGateway` | `ListChannels`, `SendChannelMessage` (уйдут в SaveMessage на этапе 3 v2) |
+| `agent_run_registry.proto` | `AgentRunRegistry` | `RegisterRun`, `GetActiveRun`, `ReleaseRun` |
 
 `workflow_reporting.proto` намеренно **не создан** — `WorkflowReporting` сервис в PoC отсутствует.
 
@@ -249,14 +252,24 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
   Печатает `fullKey` (отдать воркеру) и `authkey` (положить в `WORKER_POOLS_AUTHKEYS_*`). Никаких CLI runner'ов в production-коде.
 - `x-trace-id` пока не обрабатывается серверной стороной (заложено как расширение).
 
-### 5.4 AgentContext — переиспользование существующих сервисов
+### 5.4 AgentContext — `GetRunContext` (протокол v2, этап 2)
 
-Реализация только читающая, обёртка над текущими сервисами `control-api`:
+Read-поверхность схлопнута в один вызов: `GetRunContext(agent_id, trigger_id)` → `RunContext`
+(`trigger_id` = `trigger_log_agents.id` = DBOS workflow id рана). Сборка — `RunContextService`
+(`service/runcontext/`): политика `ContextSpec` (DIALOGUE при prompt-канале в снапшоте
+`trigger_log_agents.channels`, иначе SYSTEM_TRIGGER), упорядоченные `PromptBlock`-и
+(agent → инструкции → блоки `PromptBlockProvider`-коннекторов → team → skills → тела подошедших
+скиллов → trigger guidance; основной промпт — последний user-блок, событие триггера — untrusted),
+тулы после binding-гейта и скоупа скиллов. Воркер только рендерит блоки — см.
+[`services/control-api-grpc-worker.md`](services/control-api-grpc-worker.md).
 
-- `GetAgentSpec` → `AgentRepository` + `AgentSkillRepository` + `AgenticTeamRepository` + `AgentLlmRepository`. Возвращает `AgentSpec` со скилами в формате `AgentSkillRef(skill_id, version)` (версия из `AgentSkill.installedSkillVersion`).
-- `GetSkill` → `SkillRepository.findByPubIdNotDeleted`. Если запрошенная `version` не равна текущей — `FAILED_PRECONDITION` (защита воркфлоу от смены конфигурации в процессе исполнения, см. §1.5).
-- `GetTeamContext` → `AgenticTeamRepository` + `AgentRepository.findByUserIdAndAgenticTeamId`.
-- `GetLlmCredentials` → `AgentLlmRepository` + `LlmProviderRepository` + `IntegrationEncryptionService.decryptCredentials` (**вариант A** из §2.7). Возвращает `provider_type / base_url / api_key / model`. Логируется только факт выдачи (`pool`, `agent`, `providerType`) — ключ в логи не пишется.
+- `GetLlmCredentials` — **намеренно отдельный RPC** (не в `RunContext`): результат `GetRunContext`
+  чекпоинтится воркером (`prepare_context`), api_key в чекпоинт попадать не должен; воркер
+  запрашивает креды inline на каждый `llm_call` (**вариант A** из §2.7). Логируется только факт
+  выдачи (`pool`, `agent`, `providerType`).
+- Versioned reads (§1.5) в v2 не нужны: контекст фиксируется одним durable-шагом — replay
+  использует чекпоинт, а не повторный fetch.
+- Деплой изменений формы `RunContext`/`PreparedContext` — только после drain in-flight ранов.
 
 Проверка принадлежности агента/скила пулу — **не реализована** в PoC: на текущем этапе любой валидный пул видит любого агента. Закладка под Phase 1 (per-agent RBAC scope) аддитивная — добавится фильтрация по `WorkerPoolContextHolder.current().poolId()` в каждом RPC.
 

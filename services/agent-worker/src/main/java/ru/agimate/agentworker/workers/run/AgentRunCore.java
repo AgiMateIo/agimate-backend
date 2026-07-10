@@ -12,9 +12,6 @@ import ru.agimate.agentworker.agent.MessageCodec;
 import ru.agimate.agentworker.agent.SimpleAgent;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
-import ru.agimate.agentworker.agent.context.ContextProfile;
-import ru.agimate.agentworker.agent.context.RequestBuilder;
-import ru.agimate.agentworker.dto.Trigger;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.workers.LlmCallWorkflow;
 import ru.agimate.agentworker.workers.ToolCallWorkflow;
@@ -56,12 +53,12 @@ public class AgentRunCore {
     }
 
     /**
-     * Fetch the agent's materials and compose the prompt + tool registry in one durable step.
-     * The {@code profile} carries the assembly policy (see {@link ContextProfile}); {@code batch}
-     * is the trigger batch for {@link ContextProfile#SYSTEM_TRIGGER}, null for dialogue.
+     * Fetch the backend-assembled run context ({@code GetRunContext}) and render it into the
+     * prompt + tool registry in one durable step. The assembly policy lives server-side
+     * (ContextSpec); the worker only renders the blocks.
      */
-    public PreparedContext prepareContext(String agentId, ContextProfile profile, List<Trigger> batch) {
-        return dbos.runStep(() -> ContextBuilder.build(profile, fetcher.fetch(agentId, profile, batch)),
+    public PreparedContext prepareContext(String agentId, String triggerId) {
+        return dbos.runStep(() -> ContextBuilder.build(fetcher.fetch(agentId, triggerId)),
                 "prepare_context");
     }
 
@@ -99,9 +96,10 @@ public class AgentRunCore {
             }
         };
 
-        // Hot memory notes ride alongside the user prompt but are never persisted (only the original
-        // initial request was appended above); they are re-fetched each run, like the system prompt.
-        AgentChatMessage modelRequest = RequestBuilder.withMemoryNotes(initialRequest, prepared.memoryNotes());
+        // Ephemeral user blocks (memory notes и т.п.) ride alongside the user prompt but are never
+        // persisted (only the original initial request was appended above); they are re-fetched
+        // each run, like the system prompt.
+        AgentChatMessage modelRequest = withEphemeralSuffix(initialRequest, prepared.ephemeralUserSuffix());
 
         // Steering (steer/interrupt policies) drains the control mailbox at each turn boundary;
         // an answer completed right before a steer folds in is delivered as an interim answer.
@@ -117,6 +115,15 @@ public class AgentRunCore {
         String answer = runner.run(prepared.systemPrompt(), history, modelRequest);
         output.answer(answer);
         return answer;
+    }
+
+    /** Model-facing user turn: the initial request with the ephemeral suffix appended, if any. */
+    private static AgentChatMessage withEphemeralSuffix(AgentChatMessage initialRequest, String suffix) {
+        if (suffix == null || suffix.isBlank()) {
+            return initialRequest;
+        }
+        String base = initialRequest.text() != null ? initialRequest.text() : "";
+        return AgentChatMessage.user(base + "\n\n" + suffix);
     }
 
     /** Map new loop messages to session-append items (response tool names rendered for the timeline). */

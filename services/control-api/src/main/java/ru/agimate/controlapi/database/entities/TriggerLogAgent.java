@@ -4,10 +4,13 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.RunStatus;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -63,4 +66,14 @@ public class TriggerLogAgent extends BaseEntity {
     /** TTL backstop on a dead run; set when the run goes RUNNING, no heartbeat. */
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
+
+    /**
+     * Снапшот каналов маршрута ({@code Channels}: prompt/progress/answer), зафиксированный при
+     * dispatch. Хранится сырой JSONB-мапой, чтобы entity-слой не зависел от service-типов;
+     * типизацию даёт service-слой ({@code TriggerRouterService} пишет, {@code RunContextService}
+     * читает). {@code null} — direct-ран без каналов.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "channels", columnDefinition = "JSONB")
+    private Map<String, Object> channels;
 }

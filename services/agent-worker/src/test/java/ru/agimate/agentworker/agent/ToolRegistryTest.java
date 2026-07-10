@@ -17,9 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ToolRegistryTest {
 
-    private static ConnectorToolSpec spec(String name, String namespace, String connectionId, String schema) {
+    private static ConnectorToolSpec spec(String name, String connectorCode, String namespace,
+                                          String connectionId, String schema) {
         ConnectorToolSpec.Builder b = ConnectorToolSpec.newBuilder()
                 .setName(name)
+                .setConnectorCode(connectorCode)
                 .setNamespace(namespace)
                 .setConnectionId(connectionId)
                 .setDescription("desc-" + name);
@@ -46,8 +48,8 @@ class ToolRegistryTest {
         @Test
         @DisplayName("falls back to empty-object schema for blank or bare object schemas")
         void fallback() {
-            assertTrue(ToolRegistry.parseToolSchema(spec("t", "ns", "c", "")).contains("additionalProperties"));
-            assertTrue(ToolRegistry.parseToolSchema(spec("t", "ns", "c", "{\"type\":\"object\"}"))
+            assertTrue(ToolRegistry.parseToolSchema(spec("t", "cc", "ns", "c", "")).contains("additionalProperties"));
+            assertTrue(ToolRegistry.parseToolSchema(spec("t", "cc", "ns", "c", "{\"type\":\"object\"}"))
                     .contains("\"properties\":{}"));
         }
 
@@ -55,7 +57,7 @@ class ToolRegistryTest {
         @DisplayName("passes a real schema through unchanged")
         void passthrough() {
             String schema = "{\"type\":\"object\",\"properties\":{\"x\":{\"type\":\"string\"}}}";
-            assertEquals(schema, ToolRegistry.parseToolSchema(spec("t", "ns", "c", schema)));
+            assertEquals(schema, ToolRegistry.parseToolSchema(spec("t", "cc", "ns", "c", schema)));
         }
     }
 
@@ -66,8 +68,8 @@ class ToolRegistryTest {
         @DisplayName("namespaces LLM names and resolves back to backend routing")
         void resolves() {
             ToolRegistry reg = ToolRegistry.build(List.of(
-                    new ToolRegistry.ConnectorTools("board", List.of(spec("get_tasks", "board", "conn-1", null))),
-                    new ToolRegistry.ConnectorTools("mcp", List.of(spec("search", "mcp_ctx7", "conn-2", null)))));
+                    spec("get_tasks", "board", "board", "conn-1", null),
+                    spec("search", "mcp", "mcp_ctx7", "conn-2", null)));
 
             assertEquals(List.of("board__get_tasks", "mcp_ctx7__search"), reg.names());
 
@@ -81,8 +83,7 @@ class ToolRegistryTest {
         @Test
         @DisplayName("display names project an assistant's tool calls back to backend names")
         void displayNames() {
-            ToolRegistry reg = ToolRegistry.build(List.of(
-                    new ToolRegistry.ConnectorTools("board", List.of(spec("get_tasks", "board", "c", null)))));
+            ToolRegistry reg = ToolRegistry.build(List.of(spec("get_tasks", "board", "board", "c", null)));
             AgentChatMessage assistant = AgentChatMessage.assistant(null, false,
                     List.of(new AgentChatMessage.ToolCall("id1", "board__get_tasks", "{}")));
             assertEquals(List.of("get_tasks"), reg.displayNames(assistant));

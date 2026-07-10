@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Снапшот каналов маршрута (prompt/progress/answer), зафиксированный при dispatch:
+         источник для GetRunContext (профиль контекста, извлечение inbound-текста) и для
+         доставки SaveMessage (этап 3). NULL — direct-ран без каналов. -->
+    <changeSet id="2026-07-10-00-trigger-log-agents-channels" author="agimate">
+        <addColumn tableName="trigger_log_agents">
+            <column name="channels" type="JSONB"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

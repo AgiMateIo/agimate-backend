@@ -23,11 +23,8 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
 | `MessageCodec` | (De)serialize messages to the `message_json` bytes persisted as history + timeline/progress text projections. |
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id)`; `{namespace}.{name}` naming; schema parsing. |
-| `context/ContextProfile` | Input-type profile (`DIALOGUE`/`SYSTEM_TRIGGER`) — the declarative context-assembly policy (skill bodies, trigger guidance, untrusted wrapping), chosen at the run entry point. |
-| `context/ContextBuilder` | The assembly seam: `build(profile, materials) → PreparedContext` — the one place that reads "how is the context built for this kind of input". |
-| `context/SystemPromptBuilder` | System prompt (agent/team/skills/memory) + trigger-batch skill selection. |
-| `context/RequestBuilder` | User-turn assembly: untrusted-trigger wrapping, memory-notes rendering/mixing. |
-| `context/ContextMaterials` | Raw, already-scoped materials record consumed by `ContextBuilder`. |
+| `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). |
+| `context/ContextMaterials` | The `GetRunContext` payload as fetched (ordered blocks + tools), consumed by `ContextBuilder`. |
 | `SimpleAgent` | The manual turn-loop (LLM call + tool dispatch injected; optional steering checkpoint). |
 | `AgentRunner` | Assemble the message list, map terminal failures to `AgentRunAborted`. |
 
@@ -41,15 +38,15 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 | Workflow | Queue | Role |
 |---|---|---|
 | `AgentWorkflow.startAgent` | `agent_runs` | **Router**: atomic `RegisterRun` claim → enqueue the run; on a busy session applies the policy (queue/steer/interrupt). |
-| `AgentRunWorkflow.runAgent` | `agent_exec` | **Run stage** (partitioned by session, concurrency=1 → one writer per session): register/release the slot, route channel vs trigger, drive `AgentRunCore`. |
+| `AgentRunWorkflow.runAgent` | `agent_exec` | **Run stage** (partitioned by session, concurrency=1 → one writer per session): register/release the slot, drive `AgentRunCore` (the run body is uniform — dialogue vs trigger is server-side policy). |
 | `LlmCallWorkflow.llmCall` | `llm_calls` | One model request; credentials fetched inline (never checkpointed). |
 | `ToolCallWorkflow.toolCall` | `tool_calls` | One backend tool call (`ExecuteToolAsync` + poll `GetToolResult`); never raises. |
 
 The package root is what DBOS sees: the four workflow pairs, `Queues`, the router↔run
 `ControlSignal` and the claim helper. The run-body machinery lives in `workers/run`:
 `AgentRunCore` holds the invariant run body — a `prepare_context` step
-(`ContextMaterialsFetcher` gRPC fetch scoped by the `ContextProfile` → pure
-`ContextBuilder.build` → `PreparedContext`), the loop, and failure reporting — delegating the
+(`ContextMaterialsFetcher`: one `GetRunContext(agent_id, trigger_id)` call → pure
+`ContextBuilder.build` render → `PreparedContext`), the loop, and failure reporting — delegating the
 distinct concerns to collaborators: `SessionHistoryStore` (history restore/append steps +
 turn-idx bookkeeping), `ControlMailbox` (steer/interrupt drain), and
 `LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared `WorkflowHandles`

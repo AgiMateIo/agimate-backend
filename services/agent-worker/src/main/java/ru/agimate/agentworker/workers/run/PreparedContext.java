@@ -7,14 +7,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Agent context fetched and derived once before the loop runs — the serializable result of the
+ * Agent context rendered once before the loop runs — the serializable result of the
  * {@code prepare_context} durable step. The tool registry is carried as its serializable parts
- * ({@code toolDefs} + {@code toolMap}) and reconstructed via {@link #registry()}; {@code memoryNotes}
- * is null when there are none.
+ * ({@code toolDefs} + {@code toolMap}) and reconstructed via {@link #registry()}.
+ *
+ * @param systemPrompt        rendered system prompt (ordered blocks with tags)
+ * @param userPrompt          rendered persistent part of the user turn (what history keeps)
+ * @param ephemeralUserSuffix rendered ephemeral user blocks (memory notes etc.), appended to the
+ *                            model-facing turn but never persisted; {@code null} when none
  */
 public record PreparedContext(
         String systemPrompt,
-        String memoryNotes,
+        String userPrompt,
+        String ephemeralUserSuffix,
         List<ToolDef> toolDefs,
         Map<String, ToolRegistry.BackendTool> toolMap) {
 

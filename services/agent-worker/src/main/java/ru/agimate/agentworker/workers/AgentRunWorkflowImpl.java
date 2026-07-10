@@ -14,11 +14,8 @@ import ru.agimate.agentworker.workers.run.AgentRunCore;
 import ru.agimate.agentworker.workers.run.OutboundPublisher;
 import ru.agimate.agentworker.workers.run.PreparedContext;
 import ru.agimate.agentworker.workers.run.SessionBinding;
-import ru.agimate.agentworker.agent.context.ContextProfile;
-import ru.agimate.agentworker.agent.context.RequestBuilder;
 import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.agentworker.dto.AgentMessage;
-import ru.agimate.agentworker.dto.ChannelInfo;
 import ru.agimate.agentworker.dto.Trigger;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
@@ -82,11 +79,7 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
             }
 
             try {
-                if (message.promptChannel() != null) {
-                    runChannel(message, output);
-                } else {
-                    runTrigger(message, output);
-                }
+                runBody(message, output);
                 log.info("run finished [{}]", message.promptChannel() != null ? "channel" : "trigger");
             } catch (AgentRunAborted e) {
                 log.warn(e.systemDetail());
@@ -107,32 +100,32 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
         }
     }
 
-    private void runChannel(AgentMessage message, OutboundPublisher output) {
-        ChannelInfo promptCh = message.promptChannel();
-        if (message.inbound() == null || message.inbound().text() == null || message.inbound().text().isEmpty()) {
-            throw new AgentRunAborted("", "channel message requires inbound.text (run_id="
-                    + message.runId() + " agent_id=" + message.agentId() + ")");
-        }
-        String prompt = message.inbound().text();
-        log.info("run started [channel]: agent={} channel={}", message.agentId(), promptCh.channelId());
+    /**
+     * The run body is uniform: the backend assembles the context per its own policy
+     * (dialogue vs trigger lives in ContextSpec server-side), the worker renders the blocks and
+     * runs the loop. The rendered user prompt is both the model turn and the persisted request.
+     */
+    private void runBody(AgentMessage message, OutboundPublisher output) {
+        Trigger payload = message.payload();
+        log.info("run started [{}]: agent={} connector={} name={}",
+                message.promptChannel() != null ? "channel" : "trigger",
+                message.agentId(),
+                payload != null ? payload.connectorCode() : "-",
+                payload != null ? payload.name() : "-");
 
-        PreparedContext prepared = core.prepareContext(message.agentId(), ContextProfile.DIALOGUE, null);
-        core.run(message.agentId(), prepared, AgentChatMessage.user(prompt),
-                sessionBinding(message, prompt), output,
-                "for agent_id=" + message.agentId() + " channel=" + promptCh.channelId(), drainControl());
+        PreparedContext prepared = core.prepareContext(message.agentId(), message.runId());
+        core.run(message.agentId(), prepared, AgentChatMessage.user(prepared.userPrompt()),
+                sessionBinding(message, initialText(message)), output,
+                "for agent_id=" + message.agentId() + " run=" + message.runId(), drainControl());
     }
 
-    private void runTrigger(AgentMessage message, OutboundPublisher output) {
-        Trigger payload = message.payload();
-        log.info("run started [trigger]: agent={} connector={} name={}",
-                message.agentId(), payload.connectorCode(), payload.name());
-
-        PreparedContext prepared = core.prepareContext(message.agentId(), ContextProfile.SYSTEM_TRIGGER,
-                List.of(payload));
-        String request = RequestBuilder.buildUntrustedTriggerRequest(payload);
-        core.run(message.agentId(), prepared, AgentChatMessage.user(request),
-                sessionBinding(message, payload.name()), output,
-                "for agent_id=" + message.agentId() + " trigger=" + payload.name(), drainControl());
+    /** Human-readable request text for the session timeline: inbound text or the trigger name. */
+    private static String initialText(AgentMessage message) {
+        if (message.inbound() != null && message.inbound().text() != null
+                && !message.inbound().text().isEmpty()) {
+            return message.inbound().text();
+        }
+        return message.payload() != null ? message.payload().name() : null;
     }
 
     /**

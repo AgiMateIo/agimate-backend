@@ -28,21 +28,23 @@ retrievable basket behind a tool. Retrieval through tool calls is DBOS-replay-sa
 tool results are checkpointed like any other tool call, so no new durability machinery is
 needed when the roadmap items land.
 
-## Resolution 2: profiles by input type
+## Resolution 2: policies by input type (server-side `ContextSpec`)
 
 Different inputs need different contexts. A user message in a dialogue and an autonomous
 system trigger are *not* the same run with a flag — they are different context policies,
-declared in one place (`ContextProfile`) instead of scattered `if (batch == null)` checks:
+declared in one place. Since stage 2 the policy lives **server-side**
+(`controlapi/service/runcontext/ContextSpec`), where the data is — the worker receives ready
+blocks and never branches on input kind:
 
 | Policy | `DIALOGUE` | `SYSTEM_TRIGGER` |
 |---|---|---|
 | Skills | all listed, **no bodies** | all listed, bodies of **matched** skills injected |
 | Toolset | connectors of **all** skills | connectors of **matched** skills only |
 | System prompt | base | base + trigger guidance («часто правильный исход — ничего не делать») |
-| User turn | inbound text as-is | payload wrapped as **untrusted data** (`RequestBuilder.buildUntrustedTriggerRequest`) |
+| User turn | inbound text as a trusted block | event as an **untrusted** block (renderer wraps it) |
 
-The profile is chosen at the run entry point (`AgentRunWorkflowImpl`: channel vs trigger) and
-consulted by the fetcher (what to load) and the builder (how to compose). New input kinds
+The preset is chosen by the route snapshot persisted at dispatch
+(`trigger_log_agents.channels`: prompt channel present → `DIALOGUE`). New input kinds
 (e.g. inter-agent requests) become new enum constants with their own policy row — not new
 conditionals inside the assembly.
 
@@ -74,10 +76,15 @@ conditionals inside the assembly.
 4. **Token budget & history compaction** — per-part size accounting in `ContextBuilder`; a
    history builder appears together with compaction (deliberately not created empty today).
 
-## Protocol note (stage 2)
+## Protocol (stage 2 — implemented)
 
-Materials are fetched by `workers/run/ContextMaterialsFetcher` — today as 8–20+ sequential
-gRPC calls. Stage 2 collapses this into one atomic `GetRunContext(workflow_id, agent_id,
-profile, trigger_connector_codes)` RPC with the skill-scoping rule moved server-side; the
-fetcher stays as the wire→`ContextMaterials` seam, and `PreparedContext` is untouched
-(checkpoint-compatible). See the worker protocol spec once implemented.
+Materials arrive in one atomic `GetRunContext(agent_id, trigger_id)` RPC: the backend
+(`RunContextService`) assembles ordered `PromptBlock`s (system/user, trust and ephemerality
+flags, connector blocks via `PromptBlockProvider`) and the scoped toolset;
+`workers/run/ContextMaterialsFetcher` stays as the wire→`ContextMaterials` seam and
+`agent/context/ContextBuilder` is a **pure renderer**: tags blocks (`<name attrs>`), wraps
+untrusted ones with the data-not-instructions preamble (neutralizing closing tags inside the
+payload), splits ephemeral user blocks (memory notes) into a non-persisted suffix. LLM
+credentials deliberately stay a separate inline RPC — the `GetRunContext` result is
+checkpointed and must not carry the api_key. See
+[`services/control-api-grpc-worker.md`](services/control-api-grpc-worker.md).

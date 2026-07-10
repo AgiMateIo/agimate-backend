@@ -27,9 +27,6 @@ public final class ToolRegistry {
             "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** A connector instance and the tool specs it exposes. */
-    public record ConnectorTools(String connectorCode, List<ConnectorToolSpec> tools) {}
-
     /** Resolved backend routing for a sanitized tool name. */
     public record BackendTool(String connectorCode, String name, String connectionId) {}
 
@@ -51,16 +48,15 @@ public final class ToolRegistry {
         return sanitizedToBackend;
     }
 
-    public static ToolRegistry build(List<ConnectorTools> loaded) {
+    /** Build from the flat {@code GetRunContext} tool list: each spec carries its own routing. */
+    public static ToolRegistry build(List<ConnectorToolSpec> specs) {
         List<ToolDef> defs = new ArrayList<>();
         Map<String, BackendTool> map = new HashMap<>();
-        for (ConnectorTools ct : loaded) {
-            for (ConnectorToolSpec spec : ct.tools()) {
-                String namespace = spec.getNamespace().isBlank() ? ct.connectorCode() : spec.getNamespace();
-                String sanitized = sanitizeToolName(namespace + "." + spec.getName());
-                map.put(sanitized, new BackendTool(ct.connectorCode(), spec.getName(), spec.getConnectionId()));
-                defs.add(new ToolDef(sanitized, spec.getDescription(), parseToolSchema(spec)));
-            }
+        for (ConnectorToolSpec spec : specs) {
+            String namespace = spec.getNamespace().isBlank() ? spec.getConnectorCode() : spec.getNamespace();
+            String sanitized = sanitizeToolName(namespace + "." + spec.getName());
+            map.put(sanitized, new BackendTool(spec.getConnectorCode(), spec.getName(), spec.getConnectionId()));
+            defs.add(new ToolDef(sanitized, spec.getDescription(), parseToolSchema(spec)));
         }
         return new ToolRegistry(defs, map);
     }

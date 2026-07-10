@@ -143,6 +143,9 @@ public class TriggerRouterService {
                         .agent(route.agent())
                         .destination(route.agent().getType().name())
                         .sessionId(route.sessionId())
+                        // Снапшот маршрута: GetRunContext (профиль/inbound) и доставка SaveMessage
+                        // (этап 3) читают каналы отсюда, а не ре-резолвят их.
+                        .channels(ChannelsCodec.toMap(route.channels()))
                         .build();
                 // Persist before delivery so the DB-generated id (the canonical run_id == DBOS
                 // workflow id) is populated; delivery and the run registry rely on this id.

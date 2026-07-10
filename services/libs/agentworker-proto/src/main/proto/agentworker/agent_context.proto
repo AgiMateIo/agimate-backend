@@ -7,85 +7,40 @@ option java_package = "ru.agimate.agentworker";
 option java_outer_classname = "AgentContextProto";
 
 service AgentContext {
-  rpc GetAgentSpec(GetAgentSpecRequest) returns (AgentSpec);
-  rpc GetSkills(GetSkillsRequest) returns (GetSkillsResponse);
-  rpc GetSkill(GetSkillRequest) returns (SkillSpec);
-  rpc GetTeamContext(GetTeamContextRequest) returns (TeamContext);
+  // Весь контекст рана одним вызовом: упорядоченные блоки промпта + отскоупленные тулы.
+  // Политика сборки (ContextSpec: скоуп скиллов/тулов, guidance) — целиком на бэке; воркер
+  // только рендерит блоки в присланном порядке. trigger_id = trigger_log_agents.id = runId.
+  rpc GetRunContext(GetRunContextRequest) returns (RunContext);
+  // Намеренно отдельно от GetRunContext: его результат воркер чекпоинтит (durable step
+  // prepare_context), api_key в чекпоинт попадать не должен — креды запрашиваются inline
+  // на каждый llm_call.
   rpc GetLlmCredentials(GetLlmCredentialsRequest) returns (LlmCredentials);
-  // Коннекторы, доступные агенту (binding'и agent_connections → connections). Воркер итерирует
-  // их и по каждому зовёт GetConnectionTools, чтобы собрать набор тулов.
-  rpc GetConnections(GetConnectionsRequest) returns (GetConnectionsResponse);
-  // Все тулы одного экземпляра коннектора (connections.id). ABAC доступности уже применён в
-  // GetConnections (вернулись только привязанные); пер-тул DENY-политики проверяются на ExecuteTool.
-  rpc GetConnectionTools(GetConnectionToolsRequest) returns (GetConnectionToolsResponse);
-  // persist-memory: свёрнутая (cold) память и ещё не сконсолидированные заметки (hot) агента —
-  // воркер подмешивает их в системный промпт / запрос пользователя без вызова get_* тулов.
-  rpc GetMemory(GetMemoryRequest) returns (AgentMemory);
-  rpc GetMemoryNotes(GetMemoryNotesRequest) returns (GetMemoryNotesResponse);
 }
 
-message GetAgentSpecRequest {
-  string workflow_id = 1;
-  string agent_id = 2;
-  string agent_version = 3;
-}
-
-message AgentSpec {
+message GetRunContextRequest {
   string agent_id = 1;
-  string name = 2;
-  string agent_type = 3;
-  string system_prompt = 4;
-  string team_id = 5;
+  string trigger_id = 2;  // trigger_log_agents.id (= DBOS workflow id рана)
 }
 
-message GetSkillsRequest {
-  string workflow_id = 1;
-  string agent_id = 2;
+// Блок промпта: content без тегов/обёртки — XML-тег {name attrs} ставит рендерер воркера.
+message PromptBlock {
+  string name = 1;                  // имя тега, snake_case
+  string source = 2;                // происхождение: agent | team | skill | guidance | connector:<code>
+  string content = 3;
+  map<string, string> attrs = 4;    // атрибуты тега (например версия памяти)
+  bool trusted = 5;                 // false (только user-блоки) → рендерер оборачивает как untrusted data
+  bool ephemeral = 6;               // true → в историю сессии не персистится (например memory notes)
 }
 
-message SkillRef {
-  string skill_id = 1;
-  string name = 2;
-  string description = 3;
-  // Коды коннекторов, которые требует скилл (mcp, telegram, time, board, persist-memory, ...).
-  repeated string connector_codes = 4 [json_name = "connectorCodes"];
-}
-
-message GetSkillsResponse {
-  repeated SkillRef skills = 1;
-}
-
-message GetSkillRequest {
-  string workflow_id = 1;
-  string skill_id = 2;
-  string version = 3;
-}
-
-message SkillSpec {
-  string skill_id = 1;
-  string version = 2;
-  string name = 3;
-  string description = 4;
-  bytes definition_json = 5;
-  string skill_md = 6;
-}
-
-message GetTeamContextRequest {
-  string workflow_id = 1;
-  string team_id = 2;
-}
-
-message TeamMember {
-  string pub_id = 1;
-  string name = 2;
-  string description = 3;
-}
-
-message TeamContext {
-  string team_id = 1;
-  string name = 2;
-  string description = 3;
-  repeated TeamMember members = 4;
+message RunContext {
+  // Порядок блоков — контракт: бэк кладёт стабильные первыми (prompt-cache),
+  // воркер рендерит как есть и не пересортировывает.
+  repeated PromptBlock system_blocks = 1;
+  // Основной промпт рана (текст диалога / data триггера) — тоже user-блок, идёт последним.
+  repeated PromptBlock user_blocks = 2;
+  // Уже отскоупленные скиллами и прошедшие ABAC-гейт binding'ов.
+  repeated ConnectorToolSpec tools = 3;
+  // 4: history — этап 3 (SaveMessage)
 }
 
 message GetLlmCredentialsRequest {
@@ -98,32 +53,6 @@ message LlmCredentials {
   string base_url = 2;
   string api_key = 3;
   string model = 4;
-}
-
-message GetConnectionsRequest {
-  string agent_id = 1;
-}
-
-// Экземпляр коннектора, доступный агенту.
-message ConnectionRef {
-  string id = 1;              // connections.id (= connection_id на ExecuteTool / GetConnectionTools)
-  string connector_code = 2;  // тип коннектора (mcp, telegram, persist-memory, ...)
-  // Префикс LLM-имени: connector_code для синглтонов (time/board/persist-memory),
-  // full_code для инстансов (mcp_context7, telegram_<bot>). Воркер строит {namespace}.{name}.
-  string namespace = 3 [json_name = "namespace"];
-  string name = 4;            // человекочитаемое имя
-}
-
-message GetConnectionsResponse {
-  repeated ConnectionRef connections = 1;
-}
-
-message GetConnectionToolsRequest {
-  string connection_id = 1 [json_name = "connectionId"];  // connections.id
-}
-
-message GetConnectionToolsResponse {
-  repeated ConnectorToolSpec tools = 1;
 }
 
 // MCP ToolAnnotations — поведенческие хинты тула.
@@ -149,30 +78,6 @@ message ConnectorToolSpec {
   // Воркер строит LLM-имя тула как {namespace}.{name} для глобальной уникальности; на ExecuteTool
   // возвращает исходные (connector_code, connection_id, name) — маршрутизация по wire не меняется.
   string namespace = 9 [json_name = "namespace"];
-}
-
-message GetMemoryRequest {
-  string workflow_id = 1;
-  string agent_id = 2;
-}
-
-// Свёрнутая (cold) память агента. version — для оптимистической записи через update_memory.
-message AgentMemory {
-  string content = 1;
-  int32 version = 2;
-}
-
-message GetMemoryNotesRequest {
-  string workflow_id = 1;
-  string agent_id = 2;
-}
-
-message MemoryNote {
-  string id = 1;
-  string content = 2;
-  string session_id = 3;
-}
-
-message GetMemoryNotesResponse {
-  repeated MemoryNote notes = 1;
+  // Тип коннектора — для маршрутизации ExecuteTool (раньше приходил из GetConnections).
+  string connector_code = 10 [json_name = "connectorCode"];
 }

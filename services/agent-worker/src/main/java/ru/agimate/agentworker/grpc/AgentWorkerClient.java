@@ -8,10 +8,8 @@ import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.AgentContextGrpc;
-import ru.agimate.agentworker.AgentMemory;
 import ru.agimate.agentworker.AgentSessionMessagesGrpc;
 import ru.agimate.agentworker.AgentRunRegistryGrpc;
-import ru.agimate.agentworker.AgentSpec;
 import ru.agimate.agentworker.AppendMessage;
 import ru.agimate.agentworker.AppendRequest;
 import ru.agimate.agentworker.AppendResponse;
@@ -20,21 +18,11 @@ import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.ExecuteToolRequest;
 import ru.agimate.agentworker.GetActiveRunRequest;
 import ru.agimate.agentworker.GetActiveRunResponse;
-import ru.agimate.agentworker.GetAgentSpecRequest;
-import ru.agimate.agentworker.GetConnectionToolsRequest;
-import ru.agimate.agentworker.GetConnectionToolsResponse;
-import ru.agimate.agentworker.GetConnectionsRequest;
-import ru.agimate.agentworker.GetConnectionsResponse;
 import ru.agimate.agentworker.GetHistoryRequest;
 import ru.agimate.agentworker.GetHistoryResponse;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
-import ru.agimate.agentworker.GetMemoryNotesRequest;
-import ru.agimate.agentworker.GetMemoryNotesResponse;
-import ru.agimate.agentworker.GetMemoryRequest;
-import ru.agimate.agentworker.GetSkillRequest;
-import ru.agimate.agentworker.GetSkillsRequest;
-import ru.agimate.agentworker.GetSkillsResponse;
-import ru.agimate.agentworker.GetTeamContextRequest;
+import ru.agimate.agentworker.GetRunContextRequest;
+import ru.agimate.agentworker.RunContext;
 import ru.agimate.agentworker.GetToolResultRequest;
 import ru.agimate.agentworker.GetToolResultResponse;
 import ru.agimate.agentworker.LlmCredentials;
@@ -48,8 +36,6 @@ import ru.agimate.agentworker.SendChannelMessageRequest;
 import ru.agimate.agentworker.SendChannelMessageResponse;
 import ru.agimate.agentworker.SendMessageRequest;
 import ru.agimate.agentworker.SendMessageResponse;
-import ru.agimate.agentworker.SkillSpec;
-import ru.agimate.agentworker.TeamContext;
 import ru.agimate.agentworker.ToolGatewayGrpc;
 import ru.agimate.agentworker.WorkerControlGrpc;
 import ru.agimate.agentworker.WorkerMessageType;
@@ -150,48 +136,14 @@ public class AgentWorkerClient {
 
     // ---- AgentContext ----------------------------------------------------------------
 
-    public AgentSpec getAgentSpec(String agentId) {
-        return call("GetAgentSpec", () -> ctx().getAgentSpec(GetAgentSpecRequest.newBuilder()
-                .setWorkflowId(workflowId()).setAgentId(agentId).build()));
-    }
-
-    public GetSkillsResponse getSkills(String agentId) {
-        return call("GetSkills", () -> ctx().getSkills(GetSkillsRequest.newBuilder()
-                .setWorkflowId(workflowId()).setAgentId(agentId).build()));
-    }
-
-    public SkillSpec getSkill(String skillId) {
-        return call("GetSkill", () -> ctx().getSkill(GetSkillRequest.newBuilder()
-                .setWorkflowId(workflowId()).setSkillId(skillId).build()));
-    }
-
-    public TeamContext getTeamContext(String teamId) {
-        return call("GetTeamContext", () -> ctx().getTeamContext(GetTeamContextRequest.newBuilder()
-                .setWorkflowId(workflowId()).setTeamId(teamId).build()));
+    /** Весь контекст рана одним вызовом: упорядоченные блоки промпта + отскоупленные тулы. */
+    public RunContext getRunContext(String agentId, String triggerId) {
+        return call("GetRunContext", () -> ctx().getRunContext(GetRunContextRequest.newBuilder()
+                .setAgentId(agentId).setTriggerId(triggerId).build()));
     }
 
     public LlmCredentials getLlmCredentials(String agentId) {
         return call("GetLlmCredentials", () -> ctx().getLlmCredentials(GetLlmCredentialsRequest.newBuilder()
-                .setWorkflowId(workflowId()).setAgentId(agentId).build()));
-    }
-
-    public GetConnectionsResponse getConnections(String agentId) {
-        return call("GetConnections", () -> ctx().getConnections(
-                GetConnectionsRequest.newBuilder().setAgentId(agentId).build()));
-    }
-
-    public GetConnectionToolsResponse getConnectionTools(String connectionId) {
-        return call("GetConnectionTools", () -> ctx().getConnectionTools(GetConnectionToolsRequest.newBuilder()
-                .setConnectionId(connectionId).build()));
-    }
-
-    public AgentMemory getMemory(String agentId) {
-        return call("GetMemory", () -> ctx().getMemory(GetMemoryRequest.newBuilder()
-                .setWorkflowId(workflowId()).setAgentId(agentId).build()));
-    }
-
-    public GetMemoryNotesResponse getMemoryNotes(String agentId) {
-        return call("GetMemoryNotes", () -> ctx().getMemoryNotes(GetMemoryNotesRequest.newBuilder()
                 .setWorkflowId(workflowId()).setAgentId(agentId).build()));
     }
 

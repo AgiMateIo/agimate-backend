@@ -15,7 +15,7 @@ credentials from the backend and execute tools through the Tool Gateway.
 | Service                 | RPCs (PoC)                                                                                        | Status   |
 |-------------------------|---------------------------------------------------------------------------------------------------|----------|
 | `WorkerControl`         | `HealthCheck`                                                                                     | done     |
-| `AgentContext`          | `GetAgentSpec`, `GetSkills`, `GetSkill`, `GetTeamContext`, `GetLlmCredentials`, `GetConnections`, `GetConnectionTools`, `GetMemory`, `GetMemoryNotes` | done     |
+| `AgentContext`          | `GetRunContext` (весь контекст рана одним вызовом), `GetLlmCredentials`                            | done     |
 | `ToolGateway`           | `ExecuteTool` (sync). `ExecuteToolStream/Batch/Async` reserved → return `UNIMPLEMENTED`           | partial  |
 | `AgentSessionMessages`  | `Append`, `GetHistory`                                                                            | done     |
 | `AgentRunRegistry`      | `RegisterRun`, `GetActiveRun`, `ReleaseRun`                                                       | done     |
@@ -117,33 +117,25 @@ grpcurl -plaintext \
 
 Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → `UNAUTHENTICATED`.
 
-## Skills (`AgentContext.GetSkills` / `GetSkill`)
+## Run context (`AgentContext.GetRunContext`)
 
-### `GetSkills(workflow_id, agent_id)` → `GetSkillsResponse`
+`GetRunContext(agent_id, trigger_id)` → `RunContext` — весь контекст рана одним вызовом
+(`trigger_id` = `trigger_log_agents.id` = `run_id` = DBOS workflow id). Сборка — `RunContextService`;
+политика (`ContextSpec`: `DIALOGUE` при prompt-канале в снапшоте `trigger_log_agents.channels`,
+иначе `SYSTEM_TRIGGER`) целиком на бэке, воркер только рендерит блоки в присланном порядке.
 
-Returns all skills bound to the agent as a list of `SkillRef`:
+`RunContext`:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `skill_id` | `string` | Skill UUID |
-| `name` | `string` | Skill display name |
-| `description` | `string` | Skill description |
-| `connector_codes` | `repeated string` | Connector codes required by the skill (e.g. `time`, `board`, `mcp`) |
+| Field | Description |
+|-------|-------------|
+| `system_blocks` | Упорядоченные `PromptBlock` (stable-первые — prompt-cache): agent → инструкции → блоки `PromptBlockProvider`-коннекторов (memory) → team → skills-листинг → тела подошедших скиллов (SYSTEM_TRIGGER) → trigger guidance |
+| `user_blocks`   | User-ход: user-блоки коннекторов (memory notes, `ephemeral=true` — не персистятся в историю) + основной промпт последним (диалоговый текст `trusted`, событие триггера `trusted=false` → воркер оборачивает как untrusted data) |
+| `tools`         | `ConnectorToolSpec` уже отскоупленные (binding-гейт + скоуп скиллов; DIALOGUE — коннекторы всех скиллов, SYSTEM_TRIGGER — только подошедших) |
 
-### `GetSkill(workflow_id, skill_id, version)` → `SkillSpec`
-
-Returns the full spec for a single skill:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `skill_id` | `string` | Skill UUID |
-| `version` | `string` | Skill version at time of fetch |
-| `name` | `string` | Skill display name |
-| `description` | `string` | Skill description |
-| `definition_json` | `bytes` | Reserved (JSON definition, not used in current PoC) |
-| `skill_md` | `string` | SKILL.md **body without frontmatter** — the markdown instructions for the agent |
-
-Note: `skill_md` contains only the body text. Name, description, and connector codes are separate fields; the frontmatter is not re-emitted.
+`PromptBlock{name, source, content, attrs, trusted, ephemeral}` — `name`/`attrs` становятся XML-тегом
+у рендерера (пустой `name` — сырой текст). LLM-креды в `RunContext` **не входят**: его результат
+чекпоинтится воркером (`prepare_context`), api_key запрашивается отдельным `GetLlmCredentials`
+inline на каждый `llm_call`.
 
 ## Tool execution
 
@@ -158,19 +150,15 @@ Errors:
 - `INVALID_ARGUMENT` — missing `tool_call_id`/`connector_code`/`tool_name`/UUID parsing.
 - `UNAUTHENTICATED` — bad pool key (handled by interceptor before the call ever reaches the service).
 
-### Tool discovery (`AgentContext.GetConnections` → `GetConnectionTools`)
+### Tool discovery (внутри `GetRunContext`)
 
-Two steps, both keyed on `connections.id`:
-
-1. **`GetConnections(agent_id)` → `[ConnectionRef{id, connector_code, namespace, name}]`** — the connector
-   instances available to the agent. Source: active `agent_connections` bindings joined to `connections`
-   (enabled, not soft-deleted). This is the connector-level ABAC gate — only bound instances are returned.
-2. **`GetConnectionTools(connection_id)` → `[ConnectorToolSpec]`** — every tool of one instance. The backend
-   resolves `connector_code` from the connection, then by `tool_binding`: **STATIC** connectors (telegram,
-   time, board, persist-memory) derive tools from `@Tool` methods by reflection; **DYNAMIC** connectors
-   (`mcp`, device `app`) read the per-instance set from `connection_tools` (synced from `tools/list` /
-   device link, no remote call on this path). Each `ConnectorToolSpec` echoes `connection_id` (= `connection_id`
-   on `ExecuteTool`) and `namespace`; the worker builds the LLM-facing name as `{namespace}.{name}`.
+Тулы приходят в `RunContext.tools` (отдельных discovery-RPC больше нет), ключ — `connections.id`:
+активные `agent_connections`-binding'и (connector-level ABAC-гейт) фильтруются скоупом скиллов, затем
+по `tool_binding`: **STATIC** коннекторы (telegram, time, board, persist-memory) отдают тулы рефлексией
+`@Tool`-методов; **DYNAMIC** (`mcp`, device `app`) — per-instance набор из `connection_tools` (синк из
+`tools/list` / device link, без удалённого вызова на этом пути). Каждый `ConnectorToolSpec` несёт
+`connector_code`, `connection_id` (= `connection_id` на `ExecuteTool`) и `namespace`; воркер строит
+LLM-имя как `{namespace}.{name}`.
 
 **Naming.** Stored tool/trigger names are **bare local identifiers** (`schedule`, `get_tasks`,
 `message_received`, `consolidate`) — no connector prefix. Global uniqueness for the LLM comes from the
