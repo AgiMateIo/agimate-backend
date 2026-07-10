@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
-import ru.agimate.controlapi.connectors.core.ConnectorContextHolder;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Тулы и таски Telegram-коннектора. Контекст (credentials, connectionId, userId) приходит через
- * {@link ConnectorContextHolder}, привязку делает {@code BaseConnectorHandler} в
+ * {@link ConnectorEnvHolder}, привязку делает {@code BaseConnectorHandler} в
  * {@code TelegramConnectorService}.
  */
 @Slf4j
@@ -130,7 +130,7 @@ public class TelegramToolService {
     @Job(intervalSeconds = 0, timeoutSeconds = 60)
     @SuppressWarnings("unchecked")
     public void longPoll() {
-        ConnectorContext ctx = ConnectorContextHolder.current();
+        ConnectorEnv ctx = ConnectorEnvHolder.current();
         String connectionId = ctx.connectionId();
         String token = ctx.credentials().get("token");
         if (token == null || token.isBlank()) {
@@ -180,7 +180,7 @@ public class TelegramToolService {
         }
     }
 
-    private void dispatch(ConnectorContext ctx, Map<String, Object> update) {
+    private void dispatch(ConnectorEnv ctx, Map<String, Object> update) {
         try {
             Trigger trigger = TelegramUtils.normalizeUpdate(update, ctx.connectionId());
             triggerRouterService.routeWhTrigger(ctx.userId(), trigger);
@@ -191,7 +191,7 @@ public class TelegramToolService {
     }
 
     private Map<String, Object> sendTelegramRequest(String method, Map<String, Object> params) {
-        String token = ConnectorContextHolder.current().credentials().get("token");
+        String token = ConnectorEnvHolder.current().credentials().get("token");
         return telegramApiClient.sendRequest(method, token, params);
     }
 }

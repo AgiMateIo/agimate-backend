@@ -20,8 +20,8 @@ import java.util.Map;
 
 /**
  * Единственный reflection-диспатчер коннекторов: сканирует {@code @Tool}-методы tool-сервиса,
- * строит спеки и выполняет вызовы с привязкой {@link ConnectorContext} через
- * {@link ConnectorContextHolder} (set/clear только здесь).
+ * строит спеки и выполняет вызовы с привязкой {@link ConnectorEnv} через
+ * {@link ConnectorEnvHolder} (set/clear только здесь).
  *
  * <p>Декларативная джоба ({@link Job}) и внутренний метод ({@code @Tool(internal = true)}) скрыты
  * от LLM — не попадают в {@link #getTools()} и недоступны через {@link #executeTool}; при этом
@@ -122,12 +122,12 @@ public abstract class BaseConnectorHandler implements ToolProvider, JobProvider 
     }
 
     @Override
-    public Map<String, Object> executeTool(ConnectorContext context, String toolName, Map<String, Object> args) {
+    public Map<String, Object> executeTool(ConnectorEnv env, String toolName, Map<String, Object> args) {
         Method method = methodsByName.get(toolName);
         if (method == null || hiddenFromLlm(method)) {
             throw new ConnectorException("Unknown tool: " + toolName);
         }
-        return invoke(context, method, args);
+        return invoke(env, method, args);
     }
 
     /**
@@ -141,17 +141,17 @@ public abstract class BaseConnectorHandler implements ToolProvider, JobProvider 
     }
 
     @Override
-    public Map<String, Object> executeJob(ConnectorContext context, String name, Map<String, Object> args) {
+    public Map<String, Object> executeJob(ConnectorEnv env, String name, Map<String, Object> args) {
         Method method = methodsByName.get(name);
         if (method == null) {
             throw new ConnectorException("Unknown task: " + name);
         }
-        return invoke(context, method, args);
+        return invoke(env, method, args);
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> invoke(ConnectorContext context, Method method, Map<String, Object> args) {
-        ConnectorContextHolder.set(context);
+    private Map<String, Object> invoke(ConnectorEnv env, Method method, Map<String, Object> args) {
+        ConnectorEnvHolder.set(env);
         try {
             Object result = method.invoke(toolService, buildMethodArgs(method, args));
             if (result == null) {
@@ -169,7 +169,7 @@ public abstract class BaseConnectorHandler implements ToolProvider, JobProvider 
         } catch (IllegalAccessException e) {
             throw new ConnectorException("Method not accessible: " + method.getName(), e);
         } finally {
-            ConnectorContextHolder.clear();
+            ConnectorEnvHolder.clear();
         }
     }
 

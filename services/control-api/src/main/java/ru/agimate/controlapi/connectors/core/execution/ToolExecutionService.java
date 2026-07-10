@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
-import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
@@ -42,7 +42,7 @@ public class ToolExecutionService {
     private final ConnectorRegistry connectorRegistry;
     private final ConnectionRepository connectionRepository;
     private final ChannelSessionRepository channelSessionRepository;
-    private final ConnectorContextFactory contextFactory;
+    private final ConnectorEnvFactory envFactory;
     private final ToolCallLogService toolCallLogService;
     private final AgentDeliveryService agentDeliveryService;
 
@@ -52,10 +52,10 @@ public class ToolExecutionService {
             ConnectorHandler handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());
             ToolProvider toolProvider = connectorRegistry.getCapability(
                     toolCallLog.getConnectorCode(), ToolProvider.class);
-            ConnectorContext context = buildContext(handler, toolCallLog);
+            ConnectorEnv env = buildEnv(handler, toolCallLog);
 
             Map<String, Object> result = toolProvider.executeTool(
-                    context, toolCallLog.getName(), toolCallLog.getInput());
+                    env, toolCallLog.getName(), toolCallLog.getInput());
 
             if (handler instanceof IntegrationConnectorHandler) {
                 connectionRepository.updateLastUsedAt(
@@ -73,7 +73,7 @@ public class ToolExecutionService {
         }
     }
 
-    private ConnectorContext buildContext(ConnectorHandler handler, ToolCallLog toolCallLog) {
+    private ConnectorEnv buildEnv(ConnectorHandler handler, ToolCallLog toolCallLog) {
         UUID channelId = resolveChannelId(toolCallLog.getAgentSessionId());
         if (handler instanceof IntegrationConnectorHandler) {
             Connection connection = connectionRepository
@@ -81,9 +81,9 @@ public class ToolExecutionService {
                     .filter(Connection::isActive)
                     .orElseThrow(() -> new ConnectorException(
                             "Connection missing or disabled: " + toolCallLog.getConnectionId()));
-            return contextFactory.forConnection(connection, toolCallLog.getAgentId(), channelId);
+            return envFactory.forConnection(connection, toolCallLog.getAgentId(), channelId);
         }
-        return contextFactory.internal(
+        return envFactory.internal(
                 toolCallLog.getConnectionId(), toolCallLog.getUserId(), toolCallLog.getAgentId(), channelId);
     }
 

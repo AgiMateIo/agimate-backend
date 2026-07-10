@@ -3,8 +3,8 @@ package ru.agimate.controlapi.connectors.internal.time;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
-import ru.agimate.controlapi.connectors.core.ConnectorContextHolder;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
@@ -73,7 +73,7 @@ public class TimeToolService {
             @ToolParam(value = "Run repeatedly every this many seconds", required = false) Long intervalSeconds,
             @ToolParam(value = "Run on this cron schedule (Spring 6-field, with seconds)", required = false) String cron,
             @ToolParam(value = "Timezone for cron, IANA id (default UTC)", required = false) String zone) {
-        ConnectorContext ctx = ConnectorContextHolder.current();
+        ConnectorEnv ctx = ConnectorEnvHolder.current();
         if (ctx.agentId() == null || ctx.userId() == null) {
             throw new ConnectorException("time.schedule must be called by an agent");
         }
@@ -129,7 +129,7 @@ public class TimeToolService {
     @Tool(name = "scheduled_tasks", description = "List your active (not yet completed) scheduled tasks",
             annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false))
     public Map<String, Object> scheduledTasks() {
-        ConnectorContext ctx = ConnectorContextHolder.current();
+        ConnectorEnv ctx = ConnectorEnvHolder.current();
         if (ctx.agentId() == null || ctx.userId() == null) {
             throw new ConnectorException("time.scheduled_tasks must be called by an agent");
         }
@@ -151,7 +151,7 @@ public class TimeToolService {
             annotations = @ToolAnnotations(openWorldHint = false))
     public Map<String, Object> cancelScheduled(
             @ToolParam("Id of the scheduled task (from time.schedule / time.scheduled_tasks)") String id) {
-        ConnectorContext ctx = ConnectorContextHolder.current();
+        ConnectorEnv ctx = ConnectorEnvHolder.current();
         if (ctx.agentId() == null || ctx.userId() == null) {
             throw new ConnectorException("time.cancel_scheduled must be called by an agent");
         }
@@ -178,7 +178,7 @@ public class TimeToolService {
      */
     @Tool(name = FIRE_TASK, description = "Internal: deliver a scheduled task to its agent", internal = true)
     public void fire(@ToolParam("Prompt to deliver to the agent") String prompt) {
-        ConnectorContext ctx = ConnectorContextHolder.current();
+        ConnectorEnv ctx = ConnectorEnvHolder.current();
         if (ctx.agentId() == null) {
             throw new ConnectorException("Scheduled task has no originating agent");
         }

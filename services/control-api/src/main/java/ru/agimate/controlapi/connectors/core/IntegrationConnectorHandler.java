@@ -21,20 +21,20 @@ public interface IntegrationConnectorHandler extends ConnectorHandler {
         return false;
     }
 
-    default void setupWebhook(ConnectorContext context, String webhookUrl) {
+    default void setupWebhook(ConnectorEnv env, String webhookUrl) {
         // no-op for platforms without webhooks
     }
 
-    default void removeWebhook(ConnectorContext context) {
+    default void removeWebhook(ConnectorEnv env) {
         // no-op
     }
 
     /** Нормализация сырого webhook-тела в {@link Trigger}; контекст без расшифровки credentials. */
-    default Trigger normalizeInbound(ConnectorContext context, String rawBody) {
+    default Trigger normalizeInbound(ConnectorEnv env, String rawBody) {
         throw new UnsupportedOperationException("Platform does not support inbound webhooks");
     }
 
-    default boolean validateWebhookRequest(ConnectorContext context, HttpServletRequest request) {
+    default boolean validateWebhookRequest(ConnectorEnv env, HttpServletRequest request) {
         return false;
     }
 }

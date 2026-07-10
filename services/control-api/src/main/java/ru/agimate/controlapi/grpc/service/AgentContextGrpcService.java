@@ -10,7 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
@@ -320,16 +321,16 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             Connector connector = connectorRepository.findById(connectorCode)
                     .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
-            // Контекст для листинга: достаточно connection_id (динамические коннекторы вроде mcp читают
+            // Env для листинга: достаточно connection_id (динамические коннекторы вроде mcp читают
             // тулы per-instance из кэша). Расшифровка credentials здесь не нужна.
-            ConnectorContext listingContext = new ConnectorContext(connectionId.toString(), null, null, null, Map.of(), null);
+            ConnectorEnv listingEnv = ConnectorEnvFactory.listing(connectionId);
 
             // Источник тулов по toolBinding: STATIC — рефлексия handler'а; DYNAMIC — connection_tools.
             Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> tools =
                     switch (connector.getToolBinding()) {
                         case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
                                 .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
-                                .getTools(listingContext);
+                                .getTools(listingEnv);
                         case DYNAMIC -> dynamicConnectionTools(connectionId);
                         case null -> throw new BadRequestStatusException(
                                 "Connector does not expose tool definitions: " + connectorCode);

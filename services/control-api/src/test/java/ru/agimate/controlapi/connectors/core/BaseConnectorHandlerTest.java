@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("BaseConnectorHandler")
 class BaseConnectorHandlerTest {
 
-    private static final ConnectorContext CONTEXT = new ConnectorContext(
+    private static final ConnectorEnv CONTEXT = new ConnectorEnv(
             "connectionId-1", UUID.randomUUID(), UUID.randomUUID(), null, Map.of("token", "secret"), null);
 
     private TestToolService toolService;
@@ -205,7 +205,7 @@ class BaseConnectorHandlerTest {
                     () -> handler.executeTool(CONTEXT, "test.fail", Map.of()));
 
             assertEquals("boom", e.getMessage());
-            assertThrows(ConnectorException.class, ConnectorContextHolder::current);
+            assertThrows(ConnectorException.class, ConnectorEnvHolder::current);
         }
 
         @Test
@@ -214,7 +214,7 @@ class BaseConnectorHandlerTest {
             handler.executeTool(CONTEXT, "test.echo", Map.of("text", "x"));
 
             assertEquals(CONTEXT, toolService.observedContext);
-            assertThrows(ConnectorException.class, ConnectorContextHolder::current);
+            assertThrows(ConnectorException.class, ConnectorEnvHolder::current);
         }
 
         @Test
@@ -280,13 +280,13 @@ class BaseConnectorHandlerTest {
 
     static class TestToolService {
 
-        ConnectorContext observedContext;
+        ConnectorEnv observedContext;
         int periodicRuns;
         int internalRuns;
 
         @Tool(name = "test.echo", description = "Echo text back")
         public Map<String, Object> echo(@ToolParam("Text") String text, @ToolParam("Count") String count) {
-            observedContext = ConnectorContextHolder.current();
+            observedContext = ConnectorEnvHolder.current();
             Map<String, Object> result = new HashMap<>();
             result.put("text", text);
             result.put("count", count);
@@ -301,7 +301,7 @@ class BaseConnectorHandlerTest {
         @Tool(name = "test.periodic_task", description = "Periodic background task")
         @Job(intervalSeconds = 5, timeoutSeconds = 60)
         public void periodicTask() {
-            observedContext = ConnectorContextHolder.current();
+            observedContext = ConnectorEnvHolder.current();
             periodicRuns++;
         }
 
@@ -313,7 +313,7 @@ class BaseConnectorHandlerTest {
         @Tool(name = "test.internal_target", description = "Hidden dispatch target (job-scheduled, not an LLM tool)",
                 internal = true)
         public void internalTarget() {
-            observedContext = ConnectorContextHolder.current();
+            observedContext = ConnectorEnvHolder.current();
             internalRuns++;
         }
 

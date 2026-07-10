@@ -6,8 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
-import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
@@ -66,13 +66,13 @@ class JobExecutionServiceTest {
 
     @BeforeEach
     void setUp() {
-        // ConnectorRegistry и ConnectorContextFactory — настоящие: логика выбора контекста
+        // ConnectorRegistry и ConnectorEnvFactory — настоящие: логика выбора контекста
         // по типу хендлера и есть предмет теста.
         when(integrationHandler.connectorCode()).thenReturn("telegram");
         when(internalHandler.connectorCode()).thenReturn("board");
         ConnectorRegistry registry = new ConnectorRegistry(java.util.List.of(integrationHandler, internalHandler));
         service = new JobExecutionService(registry, connectionRepository,
-                new ConnectorContextFactory(secretRepository, secretService));
+                new ConnectorEnvFactory(secretRepository, secretService));
     }
 
     private ConnectorJob row(String connectorCode, String connectionId) {
@@ -103,7 +103,7 @@ class JobExecutionServiceTest {
         service.executeJob(row("telegram", CONNECTION_ID.toString()));
 
         verify(integrationHandler).executeJob(
-                argThat((ConnectorContext ctx) ->
+                argThat((ConnectorEnv ctx) ->
                         CONNECTION_ID.toString().equals(ctx.connectionId())
                                 && USER_ID.equals(ctx.userId())
                                 && "t1".equals(ctx.credentials().get("token"))),
@@ -148,7 +148,7 @@ class JobExecutionServiceTest {
         service.executeJob(row("board", null));
 
         verify(internalHandler).executeJob(
-                argThat((ConnectorContext ctx) ->
+                argThat((ConnectorEnv ctx) ->
                         ctx.connectionId() == null && ctx.userId() == null && ctx.credentials().isEmpty()),
                 eq("some.task"),
                 eq(Map.of("arg", "value")));
@@ -165,7 +165,7 @@ class JobExecutionServiceTest {
         service.executeJob(row);
 
         verify(internalHandler).executeJob(
-                argThat((ConnectorContext ctx) ->
+                argThat((ConnectorEnv ctx) ->
                         USER_ID.equals(ctx.userId()) && agentId.equals(ctx.agentId())),
                 eq("some.task"),
                 eq(Map.of("arg", "value")));

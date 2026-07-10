@@ -11,7 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -58,12 +58,12 @@ class TelegramConnectorServiceTest {
                 telegramApiClient, objectMapper, mode);
     }
 
-    private static ConnectorContext context() {
-        return new ConnectorContext(IDENTITY, USER_ID, null, null, Map.of("token", "token123"), null);
+    private static ConnectorEnv env() {
+        return new ConnectorEnv(IDENTITY, USER_ID, null, null, Map.of("token", "token123"), null);
     }
 
-    private static ConnectorContext webhookContext(String secret) {
-        return new ConnectorContext(IDENTITY, USER_ID, null, null, Map.of(), secret);
+    private static ConnectorEnv webhookContext(String secret) {
+        return new ConnectorEnv(IDENTITY, USER_ID, null, null, Map.of(), secret);
     }
 
     @Nested
@@ -252,7 +252,7 @@ class TelegramConnectorServiceTest {
             params.put("chatId", "100");
             params.put("text", "Hello");
 
-            var result = handler.executeTool(context(), "send_message", params);
+            var result = handler.executeTool(env(), "send_message", params);
 
             assertEquals(expectedResponse, result);
             verify(telegramApiClient).sendRequest(eq("sendMessage"), eq("token123"), argThat((Map<String, Object> p) ->
@@ -272,7 +272,7 @@ class TelegramConnectorServiceTest {
             params.put("replyToMessageId", "777");
             params.put("replyMarkup", "{\"keyboard\":[]}");
 
-            handler.executeTool(context(), "send_message", params);
+            handler.executeTool(env(), "send_message", params);
 
             verify(telegramApiClient).sendRequest(eq("sendMessage"), eq("token123"), argThat((Map<String, Object> p) ->
                     "777".equals(p.get("reply_to_message_id")) && !p.containsKey("reply_markup")));
@@ -286,7 +286,7 @@ class TelegramConnectorServiceTest {
             Map<String, Object> expectedResponse = Map.of("ok", true);
             when(telegramApiClient.sendRequest(eq("editMessageText"), eq("token123"), any())).thenReturn(expectedResponse);
 
-            var result = handler.executeTool(context(), "edit_message",
+            var result = handler.executeTool(env(), "edit_message",
                     Map.of("chatId", "100", "messageId", "456", "text", "Updated"));
 
             assertEquals(expectedResponse, result);
@@ -298,7 +298,7 @@ class TelegramConnectorServiceTest {
             Map<String, Object> expectedResponse = Map.of("ok", true);
             when(telegramApiClient.sendRequest(eq("deleteMessage"), eq("token123"), any())).thenReturn(expectedResponse);
 
-            var result = handler.executeTool(context(),
+            var result = handler.executeTool(env(),
                     "delete_message", Map.of("chatId", "100", "messageId", "456"));
 
             assertEquals(expectedResponse, result);
@@ -310,7 +310,7 @@ class TelegramConnectorServiceTest {
             Map<String, Object> expectedResponse = Map.of("ok", true);
             when(telegramApiClient.sendRequest(eq("answerCallbackQuery"), eq("token123"), any())).thenReturn(expectedResponse);
 
-            var result = handler.executeTool(context(),
+            var result = handler.executeTool(env(),
                     "answer_callback_query", Map.of("callbackQueryId", "cb1", "text", "Done"));
 
             assertEquals(expectedResponse, result);
@@ -320,14 +320,14 @@ class TelegramConnectorServiceTest {
         @DisplayName("неизвестная тула → ConnectorException")
         void unknownTool() {
             assertThrows(ConnectorException.class, () ->
-                    handler.executeTool(context(), "telegram.unknown_tool", Map.of()));
+                    handler.executeTool(env(), "telegram.unknown_tool", Map.of()));
         }
 
         @Test
         @DisplayName("long_poll недоступен как тула")
         void longPollNotATool() {
             assertThrows(ConnectorException.class, () ->
-                    handler.executeTool(context(), TelegramToolService.TASK_LONG_POLL, Map.of()));
+                    handler.executeTool(env(), TelegramToolService.TASK_LONG_POLL, Map.of()));
         }
     }
 
@@ -352,8 +352,8 @@ class TelegramConnectorServiceTest {
             when(telegramApiClient.getUpdates("token123", 6L, 20))
                     .thenReturn(Map.of("ok", true, "result", List.of()));
 
-            handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
-            handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
+            handler.executeJob(env(), TelegramToolService.TASK_LONG_POLL, Map.of());
+            handler.executeJob(env(), TelegramToolService.TASK_LONG_POLL, Map.of());
 
             verify(telegramApiClient, times(1)).deleteWebhook("token123");
             verify(telegramApiClient).getUpdates("token123", 6L, 20);
@@ -369,7 +369,7 @@ class TelegramConnectorServiceTest {
                             HttpStatus.CONFLICT, "Conflict", HttpHeaders.EMPTY, new byte[0], null));
 
             ConnectorException e = assertThrows(ConnectorException.class, () ->
-                    handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of()));
+                    handler.executeJob(env(), TelegramToolService.TASK_LONG_POLL, Map.of()));
 
             assertNull(e.getCause());
             assertTrue(e.getMessage().contains("409"));
@@ -382,7 +382,7 @@ class TelegramConnectorServiceTest {
                     .thenReturn(Map.of("ok", false, "description", "Unauthorized"));
 
             ConnectorException e = assertThrows(ConnectorException.class, () ->
-                    handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of()));
+                    handler.executeJob(env(), TelegramToolService.TASK_LONG_POLL, Map.of()));
 
             assertTrue(e.getMessage().contains("Unauthorized"));
         }
@@ -390,7 +390,7 @@ class TelegramConnectorServiceTest {
         @Test
         @DisplayName("пустые credentials → ConnectorException")
         void missingToken() {
-            ConnectorContext noToken = new ConnectorContext(IDENTITY, USER_ID, null, null, Map.of(), null);
+            ConnectorEnv noToken = new ConnectorEnv(IDENTITY, USER_ID, null, null, Map.of(), null);
 
             assertThrows(ConnectorException.class, () ->
                     handler.executeJob(noToken, TelegramToolService.TASK_LONG_POLL, Map.of()));
@@ -405,8 +405,8 @@ class TelegramConnectorServiceTest {
             when(telegramApiClient.getUpdates(eq("token123"), isNull(), eq(20)))
                     .thenReturn(Map.of("ok", true, "result", List.of()));
 
-            handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
-            handler.executeJob(context(), TelegramToolService.TASK_LONG_POLL, Map.of());
+            handler.executeJob(env(), TelegramToolService.TASK_LONG_POLL, Map.of());
+            handler.executeJob(env(), TelegramToolService.TASK_LONG_POLL, Map.of());
 
             verify(telegramApiClient, times(2)).deleteWebhook("token123");
         }

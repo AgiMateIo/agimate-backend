@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
@@ -44,8 +44,8 @@ class McpConnectorServiceTest {
         service = new McpConnectorService(mcpClient, connectionToolRepository);
     }
 
-    private ConnectorContext ctx(String connectionId, Map<String, String> credentials) {
-        return new ConnectorContext(connectionId, null, null, null, credentials, null);
+    private ConnectorEnv ctx(String connectionId, Map<String, String> credentials) {
+        return new ConnectorEnv(connectionId, null, null, null, credentials, null);
     }
 
     @Nested

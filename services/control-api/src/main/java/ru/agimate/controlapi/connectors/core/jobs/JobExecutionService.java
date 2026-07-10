@@ -3,8 +3,8 @@ package ru.agimate.controlapi.connectors.core.jobs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
-import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
@@ -19,7 +19,7 @@ import java.util.UUID;
 
 /**
  * Исполняет одну итерацию строки {@code connector_jobs}: находит handler по
- * {@code connector_code}, собирает {@link ConnectorContext} (для integration — со свежими
+ * {@code connector_code}, собирает {@link ConnectorEnv} (для integration — со свежими
  * credentials по {@code connectionId}) и диспатчит {@code name}/{@code args}.
  *
  * <p>Вызывается из virtual thread'а scheduler'а вне транзакции — long-poll может держать
@@ -32,17 +32,17 @@ public class JobExecutionService {
 
     private final ConnectorRegistry connectorRegistry;
     private final ConnectionRepository connectionRepository;
-    private final ConnectorContextFactory contextFactory;
+    private final ConnectorEnvFactory envFactory;
 
     public Map<String, Object> executeJob(ConnectorJob row) {
         ConnectorHandler handler = connectorRegistry.getHandler(row.getConnectorCode());
         JobProvider jobProvider = connectorRegistry.getCapability(row.getConnectorCode(), JobProvider.class);
-        ConnectorContext context = buildContext(handler, row);
+        ConnectorEnv env = buildEnv(handler, row);
         Map<String, Object> args = row.getArgs() == null ? Map.of() : row.getArgs();
-        return jobProvider.executeJob(context, row.getName(), args);
+        return jobProvider.executeJob(env, row.getName(), args);
     }
 
-    private ConnectorContext buildContext(ConnectorHandler handler, ConnectorJob row) {
+    private ConnectorEnv buildEnv(ConnectorHandler handler, ConnectorJob row) {
         if (handler instanceof IntegrationConnectorHandler) {
             // Credentials загружаются свежими на каждый запуск — обновление токена
             // подхватывается без рестарта. Нет/выключены — ошибка в last_error и retry:
@@ -52,11 +52,11 @@ public class JobExecutionService {
                     .filter(Connection::isActive)
                     .orElseThrow(() -> new ConnectorException(
                             "Connection missing or disabled: " + row.getConnectionId()));
-            return contextFactory.forConnection(connection, null, null);
+            return envFactory.forConnection(connection, null, null);
         }
         // Полный контекст инициатора (userId/agentId/channelId сохранены в строке при планировании) —
         // динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.
-        return contextFactory.internal(
+        return envFactory.internal(
                 row.getConnectionId(), row.getUserId(), row.getAgentId(), row.getChannelId());
     }
 

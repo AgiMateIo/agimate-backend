@@ -12,7 +12,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.CryptoUtils;
 import ru.agimate.common.util.UUIDUtils;
-import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.FullCodes;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
@@ -55,7 +55,7 @@ public class ConnectionService {
     private final SecretRepository secretRepository;
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
-    private final ConnectorContextFactory contextFactory;
+    private final ConnectorEnvFactory envFactory;
     private final SecretService secretService;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -101,7 +101,7 @@ public class ConnectionService {
 
         if (handler.supportsWebhooks()) {
             String webhookUrl = webhookBaseUrl + "/webhook/" + connection.getId();
-            handler.setupWebhook(contextFactory.withCredentials(connection, credentials, null), webhookUrl);
+            handler.setupWebhook(envFactory.withCredentials(connection, credentials, null), webhookUrl);
         }
 
         log.info("Created connection {} for user {}: {} ({})",
@@ -141,7 +141,7 @@ public class ConnectionService {
 
         try {
             var handler = integrationHandler(connection.getConnectorCode());
-            handler.removeWebhook(contextFactory.withCredentials(connection, revealCredentials(connection), null));
+            handler.removeWebhook(envFactory.withCredentials(connection, revealCredentials(connection), null));
         } catch (Exception e) {
             log.warn("Failed to remove webhook for connection {}: {}", id, e.getMessage());
         }
@@ -176,7 +176,7 @@ public class ConnectionService {
 
         if (handler.supportsWebhooks()) {
             String webhookUrl = webhookBaseUrl + "/webhook/" + connection.getId();
-            handler.setupWebhook(contextFactory.withCredentials(connection, credentials, null), webhookUrl);
+            handler.setupWebhook(envFactory.withCredentials(connection, credentials, null), webhookUrl);
         }
 
         eventPublisher.publishEvent(new ConnectorModifiedEvent(

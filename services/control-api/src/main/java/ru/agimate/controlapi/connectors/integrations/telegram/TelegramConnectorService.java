@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
@@ -104,11 +104,11 @@ public class TelegramConnectorService extends BaseConnectorHandler
     }
 
     @Override
-    public void setupWebhook(ConnectorContext context, String webhookUrl) {
-        String token = context.credentials().get("token");
+    public void setupWebhook(ConnectorEnv env, String webhookUrl) {
+        String token = env.credentials().get("token");
         try {
             Map<String, Object> response = telegramApiClient.setWebhook(
-                    token, webhookUrl, context.webhookSecret());
+                    token, webhookUrl, env.webhookSecret());
             if (!Boolean.TRUE.equals(response.get("ok"))) {
                 throw new ConnectorException("Failed to set Telegram webhook: " + response.get("description"));
             }
@@ -122,8 +122,8 @@ public class TelegramConnectorService extends BaseConnectorHandler
     }
 
     @Override
-    public void removeWebhook(ConnectorContext context) {
-        String token = context.credentials().get("token");
+    public void removeWebhook(ConnectorEnv env) {
+        String token = env.credentials().get("token");
         try {
             telegramApiClient.deleteWebhook(token);
             log.info("Telegram webhook removed");
@@ -134,15 +134,15 @@ public class TelegramConnectorService extends BaseConnectorHandler
 
     @Override
     @SuppressWarnings("unchecked")
-    public Trigger normalizeInbound(ConnectorContext context, String rawBody) {
+    public Trigger normalizeInbound(ConnectorEnv env, String rawBody) {
         Map<String, Object> update = objectMapper.readValue(rawBody, Map.class);
-        return TelegramUtils.normalizeUpdate(update, context.connectionId());
+        return TelegramUtils.normalizeUpdate(update, env.connectionId());
     }
 
     @Override
-    public boolean validateWebhookRequest(ConnectorContext context, HttpServletRequest request) {
+    public boolean validateWebhookRequest(ConnectorEnv env, HttpServletRequest request) {
         String secretToken = request.getHeader(HEADER_SECRET_TOKEN);
-        String webhookSecret = context.webhookSecret();
+        String webhookSecret = env.webhookSecret();
         if (secretToken == null || webhookSecret == null) return false;
         return MessageDigest.isEqual(
                 webhookSecret.getBytes(StandardCharsets.UTF_8),

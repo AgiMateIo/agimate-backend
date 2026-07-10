@@ -115,7 +115,7 @@ PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
 
 Тулы коннектора статичны и привязаны к `connectorCode` (строятся рефлексией один раз). Исключение —
 **динамические коннекторы** (MCP, см. ниже): набор тулов per-instance и открывается в рантайме. Для них
-`ToolProvider` даёт context-aware перегрузку `getTools(ConnectorContext)` (дефолт — те же статические `getTools()`);
+`ToolProvider` даёт context-aware перегрузку `getTools(ConnectorEnv)` (дефолт — те же статические `getTools()`);
 gRPC-листинг (`GetConnectionTools(connection_id)`) единообразно зовёт её с контекстом по `connection_id` — без
 спец-кейсов. Воркер сперва получает доступные агенту экземпляры через `GetConnections(agent_id)`
 (привязки `agent_connections` → `connections`), затем по каждому зовёт `GetConnectionTools`.
@@ -130,13 +130,13 @@ gRPC-листинг (`GetConnectionTools(connection_id)`) единообразн
 именуются **одинаково**; различаются `PolicyKind` (TOOL/TRIGGER), поэтому префикс `trigger.` не нужен.
 
 `BaseConnectorHandler` — единственный reflection-диспатчер: маппит `Map<String,Object> args` на параметры
-метода по именам, привязывает `ConnectorContext` через ThreadLocal (`ConnectorContextHolder`, set/clear
+метода по именам, привязывает `ConnectorEnv` через ThreadLocal (`ConnectorEnvHolder`, set/clear
 только в базовом классе). `executeJob` диспатчит в **любой** `@Tool`-метод — задача может быть «вызовом
 тулы по расписанию» (строка `connector_jobs` c `name` = имя тулы и `args` = её аргументы).
 
-`ConnectorContext`: `connection_id` (= `connections.id` строкой; internal — `null`), `userId`, `agentId`,
+`ConnectorEnv`: `connection_id` (= `connections.id` строкой; internal — `null`), `userId`, `agentId`,
 расшифрованные `credentials` (из `secrets` по `secret_id`), `webhookSecret`. Собирается только в
-`ConnectorContextFactory`.
+`ConnectorEnvFactory`.
 
 Исключения: внутри коннекторного слоя — только `ConnectorException` (его сообщение безопасно отдаётся
 агенту в error tool-result). `*StatusException` — строго на HTTP-границе
@@ -195,7 +195,7 @@ ABAC: доступ к MCP-серверу — binding агента на его co
 - **Задачи**: `jobs/ConnectorJobScheduler` (`@Scheduled` 1s) атомарно claim'ит готовые строки
   `connector_jobs` (`FOR UPDATE SKIP LOCKED`, lease = `now + timeout_seconds`), исполняет в virtual
   threads через `jobs/JobExecutionService` вне транзакции. `JobExecutionService` реконструирует
-  полный `ConnectorContext` из строки (`connection_id` + `user_id` + `agent_id`), поэтому задача исполняется
+  полный `ConnectorEnv` из строки (`connection_id` + `user_id` + `agent_id`), поэтому задача исполняется
   с контекстом инициатора — так же, как если бы агент вызвал тулу сам.
 
 ## connector_jobs

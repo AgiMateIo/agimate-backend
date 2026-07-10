@@ -2,8 +2,8 @@ package ru.agimate.controlapi.connectors.internal.persistentmemory;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
-import ru.agimate.controlapi.connectors.core.ConnectorContextHolder;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
@@ -63,7 +63,7 @@ public class PersistentMemoryToolService {
             + "Pass the returned version to update_memory when you rewrite it.",
             annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false))
     public Map<String, Object> getMemory() {
-        UUID scopeId = resolveScopeId(ConnectorContextHolder.current());
+        UUID scopeId = resolveScopeId(ConnectorEnvHolder.current());
         PersistentMemoryCold cold = memoryService.getCold(scopeId).orElse(null);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("content", cold == null ? "" : cold.getContent());
@@ -75,7 +75,7 @@ public class PersistentMemoryToolService {
             + "but not yet consolidated into cold memory.",
             annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false))
     public Map<String, Object> getMemoryNotes() {
-        UUID scopeId = resolveScopeId(ConnectorContextHolder.current());
+        UUID scopeId = resolveScopeId(ConnectorEnvHolder.current());
         List<Map<String, Object>> notes = memoryService.getNotes(scopeId).stream()
                 .map(PersistentMemoryToolService::noteView)
                 .toList();
@@ -89,7 +89,7 @@ public class PersistentMemoryToolService {
             @ToolParam("The fact/note to remember") String text,
             @ToolParam(value = "Session this note came from (optional, for tracing)", required = false)
             String sessionId) {
-        ConnectorContext ctx = ConnectorContextHolder.current();
+        ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID scopeId = resolveScopeId(ctx);
         if (text == null || text.isBlank()) {
             throw new ConnectorException("text is required");
@@ -108,7 +108,7 @@ public class PersistentMemoryToolService {
                     required = false) Integer version,
             @ToolParam(value = "Consolidation id from the consolidate trigger; deletes its notes", required = false)
             String consolidationId) {
-        ConnectorContext ctx = ConnectorContextHolder.current();
+        ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID scopeId = resolveScopeId(ctx);
         if (text == null) {
             throw new ConnectorException("text is required");
@@ -122,7 +122,7 @@ public class PersistentMemoryToolService {
     @Tool(name = DAILY_JOB, description = "Internal: emit per-session note requests for the last 24h")
     @Job(type = ConnectorJobType.CRON, cron = "0 0 3 * * *", timeoutSeconds = JOB_TIMEOUT_SECONDS)
     public void daily() {
-        ConnectorContext ctx = ConnectorContextHolder.current();
+        ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID connectionId = requireConnectionId(ctx);
         LocalDateTime since = LocalDateTime.now().minusHours(NOTES_LOOKBACK_HOURS);
         // Сессии собираем по каждому привязанному агенту; для TEAM-памяти это все агенты команды,
@@ -150,7 +150,7 @@ public class PersistentMemoryToolService {
     @Tool(name = CONSOLIDATION_JOB, description = "Internal: claim pending notes and request consolidation")
     @Job(type = ConnectorJobType.CRON, cron = "0 0 * * * *", timeoutSeconds = JOB_TIMEOUT_SECONDS)
     public void consolidation() {
-        ConnectorContext ctx = ConnectorContextHolder.current();
+        ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID connectionId = requireConnectionId(ctx);
         UUID scopeId = resolveScopeId(ctx);
         LocalDateTime now = LocalDateTime.now();
@@ -180,7 +180,7 @@ public class PersistentMemoryToolService {
     // ===== helpers =====
 
     /** Адресует directed-триггер привязанным агентам (audience, без канала — фоновая задача). */
-    private void routeToAgents(ConnectorContext ctx, List<UUID> agentIds, String triggerName,
+    private void routeToAgents(ConnectorEnv ctx, List<UUID> agentIds, String triggerName,
                                Map<String, Object> data) {
         if (agentIds.isEmpty()) {
             return;
@@ -194,12 +194,12 @@ public class PersistentMemoryToolService {
         triggerRouterService.routeTrigger(ctx.userId(), trigger);
     }
 
-    private UUID resolveScopeId(ConnectorContext ctx) {
+    private UUID resolveScopeId(ConnectorEnv ctx) {
         return memoryService.scopeIdForConnection(requireConnectionId(ctx))
                 .orElseThrow(() -> new ConnectorException("persist-memory: connection has no scope"));
     }
 
-    private static UUID requireConnectionId(ConnectorContext ctx) {
+    private static UUID requireConnectionId(ConnectorEnv ctx) {
         if (ctx.connectionId() == null) {
             throw new ConnectorException("persist-memory requires a connection connectionId");
         }

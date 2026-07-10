@@ -13,5 +13,5 @@ public interface JobProvider {
 
     Map<String, JobSpec> getJobs();
 
-    Map<String, Object> executeJob(ConnectorContext context, String name, Map<String, Object> args);
+    Map<String, Object> executeJob(ConnectorEnv env, String name, Map<String, Object> args);
 }

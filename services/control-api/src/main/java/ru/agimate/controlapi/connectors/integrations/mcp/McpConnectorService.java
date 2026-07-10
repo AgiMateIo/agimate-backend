@@ -3,7 +3,7 @@ package ru.agimate.controlapi.connectors.integrations.mcp;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
@@ -24,7 +24,7 @@ import java.util.UUID;
  * и {@code @Tool}-методов):
  * <ul>
  *   <li>{@link #getTools()} — статических тулов нет (пусто);</li>
- *   <li>{@link #getTools(ConnectorContext)} — список из кэша {@code connection_tools} по {@code connectionId}
+ *   <li>{@link #getTools(ConnectorEnv)} — список из кэша {@code connection_tools} по {@code connectionId}
  *       (наполняется {@link McpToolDiscoveryListener} на create/modify интеграции);</li>
  *   <li>{@link #executeTool} — проксирование в {@code tools/call}.</li>
  * </ul>
@@ -84,7 +84,7 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
         }
     }
 
-    /** Статических тулов у MCP нет — набор всегда per-instance, см. {@link #getTools(ConnectorContext)}. */
+    /** Статических тулов у MCP нет — набор всегда per-instance, см. {@link #getTools(ConnectorEnv)}. */
     @Override
     public Map<String, ConnectorToolSpec> getTools() {
         return Map.of();
@@ -92,13 +92,13 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
 
     /** Список тулов экземпляра из кэша {@code connection_tools}; connectionId — {@code connections.id}. */
     @Override
-    public Map<String, ConnectorToolSpec> getTools(ConnectorContext context) {
-        if (context == null || context.connectionId() == null) {
+    public Map<String, ConnectorToolSpec> getTools(ConnectorEnv env) {
+        if (env == null || env.connectionId() == null) {
             return Map.of();
         }
         UUID connectionId;
         try {
-            connectionId = UUID.fromString(context.connectionId());
+            connectionId = UUID.fromString(env.connectionId());
         } catch (IllegalArgumentException e) {
             return Map.of();
         }
@@ -109,8 +109,8 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
     }
 
     @Override
-    public Map<String, Object> executeTool(ConnectorContext context, String toolName, Map<String, Object> args) {
-        McpClient.ServerConfig config = McpUtils.toServerConfig(context.credentials());
+    public Map<String, Object> executeTool(ConnectorEnv env, String toolName, Map<String, Object> args) {
+        McpClient.ServerConfig config = McpUtils.toServerConfig(env.credentials());
         return mcpClient.callTool(config, toolName, args);
     }
 

@@ -17,13 +17,13 @@ public interface ToolProvider {
      * Спеки тулов для конкретного экземпляра коннектора. По умолчанию совпадают со
      * статическими {@link #getTools()} — большинство коннекторов не зависят от instance.
      * Динамические коннекторы (например MCP) переопределяют: набор тулов открывается в рантайме
-     * per-connectionId, поэтому здесь возвращают список под {@code context.connectionId()} (для MCP —
+     * per-connectionId, поэтому здесь возвращают список под {@code env.connectionId()} (для MCP —
      * из кэша {@code connection_tools}). Контекст несёт connectionId; расшифровка credentials для листинга
      * не требуется.
      */
-    default Map<String, ConnectorToolSpec> getTools(ConnectorContext context) {
+    default Map<String, ConnectorToolSpec> getTools(ConnectorEnv env) {
         return getTools();
     }
 
-    Map<String, Object> executeTool(ConnectorContext context, String toolName, Map<String, Object> args);
+    Map<String, Object> executeTool(ConnectorEnv env, String toolName, Map<String, Object> args);
 }

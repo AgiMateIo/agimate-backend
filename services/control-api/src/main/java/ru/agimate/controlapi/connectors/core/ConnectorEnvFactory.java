@@ -11,34 +11,44 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Единственное место сборки {@link ConnectorContext} из сущностей платформы.
+ * Единственное место сборки {@link ConnectorEnv} из сущностей платформы.
  * Outbound-credentials расшифровываются из {@code secrets} по {@code connection.secretId}
  * (AAD-привязка к {@code connection.id}).
  */
 @Component
 @RequiredArgsConstructor
-public class ConnectorContextFactory {
+public class ConnectorEnvFactory {
 
     private final SecretRepository secretRepository;
     private final SecretService secretService;
 
-    /** Полный контекст коннектора-экземпляра: с расшифровкой credentials (тулы, таски). */
-    public ConnectorContext forConnection(Connection connection, UUID agentId, UUID channelId) {
+    /** Полная env коннектора-экземпляра: с расшифровкой credentials (тулы, таски). */
+    public ConnectorEnv forConnection(Connection connection, UUID agentId, UUID channelId) {
         return build(connection, decryptCredentials(connection), agentId, channelId);
     }
 
-    /** Контекст с уже известной мапой credentials — когда расшифровка не нужна (lifecycle-вызовы). */
-    public ConnectorContext withCredentials(Connection connection, Map<String, String> decrypted, UUID agentId) {
+    /** Env с уже известной мапой credentials — когда расшифровка не нужна (lifecycle-вызовы). */
+    public ConnectorEnv withCredentials(Connection connection, Map<String, String> decrypted, UUID agentId) {
         return build(connection, decrypted, agentId, null);
     }
 
     /** Webhook hot path: валидация/нормализация не требует расшифрованных credentials. */
-    public ConnectorContext forWebhook(Connection connection) {
+    public ConnectorEnv forWebhook(Connection connection) {
         return build(connection, Map.of(), null, null);
     }
 
-    public ConnectorContext internal(String connectionId, UUID userId, UUID agentId, UUID channelId) {
-        return new ConnectorContext(connectionId, userId, agentId, channelId, Map.of(), null);
+    public ConnectorEnv internal(String connectionId, UUID userId, UUID agentId, UUID channelId) {
+        return new ConnectorEnv(connectionId, userId, agentId, channelId, Map.of(), null);
+    }
+
+    /**
+     * Env для листинга тулов/блоков экземпляра: только адресация {@code connectionId}
+     * (динамические коннекторы читают per-instance кэш), без вызывающего и без credentials.
+     * Статический — зависимостей (secrets) не требует.
+     */
+    public static ConnectorEnv listing(UUID connectionId) {
+        return new ConnectorEnv(connectionId == null ? null : connectionId.toString(),
+                null, null, null, Map.of(), null);
     }
 
     private Map<String, String> decryptCredentials(Connection connection) {
@@ -51,9 +61,9 @@ public class ConnectorContextFactory {
         return secretService.reveal(secret, connection.getId());
     }
 
-    private ConnectorContext build(Connection connection, Map<String, String> decrypted,
+    private ConnectorEnv build(Connection connection, Map<String, String> decrypted,
                                    UUID agentId, UUID channelId) {
-        return new ConnectorContext(
+        return new ConnectorEnv(
                 connection.getId().toString(),
                 connection.getUserId(),
                 agentId,

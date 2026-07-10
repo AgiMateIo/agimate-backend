@@ -6,7 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
@@ -48,7 +48,7 @@ public class ToolDefinitionService {
         return switch (connector.getToolBinding()) {
             case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
                     .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
-                    .getTools(listingContext(connectionId));
+                    .getTools(ConnectorEnvFactory.listing(connectionId));
             case DYNAMIC -> dynamicTools(userId, connectionId);
             case null -> throw new BadRequestStatusException(
                     "Connector does not expose tool definitions: " + connectorCode);
@@ -70,7 +70,7 @@ public class ToolDefinitionService {
         return switch (connector.getToolBinding()) {
             case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
                     .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
-                    .getTools(listingContext(null));
+                    .getTools(ConnectorEnvFactory.listing(null));
             case DYNAMIC -> Map.of();
             case null -> throw new BadRequestStatusException(
                     "Connector does not expose tool definitions: " + connectorCode);
@@ -105,10 +105,5 @@ public class ToolDefinitionService {
         connectionToolRepository.findActiveByConnectionId(connectionId)
                 .forEach(tool -> tools.put(tool.getName(), McpToolMapper.toSpec(tool)));
         return tools;
-    }
-
-    private static ConnectorContext listingContext(UUID connectionId) {
-        return new ConnectorContext(connectionId == null ? null : connectionId.toString(),
-                null, null, null, Map.of(), null);
     }
 }

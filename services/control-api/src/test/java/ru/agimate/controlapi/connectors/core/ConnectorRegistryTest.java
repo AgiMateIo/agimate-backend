@@ -28,7 +28,7 @@ class ConnectorRegistryTest {
         }
 
         @Override
-        public Map<String, Object> executeTool(ConnectorContext context, String toolName, Map<String, Object> args) {
+        public Map<String, Object> executeTool(ConnectorEnv env, String toolName, Map<String, Object> args) {
             return Map.of();
         }
     }

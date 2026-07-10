@@ -2,7 +2,7 @@ package ru.agimate.controlapi.connectors.internal.time;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 
 import java.time.OffsetDateTime;
@@ -22,8 +22,8 @@ class TimeConnectorServiceTest {
     private final TimeConnectorService handler =
             new TimeConnectorService(new TimeToolService(null, null));
 
-    private static ConnectorContext context() {
-        return new ConnectorContext(null, null, null, null, Map.of(), null);
+    private static ConnectorEnv env() {
+        return new ConnectorEnv(null, null, null, null, Map.of(), null);
     }
 
     @Test
@@ -53,7 +53,7 @@ class TimeConnectorServiceTest {
     void currentDateTime() {
         OffsetDateTime before = OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(5);
 
-        Map<String, Object> result = handler.executeTool(context(), "current_datetime", Map.of());
+        Map<String, Object> result = handler.executeTool(env(), "current_datetime", Map.of());
 
         assertEquals("UTC", result.get("zone"));
         OffsetDateTime parsed = OffsetDateTime.parse(

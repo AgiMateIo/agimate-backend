@@ -50,7 +50,7 @@ public class ConnectorJob extends BaseEntity {
     /**
      * Идентификатор экземпляра коннектора: {@code connections.id} строкой (как в {@code ToolCallLog});
      * у динамических задач — connection_id tool-вызова инициатора (восстанавливается в
-     * {@code ConnectorContext} на срабатывании); {@code null}, если экземпляр не применим.
+     * {@code ConnectorEnv} на срабатывании); {@code null}, если экземпляр не применим.
      */
     @Column(name = "connection_id", columnDefinition = "TEXT")
     private String connectionId;
@@ -61,7 +61,7 @@ public class ConnectorJob extends BaseEntity {
 
     /**
      * Агент-инициатор для динамических задач (например, {@code time.schedule}): по нему list/cancel
-     * и реконструкция {@link ru.agimate.controlapi.connectors.core.ConnectorContext} на срабатывании.
+     * и реконструкция {@link ru.agimate.controlapi.connectors.core.ConnectorEnv} на срабатывании.
      * {@code null} у декларативных задач интеграции.
      */
     @Column(name = "agent_id")
@@ -69,7 +69,7 @@ public class ConnectorJob extends BaseEntity {
 
     /**
      * Исходный канал агента-инициатора (снимок на момент планирования): куда динамическая таска
-     * адресует ответ. Реконструируется в {@code ConnectorContext.channelId} на срабатывании.
+     * адресует ответ. Реконструируется в {@code ConnectorEnv.channelId} на срабатывании.
      * {@code null}, если таска запланирована вне канального контекста.
      */
     @Column(name = "channel_id")

@@ -3,7 +3,7 @@ package ru.agimate.controlapi.connectors.internal.time;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
@@ -32,8 +32,8 @@ class TimeToolServiceTest {
     private final TimeConnectorService handler =
             new TimeConnectorService(new TimeToolService(jobService, null));
 
-    private static ConnectorContext context() {
-        return new ConnectorContext(null, USER_ID, AGENT_ID, null, Map.of(), null);
+    private static ConnectorEnv env() {
+        return new ConnectorEnv(null, USER_ID, AGENT_ID, null, Map.of(), null);
     }
 
     @Test
@@ -51,7 +51,7 @@ class TimeToolServiceTest {
         args.put("cron", "");
         args.put("zone", "");
 
-        Map<String, Object> result = handler.executeTool(context(), "schedule", args);
+        Map<String, Object> result = handler.executeTool(env(), "schedule", args);
 
         assertEquals(jobId.toString(), result.get("id"));
         assertEquals(ConnectorJobType.ONETIME.name(), result.get("taskType"));
@@ -69,7 +69,7 @@ class TimeToolServiceTest {
                 "prompt", "п", "delaySeconds", 120, "intervalSeconds", 60);
 
         ConnectorException e = assertThrows(ConnectorException.class,
-                () -> handler.executeTool(context(), "schedule", args));
+                () -> handler.executeTool(env(), "schedule", args));
 
         assertEquals("Provide exactly one of: delaySeconds, intervalSeconds, cron", e.getMessage());
     }
@@ -81,6 +81,6 @@ class TimeToolServiceTest {
                 "prompt", "п", "delaySeconds", 0, "intervalSeconds", 0, "cron", "");
 
         assertThrows(ConnectorException.class,
-                () -> handler.executeTool(context(), "schedule", args));
+                () -> handler.executeTool(env(), "schedule", args));
     }
 }

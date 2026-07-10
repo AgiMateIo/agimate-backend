@@ -2,7 +2,7 @@ package ru.agimate.controlapi.connectors.internal.persistentmemory;
 
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
@@ -85,8 +85,8 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
     }
 
     @Override
-    public List<PromptBlock> promptBlocks(ConnectorContext context) {
-        UUID scopeId = parseConnectionId(context)
+    public List<PromptBlock> promptBlocks(ConnectorEnv env) {
+        UUID scopeId = parseConnectionId(env)
                 .flatMap(memoryService::scopeIdForConnection)
                 .orElse(null);
         if (scopeId == null) {
@@ -105,9 +105,9 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
         return blocks;
     }
 
-    private static Optional<UUID> parseConnectionId(ConnectorContext context) {
+    private static Optional<UUID> parseConnectionId(ConnectorEnv env) {
         try {
-            return Optional.of(UUID.fromString(context.connectionId()));
+            return Optional.of(UUID.fromString(env.connectionId()));
         } catch (Exception e) {
             return Optional.empty();
         }

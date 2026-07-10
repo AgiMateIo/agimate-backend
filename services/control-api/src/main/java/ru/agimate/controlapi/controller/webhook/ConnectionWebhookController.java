@@ -5,8 +5,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
-import ru.agimate.controlapi.connectors.core.ConnectorContextFactory;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.database.entities.Connection;
@@ -25,7 +25,7 @@ public class ConnectionWebhookController {
 
     private final ConnectionRepository connectionRepository;
     private final ConnectorRegistry connectorRegistry;
-    private final ConnectorContextFactory contextFactory;
+    private final ConnectorEnvFactory envFactory;
     private final TriggerRouterService triggerRouterService;
 
     @PostMapping("/{connectionId}")
@@ -60,15 +60,15 @@ public class ConnectionWebhookController {
             return ResponseEntity.notFound().build();
         }
 
-        ConnectorContext context = contextFactory.forWebhook(connection);
+        ConnectorEnv env = envFactory.forWebhook(connection);
 
-        if (!handler.validateWebhookRequest(context, request)) {
+        if (!handler.validateWebhookRequest(env, request)) {
             log.warn("Webhook validation failed for connection: {}", connectionId);
             return ResponseEntity.ok("ok");
         }
 
         try {
-            var trigger = handler.normalizeInbound(context, rawBody);
+            var trigger = handler.normalizeInbound(env, rawBody);
             triggerRouterService.routeWhTrigger(connection.getUserId(), trigger);
         } catch (Exception e) {
             log.error("Failed to process webhook for connection {}: {}", connectionId, e.getMessage());

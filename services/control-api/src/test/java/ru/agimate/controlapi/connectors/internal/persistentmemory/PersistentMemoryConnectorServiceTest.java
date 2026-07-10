@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.agimate.controlapi.connectors.core.ConnectorContext;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
@@ -40,8 +40,8 @@ class PersistentMemoryConnectorServiceTest {
                 new PersistentMemoryToolService(null, null, null, null), memoryService);
     }
 
-    private static ConnectorContext context(String connectionId) {
-        return new ConnectorContext(connectionId, null, null, null, Map.of(), null);
+    private static ConnectorEnv env(String connectionId) {
+        return new ConnectorEnv(connectionId, null, null, null, Map.of(), null);
     }
 
     private static PersistentMemoryCold cold(String content, int version) {
@@ -70,7 +70,7 @@ class PersistentMemoryConnectorServiceTest {
             when(memoryService.getCold(SCOPE_ID)).thenReturn(Optional.of(cold("  known facts  ", 7)));
             when(memoryService.getNotes(SCOPE_ID)).thenReturn(List.of(note("fact one"), note(" fact two ")));
 
-            List<PromptBlock> blocks = handler.promptBlocks(context(CONNECTION_ID.toString()));
+            List<PromptBlock> blocks = handler.promptBlocks(env(CONNECTION_ID.toString()));
 
             assertEquals(2, blocks.size());
 
@@ -94,7 +94,7 @@ class PersistentMemoryConnectorServiceTest {
             when(memoryService.getCold(SCOPE_ID)).thenReturn(Optional.of(cold("   ", 0)));
             when(memoryService.getNotes(SCOPE_ID)).thenReturn(List.of(note("  ")));
 
-            assertTrue(handler.promptBlocks(context(CONNECTION_ID.toString())).isEmpty());
+            assertTrue(handler.promptBlocks(env(CONNECTION_ID.toString())).isEmpty());
         }
 
         @Test
@@ -102,14 +102,14 @@ class PersistentMemoryConnectorServiceTest {
         void noScope() {
             when(memoryService.scopeIdForConnection(CONNECTION_ID)).thenReturn(Optional.empty());
 
-            assertTrue(handler.promptBlocks(context(CONNECTION_ID.toString())).isEmpty());
+            assertTrue(handler.promptBlocks(env(CONNECTION_ID.toString())).isEmpty());
         }
 
         @Test
         @DisplayName("некорректный connectionId → пусто, без обращения к хранилищу")
         void invalidConnectionId() {
-            assertTrue(handler.promptBlocks(context("not-a-uuid")).isEmpty());
-            assertTrue(handler.promptBlocks(context(null)).isEmpty());
+            assertTrue(handler.promptBlocks(env("not-a-uuid")).isEmpty());
+            assertTrue(handler.promptBlocks(env(null)).isEmpty());
         }
     }
 }

@@ -4,7 +4,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Контекст выполнения тулы/таски/webhook-вызова коннектора.
+ * Среда одного обращения к SPI коннектора (тула/таска/prompt-блоки/листинг/webhook):
+ * адресация экземпляра, идентичность вызывающего и секреты.
  *
  * @param connectionId  идентификатор экземпляра коннектора — {@code connections.id} строкой
  *                      (как в {@code ToolCallLog}); {@code null}, если экземпляр не применим
@@ -19,7 +20,7 @@ import java.util.UUID;
  *                      hot path (валидация/нормализация не требует расшифровки)
  * @param webhookSecret секрет для валидации входящих webhook'ов; {@code null}, если не применимо
  */
-public record ConnectorContext(
+public record ConnectorEnv(
         String connectionId,
         UUID userId,
         UUID agentId,
@@ -28,7 +29,7 @@ public record ConnectorContext(
         String webhookSecret
 ) {
 
-    public ConnectorContext {
+    public ConnectorEnv {
         credentials = credentials == null ? Map.of() : Map.copyOf(credentials);
     }
 }
