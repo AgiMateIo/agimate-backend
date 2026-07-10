@@ -224,10 +224,9 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
 | Файл | Сервис | Реализованные RPC |
 |---|---|---|
 | `worker_control.proto` | `WorkerControl` | `HealthCheck`, `SendMessage` |
-| `agent_context.proto` | `AgentContext` | `GetRunContext` (протокол v2: весь контекст рана одним вызовом), `GetLlmCredentials` |
+| `agent_context.proto` | `AgentContext` | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials` |
+| `message_log.proto` | `MessageLog` | `SaveMessage` (v2 этап 3: воркер — единственный писатель истории; доставка — проекция записи) |
 | `tool_gateway.proto` | `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` |
-| `agent_session_messages.proto` | `AgentSessionMessages` | `Append`, `GetHistory` (уйдут в SaveMessage на этапе 3 v2) |
-| `channel_gateway.proto` | `ChannelGateway` | `ListChannels`, `SendChannelMessage` (уйдут в SaveMessage на этапе 3 v2) |
 | `agent_run_registry.proto` | `AgentRunRegistry` | `RegisterRun`, `GetActiveRun`, `ReleaseRun` |
 
 `workflow_reporting.proto` намеренно **не создан** — `WorkflowReporting` сервис в PoC отсутствует.
@@ -260,7 +259,9 @@ Read-поверхность схлопнута в один вызов: `GetRunCo
 `trigger_log_agents.channels`, иначе SYSTEM_TRIGGER), упорядоченные `PromptBlock`-и
 (agent → инструкции → блоки `PromptBlockProvider`-коннекторов → team → skills → тела подошедших
 скиллов → trigger guidance; основной промпт — последний user-блок, событие триггера — untrusted),
-тулы после binding-гейта и скоупа скиллов. Воркер только рендерит блоки — см.
+тулы после binding-гейта и скоупа скиллов, история сессии «как видел пользователь»
+(только завершённые раны: completed=true; окно и фильтр historyDetail — на бэке). Воркер только
+рендерит блоки — см.
 [`services/control-api-grpc-worker.md`](services/control-api-grpc-worker.md).
 
 - `GetLlmCredentials` — **намеренно отдельный RPC** (не в `RunContext`): результат `GetRunContext`

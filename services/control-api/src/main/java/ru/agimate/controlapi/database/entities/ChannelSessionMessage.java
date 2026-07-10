@@ -36,18 +36,31 @@ public class ChannelSessionMessage extends BaseEntity {
     @Column(name = "run_id", nullable = false)
     private UUID runId;
 
-    @Column(name = "turn_idx", nullable = false)
-    private Integer turnIdx;
+    /** Монотонный счётчик рана (0 = inbound): ключ идемпотентности UNIQUE (run_id, seq). Null у дореформенных строк. */
+    @Column(name = "seq")
+    private Integer seq;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "kind", nullable = false, columnDefinition = "TEXT")
     private ChannelSessionMessageKind kind;
 
+    /** Подтип PROGRESS-сообщения (THINKING/TOOL_CALL/TEXT) — для фильтра historyDetail. */
+    @Column(name = "progress_type", columnDefinition = "TEXT")
+    private String progressType;
+
+    /**
+     * Все сообщения рана пишутся с false; финальный ANSWER помечает весь run_id true.
+     * История следующих ранов видит только completed — незавершённые/упавшие раны выпадают.
+     */
+    @Column(name = "completed", nullable = false)
+    private boolean completed;
+
     @Column(name = "message", columnDefinition = "TEXT")
     private String message;
 
+    /** Дореформенный сериализованный LLM-ход; v2 больше не пишет (nullable), остаётся для чтения. */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "message_json", nullable = false, columnDefinition = "JSONB")
+    @Column(name = "message_json", columnDefinition = "JSONB")
     private Map<String, Object> messageJson;
 
     @JdbcTypeCode(SqlTypes.JSON)

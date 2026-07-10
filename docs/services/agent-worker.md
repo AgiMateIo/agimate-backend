@@ -21,7 +21,7 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 |---|---|
 | `model/AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
-| `MessageCodec` | (De)serialize messages to the `message_json` bytes persisted as history + timeline/progress text projections. |
+| `MessageCodec` | Typed channel-facing progress lines (`ProgressLine{type, text}`) for `SaveMessage`; history persistence is text-only since v2 (raw transcript lives in DBOS checkpoints). |
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id)`; `{namespace}.{name}` naming; schema parsing. |
 | `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). |
 | `context/ContextMaterials` | The `GetRunContext` payload as fetched (ordered blocks + tools), consumed by `ContextBuilder`. |
@@ -47,11 +47,13 @@ The package root is what DBOS sees: the four workflow pairs, `Queues`, the route
 `AgentRunCore` holds the invariant run body — a `prepare_context` step
 (`ContextMaterialsFetcher`: one `GetRunContext(agent_id, trigger_id)` call → pure
 `ContextBuilder.build` render → `PreparedContext`), the loop, and failure reporting — delegating the
-distinct concerns to collaborators: `SessionHistoryStore` (history restore/append steps +
-turn-idx bookkeeping), `ControlMailbox` (steer/interrupt drain), and
-`LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared `WorkflowHandles`
-await). `OutboundPublisher` routes progress/answer/error to channels by role with deterministic
-`message_id`s for idempotent replays. `PreparedContext` stays in `workers/run` — its FQCN is pinned by the DBOS
+distinct concerns to collaborators: `MessageLog` (the run's single writer of dialogue events —
+inbound ack, progress, answer, error — one `save_message` durable step per event with a
+deterministic per-run `seq`, so replays dedupe backend-side), `ControlMailbox` (steer/interrupt
+drain), and `LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared
+`WorkflowHandles` await). History arrives pre-assembled in `PreparedContext.history`
+(backend window/filter, completed runs only); delivery and persistence are backend projections
+of `SaveMessage` — the worker no longer routes channels. `PreparedContext` stays in `workers/run` — its FQCN is pinned by the DBOS
 checkpoint (in-flight runs replay the serialized step result across deploys). See
 [agent-context-design.md](../agent-context-design.md) for the context-assembly design.
 
@@ -95,7 +97,7 @@ migrate.
 `AgentWorkerClient` retries `UNAVAILABLE` at the transport level with exponential backoff
 (~63s budget) — a routine control-api restart is waited out instead of killing the run. This
 sits below DBOS step retries and also covers the non-step call sites (inline LLM credentials
-fetch, `OutboundPublisher` sends). `ABORTED` is a business outcome and never retried; other
+fetch). `ABORTED` is a business outcome and never retried; other
 statuses fail fast as `ControlApiCallException` (serializable, unlike the raw gRPC exception).
 
 ## Run

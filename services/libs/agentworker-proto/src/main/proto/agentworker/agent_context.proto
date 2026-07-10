@@ -6,6 +6,8 @@ option java_multiple_files = true;
 option java_package = "ru.agimate.agentworker";
 option java_outer_classname = "AgentContextProto";
 
+import "agentworker/message_log.proto";
+
 service AgentContext {
   // Весь контекст рана одним вызовом: упорядоченные блоки промпта + отскоупленные тулы.
   // Политика сборки (ContextSpec: скоуп скиллов/тулов, guidance) — целиком на бэке; воркер
@@ -40,7 +42,9 @@ message RunContext {
   repeated PromptBlock user_blocks = 2;
   // Уже отскоупленные скиллами и прошедшие ABAC-гейт binding'ов.
   repeated ConnectorToolSpec tools = 3;
-  // 4: history — этап 3 (SaveMessage)
+  // История сессии «как видел пользователь»: только завершённые раны (completed=true),
+  // отфильтрована по historyDetail пресета ContextSpec, окно на бэке. Пусто для direct-ранов.
+  repeated HistoryMessage history = 4;
 }
 
 message GetLlmCredentialsRequest {

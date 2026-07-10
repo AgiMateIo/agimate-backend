@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package ru.agimate.agentworker;
+
+option java_multiple_files = true;
+option java_package = "ru.agimate.agentworker";
+option java_outer_classname = "MessageLogProto";
+
+// Единая запись событий диалога (протокол v2, этап 3): воркер — единственный писатель истории,
+// доставка в каналы — проекция записи на бэке (роутинг по kind и снапшоту каналов маршрута).
+// Идемпотентность — (trigger_id, seq): DBOS-шаги at-least-once, ретрай не даёт ни дубля в
+// истории, ни повторной доставки (дедуп downstream по детерминированному message_id).
+service MessageLog {
+  rpc SaveMessage(SaveMessageRequest) returns (SaveMessageResponse);
+}
+
+enum MessageKind {
+  MESSAGE_KIND_UNSPECIFIED = 0;
+  MESSAGE_KIND_INBOUND = 1;   // ack «агент получил»: text пуст, канонику бэк берёт сам из trigger_log
+  MESSAGE_KIND_PROGRESS = 2;  // промежуточный вывод (thinking/tool/text), уточняется progress_type
+  MESSAGE_KIND_ANSWER = 3;    // финальный ответ LLM; помечает все сообщения рана completed=true
+  MESSAGE_KIND_ERROR = 4;     // user notice об ошибке рана
+}
+
+enum ProgressType {
+  PROGRESS_TYPE_UNSPECIFIED = 0;
+  PROGRESS_TYPE_THINKING = 1;
+  PROGRESS_TYPE_TOOL_CALL = 2;
+  PROGRESS_TYPE_TEXT = 3;
+}
+
+message SaveMessageRequest {
+  string agent_id = 1;
+  string trigger_id = 2;        // trigger_log_agents.id (= runId = DBOS workflow id)
+  int32 seq = 3;                // монотонный счётчик рана (0 = inbound); ключ идемпотентности
+  MessageKind kind = 4;
+  ProgressType progress_type = 5;  // только для PROGRESS
+  string text = 6;              // для INBOUND пуст
+}
+
+message SaveMessageResponse {
+  bool duplicate = 1;           // (trigger_id, seq) уже записан — ретрай
+}
+
+// История «как видел пользователь» — для RunContext.history. Бэк уже отфильтровал по
+// completed=true и historyDetail; воркер маппит kind на роль (INBOUND → user, остальные → assistant).
+message HistoryMessage {
+  MessageKind kind = 1;
+  string text = 2;
+}

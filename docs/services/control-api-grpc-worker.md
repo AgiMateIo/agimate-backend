@@ -15,9 +15,9 @@ credentials from the backend and execute tools through the Tool Gateway.
 | Service                 | RPCs (PoC)                                                                                        | Status   |
 |-------------------------|---------------------------------------------------------------------------------------------------|----------|
 | `WorkerControl`         | `HealthCheck`                                                                                     | done     |
-| `AgentContext`          | `GetRunContext` (весь контекст рана одним вызовом), `GetLlmCredentials`                            | done     |
-| `ToolGateway`           | `ExecuteTool` (sync). `ExecuteToolStream/Batch/Async` reserved → return `UNIMPLEMENTED`           | partial  |
-| `AgentSessionMessages`  | `Append`, `GetHistory`                                                                            | done     |
+| `AgentContext`          | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials`           | done     |
+| `MessageLog`            | `SaveMessage` — единая запись событий диалога, доставка как её проекция                            | done     |
+| `ToolGateway`           | `ExecuteToolAsync`, `GetToolResult`                                                               | done     |
 | `AgentRunRegistry`      | `RegisterRun`, `GetActiveRun`, `ReleaseRun`                                                       | done     |
 | `WorkflowReporting`     | —                                                                                                 | post-PoC |
 
@@ -131,6 +131,23 @@ Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → 
 | `system_blocks` | Упорядоченные `PromptBlock` (stable-первые — prompt-cache): agent → инструкции → блоки `PromptBlockProvider`-коннекторов (memory) → team → skills-листинг → тела подошедших скиллов (SYSTEM_TRIGGER) → trigger guidance |
 | `user_blocks`   | User-ход: user-блоки коннекторов (memory notes, `ephemeral=true` — не персистятся в историю) + основной промпт последним (диалоговый текст `trusted`, событие триггера `trusted=false` → воркер оборачивает как untrusted data) |
 | `tools`         | `ConnectorToolSpec` уже отскоупленные (binding-гейт + скоуп скиллов; DIALOGUE — коннекторы всех скиллов, SYSTEM_TRIGGER — только подошедших) |
+| `history`       | Сессионная история «как видел пользователь»: только завершённые раны (`completed=true` — сообщения текущего рана и упавших ранов не видны), окно 50, фильтр `historyDetail` (FULL/NO_REASONING/DIALOGUE_ONLY) из пресета `ContextSpec`; дореформенные REQUEST/RESPONSE маппятся на INBOUND/ANSWER |
+
+## SaveMessage (`MessageLog.SaveMessage`)
+
+`SaveMessage(agent_id, trigger_id, seq, kind, progress_type, text)` — воркер единственный писатель
+истории; бэк (`MessageLogService`) персистит строку `channel_session_messages` и доставляет её
+проекцию в канал. Идемпотентность — UNIQUE `(run_id, seq)` (ON CONFLICT DO NOTHING); доставка
+дедупится downstream детерминированным `message_id` от `(run_id, seq)`.
+
+- `INBOUND` (seq=0, до prepare_context) — ack «агент получил»: текст пуст, канонику бэк берёт сам
+  (`ChannelHandler.handleInput` от персистентного триггера / компактный JSON события), `trigger_input`
+  заполняется из `trigger_log.input` (reply-context).
+- `PROGRESS` (+`progress_type` THINKING/TOOL_CALL/TEXT) → progress-канал (если есть).
+- `ANSWER` → answer-канал (fallback prompt); в той же транзакции все сообщения рана помечаются
+  `completed=true` — ран становится видимым истории. Direct-ран → `trigger_log_agents.result`.
+- `ERROR` → progress/answer/prompt-фолбэк; direct-ран → `trigger_log_agents.error`. ERROR не
+  завершает ран — его сообщения в историю не попадут.
 
 `PromptBlock{name, source, content, attrs, trusted, ephemeral}` — `name`/`attrs` становятся XML-тегом
 у рендерера (пустой `name` — сырой текст). LLM-креды в `RunContext` **не входят**: его результат

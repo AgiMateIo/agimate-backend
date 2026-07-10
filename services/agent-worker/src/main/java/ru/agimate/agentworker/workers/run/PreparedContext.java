@@ -1,5 +1,6 @@
 package ru.agimate.agentworker.workers.run;
 
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.agent.ToolRegistry;
 
@@ -15,11 +16,14 @@ import java.util.Map;
  * @param userPrompt          rendered persistent part of the user turn (what history keeps)
  * @param ephemeralUserSuffix rendered ephemeral user blocks (memory notes etc.), appended to the
  *                            model-facing turn but never persisted; {@code null} when none
+ * @param history             session history «as the user saw it» (completed runs only, mapped
+ *                            to user/assistant turns by the backend's kinds)
  */
 public record PreparedContext(
         String systemPrompt,
         String userPrompt,
         String ephemeralUserSuffix,
+        List<AgentChatMessage> history,
         List<ToolDef> toolDefs,
         Map<String, ToolRegistry.BackendTool> toolMap) {
 

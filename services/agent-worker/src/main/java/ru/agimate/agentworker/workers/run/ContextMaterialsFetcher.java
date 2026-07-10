@@ -24,6 +24,7 @@ public class ContextMaterialsFetcher {
         log.debug("run context fetched: {} system / {} user block(s), {} tool(s)",
                 context.getSystemBlocksCount(), context.getUserBlocksCount(), context.getToolsCount());
         return new ContextMaterials(
-                context.getSystemBlocksList(), context.getUserBlocksList(), context.getToolsList());
+                context.getSystemBlocksList(), context.getUserBlocksList(),
+                context.getToolsList(), context.getHistoryList());
     }
 }

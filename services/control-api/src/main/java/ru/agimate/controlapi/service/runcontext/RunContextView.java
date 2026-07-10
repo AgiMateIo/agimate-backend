@@ -4,12 +4,13 @@ import java.util.List;
 
 /**
  * Полный контекст рана для {@code GetRunContext}: упорядоченные блоки промпта (стабильные
- * первыми — prompt-cache) и отскоупленные тулы. Воркер рендерит блоки как есть,
- * не пересортировывая.
+ * первыми — prompt-cache), отскоупленные тулы и история сессии «как видел пользователь»
+ * (только завершённые раны, окно и фильтр — на бэке). Воркер рендерит как есть.
  */
 public record RunContextView(
         List<RunBlock> systemBlocks,
         List<RunBlock> userBlocks,
-        List<RunTool> tools
+        List<RunTool> tools,
+        List<RunHistoryMessage> history
 ) {
 }

@@ -1,25 +1,17 @@
 package ru.agimate.agentworker.grpc;
 
 import com.google.protobuf.ByteString;
-import com.google.protobuf.StringValue;
 import io.grpc.Channel;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.AgentContextGrpc;
-import ru.agimate.agentworker.AgentSessionMessagesGrpc;
 import ru.agimate.agentworker.AgentRunRegistryGrpc;
-import ru.agimate.agentworker.AppendMessage;
-import ru.agimate.agentworker.AppendRequest;
-import ru.agimate.agentworker.AppendResponse;
-import ru.agimate.agentworker.ChannelGatewayGrpc;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.ExecuteToolRequest;
 import ru.agimate.agentworker.GetActiveRunRequest;
 import ru.agimate.agentworker.GetActiveRunResponse;
-import ru.agimate.agentworker.GetHistoryRequest;
-import ru.agimate.agentworker.GetHistoryResponse;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetRunContextRequest;
 import ru.agimate.agentworker.RunContext;
@@ -27,13 +19,14 @@ import ru.agimate.agentworker.GetToolResultRequest;
 import ru.agimate.agentworker.GetToolResultResponse;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.MessageKind;
-import ru.agimate.agentworker.OutboundMessage;
+import ru.agimate.agentworker.MessageLogGrpc;
+import ru.agimate.agentworker.ProgressType;
+import ru.agimate.agentworker.SaveMessageRequest;
+import ru.agimate.agentworker.SaveMessageResponse;
 import ru.agimate.agentworker.RegisterRunRequest;
 import ru.agimate.agentworker.RegisterRunResponse;
 import ru.agimate.agentworker.ReleaseRunRequest;
 import ru.agimate.agentworker.ReleaseRunResponse;
-import ru.agimate.agentworker.SendChannelMessageRequest;
-import ru.agimate.agentworker.SendChannelMessageResponse;
 import ru.agimate.agentworker.SendMessageRequest;
 import ru.agimate.agentworker.SendMessageResponse;
 import ru.agimate.agentworker.ToolGatewayGrpc;
@@ -64,18 +57,16 @@ public class AgentWorkerClient {
 
     private final AgentProperties props;
     private final AgentContextGrpc.AgentContextBlockingStub agentContext;
-    private final AgentSessionMessagesGrpc.AgentSessionMessagesBlockingStub sessions;
+    private final MessageLogGrpc.MessageLogBlockingStub messageLog;
     private final ToolGatewayGrpc.ToolGatewayBlockingStub tools;
-    private final ChannelGatewayGrpc.ChannelGatewayBlockingStub channels;
     private final WorkerControlGrpc.WorkerControlBlockingStub workerControl;
     private final AgentRunRegistryGrpc.AgentRunRegistryBlockingStub registry;
 
     public AgentWorkerClient(Channel controlApiAuthedChannel, AgentProperties props) {
         this.props = props;
         this.agentContext = AgentContextGrpc.newBlockingStub(controlApiAuthedChannel);
-        this.sessions = AgentSessionMessagesGrpc.newBlockingStub(controlApiAuthedChannel);
+        this.messageLog = MessageLogGrpc.newBlockingStub(controlApiAuthedChannel);
         this.tools = ToolGatewayGrpc.newBlockingStub(controlApiAuthedChannel);
-        this.channels = ChannelGatewayGrpc.newBlockingStub(controlApiAuthedChannel);
         this.workerControl = WorkerControlGrpc.newBlockingStub(controlApiAuthedChannel);
         this.registry = AgentRunRegistryGrpc.newBlockingStub(controlApiAuthedChannel);
     }
@@ -147,42 +138,19 @@ public class AgentWorkerClient {
                 .setWorkflowId(workflowId()).setAgentId(agentId).build()));
     }
 
-    // ---- AgentSessionMessages --------------------------------------------------------
+    // ---- MessageLog --------------------------------------------------------------
 
-    /** One message to append; {@code text}/{@code triggerInputJson} may be null. */
-    public record AppendItem(MessageKind kind, byte[] messageJson, String text, byte[] triggerInputJson) {}
-
-    public List<Integer> appendSessionMessages(
-            String agentPubId, String sessionPubId, String runId, int startingTurnIdx, List<AppendItem> items) {
-        AppendRequest.Builder req = AppendRequest.newBuilder()
-                .setAgentPubId(agentPubId)
-                .setSessionPubId(sessionPubId)
-                .setRunId(runId)
-                .setStartingTurnIdx(startingTurnIdx);
-        for (AppendItem it : items) {
-            AppendMessage.Builder m = AppendMessage.newBuilder()
-                    .setKind(it.kind())
-                    .setMessageJson(ByteString.copyFrom(it.messageJson()));
-            if (it.text() != null) {
-                m.setText(StringValue.of(it.text()));
-            }
-            if (it.triggerInputJson() != null) {
-                m.setTriggerInputJson(ByteString.copyFrom(it.triggerInputJson()));
-            }
-            req.addMessages(m);
-        }
-        AppendRequest request = req.build();
-        AppendResponse resp = call("Append", () ->
-                sessions.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS).append(request));
-        return resp.getAssignedTurnIndicesList();
-    }
-
-    public GetHistoryResponse getHistory(String agentPubId, String sessionPubId, int lastNMessages) {
-        return call("GetHistory", () -> sessions.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
-                .getHistory(GetHistoryRequest.newBuilder()
-                        .setAgentPubId(agentPubId)
-                        .setSessionPubId(sessionPubId)
-                        .setLastNMessages(lastNMessages)
+    /** Запись события диалога; идемпотентна по (trigger_id, seq) — персист и доставка на бэке. */
+    public SaveMessageResponse saveMessage(String agentId, String triggerId, int seq,
+                                           MessageKind kind, ProgressType progressType, String text) {
+        return call("SaveMessage", () -> messageLog.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+                .saveMessage(SaveMessageRequest.newBuilder()
+                        .setAgentId(agentId)
+                        .setTriggerId(triggerId)
+                        .setSeq(seq)
+                        .setKind(kind)
+                        .setProgressType(progressType)
+                        .setText(text == null ? "" : text)
                         .build()));
     }
 
@@ -209,21 +177,6 @@ public class AgentWorkerClient {
         return call("GetToolResult", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .getToolResult(GetToolResultRequest.newBuilder()
                         .setAgentId(agentId).setToolCallId(toolCallId).build()));
-    }
-
-    // ---- ChannelGateway --------------------------------------------------------------
-
-    public SendChannelMessageResponse sendChannelMessage(
-            String agentId, String channelId, String sessionId, String messageId, String text, String stream) {
-        return call("SendChannelMessage", () -> channels.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
-                .sendChannelMessage(SendChannelMessageRequest.newBuilder()
-                        .setAgentId(agentId)
-                        .setChannelId(channelId)
-                        .setSessionId(sessionId)
-                        .setMessageId(messageId)
-                        .setMessage(OutboundMessage.newBuilder().setText(text).build())
-                        .setStream(stream)
-                        .build()));
     }
 
     // ---- WorkerControl ---------------------------------------------------------------

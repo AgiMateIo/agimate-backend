@@ -1,8 +1,11 @@
 package ru.agimate.agentworker.agent.context;
 
 import lombok.extern.slf4j.Slf4j;
+import ru.agimate.agentworker.HistoryMessage;
+import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.PromptBlock;
 import ru.agimate.agentworker.agent.ToolRegistry;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.workers.run.PreparedContext;
 
 import java.util.ArrayList;
@@ -50,12 +53,28 @@ public final class ContextBuilder {
         String ephemeralSuffix = ephemeral.isEmpty() ? null : render(ephemeral);
 
         ToolRegistry registry = ToolRegistry.build(materials.tools());
-        log.info("context ready: {} system / {} user block(s), {} tool(s)",
-                materials.systemBlocks().size(), materials.userBlocks().size(), registry.toolDefs().size());
+        List<AgentChatMessage> history = mapHistory(materials.history());
+        log.info("context ready: {} system / {} user block(s), {} tool(s), {} history msg(s)",
+                materials.systemBlocks().size(), materials.userBlocks().size(),
+                registry.toolDefs().size(), history.size());
         log.debug("tools: {}", registry.names());
 
-        return new PreparedContext(systemPrompt, userPrompt, ephemeralSuffix,
+        return new PreparedContext(systemPrompt, userPrompt, ephemeralSuffix, history,
                 registry.toolDefs(), registry.backendMap());
+    }
+
+    /** История «как видел пользователь»: INBOUND → user, всё остальное — assistant-текст. */
+    static List<AgentChatMessage> mapHistory(List<HistoryMessage> history) {
+        List<AgentChatMessage> mapped = new ArrayList<>(history.size());
+        for (HistoryMessage m : history) {
+            if (m.getText().isBlank()) {
+                continue;
+            }
+            mapped.add(m.getKind() == MessageKind.MESSAGE_KIND_INBOUND
+                    ? AgentChatMessage.user(m.getText())
+                    : AgentChatMessage.assistant(m.getText(), false, List.of()));
+        }
+        return mapped;
     }
 
     /** Blocks joined by a blank line, each rendered per the trust/name rules. Order untouched. */

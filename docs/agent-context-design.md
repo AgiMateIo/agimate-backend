@@ -1,8 +1,9 @@
 # Agent Context Design
 
 How the agent-worker assembles the LLM context for a run, and the design frame behind it.
-The code seam is `agent/context/` in `services/agent-worker` (`ContextProfile` →
-`ContextBuilder.build(profile, materials)` → `PreparedContext`); this document records the
+The code seam is backend-side assembly (`RunContextService` + `ContextSpec` in control-api) →
+one `GetRunContext` RPC → pure rendering in `agent/context/ContextBuilder` (`PreparedContext`);
+this document records the
 reasoning that the code must keep honoring as the context grows.
 
 ## The contradiction
@@ -86,5 +87,12 @@ flags, connector blocks via `PromptBlockProvider`) and the scoped toolset;
 untrusted ones with the data-not-instructions preamble (neutralizing closing tags inside the
 payload), splits ephemeral user blocks (memory notes) into a non-persisted suffix. LLM
 credentials deliberately stay a separate inline RPC — the `GetRunContext` result is
-checkpointed and must not carry the api_key. See
+checkpointed and must not carry the api_key.
+
+Stage 3 (`SaveMessage`) makes the worker the single writer of dialogue events: history is the
+dialogue «as the user saw it» (INBOUND/PROGRESS/ANSWER/ERROR text, no tool_call/thinking
+payloads — the raw transcript lives in DBOS checkpoints), only completed runs are visible
+(`completed=true` is set by the final ANSWER), and `GetRunContext.history` returns the filtered
+tail (`historyDetail` per ContextSpec preset). Channel delivery is a backend-side projection of
+the same record. See
 [`services/control-api-grpc-worker.md`](services/control-api-grpc-worker.md).

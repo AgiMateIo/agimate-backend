@@ -129,10 +129,9 @@ public class PersistentMemoryToolService {
         // их заметки сольются в общий scope (save_memory_note резолвит scope_id из connection).
         for (UUID agentId : memoryService.boundAgents(connectionId)) {
             for (UUID sessionId : messageRepository.findSessionIdsByAgentSince(agentId, since)) {
-                List<Map<String, Object>> messages = messageRepository.findBySessionIdOrderByTurnIdxAsc(sessionId).stream()
+                List<Map<String, Object>> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).stream()
                         .map(m -> {
                             Map<String, Object> view = new LinkedHashMap<>();
-                            view.put("turnIdx", m.getTurnIdx());
                             view.put("kind", m.getKind().name());
                             view.put("text", m.getMessage());
                             return view;

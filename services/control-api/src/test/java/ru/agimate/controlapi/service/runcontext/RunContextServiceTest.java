@@ -20,26 +20,25 @@ import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSkill;
-import ru.agimate.controlapi.database.entities.Channel;
+import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.ToolBinding;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
-import ru.agimate.controlapi.database.repositories.ChannelRepository;
+import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
-import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
-import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
-import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
+import ru.agimate.controlapi.service.channel.InboundTextResolver;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
@@ -55,6 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -79,8 +79,8 @@ class RunContextServiceTest {
     @Mock private ConnectionRepository connectionRepository;
     @Mock private ConnectorRepository connectorRepository;
     @Mock private ConnectionToolRepository connectionToolRepository;
-    @Mock private ChannelRepository channelRepository;
-    @Mock private ChannelHandlerRegistry channelHandlerRegistry;
+    @Mock private InboundTextResolver inboundTextResolver;
+    @Mock private ChannelSessionMessageRepository messageRepository;
 
     /** persist-memory-подобный коннектор: identity + блоки + статические тулы. */
     interface MemoryLikeHandler extends ConnectorHandler, PromptBlockProvider, ToolProvider {
@@ -97,7 +97,7 @@ class RunContextServiceTest {
         service = new RunContextService(triggerLogAgentRepository, agentRepository,
                 agenticTeamRepository, agentSkillRepository, agentSkillService, skillRepository,
                 connectionRepository, connectorRepository, connectionToolRepository,
-                registry, new ConnectorEnvFactory(null, null), channelRepository, channelHandlerRegistry);
+                registry, new ConnectorEnvFactory(null, null), inboundTextResolver, messageRepository);
     }
 
     private Agent agent() {
@@ -202,14 +202,7 @@ class RunContextServiceTest {
             stubSkills(List.of(new AgentSkillWithConnectorsResponse(
                     UUID.randomUUID(), "Memory", "d", List.of("persist-memory"))));
 
-            Channel channel = Channel.builder()
-                    .id(CHANNEL_ID).agentId(AGENT_ID).connectorCode("webchat")
-                    .connectionId(CONNECTION_ID).channelHandler("webchat").build();
-            when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
-            ChannelHandler handler = mock(ChannelHandler.class);
-            when(channelHandlerRegistry.find("webchat")).thenReturn(Optional.of(handler));
-            when(handler.handleInput(any(), any()))
-                    .thenReturn(Optional.of(InboundMessage.text("hello agent")));
+            when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of("hello agent"));
 
             // memory-коннектор привязан: system-блок memory + ephemeral user-блок notes + тул.
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
@@ -244,6 +237,61 @@ class RunContextServiceTest {
             assertEquals("persist-memory", tool.connectorCode());
             assertEquals("persist-memory", tool.namespace());
             assertEquals(CONNECTION_ID.toString(), tool.connectionId());
+        }
+    }
+
+    @Nested
+    @DisplayName("История")
+    class History {
+
+        private ChannelSessionMessage msg(ChannelSessionMessageKind kind, String text, String progressType) {
+            ChannelSessionMessage m = new ChannelSessionMessage();
+            m.setSessionId(SESSION_ID);
+            m.setAgentId(AGENT_ID);
+            m.setRunId(UUID.randomUUID());
+            m.setKind(kind);
+            m.setMessage(text);
+            m.setProgressType(progressType);
+            m.setCompleted(true);
+            return m;
+        }
+
+        @Test
+        @DisplayName("хвост разворачивается, старые kinds маппятся на v2, пустые тексты выпадают")
+        void mapsHistory() {
+            Agent agent = agent();
+            TriggerLogAgent run = run(agent, triggerLog("time", "due"), null);
+            run.setSessionId(SESSION_ID);
+            stubRun(run);
+            stubSkills(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+            // Репозиторий отдаёт хвост новыми-первыми; сервис разворачивает в хронологию.
+            when(messageRepository.findBySessionIdAndCompletedTrueOrderByIdDesc(eq(SESSION_ID), any()))
+                    .thenReturn(List.of(
+                            msg(ChannelSessionMessageKind.ANSWER, "ok, done", null),
+                            msg(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks", "TOOL_CALL"),
+                            msg(ChannelSessionMessageKind.PROGRESS, null, "THINKING"),
+                            msg(ChannelSessionMessageKind.RESPONSE, "old answer", null),
+                            msg(ChannelSessionMessageKind.REQUEST, "old question", null)));
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            assertEquals(List.of(
+                    new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "old question"),
+                    new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "old answer"),
+                    new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks"),
+                    new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "ok, done")),
+                    view.history());
+        }
+
+        @Test
+        @DisplayName("без сессии история пуста")
+        void noSessionNoHistory() {
+            stubRun(run(agent(), triggerLog("time", "due"), null));
+            stubSkills(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+
+            assertTrue(service.build(AGENT_ID, TRIGGER_ID).history().isEmpty());
         }
     }
 

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
@@ -21,27 +22,25 @@ import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsRespon
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.AgenticTeam;
-import ru.agimate.controlapi.database.entities.Channel;
+import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
-import ru.agimate.controlapi.database.repositories.ChannelRepository;
+import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
-import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
-import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
-import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
-import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
+import ru.agimate.controlapi.service.channel.InboundTextResolver;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -98,8 +97,8 @@ public class RunContextService {
     private final ConnectionToolRepository connectionToolRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorEnvFactory envFactory;
-    private final ChannelRepository channelRepository;
-    private final ChannelHandlerRegistry channelHandlerRegistry;
+    private final InboundTextResolver inboundTextResolver;
+    private final ChannelSessionMessageRepository messageRepository;
 
     public RunContextView build(UUID agentId, UUID triggerId) {
         TriggerLogAgent run = triggerLogAgentRepository.findById(triggerId)
@@ -155,9 +154,53 @@ public class RunContextService {
                 : eventBlock(trigger));
 
         List<RunTool> tools = collectTools(connections, requiredConnectors);
-        log.debug("run context agent={} trigger={} spec={} blocks={}/{} tools={}",
-                agentId, triggerId, spec, systemBlocks.size(), userBlocks.size(), tools.size());
-        return new RunContextView(List.copyOf(systemBlocks), List.copyOf(userBlocks), tools);
+        List<RunHistoryMessage> history = history(run.getSessionId(), spec.historyDetail());
+        log.debug("run context agent={} trigger={} spec={} blocks={}/{} tools={} history={}",
+                agentId, triggerId, spec, systemBlocks.size(), userBlocks.size(), tools.size(), history.size());
+        return new RunContextView(List.copyOf(systemBlocks), List.copyOf(userBlocks), tools, history);
+    }
+
+    // ===== История =====
+
+    private static final int HISTORY_WINDOW = 50;
+
+    /**
+     * История сессии «как видел пользователь»: только завершённые раны ({@code completed=true} —
+     * поэтому сообщения текущего рана, включая его inbound-ack, сюда не попадают), хвост окном
+     * {@value #HISTORY_WINDOW}, фильтр по {@link ContextSpec.HistoryDetail}. Дореформенные строки
+     * маппятся на v2-виды (REQUEST → INBOUND, RESPONSE → ANSWER) по текстовой проекции.
+     */
+    private List<RunHistoryMessage> history(UUID sessionId, ContextSpec.HistoryDetail detail) {
+        if (sessionId == null) {
+            return List.of();
+        }
+        List<ChannelSessionMessage> tail = messageRepository
+                .findBySessionIdAndCompletedTrueOrderByIdDesc(sessionId, PageRequest.of(0, HISTORY_WINDOW));
+        List<RunHistoryMessage> history = new ArrayList<>(tail.size());
+        for (int i = tail.size() - 1; i >= 0; i--) {
+            ChannelSessionMessage m = tail.get(i);
+            if (m.getMessage() == null || m.getMessage().isBlank()) {
+                continue;
+            }
+            ChannelSessionMessageKind kind = switch (m.getKind()) {
+                case REQUEST -> ChannelSessionMessageKind.INBOUND;
+                case RESPONSE -> ChannelSessionMessageKind.ANSWER;
+                default -> m.getKind();
+            };
+            if (kind == ChannelSessionMessageKind.PROGRESS && excludedProgress(m, detail)) {
+                continue;
+            }
+            history.add(new RunHistoryMessage(kind, m.getMessage()));
+        }
+        return history;
+    }
+
+    private static boolean excludedProgress(ChannelSessionMessage m, ContextSpec.HistoryDetail detail) {
+        return switch (detail) {
+            case FULL -> false;
+            case NO_REASONING -> "THINKING".equals(m.getProgressType());
+            case DIALOGUE_ONLY -> true;
+        };
     }
 
     // ===== Скиллы =====
@@ -303,27 +346,17 @@ public class RunContextService {
 
     /**
      * Текст диалога: извлекается тем же {@code ChannelHandler.handleInput}, что и при dispatch
-     * (детерминированная функция от персистентных данных триггера и конфига канала).
-     * Fallback на untrusted-блок события, если канал/handler исчезли или текст не извлёкся.
+     * ({@link InboundTextResolver}). Fallback на untrusted-блок события, если канал/handler
+     * исчезли или текст не извлёкся.
      */
     private RunBlock dialoguePromptBlock(Channels channels, Trigger trigger) {
-        Channel channel = channelRepository.findById(channels.prompt().channelId())
-                .filter(c -> c.getDeletedAt() == null)
-                .orElse(null);
-        if (channel != null) {
-            ChannelHandler handler = channelHandlerRegistry.find(channel.getChannelHandler()).orElse(null);
-            if (handler != null) {
-                ChannelConfig cc = new ChannelConfig(channel.getAgentId(), channel.getConnectorCode(),
-                        channel.getConnectionId().toString(), channel.getConfig());
-                Optional<InboundMessage> inbound = handler.handleInput(cc, trigger);
-                if (inbound.isPresent() && inbound.get().text() != null && !inbound.get().text().isBlank()) {
-                    return RunBlock.trusted("", "user", inbound.get().text(), Map.of());
-                }
-            }
-        }
-        log.warn("Prompt channel {} unusable for trigger {} — falling back to event block",
-                channels.prompt().channelId(), trigger.id());
-        return eventBlock(trigger);
+        return inboundTextResolver.resolve(channels.prompt().channelId(), trigger)
+                .map(text -> RunBlock.trusted("", "user", text, Map.of()))
+                .orElseGet(() -> {
+                    log.warn("Prompt channel {} unusable for trigger {} — falling back to event block",
+                            channels.prompt().channelId(), trigger.id());
+                    return eventBlock(trigger);
+                });
     }
 
     /** Событие как данные: untrusted-блок, обёртку/преамбулу ставит рендерер воркера. */

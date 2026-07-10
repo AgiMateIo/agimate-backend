@@ -1,27 +1,21 @@
 package ru.agimate.agentworker.workers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.dbos.transact.DBOS;
 import dev.dbos.transact.workflow.StepOptions;
 import dev.dbos.transact.workflow.Workflow;
 import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.error.AgentInterrupted;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.workers.run.AgentRunCore;
-import ru.agimate.agentworker.workers.run.OutboundPublisher;
+import ru.agimate.agentworker.workers.run.MessageLog;
 import ru.agimate.agentworker.workers.run.PreparedContext;
-import ru.agimate.agentworker.workers.run.SessionBinding;
 import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.dto.Trigger;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Run stage: the invariant agent-run body, consumed from the partitioned {@code agent_exec} queue
@@ -32,8 +26,6 @@ import java.util.Map;
 @Slf4j
 @WorkflowClassName(Queues.RUN_CLASS)
 public class AgentRunWorkflowImpl implements AgentRunWorkflow {
-
-    private static final ObjectMapper DATA_MAPPER = new ObjectMapper();
 
     /** User notice when the session slot is stuck behind a run that never released (TTL backstop). */
     static final String BUSY_NOTICE =
@@ -57,7 +49,7 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
     @Workflow(name = Queues.RUN_WORKFLOW)
     public void runAgent(AgentMessage message) {
         String sessionId = SessionSupport.sessionId(message);
-        OutboundPublisher output = new OutboundPublisher(client, message.agentId(), message.channels(), message.runId());
+        MessageLog messages = core.messageLog(message.agentId(), message.runId());
 
         // Tag every run-body line with a short run id (the child LLM/tool workflows run on their own
         // threads and won't carry it — that's fine, their lines are DEBUG detail).
@@ -73,17 +65,17 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
                 // taken — the previous run died without releasing (slot frees on TTL). Report instead
                 // of dropping silently: the user gets a notice, the backend gets the detail.
                 log.warn("session {} already active; aborting this run", sessionId);
-                core.reportFailure(output, new AgentRunAborted(BUSY_NOTICE,
+                core.reportFailure(messages, new AgentRunAborted(BUSY_NOTICE,
                         "session " + sessionId + " slot is held by another run; dropping run " + message.runId()));
                 return;
             }
 
             try {
-                runBody(message, output);
+                runBody(message, sessionId, messages);
                 log.info("run finished [{}]", message.promptChannel() != null ? "channel" : "trigger");
             } catch (AgentRunAborted e) {
                 log.warn(e.systemDetail());
-                core.reportFailure(output, e);
+                core.reportFailure(messages, e);
             } catch (AgentInterrupted e) {
                 log.info("interrupted by steering; releasing without a final answer");
             } finally {
@@ -105,7 +97,7 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
      * (dialogue vs trigger lives in ContextSpec server-side), the worker renders the blocks and
      * runs the loop. The rendered user prompt is both the model turn and the persisted request.
      */
-    private void runBody(AgentMessage message, OutboundPublisher output) {
+    private void runBody(AgentMessage message, String sessionId, MessageLog messages) {
         Trigger payload = message.payload();
         log.info("run started [{}]: agent={} connector={} name={}",
                 message.promptChannel() != null ? "channel" : "trigger",
@@ -113,19 +105,13 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
                 payload != null ? payload.connectorCode() : "-",
                 payload != null ? payload.name() : "-");
 
-        PreparedContext prepared = core.prepareContext(message.agentId(), message.runId());
-        core.run(message.agentId(), prepared, AgentChatMessage.user(prepared.userPrompt()),
-                sessionBinding(message, initialText(message)), output,
-                "for agent_id=" + message.agentId() + " run=" + message.runId(), drainControl());
-    }
+        // Ack «агент получил» — первый диалоговый durable-шаг (seq 0), до сборки контекста:
+        // фиксация получения не зависит от успеха prepare_context.
+        messages.inbound();
 
-    /** Human-readable request text for the session timeline: inbound text or the trigger name. */
-    private static String initialText(AgentMessage message) {
-        if (message.inbound() != null && message.inbound().text() != null
-                && !message.inbound().text().isEmpty()) {
-            return message.inbound().text();
-        }
-        return message.payload() != null ? message.payload().name() : null;
+        PreparedContext prepared = core.prepareContext(message.agentId(), message.runId());
+        core.run(message.agentId(), prepared, messages, sessionId,
+                "for agent_id=" + message.agentId() + " run=" + message.runId(), drainControl());
     }
 
     /**
@@ -142,19 +128,4 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
         return session.getOnActiveMessage() != AgentProperties.Session.OnActiveMessage.QUEUE;
     }
 
-    private SessionBinding sessionBinding(AgentMessage message, String initialText) {
-        String sessionId = SessionSupport.sessionId(message);
-        if (sessionId == null) {
-            return null;
-        }
-        return new SessionBinding(sessionId, message.runId(), initialText, triggerInputJson(message.payload()));
-    }
-
-    private static byte[] triggerInputJson(Trigger payload) {
-        try {
-            return DATA_MAPPER.writeValueAsBytes(payload != null ? payload.data() : Map.of());
-        } catch (Exception e) {
-            return "{}".getBytes(StandardCharsets.UTF_8);
-        }
-    }
 }
