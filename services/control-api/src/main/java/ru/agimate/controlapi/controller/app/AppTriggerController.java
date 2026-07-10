@@ -40,7 +40,7 @@ public class AppTriggerController {
         var app = appService.getApp(authentication);
         triggerRouterService.routeAppTrigger(app, triggerRequest);
 
-        return SuccessResponse.ok(triggerRequest.name());
+        return SuccessResponse.ok(triggerRequest.id());
     }
 
 }

@@ -40,4 +40,22 @@ public record Trigger(
                 context
         );
     }
+
+    /**
+     * Триггер от внешнего источника, приславшего собственные {@code id} и время события: они
+     * проносятся в {@code TriggerLog.externalId}/{@code occurredAt} для корреляции. Fallback на
+     * случайный id и {@code now()}, когда источник их не указал (оба поля запроса необязательны).
+     */
+    public static Trigger fromSource(String connectorCode, String connectionId, String name, String id,
+                                     Map<String, Object> data, Instant occurredAt) {
+        return new Trigger(
+                connectorCode,
+                connectionId,
+                name,
+                (id != null && !id.isBlank()) ? id : UUID.randomUUID().toString(),
+                data,
+                (occurredAt != null ? occurredAt : Instant.now()).toString(),
+                null
+        );
+    }
 }

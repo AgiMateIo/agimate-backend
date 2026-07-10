@@ -36,11 +36,13 @@ public class TriggerRouterService {
 
     @Async
     public void routeAppTrigger(App app, TriggerRequest triggerRequest) {
-        Trigger trigger = Trigger.createBasic(
+        Trigger trigger = Trigger.fromSource(
                 app.getConnectorCode(),
                 app.getId().toString(),
                 triggerRequest.name(),
-                JsonUtils.fromJsonToMap(triggerRequest.data().toString())
+                triggerRequest.id(),
+                JsonUtils.fromJsonToMap(triggerRequest.data().toString()),
+                triggerRequest.occurredAt()
         );
         routeTrigger(app.getUserId(), trigger);
     }
