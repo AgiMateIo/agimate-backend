@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.config.CentrifugoProperties;
 import ru.agimate.controlapi.connectors.internal.webchat.WebchatConnectorService;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMessageResponse;
@@ -68,7 +67,6 @@ public class WebchatService {
     private final WebchatMessagePublisher webchatMessagePublisher;
     private final WebchatMessageRepository webchatMessageRepository;
     private final CentrifugoService centrifugoService;
-    private final CentrifugoProperties centrifugoProperties;
 
     /** Новая сессия чата с агентом; binding и канал материализуются лениво (find-or-create). */
     @Transactional
@@ -175,11 +173,7 @@ public class WebchatService {
     public CentrifugoTokenResponse token(UUID userId, UUID sessionId) {
         requireOwnedWebchatSession(userId, sessionId);
         String channel = WebchatMessagePublisher.CENTRIFUGO_CHANNEL_PREFIX + sessionId;
-        long ttl = centrifugoProperties.getTokenTtlSeconds();
-        String connectionToken = centrifugoService.generateConnectionToken(userId.toString(), ttl);
-        String subscriptionToken = centrifugoService.generateSubscriptionToken(userId.toString(), channel, ttl);
-        String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
-        return new CentrifugoTokenResponse(connectionToken, subscriptionToken, channel, wsUrl);
+        return centrifugoService.issueTokens(userId.toString(), channel);
     }
 
     private Agent requireOwnedAgent(UUID userId, UUID agentId) {

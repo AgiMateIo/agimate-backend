@@ -9,6 +9,7 @@ import org.opensolutionlab.httpclients.models.requests.publication.PublishReques
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.ServiceUnavailableStatusException;
 import ru.agimate.controlapi.config.CentrifugoProperties;
+import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -96,6 +97,23 @@ public class CentrifugoService {
             throw new ServiceUnavailableStatusException(
                     "Failed to publish message to real-time service: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Issues the full token bundle a client needs to subscribe to {@code channel}: a connection
+     * token, a subscription token scoped to {@code channel}, the channel name and the public WS URL.
+     * TTL and WS URL come from {@link CentrifugoProperties} — the single place they are resolved.
+     *
+     * <p><b>Authorization is the caller's responsibility.</b> A subscription token <i>is</i> the
+     * access grant to a channel, so callers must first verify the principal may subscribe to
+     * {@code channel} (e.g. own the session behind {@code webchat:{sessionId}}). This method only signs.
+     */
+    public CentrifugoTokenResponse issueTokens(String subject, String channel) {
+        long ttl = centrifugoProperties.getTokenTtlSeconds();
+        String connectionToken = generateConnectionToken(subject, ttl);
+        String subscriptionToken = generateSubscriptionToken(subject, channel, ttl);
+        String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
+        return new CentrifugoTokenResponse(connectionToken, subscriptionToken, channel, wsUrl);
     }
 
     /**

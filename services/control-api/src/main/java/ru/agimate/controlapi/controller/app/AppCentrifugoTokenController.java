@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
-import ru.agimate.controlapi.config.CentrifugoProperties;
 import ru.agimate.controlapi.controller.app.dto.DeviceChannelTokenRequest;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.database.entities.App;
@@ -29,8 +28,6 @@ public class AppCentrifugoTokenController {
 
     private final CentrifugoService centrifugoService;
     private final AppService appService;
-
-    private final CentrifugoProperties centrifugoProperties;
 
     @Operation(
             summary = "Get Centrifugo subscription token",
@@ -52,15 +49,11 @@ public class AppCentrifugoTokenController {
         String deviceId = deviceChannelTokenRequest.deviceId();
         String channel = "device:" + deviceId;
 
-        long ttl = centrifugoProperties.getTokenTtlSeconds();
-        String connectionToken = centrifugoService.generateConnectionToken(deviceId, ttl);
-        String subscriptionToken = centrifugoService.generateSubscriptionToken(deviceId, channel, ttl);
-
-        String wsUrl = centrifugoProperties.getPublicUrl() + "/connection/websocket";
+        CentrifugoTokenResponse tokens = centrifugoService.issueTokens(deviceId, channel);
 
         log.debug("Generated Centrifugo tokens for device: {}, channel: {}, wsUrl: {}",
-                deviceId, channel, wsUrl);
+                deviceId, channel, tokens.wsUrl());
 
-        return SuccessResponse.ok(new CentrifugoTokenResponse(connectionToken, subscriptionToken, channel, wsUrl));
+        return SuccessResponse.ok(tokens);
     }
 }

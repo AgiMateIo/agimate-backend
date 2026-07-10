@@ -10,7 +10,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
-import ru.agimate.controlapi.config.CentrifugoProperties;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendResponse;
@@ -38,6 +37,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -74,8 +74,6 @@ class WebchatServiceTest {
     private WebchatMessageRepository webchatMessageRepository;
     @Mock
     private CentrifugoService centrifugoService;
-    @Mock
-    private CentrifugoProperties centrifugoProperties;
 
     private WebchatService webchatService;
 
@@ -87,7 +85,7 @@ class WebchatServiceTest {
     void setUp() {
         webchatService = new WebchatService(agentRepository, channelRepository, channelService,
                 channelSessionService, connectionBindingService, triggerRouterService,
-                webchatMessagePublisher, webchatMessageRepository, centrifugoService, centrifugoProperties);
+                webchatMessagePublisher, webchatMessageRepository, centrifugoService);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).name("Assistant").build();
         channel = Channel.builder()
                 .id(CHANNEL_ID)
@@ -230,22 +228,18 @@ class WebchatServiceTest {
     class Token {
 
         @Test
-        @DisplayName("выдаёт connection+subscription токены на канал сессии")
+        @DisplayName("проверяет владение сессией и делегирует выпуск токенов на канал webchat:{sessionId}")
         void issuesTokens() {
             when(channelSessionService.getById(SESSION_ID)).thenReturn(session);
             when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
-            when(centrifugoProperties.getTokenTtlSeconds()).thenReturn(3600L);
-            when(centrifugoProperties.getPublicUrl()).thenReturn("wss://c.example");
-            when(centrifugoService.generateConnectionToken(USER_ID.toString(), 3600L)).thenReturn("conn");
-            when(centrifugoService.generateSubscriptionToken(
-                    USER_ID.toString(), "webchat:" + SESSION_ID, 3600L)).thenReturn("sub");
+            CentrifugoTokenResponse expected = new CentrifugoTokenResponse(
+                    "conn", "sub", "webchat:" + SESSION_ID, "wss://c.example/connection/websocket");
+            when(centrifugoService.issueTokens(USER_ID.toString(), "webchat:" + SESSION_ID))
+                    .thenReturn(expected);
 
             CentrifugoTokenResponse response = webchatService.token(USER_ID, SESSION_ID);
 
-            assertEquals("conn", response.connectionToken());
-            assertEquals("sub", response.subscriptionToken());
-            assertEquals("webchat:" + SESSION_ID, response.channel());
-            assertEquals("wss://c.example/connection/websocket", response.wsUrl());
+            assertSame(expected, response);
         }
     }
 
