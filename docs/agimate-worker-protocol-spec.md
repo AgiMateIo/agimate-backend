@@ -1,7 +1,7 @@
 # AgiMate — Спецификация взаимодействия Backend ↔ Generic Worker
 
 > **Документ описывает протокол взаимодействия между бэкендом AgiMate (Spring Boot) и пулом Generic-воркеров, исполняющих агентов внутри DBOS-workflow.**
-> Версия: PoC. Спецификация описывает только протокол и принципы; решения по конкретной реализации (proto-файлы, схемы БД, классы interceptor'ов) принимаются в отраслевых чатах.
+> Версия: **v2** (реализована; этапы: GetRunContext → SaveMessage → тонкий payload). Принципы v2: бэкенд собирает контекст и владеет политикой, воркер рендерит и крутит цикл; воркер — единственный писатель истории, доставка — проекция записи; воркер знает только `{agent_id, trigger_id}`.
 
 ---
 
@@ -35,10 +35,11 @@
 - В конфиге хранится не сам ключ, а его **SHA-256 хэш**. Bcrypt/argon2 не требуется — ключи имеют достаточную энтропию (минимум 32 случайных байта), brute-force нерелевантен.
 - Ротация: новый ключ добавляется в конфиг параллельно со старым; после redeploy воркеров старый удаляется.
 
-### 1.5 Versioning и совместимость
+### 1.5 Consistency и совместимость (v2)
 
-- Все объекты, описывающие исполнение (агент, скил, конфигурация команды), запрашиваются воркером **с указанием версии**, зафиксированной на старте workflow. Это защищает long-running workflows от изменений конфигурации в процессе исполнения.
-- Версия фиксируется бэкендом в DBOS-payload при старте workflow и используется воркером во всех последующих запросах.
+- Versioned reads первой версии не нужны: весь контекст рана фиксируется **одним durable-шагом** (`GetRunContext` → чекпоинт `prepare_context`) — replay использует чекпоинт, повторных fetch'ей по ходу исполнения нет, конфигурация не может «поменяться под ногами».
+- Изменение **формы чекпоинтов** (`PreparedContext`, DBOS-payload, сигнатуры child-workflow) несовместимо с in-flight ранами → деплой таких изменений только после **drain** (остановить триггеры, дождаться пустых очередей DBOS).
+- Результат durable-шага — только plain-сериализуемые типы: не protobuf (Jackson не переваривает дескрипторы — оборачивать, как `SlotClaim`) и не секреты (api_key — inline, вне шагов).
 
 ---
 
@@ -57,10 +58,11 @@
 
 | Сервис | Назначение |
 |---|---|
-| `WorkerControl` | Health-check / heartbeat. На PoC — минимальный, без registration flow |
-| `AgentContext` | Read-only доступ к агент-спекам, скилам, контексту команды, секциям Knowledge Base. Все запросы — с версиями |
-| `ToolGateway` | Единственная точка вызова tools. Sync, streaming, batch, async паттерны (см. 2.4) |
-| `WorkflowReporting` | Логи, статусы, телеметрия, финальный результат workflow |
+| `AgentContext` | `GetRunContext(agent_id, trigger_id)` — весь контекст рана одним вызовом (блоки промпта, тулы, история); `GetLlmCredentials` — отдельно (не в чекпоинт) |
+| `MessageLog` | `SaveMessage(agent_id, trigger_id, seq, kind, …)` — единая запись событий диалога; персист и доставка в каналы — на бэке; идемпотентность `(trigger_id, seq)` |
+| `ToolGateway` | `ExecuteToolAsync` + поллинг `GetToolResult` — единственная точка вызова tools (ABAC + audit) |
+| `AgentRunRegistry` | `RegisterRun`/`ReleaseRun` — single-writer-слот сессии; сессию резолвит бэк, воркер знает только `trigger_id` |
+| `WorkerControl` | `HealthCheck`; `SendMessage` — системные ошибки воркера |
 
 ### 2.3 Authorization Interceptor
 
@@ -70,18 +72,14 @@
 - При неудаче — `UNAUTHENTICATED`.
 - Проверка — без обращения к БД и без кэшей. Рассчитывается на каждом RPC.
 
-### 2.4 Паттерны вызова tools
+### 2.4 Паттерн вызова tools (v2)
 
-Бэкенд должен поддерживать четыре режима исполнения tools:
-
-| Режим | Назначение | Транспорт |
-|---|---|---|
-| **Sync** | Быстрые tools (< 5 сек), результат сразу | gRPC unary |
-| **Streaming** | Tools со стримингом промежуточных событий (bash, поиск) | gRPC server-streaming |
-| **Batch** | Параллельный fan-out нескольких tools для оптимизации latency | gRPC unary с массивом запросов |
-| **Async** | Long-running tools (внешние устройства, human-in-the-loop). Ответ возвращается через DBOS signal | gRPC unary с возвратом `tool_call_id`; результат — `DBOS.send(workflow_id, tool_call_id, result)` |
-
-Polling-RPC за результатом async-tool **не предусмотрен** — это anti-pattern на DBOS.
+Один режим: **async + poll**. `ExecuteToolAsync` идемпотентно регистрирует вызов (`tool_call_id` +
+БД-уникальность), исполнение диспатчится асинхронно (`ExecutionLocus`: backend / внешнее
+устройство / агент), воркер поллит `GetToolResult` в child-workflow (`tool_call`, свой
+poll-бюджет). Параллелизм fan-out'а даёт очередь `tool_calls` воркера (enqueue-before-await),
+а не batch-RPC. Streaming и `DBOS.send`-доставка результата — в roadmap, если появится реальный
+кейс (см. §4).
 
 ### 2.5 Tool Gateway: проверка прав
 
@@ -100,10 +98,11 @@ Polling-RPC за результатом async-tool **не предусмотре
 - Endpoint выдачи ключа — часть `AgentContext` (например, в составе `AgentSpec` или отдельным RPC).
 - Эволюция к **варианту B** (LLM-Gateway, бэкенд как proxy для LLM-вызовов) запланирована и будет аддитивной — добавляется новый сервис `LlmGateway`, при наличии — воркер использует его, иначе fallback к прямому вызову.
 
-### 2.8 Telemetry & Audit
+### 2.8 Telemetry & Audit (v2)
 
-- Воркер шлёт логи, статусы и трейсы через `WorkflowReporting`. Бэкенд сохраняет их с тэгами `pool_id`, `workflow_id`, `agent_id`, `tenant_id`.
-- Audit-trail tool-вызовов формируется на стороне Tool Gateway — независимо от reporting'а от воркера. Это гарантирует, что компрометированный или некорректный воркер не сможет скрыть факт вызова tool.
+- Диалоговые события (inbound-ack, progress, answer, error) — через `SaveMessage`: это и история, и статус рана (`completed`), и доставка. Отдельный `WorkflowReporting` не реализован (roadmap).
+- Системные ошибки воркера — `WorkerControl.SendMessage`.
+- Audit-trail tool-вызовов формируется на стороне Tool Gateway (`tool_call_logs`) — независимо от воркера: компрометированный воркер не может скрыть факт вызова tool.
 
 ### 2.9 Что бэкенд НЕ делает
 
@@ -120,10 +119,10 @@ Polling-RPC за результатом async-tool **не предусмотре
 
 Воркер — durable executor агентских workflow:
 - запускает и координирует ReAct-loop агента;
-- получает все необходимые конфигурации с бэкенда через gRPC;
+- получает весь контекст рана одним `GetRunContext` и **рендерит** его (политика сборки — на бэке);
 - вызывает tools исключительно через `ToolGateway`;
-- отчитывается о ходе исполнения и финальном результате через `WorkflowReporting`;
-- не реализует бизнес-логики, специфичной для конкретного агента или скила — она приходит из конфигурации.
+- фиксирует все события диалога через `SaveMessage` (единственный писатель истории; доставку выполняет бэкенд);
+- не реализует бизнес-логики, специфичной для конкретного агента или скила — она приходит из контекста.
 
 ### 3.2 Bootstrap
 
@@ -145,35 +144,28 @@ Polling-RPC за результатом async-tool **не предусмотре
 
 ### 3.4 Жизненный цикл workflow
 
-При получении DBOS-workflow воркер:
+Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_id` = `trigger_log_agents.id`). Дальше:
 
-1. Извлекает из payload: `workflow_id`, `agent_id`, `agent_version`, `team_id`, `trigger_data`, версии связанных сущностей.
-2. Запрашивает у `AgentContext` агент-спеку, скилы, контекст команды, нужные секции KB — все с зафиксированными версиями.
-3. Получает LLM-credentials (PoC) для нужного провайдера.
-4. Инициализирует ReAct-loop: системный промпт из агента, пользовательский input из `trigger_data`, набор tools из скилов.
-5. На каждой итерации: либо завершает loop, либо вызывает tool через `ToolGateway` (см. 3.6).
-6. По завершении вызывает `SubmitResult`. Доставку результата пользователю (real-time, webhook) **выполняет бэкенд**, не воркер.
+1. **Router** (`start_agent`): `RegisterRun(agent_id, trigger_id)` — бэк резолвит сессию и возвращает `session_key`; enqueue run-стадии на партиционированную очередь (`session_key` → один исполняющийся ран на сессию).
+2. **Run-стадия** (`run_agent`): re-affirm слота → `SaveMessage(seq=0, INBOUND)` — ack «агент получил», до сборки контекста.
+3. `GetRunContext` + рендер блоков — один durable-шаг (`prepare_context`); история приходит внутри.
+4. ReAct-loop: `llm_call` (креды inline через `GetLlmCredentials`) и `tool_call` — child-workflows на своих очередях; каждый progress/answer/error — `SaveMessage` (durable-шаг, идемпотентный по `seq`).
+5. Финальный `SaveMessage(ANSWER)` помечает ран `completed` — бэкенд доставляет ответ в канал (или пишет `result` direct-рана). `ReleaseRun` в `finally`.
 
-### 3.5 Версионирование
+### 3.5 Consistency
 
-- Воркер всегда использует версии сущностей, зафиксированные в payload workflow на старте.
-- Воркер **не** запрашивает "последнюю версию" по ходу исполнения — это ломает воспроизводимость.
-- Если в процессе обновился скил — это применится к новым workflow, не к текущему.
+- Контекст фиксируется одним чекпоинтом (`prepare_context`) — по ходу исполнения воркер ничего не перечитывает; replay воспроизводит сериализованный результат. Обновившийся скилл/промпт применится к следующему рану.
 
 ### 3.6 Вызовы tools
 
 - Любое внешнее действие — через `ToolGateway`. Воркер не делает прямых HTTP/SDK-вызовов в сторону внешних систем.
-- Выбор паттерна (sync / stream / batch / async) определяется на стороне воркера на основании метаданных tool, полученных в `SkillSpec`.
+- Паттерн один (см. §2.4): `ExecuteToolAsync` (в запросе `trigger_id` — сессию/канал резолвит бэк) + поллинг `GetToolResult` в child-workflow; параллелизм — очередь `tool_calls` (enqueue-before-await, детерминированный порядок).
 - При получении `PERMISSION_DENIED` от Tool Gateway — это валидный ответ, не сетевая ошибка. Воркер передаёт его в LLM как tool result, чтобы агент мог скорректировать поведение.
-- Long-running tools: воркер вызывает `ExecuteToolAsync`, получает `tool_call_id`, далее уходит в `DBOS.recv(tool_call_id)`. Workflow засыпает, не жжёт CPU.
 
 ### 3.7 Telemetry
 
-- Воркер шлёт через `WorkflowReporting`:
-  - structured logs (`AppendLog`) — каждый шаг ReAct-loop, входы/выходы LLM (без секретов), решения о tool-calls;
-  - статусы (`ReportStatus`) — `started`, `step_completed`, `waiting_signal`, `completed`, `failed`;
-  - трейсы (`EmitTrace`) — для distributed tracing.
-- Не дублирует audit, который ведёт Tool Gateway. Reporting — про ход исполнения; audit — про факты side-effects.
+- Диалоговые события — `SaveMessage` (см. §2.8); системные ошибки — `WorkerControl.SendMessage`; сырой LLM-транскрипт живёт в DBOS-чекпоинтах воркера.
+- `WorkflowReporting` (structured logs / трейсы) не реализован — roadmap §4.
 
 ### 3.8 Error handling
 
@@ -187,22 +179,22 @@ Polling-RPC за результатом async-tool **не предусмотре
 - Не имеет доступа к БД бэкенда.
 - Не хранит долгосрочного состояния между workflow (всё durable-state — в DBOS).
 - Не делает прямых вызовов внешних сервисов кроме LLM (PoC) и DBOS.
-- Не доставляет результаты пользователю — только submit на бэкенд.
-- Не принимает решения по RBAC — это responsibility Tool Gateway.
-- Не работает с разными версиями сущностей в рамках одного workflow.
+- Не доставляет результаты пользователю — только `SaveMessage`; доставка — проекция записи на бэке.
+- Не принимает решения по RBAC/скоупингу — тулы приходят уже отскоупленными, вызовы перепроверяет Tool Gateway.
+- Не знает `sessionId` и каналов — только `{agent_id, trigger_id}`; сессию резолвит бэк.
 
 ---
 
 ## 4. Roadmap расширения протокола (post-PoC)
 
-| Этап | Что добавляется | Совместимость |
+| Направление | Что добавляется | Совместимость |
 |---|---|---|
-| **PoC** | gRPC + TLS, pool-level Bearer, прямой LLM-доступ | — |
-| **Phase 1** | Per-workflow JWT в дополнительной metadata (`x-workflow-token`), per-agent RBAC scope | Аддитивно. Старые воркеры работают |
-| **Phase 2** | LLM Gateway (вариант B), централизованный учёт токенов, revenue-share для провайдеров | Аддитивно. Воркер выбирает proxy если доступен |
-| **Phase 3** | mTLS для on-prem / партнёрских воркеров, Worker Registration с capability negotiation | Аддитивно через альтернативные ChannelCredentials |
-
-Ни одно расширение не ломает базового PoC-контракта: те же сервисы, та же transport-схема, добавляются metadata-поля и новые сервисы.
+| **Steering (redesign)** | Вклинивание сообщения в живой ран удалено на этапе 4 v2; вернётся отдельным дизайном (ключи по `trigger_id`, без sessionId на воркере) | Новый RPC/сигнал, аддитивно |
+| **Usage-статистика** | Токены/модель per-turn перестали персиститься с уходом `message_json`; вернуть в `SaveMessage(ANSWER)` или отдельным reporting'ом | Аддитивные поля |
+| **historyDetail per-channel** | Сейчас — пресеты `ContextSpec` в коде (FULL); настройка на канале/агенте | Аддитивно |
+| **Лимит размера PromptBlock** | O(1)-инвариант блоков пока конвенция; ввести жёсткий лимит на бэке | Серверная валидация |
+| **WorkflowReporting** | Structured logs / трейсы / статусы шагов | Новый сервис, аддитивно |
+| **Phase 1–3 (security)** | Per-workflow JWT (`x-workflow-token`), per-agent RBAC scope в RPC; LLM Gateway (вариант B); mTLS + Worker Registration | Аддитивно |
 
 ---
 
@@ -347,10 +339,14 @@ services/libs/agentworker-proto/src/main/proto/agentworker/
 
 ## 6. Открытые вопросы
 
-Решаются в отраслевых чатах при обсуждении реализации:
+Решённые в v2 — для истории:
 
-- **Conversation state** — где живёт история сообщений ReAct-loop: внутри DBOS workflow state или в Redis на бэкенде? От ответа зависит, нужны ли `Save/LoadConversation` в `WorkflowReporting`.
-- **Format AgentSpec** — единый proto-message со всем (включая системный промпт, скилы, KB-pointers) или композиция из нескольких RPC?
-- **Streaming-tools контракт** — фиксированная схема событий для `ExecuteToolStream` или extensible через `Any` / JSON?
-- **Distributed tracing backbone** — OpenTelemetry-совместимый или собственный формат?
+- ~~Conversation state~~ — история живёт в `channel_session_messages` («диалог как видел пользователь», text-only, `completed`-гейт); сырой LLM-транскрипт — в DBOS-чекпоинтах. Пишет только воркер через `SaveMessage`.
+- ~~Format AgentSpec~~ — ни то, ни другое: `RunContext` из упорядоченных `PromptBlock`-ов (сборка и политика на бэке, воркер рендерит).
+
+Открытые:
+
+- **Streaming-tools контракт** — фиксированная схема событий или extensible через `Any` / JSON (когда появится кейс).
+- **Distributed tracing backbone** — OpenTelemetry-совместимый или собственный формат (`x-trace-id` заложен, сервером не обрабатывается).
 - **Cancellation semantics** — отмена workflow в DBOS должна ли прерывать in-flight tool-вызов на бэкенде, или ждать его завершения?
+- **Steering redesign** — как вклинивать сообщение в живой ран без sessionId на воркере (см. §4).

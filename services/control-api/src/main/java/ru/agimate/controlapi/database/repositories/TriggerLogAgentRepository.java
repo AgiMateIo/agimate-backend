@@ -53,20 +53,6 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
     Optional<TriggerLogAgent> findBySessionIdAndStatus(UUID sessionId, RunStatus status);
 
     /**
-     * GetActiveRun: the single live writer for the session, if any.
-     * Expired RUNNING rows are treated as inactive reads; the claim path evicts them
-     * via {@code reclaimDeadHolder}.
-     */
-    @Query("""
-            SELECT t FROM TriggerLogAgent t
-            WHERE t.sessionId = :sessionId
-              AND t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
-              AND t.expiresAt > :now
-            """)
-    Optional<TriggerLogAgent> findActiveBySession(@Param("sessionId") UUID sessionId,
-                                                  @Param("now") LocalDateTime now);
-
-    /**
      * ReleaseRun: release-own. Only the run that currently holds the slot can release it,
      * so a late Release from a pre-empted (CANCELLED) run is a no-op.
      */

@@ -85,10 +85,6 @@ public class ChannelService {
         return channelRepository.findByUserIdAndAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(userId, agentId);
     }
 
-    public List<Channel> listForAgent(UUID agentId) {
-        return channelRepository.findByAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(agentId);
-    }
-
     public List<ChannelHandlerResponse> listHandlers() {
         return channelHandlerRegistry.all().stream()
                 .map(h -> new ChannelHandlerResponse(h.name(), h.getConfigFields()))
