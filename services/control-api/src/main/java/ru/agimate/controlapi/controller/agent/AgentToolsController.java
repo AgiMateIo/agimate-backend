@@ -12,9 +12,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.controller.agent.dto.ToolDefinition;
 import ru.agimate.controlapi.security.AgentPrincipal;
+import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -27,6 +30,18 @@ public class AgentToolsController {
     public static final String PATH = AgentController.PATH + "/tools";
 
     private final ToolDefinitionService toolDefinitionService;
+    private final AgentService agentService;
+
+    @Operation(
+            summary = "Get available tools",
+            description = "Returns all tool definitions available to the authenticated agent",
+            security = @SecurityRequirement(name = "ApiKey")
+    )
+    @GetMapping("/")
+    public SuccessResponse<List<ToolDefinition>> getAvailableTools(
+            @AuthenticationPrincipal AgentPrincipal principal) {
+        return SuccessResponse.ok(agentService.getAvailableTools(principal.agentId()));
+    }
 
     @Operation(
             summary = "Get available tools for a connector",
