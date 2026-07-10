@@ -38,6 +38,8 @@ agent:
     category: "cloud-agent"
     user-agent: "AgiMate managed agent (agimate.io)"
   session:
+    # TTL-страховка на слот активного рана (сек); серверный дефолт ~3600 при 0.
+    run-ttl-seconds: 3600
   dbos:
     app-name: "agent-worker"
     database-url: "jdbc:postgresql://localhost:5432/dbos_db"
