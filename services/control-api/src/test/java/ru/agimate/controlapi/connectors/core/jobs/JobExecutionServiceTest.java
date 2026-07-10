@@ -12,6 +12,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
+import ru.agimate.controlapi.connectors.core.JobProvider;
 import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
@@ -49,11 +50,17 @@ class JobExecutionServiceTest {
     @Mock
     private SecretService secretService;
 
-    @Mock
-    private IntegrationConnectorHandler integrationHandler;
+    interface IntegrationJobHandler extends IntegrationConnectorHandler, JobProvider {
+    }
+
+    interface InternalJobHandler extends InternalConnectorHandler, JobProvider {
+    }
 
     @Mock
-    private InternalConnectorHandler internalHandler;
+    private IntegrationJobHandler integrationHandler;
+
+    @Mock
+    private InternalJobHandler internalHandler;
 
     private JobExecutionService service;
 

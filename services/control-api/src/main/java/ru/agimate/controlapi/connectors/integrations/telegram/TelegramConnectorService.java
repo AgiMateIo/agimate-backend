@@ -8,6 +8,7 @@ import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
@@ -26,7 +27,8 @@ import java.util.Map;
  */
 @Slf4j
 @Component
-public class TelegramConnectorService extends BaseConnectorHandler implements IntegrationConnectorHandler {
+public class TelegramConnectorService extends BaseConnectorHandler
+        implements IntegrationConnectorHandler, TriggerProvider {
 
     public static final String CONNECTOR_CODE = TelegramUtils.CONNECTOR_CODE;
     public static final String MODE_WEBHOOK = "webhook";

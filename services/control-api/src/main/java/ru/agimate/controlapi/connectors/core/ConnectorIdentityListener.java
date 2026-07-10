@@ -11,9 +11,11 @@ import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 
+import java.util.Map;
+
 /**
  * Превращает lifecycle-события экземпляров коннекторов в строки {@code connector_jobs}
- * (декларация — {@code handler.getJobs()}).
+ * (декларация — {@link JobProvider#getJobs()}; коннектор без {@link JobProvider} тасок не имеет).
  *
  * <p>Pull‑модель не требует сообщать scheduler'у об изменениях — он сам прочитает новую/удалённую
  * строку на ближайшем тике (≤1с). Поэтому listener только пишет в БД и не публикует ничего обратно.
@@ -38,7 +40,7 @@ public class ConnectorIdentityListener {
                     event.connectorCode(), event.connectionId());
             return;
         }
-        for (JobSpec spec : handler.getJobs().values()) {
+        for (JobSpec spec : declaredJobs(handler).values()) {
             jobService.upsert(event.connectorCode(), event.connectionId(), event.userId(), spec);
             log.info("Registered task {}/{}/{}", event.connectorCode(), event.connectionId(), spec.name());
         }
@@ -53,8 +55,12 @@ public class ConnectorIdentityListener {
             return;
         }
         jobService.syncConnectionJobs(event.connectorCode(), event.connectionId(), event.userId(),
-                handler.getJobs().values());
+                declaredJobs(handler).values());
         log.info("Synced tasks for {}/{}", event.connectorCode(), event.connectionId());
+    }
+
+    private static Map<String, JobSpec> declaredJobs(ConnectorHandler handler) {
+        return handler instanceof JobProvider jobProvider ? jobProvider.getJobs() : Map.of();
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)

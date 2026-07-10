@@ -11,6 +11,8 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.ToolProvider;
+import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.controller.agent.dto.AgentConfigResponse;
 import ru.agimate.controlapi.controller.agent.dto.AgentContextResponse;
 import ru.agimate.controlapi.controller.agent.dto.ToolDefinition;
@@ -234,9 +236,11 @@ public class AgentService {
 
     private Set<String> namesFor(Connector connector, Connection connection, PolicyKind kind) {
         return switch (connector.getToolBinding()) {
-            case STATIC -> connectorRegistry.findHandler(connector.getCode())
-                    .map(h -> kind == PolicyKind.TOOL ? h.getTools().keySet() : h.getTriggers().keySet())
-                    .orElse(Set.of());
+            case STATIC -> kind == PolicyKind.TOOL
+                    ? connectorRegistry.findCapability(connector.getCode(), ToolProvider.class)
+                            .map(p -> p.getTools().keySet()).orElse(Set.of())
+                    : connectorRegistry.findCapability(connector.getCode(), TriggerProvider.class)
+                            .map(p -> p.getTriggers().keySet()).orElse(Set.of());
             case DYNAMIC -> kind == PolicyKind.TOOL
                     ? connectionToolRepository.findActiveByConnectionId(connection.getId()).stream()
                             .map(ConnectionTool::getName).collect(Collectors.toSet())

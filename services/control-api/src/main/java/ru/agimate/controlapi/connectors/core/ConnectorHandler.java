@@ -1,20 +1,15 @@
 package ru.agimate.controlapi.connectors.core;
 
-import ru.agimate.controlapi.connectors.core.annotation.Job;
-import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.core.dto.JobSpec;
-import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.database.model.ConnectorCapabilities;
 
-import java.util.Map;
-
 /**
- * Единый SPI коннектора — общий для internal- и integration-коннекторов.
+ * Identity-ядро SPI коннектора — общий для internal- и integration-коннекторов.
  *
- * <p>Коннектор состоит из «фасада» (реализация этого интерфейса, обычно через
- * {@link BaseConnectorHandler}) и tool-сервиса с {@code @Tool}-методами, в которые фасад
- * делегирует выполнение. Тулы доступны LLM; таски ({@link Job}) исполняются
- * scheduler'ом из строк {@code connector_jobs}.
+ * <p>Коннектор — композиция: фасад реализует этот интерфейс плюс нужные capability-интерфейсы
+ * ({@link ToolProvider}, {@link TriggerProvider}, {@link JobProvider}, {@link PromptBlockProvider}).
+ * Тулы/таски обычно приходят через {@link BaseConnectorHandler} (reflection-диспатч по
+ * {@code @Tool}-методам tool-сервиса). Потребители получают capability через
+ * {@link ConnectorRegistry#findCapability}/{@link ConnectorRegistry#getCapability}.
  */
 public interface ConnectorHandler {
 
@@ -32,30 +27,4 @@ public interface ConnectorHandler {
     default ConnectorCapabilities capabilities() {
         return ConnectorCapabilities.internal();
     }
-
-    default Map<String, TriggerSpec> getTriggers() {
-        return Map.of();
-    }
-
-    Map<String, ConnectorToolSpec> getTools();
-
-    /**
-     * Спеки тулов для конкретного экземпляра коннектора. По умолчанию совпадают со
-     * статическими {@link #getTools()} — большинство коннекторов не зависят от instance.
-     * Динамические коннекторы (например MCP) переопределяют: набор тулов открывается в рантайме
-     * per-connectionId, поэтому здесь возвращают список под {@code context.connectionId()} (для MCP —
-     * из кэша {@code connection_tools}). Контекст несёт connectionId; расшифровка credentials для листинга
-     * не требуется.
-     */
-    default Map<String, ConnectorToolSpec> getTools(ConnectorContext context) {
-        return getTools();
-    }
-
-    default Map<String, JobSpec> getJobs() {
-        return Map.of();
-    }
-
-    Map<String, Object> executeTool(ConnectorContext context, String toolName, Map<String, Object> args);
-
-    Map<String, Object> executeJob(ConnectorContext context, String name, Map<String, Object> args);
 }

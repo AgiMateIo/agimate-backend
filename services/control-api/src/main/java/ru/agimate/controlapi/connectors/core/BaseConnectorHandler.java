@@ -28,7 +28,7 @@ import java.util.Map;
  * {@link #executeJob} диспатчит в любой {@code @Tool}-метод, поэтому таска может быть и «вызовом
  * тулы по расписанию».
  */
-public abstract class BaseConnectorHandler implements ConnectorHandler {
+public abstract class BaseConnectorHandler implements ToolProvider, JobProvider {
 
     private final Object toolService;
     private final Map<String, Method> methodsByName;

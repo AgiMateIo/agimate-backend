@@ -11,6 +11,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.Connection;
@@ -49,9 +50,11 @@ public class ToolExecutionService {
     public void executeTool(ToolCallLog toolCallLog) {
         try {
             ConnectorHandler handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());
+            ToolProvider toolProvider = connectorRegistry.getCapability(
+                    toolCallLog.getConnectorCode(), ToolProvider.class);
             ConnectorContext context = buildContext(handler, toolCallLog);
 
-            Map<String, Object> result = handler.executeTool(
+            Map<String, Object> result = toolProvider.executeTool(
                     context, toolCallLog.getName(), toolCallLog.getInput());
 
             if (handler instanceof IntegrationConnectorHandler) {

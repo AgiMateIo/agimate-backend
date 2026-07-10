@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
@@ -19,7 +20,7 @@ import java.util.UUID;
  * Универсальный коннектор к удалённому MCP-серверу (Streamable HTTP). В отличие от обычных
  * коннекторов тулы динамические и per-instance: каждый экземпляр (строка
  * {@code connections} = URL + auth в {@code secrets}) отдаёт свой набор через {@code tools/list}.
- * Поэтому реализуем {@link IntegrationConnectorHandler} напрямую (без {@code BaseConnectorHandler}
+ * Поэтому реализуем {@link ToolProvider} напрямую (без {@code BaseConnectorHandler}
  * и {@code @Tool}-методов):
  * <ul>
  *   <li>{@link #getTools()} — статических тулов нет (пусто);</li>
@@ -27,11 +28,12 @@ import java.util.UUID;
  *       (наполняется {@link McpToolDiscoveryListener} на create/modify интеграции);</li>
  *   <li>{@link #executeTool} — проксирование в {@code tools/call}.</li>
  * </ul>
+ * Фоновых тасок у MCP нет — {@code JobProvider} не реализуется.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class McpConnectorService implements IntegrationConnectorHandler {
+public class McpConnectorService implements IntegrationConnectorHandler, ToolProvider {
 
     public static final String CONNECTOR_CODE = McpUtils.CONNECTOR_CODE;
 
@@ -110,12 +112,6 @@ public class McpConnectorService implements IntegrationConnectorHandler {
     public Map<String, Object> executeTool(ConnectorContext context, String toolName, Map<String, Object> args) {
         McpClient.ServerConfig config = McpUtils.toServerConfig(context.credentials());
         return mcpClient.callTool(config, toolName, args);
-    }
-
-    /** Фоновых тасок у MCP нет (только tools); явный отказ — диспатча в {@code @Tool} нет. */
-    @Override
-    public Map<String, Object> executeJob(ConnectorContext context, String name, Map<String, Object> args) {
-        throw new ConnectorException("MCP connector has no jobs: " + name);
     }
 
     private static String host(String url) {

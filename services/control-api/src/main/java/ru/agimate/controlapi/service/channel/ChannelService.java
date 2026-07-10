@@ -10,6 +10,8 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.ToolProvider;
+import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelHandlerResponse;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelResponse;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -306,8 +308,8 @@ public class ChannelService {
     private Set<String> lookupTriggerNames(Connector connector, UUID userId, String connectionId) {
         Connection connection = loadConnection(userId, connector.getCode(), connectionId);
         return switch (connector.getToolBinding()) {
-            case STATIC -> connectorRegistry.findHandler(connector.getCode())
-                    .map(handler -> handler.getTriggers().keySet()).orElse(Set.of());
+            case STATIC -> connectorRegistry.findCapability(connector.getCode(), TriggerProvider.class)
+                    .map(provider -> provider.getTriggers().keySet()).orElse(Set.of());
             case DYNAMIC -> connectionTriggerRepository.findActiveByConnectionId(connection.getId()).stream()
                     .map(ConnectionTrigger::getName).collect(Collectors.toSet());
             case null -> Set.of();
@@ -318,8 +320,8 @@ public class ChannelService {
     private Set<String> lookupToolNames(Connector connector, UUID userId, String connectionId) {
         Connection connection = loadConnection(userId, connector.getCode(), connectionId);
         return switch (connector.getToolBinding()) {
-            case STATIC -> connectorRegistry.findHandler(connector.getCode())
-                    .map(handler -> handler.getTools().keySet()).orElse(Set.of());
+            case STATIC -> connectorRegistry.findCapability(connector.getCode(), ToolProvider.class)
+                    .map(provider -> provider.getTools().keySet()).orElse(Set.of());
             case DYNAMIC -> connectionToolRepository.findActiveByConnectionId(connection.getId()).stream()
                     .map(ConnectionTool::getName).collect(Collectors.toSet());
             case null -> Set.of();

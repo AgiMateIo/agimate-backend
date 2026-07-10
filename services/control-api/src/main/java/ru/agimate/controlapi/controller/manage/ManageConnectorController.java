@@ -16,7 +16,9 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.controller.manage.dto.ConnectorResponse;
 import ru.agimate.controlapi.controller.manage.dto.IntegrationMeta;
 import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
@@ -25,6 +27,7 @@ import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping(ManageConnectorController.PATH)
@@ -79,7 +82,10 @@ public class ManageConnectorController {
     @GetMapping("/{code}/triggers/")
     public SuccessResponse<List<TriggerSpecificationResponse>> getTriggers(@PathVariable String code) {
         IntegrationConnectorHandler handler = integrationHandler(code);
-        return SuccessResponse.ok(handler.getTriggers().entrySet().stream()
+        Map<String, TriggerSpec> triggers = handler instanceof TriggerProvider provider
+                ? provider.getTriggers()
+                : Map.of();
+        return SuccessResponse.ok(triggers.entrySet().stream()
                 .map(e -> TriggerSpecificationResponse.from(e.getKey(), e.getValue()))
                 .toList());
     }

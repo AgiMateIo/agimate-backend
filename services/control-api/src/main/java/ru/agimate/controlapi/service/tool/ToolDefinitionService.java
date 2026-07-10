@@ -8,6 +8,7 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
 import ru.agimate.controlapi.database.entities.Connection;
@@ -45,7 +46,7 @@ public class ToolDefinitionService {
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
         return switch (connector.getToolBinding()) {
-            case STATIC -> connectorRegistry.findHandler(connectorCode)
+            case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
                     .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
                     .getTools(listingContext(connectionId));
             case DYNAMIC -> dynamicTools(userId, connectionId);
@@ -67,7 +68,7 @@ public class ToolDefinitionService {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
         return switch (connector.getToolBinding()) {
-            case STATIC -> connectorRegistry.findHandler(connectorCode)
+            case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
                     .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
                     .getTools(listingContext(null));
             case DYNAMIC -> Map.of();

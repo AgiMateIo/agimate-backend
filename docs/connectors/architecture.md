@@ -69,16 +69,38 @@ binding + прецеденс. `connection_id` тула/триггера = `conne
 
 ## SPI (`connectors/core`)
 
+SPI — композиция: identity-ядро + capability-интерфейсы, которые фасад реализует à la carte.
+
 ```
-ConnectorHandler                — connectorCode/Name, getTriggers, getTools, getJobs, executeTool, executeJob
+ConnectorHandler                — identity: connectorCode/Name, capabilities
 ├── IntegrationConnectorHandler — + getCredentialFields, validateCredentials, webhooks (setup/remove/normalizeInbound/validate)
 └── InternalConnectorHandler    — маркер (без credentials)
+
+Capability-интерфейсы (реализуются по необходимости):
+ToolProvider     — getTools, getTools(ctx), executeTool
+TriggerProvider  — getTriggers
+JobProvider      — getJobs, executeJob
+PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
 ```
+
+Потребители достают capability через `ConnectorRegistry.getCapability(code, X.class)`
+(execution-пути, бросает `ConnectorException`) или `findCapability(...)` (листинги, `Optional`).
+Коннектор без capability — валидное состояние: нет тулов/тасок/триггеров — интерфейс просто
+не реализуется (webchat реализует только `TriggerProvider`).
+
+**`PromptBlockProvider`** — блоки контекста для LLM-промпта агента: собираются при подготовке
+контекста рана по каждой активной привязанной connection. `PromptBlock`:
+`{name, placement: SYSTEM|USER, content, attrs, stable}` — `name`/`attrs` становятся XML-тегом у
+рендерера на воркере, `stable` — подсказка порядка (стабильные раньше, дружелюбно к prompt-кэшу).
+Инвариант: блок O(1) от объёма данных коннектора; растущие листинги — через тулы, не блоки.
+Пример — persist-memory: cold-память → SYSTEM-блок `memory` (attr `version` для CAS в
+`update_memory`), hot-заметки → USER-блок `memory_notes`.
 
 Коннектор состоит из двух классов:
 
-- **`<Name>ConnectorService`** — фасад: implements `IntegrationConnectorHandler`/`InternalConnectorHandler`,
-  extends `BaseConnectorHandler`. Содержит метаданные, credentials/webhook-логику.
+- **`<Name>ConnectorService`** — фасад: implements `IntegrationConnectorHandler`/`InternalConnectorHandler`
+  + нужные capability-интерфейсы, extends `BaseConnectorHandler` (даёт `ToolProvider` + `JobProvider`
+  рефлексией). Содержит метаданные, credentials/webhook-логику.
 - **`<Name>ToolService`** — методы с собственной MCP-совместимой `@Tool` (`name`/`title`/`description`/
   `annotations`/`_meta`); параметры описываются `@ToolParam`. `getTools()` отдаёт `ConnectorToolSpec`
   (MCP): `inputSchema`/`outputSchema` строятся рефлексией (`ToolSchemaReflector`, без сторонних библиотек),
@@ -93,7 +115,7 @@ ConnectorHandler                — connectorCode/Name, getTriggers, getTools, g
 
 Тулы коннектора статичны и привязаны к `connectorCode` (строятся рефлексией один раз). Исключение —
 **динамические коннекторы** (MCP, см. ниже): набор тулов per-instance и открывается в рантайме. Для них
-SPI даёт context-aware перегрузку `getTools(ConnectorContext)` (дефолт — те же статические `getTools()`);
+`ToolProvider` даёт context-aware перегрузку `getTools(ConnectorContext)` (дефолт — те же статические `getTools()`);
 gRPC-листинг (`GetConnectionTools(connection_id)`) единообразно зовёт её с контекстом по `connection_id` — без
 спец-кейсов. Воркер сперва получает доступные агенту экземпляры через `GetConnections(agent_id)`
 (привязки `agent_connections` → `connections`), затем по каждому зовёт `GetConnectionTools`.
@@ -133,8 +155,8 @@ BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — 
 `integrations/mcp/` — универсальный коннектор к удалённому MCP-серверу (транспорт **Streamable HTTP**,
 auth — статический Bearer-токен/произвольные заголовки). Особенность: тулы **динамические и per-instance** —
 каждый экземпляр (строка `connections` = `url` + auth в `secrets`) отдаёт свой набор через `tools/list`.
-Поэтому `McpConnectorService implements IntegrationConnectorHandler` напрямую (без `BaseConnectorHandler` и
-`@Tool`-методов):
+Поэтому `McpConnectorService implements IntegrationConnectorHandler, ToolProvider` напрямую
+(без `BaseConnectorHandler` и `@Tool`-методов; `JobProvider` не реализует — фоновых тасок нет):
 
 - `getTools()` пуст (статических тулов нет); `getTools(ctx)` отдаёт список из `connection_tools` по `ctx.connectionId()`.
 - `validateCredentials` = хендшейк `initialize` (доступность + auth); `identifier` = URL сервера (канонический
@@ -232,7 +254,7 @@ binding на time-коннектор (его заводит сам time-скил
   `ConnectorDeletedEvent (connectorCode, connection_id)` публикует `IntegrationService`
   (create/enable, updateCredentials, delete/disable). `userId` → `connector_jobs.user_id`.
 - `ConnectorIdentityListener` (AFTER_COMMIT) превращает их в **декларативные** строки `connector_jobs`
-  из `handler.getJobs()`: created → upsert, modified → sync (upsert + удаление stale), deleted →
+  из `JobProvider.getJobs()` (коннектор без `JobProvider` тасок не имеет): created → upsert, modified → sync (upsert + удаление stale), deleted →
   delete by connection_id. Касается только интеграций; динамические задачи агента сюда не попадают.
 - `ConnectorBootstrap` (ApplicationReadyEvent) — upsert каталога `connectors` из registry
   (код — источник истины для name/type/credential_fields). Задачи на старте не регистрируются:

@@ -9,6 +9,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
+import ru.agimate.controlapi.connectors.core.JobProvider;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
@@ -35,9 +36,10 @@ public class JobExecutionService {
 
     public Map<String, Object> executeJob(ConnectorJob row) {
         ConnectorHandler handler = connectorRegistry.getHandler(row.getConnectorCode());
+        JobProvider jobProvider = connectorRegistry.getCapability(row.getConnectorCode(), JobProvider.class);
         ConnectorContext context = buildContext(handler, row);
         Map<String, Object> args = row.getArgs() == null ? Map.of() : row.getArgs();
-        return handler.executeJob(context, row.getName(), args);
+        return jobProvider.executeJob(context, row.getName(), args);
     }
 
     private ConnectorContext buildContext(ConnectorHandler handler, ConnectorJob row) {

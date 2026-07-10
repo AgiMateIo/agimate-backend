@@ -14,7 +14,9 @@ import java.util.stream.Collectors;
  *
  * <p>{@link #getHandler(String)} — для execution-путей (бросает {@link ConnectorException});
  * HTTP-граница использует {@link #findHandler(String)} и сама решает, какой
- * {@code *StatusException} бросить.
+ * {@code *StatusException} бросить. Capability-интерфейсы ({@link ToolProvider},
+ * {@link TriggerProvider}, {@link JobProvider}, {@link PromptBlockProvider}) достаются через
+ * {@link #getCapability}/{@link #findCapability} по тем же правилам.
  */
 @Component
 public class ConnectorRegistry {
@@ -42,6 +44,22 @@ public class ConnectorRegistry {
         return findHandler(connectorCode)
                 .filter(IntegrationConnectorHandler.class::isInstance)
                 .map(IntegrationConnectorHandler.class::cast);
+    }
+
+    /** Capability коннектора для execution-путей: нет коннектора или capability — {@link ConnectorException}. */
+    public <T> T getCapability(String connectorCode, Class<T> capability) {
+        ConnectorHandler handler = getHandler(connectorCode);
+        if (!capability.isInstance(handler)) {
+            throw new ConnectorException("Connector '" + connectorCode + "' does not support "
+                    + capability.getSimpleName());
+        }
+        return capability.cast(handler);
+    }
+
+    public <T> Optional<T> findCapability(String connectorCode, Class<T> capability) {
+        return findHandler(connectorCode)
+                .filter(capability::isInstance)
+                .map(capability::cast);
     }
 
     public Collection<ConnectorHandler> getHandlers() {

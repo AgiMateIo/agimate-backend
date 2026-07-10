@@ -35,8 +35,12 @@ class ConnectorIdentityListenerTest {
     private static final JobSpec SPEC_B = new JobSpec(
             "test.task_b", ConnectorJobType.CRON, Map.of("cron", "0 0 * * * *"), Map.of(), 300);
 
+    /** Джобы декларирует только коннектор с {@link JobProvider}. */
+    interface JobCapableHandler extends ConnectorHandler, JobProvider {
+    }
+
     @Mock
-    private ConnectorHandler handler;
+    private JobCapableHandler handler;
 
     @Mock
     private ConnectorJobService jobService;

@@ -12,6 +12,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorContext;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.enums.IdentityScope;
@@ -326,7 +327,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             // Источник тулов по toolBinding: STATIC — рефлексия handler'а; DYNAMIC — connection_tools.
             Map<String, ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec> tools =
                     switch (connector.getToolBinding()) {
-                        case STATIC -> connectorRegistry.findHandler(connectorCode)
+                        case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
                                 .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
                                 .getTools(listingContext);
                         case DYNAMIC -> dynamicConnectionTools(connectionId);
