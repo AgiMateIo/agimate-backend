@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpConnectorService;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolService;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;

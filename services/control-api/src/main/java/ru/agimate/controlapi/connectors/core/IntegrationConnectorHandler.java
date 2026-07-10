@@ -1,7 +1,7 @@
 package ru.agimate.controlapi.connectors.core;
 
 import jakarta.servlet.http.HttpServletRequest;
-import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.util.Map;

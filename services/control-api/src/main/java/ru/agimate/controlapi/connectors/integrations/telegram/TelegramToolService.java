@@ -2,7 +2,7 @@ package ru.agimate.controlapi.connectors.integrations.telegram;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * {@code TelegramConnectorService}.
  */
 @Slf4j
-@Service
+@Component
 @RequiredArgsConstructor
 public class TelegramToolService {
 

@@ -2,7 +2,7 @@ package ru.agimate.controlapi.connectors.internal.time;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.support.CronExpression;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
@@ -39,7 +39,7 @@ import java.util.UUID;
  * приходит срок, {@code ConnectorJobScheduler} диспатчит скрытый {@link #fire} — он порождает
  * триггер {@code due} (agent-facing {@code time.due}), адресованный агенту-инициатору (audience), и тот «просыпается».
  */
-@Service
+@Component
 @RequiredArgsConstructor
 public class TimeToolService {
 

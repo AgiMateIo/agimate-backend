@@ -2,7 +2,7 @@ package ru.agimate.controlapi.connectors.internal.board;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
@@ -27,7 +27,7 @@ import java.util.UUID;
  * Тулы board-коннектора. Контекст (agentId, userId) приходит через {@link ConnectorEnvHolder}.
  */
 @Slf4j
-@Service
+@Component
 @RequiredArgsConstructor
 public class BoardToolService {
 

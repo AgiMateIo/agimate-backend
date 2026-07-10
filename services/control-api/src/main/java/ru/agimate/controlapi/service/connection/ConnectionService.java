@@ -19,7 +19,7 @@ import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
-import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Secret;

@@ -2,7 +2,7 @@ package ru.agimate.controlapi.connectors.core.jobs;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
@@ -26,7 +26,7 @@ import java.util.UUID;
  * поток десятки секунд, коннект к БД на это время не занимается.
  */
 @Slf4j
-@Service
+@Component
 @RequiredArgsConstructor
 public class JobExecutionService {
 
@@ -36,7 +36,7 @@ public class JobExecutionService {
 
     public Map<String, Object> executeJob(ConnectorJob row) {
         ConnectorHandler handler = connectorRegistry.getHandler(row.getConnectorCode());
-        JobProvider jobProvider = connectorRegistry.getCapability(row.getConnectorCode(), JobProvider.class);
+        JobProvider jobProvider = ConnectorRegistry.capability(handler, JobProvider.class);
         ConnectorEnv env = buildEnv(handler, row);
         Map<String, Object> args = row.getArgs() == null ? Map.of() : row.getArgs();
         return jobProvider.executeJob(env, row.getName(), args);

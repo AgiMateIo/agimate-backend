@@ -9,7 +9,7 @@ import ru.agimate.controlapi.database.model.ConnectorCapabilities;
  * ({@link ToolProvider}, {@link TriggerProvider}, {@link JobProvider}, {@link PromptBlockProvider}).
  * Тулы/таски обычно приходят через {@link BaseConnectorHandler} (reflection-диспатч по
  * {@code @Tool}-методам tool-сервиса). Потребители получают capability через
- * {@link ConnectorRegistry#findCapability}/{@link ConnectorRegistry#getCapability}.
+ * {@link ConnectorRegistry#findCapability}/{@link ConnectorRegistry#capability}.
  */
 public interface ConnectorHandler {
 

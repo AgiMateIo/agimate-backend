@@ -1,7 +1,7 @@
 package ru.agimate.controlapi.connectors.internal.persistentmemory;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
@@ -36,7 +36,7 @@ import java.util.UUID;
  * сессии агента за сутки и адресует ему {@code notes_by_session} по каждой; {@code consolidation} —
  * раз в час single-flight'ом клеймит накопленные заметки и шлёт {@code consolidate}.
  */
-@Service
+@Component
 @RequiredArgsConstructor
 public class PersistentMemoryToolService {
 

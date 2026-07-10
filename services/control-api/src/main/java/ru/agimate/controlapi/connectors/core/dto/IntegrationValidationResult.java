@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.connectors.integrations;
+package ru.agimate.controlapi.connectors.core.dto;
 
 public record IntegrationValidationResult(
         boolean valid,

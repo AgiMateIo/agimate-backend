@@ -10,7 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 

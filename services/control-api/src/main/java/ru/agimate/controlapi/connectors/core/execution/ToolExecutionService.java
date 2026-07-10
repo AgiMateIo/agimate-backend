@@ -3,7 +3,7 @@ package ru.agimate.controlapi.connectors.core.execution;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
@@ -12,13 +12,13 @@ import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
-import ru.agimate.controlapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
+import ru.agimate.controlapi.service.dto.ToolResult;
 import ru.agimate.controlapi.service.tool.ToolCallLogService;
 
 import java.time.LocalDateTime;
@@ -35,7 +35,7 @@ import java.util.UUID;
  * отдаются агенту как есть; остальное скрывается за общим "Tool execution failed".
  */
 @Slf4j
-@Service
+@Component
 @RequiredArgsConstructor
 public class ToolExecutionService {
 
@@ -50,8 +50,7 @@ public class ToolExecutionService {
     public void executeTool(ToolCallLog toolCallLog) {
         try {
             ConnectorHandler handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());
-            ToolProvider toolProvider = connectorRegistry.getCapability(
-                    toolCallLog.getConnectorCode(), ToolProvider.class);
+            ToolProvider toolProvider = ConnectorRegistry.capability(handler, ToolProvider.class);
             ConnectorEnv env = buildEnv(handler, toolCallLog);
 
             Map<String, Object> result = toolProvider.executeTool(
@@ -102,7 +101,7 @@ public class ToolExecutionService {
     }
 
     private void deliver(ToolCallLog toolCallLog, String output, String error) {
-        var toolResult = new ToolResultRequest(
+        var toolResult = new ToolResult(
                 toolCallLog.getExternalId(), toolCallLog.getConnectorCode(), output, error);
         try {
             toolCallLogService.recordOutput(toolResult);

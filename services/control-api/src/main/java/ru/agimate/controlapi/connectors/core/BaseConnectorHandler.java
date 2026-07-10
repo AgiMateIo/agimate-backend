@@ -19,16 +19,19 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Единственный reflection-диспатчер коннекторов: сканирует {@code @Tool}-методы tool-сервиса,
+ * База фасада коннектора с {@code @Tool}-методами: identity ({@link ConnectorHandler},
+ * {@code connectorCode} остаётся за фасадом) + единственный reflection-диспатчер
+ * {@link ToolProvider}/{@link JobProvider} — сканирует {@code @Tool}-методы tool-сервиса,
  * строит спеки и выполняет вызовы с привязкой {@link ConnectorEnv} через
- * {@link ConnectorEnvHolder} (set/clear только здесь).
+ * {@link ConnectorEnvHolder} (set/clear только здесь). Коннекторы без tool-сервиса
+ * (webchat, MCP) базу не используют — реализуют нужные интерфейсы напрямую.
  *
  * <p>Декларативная джоба ({@link Job}) и внутренний метод ({@code @Tool(internal = true)}) скрыты
  * от LLM — не попадают в {@link #getTools()} и недоступны через {@link #executeTool}; при этом
  * {@link #executeJob} диспатчит в любой {@code @Tool}-метод, поэтому таска может быть и «вызовом
  * тулы по расписанию».
  */
-public abstract class BaseConnectorHandler implements ToolProvider, JobProvider {
+public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProvider, JobProvider {
 
     private final Object toolService;
     private final Map<String, Method> methodsByName;

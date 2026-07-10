@@ -11,7 +11,7 @@ import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
-import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import tools.jackson.databind.ObjectMapper;
 

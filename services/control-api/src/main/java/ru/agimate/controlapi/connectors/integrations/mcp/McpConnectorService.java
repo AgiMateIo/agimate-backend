@@ -8,7 +8,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 
 import java.net.URI;

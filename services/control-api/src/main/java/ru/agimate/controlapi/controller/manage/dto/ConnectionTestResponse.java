@@ -2,7 +2,7 @@ package ru.agimate.controlapi.controller.manage.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.controlapi.connectors.integrations.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 
 @Schema(description = "Result of testing a connection: credential validation + (MCP) tool reload")
 @JsonInclude(JsonInclude.Include.NON_NULL)

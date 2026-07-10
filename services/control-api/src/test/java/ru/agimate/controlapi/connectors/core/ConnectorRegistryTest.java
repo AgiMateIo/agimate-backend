@@ -45,24 +45,23 @@ class ConnectorRegistryTest {
     private final ConnectorRegistry registry = new ConnectorRegistry(List.of(toolOnly, new BareHandler()));
 
     @Test
-    @DisplayName("getCapability возвращает handler, реализующий capability")
-    void getCapabilityReturns() {
-        assertSame(toolOnly, registry.getCapability("tool-only", ToolProvider.class));
+    @DisplayName("capability(): каст готового handler'а к его capability")
+    void capabilityReturns() {
+        assertSame(toolOnly, ConnectorRegistry.capability(toolOnly, ToolProvider.class));
     }
 
     @Test
-    @DisplayName("getCapability: handler без capability → ConnectorException")
-    void getCapabilityMissingCapability() {
+    @DisplayName("capability(): handler без capability → ConnectorException")
+    void capabilityMissing() {
         ConnectorException e = assertThrows(ConnectorException.class,
-                () -> registry.getCapability("bare", ToolProvider.class));
-        assertTrue(e.getMessage().contains("does not support ToolProvider"));
+                () -> ConnectorRegistry.capability(toolOnly, JobProvider.class));
+        assertTrue(e.getMessage().contains("does not support JobProvider"));
     }
 
     @Test
-    @DisplayName("getCapability: неизвестный коннектор → ConnectorException")
-    void getCapabilityUnknownConnector() {
-        assertThrows(ConnectorException.class,
-                () -> registry.getCapability("unknown", ToolProvider.class));
+    @DisplayName("getHandler: неизвестный коннектор → ConnectorException")
+    void getHandlerUnknownConnector() {
+        assertThrows(ConnectorException.class, () -> registry.getHandler("unknown"));
     }
 
     @Test

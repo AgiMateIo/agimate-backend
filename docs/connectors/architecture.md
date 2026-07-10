@@ -83,8 +83,9 @@ JobProvider      — getJobs, executeJob
 PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
 ```
 
-Потребители достают capability через `ConnectorRegistry.getCapability(code, X.class)`
-(execution-пути, бросает `ConnectorException`) или `findCapability(...)` (листинги, `Optional`).
+Потребители достают capability через `findCapability(code, X.class)` (листинги, `Optional`) или —
+на execution-путях, где handler уже получен из registry — статическим
+`ConnectorRegistry.capability(handler, X.class)` (бросает `ConnectorException`).
 Коннектор без capability — валидное состояние: нет тулов/тасок/триггеров — интерфейс просто
 не реализуется (webchat реализует только `TriggerProvider`).
 
