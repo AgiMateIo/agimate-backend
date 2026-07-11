@@ -1,5 +1,7 @@
 package ru.agimate.agentworker.workers;
 
+import com.openai.errors.OpenAIIoException;
+import com.openai.errors.OpenAIRetryableException;
 import com.openai.errors.OpenAIServiceException;
 import dev.dbos.transact.workflow.Workflow;
 import dev.dbos.transact.workflow.WorkflowClassName;
@@ -61,7 +63,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
                     .toolCallbacks(mapper.toolCallbacks(toolDefs))
                     .build();
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages), options);
-            ChatResponse response = model.call(prompt);
+            ChatResponse response = callWithRetry(model, prompt);
             return Result.ok(mapper.fromResponse(response));
         } catch (Exception e) {
             OpenAIServiceException svc = findServiceException(e);
@@ -71,6 +73,69 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             }
             log.warn("LLM API error: {}", e.getMessage());
             return Result.failure(null, nonBlankMessage(e));
+        }
+    }
+
+    private static final int MAX_ATTEMPTS = 4;
+    private static final long INITIAL_BACKOFF_MS = 1_000;
+    private static final long MAX_RETRY_AFTER_MS = 30_000;
+
+    /**
+     * Транзиентные ошибки провайдера (429/5xx/408, сетевые сбои SDK) ретраятся здесь —
+     * иначе один блип провайдера убивает весь ран вместе с накопленной работой тулов.
+     * Прочие 4xx (401/403/400) терминальны и уходят в маппинг ошибок сразу. Worst case
+     * держит слот llm-очереди на {@value #MAX_ATTEMPTS} × request-timeout — осознанная цена.
+     */
+    private static ChatResponse callWithRetry(OpenAiChatModel model, Prompt prompt) {
+        long backoffMs = INITIAL_BACKOFF_MS;
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return model.call(prompt);
+            } catch (Exception e) {
+                if (attempt >= MAX_ATTEMPTS || !transientProviderError(e)) {
+                    throw e;
+                }
+                long delayMs = Math.max(backoffMs, retryAfterMs(e));
+                log.info("LLM transient error (attempt {}/{}), retrying in {} ms: {}",
+                        attempt, MAX_ATTEMPTS, delayMs, e.getMessage());
+                try {
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+                backoffMs *= 2;
+            }
+        }
+    }
+
+    /** 429/408/5xx и сетевые исключения SDK; остальные 4xx — терминальные. */
+    static boolean transientProviderError(Throwable t) {
+        OpenAIServiceException svc = findServiceException(t);
+        if (svc != null) {
+            int status = svc.statusCode();
+            return status == 429 || status == 408 || status >= 500;
+        }
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if (c instanceof OpenAIIoException || c instanceof OpenAIRetryableException) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Retry-After (секунды) из ответа провайдера, с потолком; 0 — нет/не распарсился. */
+    static long retryAfterMs(Throwable t) {
+        OpenAIServiceException svc = findServiceException(t);
+        if (svc == null) {
+            return 0;
+        }
+        try {
+            var values = svc.headers().values("retry-after");
+            return values.isEmpty() ? 0
+                    : Math.min(Long.parseLong(values.get(0).trim()) * 1000, MAX_RETRY_AFTER_MS);
+        } catch (Exception e) {
+            return 0;
         }
     }
 
