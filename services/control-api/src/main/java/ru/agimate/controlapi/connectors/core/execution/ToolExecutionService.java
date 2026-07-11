@@ -46,7 +46,7 @@ public class ToolExecutionService {
     private final ToolCallLogService toolCallLogService;
     private final AgentDeliveryService agentDeliveryService;
 
-    @Async
+    @Async("toolExecutor")
     public void executeTool(ToolCallLog toolCallLog) {
         try {
             ConnectorHandler handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());

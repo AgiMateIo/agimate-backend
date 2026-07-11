@@ -159,6 +159,11 @@ inline на каждый `llm_call`.
 `ToolGateway.ExecuteTool` wraps the existing `AgentToolCallService` (idempotency via `tool_call_id`, ABAC via
 `ToolPolicyDbEvaluatorService`, audit via `ToolCallLogService`, delivery via `ConnectorService`).
 
+BACKEND-locus тулы исполняются асинхронно на выделенном bounded-пуле `toolExecutor`
+(`AsyncConfig`, 8..32 потоков, очередь 200, CallerRuns при переполнении): ack `ExecuteToolAsync`
+возвращается сразу, долгий коннекторный вызов не держит gRPC-тред, результат воркер забирает
+поллингом `GetToolResult` (PENDING → SUCCESS/ERROR).
+
 Errors:
 
 - `PERMISSION_DENIED` — ABAC denied. Per spec §3.6 this is a valid tool result, not a network error — the worker should
