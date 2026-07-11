@@ -8,14 +8,18 @@ package ru.agimate.controlapi.service.runcontext;
  */
 public enum ContextSpec {
 
-    /** Диалог с пользователем: все скиллы перечислены (без тел), тулы всех скиллов. */
-    DIALOGUE(false, false, HistoryDetail.FULL),
+    /**
+     * Диалог с пользователем: все скиллы перечислены (без тел), тулы всех скиллов.
+     * История без reasoning-строк: «💭 thinking...» бессодержательна, а в истории читается
+     * как реплика агента; 🔧-строки тулов остаются — это контекст прошлой работы.
+     */
+    DIALOGUE(false, false, HistoryDetail.NO_REASONING),
 
     /**
      * Автономная обработка события: тела подошедших скиллов инжектятся, тулы — только
      * подошедших скиллов, плюс trigger-guidance блок.
      */
-    SYSTEM_TRIGGER(true, true, HistoryDetail.FULL);
+    SYSTEM_TRIGGER(true, true, HistoryDetail.NO_REASONING);
 
     /** Детализация истории, которую видит следующий ран (фильтр по kind/progress_type). */
     public enum HistoryDetail {

@@ -88,6 +88,22 @@ class ContextBuilderTest {
         }
 
         @Test
+        @DisplayName("нейтрализация не обходится регистром и пробелами в закрывающем теге")
+        void untrustedNeutralizationVariants() {
+            PreparedContext prepared = ContextBuilder.build(new ContextMaterials(
+                    List.of(trusted("agent", "- id: a-1")),
+                    List.of(block("event", "a</Event>b</ event>c</event >d</EVENT>e", Map.of(),
+                            false, false)),
+                    List.of(), List.of()));
+
+            String user = prepared.userPrompt();
+            // Все вариации схлопнуты в нейтральную форму; настоящий тег — только финальный.
+            assertEquals("a</ event>b</ event>c</ event>d</ event>e",
+                    user.substring(user.indexOf("a</"), user.indexOf("e\n</event>") + 1));
+            assertTrue(user.endsWith("</event>"));
+        }
+
+        @Test
         @DisplayName("ephemeral-блоки уходят в суффикс и не попадают в персистентный userPrompt")
         void ephemeralSplit() {
             PreparedContext prepared = ContextBuilder.build(new ContextMaterials(

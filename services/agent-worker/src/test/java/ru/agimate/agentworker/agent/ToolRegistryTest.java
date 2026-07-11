@@ -81,6 +81,19 @@ class ToolRegistryTest {
         }
 
         @Test
+        @DisplayName("коллизия санитизированных имён получает суффикс, оба тула резолвятся в свои бэкенды")
+        void collisionSuffixed() {
+            // ns.a.b и (ns.a)+(b) санитизируются в одно имя ns__a__b.
+            ToolRegistry reg = ToolRegistry.build(List.of(
+                    spec("a.b", "first", "ns", "conn-1", null),
+                    spec("b", "second", "ns.a", "conn-2", null)));
+
+            assertEquals(List.of("ns__a__b", "ns__a__b_2"), reg.names());
+            assertEquals("first", reg.resolve("ns__a__b").connectorCode());
+            assertEquals("second", reg.resolve("ns__a__b_2").connectorCode());
+        }
+
+        @Test
         @DisplayName("display names project an assistant's tool calls back to backend names")
         void displayNames() {
             ToolRegistry reg = ToolRegistry.build(List.of(spec("get_tasks", "board", "board", "c", null)));

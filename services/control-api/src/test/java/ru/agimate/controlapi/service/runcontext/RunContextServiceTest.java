@@ -257,7 +257,7 @@ class RunContextServiceTest {
         }
 
         @Test
-        @DisplayName("хвост разворачивается, старые kinds маппятся на v2, пустые тексты выпадают")
+        @DisplayName("хвост разворачивается, старые kinds маппятся на v2, thinking-строки отфильтрованы (NO_REASONING)")
         void mapsHistory() {
             Agent agent = agent();
             TriggerLogAgent run = run(agent, triggerLog("time", "due"), null);
@@ -270,7 +270,7 @@ class RunContextServiceTest {
                     .thenReturn(List.of(
                             msg(ChannelSessionMessageKind.ANSWER, "ok, done", null),
                             msg(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks", "TOOL_CALL"),
-                            msg(ChannelSessionMessageKind.PROGRESS, null, "THINKING"),
+                            msg(ChannelSessionMessageKind.PROGRESS, "💭 thinking...", "THINKING"),
                             msg(ChannelSessionMessageKind.RESPONSE, "old answer", null),
                             msg(ChannelSessionMessageKind.REQUEST, "old question", null)));
 

@@ -118,7 +118,7 @@ public class AgentRunCore {
         if (exc.userNotice() != null && !exc.userNotice().isEmpty()) {
             messages.error(exc.userNotice());
         }
-        client.sendMessage(WorkerMessageType.WORKER_MESSAGE_TYPE_ERROR, exc.systemDetail());
+        sendSystemError(exc.systemDetail());
     }
 
     /** Пользовательский notice при неожиданной инфра-ошибке рана. */
@@ -136,10 +136,22 @@ public class AgentRunCore {
         } catch (Exception e) {
             log.warn("failed to send infra-error notice to the channel: {}", e.getMessage());
         }
+        sendSystemError(systemDetail);
+    }
+
+    /**
+     * Системная деталь на бэк durable-шагом (crash-replay не дублирует репорт) и best-effort:
+     * падение самого репорта не должно перекрыть исходный сбой рана. Результат шага — boolean:
+     * proto-ответ в чекпоинт класть нельзя.
+     */
+    private void sendSystemError(String detail) {
         try {
-            client.sendMessage(WorkerMessageType.WORKER_MESSAGE_TYPE_ERROR, systemDetail);
+            dbos.runStep(() -> {
+                client.sendMessage(WorkerMessageType.WORKER_MESSAGE_TYPE_ERROR, detail);
+                return true;
+            }, "report_failure");
         } catch (Exception e) {
-            log.warn("failed to report infra error to the backend: {}", e.getMessage());
+            log.warn("failed to report the failure to the backend: {}", e.getMessage());
         }
     }
 }

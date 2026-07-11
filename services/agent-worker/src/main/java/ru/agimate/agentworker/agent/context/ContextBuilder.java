@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Pure renderer of the backend-assembled context: turns ordered {@link ContextMaterials} blocks
@@ -98,8 +100,11 @@ public final class ContextBuilder {
 
     private static String renderUntrusted(PromptBlock block) {
         String tag = block.getName().isBlank() ? "untrusted_data" : block.getName();
-        // Нейтрализуем закрывающий тег внутри данных: payload не может выйти из обёртки.
-        String content = block.getContent().replace("</" + tag + ">", "</ " + tag + ">");
+        // Нейтрализуем закрывающий тег внутри данных — без учёта регистра и пробелов
+        // (</tag>, </Tag>, </ tag >): payload не может выйти из обёртки её вариациями.
+        String content = Pattern.compile("(?i)</\\s*" + Pattern.quote(tag) + "\\s*>")
+                .matcher(block.getContent())
+                .replaceAll(Matcher.quoteReplacement("</ " + tag + ">"));
         return UNTRUSTED_PREAMBLE.formatted(tag) + "\n"
                 + openTag(tag, block.getAttrsMap()) + "\n" + content + "\n</" + tag + ">";
     }

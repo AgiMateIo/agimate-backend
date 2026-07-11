@@ -2,6 +2,7 @@ package ru.agimate.agentworker.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.ToolDef;
@@ -20,6 +21,7 @@ import java.util.regex.Pattern;
  * name back to {@code (connector_code, backend name, connectionId=connection_id)} so the wire call to
  * {@code ExecuteTool} is unchanged (routing by instance connectionId).
  */
+@Slf4j
 public final class ToolRegistry {
 
     private static final Pattern UNSAFE_NAME_CHAR = Pattern.compile("[^A-Za-z0-9_-]");
@@ -54,11 +56,28 @@ public final class ToolRegistry {
         Map<String, BackendTool> map = new HashMap<>();
         for (ConnectorToolSpec spec : specs) {
             String namespace = spec.getNamespace().isBlank() ? spec.getConnectorCode() : spec.getNamespace();
-            String sanitized = sanitizeToolName(namespace + "." + spec.getName());
+            String sanitized = uniqueName(map, sanitizeToolName(namespace + "." + spec.getName()));
             map.put(sanitized, new BackendTool(spec.getConnectorCode(), spec.getName(), spec.getConnectionId()));
             defs.add(new ToolDef(sanitized, spec.getDescription(), parseToolSchema(spec)));
         }
         return new ToolRegistry(defs, map);
+    }
+
+    /**
+     * Sanitizing can collide ({@code ns.a.b} vs namespace {@code ns.a} + tool {@code b} both give
+     * {@code ns__a__b}); a silent overwrite would dispatch one tool into another's backend. Suffix
+     * the later duplicate — deterministic, the spec order is fixed by the backend.
+     */
+    private static String uniqueName(Map<String, BackendTool> taken, String sanitized) {
+        if (!taken.containsKey(sanitized)) {
+            return sanitized;
+        }
+        int n = 2;
+        while (taken.containsKey(sanitized + "_" + n)) {
+            n++;
+        }
+        log.warn("tool name collision after sanitizing: {} → {}", sanitized, sanitized + "_" + n);
+        return sanitized + "_" + n;
     }
 
     /**
