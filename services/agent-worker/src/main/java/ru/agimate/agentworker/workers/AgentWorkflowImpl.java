@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
+import ru.agimate.agentworker.grpc.ControlApiCallException;
 
 /**
  * Router: the {@code agent_runs} entry point (протокол v2). Payload несёт только
@@ -46,7 +47,8 @@ public class AgentWorkflowImpl implements AgentWorkflow {
         SlotClaim slot = dbos.runStep(
                 () -> SlotClaim.from(client.registerRun(
                         message.agentId(), message.runId(), session.getRunTtlSeconds())),
-                new StepOptions("register_run").withMaxAttempts(3));
+                new StepOptions("register_run").withMaxAttempts(3)
+                        .withShouldRetry(ControlApiCallException::retriableInStep));
 
         String partitionKey = slot.sessionKey().isBlank() ? message.runId() : slot.sessionKey();
         dbos.startWorkflow(() -> run.runAgent(message),

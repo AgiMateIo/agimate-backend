@@ -10,6 +10,7 @@ import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
+import ru.agimate.agentworker.grpc.ControlApiCallException;
 import ru.agimate.agentworker.workers.run.AgentRunCore;
 import ru.agimate.agentworker.workers.run.MessageLog;
 import ru.agimate.agentworker.workers.run.PreparedContext;
@@ -56,7 +57,8 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
             SlotClaim slot = dbos.runStep(
                     () -> SlotClaim.from(client.registerRun(
                             message.agentId(), message.runId(), session.getRunTtlSeconds())),
-                    new StepOptions("register_run").withMaxAttempts(3));
+                    new StepOptions("register_run").withMaxAttempts(3)
+                            .withShouldRetry(ControlApiCallException::retriableInStep));
             if (slot.busy()) {
                 // Anomaly: the partition queue serialized us behind the holder, yet the slot is still
                 // taken — the previous run died without releasing (slot frees on TTL). Report instead
@@ -87,7 +89,8 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
                     try {
                         // Durable step: retried on transient gRPC errors so the slot rarely leaks to TTL.
                         dbos.runStep(() -> client.releaseRun(message.agentId(), message.runId()).getReleased(),
-                                new StepOptions("release_run").withMaxAttempts(3));
+                                new StepOptions("release_run").withMaxAttempts(3)
+                                        .withShouldRetry(ControlApiCallException::retriableInStep));
                     } catch (Exception e) {
                         log.warn("releaseRun failed (TTL will reclaim): {}", e.getMessage());
                     }

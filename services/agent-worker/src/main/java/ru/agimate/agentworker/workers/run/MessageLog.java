@@ -7,6 +7,7 @@ import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.agent.MessageCodec;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
+import ru.agimate.agentworker.grpc.ControlApiCallException;
 
 /**
  * The run's single writer of dialogue events ({@code SaveMessage}): inbound ack, progress lines,
@@ -54,7 +55,8 @@ public class MessageLog {
         int n = seq++;
         boolean duplicate = dbos.runStep(
                 () -> client.saveMessage(agentId, triggerId, n, kind, progressType, text).getDuplicate(),
-                new StepOptions("save_message").withMaxAttempts(3));
+                new StepOptions("save_message").withMaxAttempts(3)
+                        .withShouldRetry(ControlApiCallException::retriableInStep));
         if (duplicate) {
             log.debug("saveMessage duplicate seq={} kind={}", n, kind);
         }

@@ -23,4 +23,14 @@ public class ControlApiCallException extends RuntimeException {
     public Status.Code code() {
         return code;
     }
+
+    /**
+     * Step-retry predicate ({@code StepOptions.withShouldRetry}) keeping the retry layers from
+     * multiplying: UNAVAILABLE is retried by {@link AgentWorkerClient} with its own ~63s backoff
+     * budget (sized to outlive a control-api restart), so a step retrying it again would wait out
+     * the whole budget per attempt. Other transient codes get the step retries.
+     */
+    public static boolean retriableInStep(Throwable t) {
+        return !(t instanceof ControlApiCallException e && e.code() == Status.Code.UNAVAILABLE);
+    }
 }

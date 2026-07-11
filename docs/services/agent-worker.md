@@ -94,6 +94,11 @@ sits below DBOS step retries and also covers the non-step call sites (inline LLM
 fetch). `ABORTED` is a business outcome and never retried; other
 statuses fail fast as `ControlApiCallException` (serializable, unlike the raw gRPC exception).
 
+Слои ретраев не умножаются: step-ретраи (`register_run`/`release_run`/`save_message`,
+maxAttempts=3) через `ControlApiCallException.retriableInStep` **не** ретраят `UNAVAILABLE` —
+его бюджет целиком принадлежит клиентскому слою (иначе каждый step-attempt ждал бы все ~63s
+заново). Step-ретраи покрывают остальные transient-коды (DEADLINE_EXCEEDED, INTERNAL, …).
+
 ## Run
 ```bash
 cd services

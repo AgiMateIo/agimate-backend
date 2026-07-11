@@ -61,8 +61,12 @@ public class DbosRuntime implements SmartLifecycle {
         // Register queues (per-worker concurrency from config). The run queue is partitioned by
         // session with concurrency=1: DBOS applies queue limits per partition, so this means
         // exactly one executing run per session across the fleet. No worker-level cap is
-        // expressible on a partitioned queue (limits are per-partition only) — per-worker load is
-        // bounded downstream by the llm/tool queues, which do the actual work.
+        // expressible on a partitioned queue (both concurrency and workerConcurrency are applied
+        // per partition — verified in QueuesDAO.startQueuedWorkflows) — per-worker load is
+        // bounded downstream by the llm/tool queues, which do the actual work. Unbounded run-stage
+        // workflows are cheap: on Java 21 DBOS executes workflows on virtual threads
+        // (newVirtualThreadPerTaskExecutor), so a run blocked awaiting its children parks a
+        // virtual thread, not a platform one; memory per run is bounded by the tool-output cap.
         AgentProperties.Concurrency c = props.getConcurrency();
         Queue agentQueue = new Queue(Queues.AGENT_QUEUE)
                 .withWorkerConcurrency(c.getAgentRuns());
