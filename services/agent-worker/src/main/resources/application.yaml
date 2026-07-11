@@ -40,6 +40,9 @@ agent:
   session:
     # TTL-страховка на слот активного рана (сек); серверный дефолт ~3600 при 0.
     run-ttl-seconds: 3600
+  tool:
+    # Бюджет ожидания результата одного тул-вызова; таймаут НЕ отменяет джобу на бэке.
+    poll-timeout: 60s
   dbos:
     app-name: "agent-worker"
     database-url: "jdbc:postgresql://localhost:5432/dbos_db"

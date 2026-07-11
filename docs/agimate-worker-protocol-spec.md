@@ -193,6 +193,7 @@ Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_id` 
 | **Usage-статистика** | Токены/модель per-turn перестали персиститься с уходом `message_json`; вернуть в `SaveMessage(ANSWER)` или отдельным reporting'ом | Аддитивные поля |
 | **historyDetail per-channel** | Сейчас — пресеты `ContextSpec` в коде (FULL); настройка на канале/агенте | Аддитивно |
 | **Лимит размера PromptBlock** | O(1)-инвариант блоков пока конвенция; ввести жёсткий лимит на бэке | Серверная валидация |
+| **Per-tool timeout** | Сейчас — глобальный `agent.tool.poll-timeout` на воркере (таймаут не отменяет джобу). Триггер: тул, которому нужно сильно больше остальных, когда поднять глобальный бюджет нельзя (зависшие тулы будут пинить слоты `tool_calls`). Тогда — поле в `ConnectorToolSpec` (декларация на `@Tool`) + отмена джобы по дедлайну на бэке; аргументы `tool_call`-workflow меняют форму → drain-деплой | Аддитивное поле proto; смена формы чекпоинта воркера |
 | **WorkflowReporting** | Structured logs / трейсы / статусы шагов | Новый сервис, аддитивно |
 | **Phase 1–3 (security)** | Per-workflow JWT (`x-workflow-token`), per-agent RBAC scope в RPC; LLM Gateway (вариант B); mTLS + Worker Registration | Аддитивно |
 

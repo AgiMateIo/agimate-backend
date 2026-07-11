@@ -7,6 +7,7 @@ import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.GetToolResultResponse;
 import ru.agimate.agentworker.ToolResultStatus;
+import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
 import java.nio.charset.StandardCharsets;
@@ -17,20 +18,25 @@ import java.nio.charset.StandardCharsets;
  * back in {@link Outcome#error()} so DBOS does not log them as workflow exceptions. The
  * {@code toolCallId} arrives as a workflow argument (identical across replays), so replays issue
  * the same {@code ExecuteToolAsync} and poll the same id.
+ *
+ * <p>The poll budget ({@code agent.tool.poll-timeout}) bounds waiting only — it does not cancel
+ * the backend job, so a timed-out tool may still complete and apply its effects. The timeout
+ * message says so explicitly: the model must check state before retrying a non-idempotent tool.
  */
 @Slf4j
 @WorkflowClassName(Queues.TOOL_CLASS)
 public class ToolCallWorkflowImpl implements ToolCallWorkflow {
 
     private static final long POLL_INTERVAL_MS = 500;
-    private static final long POLL_TIMEOUT_MS = 60_000;
 
     private final AgentWorkerClient client;
     private final DBOS dbos;
+    private final long pollTimeoutMs;
 
-    public ToolCallWorkflowImpl(AgentWorkerClient client, DBOS dbos) {
+    public ToolCallWorkflowImpl(AgentWorkerClient client, DBOS dbos, AgentProperties.Tool tool) {
         this.client = client;
         this.dbos = dbos;
+        this.pollTimeoutMs = tool.getPollTimeout().toMillis();
     }
 
     @Override
@@ -53,7 +59,7 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
                                      String toolCallId, String connectionId, String agentId, String triggerId) {
         client.executeToolAsync(toolCallId, connectorCode, connectionId, toolName,
                 argsJson.getBytes(StandardCharsets.UTF_8), agentId, triggerId);
-        long deadline = System.currentTimeMillis() + POLL_TIMEOUT_MS;
+        long deadline = System.currentTimeMillis() + pollTimeoutMs;
         while (true) {
             GetToolResultResponse result = client.getToolResult(agentId, toolCallId);
             if (result.getStatus() == ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS) {
@@ -66,8 +72,10 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
                         + (err.isBlank() ? "no error message" : err));
             }
             if (System.currentTimeMillis() > deadline) {
-                throw new IllegalStateException("tool " + toolName + " (id=" + toolCallId + ") timed out after "
-                        + (POLL_TIMEOUT_MS / 1000) + "s");
+                throw new IllegalStateException("tool " + toolName + " (id=" + toolCallId
+                        + ") did not finish within " + (pollTimeoutMs / 1000) + "s; the call was NOT"
+                        + " cancelled and may still complete with its effects applied — verify the"
+                        + " current state before retrying");
             }
             try {
                 Thread.sleep(POLL_INTERVAL_MS);

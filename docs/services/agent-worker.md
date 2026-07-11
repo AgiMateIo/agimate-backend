@@ -48,8 +48,8 @@ The package root is what DBOS sees: the four workflow pairs and `Queues`. The ru
 `ContextBuilder.build` render → `PreparedContext`), the loop, and failure reporting — delegating the
 distinct concerns to collaborators: `MessageLog` (the run's single writer of dialogue events —
 inbound ack, progress, answer, error — one `save_message` durable step per event with a
-deterministic per-run `seq`, so replays dedupe backend-side), `ControlMailbox` (steer/interrupt
-drain), and `LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared
+deterministic per-run `seq`, so replays dedupe backend-side) and
+`LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared
 `WorkflowHandles` await). History arrives pre-assembled in `PreparedContext.history`
 (backend window/filter, completed runs only); delivery and persistence are backend projections
 of `SaveMessage` — the worker no longer routes channels. `PreparedContext` stays in `workers/run` — its FQCN is pinned by the DBOS
@@ -77,7 +77,9 @@ addresses).
 Bound from `application.yaml` under `agent.*`; every value is overridable via env (relaxed
 binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example`. Key sections:
 `grpc` (target/tls/auth-token), `agent` (id/workflow-id), `concurrency` (agent-runs/llm/tool),
-`session` (run-ttl-seconds), `dbos` (system database — must match control-api's).
+`session` (run-ttl-seconds), `tool` (poll-timeout — бюджет ожидания результата тул-вызова; таймаут
+не отменяет джобу на бэке, модель получает явное «could still complete»), `dbos` (system database —
+must match control-api's).
 
 The worker owns the DBOS system-schema migrations (`withMigrate(true)` in `DbosRuntime`): on a
 `dev.dbos:transact` upgrade start the worker before control-api, whose `DBOSClient` does not

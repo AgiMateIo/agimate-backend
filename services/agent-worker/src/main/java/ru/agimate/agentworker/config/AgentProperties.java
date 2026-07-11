@@ -24,6 +24,7 @@ public class AgentProperties {
     private Concurrency concurrency = new Concurrency();
     private App app = new App();
     private Session session = new Session();
+    private Tool tool = new Tool();
     private Dbos dbos = new Dbos();
 
     /** gRPC channel to control-api's worker protocol (:9091, TLS). */
@@ -80,6 +81,18 @@ public class AgentProperties {
     public static class Session {
         /** TTL backstop on the active-run slot; server default (~3600s) when 0. */
         private int runTtlSeconds = 3600;
+    }
+
+    /** Параметры выполнения бэкенд-тулов. */
+    @Getter
+    @Setter
+    public static class Tool {
+        /**
+         * Poll budget for one backend tool call ({@code GetToolResult}); a tool that has not
+         * finished within it is reported to the model as failed (the backend job may still
+         * complete — the timeout does not cancel it).
+         */
+        private Duration pollTimeout = Duration.ofSeconds(60);
     }
 
     /**
