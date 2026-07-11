@@ -32,11 +32,13 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
     private final AgentWorkerClient client;
     private final DBOS dbos;
     private final long pollTimeoutMs;
+    private final int maxOutputChars;
 
     public ToolCallWorkflowImpl(AgentWorkerClient client, DBOS dbos, AgentProperties.Tool tool) {
         this.client = client;
         this.dbos = dbos;
         this.pollTimeoutMs = tool.getPollTimeout().toMillis();
+        this.maxOutputChars = tool.getMaxOutputChars();
     }
 
     @Override
@@ -64,7 +66,7 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
             GetToolResultResponse result = client.getToolResult(agentId, toolCallId);
             if (result.getStatus() == ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS) {
                 ByteString out = result.getOutputJson();
-                return out.isEmpty() ? "" : out.toStringUtf8();
+                return out.isEmpty() ? "" : truncateOutput(out.toStringUtf8(), maxOutputChars);
             }
             if (result.getStatus() == ToolResultStatus.TOOL_RESULT_STATUS_ERROR) {
                 String err = result.getError();
@@ -84,5 +86,26 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
                 throw new IllegalStateException("interrupted while polling tool " + toolName, ie);
             }
         }
+    }
+
+    /**
+     * Cut a giant tool output down to {@code maxChars} with an explicit marker: the output rides
+     * in the model context of every following turn and in each {@code llm_call} checkpoint, so an
+     * unbounded one (a wide SELECT, a dumped file) inflates the whole rest of the run. Truncated
+     * inside the durable step — the checkpointed outcome is already bounded. The cut result is no
+     * longer valid JSON; the model reads it as text, the marker says what happened.
+     */
+    static String truncateOutput(String output, int maxChars) {
+        if (output.length() <= maxChars) {
+            return output;
+        }
+        int cut = maxChars;
+        // Не рвать суррогатную пару UTF-16 посередине.
+        if (Character.isHighSurrogate(output.charAt(cut - 1))) {
+            cut--;
+        }
+        return output.substring(0, cut)
+                + "\n…[tool output truncated by worker: " + output.length()
+                + " chars total, first " + cut + " shown]";
     }
 }

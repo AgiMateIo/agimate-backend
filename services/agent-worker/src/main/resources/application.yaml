@@ -43,6 +43,8 @@ agent:
   tool:
     # Бюджет ожидания результата одного тул-вызова; таймаут НЕ отменяет джобу на бэке.
     poll-timeout: 60s
+    # Потолок вывода одного тула (в символах); длиннее — обрезается с явной пометкой.
+    max-output-chars: 64000
   dbos:
     app-name: "agent-worker"
     database-url: "jdbc:postgresql://localhost:5432/dbos_db"

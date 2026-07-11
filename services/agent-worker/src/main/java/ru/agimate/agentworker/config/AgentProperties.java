@@ -93,6 +93,12 @@ public class AgentProperties {
          * complete — the timeout does not cancel it).
          */
         private Duration pollTimeout = Duration.ofSeconds(60);
+        /**
+         * Cap on one tool output, in chars; longer output is cut with an explicit truncation
+         * marker. Bounds both the model context (the output rides in every following turn) and
+         * the DBOS checkpoints (tool outcome + each {@code llm_call} child input).
+         */
+        private int maxOutputChars = 64_000;
     }
 
     /**
