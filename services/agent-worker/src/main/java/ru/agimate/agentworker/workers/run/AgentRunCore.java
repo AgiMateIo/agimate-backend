@@ -120,4 +120,26 @@ public class AgentRunCore {
         }
         client.sendMessage(WorkerMessageType.WORKER_MESSAGE_TYPE_ERROR, exc.systemDetail());
     }
+
+    /** Пользовательский notice при неожиданной инфра-ошибке рана. */
+    static final String INFRA_ERROR_NOTICE =
+            "Извини, произошла внутренняя ошибка при обработке сообщения — попробуй ещё раз чуть позже.";
+
+    /**
+     * Best-effort report of an unexpected infra failure before the workflow goes to ERROR. The
+     * likely cause is control-api being unreachable, so either send may fail as well — both are
+     * swallowed so the original exception (rethrown by the caller) stays the recorded failure.
+     */
+    public void reportInfraFailure(MessageLog messages, String systemDetail) {
+        try {
+            messages.error(INFRA_ERROR_NOTICE);
+        } catch (Exception e) {
+            log.warn("failed to send infra-error notice to the channel: {}", e.getMessage());
+        }
+        try {
+            client.sendMessage(WorkerMessageType.WORKER_MESSAGE_TYPE_ERROR, systemDetail);
+        } catch (Exception e) {
+            log.warn("failed to report infra error to the backend: {}", e.getMessage());
+        }
+    }
 }

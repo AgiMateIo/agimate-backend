@@ -93,7 +93,9 @@ public class PersistentMemoryService {
         PersistentMemoryCold cold = coldRepository.findByScopeId(scopeId).orElse(null);
         if (cold == null) {
             if (expectedVersion != null && expectedVersion != 0) {
-                throw new ConnectorException("Memory changed: re-read it via get_memory and retry");
+                throw new ConnectorException("Version conflict: you passed version " + expectedVersion
+                        + " but no consolidated memory exists yet (it may have been reset). Call get_memory "
+                        + "to check, then call update_memory omitting version (or version 0) to create it.");
             }
             coldRepository.save(PersistentMemoryCold.builder()
                     .scopeId(scopeId)
@@ -108,7 +110,10 @@ public class PersistentMemoryService {
             }
             int updated = coldRepository.casUpdate(scopeId, content, expectedVersion);
             if (updated == 0) {
-                throw new ConnectorException("Memory changed: re-read it via get_memory and retry");
+                throw new ConnectorException("Version conflict: your version " + expectedVersion
+                        + " is stale — the memory was updated since your last get_memory. Call get_memory to "
+                        + "get the current version and content, re-apply your changes on top, then call "
+                        + "update_memory again with the new version.");
             }
         }
         if (consolidationId != null) {

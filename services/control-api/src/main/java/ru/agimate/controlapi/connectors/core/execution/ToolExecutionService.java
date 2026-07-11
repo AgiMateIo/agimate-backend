@@ -64,11 +64,16 @@ public class ToolExecutionService {
             deliver(toolCallLog, JsonUtils.writeValueAsString(result), null);
             log.debug("Executed tool '{}.{}'",
                     toolCallLog.getConnectorCode(), toolCallLog.getName());
+        } catch (ConnectorException e) {
+            // Ожидаемый сбой с безопасным сообщением (валидация, CAS-конфликт, нет connection, …) — отдаём агенту как есть
+            log.warn("Tool '{}.{}' failed: {}",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName(), e.getMessage());
+            deliver(toolCallLog, null, e.getMessage());
         } catch (Exception e) {
+            // Непредвиденный сбой — сохраняем стектрейс в логе, агенту прячем детали
             log.error("Failed to execute '{}.{}'",
-                    toolCallLog.getConnectorCode(), toolCallLog.getName());
-            String error = e instanceof ConnectorException ? e.getMessage() : "Tool execution failed";
-            deliver(toolCallLog, null, error);
+                    toolCallLog.getConnectorCode(), toolCallLog.getName(), e);
+            deliver(toolCallLog, null, "Tool execution failed");
         }
     }
 

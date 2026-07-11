@@ -74,6 +74,14 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
             } catch (AgentRunAborted e) {
                 log.warn(e.systemDetail());
                 core.reportFailure(messages, e);
+            } catch (Exception e) {
+                // Инфра-ошибка (исчерпанные ретраи шага и т.п.): workflow уйдёт в ERROR —
+                // терминально, recovery переигрывает только PENDING. Best-effort notice, чтобы
+                // пользователь не остался в тишине, затем rethrow — статус ERROR сохраняем.
+                core.reportInfraFailure(messages,
+                        "agent run infra failure: agent_id=" + message.agentId()
+                        + " run=" + message.runId() + ": " + e);
+                throw e;
             } finally {
                 if (hasSession) {
                     try {
