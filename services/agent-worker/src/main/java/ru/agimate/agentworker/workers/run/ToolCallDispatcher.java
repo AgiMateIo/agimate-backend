@@ -12,6 +12,7 @@ import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -51,9 +52,7 @@ class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
         List<Pending> pending = new ArrayList<>(calls.size());
         for (AgentChatMessage.ToolCall tc : calls) {
             // OpenAI always emits a tool_call_id; the fallback covers OpenAI-shim providers
-            // (e.g. some Ollama configurations) that occasionally drop it. Generated before the
-            // child enqueue, so the checkpoint pins the same id across DBOS replays and the
-            // backend's (agent_id, tool_call_id) dedupe key stays unique.
+            // (e.g. some Ollama configurations) that occasionally drop it.
             String toolCallId = effectiveToolCallId(tc.id());
             ToolRegistry.BackendTool bt = registry.resolve(tc.name());
             if (bt == null) {
@@ -86,9 +85,21 @@ class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
         return results;
     }
 
-    /** The LLM-emitted id, or a generated UUID when the provider dropped it. */
-    static String effectiveToolCallId(String id) {
-        return (id == null || id.isBlank()) ? UUID.randomUUID().toString() : id;
+    /** Счётчик сгенерированных fallback-id; детерминирован порядком вызовов внутри рана. */
+    private int generatedIdSeq = 0;
+
+    /**
+     * The LLM-emitted id, or a deterministic fallback when the provider dropped it. The fallback
+     * derives from the run id and a per-run counter — never random: the workflow body re-executes
+     * on a DBOS crash-replay, and the id must stay the one the backend already executed (and
+     * deduped) the call under.
+     */
+    String effectiveToolCallId(String id) {
+        if (id != null && !id.isBlank()) {
+            return id;
+        }
+        return UUID.nameUUIDFromBytes(("agimate-toolcall:" + triggerId + ":" + generatedIdSeq++)
+                .getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private static AgentChatMessage.ToolResult failed(AgentChatMessage.ToolCall tc, String toolCallId, String error) {

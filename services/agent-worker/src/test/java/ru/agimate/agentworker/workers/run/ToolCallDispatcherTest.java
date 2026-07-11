@@ -6,18 +6,39 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ToolCallDispatcherTest {
 
+    private static ToolCallDispatcher dispatcher(String triggerId) {
+        return new ToolCallDispatcher(null, null, null, "agent-1", triggerId, null);
+    }
+
     @Test
-    @DisplayName("effectiveToolCallId keeps a provider id and generates a UUID for null/blank")
-    void toolCallIdFallback() {
-        assertEquals("call_123", ToolCallDispatcher.effectiveToolCallId("call_123"));
-        String generated = ToolCallDispatcher.effectiveToolCallId(null);
-        assertFalse(generated.isBlank());
-        assertFalse(ToolCallDispatcher.effectiveToolCallId("  ").isBlank());
+    @DisplayName("effectiveToolCallId keeps a provider id as is")
+    void toolCallIdKeepsProviderId() {
+        assertEquals("call_123", dispatcher("run-1").effectiveToolCallId("call_123"));
+    }
+
+    @Test
+    @DisplayName("fallback id детерминирован: тот же ран и порядок → те же id (crash-replay)")
+    void toolCallIdFallbackDeterministic() {
+        ToolCallDispatcher first = dispatcher("run-1");
+        ToolCallDispatcher replay = dispatcher("run-1");
+        assertEquals(first.effectiveToolCallId(null), replay.effectiveToolCallId(null));
+        assertEquals(first.effectiveToolCallId("  "), replay.effectiveToolCallId("  "));
+    }
+
+    @Test
+    @DisplayName("fallback id уникален внутри рана и между ранами")
+    void toolCallIdFallbackUnique() {
+        ToolCallDispatcher run1 = dispatcher("run-1");
+        String a = run1.effectiveToolCallId(null);
+        String b = run1.effectiveToolCallId(null);
+        assertNotEquals(a, b);
+        assertNotEquals(a, dispatcher("run-2").effectiveToolCallId(null));
+        assertTrue(!a.isBlank());
     }
 
     @Test
