@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
@@ -16,12 +17,15 @@ import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.runcontext.RunBlock;
 import ru.agimate.controlapi.service.runcontext.RunContextService;
 import ru.agimate.controlapi.service.runcontext.RunContextView;
+import ru.agimate.controlapi.service.runcontext.RunHistoryMessage;
 import ru.agimate.controlapi.service.runcontext.RunTool;
 import ru.agimate.agentworker.AgentContextGrpc;
 import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetRunContextRequest;
+import ru.agimate.agentworker.HistoryMessage;
 import ru.agimate.agentworker.LlmCredentials;
+import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.PromptBlock;
 import ru.agimate.agentworker.RunContext;
 import ru.agimate.agentworker.ToolAnnotations;
@@ -62,6 +66,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             view.systemBlocks().forEach(b -> builder.addSystemBlocks(toProto(b)));
             view.userBlocks().forEach(b -> builder.addUserBlocks(toProto(b)));
             view.tools().forEach(t -> builder.addTools(toProto(t)));
+            view.history().forEach(h -> builder.addHistory(toProto(h)));
 
             log.debug("issued RunContext pool={} agent={} trigger={}", poolId, agentId, triggerId);
             responseObserver.onNext(builder.build());
@@ -71,6 +76,23 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                     poolId, request.getAgentId(), request.getTriggerId(), e);
             handleError(e, responseObserver);
         }
+    }
+
+    private static HistoryMessage toProto(RunHistoryMessage message) {
+        return HistoryMessage.newBuilder()
+                .setKind(toProto(message.kind()))
+                .setText(nullToEmpty(message.text()))
+                .build();
+    }
+
+    private static MessageKind toProto(ChannelSessionMessageKind kind) {
+        return switch (kind) {
+            // Дореформенные kinds сервис уже маппит на v2; ветки здесь — на случай пропуска.
+            case INBOUND, REQUEST -> MessageKind.MESSAGE_KIND_INBOUND;
+            case PROGRESS -> MessageKind.MESSAGE_KIND_PROGRESS;
+            case ANSWER, RESPONSE -> MessageKind.MESSAGE_KIND_ANSWER;
+            case ERROR -> MessageKind.MESSAGE_KIND_ERROR;
+        };
     }
 
     private static PromptBlock toProto(RunBlock block) {
