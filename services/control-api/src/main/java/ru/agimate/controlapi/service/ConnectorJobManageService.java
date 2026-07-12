@@ -19,6 +19,7 @@ import ru.agimate.controlapi.database.repositories.ConnectorJobRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorJobSpecs;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -49,6 +50,16 @@ public class ConnectorJobManageService {
         PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE),
                 Sort.by("nextRunAt").ascending());
         return connectorJobRepository.findAll(spec, pageRequest).map(ConnectorJobResponse::from);
+    }
+
+    /** Все задачи конкретного экземпляра коннектора (owned). Инстансы, не декларации. */
+    public List<ConnectorJobResponse> getConnectionJobs(UUID userId, UUID connectionId) {
+        Specification<ConnectorJob> spec = ConnectorJobSpecs.ownedBy(userId)
+                .and(ConnectorJobSpecs.hasConnection(connectionId.toString()));
+        return connectorJobRepository.findAll(spec, Sort.by("nextRunAt").ascending())
+                .stream()
+                .map(ConnectorJobResponse::from)
+                .toList();
     }
 
     @Transactional

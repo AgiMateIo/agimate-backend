@@ -46,9 +46,10 @@ public class ToolDefinitionService {
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
         return switch (connector.getToolBinding()) {
+            // STATIC без ToolProvider — легальный «канальный» коннектор без тулов (webchat/acp): пустой набор.
             case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
-                    .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
-                    .getTools(ConnectorEnvFactory.listing(connectionId));
+                    .map(provider -> provider.getTools(ConnectorEnvFactory.listing(connectionId)))
+                    .orElseGet(Map::of);
             case DYNAMIC -> dynamicTools(userId, connectionId);
             case null -> throw new BadRequestStatusException(
                     "Connector does not expose tool definitions: " + connectorCode);
@@ -69,8 +70,8 @@ public class ToolDefinitionService {
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
         return switch (connector.getToolBinding()) {
             case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
-                    .orElseThrow(() -> new BadRequestStatusException("Unsupported connector: " + connectorCode))
-                    .getTools(ConnectorEnvFactory.listing(null));
+                    .map(provider -> provider.getTools(ConnectorEnvFactory.listing(null)))
+                    .orElseGet(Map::of);
             case DYNAMIC -> Map.of();
             case null -> throw new BadRequestStatusException(
                     "Connector does not expose tool definitions: " + connectorCode);

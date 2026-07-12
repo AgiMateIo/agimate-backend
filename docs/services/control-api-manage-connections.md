@@ -279,11 +279,99 @@ List tools available for a specific connection instance, resolved via the connec
 
 Each entry is a `ConnectorToolSpec` (MCP-compatible): `name`, optional `title`/`description`, `inputSchema` and `outputSchema` (JSON Schema built by reflection), `annotations` (MCP behavioural hints), and optional `_meta`. Fields are omitted when null/empty.
 
+A channel-only connector (e.g. `webchat`) that exposes no tools returns an empty list — not an error.
+
 **Errors:**
 
 | Status | Condition |
 |--------|-----------|
-| 400 | No connector handler registered for the connection's `connectorCode` |
+| 400 | Connector has no tool binding at all (misconfigured metadata) |
+| 404 | Connection not found or not owned by caller |
+
+---
+
+### GET `/control/manage/connections/{connectionId}/triggers/`
+
+List triggers available for a specific connection instance. The result **merges** two sources, so different connections of the same connector can expose different trigger sets:
+
+- **Type-declared:** the connector type's static `TriggerProvider.getTriggers()` specs (e.g. `webchat` → `message_received`, `persist-memory` → `notes-by-session`/`consolidate`).
+- **Dynamic instance triggers:** rows in `connection_triggers` registered per connection at link time (device-apps). A dynamic trigger with the same `name` overrides the type-declared one.
+
+**Path parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `connectionId` | `UUID` | Connection public ID |
+
+**Response `200`:**
+```json
+{
+  "response": [
+    {
+      "name": "message_received",
+      "description": "Message from the user typed in the web chat",
+      "params": ["sessionId", "messageId", "text"]
+    }
+  ]
+}
+```
+
+Each entry is a `TriggerSpecificationResponse`: `name`, `description`, and `params` (available parameter names delivered in `trigger.data`). For dynamic triggers, `params` is derived best-effort from the top-level `properties` of the trigger's stored JSON Schema. A connector with no triggers returns an empty list.
+
+**Errors:**
+
+| Status | Condition |
+|--------|-----------|
+| 404 | Connection not found or not owned by caller |
+
+---
+
+### GET `/control/manage/connections/{connectionId}/jobs/`
+
+List the background jobs materialized for this connection (`connector_jobs` rows), ordered by `nextRunAt` ascending. Unlike tools/triggers (which are capability **specs**), jobs are **runtime instances** with scheduler state and a lifecycle.
+
+Lifecycle actions stay on the dedicated jobs controller, keyed by the job `id` from this list:
+- `POST /control/manage/connector-jobs/{id}/pause`
+- `POST /control/manage/connector-jobs/{id}/resume`
+- `POST /control/manage/connector-jobs/{id}/run-now`
+- `DELETE /control/manage/connector-jobs/{id}` (USER/AGENT jobs only; SYSTEM jobs are connector-managed)
+
+**Path parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `connectionId` | `UUID` | Connection public ID |
+
+**Response `200`:**
+```json
+{
+  "response": [
+    {
+      "id": "0190aa...",
+      "kind": "SYSTEM",
+      "connectorCode": "persist-memory",
+      "connectionId": "038b756a-1d3c-8fda-b852-f4dc0ceb5c34",
+      "agentId": null,
+      "name": "consolidate",
+      "type": "CRON",
+      "config": { "cron": "0 3 * * *", "zone": "UTC" },
+      "args": {},
+      "status": "PENDING",
+      "nextRunAt": "2026-07-13T03:00:00",
+      "pausedAt": null,
+      "lastError": null,
+      "createdAt": "2026-07-12T20:00:00"
+    }
+  ]
+}
+```
+
+Each entry is a `ConnectorJobResponse`. `kind`: `SYSTEM` (declared by the connector, cannot be deleted — pause instead), `USER`, or `AGENT`. A `pausedAt != null` means the scheduler skips it until resumed. Returns an empty list if the connection has no jobs.
+
+**Errors:**
+
+| Status | Condition |
+|--------|-----------|
 | 404 | Connection not found or not owned by caller |
 
 ---
@@ -408,14 +496,14 @@ List the predefined tools for an integration connector type (from its static `@T
 
 | Status | Condition |
 |--------|-----------|
-| 400 | `code` does not reference an integration connector, or no handler is registered |
+| 400 | Connector has no tool binding at all (misconfigured metadata) |
 | 404 | Connector not found in catalog |
 
 ---
 
 ### GET `/control/manage/connectors/{code}/triggers/`
 
-List the predefined triggers for an integration connector type.
+List the type-declared triggers for a connector **type** (any connector implementing `TriggerProvider`, integration or internal — e.g. `webchat`, `persist-memory`). Returns an empty list for a connector type with no triggers. This is catalog/type-level only; for the triggers actually available on a specific connection instance (which additionally includes dynamic per-connection triggers), use `GET /control/manage/connections/{connectionId}/triggers/`.
 
 **Path parameters:**
 
@@ -448,8 +536,7 @@ List the predefined triggers for an integration connector type.
 
 | Status | Condition |
 |--------|-----------|
-| 400 | `code` does not reference an integration connector, or no handler is registered |
-| 404 | Connector not found in catalog |
+| 404 | No connector handler registered for `code` |
 
 ---
 

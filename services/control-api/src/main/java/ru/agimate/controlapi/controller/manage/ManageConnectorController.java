@@ -12,22 +12,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
-import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
-import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
-import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.controller.manage.dto.ConnectorResponse;
 import ru.agimate.controlapi.controller.manage.dto.IntegrationMeta;
 import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
+import ru.agimate.controlapi.service.trigger.TriggerDefinitionService;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping(ManageConnectorController.PATH)
@@ -40,6 +36,7 @@ public class ManageConnectorController {
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ToolDefinitionService toolDefinitionService;
+    private final TriggerDefinitionService triggerDefinitionService;
 
     @Operation(summary = "List available connectors with optional full-text search")
     @GetMapping("/")
@@ -78,21 +75,11 @@ public class ManageConnectorController {
         return SuccessResponse.ok(toolDefinitionService.getCatalogTool(code, toolName));
     }
 
-    @Operation(summary = "List predefined triggers exposed by an integration connector type")
+    @Operation(summary = "List type-level triggers declared by a connector type (empty if it has none); "
+            + "instance triggers live under /manage/connections/{id}/triggers/")
     @GetMapping("/{code}/triggers/")
     public SuccessResponse<List<TriggerSpecificationResponse>> getTriggers(@PathVariable String code) {
-        IntegrationConnectorHandler handler = integrationHandler(code);
-        Map<String, TriggerSpec> triggers = handler instanceof TriggerProvider provider
-                ? provider.getTriggers()
-                : Map.of();
-        return SuccessResponse.ok(triggers.entrySet().stream()
-                .map(e -> TriggerSpecificationResponse.from(e.getKey(), e.getValue()))
-                .toList());
-    }
-
-    private IntegrationConnectorHandler integrationHandler(String code) {
-        return connectorRegistry.findIntegrationHandler(code)
-                .orElseThrow(() -> new BadRequestStatusException("Connector is not an integration: " + code));
+        return SuccessResponse.ok(triggerDefinitionService.getCatalogTriggers(code));
     }
 
     private ConnectorResponse toResponse(Connector connector) {

@@ -15,14 +15,18 @@ import ru.agimate.controlapi.connectors.integrations.mcp.McpToolService;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.controller.manage.dto.ConnectionResponse;
 import ru.agimate.controlapi.controller.manage.dto.ConnectionTestResponse;
+import ru.agimate.controlapi.controller.manage.dto.ConnectorJobResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateConnectionRequest;
+import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateConnectionRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateConnectionSecretRequest;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.enums.IdentityScope;
+import ru.agimate.controlapi.service.ConnectorJobManageService;
 import ru.agimate.controlapi.service.connection.ConnectionService;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
+import ru.agimate.controlapi.service.trigger.TriggerDefinitionService;
 
 import java.util.List;
 import java.util.UUID;
@@ -37,6 +41,8 @@ public class ManageConnectionController {
 
     private final ConnectionService connectionService;
     private final ToolDefinitionService toolDefinitionService;
+    private final TriggerDefinitionService triggerDefinitionService;
+    private final ConnectorJobManageService connectorJobManageService;
     private final McpToolService mcpToolService;
 
     @Operation(summary = "List the user's connections, filtered by connector code / scope / enabled")
@@ -121,6 +127,29 @@ public class ManageConnectionController {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(
                 toolDefinitionService.getConnectionTools(userId, connectionId).values().stream().toList());
+    }
+
+    @Operation(summary = "List triggers of a connection: type-declared specs merged with "
+            + "dynamic instance triggers (device-apps)")
+    @GetMapping("/{connectionId}/triggers/")
+    public SuccessResponse<List<TriggerSpecificationResponse>> listTriggers(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID connectionId
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(triggerDefinitionService.getConnectionTriggers(userId, connectionId));
+    }
+
+    @Operation(summary = "List background jobs materialized for this connection (connector_jobs rows). "
+            + "Lifecycle actions (pause/resume/run-now/delete) live on /manage/connector-jobs/{id}")
+    @GetMapping("/{connectionId}/jobs/")
+    public SuccessResponse<List<ConnectorJobResponse>> listJobs(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID connectionId
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        connectionService.getOwnedConnection(connectionId, userId); // 404, если коннекшен чужой/не найден
+        return SuccessResponse.ok(connectorJobManageService.getConnectionJobs(userId, connectionId));
     }
 
     @Operation(summary = "Test a connection: validate credentials (all types) and reload tools (MCP)")
