@@ -2,17 +2,22 @@ package ru.agimate.controlapi.connectors.internal.acp;
 
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.ToolBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
 import ru.agimate.controlapi.database.model.ConnectorCapabilities;
+import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Фасад ACP-коннектора (Agent Client Protocol): диалог с агентом из IDE (Zed и другие
@@ -27,6 +32,12 @@ import java.util.Map;
  * <p>Тулы IDE ({@link AcpToolService}: read_file/write_file/run_command) исполняются обратным
  * JSON-RPC в живое соединение сессии — {@code ToolBinding.STATIC}, {@code ExecutionLocus.BACKEND}
  * (control-api диспатчит вызов, но само действие делает клиент).
+ *
+ * <p>Плюс session-scoped MCP-тулы, проброшенные из IDE (мост поднял MCP-серверы Zed и сделал
+ * {@code tools/list}): в контекст рана они подмешиваются через {@link #getTools(ConnectorEnv)}
+ * (фиксированные + {@code AcpSessionRegistry.mcpToolSpecs(sessionId)}), а исполняются через
+ * {@link #executeTool} обратным {@code mcp/call_tool} ({@link AcpToolService#callMcpTool}). ABAC
+ * применяется к ним по имени как к любым тулам коннектора (default-allow, DENY-политикой можно закрыть).
  */
 @Component
 public class AcpConnectorService extends BaseConnectorHandler
@@ -35,8 +46,39 @@ public class AcpConnectorService extends BaseConnectorHandler
     public static final String CONNECTOR_CODE = "acp";
     public static final String TRIGGER_MESSAGE_RECEIVED = "message_received";
 
-    public AcpConnectorService(AcpToolService toolService) {
+    private final AcpToolService acpToolService;
+    private final AcpSessionRegistry sessionRegistry;
+
+    public AcpConnectorService(AcpToolService toolService, AcpSessionRegistry sessionRegistry) {
         super(toolService);
+        this.acpToolService = toolService;
+        this.sessionRegistry = sessionRegistry;
+    }
+
+    /** Фиксированные тулы (read_file/write_file/run_command) + session-scoped MCP-тулы этой IDE-сессии. */
+    @Override
+    public Map<String, ConnectorToolSpec> getTools(ConnectorEnv env) {
+        Map<String, ConnectorToolSpec> fixed = getTools();
+        UUID sessionId = env.sessionId();
+        if (sessionId == null) {
+            return fixed;
+        }
+        Map<String, ConnectorToolSpec> mcp = sessionRegistry.mcpToolSpecs(sessionId);
+        if (mcp.isEmpty()) {
+            return fixed;
+        }
+        Map<String, ConnectorToolSpec> merged = new LinkedHashMap<>(fixed);
+        merged.putAll(mcp);
+        return merged;
+    }
+
+    /** Фиксированный @Tool → reflection-диспатч базы; иначе — MCP-тул сессии → обратный mcp/call_tool. */
+    @Override
+    public Map<String, Object> executeTool(ConnectorEnv env, String toolName, Map<String, Object> args) {
+        if (getTools().containsKey(toolName)) {
+            return super.executeTool(env, toolName, args);
+        }
+        return acpToolService.callMcpTool(env.sessionId(), toolName, args);
     }
 
     @Override

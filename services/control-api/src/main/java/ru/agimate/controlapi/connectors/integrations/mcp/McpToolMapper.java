@@ -35,6 +35,21 @@ public class McpToolMapper {
                 .build();
     }
 
+    /**
+     * Сырой JSON тула ({@code tools/list[]}) → спек с заданным (неймспейс-)именем, без похода в кэш.
+     * Для session-scoped MCP-тулов, проброшенных из IDE (не персистятся в {@code connection_tools}).
+     */
+    public static ConnectorToolSpec toSpec(String name, JsonNode tool) {
+        return new ConnectorToolSpec(
+                name,
+                textOrNull(tool.get("title")),
+                textOrNull(tool.get("description")),
+                parseSchemaNode(tool.get("inputSchema")),
+                parseSchemaNode(tool.get("outputSchema")),
+                parseAnnotationsNode(tool.get("annotations")),
+                null);
+    }
+
     /** Строка кэша → MCP-совместимый спек для воркера/UI. */
     public static ConnectorToolSpec toSpec(ConnectionTool tool) {
         return new ConnectorToolSpec(
@@ -53,6 +68,28 @@ public class McpToolMapper {
         }
         try {
             return JsonUtils.MAPPER.readValue(raw, JsonSchema.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static JsonSchema parseSchemaNode(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        try {
+            return JsonUtils.MAPPER.convertValue(node, JsonSchema.class);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static ToolAnnotationsSpec parseAnnotationsNode(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        try {
+            return JsonUtils.MAPPER.convertValue(node, ToolAnnotationsSpec.class);
         } catch (Exception e) {
             return null;
         }

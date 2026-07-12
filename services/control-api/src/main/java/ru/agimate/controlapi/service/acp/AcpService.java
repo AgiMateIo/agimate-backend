@@ -86,6 +86,12 @@ public class AcpService {
         return channelSessionMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
     }
 
+    /** Проверка владения без загрузки истории — восстановление привязки после реконнекта моста. */
+    @Transactional(readOnly = true)
+    public void assertOwned(UUID userId, UUID agentId, UUID sessionId) {
+        requireOwnedAcpSession(userId, agentId, sessionId);
+    }
+
     /**
      * Принять сообщение пользователя из IDE: штатный триггер-пайплайн (синхронно — ошибки
      * маршрутизации видны клиенту сразу). Не транзакционно: DBOS-enqueue внутри роутера не

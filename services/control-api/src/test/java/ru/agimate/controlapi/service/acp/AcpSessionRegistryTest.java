@@ -211,4 +211,47 @@ class AcpSessionRegistryTest {
             assertTrue(registry.capabilities(UUID.randomUUID()) == AcpSessionRegistry.ClientCapabilities.NONE);
         }
     }
+
+    @Nested
+    @DisplayName("session MCP-тулы")
+    class McpTools {
+
+        private final ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec spec =
+                new ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec(
+                        "srv__t", null, "d", null, null, null, null);
+
+        @Test
+        @DisplayName("putMcpTools кладёт спеки и ссылки, доступные по имени")
+        void storeAndLookup() {
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.putMcpTools(SESSION_ID, Map.of("srv__t", spec),
+                    Map.of("srv__t", new AcpSessionRegistry.McpToolRef("srv", "t")));
+
+            assertTrue(registry.mcpToolSpecs(SESSION_ID).containsKey("srv__t"));
+            assertEquals("srv", registry.mcpToolRef(SESSION_ID, "srv__t").server());
+            assertEquals("t", registry.mcpToolRef(SESSION_ID, "srv__t").rawName());
+            assertEquals(spec, registry.mcpToolSpec(SESSION_ID, "srv__t"));
+        }
+
+        @Test
+        @DisplayName("detach чистит MCP-тулы сессии")
+        void clearedOnDetach() {
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.putMcpTools(SESSION_ID, Map.of("srv__t", spec),
+                    Map.of("srv__t", new AcpSessionRegistry.McpToolRef("srv", "t")));
+
+            registry.detachAll(client);
+
+            assertTrue(registry.mcpToolSpecs(SESSION_ID).isEmpty());
+            assertTrue(registry.mcpToolRef(SESSION_ID, "srv__t") == null);
+        }
+
+        @Test
+        @DisplayName("пустой список — чистка (нет MCP-серверов в сессии)")
+        void emptyClears() {
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.putMcpTools(SESSION_ID, Map.of(), Map.of());
+            assertTrue(registry.mcpToolSpecs(SESSION_ID).isEmpty());
+        }
+    }
 }

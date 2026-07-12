@@ -1,15 +1,18 @@
 package ru.agimate.controlapi.connectors.internal.acp;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry.ClientCapabilities;
 
@@ -45,7 +48,10 @@ public class AcpToolService {
     private static final int PERMISSION_TIMEOUT_S = 30;
     private static final int COMMAND_WAIT_S = 45;
     private static final int TERMINAL_OP_TIMEOUT_S = 10;
+    private static final int MCP_CALL_TIMEOUT_S = 45;
     private static final int OUTPUT_BYTE_LIMIT = 64_000;
+
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final AcpSessionRegistry sessionRegistry;
 
@@ -149,6 +155,45 @@ public class AcpToolService {
             result.put("timedOut", true);
         }
         return result;
+    }
+
+    /**
+     * Исполнение session-scoped MCP-тула (проброшенного из IDE): опциональное подтверждение
+     * (мутирующие — {@code readOnly=false}), затем обратный {@code mcp/call_tool} в мост, который
+     * проксирует в локальный MCP-сервер Zed. Вызывается из {@code AcpConnectorService.executeTool}
+     * с уже известным {@code sessionId} (не через {@code ConnectorEnvHolder}).
+     */
+    public Map<String, Object> callMcpTool(UUID sessionId, String toolName, Map<String, Object> args) {
+        if (sessionId == null) {
+            throw new ConnectorException("MCP tools are only available inside an active IDE (ACP) session");
+        }
+        if (!sessionRegistry.isConnected(sessionId)) {
+            throw new ConnectorException(
+                    "The IDE is not connected right now — its MCP tools are unavailable until it reconnects");
+        }
+        AcpSessionRegistry.McpToolRef ref = sessionRegistry.mcpToolRef(sessionId, toolName);
+        if (ref == null) {
+            throw new ConnectorException("Unknown IDE MCP tool: " + toolName);
+        }
+        if (!isReadOnly(sessionRegistry.mcpToolSpec(sessionId, toolName))) {
+            requirePermission(sessionId, toolName, "Call MCP tool " + toolName, "other");
+        }
+
+        Map<String, Object> params = new LinkedHashMap<>();
+        params.put("sessionId", sessionId.toString());
+        params.put("server", ref.server());
+        params.put("name", ref.rawName());
+        params.put("arguments", args == null ? Map.of() : args);
+        JsonNode result = call(sessionId, "mcp/call_tool", params, MCP_CALL_TIMEOUT_S);
+        if (result.isNull() || result.isMissingNode()) {
+            return Map.of();
+        }
+        return JsonUtils.MAPPER.convertValue(result, MAP_TYPE);
+    }
+
+    /** По умолчанию (нет аннотаций) — считаем мутирующим и спрашиваем: пессимистично, как MCP-дефолты. */
+    private static boolean isReadOnly(ConnectorToolSpec spec) {
+        return spec != null && spec.annotations() != null && spec.annotations().readOnlyHint();
     }
 
     // ===== helpers =====

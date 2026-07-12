@@ -133,9 +133,12 @@ public class RunContextService {
         List<Connection> connections = connectionRepository.findActiveBoundToAgent(agentId);
         UUID promptChannelId = channels != null && channels.prompt() != null
                 ? channels.prompt().channelId() : null;
+        UUID promptSessionId = channels != null && channels.prompt() != null
+                ? channels.prompt().sessionId() : null;
         // Канал, приносящий свои тулы (IDE-коннектор), подмешивает коннектор prompt-канала мимо
-        // скилл-гейта — «канал приносит тулы», пока разговор идёт из этого канала.
-        addPromptChannelTools(promptChannelId, requiredConnectors);
+        // скилл-гейта — «канал приносит тулы», пока разговор идёт из этого канала. Возвращает
+        // connection этого канала, чтобы его тулы листались session-aware (session-scoped MCP из IDE).
+        UUID sessionAwareConnectionId = addPromptChannelTools(promptChannelId, requiredConnectors);
 
         List<RunBlock> systemBlocks = new ArrayList<>();
         List<RunBlock> userBlocks = new ArrayList<>();
@@ -161,7 +164,7 @@ public class RunContextService {
                 ? dialoguePromptBlock(channels, trigger)
                 : eventBlock(trigger));
 
-        List<RunTool> tools = collectTools(connections, requiredConnectors);
+        List<RunTool> tools = collectTools(connections, requiredConnectors, sessionAwareConnectionId, promptSessionId);
         List<RunHistoryMessage> history = history(run.getSessionId(), spec.historyDetail());
         log.debug("run context agent={} trigger={} spec={} blocks={}/{} tools={} history={}",
                 agentId, triggerId, spec, systemBlocks.size(), userBlocks.size(), tools.size(), history.size());
@@ -405,19 +408,30 @@ public class RunContextService {
      * Если prompt-канал приносит свои тулы ({@link ChannelHandler#contributesPromptTools}), его
      * коннектор добавляется в {@code requiredConnectors} — {@link #collectTools} подхватит тулы
      * соответствующего binding'а независимо от скиллов агента.
+     *
+     * @return connection этого канала (session-aware листинг), либо {@code null}
      */
-    private void addPromptChannelTools(UUID promptChannelId, Set<String> requiredConnectors) {
+    private UUID addPromptChannelTools(UUID promptChannelId, Set<String> requiredConnectors) {
         if (promptChannelId == null) {
-            return;
+            return null;
         }
-        channelRepository.findByIdAndDeletedAtIsNull(promptChannelId).ifPresent(channel ->
-                channelHandlerRegistry.find(channel.getChannelHandler())
-                        .filter(ChannelHandler::contributesPromptTools)
-                        .ifPresent(h -> requiredConnectors.add(channel.getConnectorCode())));
+        return channelRepository.findByIdAndDeletedAtIsNull(promptChannelId)
+                .filter(channel -> channelHandlerRegistry.find(channel.getChannelHandler())
+                        .filter(ChannelHandler::contributesPromptTools).isPresent())
+                .map(channel -> {
+                    requiredConnectors.add(channel.getConnectorCode());
+                    return channel.getConnectionId();
+                })
+                .orElse(null);
     }
 
-    /** Тулы connections, чей коннектор требуется скоупленными скиллами (порт логики воркера + GetConnectionTools). */
-    private List<RunTool> collectTools(List<Connection> connections, Set<String> requiredConnectors) {
+    /**
+     * Тулы connections, чей коннектор требуется скоупленными скиллами (порт логики воркера + GetConnectionTools).
+     * Для {@code sessionAwareConnectionId} (connection prompt-канала, приносящего тулы) STATIC-листинг
+     * получает env с {@code promptSessionId}, чтобы коннектор мог отдать session-scoped тулы (MCP из IDE).
+     */
+    private List<RunTool> collectTools(List<Connection> connections, Set<String> requiredConnectors,
+                                       UUID sessionAwareConnectionId, UUID promptSessionId) {
         List<RunTool> tools = new ArrayList<>();
         for (Connection connection : connections) {
             if (!requiredConnectors.contains(connection.getConnectorCode())) {
@@ -427,10 +441,13 @@ public class RunContextService {
             if (connector == null || connector.getToolBinding() == null) {
                 continue;
             }
+            ConnectorEnv listingEnv = connection.getId().equals(sessionAwareConnectionId)
+                    ? envFactory.internal(connection.getId().toString(), null, null, null, promptSessionId)
+                    : ConnectorEnvFactory.listing(connection.getId());
             Map<String, ConnectorToolSpec> specs = switch (connector.getToolBinding()) {
                 case STATIC -> connectorRegistry
                         .findCapability(connection.getConnectorCode(), ToolProvider.class)
-                        .map(p -> p.getTools(ConnectorEnvFactory.listing(connection.getId())))
+                        .map(p -> p.getTools(listingEnv))
                         .orElse(Map.of());
                 case DYNAMIC -> dynamicTools(connection.getId());
             };

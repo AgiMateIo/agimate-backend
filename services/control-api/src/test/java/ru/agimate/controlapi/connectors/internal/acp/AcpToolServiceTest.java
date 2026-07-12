@@ -42,7 +42,7 @@ class AcpToolServiceTest {
 
     @BeforeEach
     void setUp() {
-        handler = new AcpConnectorService(new AcpToolService(registry));
+        handler = new AcpConnectorService(new AcpToolService(registry), registry);
         lenient().when(registry.isConnected(SESSION_ID)).thenReturn(true);
     }
 
@@ -202,6 +202,79 @@ class AcpToolServiceTest {
             ConnectorException ex = assertThrows(ConnectorException.class,
                     () -> handler.executeTool(env(), "run_command", Map.of("command", "ls")));
             assertTrue(ex.getMessage().toLowerCase().contains("not connected"));
+        }
+    }
+
+    @Nested
+    @DisplayName("MCP-тулы сессии (проброшенные из IDE)")
+    class Mcp {
+
+        private static final String TOOL = "tinvest__get_portfolio";
+
+        private void stubTool(boolean readOnly) {
+            var spec = new ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec(
+                    TOOL, null, "d", null, null,
+                    new ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec(readOnly, !readOnly, false, true),
+                    null);
+            lenient().when(registry.mcpToolRef(SESSION_ID, TOOL))
+                    .thenReturn(new AcpSessionRegistry.McpToolRef("tinvest", "get_portfolio"));
+            lenient().when(registry.mcpToolSpec(SESSION_ID, TOOL)).thenReturn(spec);
+        }
+
+        @Test
+        @DisplayName("read-only тул: без подтверждения, mcp/call_tool с server+raw-именем, результат наверх")
+        void readOnlyNoPermission() {
+            stubTool(true);
+            stub("mcp/call_tool", reply("{\"content\":[{\"type\":\"text\",\"text\":\"ok\"}]}"));
+
+            Map<String, Object> result = handler.executeTool(env(), TOOL, Map.of("account", "1"));
+
+            assertTrue(result.containsKey("content"));
+            verify(registry).request(eq(SESSION_ID), eq("mcp/call_tool"), any());
+            verify(registry, never()).request(eq(SESSION_ID), eq("session/request_permission"), any());
+        }
+
+        @Test
+        @DisplayName("мутирующий тул: спрашивает подтверждение перед mcp/call_tool")
+        void mutatingAsksPermission() {
+            stubTool(false);
+            allowPermission();
+            stub("mcp/call_tool", reply("{\"content\":[]}"));
+
+            handler.executeTool(env(), TOOL, Map.of());
+
+            verify(registry).request(eq(SESSION_ID), eq("session/request_permission"), any());
+            verify(registry).request(eq(SESSION_ID), eq("mcp/call_tool"), any());
+        }
+
+        @Test
+        @DisplayName("отказ пользователя на мутирующий тул → ConnectorException, вызова нет")
+        void mutatingRejected() {
+            stubTool(false);
+            stub("session/request_permission", reply("{\"outcome\":{\"outcome\":\"cancelled\"}}"));
+
+            assertThrows(ConnectorException.class, () -> handler.executeTool(env(), TOOL, Map.of()));
+            verify(registry, never()).request(eq(SESSION_ID), eq("mcp/call_tool"), any());
+        }
+
+        @Test
+        @DisplayName("неизвестный MCP-тул (нет ref) → ConnectorException")
+        void unknownTool() {
+            when(registry.mcpToolRef(SESSION_ID, "ghost__x")).thenReturn(null);
+            assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "ghost__x", Map.of()));
+        }
+
+        @Test
+        @DisplayName("getTools(env) мёржит фиксированные тулы и session MCP-тулы")
+        void getToolsMerges() {
+            var mcpSpec = new ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec(
+                    TOOL, null, "d", null, null, null, null);
+            when(registry.mcpToolSpecs(SESSION_ID)).thenReturn(Map.of(TOOL, mcpSpec));
+
+            var tools = handler.getTools(env());
+
+            assertTrue(tools.containsKey("read_file"));
+            assertTrue(tools.containsKey(TOOL));
         }
     }
 }

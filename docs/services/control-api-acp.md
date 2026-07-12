@@ -92,6 +92,56 @@ id `srv-N` и возвращает `CompletableFuture`; ответ клиент�
 `AcpWebSocketConfig.MAX_MESSAGE_BYTES` (8 МБ). Дефолт контейнера — 8 КБ, чего не хватает: ответы IDE
 на `terminal/output`/`fs/read_text_file` больше → контейнер рвал бы соединение с close 1009.
 
+## MCP-тулы IDE (session-scoped, проброс из Zed)
+
+MCP-серверы, подключённые пользователем в IDE (Zed), становятся тулами агента, **пока идёт разговор
+из IDE**. Агент у нас удалённый и до локальных (stdio) MCP-серверов сам не дотянется, поэтому вызовы
+проксируются через живое ACP-соединение — по спеке ACP это client-side проксирование не описано, это
+наше расширение поверх собственного моста.
+
+**Поток:**
+1. Zed передаёт `mcpServers` в `session/new`. **Мост** (`clients/acp-bridge`, работает MCP-хостом на
+   базе `@modelcontextprotocol/sdk`) поднимает эти серверы локально, делает `tools/list` и инжектит
+   агрегированный список в `session/new` полем `_agimateMcp` (`[{server, tool}]`).
+2. `AcpWebSocketHandler` кладёт тулы в `AcpSessionRegistry.mcpTools[sessionId]` (in-memory,
+   неймспейс-имя `<server>__<tool>` → спек + ссылка), чистится на disconnect.
+3. `RunContextService` листит тулы prompt-канала session-aware (env с sessionId) →
+   `AcpConnectorService.getTools(env)` мёржит фиксированные IDE-тулы + session MCP-тулы. LLM-имя —
+   `acp.<server>__<tool>`.
+4. Вызов → `AcpConnectorService.executeTool` → `AcpToolService.callMcpTool` → обратный `mcp/call_tool`
+   в мост → локальный MCP-сервер. Мутирующие тулы (MCP-аннотация `readOnly=false`) сначала спрашивают
+   `session/request_permission`.
+
+**Доступ/ABAC**: MCP-тулы — обычные тулы ACP-коннектора, evaluate по имени
+(`ConnectionAccessEvaluator`, `PolicyKind.TOOL`). Default-allow, DENY-политикой можно закрыть
+конкретный тул/сервер. Вывод — openWorld → воркер оборачивает untrusted.
+
+**Ограничения (сверх общих ACP-MVP):** только в IDE-канале и только пока чат открыт (session-scoped);
+одна реплика control-api; список берётся на `session/new` (`tools/list_changed` в пределах сессии не
+отслеживается — свежий список подхватит следующая сессия); на реконнекте (`session/load`) MCP-тулы
+есть, только если клиент повторно прислал `mcpServers`.
+
+## Реконнект: рестарт control-api не роняет IDE-чат
+
+Разрыв WebSocket (деплой/рестарт control-api) мост переживает сам: реконнект с backoff
+(до ~3 минут), IDE ничего не замечает. После реконнекта мост восстанавливает in-memory
+состояние сервера:
+
+1. реплеит `initialize` со спец-id (`bridge-init-N`), ответ глотает — IDE его не ждала;
+2. шлёт нотификацию **`_agimate/restore`** `{sessions: [{sessionId, mcpTools}]}` — сервер для
+   каждой сессии проверяет владение (`AcpService.assertOwned`), заново привязывает её к
+   соединению и кладёт MCP-тулы. Чужие/несуществующие сессии молча скипаются (лог-warn).
+
+Локальные MCP-серверы при этом живут в мосте непрерывно — не перезапускаются. `401/403` на
+handshake — фатально сразу (ключ не станет валидным от ретраев), мост выходит с кодом 2.
+
+Известный остаток: prompt, висевший в момент рестарта, не восстанавливается (pending rpc-id был
+in-memory) — ран доработает, его ответ придёт как `session/update` и ляжет в историю, но
+`{stopReason}` для того prompt-запроса Zed не получит; лечится cancel/новым сообщением.
+
+Roadmap-развитие (durable-доступ к MCP во всех каналах, эффекты политик `ASK`/`LLM_DECISION`,
+`channelOnly`-коннекторы) — см. `docs/ABAC.md` §10 и `docs/connectors/architecture.md`.
+
 **Бюджеты** (под worker poll-timeout `agent.tool.poll-timeout`, дефолт 60s): fs — 25s, подтверждение —
 30s, `wait_for_exit` — 45s (по таймауту — `kill` + `release` + частичный вывод с `timedOut: true`).
 Долгие команды упрутся в poll-timeout — операторам IDE-нагруженных агентов поднимать бюджет.

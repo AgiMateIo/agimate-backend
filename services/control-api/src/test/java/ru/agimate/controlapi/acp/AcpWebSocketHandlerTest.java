@@ -230,6 +230,31 @@ class AcpWebSocketHandlerTest {
         }
 
         @Test
+        @DisplayName("_agimate/restore привязывает свои сессии и кладёт их MCP-тулы; чужие — скипает")
+        void restoreReattachesOwnedSessions() {
+            UUID foreign = UUID.randomUUID();
+            lenient().doThrow(new ru.agimate.common.rest.error.ForbiddenStatusException("Access denied"))
+                    .when(acpService).assertOwned(USER_ID, AGENT_ID, foreign);
+
+            Map<String, Object> frame = new HashMap<>();
+            frame.put("jsonrpc", "2.0");
+            frame.put("method", "_agimate/restore");
+            frame.put("params", Map.of("sessions", List.of(
+                    Map.of("sessionId", SESSION_ID.toString(), "mcpTools", List.of(
+                            Map.of("server", "srv", "tool", Map.of("name", "t")))),
+                    Map.of("sessionId", foreign.toString(), "mcpTools", List.of()))));
+            receive(frame);
+
+            verify(sessionRegistry).attach(eq(SESSION_ID), any(), any());
+            verify(sessionRegistry, org.mockito.Mockito.never()).attach(eq(foreign), any(), any());
+            @SuppressWarnings("unchecked")
+            ArgumentCaptor<Map<String, Object>> specs = ArgumentCaptor.forClass(Map.class);
+            verify(sessionRegistry).putMcpTools(eq(SESSION_ID), (Map) specs.capture(), any());
+            assertTrue(specs.getValue().containsKey("srv__t"));
+            assertTrue(sent.isEmpty()); // нотификация — без ответа
+        }
+
+        @Test
         @DisplayName("ответ клиента (без method, с id) маршрутизируется в handleResponse")
         void clientResponseRouted() {
             Map<String, Object> frame = new HashMap<>();

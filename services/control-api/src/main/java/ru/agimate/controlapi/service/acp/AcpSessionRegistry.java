@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -57,9 +58,17 @@ public class AcpSessionRegistry {
     /** Исходящий server→client запрос, ждущий ответа клиента (fs/terminal-вызов). */
     private record PendingRequest(Client client, CompletableFuture<JsonNode> future) {}
 
+    /** Ссылка на MCP-тул, проброшенный из IDE: имя сервера и «сырое» имя тула для {@code mcp/call_tool}. */
+    public record McpToolRef(String server, String rawName) {}
+
+    /** MCP-тулы одной сессии: спеки (для контекста рана) + ссылки (для маршрутизации вызова), по неймспейс-имени. */
+    private record SessionMcpTools(Map<String, ConnectorToolSpec> specs, Map<String, McpToolRef> refs) {}
+
     private final Map<UUID, Attachment> sessions = new ConcurrentHashMap<>();
     /** id исходящего запроса → ожидание ответа; id уникален глобально (см. {@link #requestCounter}). */
     private final Map<String, PendingRequest> pendingRequests = new ConcurrentHashMap<>();
+    /** sessionId → MCP-тулы, проброшенные IDE на session/new|load; чистятся на detach. */
+    private final Map<UUID, SessionMcpTools> mcpTools = new ConcurrentHashMap<>();
     private final AtomicLong requestCounter = new AtomicLong();
 
     /** Привязывает сессию к соединению (session/new, session/load); перепривязка допустима. */
@@ -67,15 +76,48 @@ public class AcpSessionRegistry {
         sessions.put(sessionId, new Attachment(client, capabilities == null ? ClientCapabilities.NONE : capabilities));
     }
 
-    /** Отвязывает все сессии соединения и завершает его висящие запросы ошибкой (разрыв WebSocket). */
+    /** Отвязывает все сессии соединения, чистит их MCP-тулы и завершает висящие запросы ошибкой (разрыв WS). */
     public void detachAll(Client client) {
-        sessions.entrySet().removeIf(e -> e.getValue().client == client);
+        sessions.entrySet().removeIf(e -> {
+            if (e.getValue().client == client) {
+                mcpTools.remove(e.getKey());
+                return true;
+            }
+            return false;
+        });
         pendingRequests.forEach((id, pending) -> {
             if (pending.client() == client) {
                 pendingRequests.remove(id);
                 pending.future().completeExceptionally(new IllegalStateException("IDE disconnected"));
             }
         });
+    }
+
+    /** Кладёт MCP-тулы сессии (из {@code _agimateMcp} на session/new|load). Пустой список — чистка. */
+    public void putMcpTools(UUID sessionId, Map<String, ConnectorToolSpec> specs, Map<String, McpToolRef> refs) {
+        if (specs == null || specs.isEmpty()) {
+            mcpTools.remove(sessionId);
+            return;
+        }
+        mcpTools.put(sessionId, new SessionMcpTools(Map.copyOf(specs), Map.copyOf(refs)));
+    }
+
+    /** Спеки MCP-тулов сессии для контекста рана (по неймспейс-имени); пусто, если их нет. */
+    public Map<String, ConnectorToolSpec> mcpToolSpecs(UUID sessionId) {
+        SessionMcpTools tools = mcpTools.get(sessionId);
+        return tools == null ? Map.of() : tools.specs();
+    }
+
+    /** Ссылка MCP-тула по неймспейс-имени (сервер + сырое имя); {@code null}, если не MCP-тул сессии. */
+    public McpToolRef mcpToolRef(UUID sessionId, String name) {
+        SessionMcpTools tools = mcpTools.get(sessionId);
+        return tools == null ? null : tools.refs().get(name);
+    }
+
+    /** Спек MCP-тула по неймспейс-имени — для решения о подтверждении (readOnly); {@code null}, если нет. */
+    public ConnectorToolSpec mcpToolSpec(UUID sessionId, String name) {
+        SessionMcpTools tools = mcpTools.get(sessionId);
+        return tools == null ? null : tools.specs().get(name);
     }
 
     /** Есть ли живое клиентское соединение для сессии (отличает «нет IDE» от «capability выключена»). */

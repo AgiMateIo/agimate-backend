@@ -16,6 +16,8 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.config.AcpWebSocketConfig;
+import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
 import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
@@ -54,6 +56,8 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
 
     private static final String ATTR_CLIENT = "acpClient";
     private static final String ATTR_CAPABILITIES = "acpCapabilities";
+    /** Поле в params session/new|load, куда мост кладёт агрегированный список MCP-тулов IDE. */
+    private static final String ATTR_MCP_FIELD = "_agimateMcp";
 
     private static final int RPC_INVALID_PARAMS = -32602;
     private static final int RPC_METHOD_NOT_FOUND = -32601;
@@ -110,11 +114,12 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
             switch (method) {
                 case "initialize" -> handleInitialize(session, client, id, params);
                 case "authenticate" -> client.send(resultFrame(id, Map.of()));
-                case "session/new" -> handleSessionNew(session, client, id);
+                case "session/new" -> handleSessionNew(session, client, id, params);
                 case "session/load" -> handleSessionLoad(session, client, id, params);
                 case "session/prompt" -> handleSessionPrompt(session, client, id, params);
                 case "session/cancel" -> sessionRegistry.completePrompt(
                         sessionId(params), AcpSessionRegistry.STOP_CANCELLED);
+                case "_agimate/restore" -> handleRestore(session, client, params);
                 default -> {
                     if (id != null) {
                         client.send(errorFrame(id, RPC_METHOD_NOT_FOUND, "Method not found: " + method));
@@ -153,11 +158,64 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
                 "authMethods", List.of());
     }
 
-    private void handleSessionNew(WebSocketSession session, AcpSessionRegistry.Client client, JsonNode id) {
+    private void handleSessionNew(WebSocketSession session, AcpSessionRegistry.Client client,
+                                  JsonNode id, JsonNode params) {
         AgentPrincipal principal = principal(session);
         ChannelSession channelSession = acpService.startSession(principal.userId(), principal.agentId());
-        sessionRegistry.attach(channelSession.getId(), client, capabilities(session));
-        client.send(resultFrame(id, Map.of("sessionId", channelSession.getId().toString())));
+        UUID sessionId = channelSession.getId();
+        sessionRegistry.attach(sessionId, client, capabilities(session));
+        storeMcpTools(sessionId, params.path(ATTR_MCP_FIELD));
+        client.send(resultFrame(id, Map.of("sessionId", sessionId.toString())));
+    }
+
+    /**
+     * Восстановление после реконнекта моста (рестарт control-api теряет in-memory состояние, а IDE
+     * ничего не заметила): мост шлёт нотификацию со своими живыми сессиями и их MCP-тулами, сервер
+     * заново привязывает каждую (с проверкой владения) и кладёт тулы. Capabilities — из реплея
+     * {@code initialize}, который мост шлёт до restore.
+     */
+    private void handleRestore(WebSocketSession session, AcpSessionRegistry.Client client, JsonNode params) {
+        AgentPrincipal principal = principal(session);
+        for (JsonNode s : params.path("sessions")) {
+            String raw = s.path("sessionId").asText(null);
+            UUID sessionId;
+            try {
+                sessionId = UUID.fromString(raw);
+                acpService.assertOwned(principal.userId(), principal.agentId(), sessionId);
+            } catch (Exception e) {
+                log.warn("ACP restore skipped for session {}: {}", raw, e.getMessage());
+                continue;
+            }
+            sessionRegistry.attach(sessionId, client, capabilities(session));
+            storeMcpTools(sessionId, s.path("mcpTools"));
+            log.info("ACP session {} restored after reconnect", sessionId);
+        }
+    }
+
+    /**
+     * Тулы MCP-серверов, проброшенные мостом (мост поднял их локально и сделал {@code tools/list}):
+     * массив {@code [{server, tool}]} → неймспейс-имя {@code <server>__<tool>} → спек + ссылка
+     * для {@code mcp/call_tool}.
+     */
+    private void storeMcpTools(UUID sessionId, JsonNode mcp) {
+        if (!mcp.isArray() || mcp.isEmpty()) {
+            sessionRegistry.putMcpTools(sessionId, Map.of(), Map.of());
+            return;
+        }
+        Map<String, ConnectorToolSpec> specs = new LinkedHashMap<>();
+        Map<String, AcpSessionRegistry.McpToolRef> refs = new LinkedHashMap<>();
+        for (JsonNode entry : mcp) {
+            String server = entry.path("server").asText(null);
+            JsonNode tool = entry.path("tool");
+            String rawName = tool.path("name").asText(null);
+            if (server == null || rawName == null) {
+                continue;
+            }
+            String name = server + "__" + rawName;
+            specs.put(name, McpToolMapper.toSpec(name, tool));
+            refs.put(name, new AcpSessionRegistry.McpToolRef(server, rawName));
+        }
+        sessionRegistry.putMcpTools(sessionId, specs, refs);
     }
 
     /** Реплей истории нотификациями session/update (INBOUND/ANSWER; PROGRESS не реплеим), затем ответ. */
@@ -168,6 +226,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         List<ChannelSessionMessage> history =
                 acpService.loadSession(principal.userId(), principal.agentId(), sessionId);
         sessionRegistry.attach(sessionId, client, capabilities(session));
+        storeMcpTools(sessionId, params.path(ATTR_MCP_FIELD));
         for (ChannelSessionMessage m : history) {
             String updateType = switch (m.getKind()) {
                 case INBOUND -> "user_message_chunk";
