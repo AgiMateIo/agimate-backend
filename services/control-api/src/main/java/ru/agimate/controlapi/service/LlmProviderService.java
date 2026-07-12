@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -36,6 +37,9 @@ public class LlmProviderService {
     private static final String API_KEY_FIELD = "api_key";
     private static final String SECRET_ENTITY = "llm_provider";
 
+    /** Имя платформенного провайдера под {@link SystemSkillBootstrap#SYSTEM_USER_ID}. */
+    public static final String PLATFORM_PROVIDER_NAME = "platform";
+
     private final LlmProviderRepository llmProviderRepository;
     private final SecretRepository secretRepository;
     private final SecretService secretService;
@@ -45,6 +49,17 @@ public class LlmProviderService {
         return llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(LlmProviderResponse::from)
                 .toList();
+    }
+
+    /**
+     * Платформенный провайдер, пригодный к fallback-выдаче: включён и с заданной default_model.
+     * Пользовательские manage-пути сюда не смотрят — системная строка не принадлежит ни одному userId.
+     */
+    public Optional<LlmProvider> findUsablePlatformProvider() {
+        return llmProviderRepository
+                .findByUserIdAndName(SystemSkillBootstrap.SYSTEM_USER_ID, PLATFORM_PROVIDER_NAME)
+                .filter(LlmProvider::isEnabled)
+                .filter(p -> p.getDefaultModel() != null && !p.getDefaultModel().isBlank());
     }
 
     public LlmProviderResponse getForUser(UUID id, UUID userId) {
@@ -58,6 +73,58 @@ public class LlmProviderService {
             throw new ForbiddenStatusException("Access denied");
         }
         return provider;
+    }
+
+    /**
+     * Идемпотентный сидинг/синк платформенного провайдера из окружения. Создаётся выключенным:
+     * включение free-tier — осознанное runtime-действие в БД (гейт до готовности квот);
+     * при обновлении {@code enabled} не трогается.
+     */
+    @Transactional
+    public void upsertPlatformProvider(String baseUrl, String apiKey, String defaultModel) {
+        Optional<LlmProvider> existing = llmProviderRepository
+                .findByUserIdAndName(SystemSkillBootstrap.SYSTEM_USER_ID, PLATFORM_PROVIDER_NAME);
+        if (existing.isEmpty()) {
+            LlmProvider provider = llmProviderRepository.save(LlmProvider.builder()
+                    .userId(SystemSkillBootstrap.SYSTEM_USER_ID)
+                    .name(PLATFORM_PROVIDER_NAME)
+                    .providerType(LlmProviderType.OPENAI_COMPATIBLE)
+                    .baseUrl(baseUrl)
+                    .defaultModel(defaultModel)
+                    .apiKeyMask(buildMask(apiKey))
+                    .enabled(false)
+                    .build());
+            Secret secret = secretService.store(SECRET_ENTITY, provider.getId(),
+                    Map.of(API_KEY_FIELD, apiKey));
+            provider.setSecretId(secret.getId());
+            llmProviderRepository.save(provider);
+            log.info("Seeded platform LLM provider id={} model={} (enabled=false)",
+                    provider.getId(), defaultModel);
+            return;
+        }
+
+        LlmProvider provider = existing.get();
+        boolean changed = false;
+        if (!baseUrl.equals(provider.getBaseUrl())) {
+            provider.setBaseUrl(baseUrl);
+            changed = true;
+        }
+        if (!defaultModel.equals(provider.getDefaultModel())) {
+            provider.setDefaultModel(defaultModel);
+            changed = true;
+        }
+        if (!apiKey.equals(decryptApiKey(provider))) {
+            Secret secret = secretRepository.findById(provider.getSecretId())
+                    .orElseThrow(() -> new NotFoundStatusException(
+                            "Secret not found for platform LLM provider " + provider.getId()));
+            secretService.update(secret, provider.getId(), Map.of(API_KEY_FIELD, apiKey));
+            provider.setApiKeyMask(buildMask(apiKey));
+            changed = true;
+        }
+        if (changed) {
+            llmProviderRepository.save(provider);
+            log.info("Updated platform LLM provider id={}", provider.getId());
+        }
     }
 
     @Transactional

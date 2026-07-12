@@ -17,5 +17,7 @@ public interface LlmProviderRepository extends JpaRepository<LlmProvider, UUID> 
 
     List<LlmProvider> findAllByIdIn(List<UUID> ids);
 
+    Optional<LlmProvider> findByUserIdAndName(UUID userId, String name);
+
     boolean existsByUserIdAndName(UUID userId, String name);
 }

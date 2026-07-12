@@ -4,6 +4,8 @@ API specification for the `/manage/llm-providers/**` and `/manage/agents/{agentP
 
 LLM providers are per-user. Agents can bind to multiple providers/models under arbitrary labels (`main_model`, `for_light_task`, `visual_task`, …). API keys are encrypted at rest (AES-GCM via `app.integration.encryption-key`) and only returned, decrypted, to the authenticated agent itself via `GET /agent/llm`.
 
+Besides user providers there is a single **platform provider** — a system-owned `llm_providers` row that serves as an implicit fallback for agents without any binding (see [Platform provider](#platform-provider)).
+
 > All paths below are relative to the context path `/control`.
 
 ## Authentication
@@ -98,9 +100,12 @@ Response:
 |---|---|---|
 | `name` | string | Binding label (unique per agent) |
 | `model` | string | Model name |
-| `llmProviderPubId` | UUID | Bound provider |
+| `llmProviderId` | UUID? | Bound provider; `null` for the platform fallback entry |
 | `llmProviderName` | string | Provider's display name |
 | `providerType` | enum | Provider type |
+| `source` | enum | `USER` — explicit `agent_llms` row; `PLATFORM` — synthetic fallback entry |
+
+When an agent has no bindings and the platform provider is usable (enabled + `default_model` set), listing endpoints return a single synthetic entry with `source=PLATFORM` showing the effective model. It is not a DB row: it cannot be updated or deleted, and `llmProviderId` is `null`.
 
 ### `GET /control/manage/agents/{agentPubId}/llms/`
 
@@ -148,6 +153,17 @@ Returns all bindings of the authenticated agent whose providers are `enabled=tru
 ### `GET /control/agent/llm/{name}`
 
 Returns the single binding identified by its label. `404` if the binding does not exist or its provider is disabled.
+
+---
+
+## Platform provider
+
+A single system-owned `llm_providers` row (owner = synthetic system user, name `platform`, always `OPENAI_COMPATIBLE`) used as an implicit fallback: when an agent has **no** `agent_llms` bindings, the worker's `GetLlmCredentials` gRPC issues the platform provider's credentials with its `default_model`. A personal binding always wins over the fallback.
+
+- Seeded on startup by `PlatformLlmBootstrap` from `app.platform-llm.*` properties (`APP_PLATFORM_LLM_BASE_URL`, `APP_PLATFORM_LLM_API_KEY`, `APP_PLATFORM_LLM_DEFAULT_MODEL`). If any is missing, seeding is skipped and the feature is off.
+- Created with `enabled=false`; enabling the free-tier is a deliberate runtime action in the DB (`llm_providers.enabled`). Bootstrap never touches `enabled` on subsequent starts — it only syncs `base_url`, `default_model` and the key.
+- Invisible in `/manage/llm-providers/**` (those are filtered by the current user) and not addressable in binding requests (`404` — the provider belongs to the system user).
+- The `default_model` column exists on every provider but is currently used only by the platform row.
 
 ---
 

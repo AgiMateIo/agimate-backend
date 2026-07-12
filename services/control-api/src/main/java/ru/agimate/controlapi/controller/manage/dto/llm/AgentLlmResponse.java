@@ -15,22 +15,41 @@ public record AgentLlmResponse(
         @Schema(description = "Model name")
         String model,
 
-        @Schema(description = "LLM provider public ID")
+        @Schema(description = "LLM provider public ID (null for the platform fallback)")
         UUID llmProviderId,
 
         @Schema(description = "LLM provider human-readable name")
         String llmProviderName,
 
         @Schema(description = "LLM provider type")
-        LlmProviderType providerType
+        LlmProviderType providerType,
+
+        @Schema(description = "Where the binding comes from: USER — explicit agent_llms row, "
+                + "PLATFORM — implicit fallback to the platform provider")
+        Source source
 ) {
+    public enum Source { USER, PLATFORM }
+
     public static AgentLlmResponse from(AgentLlm binding, LlmProvider provider) {
         return new AgentLlmResponse(
                 binding.getName(),
                 binding.getModel(),
                 binding.getLlmProviderId(),
                 provider != null ? provider.getName() : null,
-                provider != null ? provider.getProviderType() : null
+                provider != null ? provider.getProviderType() : null,
+                Source.USER
+        );
+    }
+
+    /** Эффективная модель агента без привязок: платформенный fallback (id не адресуем юзером). */
+    public static AgentLlmResponse platformFallback(LlmProvider platformProvider) {
+        return new AgentLlmResponse(
+                platformProvider.getName(),
+                platformProvider.getDefaultModel(),
+                null,
+                platformProvider.getName(),
+                platformProvider.getProviderType(),
+                Source.PLATFORM
         );
     }
 }

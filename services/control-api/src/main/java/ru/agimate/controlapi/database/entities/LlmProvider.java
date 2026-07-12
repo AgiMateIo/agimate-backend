@@ -51,6 +51,10 @@ public class LlmProvider extends BaseEntity {
     @Column(name = "api_key_mask", nullable = false, columnDefinition = "TEXT")
     private String apiKeyMask;
 
+    /** Модель по умолчанию: обязательна для платформенного провайдера (fallback без привязки). */
+    @Column(name = "default_model", columnDefinition = "TEXT")
+    private String defaultModel;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "available_models", columnDefinition = "JSONB")
     private List<LlmModelInfo> availableModels;

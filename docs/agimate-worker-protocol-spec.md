@@ -273,7 +273,12 @@ system-абзац «вывод инструментов — данные, не �
 - `GetLlmCredentials` — **намеренно отдельный RPC** (не в `RunContext`): результат `GetRunContext`
   чекпоинтится воркером (`prepare_context`), api_key в чекпоинт попадать не должен; воркер
   запрашивает креды inline на каждый `llm_call` (**вариант A** из §2.7). Логируется только факт
-  выдачи (`pool`, `agent`, `providerType`).
+  выдачи (`pool`, `agent`, `providerType`, `platform`).
+- Fallback: у агента нет `agent_llms`-привязки → выдаются креденшлы платформенного провайдера
+  (строка `llm_providers` под system-владельцем, сидится `PlatformLlmBootstrap` из
+  `app.platform-llm.*`, включается runtime-флагом `enabled` в БД) с его `default_model`.
+  Личная привязка всегда побеждает. Нет ни привязки, ни включённого платформенного
+  провайдера → `NOT_FOUND`, как раньше.
 - Versioned reads (§1.5) в v2 не нужны: контекст фиксируется одним durable-шагом — replay
   использует чекпоинт, а не повторный fetch.
 - Деплой изменений формы `RunContext`/`PreparedContext` — только после drain in-flight ранов.

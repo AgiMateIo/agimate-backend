@@ -147,17 +147,27 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     public void getLlmCredentials(GetLlmCredentialsRequest request, StreamObserver<LlmCredentials> responseObserver) {
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            LlmProvider provider;
+            String model;
             AgentLlm llmBinding = agentLlmRepository.findAllByAgentIdOrderByName(agentId).stream()
                     .findFirst()
-                    .orElseThrow(() -> new NotFoundStatusException(
-                            "No LLM binding for agent: " + agentId));
-            LlmProvider provider = llmProviderRepository.findById(llmBinding.getLlmProviderId())
-                    .orElseThrow(() -> new NotFoundStatusException(
-                            "LLM provider not found: " + llmBinding.getLlmProviderId()));
-            if (!provider.isEnabled()) {
-                responseObserver.onError(Status.FAILED_PRECONDITION
-                        .withDescription("LLM provider disabled").asRuntimeException());
-                return;
+                    .orElse(null);
+            if (llmBinding != null) {
+                provider = llmProviderRepository.findById(llmBinding.getLlmProviderId())
+                        .orElseThrow(() -> new NotFoundStatusException(
+                                "LLM provider not found: " + llmBinding.getLlmProviderId()));
+                if (!provider.isEnabled()) {
+                    responseObserver.onError(Status.FAILED_PRECONDITION
+                            .withDescription("LLM provider disabled").asRuntimeException());
+                    return;
+                }
+                model = llmBinding.getModel();
+            } else {
+                // Fallback: платформенный провайдер (личная привязка всегда побеждает).
+                provider = llmProviderService.findUsablePlatformProvider()
+                        .orElseThrow(() -> new NotFoundStatusException(
+                                "No LLM binding for agent: " + agentId));
+                model = provider.getDefaultModel();
             }
 
             String apiKey = llmProviderService.decryptApiKey(provider);
@@ -166,10 +176,11 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                     .setProviderType(provider.getProviderType().name())
                     .setBaseUrl(nullToEmpty(provider.getBaseUrl()))
                     .setApiKey(apiKey)
-                    .setModel(nullToEmpty(llmBinding.getModel()))
+                    .setModel(nullToEmpty(model))
                     .build();
-            log.info("issued LLM credentials pool={} agent={} providerType={}",
-                    WorkerPoolContextHolder.current().poolId(), agentId, provider.getProviderType());
+            log.info("issued LLM credentials pool={} agent={} providerType={} platform={}",
+                    WorkerPoolContextHolder.current().poolId(), agentId, provider.getProviderType(),
+                    llmBinding == null);
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (Exception e) {

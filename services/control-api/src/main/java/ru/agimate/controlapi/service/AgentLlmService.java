@@ -41,6 +41,9 @@ public class AgentLlmService {
     public List<AgentLlmResponse> listForAgent(UUID agentId, UUID userId) {
         Agent agent = requireOwnedAgent(agentId, userId);
         List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByName(agent.getId());
+        if (bindings.isEmpty()) {
+            return platformFallbackEntry();
+        }
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
         return bindings.stream()
                 .map(b -> AgentLlmResponse.from(b, providersById.get(b.getLlmProviderId())))
@@ -59,7 +62,20 @@ public class AgentLlmService {
             result.computeIfAbsent(b.getAgentId(), k -> new java.util.ArrayList<>())
                     .add(AgentLlmResponse.from(b, providersById.get(b.getLlmProviderId())));
         }
+        // Агенты без привязок работают через платформенный fallback — показываем эффективную модель.
+        List<AgentLlmResponse> fallback = platformFallbackEntry();
+        if (!fallback.isEmpty()) {
+            agentIds.stream()
+                    .filter(id -> !result.containsKey(id))
+                    .forEach(id -> result.put(id, fallback));
+        }
         return result;
+    }
+
+    private List<AgentLlmResponse> platformFallbackEntry() {
+        return llmProviderService.findUsablePlatformProvider()
+                .map(p -> List.of(AgentLlmResponse.platformFallback(p)))
+                .orElse(List.of());
     }
 
     @Transactional
