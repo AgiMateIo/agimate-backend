@@ -4,7 +4,6 @@ import org.springframework.stereotype.Component;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
-import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.PlaceholderRenderer;
 import ru.agimate.controlapi.service.channel.handler.dto.*;
@@ -90,17 +89,16 @@ public class GenericChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public void handleOutput(ChannelConfig config, OutboundMessage outbound, OutboundDispatch dispatch,
-                             AgentToolCallService toolCallService) {
+    public Optional<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
+                                                  OutboundDispatch dispatch) {
         Map<String, Object> args = PlaceholderRenderer.render(
                 replyParams(config), outbound.text(), dispatch.replyContext());
-        ToolCallRequest request = ToolCallRequest.builder()
+        return Optional.of(ToolCallRequest.builder()
                 .id(dispatch.messageId())
                 .connectionId(replyConnectionId(config))
                 .name(replyTool(config))
                 .input(args)
-                .build();
-        toolCallService.processToolCall(config.agentId(), request);
+                .build());
     }
 
     // --- config accessors ---

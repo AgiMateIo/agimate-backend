@@ -71,10 +71,22 @@ public class AgentToolCallService {
                 : new EvaluationResult.InputConflict(existing);
     }
 
-    /** Evaluate + enforce permission + push to connector */
+    /**
+     * Evaluate + enforce permission + push to connector.
+     *
+     * <p>Вызывать вне активной транзакции: лог тула коммитится внутри {@code createLog},
+     * и диспатч исполнения видит уже закоммиченную строку.
+     */
     public String processToolCall(UUID agentId, ToolCallRequest request) {
         return switch (evaluate(agentId, request)) {
-            case EvaluationResult.Replay(var log) -> log.getExternalId();
+            case EvaluationResult.Replay(var log) -> {
+                // Ретрай с тем же id и input: результата ещё нет — доводим исполнение до конца
+                // (крэш/обрыв между коммитом лога и диспатчем); редкий дубль лучше потери.
+                if (log.getAccessEffect() == AccessEffect.ALLOW && log.getFinishAt() == null) {
+                    connectorService.pushToConnector(log);
+                }
+                yield log.getExternalId();
+            }
             case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());
             case EvaluationResult.Created(var log, var decision) -> {
                 if (!decision.allowed()) {

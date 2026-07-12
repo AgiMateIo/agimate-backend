@@ -7,7 +7,7 @@ import ru.agimate.controlapi.connectors.internal.webchat.WebchatConnectorService
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
-import ru.agimate.controlapi.service.tool.AgentToolCallService;
+import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
@@ -75,13 +75,14 @@ public class WebchatChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public void handleOutput(ChannelConfig config, OutboundMessage outbound, OutboundDispatch dispatch,
-                             AgentToolCallService toolCallService) {
+    public Optional<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
+                                                  OutboundDispatch dispatch) {
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(dispatch.channelId())
                 .orElseThrow(() -> new ConnectorException("webchat channel not found: " + dispatch.channelId()));
         String stream = dispatch.stream() != null ? dispatch.stream() : STREAM_ANSWER;
         webchatMessagePublisher.record(
                 channel.getUserId(), config.agentId(), channel.getId(), dispatch.sessionId(),
                 WebchatMessageDirection.AGENT, stream, dispatch.messageId(), outbound.text());
+        return Optional.empty();
     }
 }

@@ -11,7 +11,6 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
-import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
@@ -45,8 +44,6 @@ class WebchatChannelHandlerTest {
     private ChannelRepository channelRepository;
     @Mock
     private WebchatMessagePublisher webchatMessagePublisher;
-    @Mock
-    private AgentToolCallService toolCallService;
 
     private WebchatChannelHandler handler;
     private ChannelConfig config;
@@ -119,11 +116,10 @@ class WebchatChannelHandlerTest {
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
             OutboundDispatch dispatch = new OutboundDispatch("msg-1", null, null, CHANNEL_ID, SESSION_ID, Map.of());
 
-            handler.handleOutput(config, OutboundMessage.text("готово"), dispatch, toolCallService);
+            assertTrue(handler.handleOutput(config, OutboundMessage.text("готово"), dispatch).isEmpty());
 
             verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
                     WebchatMessageDirection.AGENT, "answer", "msg-1", "готово");
-            verifyNoInteractions(toolCallService);
         }
 
         @Test
@@ -132,7 +128,7 @@ class WebchatChannelHandlerTest {
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
             OutboundDispatch dispatch = new OutboundDispatch("msg-2", "progress", "THINKING", CHANNEL_ID, SESSION_ID, Map.of());
 
-            handler.handleOutput(config, OutboundMessage.text("думаю..."), dispatch, toolCallService);
+            handler.handleOutput(config, OutboundMessage.text("думаю..."), dispatch);
 
             verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
                     WebchatMessageDirection.AGENT, "progress", "msg-2", "думаю...");
@@ -145,7 +141,7 @@ class WebchatChannelHandlerTest {
             OutboundDispatch dispatch = new OutboundDispatch("msg-3", null, null, CHANNEL_ID, SESSION_ID, Map.of());
 
             assertThrows(ConnectorException.class,
-                    () -> handler.handleOutput(config, OutboundMessage.text("x"), dispatch, toolCallService));
+                    () -> handler.handleOutput(config, OutboundMessage.text("x"), dispatch));
             verifyNoInteractions(webchatMessagePublisher);
         }
     }

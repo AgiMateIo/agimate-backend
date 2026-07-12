@@ -10,7 +10,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
-import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
@@ -27,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AcpChannelHandler")
@@ -40,8 +38,6 @@ class AcpChannelHandlerTest {
 
     @Mock
     private AcpSessionRegistry sessionRegistry;
-    @Mock
-    private AgentToolCallService toolCallService;
 
     private AcpChannelHandler handler;
     private ChannelConfig config;
@@ -105,7 +101,7 @@ class AcpChannelHandlerTest {
         @DisplayName("progress THINKING → agent_thought_chunk")
         void thinking() {
             OutboundDispatch dispatch = dispatch("progress", "THINKING");
-            handler.handleOutput(config, OutboundMessage.text("думаю"), dispatch, toolCallService);
+            handler.handleOutput(config, OutboundMessage.text("думаю"), dispatch);
 
             Map<String, Object> update = capturedUpdate();
             assertEquals("agent_thought_chunk", update.get("sessionUpdate"));
@@ -117,7 +113,7 @@ class AcpChannelHandlerTest {
         @DisplayName("progress TOOL_CALL → tool_call со статусом completed")
         void toolCall() {
             OutboundDispatch dispatch = dispatch("progress", "TOOL_CALL");
-            handler.handleOutput(config, OutboundMessage.text("🔧 search"), dispatch, toolCallService);
+            handler.handleOutput(config, OutboundMessage.text("🔧 search"), dispatch);
 
             Map<String, Object> update = capturedUpdate();
             assertEquals("tool_call", update.get("sessionUpdate"));
@@ -130,7 +126,7 @@ class AcpChannelHandlerTest {
         @DisplayName("progress TEXT → agent_message_chunk")
         void progressText() {
             OutboundDispatch dispatch = dispatch("progress", "TEXT");
-            handler.handleOutput(config, OutboundMessage.text("сейчас проверю"), dispatch, toolCallService);
+            handler.handleOutput(config, OutboundMessage.text("сейчас проверю"), dispatch);
 
             assertEquals("agent_message_chunk", capturedUpdate().get("sessionUpdate"));
         }
@@ -139,7 +135,7 @@ class AcpChannelHandlerTest {
         @DisplayName("answer (и null-stream) → agent_message_chunk + завершение prompt")
         void answerCompletesPrompt() {
             OutboundDispatch dispatch = dispatch(null, null);
-            handler.handleOutput(config, OutboundMessage.text("готово"), dispatch, toolCallService);
+            assertTrue(handler.handleOutput(config, OutboundMessage.text("готово"), dispatch).isEmpty());
 
             assertEquals("agent_message_chunk", capturedUpdate().get("sessionUpdate"));
             verify(sessionRegistry).completePrompt(SESSION_ID, AcpSessionRegistry.STOP_END_TURN);
@@ -149,11 +145,10 @@ class AcpChannelHandlerTest {
         @DisplayName("error → failPrompt, update не шлётся")
         void errorFailsPrompt() {
             OutboundDispatch dispatch = dispatch("error", null);
-            handler.handleOutput(config, OutboundMessage.text("boom"), dispatch, toolCallService);
+            handler.handleOutput(config, OutboundMessage.text("boom"), dispatch);
 
             verify(sessionRegistry).failPrompt(SESSION_ID, AcpChannelHandler.AGENT_ERROR_CODE, "boom");
             verify(sessionRegistry, never()).sendUpdate(eq(SESSION_ID), eq(Map.of()));
-            verifyNoInteractions(toolCallService);
         }
 
         private OutboundDispatch dispatch(String stream, String progressType) {

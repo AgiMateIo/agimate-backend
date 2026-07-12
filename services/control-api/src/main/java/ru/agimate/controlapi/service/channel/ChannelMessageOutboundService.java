@@ -3,7 +3,6 @@ package ru.agimate.controlapi.service.channel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.database.entities.Channel;
@@ -35,7 +34,12 @@ public class ChannelMessageOutboundService {
 
     public record OutboundResult(ChannelSession session, String messageId) {}
 
-    @Transactional
+    /**
+     * Намеренно НЕ {@code @Transactional}: каждый шаг коммитит свою транзакцию
+     * (создание сессии, лог тула), а диспатч исполнения идёт после — иначе async-исполнитель
+     * не увидит незакоммиченный {@code tool_call_log}, а вызов из post-commit контекста
+     * (SaveMessage) молча терял бы запись (пресловутый REQUIRED внутри afterCommit).
+     */
     public OutboundResult send(UUID agentId, UUID channelId, UUID sessionIdOrNull,
                                OutboundMessage outbound, String messageId, String stream,
                                String progressType) {
@@ -62,7 +66,8 @@ public class ChannelMessageOutboundService {
         OutboundDispatch dispatch = new OutboundDispatch(
                 effectiveMessageId, stream, progressType, channel.getId(), session.getId(), replyContext);
 
-        handler.handleOutput(config, outbound, dispatch, agentToolCallService);
+        handler.handleOutput(config, outbound, dispatch)
+                .ifPresent(request -> agentToolCallService.processToolCall(channel.getAgentId(), request));
 
         log.info("Dispatched OUT message session={} channel={} via handler={}",
                 session.getId(), channel.getId(), handler.name());

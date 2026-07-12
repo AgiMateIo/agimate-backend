@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.service.channel.handler;
 
-import ru.agimate.controlapi.service.tool.AgentToolCallService;
+import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.service.channel.handler.dto.*;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -15,9 +15,10 @@ import java.util.Optional;
  * {@code channels.channel_handler}. Поведение задаётся кодом, данные конкретного канала —
  * в {@link ChannelConfig} (connectorCode + connectionId + settings).
  *
- * <p>Вызовы тулов внутри {@link #handleOutput} идут через штатную подсистему вызова тулов,
- * поэтому ABAC-политики соблюдаются. {@link #listOfTriggers} и {@link #listOfTools} нужны,
- * чтобы при создании канала сгенерировать соответствующие {@code AgentTriggerPolicy}/{@code AgentToolPolicy}.
+ * <p>Тул-вызов, который handler вернул из {@link #handleOutput}, исполняется вызывающим через
+ * штатную подсистему вызова тулов, поэтому ABAC-политики соблюдаются. {@link #listOfTriggers}
+ * и {@link #listOfTools} нужны, чтобы при создании канала сгенерировать соответствующие
+ * {@code AgentTriggerPolicy}/{@code AgentToolPolicy}.
  *
  * <p>Внутри слоя бросать только {@code ConnectorException}.
  */
@@ -73,14 +74,13 @@ public interface ChannelHandler {
     }
 
     /**
-     * Отправляет ответ модели в канал: выбирает тул и аргументы и вызывает его через
-     * {@link AgentToolCallService#processToolCall} (идемпотентность + проверка ABAC). Ключ
+     * Маппит ответ модели на действие канала. Handler либо доставляет сам (webchat/acp — пуш в
+     * живое соединение) и возвращает {@code empty}, либо возвращает {@link ToolCallRequest} —
+     * его исполняет вызывающий (идемпотентность + ABAC + диспатч после коммита лога). Ключ
      * идемпотентности — {@link OutboundDispatch#messageId()}; адрес ответа — из
-     * {@link OutboundDispatch#replyContext()}.
-     *
-     * <p>{@code toolCallService} передаётся параметром, а не инжектится в handler — иначе бин
-     * handler'а тянул бы {@code ConnectorService} и замыкал цикл с роутером инбаунда.
+     * {@link OutboundDispatch#replyContext()}. Побочных эффектов с тулами внутри handler'а нет —
+     * это разрывает цикл бинов с роутером инбаунда и держит диспатч вне транзакций.
      */
-    void handleOutput(ChannelConfig config, OutboundMessage outbound, OutboundDispatch dispatch,
-                      AgentToolCallService toolCallService);
+    Optional<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
+                                           OutboundDispatch dispatch);
 }

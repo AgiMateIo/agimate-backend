@@ -5,7 +5,7 @@ import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.internal.acp.AcpConnectorService;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
-import ru.agimate.controlapi.service.tool.AgentToolCallService;
+import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
@@ -85,20 +85,21 @@ public class AcpChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public void handleOutput(ChannelConfig config, OutboundMessage outbound, OutboundDispatch dispatch,
-                             AgentToolCallService toolCallService) {
+    public Optional<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
+                                                  OutboundDispatch dispatch) {
         String stream = dispatch.stream();
         if (STREAM_ERROR.equals(stream)) {
             sessionRegistry.failPrompt(dispatch.sessionId(), AGENT_ERROR_CODE, outbound.text());
-            return;
+            return Optional.empty();
         }
         if (STREAM_PROGRESS.equals(stream)) {
             sessionRegistry.sendUpdate(dispatch.sessionId(), progressUpdate(dispatch, outbound.text()));
-            return;
+            return Optional.empty();
         }
         // answer (или сообщение без роли — по контракту OutboundDispatch это answer)
         sessionRegistry.sendUpdate(dispatch.sessionId(), contentUpdate("agent_message_chunk", outbound.text()));
         sessionRegistry.completePrompt(dispatch.sessionId(), AcpSessionRegistry.STOP_END_TURN);
+        return Optional.empty();
     }
 
     private static Map<String, Object> progressUpdate(OutboundDispatch dispatch, String text) {

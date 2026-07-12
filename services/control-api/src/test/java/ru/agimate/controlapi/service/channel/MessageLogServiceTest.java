@@ -62,8 +62,9 @@ class MessageLogServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MessageLogService(triggerLogAgentRepository, messageRepository,
-                outboundService, inboundTextResolver);
+        service = new MessageLogService(
+                new MessageLogPersistence(triggerLogAgentRepository, messageRepository, inboundTextResolver),
+                outboundService);
     }
 
     private TriggerLogAgent run(UUID sessionId, Channels channels) {

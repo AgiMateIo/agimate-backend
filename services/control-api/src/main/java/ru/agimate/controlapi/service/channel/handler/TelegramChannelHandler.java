@@ -3,7 +3,6 @@ package ru.agimate.controlapi.service.channel.handler;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
-import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.service.channel.handler.dto.*;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -89,8 +88,8 @@ public class TelegramChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public void handleOutput(ChannelConfig config, OutboundMessage outbound, OutboundDispatch dispatch,
-                             AgentToolCallService toolCallService) {
+    public Optional<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
+                                                  OutboundDispatch dispatch) {
         Map<String, Object> replyContext = dispatch.replyContext() != null ? dispatch.replyContext() : Map.of();
         // Адрес ответа: из входящего (replyContext) → дефолт из config (проактивные/не-канальные триггеры).
         Object chatId = replyContext.get("chatId");
@@ -104,14 +103,13 @@ public class TelegramChannelHandler implements ChannelHandler {
         Map<String, Object> args = new LinkedHashMap<>();
         args.put("chatId", chatId.toString());
         args.put("text", outbound.text());
-        ToolCallRequest request = ToolCallRequest.builder()
+        return Optional.of(ToolCallRequest.builder()
                 .id(dispatch.messageId())
                 .connectorCode(config.connectorCode())
                 .connectionId(config.connectionId())
                 .name(TOOL_SEND_MESSAGE)
                 .input(args)
-                .build();
-        toolCallService.processToolCall(config.agentId(), request);
+                .build());
     }
 
     private static boolean chatAllowed(ChannelConfig config, Object chatId) {

@@ -5,12 +5,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
-import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
@@ -24,9 +21,6 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TelegramChannelHandler")
@@ -34,9 +28,6 @@ class TelegramChannelHandlerTest {
 
     private static final UUID AGENT_ID = UUID.randomUUID();
     private static final String IDENTITY = "bot-creds-1";
-
-    @Mock
-    private AgentToolCallService toolCallService;
 
     private TelegramChannelHandler handler;
     private ChannelConfig config;
@@ -176,16 +167,13 @@ class TelegramChannelHandlerTest {
     class Process {
 
         @Test
-        @DisplayName("calls processToolCall with send_message and chatId from reply context")
+        @DisplayName("returns send_message tool call with chatId from reply context")
         void dispatches() {
             OutboundMessage outbound = OutboundMessage.text("Готово");
             OutboundDispatch dispatch = new OutboundDispatch("call-1", null, null, null, null, Map.of("chatId", 42));
 
-            handler.handleOutput(config, outbound, dispatch, toolCallService);
+            ToolCallRequest r = handler.handleOutput(config, outbound, dispatch).orElseThrow();
 
-            ArgumentCaptor<ToolCallRequest> req = ArgumentCaptor.forClass(ToolCallRequest.class);
-            verify(toolCallService).processToolCall(eq(AGENT_ID), req.capture());
-            ToolCallRequest r = req.getValue();
             assertEquals("telegram", r.getConnectorCode());
             assertEquals(IDENTITY, r.getConnectionId());
             assertEquals("send_message", r.getName());
@@ -201,11 +189,9 @@ class TelegramChannelHandlerTest {
             OutboundMessage outbound = OutboundMessage.text("Напоминание");
             OutboundDispatch dispatch = new OutboundDispatch("call-2", null, null, null, null, Map.of());
 
-            handler.handleOutput(withDefault, outbound, dispatch, toolCallService);
+            ToolCallRequest r = handler.handleOutput(withDefault, outbound, dispatch).orElseThrow();
 
-            ArgumentCaptor<ToolCallRequest> req = ArgumentCaptor.forClass(ToolCallRequest.class);
-            verify(toolCallService).processToolCall(eq(AGENT_ID), req.capture());
-            assertEquals("777", req.getValue().getInput().get("chatId"));
+            assertEquals("777", r.getInput().get("chatId"));
         }
 
         @Test
@@ -214,8 +200,7 @@ class TelegramChannelHandlerTest {
             OutboundMessage outbound = OutboundMessage.text("Готово");
             OutboundDispatch dispatch = new OutboundDispatch("call-1", null, null, null, null, Map.of());
 
-            assertThrows(ConnectorException.class, () -> handler.handleOutput(config, outbound, dispatch, toolCallService));
-            verifyNoInteractions(toolCallService);
+            assertThrows(ConnectorException.class, () -> handler.handleOutput(config, outbound, dispatch));
         }
     }
 }
