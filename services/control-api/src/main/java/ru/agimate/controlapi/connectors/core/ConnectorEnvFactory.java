@@ -37,8 +37,8 @@ public class ConnectorEnvFactory {
         return build(connection, Map.of(), null, null);
     }
 
-    public ConnectorEnv internal(String connectionId, UUID userId, UUID agentId, UUID channelId) {
-        return new ConnectorEnv(connectionId, userId, agentId, channelId, Map.of(), null);
+    public ConnectorEnv internal(String connectionId, UUID userId, UUID agentId, UUID channelId, UUID sessionId) {
+        return new ConnectorEnv(connectionId, userId, agentId, channelId, sessionId, Map.of(), null);
     }
 
     /**
@@ -48,7 +48,7 @@ public class ConnectorEnvFactory {
      */
     public static ConnectorEnv listing(UUID connectionId) {
         return new ConnectorEnv(connectionId == null ? null : connectionId.toString(),
-                null, null, null, Map.of(), null);
+                null, null, null, null, Map.of(), null);
     }
 
     private Map<String, String> decryptCredentials(Connection connection) {
@@ -68,6 +68,7 @@ public class ConnectorEnvFactory {
                 connection.getUserId(),
                 agentId,
                 channelId,
+                null,
                 decrypted,
                 connection.getWebhookSecret());
     }

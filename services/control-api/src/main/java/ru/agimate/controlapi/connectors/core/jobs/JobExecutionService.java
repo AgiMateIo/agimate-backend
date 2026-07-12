@@ -57,7 +57,7 @@ public class JobExecutionService {
         // Полный контекст инициатора (userId/agentId/channelId сохранены в строке при планировании) —
         // динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.
         return envFactory.internal(
-                row.getConnectionId(), row.getUserId(), row.getAgentId(), row.getChannelId());
+                row.getConnectionId(), row.getUserId(), row.getAgentId(), row.getChannelId(), null);
     }
 
     private static UUID parseIdentity(ConnectorJob row) {

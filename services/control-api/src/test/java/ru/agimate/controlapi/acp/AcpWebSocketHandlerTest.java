@@ -106,6 +106,26 @@ class AcpWebSocketHandlerTest {
             assertEquals(true, caps.get("loadSession"));
             assertTrue(((List<?>) result.get("authMethods")).isEmpty());
         }
+
+        @Test
+        @DisplayName("клиентские capabilities из initialize доходят до attach при session/new")
+        void capabilitiesFlowToAttach() {
+            receive(request(1, "initialize", Map.of("clientCapabilities", Map.of(
+                    "fs", Map.of("readTextFile", true, "writeTextFile", true),
+                    "terminal", true))));
+
+            ChannelSession channelSession = mock(ChannelSession.class);
+            when(channelSession.getId()).thenReturn(SESSION_ID);
+            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(channelSession);
+            receive(request("r1", "session/new", Map.of()));
+
+            ArgumentCaptor<AcpSessionRegistry.ClientCapabilities> caps =
+                    ArgumentCaptor.forClass(AcpSessionRegistry.ClientCapabilities.class);
+            verify(sessionRegistry).attach(eq(SESSION_ID), any(), caps.capture());
+            assertTrue(caps.getValue().fsRead());
+            assertTrue(caps.getValue().fsWrite());
+            assertTrue(caps.getValue().terminal());
+        }
     }
 
     @Nested
@@ -122,7 +142,7 @@ class AcpWebSocketHandlerTest {
 
             receive(request("r1", "session/new", Map.of("cwd", "/tmp")));
 
-            verify(sessionRegistry).attach(eq(SESSION_ID), any());
+            verify(sessionRegistry).attach(eq(SESSION_ID), any(), any());
             Map<String, Object> result = (Map<String, Object>) singleResponse().get("result");
             assertEquals(SESSION_ID.toString(), result.get("sessionId"));
         }
@@ -207,6 +227,19 @@ class AcpWebSocketHandlerTest {
         void closeDetaches() {
             handler.afterConnectionClosed(wsSession, CloseStatus.NORMAL);
             verify(sessionRegistry).detachAll(any());
+        }
+
+        @Test
+        @DisplayName("ответ клиента (без method, с id) маршрутизируется в handleResponse")
+        void clientResponseRouted() {
+            Map<String, Object> frame = new HashMap<>();
+            frame.put("jsonrpc", "2.0");
+            frame.put("id", "srv-7");
+            frame.put("result", Map.of("content", "data"));
+            receive(frame);
+
+            verify(sessionRegistry).handleResponse(eq("srv-7"), any(), any());
+            assertTrue(sent.isEmpty());
         }
     }
 

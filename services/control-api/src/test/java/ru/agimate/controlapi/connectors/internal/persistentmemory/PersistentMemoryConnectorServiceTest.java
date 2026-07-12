@@ -41,7 +41,7 @@ class PersistentMemoryConnectorServiceTest {
     }
 
     private static ConnectorEnv env(String connectionId) {
-        return new ConnectorEnv(connectionId, null, null, null, Map.of(), null);
+        return new ConnectorEnv(connectionId, null, null, null, null, Map.of(), null);
     }
 
     private static PersistentMemoryCold cold(String content, int version) {

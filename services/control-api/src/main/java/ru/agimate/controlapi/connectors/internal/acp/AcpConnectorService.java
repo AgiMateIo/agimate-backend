@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.connectors.internal.acp;
 
 import org.springframework.stereotype.Component;
+import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
@@ -21,13 +22,22 @@ import java.util.Map;
  * материализуется binding'ом при первом {@code session/new}), каналы — per-agent. Входящие
  * шлёт {@code AcpService} (триггер {@code message_received} с явными sessionId/audience),
  * доставка ответов — {@code AcpChannelHandler} (JSON-RPC {@code session/update} в живое
- * соединение). Тулов и джоб нет — реализуется один {@link TriggerProvider}.
+ * соединение).
+ *
+ * <p>Тулы IDE ({@link AcpToolService}: read_file/write_file/run_command) исполняются обратным
+ * JSON-RPC в живое соединение сессии — {@code ToolBinding.STATIC}, {@code ExecutionLocus.BACKEND}
+ * (control-api диспатчит вызов, но само действие делает клиент).
  */
 @Component
-public class AcpConnectorService implements InternalConnectorHandler, TriggerProvider {
+public class AcpConnectorService extends BaseConnectorHandler
+        implements InternalConnectorHandler, TriggerProvider {
 
     public static final String CONNECTOR_CODE = "acp";
     public static final String TRIGGER_MESSAGE_RECEIVED = "message_received";
+
+    public AcpConnectorService(AcpToolService toolService) {
+        super(toolService);
+    }
 
     @Override
     public String connectorCode() {

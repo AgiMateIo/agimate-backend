@@ -78,7 +78,8 @@ public class ToolExecutionService {
     }
 
     private ConnectorEnv buildEnv(ConnectorHandler handler, ToolCallLog toolCallLog) {
-        UUID channelId = resolveChannelId(toolCallLog.getAgentSessionId());
+        UUID sessionId = parseSessionId(toolCallLog.getAgentSessionId());
+        UUID channelId = resolveChannelId(sessionId);
         if (handler instanceof IntegrationConnectorHandler) {
             Connection connection = connectionRepository
                     .findByIdAndUserIdNotDeleted(UUID.fromString(toolCallLog.getConnectionId()), toolCallLog.getUserId())
@@ -87,22 +88,29 @@ public class ToolExecutionService {
                             "Connection missing or disabled: " + toolCallLog.getConnectionId()));
             return envFactory.forConnection(connection, toolCallLog.getAgentId(), channelId);
         }
-        return envFactory.internal(
-                toolCallLog.getConnectionId(), toolCallLog.getUserId(), toolCallLog.getAgentId(), channelId);
+        return envFactory.internal(toolCallLog.getConnectionId(), toolCallLog.getUserId(),
+                toolCallLog.getAgentId(), channelId, sessionId);
     }
 
-    /** Канал prompt-сессии, из которой пришёл вызов — доменный контекст для тулов; {@code null} вне канала. */
-    private UUID resolveChannelId(String agentSessionId) {
+    private static UUID parseSessionId(String agentSessionId) {
         if (agentSessionId == null || agentSessionId.isBlank()) {
             return null;
         }
         try {
-            return channelSessionRepository.findById(UUID.fromString(agentSessionId))
-                    .map(ChannelSession::getChannelId)
-                    .orElse(null);
+            return UUID.fromString(agentSessionId);
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    /** Канал prompt-сессии, из которой пришёл вызов — доменный контекст для тулов; {@code null} вне канала. */
+    private UUID resolveChannelId(UUID sessionId) {
+        if (sessionId == null) {
+            return null;
+        }
+        return channelSessionRepository.findById(sessionId)
+                .map(ChannelSession::getChannelId)
+                .orElse(null);
     }
 
     private void deliver(ToolCallLog toolCallLog, String output, String error) {

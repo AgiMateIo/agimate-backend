@@ -80,6 +80,11 @@ public class AcpChannelHandler implements ChannelHandler {
     }
 
     @Override
+    public boolean contributesPromptTools() {
+        return true;
+    }
+
+    @Override
     public void handleOutput(ChannelConfig config, OutboundMessage outbound, OutboundDispatch dispatch,
                              AgentToolCallService toolCallService) {
         String stream = dispatch.stream();

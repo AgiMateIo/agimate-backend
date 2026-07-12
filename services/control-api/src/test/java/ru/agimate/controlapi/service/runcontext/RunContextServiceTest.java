@@ -81,6 +81,8 @@ class RunContextServiceTest {
     @Mock private ConnectionToolRepository connectionToolRepository;
     @Mock private InboundTextResolver inboundTextResolver;
     @Mock private ChannelSessionMessageRepository messageRepository;
+    @Mock private ru.agimate.controlapi.database.repositories.ChannelRepository channelRepository;
+    @Mock private ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry channelHandlerRegistry;
 
     /** persist-memory-подобный коннектор: identity + блоки + статические тулы. */
     interface MemoryLikeHandler extends ConnectorHandler, PromptBlockProvider, ToolProvider {
@@ -97,7 +99,8 @@ class RunContextServiceTest {
         service = new RunContextService(triggerLogAgentRepository, agentRepository,
                 agenticTeamRepository, agentSkillRepository, agentSkillService, skillRepository,
                 connectionRepository, connectorRepository, connectionToolRepository,
-                registry, new ConnectorEnvFactory(null, null), inboundTextResolver, messageRepository);
+                registry, new ConnectorEnvFactory(null, null), channelRepository, channelHandlerRegistry,
+                inboundTextResolver, messageRepository);
     }
 
     private Agent agent() {
@@ -237,6 +240,43 @@ class RunContextServiceTest {
             assertEquals("persist-memory", tool.connectorCode());
             assertEquals("persist-memory", tool.namespace());
             assertEquals(CONNECTION_ID.toString(), tool.connectionId());
+        }
+
+        @Test
+        @DisplayName("prompt-канал с contributesPromptTools подмешивает тулы своего коннектора без скилла")
+        void promptChannelContributesTools() {
+            Agent agent = agent();
+            Channels channels = Channels.ofPrompt(new ChannelInfo(CHANNEL_ID, SESSION_ID, null));
+            stubRun(run(agent, triggerLog("acp", "message_received"), channels));
+            stubSkills(List.of()); // ни один скилл не требует коннектор
+
+            when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of("hi"));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
+                    .thenReturn(List.of(memoryConnection()));
+            org.mockito.Mockito.lenient().when(memoryHandler.promptBlocks(any(ConnectorEnv.class)))
+                    .thenReturn(List.of());
+
+            // Канал приносит тулы: handler contributesPromptTools, connectorCode == персист-мемори.
+            ru.agimate.controlapi.database.entities.Channel channel =
+                    ru.agimate.controlapi.database.entities.Channel.builder()
+                            .id(CHANNEL_ID).channelHandler("acp").connectorCode("persist-memory").build();
+            when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            ru.agimate.controlapi.service.channel.handler.ChannelHandler h =
+                    mock(ru.agimate.controlapi.service.channel.handler.ChannelHandler.class);
+            when(h.contributesPromptTools()).thenReturn(true);
+            when(channelHandlerRegistry.find("acp")).thenReturn(Optional.of(h));
+
+            Connector connector = new Connector();
+            connector.setCode("persist-memory");
+            connector.setToolBinding(ToolBinding.STATIC);
+            when(connectorRepository.findById("persist-memory")).thenReturn(Optional.of(connector));
+            when(memoryHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
+                    "get_memory", new ConnectorToolSpec("get_memory", null, "d", null, null, null, null)));
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            assertEquals(1, view.tools().size());
+            assertEquals("persist-memory", view.tools().get(0).connectorCode());
         }
     }
 

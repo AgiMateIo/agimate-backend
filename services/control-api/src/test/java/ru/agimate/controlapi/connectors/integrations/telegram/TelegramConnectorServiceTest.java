@@ -59,11 +59,11 @@ class TelegramConnectorServiceTest {
     }
 
     private static ConnectorEnv env() {
-        return new ConnectorEnv(IDENTITY, USER_ID, null, null, Map.of("token", "token123"), null);
+        return new ConnectorEnv(IDENTITY, USER_ID, null, null, null, Map.of("token", "token123"), null);
     }
 
     private static ConnectorEnv webhookContext(String secret) {
-        return new ConnectorEnv(IDENTITY, USER_ID, null, null, Map.of(), secret);
+        return new ConnectorEnv(IDENTITY, USER_ID, null, null, null, Map.of(), secret);
     }
 
     @Nested
@@ -390,7 +390,7 @@ class TelegramConnectorServiceTest {
         @Test
         @DisplayName("пустые credentials → ConnectorException")
         void missingToken() {
-            ConnectorEnv noToken = new ConnectorEnv(IDENTITY, USER_ID, null, null, Map.of(), null);
+            ConnectorEnv noToken = new ConnectorEnv(IDENTITY, USER_ID, null, null, null, Map.of(), null);
 
             assertThrows(ConnectorException.class, () ->
                     handler.executeJob(noToken, TelegramToolService.TASK_LONG_POLL, Map.of()));

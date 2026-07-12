@@ -45,7 +45,7 @@ class McpConnectorServiceTest {
     }
 
     private ConnectorEnv ctx(String connectionId, Map<String, String> credentials) {
-        return new ConnectorEnv(connectionId, null, null, null, credentials, null);
+        return new ConnectorEnv(connectionId, null, null, null, null, credentials, null);
     }
 
     @Nested

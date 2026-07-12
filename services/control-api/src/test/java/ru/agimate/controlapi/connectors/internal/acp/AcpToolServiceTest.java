@@ -1,0 +1,207 @@
+package ru.agimate.controlapi.connectors.internal.acp;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
+import ru.agimate.controlapi.service.acp.AcpSessionRegistry.ClientCapabilities;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("AcpToolService (IDE-тулы через живой WebSocket)")
+class AcpToolServiceTest {
+
+    private static final UUID SESSION_ID = UUID.randomUUID();
+    private static final ClientCapabilities FULL = new ClientCapabilities(true, true, true);
+
+    @Mock
+    private AcpSessionRegistry registry;
+
+    private AcpConnectorService handler;
+
+    @BeforeEach
+    void setUp() {
+        handler = new AcpConnectorService(new AcpToolService(registry));
+        lenient().when(registry.isConnected(SESSION_ID)).thenReturn(true);
+    }
+
+    /** Env с sessionId — как его собирает ToolExecutionService для ACP-рана. */
+    private static ConnectorEnv env() {
+        return new ConnectorEnv("conn", UUID.randomUUID(), UUID.randomUUID(), null, SESSION_ID, Map.of(), null);
+    }
+
+    private static CompletableFuture<JsonNode> reply(String json) {
+        return CompletableFuture.completedFuture(JsonUtils.toJsonNode(json));
+    }
+
+    private void stub(String method, CompletableFuture<JsonNode> future) {
+        lenient().when(registry.request(eq(SESSION_ID), eq(method), any())).thenReturn(future);
+    }
+
+    private void allowPermission() {
+        stub("session/request_permission", reply("{\"outcome\":{\"outcome\":\"selected\",\"optionId\":\"allow\"}}"));
+    }
+
+    @Nested
+    @DisplayName("read_file")
+    class Read {
+
+        @Test
+        @DisplayName("вызывает fs/read_text_file и возвращает content")
+        void reads() {
+            when(registry.capabilities(SESSION_ID)).thenReturn(FULL);
+            stub("fs/read_text_file", reply("{\"content\":\"line1\\nline2\"}"));
+
+            Map<String, Object> result = handler.executeTool(env(), "read_file",
+                    Map.of("path", "/home/u/main.py", "line", 2, "limit", 10));
+
+            assertEquals("line1\nline2", result.get("content"));
+            verify(registry).request(eq(SESSION_ID), eq("fs/read_text_file"), any());
+        }
+
+        @Test
+        @DisplayName("нет fs.readTextFile capability → ConnectorException, вызова нет")
+        void noCapability() {
+            when(registry.capabilities(SESSION_ID)).thenReturn(new ClientCapabilities(false, false, false));
+
+            assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "read_file",
+                    Map.of("path", "/a")));
+            verify(registry, never()).request(any(), eq("fs/read_text_file"), any());
+        }
+
+        @Test
+        @DisplayName("относительный путь отклоняется")
+        void rejectsRelativePath() {
+            when(registry.capabilities(SESSION_ID)).thenReturn(FULL);
+            assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "read_file",
+                    Map.of("path", "relative/path")));
+        }
+
+        @Test
+        @DisplayName("сессия есть, но соединение оборвано → ConnectorException 'not connected', без capability-проверки")
+        void notConnected() {
+            when(registry.isConnected(SESSION_ID)).thenReturn(false);
+
+            ConnectorException ex = assertThrows(ConnectorException.class,
+                    () -> handler.executeTool(env(), "read_file", Map.of("path", "/a")));
+            assertTrue(ex.getMessage().toLowerCase().contains("not connected"));
+            verify(registry, never()).capabilities(any());
+        }
+
+        @Test
+        @DisplayName("нет sessionId в env (не-ACP ран) → ConnectorException")
+        void noSession() {
+            ConnectorEnv noSession = new ConnectorEnv("conn", UUID.randomUUID(), UUID.randomUUID(),
+                    null, null, Map.of(), null);
+            assertThrows(ConnectorException.class, () -> handler.executeTool(noSession, "read_file",
+                    Map.of("path", "/a")));
+        }
+    }
+
+    @Nested
+    @DisplayName("write_file")
+    class Write {
+
+        @Test
+        @DisplayName("спрашивает разрешение, затем fs/write_text_file")
+        void writesAfterPermission() {
+            when(registry.capabilities(SESSION_ID)).thenReturn(FULL);
+            allowPermission();
+            stub("fs/write_text_file", reply("null"));
+
+            Map<String, Object> result = handler.executeTool(env(), "write_file",
+                    Map.of("path", "/a/b.txt", "content", "hello"));
+
+            assertEquals(true, result.get("ok"));
+            verify(registry).request(eq(SESSION_ID), eq("session/request_permission"), any());
+            verify(registry).request(eq(SESSION_ID), eq("fs/write_text_file"), any());
+        }
+
+        @Test
+        @DisplayName("пользователь отклонил → ConnectorException, записи нет")
+        void userRejected() {
+            when(registry.capabilities(SESSION_ID)).thenReturn(FULL);
+            stub("session/request_permission", reply("{\"outcome\":{\"outcome\":\"cancelled\"}}"));
+
+            assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "write_file",
+                    Map.of("path", "/a/b.txt", "content", "x")));
+            verify(registry, never()).request(any(), eq("fs/write_text_file"), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("run_command")
+    class Run {
+
+        @Test
+        @DisplayName("create → wait → output → release, возвращает exitCode и output")
+        void happyPath() {
+            when(registry.capabilities(SESSION_ID)).thenReturn(FULL);
+            allowPermission();
+            stub("terminal/create", reply("{\"terminalId\":\"t1\"}"));
+            stub("terminal/wait_for_exit", reply("{\"exitCode\":0}"));
+            stub("terminal/output", reply("{\"output\":\"ok\",\"truncated\":false,\"exitStatus\":{\"exitCode\":0}}"));
+            stub("terminal/release", reply("null"));
+
+            Map<String, Object> result = handler.executeTool(env(), "run_command",
+                    Map.of("command", "ls", "args", java.util.List.of("-la")));
+
+            assertEquals("ok", result.get("output"));
+            assertEquals(0, result.get("exitCode"));
+            verify(registry).request(eq(SESSION_ID), eq("terminal/release"), any());
+        }
+
+        @Test
+        @DisplayName("сбой ожидания → kill, читаем частичный вывод, timedOut=true")
+        void waitFailureKills() {
+            when(registry.capabilities(SESSION_ID)).thenReturn(FULL);
+            allowPermission();
+            stub("terminal/create", reply("{\"terminalId\":\"t1\"}"));
+            stub("terminal/wait_for_exit", CompletableFuture.failedFuture(new IllegalStateException("timeout")));
+            stub("terminal/kill", reply("null"));
+            stub("terminal/output", reply("{\"output\":\"partial\",\"truncated\":true}"));
+            stub("terminal/release", reply("null"));
+
+            Map<String, Object> result = handler.executeTool(env(), "run_command", Map.of("command", "sleep"));
+
+            assertEquals("partial", result.get("output"));
+            assertEquals(true, result.get("timedOut"));
+            verify(registry).request(eq(SESSION_ID), eq("terminal/kill"), any());
+            verify(registry).request(eq(SESSION_ID), eq("terminal/release"), any());
+        }
+
+        @Test
+        @DisplayName("IDE отключилась (request бросает) → ConnectorException")
+        void ideDisconnected() {
+            when(registry.capabilities(SESSION_ID)).thenReturn(FULL);
+            allowPermission();
+            when(registry.request(eq(SESSION_ID), eq("terminal/create"), any()))
+                    .thenThrow(new IllegalStateException("IDE session is not connected"));
+
+            ConnectorException ex = assertThrows(ConnectorException.class,
+                    () -> handler.executeTool(env(), "run_command", Map.of("command", "ls")));
+            assertTrue(ex.getMessage().toLowerCase().contains("not connected"));
+        }
+    }
+}

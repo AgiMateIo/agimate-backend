@@ -33,6 +33,7 @@ import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
+import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
@@ -41,6 +42,8 @@ import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.channel.InboundTextResolver;
+import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
+import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -97,6 +100,8 @@ public class RunContextService {
     private final ConnectionToolRepository connectionToolRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorEnvFactory envFactory;
+    private final ChannelRepository channelRepository;
+    private final ChannelHandlerRegistry channelHandlerRegistry;
     private final InboundTextResolver inboundTextResolver;
     private final ChannelSessionMessageRepository messageRepository;
 
@@ -128,6 +133,9 @@ public class RunContextService {
         List<Connection> connections = connectionRepository.findActiveBoundToAgent(agentId);
         UUID promptChannelId = channels != null && channels.prompt() != null
                 ? channels.prompt().channelId() : null;
+        // Канал, приносящий свои тулы (IDE-коннектор), подмешивает коннектор prompt-канала мимо
+        // скилл-гейта — «канал приносит тулы», пока разговор идёт из этого канала.
+        addPromptChannelTools(promptChannelId, requiredConnectors);
 
         List<RunBlock> systemBlocks = new ArrayList<>();
         List<RunBlock> userBlocks = new ArrayList<>();
@@ -321,7 +329,7 @@ public class RunContextService {
                 continue;
             }
             ConnectorEnv env = envFactory.internal(
-                    connection.getId().toString(), agent.getUserId(), agent.getId(), promptChannelId);
+                    connection.getId().toString(), agent.getUserId(), agent.getId(), promptChannelId, null);
             List<PromptBlock> blocks;
             try {
                 blocks = provider.promptBlocks(env);
@@ -392,6 +400,21 @@ public class RunContextService {
     }
 
     // ===== Тулы =====
+
+    /**
+     * Если prompt-канал приносит свои тулы ({@link ChannelHandler#contributesPromptTools}), его
+     * коннектор добавляется в {@code requiredConnectors} — {@link #collectTools} подхватит тулы
+     * соответствующего binding'а независимо от скиллов агента.
+     */
+    private void addPromptChannelTools(UUID promptChannelId, Set<String> requiredConnectors) {
+        if (promptChannelId == null) {
+            return;
+        }
+        channelRepository.findByIdAndDeletedAtIsNull(promptChannelId).ifPresent(channel ->
+                channelHandlerRegistry.find(channel.getChannelHandler())
+                        .filter(ChannelHandler::contributesPromptTools)
+                        .ifPresent(h -> requiredConnectors.add(channel.getConnectorCode())));
+    }
 
     /** Тулы connections, чей коннектор требуется скоупленными скиллами (порт логики воркера + GetConnectionTools). */
     private List<RunTool> collectTools(List<Connection> connections, Set<String> requiredConnectors) {

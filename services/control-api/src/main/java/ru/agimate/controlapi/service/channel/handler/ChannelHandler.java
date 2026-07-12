@@ -63,6 +63,16 @@ public interface ChannelHandler {
     }
 
     /**
+     * Приносит ли канал собственные тулы своего коннектора в контекст DIALOGUE-рана — мимо
+     * скилл-гейта ({@code requiredConnectors}). {@code true} → {@code RunContextService} подмешивает
+     * тулы коннектора prompt-канала независимо от скиллов агента. Семантика «канал приносит тулы»:
+     * IDE-коннектор отдаёт fs/terminal-тулы, пока разговор идёт из IDE, без ручной настройки скилла.
+     */
+    default boolean contributesPromptTools() {
+        return false;
+    }
+
+    /**
      * Отправляет ответ модели в канал: выбирает тул и аргументы и вызывает его через
      * {@link AgentToolCallService#processToolCall} (идемпотентность + проверка ABAC). Ключ
      * идемпотентности — {@link OutboundDispatch#messageId()}; адрес ответа — из

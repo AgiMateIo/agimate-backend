@@ -16,6 +16,9 @@ import java.util.UUID;
  *                      границе по {@code agentSessionId}); для динамической таски — снимок из строки
  *                      {@code connector_jobs}. {@code null} вне канального контекста. Нужен тулам,
  *                      которым важен исходный канал (например {@code time.schedule} — куда отвечать)
+ * @param sessionId     prompt-сессия вызова ({@code channel_sessions.id}); {@code null} вне
+ *                      канального tool-use потока. Нужен тулам, адресующим конкретную живую сессию
+ *                      (IDE-коннектор — ключ {@code AcpSessionRegistry})
  * @param credentials   расшифрованные credentials; пустая мапа для internal и для webhook
  *                      hot path (валидация/нормализация не требует расшифровки)
  * @param webhookSecret секрет для валидации входящих webhook'ов; {@code null}, если не применимо
@@ -25,6 +28,7 @@ public record ConnectorEnv(
         UUID userId,
         UUID agentId,
         UUID channelId,
+        UUID sessionId,
         Map<String, String> credentials,
         String webhookSecret
 ) {

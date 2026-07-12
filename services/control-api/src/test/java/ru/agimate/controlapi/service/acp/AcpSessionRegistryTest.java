@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.acp;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -10,6 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -46,7 +50,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("привязанная сессия получает нотификацию session/update")
         void deliversNotification() {
-            registry.attach(SESSION_ID, client);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
             registry.sendUpdate(SESSION_ID, Map.of("sessionUpdate", "agent_message_chunk"));
 
             assertEquals(1, client.frames.size());
@@ -69,7 +73,7 @@ class AcpSessionRegistryTest {
         void sendFailureSwallowed() {
             registry.attach(SESSION_ID, frame -> {
                 throw new RuntimeException("socket closed");
-            });
+            }, AcpSessionRegistry.ClientCapabilities.NONE);
             registry.sendUpdate(SESSION_ID, Map.of("sessionUpdate", "agent_message_chunk"));
         }
     }
@@ -81,7 +85,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("completePrompt отвечает на зарегистрированный rpc-id и снимает pending")
         void completeSendsResult() {
-            registry.attach(SESSION_ID, client);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
             registry.registerPrompt(SESSION_ID, 42);
 
             assertTrue(registry.completePrompt(SESSION_ID, AcpSessionRegistry.STOP_END_TURN));
@@ -96,7 +100,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("failPrompt отвечает JSON-RPC ошибкой")
         void failSendsError() {
-            registry.attach(SESSION_ID, client);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
             registry.registerPrompt(SESSION_ID, "req-1");
 
             assertTrue(registry.failPrompt(SESSION_ID, -32000, "boom"));
@@ -110,7 +114,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("второй prompt при незавершённом первом — IllegalStateException")
         void doublePromptRejected() {
-            registry.attach(SESSION_ID, client);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
             registry.registerPrompt(SESSION_ID, 1);
             assertThrows(IllegalStateException.class, () -> registry.registerPrompt(SESSION_ID, 2));
         }
@@ -131,8 +135,8 @@ class AcpSessionRegistryTest {
         void removesOnlyOwnSessions() {
             RecordingClient other = new RecordingClient();
             UUID otherSession = UUID.randomUUID();
-            registry.attach(SESSION_ID, client);
-            registry.attach(otherSession, other);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.attach(otherSession, other, AcpSessionRegistry.ClientCapabilities.NONE);
 
             registry.detachAll(client);
 
@@ -140,6 +144,71 @@ class AcpSessionRegistryTest {
             registry.sendUpdate(otherSession, Map.of("k", "v"));
             assertTrue(client.frames.isEmpty());
             assertEquals(1, other.frames.size());
+        }
+    }
+
+    @Nested
+    @DisplayName("server→client request (IDE-тулы)")
+    class ServerRequest {
+
+        private static final AcpSessionRegistry.ClientCapabilities FULL =
+                new AcpSessionRegistry.ClientCapabilities(true, true, true);
+
+        @Test
+        @DisplayName("request шлёт JSON-RPC запрос; handleResponse завершает future результатом")
+        void requestResolvedByResponse() throws Exception {
+            registry.attach(SESSION_ID, client, FULL);
+            CompletableFuture<JsonNode> future =
+                    registry.request(SESSION_ID, "fs/read_text_file", Map.of("path", "/a"));
+
+            Map<String, Object> frame = client.frames.get(0);
+            assertEquals("fs/read_text_file", frame.get("method"));
+            String id = (String) frame.get("id");
+            assertTrue(id.startsWith("srv-"));
+            assertFalse(future.isDone());
+
+            registry.handleResponse(id, JsonUtils.toJsonNode("{\"content\":\"hi\"}"), null);
+            assertEquals("hi", future.get(1, TimeUnit.SECONDS).path("content").asText());
+        }
+
+        @Test
+        @DisplayName("handleResponse с error завершает future исключением")
+        void errorResponseFailsFuture() {
+            registry.attach(SESSION_ID, client, FULL);
+            CompletableFuture<JsonNode> future = registry.request(SESSION_ID, "fs/write_text_file", Map.of());
+            String id = (String) client.frames.get(0).get("id");
+
+            registry.handleResponse(id, null, JsonUtils.toJsonNode("{\"code\":-32000,\"message\":\"nope\"}"));
+
+            ExecutionException ex = assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
+            assertTrue(ex.getCause().getMessage().contains("nope"));
+        }
+
+        @Test
+        @DisplayName("request на непривязанную сессию — IllegalStateException")
+        void requestWithoutSession() {
+            assertThrows(IllegalStateException.class,
+                    () -> registry.request(SESSION_ID, "fs/read_text_file", Map.of()));
+        }
+
+        @Test
+        @DisplayName("обрыв соединения завершает висящие запросы ошибкой")
+        void detachFailsPendingRequests() {
+            registry.attach(SESSION_ID, client, FULL);
+            CompletableFuture<JsonNode> future = registry.request(SESSION_ID, "terminal/create", Map.of());
+
+            registry.detachAll(client);
+
+            ExecutionException ex = assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
+            assertTrue(ex.getCause().getMessage().contains("disconnected"));
+        }
+
+        @Test
+        @DisplayName("capabilities возвращает объявленные клиентом флаги")
+        void capabilitiesStored() {
+            registry.attach(SESSION_ID, client, FULL);
+            assertTrue(registry.capabilities(SESSION_ID).fsWrite());
+            assertTrue(registry.capabilities(UUID.randomUUID()) == AcpSessionRegistry.ClientCapabilities.NONE);
         }
     }
 }

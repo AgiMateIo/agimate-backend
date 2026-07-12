@@ -33,7 +33,7 @@ class TimeToolServiceTest {
             new TimeConnectorService(new TimeToolService(jobService, null));
 
     private static ConnectorEnv env() {
-        return new ConnectorEnv(null, USER_ID, AGENT_ID, null, Map.of(), null);
+        return new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, Map.of(), null);
     }
 
     @Test

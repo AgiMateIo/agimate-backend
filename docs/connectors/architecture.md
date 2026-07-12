@@ -67,6 +67,11 @@ binding + прецеденс. `connection_id` тула/триггера = `conne
 источник и reply-экземпляры; chat-filtering хранится в `channels.input_filter` и применяется в
 `ChannelRouteResolver` (не в ABAC). Удаление канала binding не трогает.
 
+`ChannelHandler.contributesPromptTools()` — канал приносит тулы своего коннектора в контекст
+DIALOGUE-рана мимо скилл-гейта (`requiredConnectors` в `RunContextService`): семантика «канал
+приносит тулы», пока разговор идёт из него. Используется ACP-каналом для IDE-тулов (fs/terminal),
+чтобы не требовать ручного скилла на каждого агента.
+
 ## SPI (`connectors/core`)
 
 SPI — композиция: identity-ядро + capability-интерфейсы, которые фасад реализует à la carte.

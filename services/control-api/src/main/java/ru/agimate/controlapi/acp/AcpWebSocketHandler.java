@@ -15,6 +15,7 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.config.AcpWebSocketConfig;
 import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
@@ -52,6 +53,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
     public static final int PROTOCOL_VERSION = 1;
 
     private static final String ATTR_CLIENT = "acpClient";
+    private static final String ATTR_CAPABILITIES = "acpCapabilities";
 
     private static final int RPC_INVALID_PARAMS = -32602;
     private static final int RPC_METHOD_NOT_FOUND = -32601;
@@ -65,8 +67,10 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        ConcurrentWebSocketSessionDecorator safeSession =
-                new ConcurrentWebSocketSessionDecorator(session, 10_000, 512 * 1024);
+        // Буфер исходящих под крупные фреймы (ответ агента, fs/write с большим content) —
+        // симметрично входному лимиту контейнера (AcpWebSocketConfig.MAX_MESSAGE_BYTES).
+        ConcurrentWebSocketSessionDecorator safeSession = new ConcurrentWebSocketSessionDecorator(
+                session, 10_000, AcpWebSocketConfig.MAX_MESSAGE_BYTES);
         AcpSessionRegistry.Client client = frame -> {
             try {
                 safeSession.sendMessage(new TextMessage(frame));
@@ -95,12 +99,16 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         String method = frame.path("method").asText(null);
         JsonNode params = frame.path("params");
         if (method == null) {
-            return; // ответы клиента: в MVP запросов клиенту не шлём — игнор
+            // Ответ клиента на server→client запрос (fs/terminal-тул IDE-коннектора).
+            if (id != null) {
+                sessionRegistry.handleResponse(id.asText(), frame.get("result"), frame.get("error"));
+            }
+            return;
         }
 
         try {
             switch (method) {
-                case "initialize" -> client.send(resultFrame(id, initializeResult()));
+                case "initialize" -> handleInitialize(session, client, id, params);
                 case "authenticate" -> client.send(resultFrame(id, Map.of()));
                 case "session/new" -> handleSessionNew(session, client, id);
                 case "session/load" -> handleSessionLoad(session, client, id, params);
@@ -121,6 +129,18 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
+    /** Сохраняет клиентские capabilities (fs/terminal) в атрибуты соединения и отвечает манифестом. */
+    private void handleInitialize(WebSocketSession session, AcpSessionRegistry.Client client,
+                                  JsonNode id, JsonNode params) {
+        JsonNode caps = params.path("clientCapabilities");
+        AcpSessionRegistry.ClientCapabilities parsed = new AcpSessionRegistry.ClientCapabilities(
+                caps.path("fs").path("readTextFile").asBoolean(false),
+                caps.path("fs").path("writeTextFile").asBoolean(false),
+                caps.path("terminal").asBoolean(false));
+        session.getAttributes().put(ATTR_CAPABILITIES, parsed);
+        client.send(resultFrame(id, initializeResult()));
+    }
+
     private Map<String, Object> initializeResult() {
         return Map.of(
                 "protocolVersion", PROTOCOL_VERSION,
@@ -136,7 +156,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
     private void handleSessionNew(WebSocketSession session, AcpSessionRegistry.Client client, JsonNode id) {
         AgentPrincipal principal = principal(session);
         ChannelSession channelSession = acpService.startSession(principal.userId(), principal.agentId());
-        sessionRegistry.attach(channelSession.getId(), client);
+        sessionRegistry.attach(channelSession.getId(), client, capabilities(session));
         client.send(resultFrame(id, Map.of("sessionId", channelSession.getId().toString())));
     }
 
@@ -147,7 +167,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         UUID sessionId = sessionId(params);
         List<ChannelSessionMessage> history =
                 acpService.loadSession(principal.userId(), principal.agentId(), sessionId);
-        sessionRegistry.attach(sessionId, client);
+        sessionRegistry.attach(sessionId, client, capabilities(session));
         for (ChannelSessionMessage m : history) {
             String updateType = switch (m.getKind()) {
                 case INBOUND -> "user_message_chunk";
@@ -216,6 +236,12 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
 
     private static AcpSessionRegistry.Client client(WebSocketSession session) {
         return (AcpSessionRegistry.Client) session.getAttributes().get(ATTR_CLIENT);
+    }
+
+    private static AcpSessionRegistry.ClientCapabilities capabilities(WebSocketSession session) {
+        AcpSessionRegistry.ClientCapabilities caps =
+                (AcpSessionRegistry.ClientCapabilities) session.getAttributes().get(ATTR_CAPABILITIES);
+        return caps == null ? AcpSessionRegistry.ClientCapabilities.NONE : caps;
     }
 
     private static int errorCode(Exception e) {
