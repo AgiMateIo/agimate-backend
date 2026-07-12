@@ -9,6 +9,7 @@ import dev.dbos.transact.workflow.WorkflowHandle;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.agent.SimpleAgent;
 import ru.agimate.agentworker.agent.ToolRegistry;
+import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
@@ -58,13 +59,14 @@ class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
             if (bt == null) {
                 log.warn("model called unknown tool {}; {} available: {}", tc.name(), registry.names().size(), registry.names());
                 pending.add(new Pending(tc, toolCallId, null, failed(tc, toolCallId,
-                        "unknown tool name from model: " + tc.name() + "; available tools: " + registry.names())));
+                        "unknown tool name from model: " + tc.name() + "; available tools: " + registry.names()),
+                        false));
                 continue;
             }
             WorkflowHandle<ToolCallWorkflow.Outcome, ? extends Exception> handle = dbos.startWorkflow(
                     () -> tool.toolCall(bt.connectorCode(), bt.name(), tc.argumentsJson(), toolCallId, agentId, triggerId, bt.connectionId()),
                     new StartWorkflowOptions(toolQueue));
-            pending.add(new Pending(tc, toolCallId, handle, null));
+            pending.add(new Pending(tc, toolCallId, handle, null, bt.openWorld()));
         }
 
         List<AgentChatMessage.ToolResult> results = new ArrayList<>(pending.size());
@@ -79,10 +81,25 @@ class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
             } else {
                 String content = outcome.outputJson() != null && !outcome.outputJson().isEmpty()
                         ? outcome.outputJson() : "null";
+                if (p.openWorld()) {
+                    content = wrapUntrusted(content);
+                }
                 results.add(new AgentChatMessage.ToolResult(p.toolCallId(), p.call.name(), content, false));
             }
         }
         return results;
+    }
+
+    /**
+     * Вывод open-world тула ({@code openWorldHint=true}) — чужой контент (письма, тикеты, веб)
+     * и канал prompt-injection: оборачивается маркером недоверенных данных. Семантику маркера
+     * объясняет system-абзац {@code ContextBuilder.TOOL_OUTPUT_GUIDANCE}; закрывающий тег внутри
+     * данных нейтрализуется, чтобы payload не вышел из обёртки. Применяется после трункейта
+     * воркера ({@code ToolCallWorkflowImpl}) — обёртка всегда целая.
+     */
+    static String wrapUntrusted(String content) {
+        String tag = ContextBuilder.UNTRUSTED_TOOL_OUTPUT_TAG;
+        return "<" + tag + ">\n" + ContextBuilder.neutralizeClosingTag(content, tag) + "\n</" + tag + ">";
     }
 
     /** Счётчик сгенерированных fallback-id; детерминирован порядком вызовов внутри рана. */
@@ -118,6 +135,7 @@ class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
     private record Pending(AgentChatMessage.ToolCall call,
                            String toolCallId,
                            WorkflowHandle<ToolCallWorkflow.Outcome, ? extends Exception> handle,
-                           AgentChatMessage.ToolResult immediate) {
+                           AgentChatMessage.ToolResult immediate,
+                           boolean openWorld) {
     }
 }

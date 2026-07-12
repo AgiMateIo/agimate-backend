@@ -22,8 +22,8 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 | `model/AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
 | `MessageCodec` | Typed channel-facing progress lines (`ProgressLine{type, text}`) for `SaveMessage`; history persistence is text-only since v2 (raw transcript lives in DBOS checkpoints). |
-| `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id)`; `{namespace}.{name}` naming; schema parsing. |
-| `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). |
+| `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id, openWorld)`; `{namespace}.{name}` naming; schema parsing. |
+| `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). When the run has open-world tools it appends a system paragraph pinning tool output as data. |
 | `context/ContextMaterials` | The `GetRunContext` payload as fetched (ordered blocks + tools), consumed by `ContextBuilder`. |
 | `SimpleAgent` | The manual turn-loop (LLM call + tool dispatch injected; optional steering checkpoint). |
 | `AgentRunner` | Assemble the message list, map terminal failures to `AgentRunAborted`. |
@@ -50,7 +50,10 @@ distinct concerns to collaborators: `MessageLog` (the run's single writer of dia
 inbound ack, progress, answer, error — one `save_message` durable step per event with a
 deterministic per-run `seq`, so replays dedupe backend-side) and
 `LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared
-`WorkflowHandles` await). History arrives pre-assembled in `PreparedContext.history`
+`WorkflowHandles` await). Output of tools with MCP `openWorldHint=true` (external-world
+content — mail, tickets, web; a prompt-injection channel) is wrapped by the dispatcher in
+`<untrusted_tool_output>` with the closing tag neutralized inside the payload; the wrapper's
+semantics are pinned by the `ContextBuilder` system paragraph. History arrives pre-assembled in `PreparedContext.history`
 (backend window/filter, completed runs only); delivery and persistence are backend projections
 of `SaveMessage` — the worker no longer routes channels. `PreparedContext` stays in `workers/run` — its FQCN is pinned by the DBOS
 checkpoint (in-flight runs replay the serialized step result across deploys). See

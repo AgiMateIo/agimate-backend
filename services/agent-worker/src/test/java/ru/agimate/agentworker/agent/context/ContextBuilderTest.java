@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.PromptBlock;
+import ru.agimate.agentworker.ToolAnnotations;
 import ru.agimate.agentworker.workers.run.PreparedContext;
 
 import java.util.List;
@@ -152,6 +153,41 @@ class ContextBuilderTest {
             var backend = prepared.toolMap().get("board__get_tasks");
             assertEquals("board", backend.connectorCode());
             assertEquals("conn-1", backend.connectionId());
+        }
+
+        @Test
+        @DisplayName("open-world тул добавляет в конец системного промпта guidance о выводе тулов")
+        void openWorldToolAppendsGuidance() {
+            ConnectorToolSpec openWorld = ConnectorToolSpec.newBuilder()
+                    .setName("fetch")
+                    .setConnectorCode("mcp")
+                    .setNamespace("mcp")
+                    .setConnectionId("conn-1")
+                    .setAnnotations(ToolAnnotations.newBuilder().setOpenWorldHint(true))
+                    .build();
+            PreparedContext prepared = ContextBuilder.build(new ContextMaterials(
+                    List.of(trusted("agent", "- id: a-1")),
+                    List.of(trusted("", "hello")),
+                    List.of(openWorld), List.of()));
+
+            assertTrue(prepared.systemPrompt().endsWith(ContextBuilder.TOOL_OUTPUT_GUIDANCE));
+        }
+
+        @Test
+        @DisplayName("без open-world тулов guidance в системный промпт не попадает")
+        void noGuidanceWithoutOpenWorldTools() {
+            ConnectorToolSpec closedWorld = ConnectorToolSpec.newBuilder()
+                    .setName("get_tasks")
+                    .setConnectorCode("board")
+                    .setNamespace("board")
+                    .setConnectionId("conn-1")
+                    .build();
+            PreparedContext prepared = ContextBuilder.build(new ContextMaterials(
+                    List.of(trusted("agent", "- id: a-1")),
+                    List.of(trusted("", "hello")),
+                    List.of(closedWorld), List.of()));
+
+            assertFalse(prepared.systemPrompt().contains(ContextBuilder.TOOL_OUTPUT_GUIDANCE));
         }
     }
 }

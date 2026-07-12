@@ -7,11 +7,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import ru.agimate.agentworker.ConnectorToolSpec;
+import ru.agimate.agentworker.ToolAnnotations;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -78,6 +80,20 @@ class ToolRegistryTest {
             assertEquals("search", bt.name());
             assertEquals("conn-2", bt.connectionId());
             assertNull(reg.resolve("unknown_tool"));
+        }
+
+        @Test
+        @DisplayName("openWorldHint из аннотаций доезжает до BackendTool")
+        void openWorldHint() {
+            ConnectorToolSpec openWorld = spec("fetch", "mcp", "mcp", "conn-1", null).toBuilder()
+                    .setAnnotations(ToolAnnotations.newBuilder().setOpenWorldHint(true))
+                    .build();
+            ToolRegistry reg = ToolRegistry.build(List.of(
+                    openWorld,
+                    spec("get_tasks", "board", "board", "conn-2", null)));
+
+            assertTrue(reg.resolve("mcp__fetch").openWorld());
+            assertFalse(reg.resolve("board__get_tasks").openWorld());
         }
 
         @Test

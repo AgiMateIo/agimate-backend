@@ -29,8 +29,12 @@ public final class ToolRegistry {
             "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}";
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** Resolved backend routing for a sanitized tool name. */
-    public record BackendTool(String connectorCode, String name, String connectionId) {}
+    /**
+     * Resolved backend routing for a sanitized tool name. {@code openWorld} — MCP
+     * {@code openWorldHint}: the tool's output is external-world content and gets the
+     * untrusted wrapper before entering the dialogue.
+     */
+    public record BackendTool(String connectorCode, String name, String connectionId, boolean openWorld) {}
 
     private final List<ToolDef> toolDefs;
     private final Map<String, BackendTool> sanitizedToBackend;
@@ -57,7 +61,8 @@ public final class ToolRegistry {
         for (ConnectorToolSpec spec : specs) {
             String namespace = spec.getNamespace().isBlank() ? spec.getConnectorCode() : spec.getNamespace();
             String sanitized = uniqueName(map, sanitizeToolName(namespace + "." + spec.getName()));
-            map.put(sanitized, new BackendTool(spec.getConnectorCode(), spec.getName(), spec.getConnectionId()));
+            map.put(sanitized, new BackendTool(spec.getConnectorCode(), spec.getName(), spec.getConnectionId(),
+                    spec.getAnnotations().getOpenWorldHint()));
             defs.add(new ToolDef(sanitized, spec.getDescription(), parseToolSchema(spec)));
         }
         return new ToolRegistry(defs, map);
