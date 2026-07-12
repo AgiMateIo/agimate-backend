@@ -1,0 +1,16 @@
+{
+  "name": "@agimate/acp",
+  "version": "0.1.0",
+  "description": "ACP (Agent Client Protocol) stdio bridge to an Agimate agent: pipes JSON-RPC between an IDE (Zed, etc.) and the control-api /acp WebSocket endpoint",
+  "license": "UNLICENSED",
+  "type": "module",
+  "bin": {
+    "agimate-acp": "index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
