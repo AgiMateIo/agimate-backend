@@ -91,7 +91,7 @@ public class MessageLogService {
             triggerLogAgentRepository.save(run);
         }
 
-        scheduleDelivery(triggerId, agentId, channels, kind, text, seq);
+        scheduleDelivery(triggerId, agentId, channels, kind, progressType, text, seq);
         if (duplicate) {
             log.debug("saveMessage duplicate run={} seq={} kind={}", triggerId, seq, kind);
         }
@@ -128,23 +128,23 @@ public class MessageLogService {
      * {@code (run_id, seq)}, доставка — по детерминированному {@code message_id}.
      */
     private void scheduleDelivery(UUID runId, UUID agentId, Channels channels,
-                                  ChannelSessionMessageKind kind, String text, int seq) {
+                                  ChannelSessionMessageKind kind, String progressType, String text, int seq) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    deliverBestEffort(runId, agentId, channels, kind, text, seq);
+                    deliverBestEffort(runId, agentId, channels, kind, progressType, text, seq);
                 }
             });
         } else {
-            deliverBestEffort(runId, agentId, channels, kind, text, seq);
+            deliverBestEffort(runId, agentId, channels, kind, progressType, text, seq);
         }
     }
 
     private void deliverBestEffort(UUID runId, UUID agentId, Channels channels,
-                                   ChannelSessionMessageKind kind, String text, int seq) {
+                                   ChannelSessionMessageKind kind, String progressType, String text, int seq) {
         try {
-            deliver(runId, agentId, channels, kind, text, seq);
+            deliver(runId, agentId, channels, kind, progressType, text, seq);
         } catch (Exception e) {
             log.warn("delivery failed for run={} seq={} kind={} — history-only: {}",
                     runId, seq, kind, e.getMessage());
@@ -186,7 +186,7 @@ public class MessageLogService {
      * иначе prompt. Нет канала — событие остаётся только в истории/строке рана.
      */
     private void deliver(UUID runId, UUID agentId, Channels channels, ChannelSessionMessageKind kind,
-                         String text, int seq) {
+                         String progressType, String text, int seq) {
         if (channels == null || kind == ChannelSessionMessageKind.INBOUND
                 || text == null || text.isBlank()) {
             return;
@@ -206,7 +206,7 @@ public class MessageLogService {
         }
         String messageId = deterministicId(runId, seq);
         outboundService.send(agentId, target.channelId(), target.sessionId(),
-                OutboundMessage.text(text), messageId, kind.name().toLowerCase());
+                OutboundMessage.text(text), messageId, kind.name().toLowerCase(), progressType);
     }
 
     /** Детерминированный message_id от (run_id, seq): ретрай шлёт тот же id, downstream дедупит. */

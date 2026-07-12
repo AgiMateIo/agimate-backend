@@ -52,7 +52,7 @@ graph TB
 Authentication service handling OAuth2 login (Google, Yandex), JWT token management, user profiles, and API key management. Exposes gRPC IntrospectApiKey endpoint for API key validation by other services.
 
 ### control-api
-Control API for device registration, tool delivery, trigger submission, and AI agent integration. Integrates with Centrifugo for real-time push to devices and agents. Agents authenticate via API Key, invoke tools on devices, receive tool results and trigger events through Centrifugo channels.
+Control API for device registration, tool delivery, trigger submission, and AI agent integration. Integrates with Centrifugo for real-time push to devices and agents. Agents authenticate via API Key, invoke tools on devices, receive tool results and trigger events through Centrifugo channels. Also serves the ACP (Agent Client Protocol) WebSocket endpoint `/acp` for IDE clients (Zed etc.) — see [services/control-api-acp.md](services/control-api-acp.md).
 
 ### agent-worker
 Headless (non-web) Spring Boot worker running the AI-agent loop: consumes agent runs from DBOS queues (Postgres-backed, enqueued by control-api), drives an LLM turn loop (Spring AI) with backend tools, and talks to control-api over gRPC :9091 (worker-pool Bearer auth). Shares the DBOS system database with control-api. See [services/agent-worker.md](services/agent-worker.md).

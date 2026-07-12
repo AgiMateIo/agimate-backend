@@ -160,7 +160,8 @@ public class SecurityConfig {
     @Order(3)
     public SecurityFilterChain apiKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
-                AgentController.PATH + "/**"
+                AgentController.PATH + "/**",
+                AcpWebSocketConfig.PATH
         );
 
         applyCommonSecurityConfig(http);

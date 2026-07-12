@@ -108,6 +108,8 @@ Centrifugo uses the same ES256 key format as JWT. Generate using the JWT key gen
 
 agent-worker exposes no ports (headless, non-web): it consumes DBOS queues from Postgres and dials out to control-api :9091.
 
+control-api also serves the ACP WebSocket endpoint `/acp` on the main HTTP port (8080) — the ingress/reverse proxy in front of control-api must allow WebSocket upgrade on this path.
+
 ## Spring Profiles
 
 | Profile   | Description                                     |

@@ -176,7 +176,7 @@ class MessageLogServiceTest {
                     eq(SESSION_ID), any(OutboundMessage.class),
                     eq(UUID.nameUUIDFromBytes(("agimate-msglog:" + TRIGGER_ID + ":1")
                             .getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString()),
-                    eq("progress"));
+                    eq("progress"), eq("TEXT"));
         }
 
         @Test
@@ -187,7 +187,7 @@ class MessageLogServiceTest {
             service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done");
 
             verify(outboundService).send(eq(AGENT_ID), eq(PROMPT_CHANNEL), eq(SESSION_ID),
-                    any(OutboundMessage.class), anyString(), eq("answer"));
+                    any(OutboundMessage.class), anyString(), eq("answer"), isNull());
         }
 
         @Test
@@ -197,14 +197,14 @@ class MessageLogServiceTest {
 
             service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.PROGRESS, "TEXT", "line");
 
-            verify(outboundService, never()).send(any(), any(), any(), any(), any(), any());
+            verify(outboundService, never()).send(any(), any(), any(), any(), any(), any(), any());
         }
 
         @Test
         @DisplayName("сбой доставки (канал удалён mid-run) не роняет запись — history-only")
         void deliveryFailureDoesNotFailSave() {
             run(SESSION_ID, dialogueChannels());
-            when(outboundService.send(any(), any(), any(), any(), any(), any()))
+            when(outboundService.send(any(), any(), any(), any(), any(), any(), any()))
                     .thenThrow(new NotFoundStatusException("Channel not found"));
 
             var result = service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done");

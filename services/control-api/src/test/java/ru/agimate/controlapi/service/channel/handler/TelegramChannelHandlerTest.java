@@ -179,7 +179,7 @@ class TelegramChannelHandlerTest {
         @DisplayName("calls processToolCall with send_message and chatId from reply context")
         void dispatches() {
             OutboundMessage outbound = OutboundMessage.text("Готово");
-            OutboundDispatch dispatch = new OutboundDispatch("call-1", null, null, null, Map.of("chatId", 42));
+            OutboundDispatch dispatch = new OutboundDispatch("call-1", null, null, null, null, Map.of("chatId", 42));
 
             handler.handleOutput(config, outbound, dispatch, toolCallService);
 
@@ -199,7 +199,7 @@ class TelegramChannelHandlerTest {
         void defaultChatIdFallback() {
             ChannelConfig withDefault = new ChannelConfig(AGENT_ID, "telegram", IDENTITY, Map.of("defaultChatId", 777));
             OutboundMessage outbound = OutboundMessage.text("Напоминание");
-            OutboundDispatch dispatch = new OutboundDispatch("call-2", null, null, null, Map.of());
+            OutboundDispatch dispatch = new OutboundDispatch("call-2", null, null, null, null, Map.of());
 
             handler.handleOutput(withDefault, outbound, dispatch, toolCallService);
 
@@ -212,7 +212,7 @@ class TelegramChannelHandlerTest {
         @DisplayName("throws when chatId is missing and no defaultChatId")
         void missingChatId() {
             OutboundMessage outbound = OutboundMessage.text("Готово");
-            OutboundDispatch dispatch = new OutboundDispatch("call-1", null, null, null, Map.of());
+            OutboundDispatch dispatch = new OutboundDispatch("call-1", null, null, null, null, Map.of());
 
             assertThrows(ConnectorException.class, () -> handler.handleOutput(config, outbound, dispatch, toolCallService));
             verifyNoInteractions(toolCallService);

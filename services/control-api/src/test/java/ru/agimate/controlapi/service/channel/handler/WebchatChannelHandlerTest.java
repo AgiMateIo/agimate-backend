@@ -117,7 +117,7 @@ class WebchatChannelHandlerTest {
         @DisplayName("пишет AGENT-строку через publisher; пустой stream трактуется как answer")
         void recordsWithDefaultStream() {
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
-            OutboundDispatch dispatch = new OutboundDispatch("msg-1", null, CHANNEL_ID, SESSION_ID, Map.of());
+            OutboundDispatch dispatch = new OutboundDispatch("msg-1", null, null, CHANNEL_ID, SESSION_ID, Map.of());
 
             handler.handleOutput(config, OutboundMessage.text("готово"), dispatch, toolCallService);
 
@@ -130,7 +130,7 @@ class WebchatChannelHandlerTest {
         @DisplayName("stream=progress прокидывается как есть")
         void passesStreamThrough() {
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
-            OutboundDispatch dispatch = new OutboundDispatch("msg-2", "progress", CHANNEL_ID, SESSION_ID, Map.of());
+            OutboundDispatch dispatch = new OutboundDispatch("msg-2", "progress", "THINKING", CHANNEL_ID, SESSION_ID, Map.of());
 
             handler.handleOutput(config, OutboundMessage.text("думаю..."), dispatch, toolCallService);
 
@@ -142,7 +142,7 @@ class WebchatChannelHandlerTest {
         @DisplayName("канал не найден — ConnectorException")
         void missingChannel() {
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.empty());
-            OutboundDispatch dispatch = new OutboundDispatch("msg-3", null, CHANNEL_ID, SESSION_ID, Map.of());
+            OutboundDispatch dispatch = new OutboundDispatch("msg-3", null, null, CHANNEL_ID, SESSION_ID, Map.of());
 
             assertThrows(ConnectorException.class,
                     () -> handler.handleOutput(config, OutboundMessage.text("x"), dispatch, toolCallService));

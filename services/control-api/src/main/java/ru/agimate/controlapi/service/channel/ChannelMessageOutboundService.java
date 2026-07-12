@@ -37,7 +37,8 @@ public class ChannelMessageOutboundService {
 
     @Transactional
     public OutboundResult send(UUID agentId, UUID channelId, UUID sessionIdOrNull,
-                               OutboundMessage outbound, String messageId, String stream) {
+                               OutboundMessage outbound, String messageId, String stream,
+                               String progressType) {
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(channelId)
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
 
@@ -59,7 +60,7 @@ public class ChannelMessageOutboundService {
         ChannelConfig config = new ChannelConfig(
                 channel.getAgentId(), channel.getConnectorCode(), channel.getConnectionId().toString(), channel.getConfig());
         OutboundDispatch dispatch = new OutboundDispatch(
-                effectiveMessageId, stream, channel.getId(), session.getId(), replyContext);
+                effectiveMessageId, stream, progressType, channel.getId(), session.getId(), replyContext);
 
         handler.handleOutput(config, outbound, dispatch, agentToolCallService);
 
