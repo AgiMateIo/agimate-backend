@@ -4,65 +4,40 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import ru.agimate.controlapi.database.enums.RunStatus;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 import java.util.UUID;
 
 public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent, UUID> {
 
-    /**
-     * RegisterRun: the worker acquires the session writer slot for an existing run row.
-     * The claim is conditional in the statement itself ({@code NOT EXISTS} another RUNNING
-     * holder, self excluded for the idempotent re-affirm) — a busy slot is the regular
-     * {@code updated == 0} outcome, not a constraint violation. The partial unique index
-     * stays as the invariant backstop for true races (two concurrent claims can both pass
-     * {@code NOT EXISTS} under READ COMMITTED; the loser hits the index).
-     * Guarded to non-terminal statuses: a late/replayed register on a DONE/FAILED/CANCELLED
-     * row must not flip it back to RUNNING (that would re-occupy the session slot with a
-     * run that has already finished and will never release it).
-     */
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    // REQUIRES_NEW: вызовы идут и с голых gRPC-потоков (@Modifying без TX Hibernate отклоняет),
+    // и из readOnly-транзакций фасадов (AgentContextGrpcService) — своя короткая пишущая TX
+    // корректна из любого контекста.
+    /** Признак жизни рана: любой его RPC продлевает метку активности (только пока RUNNING). */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Modifying
     @Query("""
             UPDATE TriggerLogAgent t
-            SET t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING,
-                t.sessionId = :sessionId,
-                t.expiresAt = :expiresAt,
-                t.updatedAt = :acquiredAt
-            WHERE t.id = :runId
-              AND t.status IN (ru.agimate.controlapi.database.enums.RunStatus.ENQUEUED,
-                               ru.agimate.controlapi.database.enums.RunStatus.RUNNING)
-              AND NOT EXISTS (
-                  SELECT 1 FROM TriggerLogAgent h
-                  WHERE h.sessionId = :sessionId
-                    AND h.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
-                    AND h.id <> :runId)
-            """)
-    int markRunning(@Param("runId") UUID runId,
-                    @Param("sessionId") UUID sessionId,
-                    @Param("expiresAt") LocalDateTime expiresAt,
-                    @Param("acquiredAt") LocalDateTime acquiredAt);
-
-    /**
-     * The session slot's holder as the claim sees it: the RUNNING row regardless of
-     * {@code expires_at} — the partial unique index (and thus {@code markRunning}) ignores
-     * expiry, so an expired holder still blocks the claim until evicted.
-     */
-    Optional<TriggerLogAgent> findBySessionIdAndStatus(UUID sessionId, RunStatus status);
-
-    /**
-     * ReleaseRun: release-own. Only the run that currently holds the slot can release it,
-     * so a late Release from a pre-empted (CANCELLED) run is a no-op.
-     */
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-            UPDATE TriggerLogAgent t
-            SET t.status = :terminalStatus
+            SET t.lastActivityAt = :now
             WHERE t.id = :runId
               AND t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
             """)
-    int releaseOwn(@Param("runId") UUID runId,
-                   @Param("terminalStatus") RunStatus terminalStatus);
+    int touchActivity(@Param("runId") UUID runId, @Param("now") LocalDateTime now);
+
+    /**
+     * Сборщик залипших ранов: RUNNING без признаков жизни дольше порога → FAILED
+     * (воркер умер молча — без SaveMessage(ERROR)). Наблюдаемость, никого не блокирует.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE TriggerLogAgent t
+            SET t.status = ru.agimate.controlapi.database.enums.RunStatus.FAILED,
+                t.error = :error
+            WHERE t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
+              AND t.lastActivityAt < :cutoff
+            """)
+    int failStaleRunning(@Param("cutoff") LocalDateTime cutoff, @Param("error") String error);
 }

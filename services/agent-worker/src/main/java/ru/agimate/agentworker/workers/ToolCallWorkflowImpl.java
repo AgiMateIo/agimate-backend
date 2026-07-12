@@ -63,7 +63,7 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
                 argsJson.getBytes(StandardCharsets.UTF_8), agentId, triggerId);
         long deadline = System.currentTimeMillis() + pollTimeoutMs;
         while (true) {
-            GetToolResultResponse result = client.getToolResult(agentId, toolCallId);
+            GetToolResultResponse result = client.getToolResult(agentId, toolCallId, triggerId);
             if (result.getStatus() == ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS) {
                 ByteString out = result.getOutputJson();
                 return out.isEmpty() ? "" : truncateOutput(out.toStringUtf8(), maxOutputChars);

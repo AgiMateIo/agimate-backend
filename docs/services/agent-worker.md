@@ -37,12 +37,11 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 ### `workers/` — DBOS surface
 | Workflow | Queue | Role |
 |---|---|---|
-| `AgentWorkflow.startAgent` | `agent_runs` | **Router** (v2): payload `{agentId, runId}`; `RegisterRun` claim возвращает `session_key` (сессию резолвит бэк) → enqueue рана с этим partition key. |
-| `AgentRunWorkflow.runAgent` | `agent_exec` | **Run stage** (partitioned by `session_key`, concurrency=1 → one writer per session): re-affirm/release слота, drive `AgentRunCore` (the run body is uniform — dialogue vs trigger is server-side policy). |
+| `AgentRunWorkflow.runAgent` | `agent_exec` | **Entry point + run stage**: enqueued directly by control-api (`workflow_id == runId`, partitioned by session, concurrency=1 → one writer per session); drives `AgentRunCore` (the run body is uniform — dialogue vs trigger is server-side policy). |
 | `LlmCallWorkflow.llmCall` | `llm_calls` | One model request; credentials fetched inline (never checkpointed). |
 | `ToolCallWorkflow.toolCall` | `tool_calls` | One backend tool call (`ExecuteToolAsync` + poll `GetToolResult`); never raises. |
 
-The package root is what DBOS sees: the four workflow pairs and `Queues`. The run-body machinery lives in `workers/run`:
+The package root is what DBOS sees: the three workflow pairs and `Queues`. The run-body machinery lives in `workers/run`:
 `AgentRunCore` holds the invariant run body — a `prepare_context` step
 (`ContextMaterialsFetcher`: one `GetRunContext(agent_id, trigger_id)` call → pure
 `ContextBuilder.build` render → `PreparedContext`), the loop, and failure reporting — delegating the
@@ -60,21 +59,21 @@ checkpoint (in-flight runs replay the serialized step result across deploys). Se
 [agent-context-design.md](../agent-context-design.md) for the context-assembly design.
 
 ### Producer contract (shared code, not config)
-The queue/class/workflow/instance names (`agent_runs`/`AgentWorkflow`/`start_agent`/`default`)
-and the router workflow-id scheme live in **`ru.agimate.agentworker.WorkerProtocol`**
-(`libs/agentworker-proto`), compiled into both control-api and the worker — the contract cannot
-drift. In Java DBOS the names bind via `@WorkflowClassName` + `@Workflow(name=...)` +
-`registerProxy(iface, impl, instance)`; serialization is `PORTABLE`. control-api enqueues the
-router under `WorkerProtocol.routerWorkflowId(runId)` (`runId + ":router"`) so the bare `run_id`
-is free for the run-stage workflow (`run_id ==` that workflow's DBOS id, which steering
-addresses).
+The queue/class/workflow/instance names (`agent_exec`/`AgentRunWorkflow`/`run_agent`/`default`)
+live in **`ru.agimate.agentworker.WorkerProtocol`** (`libs/agentworker-proto`), compiled into
+both control-api and the worker — the contract cannot drift. In Java DBOS the names bind via
+`@WorkflowClassName` + `@Workflow(name=...)` + `registerProxy(iface, impl, instance)`;
+serialization is `PORTABLE`. control-api enqueues the run-stage workflow directly:
+`workflow_id == runId` (delivery dedupes on it), partition key — the run's `sessionId`
+(direct run — its own `runId`).
 
-### Session serialization (протокол v2, без steering)
-Воркер не знает `sessionId`: `RegisterRun(agent_id, trigger_id)` резолвит сессию на бэке и
-возвращает `session_key` — партиционный ключ `agent_exec` (concurrency=1 → один исполняющийся
-ран на сессию). Сообщение в занятую сессию просто ждёт своей очереди; BUSY на старте run-стадии —
-аномалия (мёртвый держатель до TTL/eviction), репортится пользователю. Steering (steer/interrupt
-в живой ран) удалён — вернётся отдельным дизайном, если понадобится.
+### Session serialization (протокол v2, без steering и без registry)
+Воркер не знает `sessionId` — партицию задаёт продюсер при enqueue. Партиционированная
+очередь (concurrency=1 → один исполняющийся ран на сессию) — единственный механизм
+single-writer'а и контрактное требование к транспорту; регистрационного хэндшейка
+(RegisterRun/ReleaseRun) нет. Жизненный цикл рана — серверная проекция потока `SaveMessage`;
+признак жизни — RPC рана (молча умерший ран добирает серверный сборщик). Steering
+(steer/interrupt в живой ран) удалён — вернётся отдельным дизайном, если понадобится.
 
 ## Configuration
 Bound from `application.yaml` under `agent.*`; every value is overridable via env (relaxed

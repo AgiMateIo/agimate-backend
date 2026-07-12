@@ -12,6 +12,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
+import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
@@ -21,6 +22,7 @@ import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -60,6 +62,8 @@ public class MessageLogService {
             throw new BadRequestStatusException("Run " + triggerId + " does not belong to agent " + agentId);
         }
 
+        projectStatus(run, kind);
+
         Channels channels = ChannelsCodec.fromMap(run.getChannels());
         UUID sessionId = run.getSessionId();
         boolean duplicate = false;
@@ -92,6 +96,28 @@ public class MessageLogService {
             log.debug("saveMessage duplicate run={} seq={} kind={}", triggerId, seq, kind);
         }
         return new SaveResult(duplicate);
+    }
+
+    /**
+     * Статус рана — проекция потока SaveMessage (наблюдаемость; single-writer держит очередь):
+     * INBOUND → RUNNING, ANSWER → DONE, ERROR → FAILED. Терминальный статус назад не
+     * откатывается (реплей INBOUND после финиша), любое событие — признак жизни
+     * ({@code last_activity_at} для сборщика залипших).
+     */
+    private static void projectStatus(TriggerLogAgent run, ChannelSessionMessageKind kind) {
+        RunStatus status = run.getStatus();
+        boolean terminal = status == RunStatus.DONE || status == RunStatus.FAILED
+                || status == RunStatus.CANCELLED;
+        if (terminal) {
+            return;
+        }
+        switch (kind) {
+            case INBOUND -> run.setStatus(RunStatus.RUNNING);
+            case ANSWER -> run.setStatus(RunStatus.DONE);
+            case ERROR -> run.setStatus(RunStatus.FAILED);
+            default -> { }
+        }
+        run.setLastActivityAt(LocalDateTime.now());
     }
 
     /**

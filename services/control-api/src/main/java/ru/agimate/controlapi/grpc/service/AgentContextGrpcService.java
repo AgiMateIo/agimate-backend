@@ -19,6 +19,7 @@ import ru.agimate.controlapi.service.runcontext.RunContextService;
 import ru.agimate.controlapi.service.runcontext.RunContextView;
 import ru.agimate.controlapi.service.runcontext.RunHistoryMessage;
 import ru.agimate.controlapi.service.runcontext.RunTool;
+import ru.agimate.controlapi.service.trigger.RunActivityService;
 import ru.agimate.agentworker.AgentContextGrpc;
 import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
@@ -49,6 +50,7 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.toJsonBytes;
 public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBase {
 
     private final RunContextService runContextService;
+    private final RunActivityService runActivityService;
     private final AgentLlmRepository agentLlmRepository;
     private final LlmProviderRepository llmProviderRepository;
     private final LlmProviderService llmProviderService;
@@ -59,6 +61,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
             UUID triggerId = parseUuid(request.getTriggerId(), "trigger_id");
+            runActivityService.touch(triggerId);
 
             RunContextView view = runContextService.build(agentId, triggerId);
 

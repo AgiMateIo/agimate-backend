@@ -17,6 +17,7 @@ import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.grpc.mapper.ToolGatewayMapper;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
+import ru.agimate.controlapi.service.trigger.RunActivityService;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.ExecuteToolRequest;
 import ru.agimate.agentworker.GetToolResultRequest;
@@ -36,12 +37,14 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
 
     private final AgentToolCallService agentToolCallService;
     private final TriggerLogAgentRepository triggerLogAgentRepository;
+    private final RunActivityService runActivityService;
 
     @Override
     public void executeToolAsync(ExecuteToolRequest request, StreamObserver<ExecuteToolAsyncAck> responseObserver) {
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            touchRun(request.getTriggerId());
             ToolCallRequest toolCall = ToolGatewayMapper.toToolCallRequest(request, resolveSessionId(request));
             String toolCallId = agentToolCallService.processToolCall(agentId, toolCall);
             log.info("ToolGateway.ExecuteToolAsync ok pool={} agent={} workflow={} tool={} toolCallId={}",
@@ -74,6 +77,17 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         }
     }
 
+    /** RPC рана = признак его жизни; протокольная семантика — на протокольном слое. */
+    private void touchRun(String triggerId) {
+        if (!triggerId.isEmpty()) {
+            try {
+                runActivityService.touch(UUID.fromString(triggerId));
+            } catch (IllegalArgumentException ignored) {
+                // не-UUID trigger_id отбраковывается дальше обычной валидацией
+            }
+        }
+    }
+
     /**
      * Протокол v2: воркер шлёт trigger_id рана; сессию (доменный контекст тулов — канал prompt'а)
      * резолвит эта сторона из строки рана. Пустой/неизвестный trigger_id → null (тул вне канала).
@@ -96,6 +110,7 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            touchRun(request.getTriggerId());
             if (request.getToolCallId().isEmpty()) {
                 throw Status.INVALID_ARGUMENT.withDescription("tool_call_id is required").asRuntimeException();
             }

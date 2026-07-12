@@ -54,18 +54,23 @@ public class TriggerLogAgent extends BaseEntity {
     private UUID sessionId;
 
     /**
-     * Run lifecycle for the active-run registry. The single-writer-per-session
-     * invariant is enforced at the DB level by a partial unique index on
-     * {@code (session_id) WHERE status = 'RUNNING'}.
+     * Run lifecycle — a projection of the run's {@code SaveMessage} stream (INBOUND → RUNNING,
+     * ANSWER → DONE, ERROR → FAILED), observability only. Single-writer-per-session is enforced
+     * by the partitioned {@code agent_exec} queue (a contract requirement on the transport),
+     * not by this column.
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "TEXT")
     @Builder.Default
     private RunStatus status = RunStatus.ENQUEUED;
 
-    /** TTL backstop on a dead run; set when the run goes RUNNING, no heartbeat. */
-    @Column(name = "expires_at")
-    private LocalDateTime expiresAt;
+    /**
+     * Последний признак жизни рана: продлевается его RPC (SaveMessage, GetLlmCredentials,
+     * ExecuteToolAsync/GetToolResult). RUNNING без активности дольше порога добирает
+     * фоновый сборщик ({@code RunActivityService}).
+     */
+    @Column(name = "last_activity_at")
+    private LocalDateTime lastActivityAt;
 
     /**
      * Снапшот каналов маршрута ({@code Channels}: prompt/progress/answer), зафиксированный при

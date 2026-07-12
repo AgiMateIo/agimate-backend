@@ -3,21 +3,20 @@ package ru.agimate.controlapi.database.enums;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 
 /**
- * Lifecycle of an agent run (a {@link TriggerLogAgent} row).
- * <p>
- * Orthogonal to {@code result}/{@code error} (which capture the run outcome):
- * {@code status} captures liveness for the active-run registry (AgentRunRegistry).
- * The single-writer-per-session invariant is enforced on {@link #RUNNING}.
+ * Lifecycle of an agent run (a {@link TriggerLogAgent} row) — a projection of the run's
+ * {@code SaveMessage} stream (INBOUND → RUNNING, ANSWER → DONE, ERROR → FAILED), observability
+ * only. Single-writer-per-session is enforced by the partitioned {@code agent_exec} queue,
+ * not by this status.
  */
 public enum RunStatus {
-    /** Created by the backend at trigger routing, enqueued to the worker, not yet writing. */
+    /** Created by the backend at trigger routing, enqueued to the worker, not yet executing. */
     ENQUEUED,
-    /** The worker has acquired the session slot and is the active writer. */
+    /** The run has started executing (first SaveMessage arrived). */
     RUNNING,
-    /** Finished normally (released by the run). */
+    /** Finished normally (final ANSWER). */
     DONE,
-    /** Delivery/enqueue failed before or during the run. */
+    /** Reported an ERROR, or went silent and was swept as stale. */
     FAILED,
-    /** Pre-empted by an INTERRUPT take-over before completing. */
+    /** Legacy (steering-era pre-emption); kept for old rows, never written anymore. */
     CANCELLED
 }

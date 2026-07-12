@@ -7,7 +7,6 @@ import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.AgentContextGrpc;
-import ru.agimate.agentworker.AgentRunRegistryGrpc;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.ExecuteToolRequest;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
@@ -21,10 +20,6 @@ import ru.agimate.agentworker.MessageLogGrpc;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.SaveMessageRequest;
 import ru.agimate.agentworker.SaveMessageResponse;
-import ru.agimate.agentworker.RegisterRunRequest;
-import ru.agimate.agentworker.RegisterRunResponse;
-import ru.agimate.agentworker.ReleaseRunRequest;
-import ru.agimate.agentworker.ReleaseRunResponse;
 import ru.agimate.agentworker.SendMessageRequest;
 import ru.agimate.agentworker.SendMessageResponse;
 import ru.agimate.agentworker.ToolGatewayGrpc;
@@ -58,7 +53,6 @@ public class AgentWorkerClient {
     private final MessageLogGrpc.MessageLogBlockingStub messageLog;
     private final ToolGatewayGrpc.ToolGatewayBlockingStub tools;
     private final WorkerControlGrpc.WorkerControlBlockingStub workerControl;
-    private final AgentRunRegistryGrpc.AgentRunRegistryBlockingStub registry;
 
     public AgentWorkerClient(Channel controlApiAuthedChannel, AgentProperties props) {
         this.props = props;
@@ -66,7 +60,6 @@ public class AgentWorkerClient {
         this.messageLog = MessageLogGrpc.newBlockingStub(controlApiAuthedChannel);
         this.tools = ToolGatewayGrpc.newBlockingStub(controlApiAuthedChannel);
         this.workerControl = WorkerControlGrpc.newBlockingStub(controlApiAuthedChannel);
-        this.registry = AgentRunRegistryGrpc.newBlockingStub(controlApiAuthedChannel);
     }
 
     private long timeoutMs() {
@@ -170,11 +163,14 @@ public class AgentWorkerClient {
                         .build()));
     }
 
-    /** Single poll of the tool result; deadline applied so a hung backend does not block forever. */
-    public GetToolResultResponse getToolResult(String agentId, String toolCallId) {
+    /**
+     * Single poll of the tool result; deadline applied so a hung backend does not block forever.
+     * {@code triggerId} — признак жизни рана для бэка (продлевает {@code last_activity_at}).
+     */
+    public GetToolResultResponse getToolResult(String agentId, String toolCallId, String triggerId) {
         return call("GetToolResult", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .getToolResult(GetToolResultRequest.newBuilder()
-                        .setAgentId(agentId).setToolCallId(toolCallId).build()));
+                        .setAgentId(agentId).setToolCallId(toolCallId).setTriggerId(triggerId).build()));
     }
 
     // ---- WorkerControl ---------------------------------------------------------------
@@ -184,21 +180,4 @@ public class AgentWorkerClient {
                 .sendMessage(SendMessageRequest.newBuilder().setType(type).setContent(content).build()));
     }
 
-    // ---- AgentRunRegistry ------------------------------------------------------------
-
-    /** Claim слота сессии по trigger_id; BUSY — обычный статус в ответе, сессию резолвит бэк. */
-    public RegisterRunResponse registerRun(String agentId, String triggerId, int ttlSeconds) {
-        return call("RegisterRun", () -> registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
-                .registerRun(RegisterRunRequest.newBuilder()
-                        .setAgentId(agentId)
-                        .setTriggerId(triggerId)
-                        .setTtlSeconds(ttlSeconds)
-                        .build()));
-    }
-
-    public ReleaseRunResponse releaseRun(String agentId, String triggerId) {
-        return call("ReleaseRun", () -> registry.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
-                .releaseRun(ReleaseRunRequest.newBuilder()
-                        .setAgentId(agentId).setTriggerId(triggerId).build()));
-    }
 }

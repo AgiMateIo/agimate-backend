@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
+import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -211,6 +213,56 @@ class MessageLogServiceTest {
             verify(messageRepository).insertIgnoreConflict(eq(SESSION_ID), eq(AGENT_ID), eq(TRIGGER_ID),
                     eq(4), eq("ANSWER"), isNull(), eq("done"), isNull());
             verify(messageRepository).markRunCompleted(TRIGGER_ID);
+        }
+    }
+
+    @Nested
+    @DisplayName("Статус рана (проекция потока SaveMessage)")
+    class StatusProjection {
+
+        @BeforeEach
+        void stubInsert() {
+            org.mockito.Mockito.lenient().when(messageRepository.insertIgnoreConflict(any(), any(), any(),
+                    anyInt(), anyString(), any(), anyString(), any())).thenReturn(1);
+        }
+
+        @Test
+        @DisplayName("INBOUND → RUNNING (+ last_activity_at), ANSWER → DONE, ERROR → FAILED")
+        void transitions() {
+            TriggerLogAgent run = run(SESSION_ID, dialogueChannels());
+            when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of("hi"));
+
+            service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "");
+            assertEquals(RunStatus.RUNNING, run.getStatus());
+            assertNotNull(run.getLastActivityAt());
+
+            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.ANSWER, null, "done");
+            assertEquals(RunStatus.DONE, run.getStatus());
+        }
+
+        @Test
+        @DisplayName("ERROR терминален; терминальный статус реплеем не откатывается")
+        void terminalIsSticky() {
+            TriggerLogAgent run = run(SESSION_ID, dialogueChannels());
+
+            service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.ERROR, null, "boom");
+            assertEquals(RunStatus.FAILED, run.getStatus());
+
+            // Реплей INBOUND после финиша не воскрешает ран.
+            when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of("hi"));
+            service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "");
+            assertEquals(RunStatus.FAILED, run.getStatus());
+        }
+
+        @Test
+        @DisplayName("PROGRESS статус не меняет, но продлевает активность")
+        void progressTouchesOnly() {
+            TriggerLogAgent run = run(SESSION_ID, dialogueChannels());
+
+            service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.PROGRESS, "TEXT", "step");
+
+            assertEquals(RunStatus.ENQUEUED, run.getStatus());
+            assertNotNull(run.getLastActivityAt());
         }
     }
 

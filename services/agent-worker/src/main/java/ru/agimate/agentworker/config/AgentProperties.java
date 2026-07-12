@@ -23,7 +23,6 @@ public class AgentProperties {
     private Agent agent = new Agent();
     private Concurrency concurrency = new Concurrency();
     private App app = new App();
-    private Session session = new Session();
     private Tool tool = new Tool();
     private Dbos dbos = new Dbos();
 
@@ -57,8 +56,6 @@ public class AgentProperties {
     @Getter
     @Setter
     public static class Concurrency {
-        /** Concurrent agent-run orchestrators per worker (caps simultaneous dialogues). */
-        private int agentRuns = 3;
         /** Concurrent model requests per worker. */
         private int llm = 3;
         /** Concurrent backend tool calls per worker. */
@@ -73,14 +70,6 @@ public class AgentProperties {
         private String title = "AgiMate";
         private String category = "cloud-agent";
         private String userAgent = "AgiMate managed agent (agimate.io)";
-    }
-
-    /** Параметры session-слота рана. Сообщение в занятую сессию ждёт очереди (steering удалён). */
-    @Getter
-    @Setter
-    public static class Session {
-        /** TTL backstop on the active-run slot; server default (~3600s) when 0. */
-        private int runTtlSeconds = 3600;
     }
 
     /** Параметры выполнения бэкенд-тулов. */

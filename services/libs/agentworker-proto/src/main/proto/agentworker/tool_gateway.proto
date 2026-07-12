@@ -31,6 +31,8 @@ message ExecuteToolAsyncAck {
 message GetToolResultRequest {
   string agent_id = 1;
   string tool_call_id = 2;
+  // Ран-источник вызова: poll — признак жизни рана (продлевает last_activity_at).
+  string trigger_id = 3;
 }
 
 message GetToolResultResponse {

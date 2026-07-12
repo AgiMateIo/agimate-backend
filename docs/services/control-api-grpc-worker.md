@@ -17,9 +17,11 @@ credentials from the backend and execute tools through the Tool Gateway.
 | `WorkerControl`         | `HealthCheck`                                                                                     | done     |
 | `AgentContext`          | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials`           | done     |
 | `MessageLog`            | `SaveMessage` — единая запись событий диалога, доставка как её проекция                            | done     |
-| `ToolGateway`           | `ExecuteToolAsync`, `GetToolResult`                                                               | done     |
-| `AgentRunRegistry`      | `RegisterRun(agent_id, trigger_id)` → `{status ACQUIRED|BUSY|NO_SESSION, session_key}`, `ReleaseRun` | done     |
+| `ToolGateway`           | `ExecuteToolAsync`, `GetToolResult` (несёт `trigger_id` — liveness рана)                          | done     |
 | `WorkflowReporting`     | —                                                                                                 | post-PoC |
+
+`AgentRunRegistry` удалён: single-writer держит партиционированная очередь, жизненный цикл
+рана — проекция `SaveMessage` (см. «Run lifecycle» ниже).
 
 Source proto files: `services/libs/agentworker-proto/src/main/proto/agentworker/`.
 
@@ -194,34 +196,26 @@ presentation-only, wire routing unchanged.
 (`agent_connection_policies`) are **not** applied at listing time; they are enforced on `ExecuteTool`
 (`PERMISSION_DENIED`). The worker may surface denied tools to the LLM; the call is rejected at execution.
 
-## Active-run registry (`AgentRunRegistry`, протокол v2)
+## Run lifecycle (протокол v2, без registry)
 
 Backed by the `trigger_log_agents` table — each row is an agent run, and its id is the canonical
-**`run_id` == `trigger_id` == DBOS `workflow_id`**. Воркер оперирует только `trigger_id`; сессию
-single-writer'а резолвит бэк и возвращает как `session_key` — партиционный ключ очереди
-`agent_exec` (concurrency=1 на партицию сериализует раны сессии; steering удалён — сообщение
-в занятую сессию просто ждёт очереди).
+**`run_id` == `trigger_id` == DBOS `workflow_id`**. Регистрационного хэндшейка нет:
+single-writer-per-session держит партиционированная очередь `agent_exec` (партицию задаёт
+control-api при enqueue — `DbosTransport`, ключ = `session_id` рана; direct-ран — свой `run_id`).
+Это контрактное требование к транспорту исполнения.
 
-Lifecycle (`status` column, orthogonal to `result`/`error`):
-`ENQUEUED` (created by the backend at trigger routing) → `RUNNING` (worker acquired the session slot) →
-`DONE` (released) / `FAILED` (evicted dead holder).
+Lifecycle (`status` column, orthogonal to `result`/`error`) — a projection of the run's
+`SaveMessage` stream, observability only: `ENQUEUED` (created at trigger routing; в очереди) →
+`RUNNING` (первый `SaveMessage` — INBOUND-ack) → `DONE` (final ANSWER) / `FAILED` (ERROR, or
+swept as stale). Terminal statuses are sticky — a replayed INBOUND never resurrects a finished run.
 
-- `RegisterRun(agent_id, trigger_id, ttl_seconds)` → `{status: ACQUIRED|BUSY|NO_SESSION, session_key}` —
-  flips the run to `RUNNING`, sets `expires_at = now + ttl` (server default ~3600s, no heartbeat). The claim
-  is a conditional UPDATE (`NOT EXISTS` another RUNNING holder) — a busy slot is a regular `BUSY` response,
-  not an error. On a busy slot the server evicts a holder that provably no longer needs it — expired lease
-  (the partial unique index ignores `expires_at`, so the claim is where TTL takeover actually happens) or
-  dead DBOS workflow (terminal state or missing record — e.g. the run errored during a control-api outage
-  and never released) — marks it `FAILED` and retries once; only a live holder yields `BUSY`.
-  `NO_SESSION` — direct-ран без сессии, сериализовать нечего.
-- `ReleaseRun(agent_id, trigger_id)` — release-own: only the run holding the slot can release it, so a late
-  Release is a no-op (`released=false`).
-
-**Single-writer invariant**: at most one `RUNNING` run per session, enforced by a partial unique index
-`uq_trigger_log_agents_active_session ON (session_id) WHERE status = 'RUNNING'`. The index is the
-invariant backstop, not the detection mechanism: the claim's `NOT EXISTS` makes a busy slot an explicit
-outcome, and the index only trips on a true race (two concurrent claims both passing `NOT EXISTS` under
-READ COMMITTED — the loser gets `BUSY`).
+**Liveness** (`last_activity_at` + `RunActivityService`): каждый RPC рана — `SaveMessage`
+(проекция обновляет метку в той же транзакции), `GetRunContext`, `ExecuteToolAsync`,
+`GetToolResult` (несёт `trigger_id`) — продлевает `last_activity_at` (gRPC-фасады зовут
+`RunActivityService.touch`, best-effort). Самый длинный легальный тихий участок — один LLM-вызов
+с ретраями; ран, молчащий дольше `STALE_AFTER` (15 мин), добирает `@Scheduled`-сборщик:
+`RUNNING` → `FAILED` с маркером в `error`. Никого не блокирует — следующий ран сессии стартует
+по очереди независимо от статуса предыдущего.
 
 `MessageLog.SaveMessage` is hardened independently: the insert into `channel_session_messages` uses
 `ON CONFLICT (run_id, seq) DO NOTHING`, so a DBOS-replay / retry of the same run is idempotent without

@@ -41,24 +41,28 @@ public class DbosTransport implements AgentTransport {
         // воркер забирает одним GetRunContext(agent_id, trigger_id) по этому runId.
         WorkerRunMessage message = new WorkerRunMessage(agentId, runId);
 
-        // Contract names and the router-id scheme come from the shared WorkerProtocol (compiled
-        // into both services): the router gets a derived id so the bare runId is free for the
-        // run-stage workflow (run_id == its DBOS workflow id).
+        // Run-stage энкьюится сразу (роутера нет): workflow_id == runId, партиция — сессия
+        // (single-writer-per-session — контрактное свойство очереди; direct-ран без сессии
+        // получает собственную партицию по runId). Дедуп доставки — по workflow_id.
+        String partitionKey = triggerLogAgent.getSessionId() != null
+                ? triggerLogAgent.getSessionId().toString()
+                : runId;
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
-                WorkerProtocol.AGENT_WORKFLOW,
-                WorkerProtocol.AGENT_CLASS,
-                WorkerProtocol.AGENT_QUEUE
+                WorkerProtocol.RUN_WORKFLOW,
+                WorkerProtocol.RUN_CLASS,
+                WorkerProtocol.RUN_QUEUE
         )
                 .withInstanceName(WorkerProtocol.INSTANCE)
                 .withSerialization(SerializationStrategy.PORTABLE)
-                .withWorkflowId(WorkerProtocol.routerWorkflowId(runId))
-                .withQueuePartitionKey(agentId);
+                .withWorkflowId(runId)
+                .withQueuePartitionKey(partitionKey);
         client.enqueueWorkflow(options, new Object[]{message});
 
-        log.debug("run '{}' enqueued to DBOS queue '{}' for agent '{}'",
+        log.debug("run '{}' enqueued to DBOS queue '{}' for agent '{}' (partition={})",
                 triggerLogAgent.getTriggerLog().getName(),
-                WorkerProtocol.AGENT_QUEUE,
-                agentId);
+                WorkerProtocol.RUN_QUEUE,
+                agentId,
+                partitionKey);
     }
 
     /** Push не нужен: воркер сам забирает результат тулы поллингом {@code GetToolResult} по gRPC. */

@@ -12,8 +12,6 @@ import ru.agimate.agentworker.llm.ModelFactory;
 import ru.agimate.agentworker.workers.run.AgentRunCore;
 import ru.agimate.agentworker.workers.AgentRunWorkflow;
 import ru.agimate.agentworker.workers.AgentRunWorkflowImpl;
-import ru.agimate.agentworker.workers.AgentWorkflow;
-import ru.agimate.agentworker.workers.AgentWorkflowImpl;
 import ru.agimate.agentworker.workers.LlmCallWorkflow;
 import ru.agimate.agentworker.workers.LlmCallWorkflowImpl;
 import ru.agimate.agentworker.workers.Queues;
@@ -22,10 +20,10 @@ import ru.agimate.agentworker.workers.ToolCallWorkflowImpl;
 
 /**
  * Composition root for the DBOS surface. Builds the {@link DBOS} instance, registers the queues and
- * the workflow proxies (matching control-api's producer contract — {@code AgentWorkflow}/
- * {@code start_agent}/{@code default} on {@code agent_runs}), and launches/stops the executor via
- * Spring's lifecycle. Registration happens at construction (before launch); {@code launch()} runs on
- * {@link #start()} once the context is ready.
+ * the workflow proxies (matching control-api's producer contract — {@code AgentRunWorkflow}/
+ * {@code run_agent}/{@code default} on the partitioned {@code agent_exec}), and launches/stops the
+ * executor via Spring's lifecycle. Registration happens at construction (before launch);
+ * {@code launch()} runs on {@link #start()} once the context is ready.
  */
 @Slf4j
 @Component
@@ -45,7 +43,7 @@ public class DbosRuntime implements SmartLifecycle {
         DBOSConfig config = DBOSConfig.defaults(d.getAppName())
                 .withDatabaseUrl(d.getDatabaseUrl())
                 .withDatabaseSchema(d.getSchema())
-                .withListenQueues(Queues.AGENT_QUEUE, Queues.AGENT_EXEC_QUEUE, Queues.LLM_QUEUE, Queues.TOOL_QUEUE)
+                .withListenQueues(Queues.RUN_QUEUE, Queues.LLM_QUEUE, Queues.TOOL_QUEUE)
                 .withMigrate(true);
         if (d.getUsername() != null) {
             config = config.withDbUser(d.getUsername());
@@ -68,30 +66,25 @@ public class DbosRuntime implements SmartLifecycle {
         // (newVirtualThreadPerTaskExecutor), so a run blocked awaiting its children parks a
         // virtual thread, not a platform one; memory per run is bounded by the tool-output cap.
         AgentProperties.Concurrency c = props.getConcurrency();
-        Queue agentQueue = new Queue(Queues.AGENT_QUEUE)
-                .withWorkerConcurrency(c.getAgentRuns());
-        Queue execQueue = new Queue(Queues.AGENT_EXEC_QUEUE)
+        Queue execQueue = new Queue(Queues.RUN_QUEUE)
                 .withPartitioningEnabled(true)
                 .withConcurrency(1);
         Queue llmQueue = new Queue(Queues.LLM_QUEUE)
                 .withWorkerConcurrency(c.getLlm());
         Queue toolQueue = new Queue(Queues.TOOL_QUEUE)
                 .withWorkerConcurrency(c.getTool());
-        dbos.registerQueue(agentQueue);
         dbos.registerQueue(execQueue);
         dbos.registerQueue(llmQueue);
         dbos.registerQueue(toolQueue);
 
-        // Register workflow proxies. Router (agent_runs) → run stage (agent_exec) → llm/tool workers.
+        // Register workflow proxies. Run stage (agent_exec, enqueued by control-api) → llm/tool workers.
         LlmCallWorkflow llm = dbos.registerProxy(LlmCallWorkflow.class,
                 new LlmCallWorkflowImpl(client, modelFactory, mapper), Queues.INSTANCE);
         ToolCallWorkflow tool = dbos.registerProxy(ToolCallWorkflow.class,
                 new ToolCallWorkflowImpl(client, dbos, props.getTool()), Queues.INSTANCE);
         AgentRunCore core = new AgentRunCore(dbos, client, llm, tool, llmQueue, toolQueue);
-        AgentRunWorkflow run = dbos.registerProxy(AgentRunWorkflow.class,
-                new AgentRunWorkflowImpl(dbos, client, core, props.getSession()), Queues.INSTANCE);
-        dbos.registerProxy(AgentWorkflow.class,
-                new AgentWorkflowImpl(dbos, client, run, execQueue, props.getSession()), Queues.INSTANCE);
+        dbos.registerProxy(AgentRunWorkflow.class,
+                new AgentRunWorkflowImpl(core), Queues.INSTANCE);
     }
 
     @Override
@@ -99,7 +92,7 @@ public class DbosRuntime implements SmartLifecycle {
         dbos.launch();
         running = true;
         log.info("DBOS launched; listening on queues {}, {}, {} (workflow {})",
-                Queues.AGENT_QUEUE, Queues.LLM_QUEUE, Queues.TOOL_QUEUE, Queues.AGENT_WORKFLOW);
+                Queues.RUN_QUEUE, Queues.LLM_QUEUE, Queues.TOOL_QUEUE, Queues.RUN_WORKFLOW);
     }
 
     @Override

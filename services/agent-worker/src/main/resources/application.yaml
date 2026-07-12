@@ -29,7 +29,6 @@ agent:
     id: "agent-default"
     workflow-id: "wf-default"
   concurrency:
-    agent-runs: 3
     llm: 3
     tool: 8
   app:
@@ -37,9 +36,6 @@ agent:
     title: "AgiMate"
     category: "cloud-agent"
     user-agent: "AgiMate managed agent (agimate.io)"
-  session:
-    # TTL-страховка на слот активного рана (сек); серверный дефолт ~3600 при 0.
-    run-ttl-seconds: 3600
   tool:
     # Бюджет ожидания результата одного тул-вызова; таймаут НЕ отменяет джобу на бэке.
     poll-timeout: 60s

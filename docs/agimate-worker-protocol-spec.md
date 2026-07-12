@@ -61,8 +61,15 @@
 | `AgentContext` | `GetRunContext(agent_id, trigger_id)` — весь контекст рана одним вызовом (блоки промпта, тулы, история); `GetLlmCredentials` — отдельно (не в чекпоинт) |
 | `MessageLog` | `SaveMessage(agent_id, trigger_id, seq, kind, …)` — единая запись событий диалога; персист и доставка в каналы — на бэке; идемпотентность `(trigger_id, seq)` |
 | `ToolGateway` | `ExecuteToolAsync` + поллинг `GetToolResult` — единственная точка вызова tools (ABAC + audit) |
-| `AgentRunRegistry` | `RegisterRun`/`ReleaseRun` — single-writer-слот сессии; сессию резолвит бэк, воркер знает только `trigger_id` |
 | `WorkerControl` | `HealthCheck`; `SendMessage` — системные ошибки воркера |
+
+Регистрационного хэндшейка нет: **single-writer-per-session — контрактное требование к
+транспорту исполнения** (партиционированная очередь `agent_exec`, concurrency=1 на партицию;
+при смене транспорта требование входит в чек-лист эквивалента). Жизненный цикл рана
+(`trigger_log_agents.status`) — серверная проекция потока `SaveMessage`
+(INBOUND → RUNNING, ANSWER → DONE, ERROR → FAILED); каждый RPC рана (SaveMessage,
+ExecuteToolAsync/GetToolResult, GetRunContext) продлевает `last_activity_at`, молча умерший
+ран добирает фоновый сборщик (RUNNING без активности дольше порога → FAILED).
 
 ### 2.3 Authorization Interceptor
 
@@ -146,11 +153,11 @@ poll-бюджет). Параллелизм fan-out'а даёт очередь `t
 
 Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_id` = `trigger_log_agents.id`). Дальше:
 
-1. **Router** (`start_agent`): `RegisterRun(agent_id, trigger_id)` — бэк резолвит сессию и возвращает `session_key`; enqueue run-стадии на партиционированную очередь (`session_key` → один исполняющийся ран на сессию).
-2. **Run-стадия** (`run_agent`): re-affirm слота → `SaveMessage(seq=0, INBOUND)` — ack «агент получил», до сборки контекста.
+1. **Enqueue** (control-api): run-стадия энкьюится сразу на партиционированную очередь `agent_exec` — `workflow_id == run_id`, партиция = `session_id` рана (direct-ран — собственная партиция по `run_id`); дедуп доставки — по `workflow_id`. Роутер-workflow и claim-хэндшейк удалены.
+2. **Run-стадия** (`run_agent`): `SaveMessage(seq=0, INBOUND)` — ack «агент получил», до сборки контекста; на бэке он же переводит статус рана в RUNNING.
 3. `GetRunContext` + рендер блоков — один durable-шаг (`prepare_context`); история приходит внутри.
 4. ReAct-loop: `llm_call` (креды inline через `GetLlmCredentials`) и `tool_call` — child-workflows на своих очередях; каждый progress/answer/error — `SaveMessage` (durable-шаг, идемпотентный по `seq`).
-5. Финальный `SaveMessage(ANSWER)` помечает ран `completed` — бэкенд доставляет ответ в канал (или пишет `result` direct-рана). `ReleaseRun` в `finally`.
+5. Финальный `SaveMessage(ANSWER)` помечает ран `completed` и переводит статус в DONE — бэкенд доставляет ответ в канал (или пишет `result` direct-рана); `SaveMessage(ERROR)` → FAILED. Отдельного release нет.
 
 ### 3.5 Consistency
 
@@ -219,8 +226,10 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
 | `worker_control.proto` | `WorkerControl` | `HealthCheck`, `SendMessage` |
 | `agent_context.proto` | `AgentContext` | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials` |
 | `message_log.proto` | `MessageLog` | `SaveMessage` (v2 этап 3: воркер — единственный писатель истории; доставка — проекция записи) |
-| `tool_gateway.proto` | `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` |
-| `agent_run_registry.proto` | `AgentRunRegistry` | `RegisterRun(agent_id, trigger_id)` → `{status, session_key}`, `ReleaseRun` (v2: сессию резолвит бэк; steering удалён) |
+| `tool_gateway.proto` | `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` (несёт `trigger_id` — признак жизни рана) |
+
+`agent_run_registry.proto` удалён: single-writer держит партиционированная очередь,
+жизненный цикл рана — проекция `SaveMessage` + метка активности (§2.2).
 
 `workflow_reporting.proto` намеренно **не создан** — `WorkflowReporting` сервис в PoC отсутствует.
 
