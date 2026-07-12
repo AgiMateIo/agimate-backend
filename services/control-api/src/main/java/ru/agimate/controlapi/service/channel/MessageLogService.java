@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
@@ -85,11 +87,42 @@ public class MessageLogService {
             triggerLogAgentRepository.save(run);
         }
 
-        deliver(run, channels, kind, text, seq);
+        scheduleDelivery(triggerId, agentId, channels, kind, text, seq);
         if (duplicate) {
             log.debug("saveMessage duplicate run={} seq={} kind={}", triggerId, seq, kind);
         }
         return new SaveResult(duplicate);
+    }
+
+    /**
+     * Доставка — best-effort проекция записи ПОСЛЕ коммита: сбой доставки (удалённый канал,
+     * сломанный handler) не должен откатывать историю, а {@code send} сам @Transactional —
+     * его исключение пометило бы общую транзакцию rollback-only даже под catch. Крэш между
+     * коммитом и доставкой сообщение не теряет: шаг воркера ретраится, запись дедупится по
+     * {@code (run_id, seq)}, доставка — по детерминированному {@code message_id}.
+     */
+    private void scheduleDelivery(UUID runId, UUID agentId, Channels channels,
+                                  ChannelSessionMessageKind kind, String text, int seq) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    deliverBestEffort(runId, agentId, channels, kind, text, seq);
+                }
+            });
+        } else {
+            deliverBestEffort(runId, agentId, channels, kind, text, seq);
+        }
+    }
+
+    private void deliverBestEffort(UUID runId, UUID agentId, Channels channels,
+                                   ChannelSessionMessageKind kind, String text, int seq) {
+        try {
+            deliver(runId, agentId, channels, kind, text, seq);
+        } catch (Exception e) {
+            log.warn("delivery failed for run={} seq={} kind={} — history-only: {}",
+                    runId, seq, kind, e.getMessage());
+        }
     }
 
     /** Каноника inbound: текст канала (тот же handleInput, что при dispatch) или компактный JSON события. */
@@ -126,7 +159,7 @@ public class MessageLogService {
      * PROGRESS → progress; ANSWER → answer, иначе prompt; ERROR → progress, иначе answer,
      * иначе prompt. Нет канала — событие остаётся только в истории/строке рана.
      */
-    private void deliver(TriggerLogAgent run, Channels channels, ChannelSessionMessageKind kind,
+    private void deliver(UUID runId, UUID agentId, Channels channels, ChannelSessionMessageKind kind,
                          String text, int seq) {
         if (channels == null || kind == ChannelSessionMessageKind.INBOUND
                 || text == null || text.isBlank()) {
@@ -142,11 +175,11 @@ public class MessageLogService {
             default -> null;
         };
         if (target == null || target.channelId() == null) {
-            log.info("agent output [{}] run={}: no channel, history-only", kind, run.getId());
+            log.info("agent output [{}] run={}: no channel, history-only", kind, runId);
             return;
         }
-        String messageId = deterministicId(run.getId(), seq);
-        outboundService.send(run.getAgent().getId(), target.channelId(), target.sessionId(),
+        String messageId = deterministicId(runId, seq);
+        outboundService.send(agentId, target.channelId(), target.sessionId(),
                 OutboundMessage.text(text), messageId, kind.name().toLowerCase());
     }
 

@@ -25,6 +25,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import ru.agimate.common.rest.error.NotFoundStatusException;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -194,6 +196,21 @@ class MessageLogServiceTest {
             service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.PROGRESS, "TEXT", "line");
 
             verify(outboundService, never()).send(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("сбой доставки (канал удалён mid-run) не роняет запись — history-only")
+        void deliveryFailureDoesNotFailSave() {
+            run(SESSION_ID, dialogueChannels());
+            when(outboundService.send(any(), any(), any(), any(), any(), any()))
+                    .thenThrow(new NotFoundStatusException("Channel not found"));
+
+            var result = service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done");
+
+            assertFalse(result.duplicate());
+            verify(messageRepository).insertIgnoreConflict(eq(SESSION_ID), eq(AGENT_ID), eq(TRIGGER_ID),
+                    eq(4), eq("ANSWER"), isNull(), eq("done"), isNull());
+            verify(messageRepository).markRunCompleted(TRIGGER_ID);
         }
     }
 

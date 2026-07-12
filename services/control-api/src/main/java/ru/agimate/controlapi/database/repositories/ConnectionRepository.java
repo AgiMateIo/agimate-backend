@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.enums.IdentityScope;
 
@@ -98,6 +99,9 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
     @Query("UPDATE Connection c SET c.deletedAt = :now WHERE c.id = :id")
     void softDelete(@Param("id") UUID id, @Param("now") LocalDateTime now);
 
+    // @Transactional здесь: единственный вызов — с async-пула тулов, где внешней транзакции
+    // нет, а @Modifying без активной TX Hibernate отклоняет.
+    @Transactional
     @Modifying
     @Query("UPDATE Connection c SET c.lastUsedAt = :now WHERE c.id = :id")
     void updateLastUsedAt(@Param("id") UUID id, @Param("now") LocalDateTime now);
