@@ -167,6 +167,17 @@ A single system-owned `llm_providers` row (owner = synthetic system user, name `
 
 ---
 
+## Usage accounting
+
+Every successful LLM call made by the managed worker is reported back over gRPC (`ReportLlmUsage`, best-effort) and recorded in two tables:
+
+- `llm_usage_log` — per-call journal (audit/debug): run, agent, user, provider, model, input/output/cache tokens. Idempotent by `call_id` (the DBOS workflow id of the LLM call), so worker replays never double-count.
+- `llm_usage_counters` — aggregates per `(provider, subject, calendar window UTC)` used for quota enforcement and "remaining" displays. Subjects: `USER` (per user), `AGENT` (per agent), `TOTAL` (whole provider); windows: `DAY`, `MONTH`. All six counters are incremented in the same transaction as the journal insert; the token metric is `input + output + cache_write` (cache reads are not counted).
+
+Counters exist for BYOK providers too — usage stats are collected from day one regardless of whether a quota is configured. Quotas and the `/manage/llm-usage/` endpoint ship in the next stage.
+
+---
+
 ## Notes
 
 - Agents are responsible for calling the LLM themselves; the backend does not proxy LLM traffic.

@@ -17,6 +17,9 @@ service AgentContext {
   // prepare_context), api_key в чекпоинт попадать не должен — креды запрашиваются inline
   // на каждый llm_call.
   rpc GetLlmCredentials(GetLlmCredentialsRequest) returns (LlmCredentials);
+  // Учёт расхода токенов: best-effort репорт воркера после каждого успешного LLM-вызова.
+  // Идемпотентен по call_id (DBOS workflow id LLM-вызова) — повтор возвращает duplicate=true.
+  rpc ReportLlmUsage(ReportLlmUsageRequest) returns (ReportLlmUsageResponse);
 }
 
 message GetRunContextRequest {
@@ -57,6 +60,26 @@ message LlmCredentials {
   string base_url = 2;
   string api_key = 3;
   string model = 4;
+  // llm_providers.id — воркер возвращает его эхом в ReportLlmUsage, чтобы бэк не
+  // переразрешал привязку задним числом. Пусто у старого control-api (rolling deploy) —
+  // тогда воркер репорт пропускает.
+  string provider_id = 5;
+}
+
+message ReportLlmUsageRequest {
+  string call_id = 1;             // DBOS workflow id LLM-вызова — ключ идемпотентности
+  string agent_id = 2;
+  string run_id = 3;              // trigger_log_agents.id (parent workflow), пусто если неизвестен
+  string provider_id = 4;         // эхо LlmCredentials.provider_id
+  string model = 5;
+  int32 input_tokens = 6;
+  int32 output_tokens = 7;
+  int32 cache_read_tokens = 8;
+  int32 cache_write_tokens = 9;
+}
+
+message ReportLlmUsageResponse {
+  bool duplicate = 1;             // call_id уже учтён (реплей/повтор) — инкрементов не было
 }
 
 // MCP ToolAnnotations — поведенческие хинты тула.

@@ -18,6 +18,8 @@ import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.MessageLogGrpc;
 import ru.agimate.agentworker.ProgressType;
+import ru.agimate.agentworker.ReportLlmUsageRequest;
+import ru.agimate.agentworker.ReportLlmUsageResponse;
 import ru.agimate.agentworker.SaveMessageRequest;
 import ru.agimate.agentworker.SaveMessageResponse;
 import ru.agimate.agentworker.SendMessageRequest;
@@ -127,6 +129,24 @@ public class AgentWorkerClient {
     public LlmCredentials getLlmCredentials(String agentId) {
         return call("GetLlmCredentials", () -> ctx().getLlmCredentials(GetLlmCredentialsRequest.newBuilder()
                 .setWorkflowId(workflowId()).setAgentId(agentId).build()));
+    }
+
+    /** Учёт расхода токенов; идемпотентен по callId (бэк дедуплицирует повторы/реплеи). */
+    public ReportLlmUsageResponse reportLlmUsage(String callId, String agentId, String runId,
+                                                 String providerId, String model,
+                                                 int inputTokens, int outputTokens,
+                                                 int cacheReadTokens, int cacheWriteTokens) {
+        return call("ReportLlmUsage", () -> ctx().reportLlmUsage(ReportLlmUsageRequest.newBuilder()
+                .setCallId(callId)
+                .setAgentId(agentId)
+                .setRunId(runId == null ? "" : runId)
+                .setProviderId(providerId)
+                .setModel(model == null ? "" : model)
+                .setInputTokens(inputTokens)
+                .setOutputTokens(outputTokens)
+                .setCacheReadTokens(cacheReadTokens)
+                .setCacheWriteTokens(cacheWriteTokens)
+                .build()));
     }
 
     // ---- MessageLog --------------------------------------------------------------

@@ -3,9 +3,13 @@ package ru.agimate.agentworker.workers;
 import com.openai.errors.OpenAIIoException;
 import com.openai.errors.OpenAIRetryableException;
 import com.openai.errors.OpenAIServiceException;
+import dev.dbos.transact.context.DBOSContext;
+import dev.dbos.transact.context.DBOSContextHolder;
+import dev.dbos.transact.context.WorkflowInfo;
 import dev.dbos.transact.workflow.Workflow;
 import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
@@ -64,6 +68,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
                     .build();
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages), options);
             ChatResponse response = callWithRetry(model, prompt);
+            reportUsage(response, creds, agentId);
             return Result.ok(mapper.fromResponse(response));
         } catch (Exception e) {
             OpenAIServiceException svc = findServiceException(e);
@@ -74,6 +79,51 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             log.warn("LLM API error: {}", e.getMessage());
             return Result.failure(null, nonBlankMessage(e));
         }
+    }
+
+    /**
+     * Best-effort учёт расхода токенов: сбой репорта логируется и не влияет на результат вызова
+     * (иначе инфраструктура учёта стала бы источником отказов ранов). Идемпотентность — на бэке
+     * по call_id (собственный workflow id этого LLM-вызова, реплей-стабилен). Пустой provider_id
+     * (старый control-api при rolling deploy) → репорт пропускается.
+     */
+    private void reportUsage(ChatResponse response, LlmCredentials creds, String agentId) {
+        try {
+            if (creds.getProviderId().isBlank()) {
+                return;
+            }
+            Usage usage = response.getMetadata() != null ? response.getMetadata().getUsage() : null;
+            if (usage == null) {
+                log.warn("LLM response has no usage metadata — skipping usage report");
+                return;
+            }
+            String callId = currentCallId();
+            if (callId == null || callId.isBlank()) {
+                log.warn("No workflow id in context — skipping usage report");
+                return;
+            }
+            client.reportLlmUsage(callId, agentId, currentRunId(),
+                    creds.getProviderId(), creds.getModel(),
+                    intOrZero(usage.getPromptTokens()), intOrZero(usage.getCompletionTokens()),
+                    intOrZero(usage.getCacheReadInputTokens()), intOrZero(usage.getCacheWriteInputTokens()));
+        } catch (Exception e) {
+            log.warn("LLM usage report failed (best-effort): {}", e.getMessage());
+        }
+    }
+
+    /** Собственный workflow id LLM-вызова; шов для тестов. */
+    String currentCallId() {
+        return DBOSContext.workflowId();
+    }
+
+    /** Родительский ран-воркфлоу (= runId), если контекст его знает; шов для тестов. */
+    String currentRunId() {
+        WorkflowInfo parent = DBOSContextHolder.get().getParent();
+        return parent != null ? parent.workflowId() : null;
+    }
+
+    private static int intOrZero(Number value) {
+        return value == null ? 0 : value.intValue();
     }
 
     private static final int MAX_ATTEMPTS = 4;

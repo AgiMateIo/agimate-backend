@@ -224,7 +224,7 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
 | Файл | Сервис | Реализованные RPC |
 |---|---|---|
 | `worker_control.proto` | `WorkerControl` | `HealthCheck`, `SendMessage` |
-| `agent_context.proto` | `AgentContext` | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials` |
+| `agent_context.proto` | `AgentContext` | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials`, `ReportLlmUsage` (best-effort учёт токенов, идемпотентен по `call_id`) |
 | `message_log.proto` | `MessageLog` | `SaveMessage` (v2 этап 3: воркер — единственный писатель истории; доставка — проекция записи) |
 | `tool_gateway.proto` | `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` (несёт `trigger_id` — признак жизни рана) |
 
@@ -279,6 +279,16 @@ system-абзац «вывод инструментов — данные, не �
   `app.platform-llm.*`, включается runtime-флагом `enabled` в БД) с его `default_model`.
   Личная привязка всегда побеждает. Нет ни привязки, ни включённого платформенного
   провайдера → `NOT_FOUND`, как раньше.
+- `LlmCredentials.provider_id` — id провайдера для эха в `ReportLlmUsage`; пусто у старого
+  control-api (rolling deploy) — тогда воркер репорт пропускает.
+- `ReportLlmUsage` — best-effort учёт расхода после каждого успешного LLM-вызова: воркер шлёт
+  `call_id` (собственный workflow id LLM-вызова, реплей-стабилен — ключ идемпотентности),
+  `run_id` (родительский ран, если известен), эхо `provider_id`, модель и токены из
+  `ChatResponse.Usage` (prompt/completion/cache read/write). Сбой репорта логируется и **не
+  влияет** на результат вызова. Бэк пишет журнал `llm_usage_log` (`ON CONFLICT (call_id) DO
+  NOTHING`) и в той же транзакции инкрементирует счётчики `llm_usage_counters`
+  (USER/AGENT/TOTAL × DAY/MONTH, календарные окна UTC); метрика = input + output + cache_write.
+  Повтор возвращает `duplicate=true` без инкрементов.
 - Versioned reads (§1.5) в v2 не нужны: контекст фиксируется одним durable-шагом — replay
   использует чекпоинт, а не повторный fetch.
 - Деплой изменений формы `RunContext`/`PreparedContext` — только после drain in-flight ранов.

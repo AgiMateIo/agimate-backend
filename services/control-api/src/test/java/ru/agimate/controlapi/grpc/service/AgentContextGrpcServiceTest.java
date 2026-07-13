@@ -11,17 +11,22 @@ import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetRunContextRequest;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.MessageKind;
+import ru.agimate.agentworker.ReportLlmUsageRequest;
+import ru.agimate.agentworker.ReportLlmUsageResponse;
 import ru.agimate.agentworker.RunContext;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
+import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContext;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.service.LlmProviderService;
+import ru.agimate.controlapi.service.LlmUsageService;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
 import ru.agimate.controlapi.service.runcontext.RunBlock;
 import ru.agimate.controlapi.service.runcontext.RunContextService;
@@ -57,12 +62,16 @@ class AgentContextGrpcServiceTest {
     private final AgentLlmRepository agentLlmRepository = mock(AgentLlmRepository.class);
     private final LlmProviderRepository llmProviderRepository = mock(LlmProviderRepository.class);
     private final LlmProviderService llmProviderService = mock(LlmProviderService.class);
+    private final AgentRepository agentRepository = mock(AgentRepository.class);
+    private final LlmUsageService llmUsageService = mock(LlmUsageService.class);
     private final AgentContextGrpcService service = new AgentContextGrpcService(
             runContextService,
             mock(ru.agimate.controlapi.service.trigger.RunActivityService.class),
             agentLlmRepository,
             llmProviderRepository,
-            llmProviderService);
+            llmProviderService,
+            agentRepository,
+            llmUsageService);
 
     @Test
     @DisplayName("все четыре коллекции view доезжают до ответа: блоки, тулы и история")
@@ -122,6 +131,7 @@ class AgentContextGrpcServiceTest {
         @DisplayName("нет привязки + платформенный провайдер включён → креденшлы с default_model")
         void fallsBackToPlatformProvider() throws Exception {
             LlmProvider platform = LlmProvider.builder()
+                    .id(UUID.randomUUID())
                     .userId(SystemSkillBootstrap.SYSTEM_USER_ID)
                     .name(LlmProviderService.PLATFORM_PROVIDER_NAME)
                     .providerType(LlmProviderType.OPENAI_COMPATIBLE)
@@ -139,6 +149,7 @@ class AgentContextGrpcServiceTest {
             assertEquals("https://openrouter.ai/api/v1", creds.getBaseUrl());
             assertEquals("gpt-5-mini", creds.getModel());
             assertEquals("sk-platform-key", creds.getApiKey());
+            assertEquals(platform.getId().toString(), creds.getProviderId());
         }
 
         @Test
@@ -163,6 +174,7 @@ class AgentContextGrpcServiceTest {
                     .model("user-model")
                     .build();
             LlmProvider provider = LlmProvider.builder()
+                    .id(providerId)
                     .providerType(LlmProviderType.OPENAI)
                     .enabled(true)
                     .build();
@@ -208,6 +220,118 @@ class AgentContextGrpcServiceTest {
                 throw sre;
             }
             assertNull(error.get(), () -> "GetLlmCredentials failed: " + error.get());
+            return response.get();
+        }
+    }
+
+    @Nested
+    @DisplayName("reportLlmUsage — учёт расхода")
+    class ReportUsage {
+
+        private final UUID agentId = UUID.randomUUID();
+        private final UUID userId = UUID.randomUUID();
+        private final UUID providerId = UUID.randomUUID();
+        private final UUID runId = UUID.randomUUID();
+
+        @Test
+        @DisplayName("happy path: user_id берётся у агента, кэш-нули превращаются в NULL")
+        void recordsUsage() throws Exception {
+            Agent agent = new Agent();
+            agent.setId(agentId);
+            agent.setUserId(userId);
+            when(agentRepository.findById(agentId)).thenReturn(Optional.of(agent));
+            when(llmUsageService.record(any())).thenReturn(false);
+
+            ReportLlmUsageResponse response = callReportUsage(ReportLlmUsageRequest.newBuilder()
+                    .setCallId("wf-llm-1")
+                    .setAgentId(agentId.toString())
+                    .setRunId(runId.toString())
+                    .setProviderId(providerId.toString())
+                    .setModel("gpt-5-mini")
+                    .setInputTokens(100)
+                    .setOutputTokens(20)
+                    .setCacheReadTokens(50)
+                    .setCacheWriteTokens(0)
+                    .build());
+
+            assertEquals(false, response.getDuplicate());
+            var captor = org.mockito.ArgumentCaptor.forClass(LlmUsageService.UsageReport.class);
+            verify(llmUsageService).record(captor.capture());
+            LlmUsageService.UsageReport report = captor.getValue();
+            assertEquals("wf-llm-1", report.callId());
+            assertEquals(runId, report.runId());
+            assertEquals(userId, report.userId());
+            assertEquals(providerId, report.providerId());
+            assertEquals(100, report.inputTokens());
+            assertEquals(20, report.outputTokens());
+            assertEquals(50, report.cacheReadTokens());
+            assertNull(report.cacheWriteTokens(), "0 в proto3 = «не прислано» → NULL");
+        }
+
+        @Test
+        @DisplayName("дубликат: duplicate=true доезжает до ответа")
+        void duplicateFlag() throws Exception {
+            Agent agent = new Agent();
+            agent.setId(agentId);
+            agent.setUserId(userId);
+            when(agentRepository.findById(agentId)).thenReturn(Optional.of(agent));
+            when(llmUsageService.record(any())).thenReturn(true);
+
+            ReportLlmUsageResponse response = callReportUsage(validRequest().build());
+            assertEquals(true, response.getDuplicate());
+        }
+
+        @Test
+        @DisplayName("неизвестный агент → NOT_FOUND, пустой call_id → INVALID_ARGUMENT")
+        void validation() {
+            when(agentRepository.findById(agentId)).thenReturn(Optional.empty());
+            StatusRuntimeException notFound = assertThrows(StatusRuntimeException.class,
+                    () -> callReportUsage(validRequest().build()));
+            assertEquals(Status.Code.NOT_FOUND, notFound.getStatus().getCode());
+
+            StatusRuntimeException invalid = assertThrows(StatusRuntimeException.class,
+                    () -> callReportUsage(validRequest().setCallId("").build()));
+            assertEquals(Status.Code.INVALID_ARGUMENT, invalid.getStatus().getCode());
+        }
+
+        private ReportLlmUsageRequest.Builder validRequest() {
+            return ReportLlmUsageRequest.newBuilder()
+                    .setCallId("wf-llm-1")
+                    .setAgentId(agentId.toString())
+                    .setProviderId(providerId.toString())
+                    .setModel("gpt-5-mini")
+                    .setInputTokens(1)
+                    .setOutputTokens(1);
+        }
+
+        private ReportLlmUsageResponse callReportUsage(ReportLlmUsageRequest request) throws Exception {
+            AtomicReference<ReportLlmUsageResponse> response = new AtomicReference<>();
+            AtomicReference<Throwable> error = new AtomicReference<>();
+            StreamObserver<ReportLlmUsageResponse> observer = new StreamObserver<>() {
+                @Override
+                public void onNext(ReportLlmUsageResponse value) {
+                    response.set(value);
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    error.set(t);
+                }
+
+                @Override
+                public void onCompleted() {
+                }
+            };
+            Context ctx = Context.current().withValue(
+                    WorkerPoolContextHolder.CONTEXT_KEY, new WorkerPoolContext("pool-1", "worker-1"));
+            ctx.call(() -> {
+                service.reportLlmUsage(request, observer);
+                return null;
+            });
+            if (error.get() instanceof StatusRuntimeException sre) {
+                throw sre;
+            }
+            assertNull(error.get(), () -> "ReportLlmUsage failed: " + error.get());
             return response.get();
         }
     }

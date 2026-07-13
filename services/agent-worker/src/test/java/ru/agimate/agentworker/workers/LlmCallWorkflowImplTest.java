@@ -5,17 +5,121 @@ import com.openai.errors.InternalServerException;
 import com.openai.errors.OpenAIIoException;
 import com.openai.errors.RateLimitException;
 import com.openai.errors.UnauthorizedException;
+import io.grpc.Status;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.chat.metadata.ChatResponseMetadata;
+import org.springframework.ai.chat.metadata.DefaultUsage;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatModel;
+import ru.agimate.agentworker.LlmCredentials;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.grpc.AgentWorkerClient;
+import ru.agimate.agentworker.grpc.ControlApiCallException;
+import ru.agimate.agentworker.llm.LlmMessageMapper;
+import ru.agimate.agentworker.llm.ModelFactory;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class LlmCallWorkflowImplTest {
 
     private static RateLimitException rateLimit(Headers headers) {
         return RateLimitException.builder().headers(headers).build();
+    }
+
+    @Nested
+    @DisplayName("учёт usage — best-effort репорт после успешного вызова")
+    class UsageReporting {
+
+        private final AgentWorkerClient client = mock(AgentWorkerClient.class);
+        private final ModelFactory modelFactory = mock(ModelFactory.class);
+        private final LlmMessageMapper mapper = mock(LlmMessageMapper.class);
+        private final OpenAiChatModel model = mock(OpenAiChatModel.class);
+
+        /** Реальный DBOS-контекст в юнит-тесте недоступен — подменяем швы call/run id. */
+        private final LlmCallWorkflowImpl workflow = new LlmCallWorkflowImpl(client, modelFactory, mapper) {
+            @Override
+            String currentCallId() {
+                return "wf-llm-77";
+            }
+
+            @Override
+            String currentRunId() {
+                return "run-42";
+            }
+        };
+
+        private LlmCredentials creds(String providerId) {
+            return LlmCredentials.newBuilder()
+                    .setProviderType("openai_compatible")
+                    .setBaseUrl("https://openrouter.ai/api/v1")
+                    .setApiKey("sk-key")
+                    .setModel("gpt-5-mini")
+                    .setProviderId(providerId)
+                    .build();
+        }
+
+        private void stubSuccessfulCall(String providerId) {
+            when(client.getLlmCredentials("agent-1")).thenReturn(creds(providerId));
+            when(modelFactory.build(any())).thenReturn(model);
+            when(mapper.toSpringMessages(any())).thenReturn(List.of());
+            when(mapper.toolCallbacks(any())).thenReturn(List.of());
+            ChatResponse response = new ChatResponse(List.of(),
+                    ChatResponseMetadata.builder().usage(new DefaultUsage(100, 20)).build());
+            when(model.call(any(Prompt.class))).thenReturn(response);
+            when(mapper.fromResponse(response)).thenReturn(
+                    new AgentChatMessage(AgentChatMessage.Role.ASSISTANT, "ok", false, null, null));
+        }
+
+        @Test
+        @DisplayName("успешный вызов: репорт с call/run id, provider_id и токенами из Usage")
+        void reportsUsageAfterSuccessfulCall() {
+            stubSuccessfulCall("prov-1");
+
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+
+            assertFalse(result.failed());
+            verify(client).reportLlmUsage("wf-llm-77", "agent-1", "run-42",
+                    "prov-1", "gpt-5-mini", 100, 20, 0, 0);
+        }
+
+        @Test
+        @DisplayName("сбой репорта не валит вызов (best-effort)")
+        void reportFailureDoesNotFailCall() {
+            stubSuccessfulCall("prov-1");
+            when(client.reportLlmUsage(anyString(), anyString(), anyString(), anyString(), anyString(),
+                    anyInt(), anyInt(), anyInt(), anyInt()))
+                    .thenThrow(new ControlApiCallException("ReportLlmUsage", Status.UNAVAILABLE));
+
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+
+            assertFalse(result.failed());
+        }
+
+        @Test
+        @DisplayName("пустой provider_id (старый control-api) → репорт пропускается")
+        void skipsReportWithoutProviderId() {
+            stubSuccessfulCall("");
+
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+
+            assertFalse(result.failed());
+            verify(client, never()).reportLlmUsage(anyString(), anyString(), anyString(), anyString(),
+                    anyString(), anyInt(), anyInt(), anyInt(), anyInt());
+        }
     }
 
     @Test
