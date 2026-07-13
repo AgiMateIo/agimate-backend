@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Сидинг системных скиллов в БД при старте приложения.
@@ -25,8 +24,10 @@ import java.util.Optional;
  * <p>Скилл лежит как classpath-ресурс ({@code resources/skills/.../SKILL.md}), владелец —
  * синтетический {@link #SYSTEM_USER_ID}, публикуется как public (его можно привязать к агенту
  * напрямую, без клонирования). Имя/описание/коннекторы берутся из frontmatter, тело — в
- * {@code md_content}. Операция идемпотентна: строка ищется по {@code (userId, name)}; при изменении
- * тела или набора коннекторов поля перезаписываются и инкрементируется {@code version}.
+ * {@code md_content}. Seed-only-if-missing: строка ищется по {@code (userId, name)} и создаётся,
+ * только если её ещё нет — после первого сидинга classpath перестаёт быть source of truth, чтобы
+ * правки через будущий admin UI не затирались следующим деплоем. Изменение SKILL.md в репозитории
+ * применяется только к свежим (ещё не засеянным) окружениям.
  */
 @Slf4j
 @Component
@@ -65,9 +66,7 @@ public class SystemSkillBootstrap {
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(content);
         List<String> connectors = new ArrayList<>(parsed.connectors());
 
-        Optional<Skill> existing = skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, parsed.name());
-        if (existing.isPresent()) {
-            updateIfChanged(existing.get(), parsed, connectors);
+        if (skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, parsed.name()).isPresent()) {
             return;
         }
 
@@ -82,24 +81,9 @@ public class SystemSkillBootstrap {
                     .build());
             log.info("Seeded system skill '{}' id={} connectors={}", skill.getName(), skill.getId(), connectors);
         } catch (DataIntegrityViolationException e) {
-            // Параллельная нода успела вставить тот же (user_id, name) — перечитываем и досинкиваем тело.
-            skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, parsed.name())
-                    .ifPresent(s -> updateIfChanged(s, parsed, connectors));
+            // Параллельная нода успела вставить тот же (user_id, name) на холодном старте — уже засеяно.
+            log.debug("System skill '{}' already seeded by a concurrent node", parsed.name());
         }
-    }
-
-    private void updateIfChanged(Skill skill, SkillFrontmatterParser.ParsedSkill parsed, List<String> connectors) {
-        boolean changed = !parsed.body().equals(skill.getMdContent())
-                || !connectors.equals(skill.getConnectorCodes());
-        if (!changed) {
-            return;
-        }
-        skill.setDescription(parsed.description());
-        skill.setMdContent(parsed.body());
-        skill.setConnectorCodes(connectors);
-        skill.setVersion(skill.getVersion() + 1);
-        skillRepository.save(skill);
-        log.info("Updated system skill '{}' id={} to version={}", skill.getName(), skill.getId(), skill.getVersion());
     }
 
     private String readResource(String path) {

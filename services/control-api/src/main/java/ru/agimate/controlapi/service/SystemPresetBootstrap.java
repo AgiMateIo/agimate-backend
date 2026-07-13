@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
 
@@ -28,8 +27,9 @@ import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
  *
  * <p>Пресет лежит как classpath-ресурс ({@code resources/presets/<code>/PRESET.md}): frontmatter —
  * {@code code}/{@code name}/{@code description}/{@code skills} (имена системных скилов), тело —
- * заготовка инструкций агента. Операция идемпотентна по {@code code}; при изменении контента поля
- * перезаписываются. Запускается после сидинга скилов (см. {@code @Order}), чтобы ссылки
+ * заготовка инструкций агента. Seed-only-if-missing (см. {@link SystemSkillBootstrap}): строка
+ * ищется по {@code code} и создаётся, только если её ещё нет — правки через будущий admin UI не
+ * затираются следующим деплоем. Запускается после сидинга скилов (см. {@code @Order}), чтобы ссылки
  * {@code skills} проверялись против уже засеянных системных скилов; неизвестное имя — warning,
  * не отказ (резолв всё равно происходит при листинге).
  */
@@ -64,9 +64,7 @@ public class SystemPresetBootstrap {
         ParsedPreset parsed = parsePreset(readResource(resourcePath));
         warnOnUnknownSkills(parsed);
 
-        Optional<AgentPreset> existing = agentPresetRepository.findByCode(parsed.code());
-        if (existing.isPresent()) {
-            updateIfChanged(existing.get(), parsed);
+        if (agentPresetRepository.findByCode(parsed.code()).isPresent()) {
             return;
         }
 
@@ -82,27 +80,9 @@ public class SystemPresetBootstrap {
             log.info("Seeded system preset '{}' id={} skills={}", preset.getCode(), preset.getId(),
                     parsed.skillNames());
         } catch (DataIntegrityViolationException e) {
-            // Параллельная нода успела вставить тот же code — перечитываем и досинкиваем контент.
-            agentPresetRepository.findByCode(parsed.code()).ifPresent(p -> updateIfChanged(p, parsed));
+            // Параллельная нода успела вставить тот же code на холодном старте — уже засеяно.
+            log.debug("System preset '{}' already seeded by a concurrent node", parsed.code());
         }
-    }
-
-    private void updateIfChanged(AgentPreset preset, ParsedPreset parsed) {
-        boolean changed = !parsed.name().equals(preset.getName())
-                || !java.util.Objects.equals(parsed.description(), preset.getDescription())
-                || !parsed.instructions().equals(preset.getInstructions())
-                || !parsed.skillNames().equals(preset.getSkillNames())
-                || !parsed.sortOrder().equals(preset.getSortOrder());
-        if (!changed) {
-            return;
-        }
-        preset.setName(parsed.name());
-        preset.setDescription(parsed.description());
-        preset.setInstructions(parsed.instructions());
-        preset.setSkillNames(parsed.skillNames());
-        preset.setSortOrder(parsed.sortOrder());
-        agentPresetRepository.save(preset);
-        log.info("Updated system preset '{}' id={}", preset.getCode(), preset.getId());
     }
 
     private void warnOnUnknownSkills(ParsedPreset parsed) {
