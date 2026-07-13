@@ -33,7 +33,7 @@ public class ManageLlmProviderController {
             @AuthenticationPrincipal AgimateUserPrincipal principal
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(llmProviderService.listForUser(userId));
+        return SuccessResponse.ok(llmProviderService.listForUser(userId, principal.isAdmin()));
     }
 
     @Operation(summary = "Create an LLM provider")
@@ -53,7 +53,7 @@ public class ManageLlmProviderController {
             @PathVariable UUID id
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(llmProviderService.getForUser(id, userId));
+        return SuccessResponse.ok(llmProviderService.getForUser(id, userId, principal.isAdmin()));
     }
 
     @Operation(summary = "Update an LLM provider (partial)")
@@ -64,7 +64,7 @@ public class ManageLlmProviderController {
             @Valid @RequestBody UpdateLlmProviderRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(llmProviderService.update(id, userId, request));
+        return SuccessResponse.ok(llmProviderService.update(id, userId, principal.isAdmin(), request));
     }
 
     @Operation(summary = "Delete an LLM provider (cascades to agent bindings)")
@@ -74,7 +74,7 @@ public class ManageLlmProviderController {
             @PathVariable UUID id
     ) {
         UUID userId = UUID.fromString(principal.id());
-        llmProviderService.delete(id, userId);
+        llmProviderService.delete(id, userId, principal.isAdmin());
         return SuccessResponse.empty();
     }
 
@@ -85,6 +85,6 @@ public class ManageLlmProviderController {
             @PathVariable UUID id
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(llmProviderService.refreshModels(id, userId));
+        return SuccessResponse.ok(llmProviderService.refreshModels(id, userId, principal.isAdmin()));
     }
 }

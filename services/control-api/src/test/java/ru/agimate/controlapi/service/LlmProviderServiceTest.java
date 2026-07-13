@@ -15,12 +15,14 @@ import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.llm.LlmModelDiscoveryService;
 import ru.agimate.controlapi.service.secret.SecretService;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -154,6 +156,89 @@ class LlmProviderServiceTest {
                     SystemSkillBootstrap.SYSTEM_USER_ID, LlmProviderService.PLATFORM_PROVIDER_NAME))
                     .thenReturn(Optional.of(provider));
             assertTrue(service.findUsablePlatformProvider().isEmpty());
+        }
+    }
+
+    @Nested
+    @DisplayName("admin-доступ к платформенному провайдеру")
+    class AdminAccess {
+
+        private final UUID adminId = UUID.randomUUID();
+        private final UUID strangerId = UUID.randomUUID();
+
+        @Test
+        @DisplayName("админ получает платформенную строку; не-админ — 404")
+        void adminReachesPlatformRow() {
+            LlmProvider platform = existingProvider(true);
+            when(llmProviderRepository.findById(platform.getId())).thenReturn(Optional.of(platform));
+
+            assertEquals(platform,
+                    service.requireOwnedOrPlatformAdmin(platform.getId(), adminId, true));
+
+            when(llmProviderRepository.findByIdAndUserId(platform.getId(), strangerId))
+                    .thenReturn(Optional.empty());
+            assertThrows(ru.agimate.common.rest.error.NotFoundStatusException.class,
+                    () -> service.requireOwnedOrPlatformAdmin(platform.getId(), strangerId, false));
+        }
+
+        @Test
+        @DisplayName("чужая пользовательская строка для админа — 404 (только своя или платформенная)")
+        void adminCannotReachForeignUserRow() {
+            LlmProvider foreign = existingProvider(true);
+            foreign.setUserId(strangerId);
+            foreign.setName("someones-openai");
+            when(llmProviderRepository.findById(foreign.getId())).thenReturn(Optional.of(foreign));
+
+            assertThrows(ru.agimate.common.rest.error.NotFoundStatusException.class,
+                    () -> service.requireOwnedOrPlatformAdmin(foreign.getId(), adminId, true));
+        }
+
+        @Test
+        @DisplayName("листинг админа дополняется платформенной строкой с platform=true")
+        void adminListIncludesPlatform() {
+            when(llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(adminId)).thenReturn(List.of());
+            when(llmProviderRepository.findByUserIdAndName(
+                    SystemSkillBootstrap.SYSTEM_USER_ID, LlmProviderService.PLATFORM_PROVIDER_NAME))
+                    .thenReturn(Optional.of(existingProvider(true)));
+
+            var list = service.listForUser(adminId, true);
+
+            assertEquals(1, list.size());
+            assertTrue(list.get(0).platform());
+
+            assertTrue(service.listForUser(adminId, false).isEmpty(),
+                    "без роли ADMIN платформенная строка не видна");
+        }
+
+        @Test
+        @DisplayName("платформенную строку нельзя переименовать и удалить")
+        void platformRenameAndDeleteRejected() {
+            LlmProvider platform = existingProvider(true);
+            when(llmProviderRepository.findById(platform.getId())).thenReturn(Optional.of(platform));
+
+            assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
+                    () -> service.update(platform.getId(), adminId, true,
+                            new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
+                                    "renamed", null, null, null, null)));
+
+            assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
+                    () -> service.delete(platform.getId(), adminId, true));
+        }
+
+        @Test
+        @DisplayName("админ включает платформенный провайдер и меняет default_model через update")
+        void adminEnablesAndSetsModel() {
+            LlmProvider platform = existingProvider(false);
+            when(llmProviderRepository.findById(platform.getId())).thenReturn(Optional.of(platform));
+            when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            var response = service.update(platform.getId(), adminId, true,
+                    new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
+                            null, null, null, "gemini-flash", true));
+
+            assertTrue(response.enabled());
+            assertEquals("gemini-flash", response.defaultModel());
+            assertTrue(response.platform());
         }
     }
 

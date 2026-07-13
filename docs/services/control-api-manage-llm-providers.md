@@ -161,9 +161,20 @@ Returns the single binding identified by its label. `404` if the binding does no
 A single system-owned `llm_providers` row (owner = synthetic system user, name `platform`, always `OPENAI_COMPATIBLE`) used as an implicit fallback: when an agent has **no** `agent_llms` bindings, the worker's `GetLlmCredentials` gRPC issues the platform provider's credentials with its `default_model`. A personal binding always wins over the fallback.
 
 - Seeded on startup by `PlatformLlmBootstrap` from `app.platform-llm.*` properties (`APP_PLATFORM_LLM_BASE_URL`, `APP_PLATFORM_LLM_API_KEY`, `APP_PLATFORM_LLM_DEFAULT_MODEL`). If any is missing, seeding is skipped and the feature is off.
-- Created with `enabled=false`; enabling the free-tier is a deliberate runtime action in the DB (`llm_providers.enabled`). Bootstrap never touches `enabled` on subsequent starts — it only syncs `base_url`, `default_model` and the key.
-- Invisible in `/manage/llm-providers/**` (those are filtered by the current user) and not addressable in binding requests (`404` — the provider belongs to the system user).
-- The `default_model` column exists on every provider but is currently used only by the platform row.
+- Created with `enabled=false`; enabling the free-tier is a deliberate runtime action performed by an **ADMIN** (see below). Bootstrap never touches `enabled` on subsequent starts — it only syncs `base_url`, `default_model` and the key.
+- Invisible to regular users in `/manage/llm-providers/**` and not addressable in binding requests (`404` — the provider belongs to the system user).
+- `default_model` exists on every provider (`Create`/`Update` requests accept it; for user providers it is a UI preselect); on the platform row it is the fallback model and is required for the fallback to work.
+
+### ADMIN management
+
+Users with role `ADMIN` (`users.role` in user-api, carried in the JWT `roles` claim) manage the platform provider **through the same endpoints**:
+
+- `GET /manage/llm-providers/` — the platform row is appended to the admin's own providers, marked `platform: true` in `LlmProviderResponse`.
+- `GET`/`PATCH /{id}`, `POST /{id}/refresh-models` — allowed on the platform row for admins. Enabling the free-tier = `PATCH {"enabled": true}`; key rotation = `PATCH {"apiKey": "..."}`.
+- `POST`/`DELETE /manage/llm-providers/{id}/quotas/**` — admins manage the free-tier quota (typically `subjectKind: USER`, `window: DAY`) on the platform row.
+- Restrictions on the platform row: **rename rejected** (`400` — the name `platform` is the fallback lookup key) and **delete rejected** (`400` — disable via `enabled` instead).
+- Admins do **not** get access to other users' providers — only their own plus the platform row.
+- Assigning the ADMIN role: `UPDATE users SET role = 'ADMIN' WHERE id = ...` in the user-api DB (no UI yet).
 
 ---
 

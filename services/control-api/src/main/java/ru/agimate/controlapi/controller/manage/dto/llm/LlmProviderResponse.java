@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.service.SystemSkillBootstrap;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -24,6 +25,9 @@ public record LlmProviderResponse(
         @Schema(description = "Custom base URL")
         String baseUrl,
 
+        @Schema(description = "Default model (on the platform provider — the fallback model)")
+        String defaultModel,
+
         @Schema(description = "Masked API key (e.g. \"sk-AbCd...WxYz\")")
         String apiKeyMask,
 
@@ -37,6 +41,10 @@ public record LlmProviderResponse(
         @Schema(description = "Whether the provider is enabled")
         boolean enabled,
 
+        @Schema(description = "True for the system-owned platform provider (visible to ADMIN only; "
+                + "rename/delete are rejected)")
+        boolean platform,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "Created at")
         LocalDateTime createdAt
@@ -47,10 +55,12 @@ public record LlmProviderResponse(
                 provider.getName(),
                 provider.getProviderType(),
                 provider.getBaseUrl(),
+                provider.getDefaultModel(),
                 provider.getApiKeyMask(),
                 provider.getAvailableModels(),
                 provider.getModelsRefreshedAt(),
                 provider.isEnabled(),
+                SystemSkillBootstrap.SYSTEM_USER_ID.equals(provider.getUserId()),
                 provider.getCreatedAt()
         );
     }

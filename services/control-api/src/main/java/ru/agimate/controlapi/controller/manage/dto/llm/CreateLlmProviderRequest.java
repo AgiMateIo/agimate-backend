@@ -22,6 +22,9 @@ public record CreateLlmProviderRequest(
         @Schema(description = "API key — encrypted at rest, never returned in responses")
         String apiKey,
 
+        @Schema(description = "Default model (UI preselect; on the platform provider — the fallback model)")
+        String defaultModel,
+
         @Schema(description = "Whether the provider is enabled")
         Boolean enabled
 ) {

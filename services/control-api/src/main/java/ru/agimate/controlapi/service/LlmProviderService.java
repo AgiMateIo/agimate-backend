@@ -45,10 +45,19 @@ public class LlmProviderService {
     private final SecretService secretService;
     private final LlmModelDiscoveryService modelDiscoveryService;
 
-    public List<LlmProviderResponse> listForUser(UUID userId) {
-        return llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(LlmProviderResponse::from)
-                .toList();
+    /** Админ видит в списке и платформенную строку (управление free-tier через те же эндпойнты). */
+    public List<LlmProviderResponse> listForUser(UUID userId, boolean admin) {
+        List<LlmProviderResponse> result = new java.util.ArrayList<>(
+                llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
+                        .map(LlmProviderResponse::from)
+                        .toList());
+        if (admin) {
+            llmProviderRepository
+                    .findByUserIdAndName(SystemSkillBootstrap.SYSTEM_USER_ID, PLATFORM_PROVIDER_NAME)
+                    .map(LlmProviderResponse::from)
+                    .ifPresent(result::add);
+        }
+        return result;
     }
 
     /**
@@ -62,8 +71,8 @@ public class LlmProviderService {
                 .filter(p -> p.getDefaultModel() != null && !p.getDefaultModel().isBlank());
     }
 
-    public LlmProviderResponse getForUser(UUID id, UUID userId) {
-        return LlmProviderResponse.from(requireOwned(id, userId));
+    public LlmProviderResponse getForUser(UUID id, UUID userId, boolean admin) {
+        return LlmProviderResponse.from(requireOwnedOrPlatformAdmin(id, userId, admin));
     }
 
     public LlmProvider requireOwned(UUID id, UUID userId) {
@@ -73,6 +82,27 @@ public class LlmProviderService {
             throw new ForbiddenStatusException("Access denied");
         }
         return provider;
+    }
+
+    /**
+     * Своя строка — как {@link #requireOwned}; админу дополнительно доступна платформенная
+     * (владелец — system-пользователь). Чужие пользовательские строки и для админа 404 —
+     * он управляет free-tier, а не чужими ключами.
+     */
+    public LlmProvider requireOwnedOrPlatformAdmin(UUID id, UUID userId, boolean admin) {
+        if (admin) {
+            Optional<LlmProvider> provider = llmProviderRepository.findById(id)
+                    .filter(p -> p.getUserId().equals(userId) || isPlatform(p));
+            if (provider.isPresent()) {
+                return provider.get();
+            }
+            throw new NotFoundStatusException("LLM provider not found");
+        }
+        return requireOwned(id, userId);
+    }
+
+    public static boolean isPlatform(LlmProvider provider) {
+        return SystemSkillBootstrap.SYSTEM_USER_ID.equals(provider.getUserId());
     }
 
     /**
@@ -140,6 +170,7 @@ public class LlmProviderService {
                 .name(request.name())
                 .providerType(request.providerType())
                 .baseUrl(blankToNull(request.baseUrl()))
+                .defaultModel(blankToNull(request.defaultModel()))
                 .apiKeyMask(buildMask(request.apiKey()))
                 .enabled(request.enabled() == null || request.enabled())
                 .build());
@@ -155,14 +186,21 @@ public class LlmProviderService {
     }
 
     @Transactional
-    public LlmProviderResponse update(UUID id, UUID userId, UpdateLlmProviderRequest request) {
-        LlmProvider provider = requireOwned(id, userId);
+    public LlmProviderResponse update(UUID id, UUID userId, boolean admin, UpdateLlmProviderRequest request) {
+        LlmProvider provider = requireOwnedOrPlatformAdmin(id, userId, admin);
 
         if (request.name() != null && !request.name().equals(provider.getName())) {
+            if (isPlatform(provider)) {
+                // Имя platform — ключ fallback-lookup'а; переименование сломало бы выдачу кредов.
+                throw new BadRequestStatusException("Platform provider cannot be renamed");
+            }
             if (llmProviderRepository.existsByUserIdAndName(userId, request.name())) {
                 throw new ConflictStatusException("LLM provider with this name already exists");
             }
             provider.setName(request.name());
+        }
+        if (request.defaultModel() != null) {
+            provider.setDefaultModel(blankToNull(request.defaultModel()));
         }
         if (request.baseUrl() != null) {
             String normalized = blankToNull(request.baseUrl());
@@ -185,8 +223,12 @@ public class LlmProviderService {
     }
 
     @Transactional
-    public void delete(UUID id, UUID userId) {
-        LlmProvider provider = requireOwned(id, userId);
+    public void delete(UUID id, UUID userId, boolean admin) {
+        LlmProvider provider = requireOwnedOrPlatformAdmin(id, userId, admin);
+        if (isPlatform(provider)) {
+            // Внезапная потеря fallback'а (+ каскад квот); выключение — через enabled.
+            throw new BadRequestStatusException("Platform provider cannot be deleted; disable it instead");
+        }
         UUID secretId = provider.getSecretId();
         llmProviderRepository.delete(provider);
         if (secretId != null) {
@@ -196,8 +238,8 @@ public class LlmProviderService {
     }
 
     @Transactional
-    public RefreshModelsResponse refreshModels(UUID id, UUID userId) {
-        LlmProvider provider = requireOwned(id, userId);
+    public RefreshModelsResponse refreshModels(UUID id, UUID userId, boolean admin) {
+        LlmProvider provider = requireOwnedOrPlatformAdmin(id, userId, admin);
         String apiKey = decryptApiKey(provider);
         // Sort by id (always present), falling back to nothing else — displayName is optional.
         List<LlmModelInfo> models = modelDiscoveryService.discover(provider, apiKey).stream()

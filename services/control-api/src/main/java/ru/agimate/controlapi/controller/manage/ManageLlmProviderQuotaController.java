@@ -23,9 +23,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * BYOK-квоты: пользователь ограничивает расход своего провайдера (TOTAL — потолок кошелька,
- * AGENT — лимит каждому агенту). Владение провайдером проверяется на каждом вызове;
- * платформенный провайдер сюда не достучится (принадлежит system-пользователю → 404).
+ * Квоты провайдера: пользователь ограничивает расход своего (TOTAL — потолок кошелька,
+ * AGENT — лимит каждому агенту), ADMIN дополнительно управляет квотами платформенного
+ * (free-tier: USER — «каждому пользователю N за окно»). Владение/роль проверяются на каждом вызове.
  */
 @RestController
 @RequestMapping(ManageLlmProviderQuotaController.PATH)
@@ -45,7 +45,7 @@ public class ManageLlmProviderQuotaController {
             @PathVariable UUID providerId
     ) {
         UUID userId = UUID.fromString(principal.id());
-        llmProviderService.requireOwned(providerId, userId);
+        llmProviderService.requireOwnedOrPlatformAdmin(providerId, userId, principal.isAdmin());
         return SuccessResponse.ok(llmQuotaService.listForProvider(providerId).stream()
                 .map(LlmQuotaResponse::from)
                 .toList());
@@ -59,7 +59,7 @@ public class ManageLlmProviderQuotaController {
             @Valid @RequestBody CreateLlmQuotaRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
-        llmProviderService.requireOwned(providerId, userId);
+        llmProviderService.requireOwnedOrPlatformAdmin(providerId, userId, principal.isAdmin());
         return SuccessResponse.ok(LlmQuotaResponse.from(
                 llmQuotaService.create(providerId, request.subjectKind(), request.window(), request.limitTokens())));
     }
@@ -72,8 +72,8 @@ public class ManageLlmProviderQuotaController {
             @PathVariable UUID quotaId
     ) {
         UUID userId = UUID.fromString(principal.id());
-        llmProviderService.requireOwned(providerId, userId);
+        llmProviderService.requireOwnedOrPlatformAdmin(providerId, userId, principal.isAdmin());
         llmQuotaService.delete(providerId, quotaId);
-        return SuccessResponse.ok(null);
+        return SuccessResponse.empty();
     }
 }

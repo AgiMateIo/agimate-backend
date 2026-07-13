@@ -23,6 +23,11 @@ public record AgimateUserPrincipal(
         return new AgimateUserPrincipal(id, List.of(new SimpleGrantedAuthority(role.toAuthority())));
     }
 
+    public boolean isAdmin() {
+        return authorities != null && authorities.stream()
+                .anyMatch(a -> UserRole.ADMIN.toAuthority().equals(a.getAuthority()));
+    }
+
     @Override
     public String getName() {
         return this.id;
