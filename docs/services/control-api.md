@@ -132,10 +132,21 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | Method | Path                                       | Description                   |
 |--------|--------------------------------------------|-------------------------------|
 | GET    | `/control/manage/agents/`                   | List agents (paginated; optional `?agenticTeamPubId=`, `?search=` by name/description). Each item includes `skills: [{pubId, name}]` for quick navigation to the skill page |
-| POST   | `/control/manage/agents/`                   | Create agent                  |
+| POST   | `/control/manage/agents/`                   | Create agent (optional `skillIds` — bound in the same transaction; optional `presetCode` — funnel analytics, must exist) |
 | GET    | `/control/manage/agents/{apiKeyPubId}`      | Get agent (includes `skills: [{pubId, name}]`) |
 | PUT    | `/control/manage/agents/{apiKeyPubId}`      | Update agent                  |
 | DELETE | `/control/manage/agents/{apiKeyPubId}`      | Delete agent                  |
+
+### Agent Presets (JWT)
+
+Role presets for the agent creation wizard. A preset is a pure prefill: the frontend fills the
+wizard's editable fields from it (instructions, skill set) and the final values arrive via the
+regular create-agent request. System presets are seeded from classpath (`presets/<code>/PRESET.md`,
+same pattern as system skills), idempotently by `code`.
+
+| Method | Path                              | Description                                                  |
+|--------|-----------------------------------|--------------------------------------------------------------|
+| GET    | `/control/manage/agent-presets/`  | List enabled presets: `code`, `name`, `description`, full `instructions`, resolved `skills: [{id, name, description}]`, derived `connectorCodes` (union of the skills' connectors) |
 
 ### Agentic Teams (JWT)
 
@@ -245,6 +256,7 @@ control-api integrates with Centrifugo for real-time messaging:
 - `trigger_log_agents` — Trigger routing log per agent
 - `tool_call_logs` — Tool invocation logs (request + result)
 - `agents` — Agent configuration (instructions, triggers_allow_all, triggers_to, webhook_url, webhook_auth_header)
+- `agent_presets` — Role presets for the creation wizard (code, instructions prefill, skill_names)
 - `agent_tools` — Agent-to-tool access mapping
 - `agent_triggers` — Agent-to-trigger subscription mapping
 - `webhook_delivery_logs` — Webhook delivery attempt logs

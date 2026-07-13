@@ -6,6 +6,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
@@ -32,6 +33,7 @@ import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.PolicyKind;
 import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
+import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
@@ -67,6 +69,8 @@ public class AgentService {
     private final ConnectionAccessEvaluator accessEvaluator;
     private final ConnectionBindingService connectionBindingService;
     private final AgentSkillRepository agentSkillRepository;
+    private final AgentSkillService agentSkillService;
+    private final AgentPresetRepository agentPresetRepository;
     private final AgenticTeamRepository agenticTeamRepository;
     private final AppRepository appRepository;
     private final AgentLlmService agentLlmService;
@@ -285,6 +289,8 @@ public class AgentService {
             }
         }
 
+        String presetCode = validatedPresetCode(request.presetCode());
+
         GeneratedAppKey generatedKey = AppKeyUtils.generate(AGENT_KEY_PREFIX);
 
         Agent agent = Agent.builder()
@@ -298,11 +304,30 @@ public class AgentService {
                 .webhookUrl(request.webhookUrl())
                 .webhookAuthHeader(request.webhookAuthHeader())
                 .agenticTeamId(team != null ? team.getId() : null)
+                .presetCode(presetCode)
                 .build();
         agent = agentRepository.save(agent);
 
-        log.info("Created agent id={}, user={}", agent.getId(), userId);
+        // Скилы мастера — в той же транзакции: агент создаётся сразу с финальным набором.
+        if (request.skillIds() != null) {
+            for (UUID skillId : new LinkedHashSet<>(request.skillIds())) {
+                agentSkillService.create(agent.getId(), skillId, userId);
+            }
+        }
+
+        log.info("Created agent id={}, user={}, preset={}", agent.getId(), userId, presetCode);
         return new AgentCreateResult(agent, team, generatedKey.fullKey());
+    }
+
+    /** Пресет — только метка воронки, но метка должна существовать: опечатка = BadRequest. */
+    private String validatedPresetCode(String presetCode) {
+        if (presetCode == null || presetCode.isBlank()) {
+            return null;
+        }
+        String code = presetCode.strip();
+        agentPresetRepository.findByCode(code)
+                .orElseThrow(() -> new BadRequestStatusException("Unknown preset code: " + code));
+        return code;
     }
 
     @Transactional

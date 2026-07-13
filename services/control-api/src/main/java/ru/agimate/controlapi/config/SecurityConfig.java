@@ -25,6 +25,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.controller.agent.AgentController;
 import ru.agimate.controlapi.controller.app.AppRegistrationController;
 import ru.agimate.controlapi.controller.manage.ManageAgentController;
+import ru.agimate.controlapi.controller.manage.ManageAgentPresetController;
 import ru.agimate.controlapi.controller.manage.ManageAgentSkillController;
 import ru.agimate.controlapi.controller.manage.ManageAgenticTeamController;
 import ru.agimate.controlapi.controller.manage.ManageBoardController;
@@ -117,6 +118,7 @@ public class SecurityConfig {
                 ManageTriggerLogsController.PATH + "/**",
                 ManageToolCallLogsController.PATH + "/**",
                 ManageAgentController.PATH + "/**",
+                ManageAgentPresetController.PATH + "/**",
                 ManageAgentSkillController.PATH + "/**",
                 ManageAgentConnectionPolicyController.PATH + "/**",
                 ManageAgenticTeamController.PATH + "/**",

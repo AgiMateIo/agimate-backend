@@ -60,6 +60,10 @@ public class Agent extends BaseEntity {
     @Column(name = "agentic_team_id")
     private UUID agenticTeamId;
 
+    /** Код пресета, с которого стартовал мастер создания (аналитика воронки); без FK. */
+    @Column(name = "preset_code", columnDefinition = "TEXT")
+    private String presetCode;
+
     public boolean hasWebhookAuth() {
         return webhookAuthHeader != null && !webhookAuthHeader.isBlank();
     }

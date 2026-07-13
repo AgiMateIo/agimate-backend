@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import ru.agimate.controlapi.database.enums.AgentType;
 
+import java.util.List;
 import java.util.UUID;
 
 @Schema(description = "Request to create an agent")
@@ -28,6 +29,12 @@ public record CreateAgentRequest(
         String webhookAuthHeader,
 
         @Schema(description = "Agentic team public ID")
-        UUID agenticTeamId
+        UUID agenticTeamId,
+
+        @Schema(description = "Skills to bind to the agent on creation (own or public skill IDs)")
+        List<UUID> skillIds,
+
+        @Schema(description = "Preset code the creation wizard started from (funnel analytics)")
+        String presetCode
 ) {
 }

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
@@ -35,6 +36,9 @@ public class SystemSkillBootstrap {
     /** Синтетический владелец системных скиллов (реального пользователя в control-api нет). */
     public static final java.util.UUID SYSTEM_USER_ID = new java.util.UUID(0L, 0L);
 
+    /** Скилы сидятся раньше пресетов ({@link SystemPresetBootstrap}) — те ссылаются на них по имени. */
+    static final int BOOTSTRAP_ORDER = 0;
+
     private static final List<String> SYSTEM_SKILL_RESOURCES = List.of(
             "skills/board/SKILL.md",
             "skills/time/SKILL.md",
@@ -42,6 +46,7 @@ public class SystemSkillBootstrap {
 
     private final SkillRepository skillRepository;
 
+    @Order(BOOTSTRAP_ORDER)
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
         // Без объемлющей транзакции: каждый вызов репозитория идёт в своей tx, поэтому конфликт
