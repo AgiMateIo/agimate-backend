@@ -66,22 +66,4 @@ public class ChannelSessionMessage extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "trigger_input", columnDefinition = "JSONB")
     private Map<String, Object> triggerInput;
-
-    @Column(name = "input_tokens")
-    private Integer inputTokens;
-
-    @Column(name = "output_tokens")
-    private Integer outputTokens;
-
-    @Column(name = "cache_read_tokens")
-    private Integer cacheReadTokens;
-
-    @Column(name = "cache_write_tokens")
-    private Integer cacheWriteTokens;
-
-    @Column(name = "model_name", columnDefinition = "TEXT")
-    private String modelName;
-
-    @Column(name = "provider_name", columnDefinition = "TEXT")
-    private String providerName;
 }
