@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +17,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreateLlmQuotaRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmQuotaResponse;
+import ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmQuotaRequest;
 import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.llm.LlmQuotaService;
 
@@ -62,6 +64,20 @@ public class ManageLlmProviderQuotaController {
         llmProviderService.requireOwnedOrPlatformAdmin(providerId, userId, principal.isAdmin());
         return SuccessResponse.ok(LlmQuotaResponse.from(
                 llmQuotaService.create(providerId, request.subjectKind(), request.window(), request.limitTokens())));
+    }
+
+    @Operation(summary = "Update a quota's token limit")
+    @PatchMapping("/{quotaId}")
+    public SuccessResponse<LlmQuotaResponse> update(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID providerId,
+            @PathVariable UUID quotaId,
+            @Valid @RequestBody UpdateLlmQuotaRequest request
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        llmProviderService.requireOwnedOrPlatformAdmin(providerId, userId, principal.isAdmin());
+        return SuccessResponse.ok(LlmQuotaResponse.from(
+                llmQuotaService.updateLimit(providerId, quotaId, request.limitTokens())));
     }
 
     @Operation(summary = "Delete a quota")

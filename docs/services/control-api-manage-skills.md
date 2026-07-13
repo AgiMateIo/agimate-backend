@@ -61,7 +61,9 @@ The backend parses the frontmatter, stores `name`, `description`, `connector_cod
 | `false` | Private — visible only to the owner |
 | `true` | Public — discoverable by any user via `/public/` |
 
-System skills (time, board, persist-memory) are seeded as `isPublic = true` and can be bound directly by any user without copying.
+System skills (time, board, persist-memory) are owned by the synthetic system user, seeded as `isPublic = true`, and can be bound directly by any user without copying. They are marked `system: true` in `SkillResponse`.
+
+**System skills are referenced by ID, not copied** — bound agents resolve the skill body on read, so editing a system skill's `md_content` immediately changes behaviour for **every** agent that has it bound. This is why ADMIN edits bump `version` (surfacing "needs reinstall" downstream) and why rename/hard-delete are restricted (see [System skills — ADMIN](#system-skills--admin)).
 
 **No cloning** — there is no clone endpoint. A user can bind any own or public skill to an agent directly.
 
@@ -80,9 +82,10 @@ System skills (time, board, persist-memory) are seeded as `isPublic = true` and 
 | GET | `/control/manage/skills/{id}` | Get skill details + SKILL.md body |
 | GET | `/control/manage/skills/{id}/agents/` | List my agents that use this skill (paginated, search) |
 | POST | `/control/manage/skills/` | Create skill from JSON payload |
+| POST | `/control/manage/skills/system` | **ADMIN** — create a system (platform) skill |
 | POST | `/control/manage/skills/upload` | Create skill by uploading a SKILL.md file |
-| PUT | `/control/manage/skills/{id}` | Update skill (bumps `version`) |
-| DELETE | `/control/manage/skills/{id}` | Soft-delete skill |
+| PUT | `/control/manage/skills/{id}` | Update skill (bumps `version`); ADMIN may edit system skills |
+| DELETE | `/control/manage/skills/{id}` | Soft-delete skill (system skills restricted) |
 
 ### Agent-skill bindings — `/control/manage/agents/{agentId}/skills`
 
@@ -111,6 +114,7 @@ Returned by list endpoints and on create/update.
 | `version` | `int` | no | Increments on every `PUT /{id}` |
 | `isPublic` | `bool` | no | Whether the skill is visible to all users |
 | `userId` | `uuid` | no | Owner of the skill |
+| `system` | `bool` | no | `true` for a platform-owned system skill (owner = synthetic system user). Editable only by ADMIN; rename and hard-delete are restricted. |
 | `createdAt` | `datetime` (`yyyy-MM-dd'T'HH:mm:ss`) | no | Creation timestamp |
 | `updatedAt` | `datetime` (`yyyy-MM-dd'T'HH:mm:ss`) | no | Last update timestamp |
 
@@ -353,6 +357,22 @@ The backend parses the frontmatter (`name`, `description`, `connectors`) and sto
 
 ---
 
+### POST `/control/manage/skills/system`
+
+**ADMIN only.** Create a **system (platform) skill**: owner is forced to the synthetic system user and `isPublic` is forced to `true` (so any user can bind it without copying). Body is the same `CreateSkillRequest` as `POST /` — the `isPublic` field is ignored.
+
+**Response `200`:** `SkillResponse` with `system: true`, `isPublic: true`.
+
+**Errors:**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Invalid SKILL.md or unknown connector code(s) (see `POST /`) |
+| 403 | Caller is not ADMIN |
+| 409 | A system skill with this `name` already exists |
+
+---
+
 ### POST `/control/manage/skills/upload`
 
 Same as `POST /` but accepts a `multipart/form-data` upload of a SKILL.md file. Convenient for "Upload SKILL.md" buttons in the UI.
@@ -407,9 +427,12 @@ Update an existing skill. Bumps `version` by 1, re-parses `name`, `description`,
 | Status | Condition |
 |--------|-----------|
 | 400 | Invalid SKILL.md or unknown connector code(s) (see `POST /`) |
-| 403 | Caller is not the owner |
+| 400 | Attempt to rename a system skill (its name is the reference key for the seeder and preset `skill_names`) |
+| 403 | Caller is not the owner (and not an ADMIN editing a system skill) |
 | 404 | Skill not found or soft-deleted |
-| 409 | Renaming would collide with an existing skill name in the user's collection |
+| 409 | Renaming would collide with an existing skill name in the owner's collection |
+
+> **ADMIN + system skills:** an ADMIN may `PUT` a system skill (edits its body/connectors/`isPublic`, bumps `version`) but **cannot rename it** (`400`). To retire a system skill without deleting, an ADMIN sets `isPublic: false` — it stops being offered to new agents while existing bindings keep working.
 
 ---
 
@@ -428,8 +451,11 @@ add-only, unbinding never revokes connector bindings.
 
 | Status | Condition |
 |--------|-----------|
-| 403 | Caller is not the owner |
+| 403 | Caller is not the owner (and not an ADMIN acting on a system skill) |
 | 404 | Skill not found or already deleted |
+| 409 | System skill is still bound to agents or referenced by an agent preset — retire it via `isPublic: false` instead |
+
+> A system skill can only be hard-deleted by an ADMIN once nothing references it (no `agent_skills` bindings and no preset `skill_names` entry). Otherwise use `PUT … { "isPublic": false }` to retire it.
 
 ---
 

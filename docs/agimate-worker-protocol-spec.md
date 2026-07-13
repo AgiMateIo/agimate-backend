@@ -275,8 +275,8 @@ system-абзац «вывод инструментов — данные, не �
   запрашивает креды inline на каждый `llm_call` (**вариант A** из §2.7). Логируется только факт
   выдачи (`pool`, `agent`, `providerType`, `platform`).
 - Fallback: у агента нет `agent_llms`-привязки → выдаются креденшлы платформенного провайдера
-  (строка `llm_providers` под system-владельцем, сидится `PlatformLlmBootstrap` из
-  `app.platform-llm.*`, включается runtime-флагом `enabled` в БД) с его `default_model`.
+  (строка `llm_providers` под system-владельцем, создаётся и включается ADMIN'ом через
+  `POST /manage/llm-providers/platform` + `PATCH … {enabled:true}`) с его `default_model`.
   Личная привязка всегда побеждает. Нет ни привязки, ни включённого платформенного
   провайдера → `NOT_FOUND`, как раньше.
 - `LlmCredentials.provider_id` — id провайдера для эха в `ReportLlmUsage`; пусто у старого

@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -90,6 +91,16 @@ public class ManageSkillController {
         return SuccessResponse.ok(skillService.create(userId, request));
     }
 
+    @Operation(summary = "Create a system (platform) skill from SKILL.md. ADMIN only; "
+            + "owner is the platform, always public")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping(value = "/system", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public SuccessResponse<SkillResponse> createSystemSkill(
+            @Valid @RequestBody CreateSkillRequest request
+    ) {
+        return SuccessResponse.ok(skillService.createSystem(request));
+    }
+
     @Operation(summary = "Create skill by uploading SKILL.md file")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public SuccessResponse<SkillResponse> createSkillFromFile(
@@ -114,7 +125,7 @@ public class ManageSkillController {
             @Valid @RequestBody UpdateSkillRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(skillService.update(id, userId, request));
+        return SuccessResponse.ok(skillService.update(id, userId, principal.isAdmin(), request));
     }
 
     @Operation(summary = "Delete skill (soft delete)")
@@ -124,7 +135,7 @@ public class ManageSkillController {
             @PathVariable UUID id
     ) {
         UUID userId = UUID.fromString(principal.id());
-        skillService.delete(id, userId);
+        skillService.delete(id, userId, principal.isAdmin());
         return SuccessResponse.empty();
     }
 }

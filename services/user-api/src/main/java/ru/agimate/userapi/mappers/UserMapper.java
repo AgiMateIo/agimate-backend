@@ -14,6 +14,7 @@ public class UserMapper {
                 userEntity.getFirstName(),
                 userEntity.getLastName(),
                 userEntity.getDisplayName(),
+                userEntity.getRole(),
                 userEntity.getCreatedAt(),
                 userEntity.getUpdatedAt()
         );

@@ -26,7 +26,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,12 +51,12 @@ class LlmProviderServiceTest {
     private LlmProviderService service;
 
     @Nested
-    @DisplayName("upsertPlatformProvider")
-    class Upsert {
+    @DisplayName("createPlatformProvider")
+    class CreatePlatform {
 
         @Test
-        @DisplayName("первый сид: создаётся выключенным под SYSTEM_USER_ID, ключ уходит в secrets")
-        void seedsDisabledProvider() {
+        @DisplayName("создаёт под SYSTEM_USER_ID с форсированным именем, выключенным")
+        void createsForcedDisabled() {
             when(llmProviderRepository.findByUserIdAndName(
                     SystemSkillBootstrap.SYSTEM_USER_ID, LlmProviderService.PLATFORM_PROVIDER_NAME))
                     .thenReturn(Optional.empty());
@@ -68,60 +67,31 @@ class LlmProviderServiceTest {
                 }
                 return p;
             });
-            Secret secret = new Secret();
-            secret.setId(UUID.randomUUID());
+            Secret secret = secretWithId(UUID.randomUUID());
             when(secretService.store(eq("llm_provider"), any(), eq(Map.of("api_key", API_KEY))))
                     .thenReturn(secret);
 
-            service.upsertPlatformProvider(BASE_URL, API_KEY, MODEL);
+            var response = service.createPlatformProvider(
+                    new ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProviderRequest(
+                            LlmProviderType.OPENAI_COMPATIBLE, BASE_URL, API_KEY, MODEL));
 
-            org.mockito.ArgumentCaptor<LlmProvider> captor =
-                    org.mockito.ArgumentCaptor.forClass(LlmProvider.class);
-            verify(llmProviderRepository, atLeastOnce()).save(captor.capture());
-            LlmProvider saved = captor.getValue();
-            assertEquals(SystemSkillBootstrap.SYSTEM_USER_ID, saved.getUserId());
-            assertEquals(LlmProviderService.PLATFORM_PROVIDER_NAME, saved.getName());
-            assertEquals(LlmProviderType.OPENAI_COMPATIBLE, saved.getProviderType());
-            assertEquals(BASE_URL, saved.getBaseUrl());
-            assertEquals(MODEL, saved.getDefaultModel());
-            assertEquals(secret.getId(), saved.getSecretId());
-            assertFalse(saved.isEnabled(), "платформенный провайдер сидится выключенным");
+            assertEquals(LlmProviderService.PLATFORM_PROVIDER_NAME, response.name());
+            assertTrue(response.platform());
+            assertFalse(response.enabled(), "создаётся выключенным — включение после настройки квот");
         }
 
         @Test
-        @DisplayName("повторный старт без изменений: ничего не пишется, enabled не трогается")
-        void noopWhenUnchanged() {
-            LlmProvider existing = existingProvider(true);
-            stubExisting(existing, API_KEY);
-
-            service.upsertPlatformProvider(BASE_URL, API_KEY, MODEL);
-
-            verify(llmProviderRepository, never()).save(any());
-            assertTrue(existing.isEnabled(), "runtime-флаг enabled принадлежит БД, не бутстрапу");
-        }
-
-        @Test
-        @DisplayName("смена ключа/модели: секрет и default_model обновляются, enabled сохраняется")
-        void updatesChangedFields() {
-            LlmProvider existing = existingProvider(true);
-            stubExisting(existing, "sk-or-old-key");
-
-            service.upsertPlatformProvider(BASE_URL, API_KEY, "new-model");
-
-            verify(secretService).update(any(), eq(existing.getId()), eq(Map.of("api_key", API_KEY)));
-            verify(llmProviderRepository).save(existing);
-            assertEquals("new-model", existing.getDefaultModel());
-            assertTrue(existing.isEnabled());
-        }
-
-        private void stubExisting(LlmProvider existing, String storedKey) {
+        @DisplayName("повторное создание платформенного — 409")
+        void rejectsDuplicate() {
             when(llmProviderRepository.findByUserIdAndName(
                     SystemSkillBootstrap.SYSTEM_USER_ID, LlmProviderService.PLATFORM_PROVIDER_NAME))
-                    .thenReturn(Optional.of(existing));
-            Secret secret = secretWithId(existing.getSecretId());
-            when(secretRepository.findById(existing.getSecretId())).thenReturn(Optional.of(secret));
-            when(secretService.reveal(secret, existing.getId()))
-                    .thenReturn(Map.of("api_key", storedKey));
+                    .thenReturn(Optional.of(existingProvider(true)));
+
+            assertThrows(ru.agimate.common.rest.error.ConflictStatusException.class,
+                    () -> service.createPlatformProvider(
+                            new ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProviderRequest(
+                                    LlmProviderType.OPENAI_COMPATIBLE, BASE_URL, API_KEY, MODEL)));
+            verify(llmProviderRepository, never()).save(any());
         }
     }
 

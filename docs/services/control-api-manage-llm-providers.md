@@ -40,6 +40,7 @@ Besides user providers there is a single **platform provider** — a system-owne
 | `availableModels` | string[]? | Models from the last refresh |
 | `modelsRefreshedAt` | datetime? | When `availableModels` was refreshed |
 | `enabled` | boolean | Disabled providers are filtered out from `GET /agent/llm` |
+| `platform` | boolean | `true` for the system-owned platform (free-tier) row. Visible to ADMIN only; rename/delete are rejected. |
 | `createdAt` | datetime | |
 
 ### `GET /control/manage/llm-providers/`
@@ -158,10 +159,11 @@ Returns the single binding identified by its label. `404` if the binding does no
 
 ## Platform provider
 
-A single system-owned `llm_providers` row (owner = synthetic system user, name `platform`, always `OPENAI_COMPATIBLE`) used as an implicit fallback: when an agent has **no** `agent_llms` bindings, the worker's `GetLlmCredentials` gRPC issues the platform provider's credentials with its `default_model`. A personal binding always wins over the fallback.
+A single system-owned `llm_providers` row (owner = synthetic system user, name `platform`) used as an implicit fallback: when an agent has **no** `agent_llms` bindings, the worker's `GetLlmCredentials` gRPC issues the platform provider's credentials with its `default_model`. A personal binding always wins over the fallback.
 
-- Seeded on startup by `PlatformLlmBootstrap` from `app.platform-llm.*` properties (`APP_PLATFORM_LLM_BASE_URL`, `APP_PLATFORM_LLM_API_KEY`, `APP_PLATFORM_LLM_DEFAULT_MODEL`). If any is missing, seeding is skipped and the feature is off.
-- Created with `enabled=false`; enabling the free-tier is a deliberate runtime action performed by an **ADMIN** (see below). Bootstrap never touches `enabled` on subsequent starts — it only syncs `base_url`, `default_model` and the key.
+- **Created and managed entirely by an ADMIN via the API** — there is no startup seeding and no `app.platform-llm.*` environment variables. On a fresh install the platform provider simply does not exist until an ADMIN creates it with `POST /manage/llm-providers/platform` (see below).
+- The **DB is the sole source of truth**: key rotation and model changes are done via `PATCH /{id}` and persist across restarts.
+- Created with `enabled=false`; enabling the free-tier is a deliberate action performed by an **ADMIN**, typically after quotas are configured.
 - Invisible to regular users in `/manage/llm-providers/**` and not addressable in binding requests (`404` — the provider belongs to the system user).
 - `default_model` exists on every provider (`Create`/`Update` requests accept it; for user providers it is a UI preselect); on the platform row it is the fallback model and is required for the fallback to work.
 
@@ -169,10 +171,13 @@ A single system-owned `llm_providers` row (owner = synthetic system user, name `
 
 Users with role `ADMIN` (`users.role` in user-api, carried in the JWT `roles` claim) manage the platform provider **through the same endpoints**:
 
+- `POST /manage/llm-providers/platform` — create the platform row. Body is a dedicated `CreatePlatformLlmProviderRequest` — `{ providerType, baseUrl?, apiKey, defaultModel? }` — with **no `name` and no `enabled`**: the name is forced to `platform`, the owner is the system user, and the row is always created `enabled=false`. `providerType` + `apiKey` are required; `OPENAI_COMPATIBLE` also needs `baseUrl`. `409` if it already exists.
 - `GET /manage/llm-providers/` — the platform row is appended to the admin's own providers, marked `platform: true` in `LlmProviderResponse`.
 - `GET`/`PATCH /{id}`, `POST /{id}/refresh-models` — allowed on the platform row for admins. Enabling the free-tier = `PATCH {"enabled": true}`; key rotation = `PATCH {"apiKey": "..."}`.
-- `POST`/`DELETE /manage/llm-providers/{id}/quotas/**` — admins manage the free-tier quota (typically `subjectKind: USER`, `window: DAY`) on the platform row.
+- `POST`/`PATCH`/`DELETE /manage/llm-providers/{id}/quotas/**` — admins manage the free-tier quota on the platform row (typically `subjectKind: USER` for a per-user cap, optionally `subjectKind: TOTAL` for a system-wide cap).
 - Restrictions on the platform row: **rename rejected** (`400` — the name `platform` is the fallback lookup key) and **delete rejected** (`400` — disable via `enabled` instead).
+
+The typical free-tier bring-up from the UI: `POST /platform` (create disabled) → `POST …/quotas/` (set per-user / system caps) → `PATCH /{id} {"enabled": true}`.
 - Admins do **not** get access to other users' providers — only their own plus the platform row.
 - Assigning the ADMIN role: `UPDATE users SET role = 'ADMIN' WHERE id = ...` in the user-api DB (no UI yet).
 
@@ -199,7 +204,7 @@ Quota key: `(provider, subjectKind, window)` — one quota per combination.
 |---|---|---|
 | `USER` | limit per each user | platform free-tier («каждому пользователю N в день») |
 | `AGENT` | limit per each agent | BYOK: a runaway agent can't burn the key |
-| `TOTAL` | limit for the whole provider | BYOK: wallet ceiling |
+| `TOTAL` | limit for the whole provider | BYOK: wallet ceiling; on the **platform** provider — a system-wide cap across all users combined |
 
 Windows are calendar UTC: `DAY`, `MONTH`. Metric: `input + output + cache_write` tokens.
 
@@ -211,7 +216,17 @@ Windows are calendar UTC: `DAY`, `MONTH`. Metric: `input + output + cache_write`
 { "subjectKind": "TOTAL", "window": "DAY", "limitTokens": 100000 }
 ```
 
-`409` on duplicate `(subjectKind, window)`; `limitTokens >= 1`. Provider must belong to the user — the platform provider is not addressable here (its quota is seeded by the platform bootstrap).
+`409` on duplicate `(subjectKind, window)`; `limitTokens >= 1`. Access is gated by `requireOwnedOrPlatformAdmin`: the provider must belong to the caller, **or** be the platform provider and the caller an ADMIN.
+
+### `PATCH /control/manage/llm-providers/{providerId}/quotas/{quotaId}`
+
+Change an existing quota's token limit (atomic — no delete+recreate gap). `subjectKind` and `window` are immutable (they form the quota's business key); to change the subject/window, delete and create a new quota.
+
+```json
+{ "limitTokens": 250000 }
+```
+
+`limitTokens >= 1`; `404` if the quota does not exist on the provider. Same access gate as above.
 
 ### `DELETE /control/manage/llm-providers/{providerId}/quotas/{quotaId}`
 

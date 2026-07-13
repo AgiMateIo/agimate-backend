@@ -4,11 +4,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreateLlmProviderRequest;
+import ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.RefreshModelsResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest;
@@ -44,6 +46,16 @@ public class ManageLlmProviderController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(llmProviderService.create(userId, request));
+    }
+
+    @Operation(summary = "Create the platform (free-tier) LLM provider. ADMIN only; "
+            + "name is forced to \"platform\", created disabled")
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/platform")
+    public SuccessResponse<LlmProviderResponse> createPlatform(
+            @Valid @RequestBody CreatePlatformLlmProviderRequest request
+    ) {
+        return SuccessResponse.ok(llmProviderService.createPlatformProvider(request));
     }
 
     @Operation(summary = "Get an LLM provider by id")

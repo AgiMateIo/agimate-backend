@@ -97,6 +97,16 @@ public class LlmQuotaService {
     }
 
     @Transactional
+    public LlmQuota updateLimit(UUID providerId, UUID quotaId, long limitTokens) {
+        LlmQuota quota = quotaRepository.findByIdAndLlmProviderId(quotaId, providerId)
+                .orElseThrow(() -> new NotFoundStatusException("Quota not found"));
+        quota.setLimitTokens(limitTokens);
+        quota = quotaRepository.save(quota);
+        log.info("Updated LLM quota id={} provider={} limit={}", quotaId, providerId, limitTokens);
+        return quota;
+    }
+
+    @Transactional
     public void delete(UUID providerId, UUID quotaId) {
         LlmQuota quota = quotaRepository.findByIdAndLlmProviderId(quotaId, providerId)
                 .orElseThrow(() -> new NotFoundStatusException("Quota not found"));

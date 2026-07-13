@@ -24,6 +24,8 @@ public interface AgentSkillRepository extends JpaRepository<AgentSkill, UUID> {
 
     Optional<AgentSkill> findByAgentIdAndSkillId(UUID agentId, UUID skillId);
 
+    boolean existsBySkillId(UUID skillId);
+
     @Query("""
             SELECT a.agentId, s.id, s.name
             FROM AgentSkill a

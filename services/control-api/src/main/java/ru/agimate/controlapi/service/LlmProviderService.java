@@ -9,6 +9,7 @@ import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreateLlmProviderRequest;
+import ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.RefreshModelsResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest;
@@ -106,55 +107,36 @@ public class LlmProviderService {
     }
 
     /**
-     * Идемпотентный сидинг/синк платформенного провайдера из окружения. Создаётся выключенным:
-     * включение free-tier — осознанное runtime-действие в БД (гейт до готовности квот);
-     * при обновлении {@code enabled} не трогается.
+     * Создать платформенного провайдера из admin UI. Имя форсируется
+     * {@link #PLATFORM_PROVIDER_NAME} (ключ fallback-выдачи), создаётся выключенным — включение после
+     * настройки квот. Синглтон: повторное создание — 409.
      */
     @Transactional
-    public void upsertPlatformProvider(String baseUrl, String apiKey, String defaultModel) {
-        Optional<LlmProvider> existing = llmProviderRepository
-                .findByUserIdAndName(SystemSkillBootstrap.SYSTEM_USER_ID, PLATFORM_PROVIDER_NAME);
-        if (existing.isEmpty()) {
-            LlmProvider provider = llmProviderRepository.save(LlmProvider.builder()
-                    .userId(SystemSkillBootstrap.SYSTEM_USER_ID)
-                    .name(PLATFORM_PROVIDER_NAME)
-                    .providerType(LlmProviderType.OPENAI_COMPATIBLE)
-                    .baseUrl(baseUrl)
-                    .defaultModel(defaultModel)
-                    .apiKeyMask(buildMask(apiKey))
-                    .enabled(false)
-                    .build());
-            Secret secret = secretService.store(SECRET_ENTITY, provider.getId(),
-                    Map.of(API_KEY_FIELD, apiKey));
-            provider.setSecretId(secret.getId());
-            llmProviderRepository.save(provider);
-            log.info("Seeded platform LLM provider id={} model={} (enabled=false)",
-                    provider.getId(), defaultModel);
-            return;
+    public LlmProviderResponse createPlatformProvider(CreatePlatformLlmProviderRequest request) {
+        if (llmProviderRepository
+                .findByUserIdAndName(SystemSkillBootstrap.SYSTEM_USER_ID, PLATFORM_PROVIDER_NAME)
+                .isPresent()) {
+            throw new ConflictStatusException("Platform provider already exists");
         }
+        validateBaseUrl(request.providerType(), request.baseUrl());
 
-        LlmProvider provider = existing.get();
-        boolean changed = false;
-        if (!baseUrl.equals(provider.getBaseUrl())) {
-            provider.setBaseUrl(baseUrl);
-            changed = true;
-        }
-        if (!defaultModel.equals(provider.getDefaultModel())) {
-            provider.setDefaultModel(defaultModel);
-            changed = true;
-        }
-        if (!apiKey.equals(decryptApiKey(provider))) {
-            Secret secret = secretRepository.findById(provider.getSecretId())
-                    .orElseThrow(() -> new NotFoundStatusException(
-                            "Secret not found for platform LLM provider " + provider.getId()));
-            secretService.update(secret, provider.getId(), Map.of(API_KEY_FIELD, apiKey));
-            provider.setApiKeyMask(buildMask(apiKey));
-            changed = true;
-        }
-        if (changed) {
-            llmProviderRepository.save(provider);
-            log.info("Updated platform LLM provider id={}", provider.getId());
-        }
+        LlmProvider provider = llmProviderRepository.save(LlmProvider.builder()
+                .userId(SystemSkillBootstrap.SYSTEM_USER_ID)
+                .name(PLATFORM_PROVIDER_NAME)
+                .providerType(request.providerType())
+                .baseUrl(blankToNull(request.baseUrl()))
+                .defaultModel(blankToNull(request.defaultModel()))
+                .apiKeyMask(buildMask(request.apiKey()))
+                .enabled(false)
+                .build());
+        Secret secret = secretService.store(SECRET_ENTITY, provider.getId(),
+                Map.of(API_KEY_FIELD, request.apiKey()));
+        provider.setSecretId(secret.getId());
+        provider = llmProviderRepository.save(provider);
+
+        log.info("Created platform LLM provider id={} type={} (enabled=false)",
+                provider.getId(), provider.getProviderType());
+        return LlmProviderResponse.from(provider);
     }
 
     @Transactional

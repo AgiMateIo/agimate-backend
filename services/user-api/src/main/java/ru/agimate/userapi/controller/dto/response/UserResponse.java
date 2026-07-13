@@ -2,6 +2,7 @@ package ru.agimate.userapi.controller.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.common.security.UserRole;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -25,6 +26,9 @@ public record UserResponse(
 
         @Schema(description = "User display name", example = "johndoe")
         String displayName,
+
+        @Schema(description = "User role — drives access to admin-only features", example = "USER")
+        UserRole role,
 
         @Schema(description = "User creation timestamp")
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")

@@ -21,6 +21,7 @@ import ru.agimate.controlapi.controller.manage.dto.SkillDetailResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
@@ -45,6 +46,7 @@ public class SkillService {
     private final SkillRepository skillRepository;
     private final AgentRepository agentRepository;
     private final AgentSkillRepository agentSkillRepository;
+    private final AgentPresetRepository agentPresetRepository;
     private final ConnectorRegistry connectorRegistry;
 
     public Page<SkillResponse> getMySkills(UUID userId, String search, String connectorCode, int page, int size) {
@@ -70,10 +72,23 @@ public class SkillService {
 
     @Transactional
     public SkillResponse create(UUID userId, CreateSkillRequest request) {
+        return doCreate(userId, request.resolveIsPublic(), request);
+    }
+
+    /**
+     * Создать системный скилл (owner — {@link SystemSkillBootstrap#SYSTEM_USER_ID}, всегда public,
+     * чтобы его можно было привязывать к чужим агентам). ADMIN-only на уровне контроллера.
+     */
+    @Transactional
+    public SkillResponse createSystem(CreateSkillRequest request) {
+        return doCreate(SystemSkillBootstrap.SYSTEM_USER_ID, true, request);
+    }
+
+    private SkillResponse doCreate(UUID ownerId, boolean isPublic, CreateSkillRequest request) {
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(request.skillMd());
         validateConnectorCodes(parsed.connectors());
 
-        if (skillRepository.existsByUserIdAndNameNotDeleted(userId, parsed.name())) {
+        if (skillRepository.existsByUserIdAndNameNotDeleted(ownerId, parsed.name())) {
             throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
         }
 
@@ -82,8 +97,8 @@ public class SkillService {
                 .description(parsed.description())
                 .mdContent(parsed.body())
                 .connectorCodes(new ArrayList<>(parsed.connectors()))
-                .userId(userId)
-                .isPublic(request.resolveIsPublic())
+                .userId(ownerId)
+                .isPublic(isPublic)
                 .build();
 
         try {
@@ -92,20 +107,27 @@ public class SkillService {
             throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
         }
 
-        log.info("Created skill '{}' id={} for user={}", skill.getName(), skill.getId(), userId);
+        log.info("Created skill '{}' id={} for owner={}", skill.getName(), skill.getId(), ownerId);
         return SkillResponse.from(skill);
     }
 
     @Transactional
-    public SkillResponse update(UUID id, UUID userId, UpdateSkillRequest request) {
-        Skill skill = findOwnedSkill(id, userId);
+    public SkillResponse update(UUID id, UUID userId, boolean admin, UpdateSkillRequest request) {
+        Skill skill = findOwnedOrSystemAdmin(id, userId, admin);
+        boolean system = isSystem(skill);
 
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(request.skillMd());
         validateConnectorCodes(parsed.connectors());
 
-        if (!skill.getName().equals(parsed.name())
-                && skillRepository.existsByUserIdAndNameNotDeleted(userId, parsed.name())) {
-            throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
+        if (!skill.getName().equals(parsed.name())) {
+            if (system) {
+                // Имя системного скилла — ключ ссылок: (SYSTEM_USER_ID, name) в сидере и в
+                // preset.skill_names. Переименование осиротило бы эти ссылки — запрещаем.
+                throw new BadRequestStatusException("System skill cannot be renamed");
+            }
+            if (skillRepository.existsByUserIdAndNameNotDeleted(skill.getUserId(), parsed.name())) {
+                throw new ConflictStatusException("Skill with name '" + parsed.name() + "' already exists");
+            }
         }
 
         skill.setName(parsed.name());
@@ -126,13 +148,26 @@ public class SkillService {
     }
 
     @Transactional
-    public void delete(UUID id, UUID userId) {
-        Skill skill = findOwnedSkill(id, userId);
+    public void delete(UUID id, UUID userId, boolean admin) {
+        Skill skill = findOwnedOrSystemAdmin(id, userId, admin);
+        if (isSystem(skill)) {
+            // Системный скилл — общий ресурс: hard-delete осиротил бы чужих агентов/пресеты.
+            // Для «вывода из оборота» админ снимает isPublic (перестаёт предлагаться новым).
+            if (agentSkillRepository.existsBySkillId(skill.getId())) {
+                throw new ConflictStatusException(
+                        "System skill is bound to agents; unpublish it (isPublic=false) instead of deleting");
+            }
+            if (agentPresetRepository.existsBySkillNameReferenced(skill.getName())) {
+                throw new ConflictStatusException(
+                        "System skill is referenced by an agent preset; remove it from the preset first");
+            }
+        }
         skillRepository.softDelete(skill.getId(), LocalDateTime.now());
         // Привязки (включая чужие — скилл могли ставить как публичный) удаляем сразу: политики
         // add-only (AgentSkillPolicyService), так что пересчёт по агентам не требуется.
         int unbound = agentSkillRepository.deleteBySkillId(skill.getId());
-        log.info("Soft-deleted skill '{}' id={}, unbound from {} agent(s)", skill.getName(), id, unbound);
+        log.info("Soft-deleted skill '{}' id={} by user={}, unbound from {} agent(s)",
+                skill.getName(), id, userId, unbound);
     }
 
     public Skill findOwnedSkill(UUID id, UUID userId) {
@@ -142,6 +177,27 @@ public class SkillService {
             throw new ForbiddenStatusException("Access denied");
         }
         return skill;
+    }
+
+    /**
+     * Своя запись — как {@link #findOwnedSkill}; ADMIN дополнительно правит системные скилы
+     * (owner — {@link SystemSkillBootstrap#SYSTEM_USER_ID}). Чужие пользовательские записи и для
+     * админа недоступны — он управляет платформенными ассетами, а не чужими скилами.
+     */
+    public Skill findOwnedOrSystemAdmin(UUID id, UUID userId, boolean admin) {
+        Skill skill = skillRepository.findByIdNotDeleted(id)
+                .orElseThrow(() -> new NotFoundStatusException("Skill not found"));
+        if (skill.getUserId().equals(userId)) {
+            return skill;
+        }
+        if (admin && isSystem(skill)) {
+            return skill;
+        }
+        throw new ForbiddenStatusException("Access denied");
+    }
+
+    private static boolean isSystem(Skill skill) {
+        return SystemSkillBootstrap.SYSTEM_USER_ID.equals(skill.getUserId());
     }
 
     public Skill findAccessibleSkill(UUID id, UUID userId) {

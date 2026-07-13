@@ -41,7 +41,11 @@ Authentication service handling OAuth2 login, JWT token management, API key mana
 | Method | Path                      | Description                    |
 |--------|---------------------------|--------------------------------|
 | GET    | `/user/user/{id}`         | Get user by id                 |
-| GET    | `/user/user/me`           | Get current authenticated user |
+| GET    | `/user/user/me`           | Get current authenticated user (includes `role`) |
+
+`UserResponse` fields: `id`, `email`, `firstName`, `lastName`, `displayName`, `role`
+(`GUEST` \| `USER` \| `ADMIN`), `createdAt`, `updatedAt`. The frontend uses `role` to gate
+admin-only features; the backend still enforces access independently.
 
 ### OAuth2 Authentication (Public)
 

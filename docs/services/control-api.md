@@ -142,11 +142,15 @@ Control API for connector registration, tool delivery, trigger submission, and A
 Role presets for the agent creation wizard. A preset is a pure prefill: the frontend fills the
 wizard's editable fields from it (instructions, skill set) and the final values arrive via the
 regular create-agent request. System presets are seeded from classpath (`presets/<code>/PRESET.md`,
-same pattern as system skills), idempotently by `code`.
+same pattern as system skills), idempotently by `code`. Presets can also be created/edited by an
+**ADMIN** through the API (see [control-api-manage-agent-presets.md](control-api-manage-agent-presets.md)).
 
 | Method | Path                              | Description                                                  |
 |--------|-----------------------------------|--------------------------------------------------------------|
-| GET    | `/control/manage/agent-presets/`  | List enabled presets: `code`, `name`, `description`, full `instructions`, resolved `skills: [{id, name, description}]`, derived `connectorCodes` (union of the skills' connectors) |
+| GET    | `/control/manage/agent-presets/`  | List enabled presets: `code`, `name`, `description`, full `instructions`, resolved `skills: [{id, name, description}]`, derived `connectorCodes`, plus raw `skillNames`, `sortOrder`, `enabled` |
+| GET    | `/control/manage/agent-presets/all/` | **ADMIN** — list all presets including disabled |
+| POST   | `/control/manage/agent-presets/`  | **ADMIN** — create a preset |
+| PATCH  | `/control/manage/agent-presets/{id}` | **ADMIN** — partial update (`code` immutable) |
 
 ### Agentic Teams (JWT)
 

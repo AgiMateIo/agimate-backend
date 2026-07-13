@@ -22,11 +22,20 @@ public record AgentPresetResponse(
         @Schema(description = "Prefill for agent instructions (user edits it freely in the wizard)")
         String instructions,
 
-        @Schema(description = "Skills the preset suggests to bind")
+        @Schema(description = "Skills the preset suggests to bind (resolved; missing ones dropped)")
         List<PresetSkill> skills,
 
         @Schema(description = "Connector codes required by the preset's skills (union, display hint)")
-        List<String> connectorCodes
+        List<String> connectorCodes,
+
+        @Schema(description = "Raw skill names as stored (admin editing form; unresolved)")
+        List<String> skillNames,
+
+        @Schema(description = "Gallery sort order (ascending)")
+        int sortOrder,
+
+        @Schema(description = "Whether the preset is offered in the gallery")
+        boolean enabled
 ) {
     @Schema(description = "Skill referenced by a preset")
     public record PresetSkill(
