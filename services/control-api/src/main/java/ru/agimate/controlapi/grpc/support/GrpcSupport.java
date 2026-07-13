@@ -10,6 +10,7 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.service.llm.QuotaExceededException;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -81,6 +82,11 @@ public class GrpcSupport {
         }
         if (e instanceof BadRequestStatusException || e instanceof ValidationErrorStatusException) {
             observer.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asRuntimeException());
+            return;
+        }
+        if (e instanceof QuotaExceededException) {
+            // Ожидаемый исход, не сбой: сообщение — для человека, доедет ERROR-сообщением рана.
+            observer.onError(Status.RESOURCE_EXHAUSTED.withDescription(e.getMessage()).asRuntimeException());
             return;
         }
         log.error("gRPC RPC failed", e);

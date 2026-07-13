@@ -174,7 +174,61 @@ Every successful LLM call made by the managed worker is reported back over gRPC 
 - `llm_usage_log` — per-call journal (audit/debug): run, agent, user, provider, model, input/output/cache tokens. Idempotent by `call_id` (the DBOS workflow id of the LLM call), so worker replays never double-count.
 - `llm_usage_counters` — aggregates per `(provider, subject, calendar window UTC)` used for quota enforcement and "remaining" displays. Subjects: `USER` (per user), `AGENT` (per agent), `TOTAL` (whole provider); windows: `DAY`, `MONTH`. All six counters are incremented in the same transaction as the journal insert; the token metric is `input + output + cache_write` (cache reads are not counted).
 
-Counters exist for BYOK providers too — usage stats are collected from day one regardless of whether a quota is configured. Quotas and the `/manage/llm-usage/` endpoint ship in the next stage.
+Counters exist for BYOK providers too — usage stats are collected from day one regardless of whether a quota is configured.
+
+---
+
+## Quotas
+
+Token quotas are declared per provider in `llm_quotas` and checked in `GetLlmCredentials` — i.e. before **every** LLM call (overshoot is bounded by one call). A provider without quotas is unlimited. Exceeding a quota fails the call with gRPC `RESOURCE_EXHAUSTED`; the human-readable message reaches the user as the run's ERROR message.
+
+Quota key: `(provider, subjectKind, window)` — one quota per combination.
+
+| `subjectKind` | Meaning | Typical use |
+|---|---|---|
+| `USER` | limit per each user | platform free-tier («каждому пользователю N в день») |
+| `AGENT` | limit per each agent | BYOK: a runaway agent can't burn the key |
+| `TOTAL` | limit for the whole provider | BYOK: wallet ceiling |
+
+Windows are calendar UTC: `DAY`, `MONTH`. Metric: `input + output + cache_write` tokens.
+
+### `GET /control/manage/llm-providers/{providerId}/quotas/`
+
+### `POST /control/manage/llm-providers/{providerId}/quotas/`
+
+```json
+{ "subjectKind": "TOTAL", "window": "DAY", "limitTokens": 100000 }
+```
+
+`409` on duplicate `(subjectKind, window)`; `limitTokens >= 1`. Provider must belong to the user — the platform provider is not addressable here (its quota is seeded by the platform bootstrap).
+
+### `DELETE /control/manage/llm-providers/{providerId}/quotas/{quotaId}`
+
+---
+
+## Usage view
+
+### `GET /control/manage/llm-usage/`
+
+Usage and remaining quota per provider for the current calendar windows. Perspective depends on provider type: own (BYOK) providers show whole-provider usage (`TOTAL` subject), the platform provider shows the current user's usage (`USER` subject, `llmProviderId: null`).
+
+```json
+{
+  "response": [
+    {
+      "llmProviderId": "018f...",
+      "providerName": "my-openrouter",
+      "source": "USER",
+      "windows": [
+        { "window": "DAY", "windowStart": "2026-07-13", "usedTokens": 300,
+          "requests": 7, "limitTokens": 1000, "remainingTokens": 700 },
+        { "window": "MONTH", "windowStart": "2026-07-01", "usedTokens": 4500,
+          "requests": 120, "limitTokens": null, "remainingTokens": null }
+      ]
+    }
+  ]
+}
+```
 
 ---
 

@@ -17,6 +17,7 @@ import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.LlmUsageService;
+import ru.agimate.controlapi.service.llm.LlmQuotaService;
 import ru.agimate.controlapi.service.runcontext.RunBlock;
 import ru.agimate.controlapi.service.runcontext.RunContextService;
 import ru.agimate.controlapi.service.runcontext.RunContextView;
@@ -66,6 +67,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final LlmProviderService llmProviderService;
     private final AgentRepository agentRepository;
     private final LlmUsageService llmUsageService;
+    private final LlmQuotaService llmQuotaService;
 
     @Override
     @Transactional(readOnly = true)
@@ -161,6 +163,8 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     public void getLlmCredentials(GetLlmCredentialsRequest request, StreamObserver<LlmCredentials> responseObserver) {
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            Agent agent = agentRepository.findById(agentId)
+                    .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
             LlmProvider provider;
             String model;
             AgentLlm llmBinding = agentLlmRepository.findAllByAgentIdOrderByName(agentId).stream()
@@ -183,6 +187,9 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                                 "No LLM binding for agent: " + agentId));
                 model = provider.getDefaultModel();
             }
+
+            // Перед каждым LLM-вызовом (креды запрашиваются inline на каждый llm_call).
+            llmQuotaService.check(provider, agent.getUserId(), agentId);
 
             String apiKey = llmProviderService.decryptApiKey(provider);
 

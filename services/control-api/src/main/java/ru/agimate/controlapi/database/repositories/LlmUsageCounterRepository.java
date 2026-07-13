@@ -6,12 +6,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.LlmUsageCounter;
+import ru.agimate.controlapi.database.enums.UsageSubjectKind;
+import ru.agimate.controlapi.database.enums.UsageWindow;
 
 import java.time.LocalDate;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface LlmUsageCounterRepository extends JpaRepository<LlmUsageCounter, UUID> {
+
+    Optional<LlmUsageCounter> findByLlmProviderIdAndSubjectKindAndSubjectIdAndWindowAndWindowStart(
+            UUID llmProviderId, UsageSubjectKind subjectKind, UUID subjectId,
+            UsageWindow window, LocalDate windowStart);
 
     /** Атомарный инкремент счётчика окна: вставка первой строки или прибавка к существующей. */
     @Modifying

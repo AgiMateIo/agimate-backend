@@ -28,6 +28,8 @@ import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.LlmUsageService;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
+import ru.agimate.controlapi.service.llm.LlmQuotaService;
+import ru.agimate.controlapi.service.llm.QuotaExceededException;
 import ru.agimate.controlapi.service.runcontext.RunBlock;
 import ru.agimate.controlapi.service.runcontext.RunContextService;
 import ru.agimate.controlapi.service.runcontext.RunContextView;
@@ -64,6 +66,7 @@ class AgentContextGrpcServiceTest {
     private final LlmProviderService llmProviderService = mock(LlmProviderService.class);
     private final AgentRepository agentRepository = mock(AgentRepository.class);
     private final LlmUsageService llmUsageService = mock(LlmUsageService.class);
+    private final LlmQuotaService llmQuotaService = mock(LlmQuotaService.class);
     private final AgentContextGrpcService service = new AgentContextGrpcService(
             runContextService,
             mock(ru.agimate.controlapi.service.trigger.RunActivityService.class),
@@ -71,7 +74,8 @@ class AgentContextGrpcServiceTest {
             llmProviderRepository,
             llmProviderService,
             agentRepository,
-            llmUsageService);
+            llmUsageService,
+            llmQuotaService);
 
     @Test
     @DisplayName("все четыре коллекции view доезжают до ответа: блоки, тулы и история")
@@ -126,6 +130,15 @@ class AgentContextGrpcServiceTest {
     class GetLlmCredentialsFallback {
 
         private final UUID agentId = UUID.randomUUID();
+        private final UUID userId = UUID.randomUUID();
+
+        @org.junit.jupiter.api.BeforeEach
+        void stubAgent() {
+            Agent agent = new Agent();
+            agent.setId(agentId);
+            agent.setUserId(userId);
+            when(agentRepository.findById(agentId)).thenReturn(Optional.of(agent));
+        }
 
         @Test
         @DisplayName("нет привязки + платформенный провайдер включён → креденшлы с default_model")
@@ -187,6 +200,31 @@ class AgentContextGrpcServiceTest {
             assertEquals("user-model", creds.getModel());
             assertEquals("sk-user-key", creds.getApiKey());
             verify(llmProviderService, never()).findUsablePlatformProvider();
+        }
+
+        @Test
+        @DisplayName("квота исчерпана → RESOURCE_EXHAUSTED с человекочитаемым текстом")
+        void quotaExceededMapsToResourceExhausted() {
+            LlmProvider platform = LlmProvider.builder()
+                    .id(UUID.randomUUID())
+                    .userId(SystemSkillBootstrap.SYSTEM_USER_ID)
+                    .name(LlmProviderService.PLATFORM_PROVIDER_NAME)
+                    .providerType(LlmProviderType.OPENAI_COMPATIBLE)
+                    .baseUrl("https://openrouter.ai/api/v1")
+                    .defaultModel("gpt-5-mini")
+                    .enabled(true)
+                    .build();
+            when(agentLlmRepository.findAllByAgentIdOrderByName(agentId)).thenReturn(List.of());
+            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
+            org.mockito.Mockito.doThrow(new QuotaExceededException("Дневной лимит исчерпан"))
+                    .when(llmQuotaService).check(platform, userId, agentId);
+
+            StatusRuntimeException error = assertThrows(StatusRuntimeException.class,
+                    () -> callGetLlmCredentials(agentId));
+
+            assertEquals(Status.Code.RESOURCE_EXHAUSTED, error.getStatus().getCode());
+            assertEquals("Дневной лимит исчерпан", error.getStatus().getDescription());
+            verify(llmProviderService, never()).decryptApiKey(any());
         }
 
         private LlmCredentials callGetLlmCredentials(UUID agent) throws Exception {
