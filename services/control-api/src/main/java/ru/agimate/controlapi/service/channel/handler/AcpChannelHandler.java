@@ -32,9 +32,6 @@ public class AcpChannelHandler implements ChannelHandler {
 
     public static final String NAME = "acp";
 
-    /** JSON-RPC код ошибки рана агента в ответе на session/prompt (server error range). */
-    public static final int AGENT_ERROR_CODE = -32000;
-
     private static final String STREAM_PROGRESS = "progress";
     private static final String STREAM_ERROR = "error";
     private static final String PROGRESS_THINKING = "THINKING";
@@ -89,7 +86,13 @@ public class AcpChannelHandler implements ChannelHandler {
                                                   OutboundDispatch dispatch) {
         String stream = dispatch.stream();
         if (STREAM_ERROR.equals(stream)) {
-            sessionRegistry.failPrompt(dispatch.sessionId(), AGENT_ERROR_CODE, outbound.text());
+            // Терминальный нотис рана (квота/лимит шагов/ошибка модели) — это сообщение агента
+            // пользователю, а не сбой протокола: показываем текстом и штатно завершаем turn.
+            // Ошибку session/prompt слать нельзя — реальные сбои сюда не доходят (обрыв control-api
+            // не создаёт SaveMessage), а код -32000 в ACP = auth_required → Zed «Authentication Required».
+            sessionRegistry.sendUpdate(dispatch.sessionId(),
+                    contentUpdate("agent_message_chunk", outbound.text()));
+            sessionRegistry.completePrompt(dispatch.sessionId(), AcpSessionRegistry.STOP_END_TURN);
             return Optional.empty();
         }
         if (STREAM_PROGRESS.equals(stream)) {

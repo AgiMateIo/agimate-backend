@@ -120,6 +120,33 @@ class LlmCallWorkflowImplTest {
             verify(client, never()).reportLlmUsage(anyString(), anyString(), anyString(), anyString(),
                     anyString(), anyInt(), anyInt(), anyInt(), anyInt());
         }
+
+        @Test
+        @DisplayName("RESOURCE_EXHAUSTED (квота): message сервера отдаётся дословно как userFacing")
+        void quotaSurfacedAsUserError() {
+            String quota = "Дневной лимит токенов провайдера «Openrouter» исчерпан.";
+            when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
+                    "GetLlmCredentials", Status.RESOURCE_EXHAUSTED.withDescription(quota)));
+
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+
+            assertTrue(result.failed());
+            assertTrue(result.userFacing());
+            assertEquals(quota, result.message());
+            verify(modelFactory, never()).build(any());
+        }
+
+        @Test
+        @DisplayName("прочий отказ кредов (не квота) → generic failure без userFacing")
+        void otherCredentialFailureStaysGeneric() {
+            when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
+                    "GetLlmCredentials", Status.NOT_FOUND.withDescription("No LLM binding")));
+
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+
+            assertTrue(result.failed());
+            assertFalse(result.userFacing());
+        }
     }
 
     @Test

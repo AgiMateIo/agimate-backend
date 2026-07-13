@@ -36,7 +36,7 @@ class LlmCallDispatcher implements SimpleAgent.LlmCaller {
                 dbos.startWorkflow(() -> llm.llmCall(messages, toolDefs, agentId), new StartWorkflowOptions(llmQueue));
         LlmCallWorkflow.Result result = WorkflowHandles.await(handle);
         if (result.failed()) {
-            throw new LlmCallError(result.statusCode(), result.message());
+            throw new LlmCallError(result.statusCode(), result.message(), result.userFacing());
         }
         return result.assistant();
     }

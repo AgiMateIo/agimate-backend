@@ -48,6 +48,15 @@ class AgentRunnerTest {
     }
 
     @Test
+    @DisplayName("userFacing LLM error (напр. квота) → серверный текст дословно в userNotice")
+    void userFacingErrorSurfacedVerbatim() {
+        String quota = "Дневной лимит токенов платформенной модели исчерпан. Подключите свой ключ.";
+        AgentRunAborted aborted = assertThrows(AgentRunAborted.class,
+                () -> runOnce(runner((m, d) -> { throw new LlmCallError(null, quota, true); }, 5)));
+        assertEquals(quota, aborted.userNotice());
+    }
+
+    @Test
     @DisplayName("happy path returns the final answer")
     void happy() {
         assertEquals("ok", runOnce(runner((m, d) -> AgentChatMessage.assistant("ok", false, List.of()), 5)));

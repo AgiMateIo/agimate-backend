@@ -12,16 +12,26 @@ import io.grpc.Status;
 public class ControlApiCallException extends RuntimeException {
 
     private final Status.Code code;
+    private final String description;
 
     public ControlApiCallException(String rpc, Status status) {
         super(rpc + ": " + status.getCode()
                 + (status.getDescription() != null ? " — " + status.getDescription() : ""));
         this.code = status.getCode();
+        this.description = status.getDescription();
     }
 
     /** gRPC status code of the failed call ({@code Status.Code} is an enum — serializable). */
     public Status.Code code() {
         return code;
+    }
+
+    /**
+     * Raw status description without the {@code "rpc: CODE — "} prefix — the server-authored text.
+     * Used to surface user-facing notices (e.g. a quota RESOURCE_EXHAUSTED message) verbatim.
+     */
+    public String description() {
+        return description;
     }
 
     /**

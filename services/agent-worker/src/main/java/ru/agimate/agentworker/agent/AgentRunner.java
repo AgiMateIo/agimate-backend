@@ -62,6 +62,11 @@ public class AgentRunner {
             throw new AgentRunAborted(MAX_TURNS_NOTICE,
                     "agent loop hit max_turns " + context + ": " + e.getMessage());
         } catch (LlmCallError e) {
+            // Сервер прислал готовый пользовательский нотис (например, текст квоты) — дословно.
+            if (e.userFacing()) {
+                throw new AgentRunAborted(e.getMessage(),
+                        "LLM call aborted " + context + ": " + e.getMessage());
+            }
             Integer status = e.statusCode();
             String userNotice;
             String prefix;

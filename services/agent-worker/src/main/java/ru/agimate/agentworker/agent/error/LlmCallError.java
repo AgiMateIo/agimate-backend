@@ -7,13 +7,24 @@ package ru.agimate.agentworker.agent.error;
  */
 public class LlmCallError extends RuntimeException {
     private final Integer statusCode;
+    private final boolean userFacing;
 
     public LlmCallError(Integer statusCode, String message) {
+        this(statusCode, message, false);
+    }
+
+    public LlmCallError(Integer statusCode, String message, boolean userFacing) {
         super(message);
         this.statusCode = statusCode;
+        this.userFacing = userFacing;
     }
 
     public Integer statusCode() {
         return statusCode;
+    }
+
+    /** {@code message} is a server-authored user notice (e.g. a quota message) — surface verbatim. */
+    public boolean userFacing() {
+        return userFacing;
     }
 }

@@ -38,7 +38,13 @@ public class LlmQuotaService {
     /**
      * Бросает {@link QuotaExceededException} с человекочитаемым сообщением, если хотя бы одна
      * квота провайдера исчерпана для данного пользователя/агента.
+     *
+     * <p>{@code noRollbackFor}: исчерпание квоты — ожидаемый control-flow, а не сбой БД. Вызов идёт
+     * внутри readOnly-транзакции {@code getLlmCredentials}, которая исключение ловит и штатно
+     * отвечает {@code RESOURCE_EXHAUSTED}; без этого перехватчик пометил бы общую транзакцию
+     * rollback-only и её commit упал бы {@code UnexpectedRollbackException}.
      */
+    @Transactional(readOnly = true, noRollbackFor = QuotaExceededException.class)
     public void check(LlmProvider provider, UUID userId, UUID agentId) {
         List<LlmQuota> quotas = quotaRepository.findAllByLlmProviderId(provider.getId());
         if (quotas.isEmpty()) {

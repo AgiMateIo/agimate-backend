@@ -6,6 +6,7 @@ import com.openai.errors.OpenAIServiceException;
 import dev.dbos.transact.context.DBOSContext;
 import dev.dbos.transact.context.DBOSContextHolder;
 import dev.dbos.transact.context.WorkflowInfo;
+import io.grpc.Status;
 import dev.dbos.transact.workflow.Workflow;
 import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +51,13 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
         try {
             creds = client.getLlmCredentials(agentId);
         } catch (ControlApiCallException e) {
+            // Квота исчерпана: сообщение сервера написано для пользователя — отдаём его дословно,
+            // а не подменяем generic-нотисом «ошибка модели».
+            if (e.code() == Status.Code.RESOURCE_EXHAUSTED
+                    && e.description() != null && !e.description().isBlank()) {
+                log.info("LLM quota exceeded: {}", e.description());
+                return Result.userError(e.description());
+            }
             log.warn("LLM credentials unavailable: {}", e.getMessage());
             return Result.failure(null, e.getMessage());
         }

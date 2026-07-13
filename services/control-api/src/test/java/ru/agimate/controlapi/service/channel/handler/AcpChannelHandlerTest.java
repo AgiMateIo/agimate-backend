@@ -142,13 +142,17 @@ class AcpChannelHandlerTest {
         }
 
         @Test
-        @DisplayName("error → failPrompt, update не шлётся")
-        void errorFailsPrompt() {
+        @DisplayName("error (нотис рана) → agent_message_chunk + end_turn, prompt не фейлится")
+        void errorDeliversAsMessage() {
             OutboundDispatch dispatch = dispatch("error", null);
-            handler.handleOutput(config, OutboundMessage.text("boom"), dispatch);
+            handler.handleOutput(config, OutboundMessage.text("Дневной лимит исчерпан"), dispatch);
 
-            verify(sessionRegistry).failPrompt(SESSION_ID, AcpChannelHandler.AGENT_ERROR_CODE, "boom");
-            verify(sessionRegistry, never()).sendUpdate(eq(SESSION_ID), eq(Map.of()));
+            Map<String, Object> update = capturedUpdate();
+            assertEquals("agent_message_chunk", update.get("sessionUpdate"));
+            assertEquals(Map.of("type", "text", "text", "Дневной лимит исчерпан"), update.get("content"));
+            verify(sessionRegistry).completePrompt(SESSION_ID, AcpSessionRegistry.STOP_END_TURN);
+            verify(sessionRegistry, never()).failPrompt(eq(SESSION_ID), org.mockito.ArgumentMatchers.anyInt(),
+                    org.mockito.ArgumentMatchers.anyString());
         }
 
         private OutboundDispatch dispatch(String stream, String progressType) {
