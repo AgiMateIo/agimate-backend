@@ -96,11 +96,14 @@ public class AgentWorkerClient {
             try {
                 return op.get();
             } catch (StatusRuntimeException e) {
-                if (e.getStatus().getCode() == Status.Code.ABORTED) {
+                Status.Code code = e.getStatus().getCode();
+                // Ожидаемые исходы, не инфра-сбой: ABORTED (занятый active-run claim) и
+                // RESOURCE_EXHAUSTED (исчерпана квота LLM) — тихо и без стектрейса, никогда не ретраятся.
+                if (code == Status.Code.ABORTED || code == Status.Code.RESOURCE_EXHAUSTED) {
                     log.debug("control-api RPC {}: {}", rpc, e.getMessage());
                     throw new ControlApiCallException(rpc, e.getStatus());
                 }
-                if (e.getStatus().getCode() == Status.Code.UNAVAILABLE && attempt < UNAVAILABLE_MAX_ATTEMPTS) {
+                if (code == Status.Code.UNAVAILABLE && attempt < UNAVAILABLE_MAX_ATTEMPTS) {
                     log.info("control-api RPC {} unavailable (attempt {}/{}), retrying in {} ms",
                             rpc, attempt, UNAVAILABLE_MAX_ATTEMPTS, backoffMs);
                     try {

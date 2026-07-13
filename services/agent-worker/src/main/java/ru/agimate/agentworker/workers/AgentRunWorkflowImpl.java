@@ -40,7 +40,8 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
                 runBody(message, messages);
                 log.info("run finished");
             } catch (AgentRunAborted e) {
-                log.warn(e.systemDetail());
+                // Ожидаемый терминальный исход (квота/лимит шагов/ошибка модели) — INFO, не WARN.
+                log.info(e.systemDetail());
                 core.reportFailure(messages, e);
             } catch (Exception e) {
                 // Инфра-ошибка (исчерпанные ретраи шага и т.п.): workflow уйдёт в ERROR —

@@ -118,7 +118,9 @@ public class AgentRunCore {
         if (exc.userNotice() != null && !exc.userNotice().isEmpty()) {
             messages.error(exc.userNotice());
         }
-        sendSystemError(exc.systemDetail());
+        // Ожидаемый терминальный исход (квота/лимит шагов/ошибка модели) — не инфра-сбой:
+        // на бэк уходит информационным сообщением (INFO там), а не ERROR.
+        sendSystemReport(WorkerMessageType.WORKER_MESSAGE_TYPE_MESSAGE, exc.systemDetail());
     }
 
     /** Пользовательский notice при неожиданной инфра-ошибке рана. */
@@ -136,22 +138,23 @@ public class AgentRunCore {
         } catch (Exception e) {
             log.warn("failed to send infra-error notice to the channel: {}", e.getMessage());
         }
-        sendSystemError(systemDetail);
+        sendSystemReport(WorkerMessageType.WORKER_MESSAGE_TYPE_ERROR, systemDetail);
     }
 
     /**
-     * Системная деталь на бэк durable-шагом (crash-replay не дублирует репорт) и best-effort:
-     * падение самого репорта не должно перекрыть исходный сбой рана. Результат шага — boolean:
-     * proto-ответ в чекпоинт класть нельзя.
+     * Системная деталь исхода рана на бэк durable-шагом (crash-replay не дублирует репорт) и
+     * best-effort: падение самого репорта не должно перекрыть исход рана. {@code type} задаёт
+     * уровень на бэке — MESSAGE (ожидаемый abort → INFO) или ERROR (инфра-сбой). Результат шага —
+     * boolean: proto-ответ в чекпоинт класть нельзя.
      */
-    private void sendSystemError(String detail) {
+    private void sendSystemReport(WorkerMessageType type, String detail) {
         try {
             dbos.runStep(() -> {
-                client.sendMessage(WorkerMessageType.WORKER_MESSAGE_TYPE_ERROR, detail);
+                client.sendMessage(type, detail);
                 return true;
             }, "report_failure");
         } catch (Exception e) {
-            log.warn("failed to report the failure to the backend: {}", e.getMessage());
+            log.warn("failed to report the run outcome to the backend: {}", e.getMessage());
         }
     }
 }
