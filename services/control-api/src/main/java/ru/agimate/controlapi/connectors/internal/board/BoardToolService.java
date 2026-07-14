@@ -74,8 +74,10 @@ public class BoardToolService {
         } catch (IllegalArgumentException e) {
             throw new ConnectorException("Invalid task type: '" + type + "'. Allowed: EPIC, TASK, SUBTASK");
         }
-        UUID parentId = parentTaskId != null ? UUID.fromString(parentTaskId) : null;
-        UUID assigneeId = assigneeAgentId != null ? UUID.fromString(assigneeAgentId) : null;
+        UUID parentId = parentTaskId != null && !parentTaskId.isBlank()
+                ? parseUuid(parentTaskId, "parentTaskId") : null;
+        UUID assigneeId = assigneeAgentId != null && !assigneeAgentId.isBlank()
+                ? parseUuid(assigneeAgentId, "assigneeAgentId") : null;
 
         var command = new BoardTaskCreateCommand(taskType, title, description,
                 agent.getId(), assigneeId, parentId);
@@ -97,7 +99,7 @@ public class BoardToolService {
 
         Agent agent = resolveAgent();
 
-        UUID taskUuid = UUID.fromString(taskId);
+        UUID taskUuid = parseUuid(taskId, "taskId");
         BoardTaskStatus taskStatus;
         try {
             taskStatus = BoardTaskStatus.valueOf(status.toUpperCase());
@@ -114,7 +116,7 @@ public class BoardToolService {
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public Map<String, Object> getComments(
             @ToolParam("Task public ID") String taskId) {
-        UUID taskUuid = UUID.fromString(taskId);
+        UUID taskUuid = parseUuid(taskId, "taskId");
         var result = domain(() -> boardService.getComments(null, taskUuid, userId()));
         return Map.of("comments", result);
     }
@@ -126,7 +128,7 @@ public class BoardToolService {
             @ToolParam("Comment content") String content) {
         Agent agent = resolveAgent();
 
-        UUID taskUuid = UUID.fromString(taskId);
+        UUID taskUuid = parseUuid(taskId, "taskId");
         var command = new BoardTaskCommentCreateCommand(agent.getId(), content);
         var result = domain(() -> boardService.createComment(null, taskUuid, userId(), command));
         return Map.of("comment", result);
@@ -142,6 +144,18 @@ public class BoardToolService {
             return op.get();
         } catch (BaseHttpStatusException e) {
             throw new ConnectorException(e.getMessage());
+        }
+    }
+
+    /** Разобрать UUID из аргумента агента, сообщив ему внятную ошибку вместо «Tool execution failed». */
+    private static UUID parseUuid(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new ConnectorException("Parameter '" + field + "' is required");
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            throw new ConnectorException("Invalid " + field + ": '" + value + "'");
         }
     }
 

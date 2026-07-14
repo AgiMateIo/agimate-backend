@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.connectors.core;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import ru.agimate.common.util.JsonUtils;
@@ -8,6 +9,7 @@ import ru.agimate.controlapi.database.entities.ConnectionTool;
 
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -51,5 +53,28 @@ class ConnectionToolMapperTest {
         assertTrue(spec.annotations().readOnlyHint());
         assertTrue(spec.annotations().idempotentHint());
         assertNull(spec.inputSchema());
+    }
+
+    @Test
+    @DisplayName("сырой JSON + заданное имя (session-scoped тул из IDE) → спек с этим именем и фиделити схемы")
+    void mapsRawNodeWithExplicitName() {
+        JsonNode node = JsonUtils.toJsonNode("""
+                {
+                  "name": "search",
+                  "title": "Search",
+                  "description": "Search the web",
+                  "inputSchema": {"type":"object","properties":{
+                     "when":{"type":"string","format":"date-time"}}},
+                  "annotations": {"readOnlyHint": true}
+                }""");
+
+        ConnectorToolSpec spec = ConnectionToolMapper.toSpec("srv__search", node);
+
+        assertEquals("srv__search", spec.name(), "имя берётся из аргумента, а не из node.name");
+        assertEquals("Search", spec.title());
+        assertEquals("Search the web", spec.description());
+        assertTrue(spec.annotations().readOnlyHint());
+        assertTrue(JsonUtils.writeValueAsString(spec.inputSchema()).contains("date-time"),
+                "нестандартный keyword схемы переживает round-trip");
     }
 }
