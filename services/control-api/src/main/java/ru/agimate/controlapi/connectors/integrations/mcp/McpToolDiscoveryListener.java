@@ -28,7 +28,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class McpToolDiscoveryListener {
 
-    private final McpToolService mcpToolService;
+    private final McpToolDiscoveryService mcpToolDiscoveryService;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onCreated(ConnectorCreatedEvent event) {
@@ -45,7 +45,7 @@ public class McpToolDiscoveryListener {
         if (!McpConnectorService.CONNECTOR_CODE.equals(event.connectorCode())) {
             return;
         }
-        int removed = mcpToolService.deleteByConnectionId(UUID.fromString(event.connectionId()));
+        int removed = mcpToolDiscoveryService.deleteByConnectionId(UUID.fromString(event.connectionId()));
         if (removed > 0) {
             log.info("Removed {} MCP tool row(s) for {}", removed, event.connectionId());
         }
@@ -58,9 +58,9 @@ public class McpToolDiscoveryListener {
         log.info("Discovering MCP tools for {}", connectionId);
         try {
             UUID identityId = UUID.fromString(connectionId);
-            List<ConnectionTool> fresh = mcpToolService.discover(identityId);
+            List<ConnectionTool> fresh = mcpToolDiscoveryService.discover(identityId);
             if (fresh != null) {
-                mcpToolService.reconcile(identityId, fresh);
+                mcpToolDiscoveryService.reconcile(identityId, fresh);
             }
         } catch (Exception e) {
             // полный стек — getMessage() у части исключений null и прячет причину

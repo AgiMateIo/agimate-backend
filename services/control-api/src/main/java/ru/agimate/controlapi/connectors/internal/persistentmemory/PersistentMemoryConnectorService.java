@@ -14,7 +14,7 @@ import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.ToolBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
-import ru.agimate.controlapi.database.model.ConnectorCapabilities;
+import ru.agimate.controlapi.database.model.ConnectorTraits;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -67,8 +67,8 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
 
     /** Память может быть личной (AGENT) или командной (TEAM) — выбирается при привязке. */
     @Override
-    public ConnectorCapabilities capabilities() {
-        return new ConnectorCapabilities(
+    public ConnectorTraits traits() {
+        return new ConnectorTraits(
                 TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.STATIC,
                 List.of(IdentityScope.AGENT, IdentityScope.TEAM), IdentityScope.AGENT);
     }

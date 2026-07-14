@@ -11,7 +11,7 @@ import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.ToolBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
-import ru.agimate.controlapi.database.model.ConnectorCapabilities;
+import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
 import ru.agimate.controlapi.service.channel.handler.AcpChannelHandler;
 
@@ -91,8 +91,8 @@ public class AcpConnectorService extends BaseConnectorHandler
 
     /** Одна connection на пользователя: все его агенты делят её через binding'и. */
     @Override
-    public ConnectorCapabilities capabilities() {
-        return new ConnectorCapabilities(
+    public ConnectorTraits traits() {
+        return new ConnectorTraits(
                 TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.STATIC,
                 List.of(IdentityScope.USER), IdentityScope.USER);
     }

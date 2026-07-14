@@ -60,8 +60,8 @@ public class TelegramConnectorService extends BaseConnectorHandler
     }
 
     @Override
-    public ru.agimate.controlapi.database.model.ConnectorCapabilities capabilities() {
-        return ru.agimate.controlapi.database.model.ConnectorCapabilities.staticIntegration();
+    public ru.agimate.controlapi.database.model.ConnectorTraits traits() {
+        return ru.agimate.controlapi.database.model.ConnectorTraits.staticIntegration();
     }
 
     public boolean isPollingMode() {

@@ -52,8 +52,8 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
     }
 
     @Override
-    public ru.agimate.controlapi.database.model.ConnectorCapabilities capabilities() {
-        return ru.agimate.controlapi.database.model.ConnectorCapabilities.dynamicIntegration();
+    public ru.agimate.controlapi.database.model.ConnectorTraits traits() {
+        return ru.agimate.controlapi.database.model.ConnectorTraits.dynamicIntegration();
     }
 
     @Override

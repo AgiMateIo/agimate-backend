@@ -9,7 +9,7 @@ import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.ToolBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
-import ru.agimate.controlapi.database.model.ConnectorCapabilities;
+import ru.agimate.controlapi.database.model.ConnectorTraits;
 
 import java.util.List;
 import java.util.Map;
@@ -38,7 +38,7 @@ public class Connector extends BaseEntity {
     @Column(name = "credential_fields", columnDefinition = "JSONB")
     private Map<String, String> credentialFields;
 
-    // --- Capabilities (4 оси), разложены по колонкам — рантайм ориентируется на них напрямую. ---
+    // --- Traits (4 оси), разложены по колонкам — рантайм ориентируется на них напрямую. ---
 
     /** Кто инициирует соединение: OUTBOUND (мы→платформа, secret) / INBOUND (устройство→мы, app). */
     @Enumerated(EnumType.STRING)
@@ -73,13 +73,13 @@ public class Connector extends BaseEntity {
     @Column(name = "features", columnDefinition = "JSONB")
     private Map<String, Object> features;
 
-    /** Агрегат capabilities (для API/бутстрапа); рантайм читает отдельные поля. */
-    public ConnectorCapabilities capabilities() {
-        return new ConnectorCapabilities(transportDirection, executionLocus, toolBinding,
+    /** Агрегат traits (для API/бутстрапа); рантайм читает отдельные поля. */
+    public ConnectorTraits traits() {
+        return new ConnectorTraits(transportDirection, executionLocus, toolBinding,
                 supportedScopes, defaultScope);
     }
 
-    public void applyCapabilities(ConnectorCapabilities c) {
+    public void applyTraits(ConnectorTraits c) {
         this.transportDirection = c.transportDirection();
         this.executionLocus = c.executionLocus();
         this.toolBinding = c.toolBinding();

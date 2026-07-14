@@ -6,7 +6,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.model.ConnectorCapabilities;
+import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 
 /**
@@ -31,8 +31,8 @@ public class ConnectorBootstrap {
 
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
-        saveIfAbsent(buildStatic("app", "App", ConnectorCapabilities.device()));
-        saveIfAbsent(buildStatic("claude-code", "Claude Code", ConnectorCapabilities.loopback()));
+        saveIfAbsent(buildStatic("app", "App", ConnectorTraits.device()));
+        saveIfAbsent(buildStatic("claude-code", "Claude Code", ConnectorTraits.loopback()));
 
         for (ConnectorHandler handler : connectorRegistry.getHandlers()) {
             upsertConnector(handler);
@@ -50,14 +50,14 @@ public class ConnectorBootstrap {
         connector.setCredentialFields(handler instanceof IntegrationConnectorHandler integration
                 ? integration.getCredentialFields()
                 : null);
-        connector.applyCapabilities(handler.capabilities());
+        connector.applyTraits(handler.traits());
 
         connectorRepository.save(connector);
     }
 
-    private static Connector buildStatic(String code, String name, ConnectorCapabilities capabilities) {
+    private static Connector buildStatic(String code, String name, ConnectorTraits traits) {
         Connector connector = Connector.builder().code(code).name(name).build();
-        connector.applyCapabilities(capabilities);
+        connector.applyTraits(traits);
         return connector;
     }
 

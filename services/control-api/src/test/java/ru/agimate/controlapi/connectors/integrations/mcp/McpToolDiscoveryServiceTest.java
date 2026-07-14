@@ -32,8 +32,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("McpToolService")
-class McpToolServiceTest {
+@DisplayName("McpToolDiscoveryService")
+class McpToolDiscoveryServiceTest {
 
     private static final UUID IDENTITY = UUID.randomUUID();
     private static final UUID SECRET_ID = UUID.randomUUID();
@@ -49,11 +49,11 @@ class McpToolServiceTest {
     @Mock
     private ConnectionToolRepository connectionToolRepository;
 
-    private McpToolService service;
+    private McpToolDiscoveryService service;
 
     @BeforeEach
     void setUp() {
-        service = new McpToolService(connectionRepository, secretRepository, secretService,
+        service = new McpToolDiscoveryService(connectionRepository, secretRepository, secretService,
                 mcpClient, connectionToolRepository);
     }
 

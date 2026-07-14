@@ -8,10 +8,11 @@ import ru.agimate.controlapi.database.enums.TransportDirection;
 import java.util.List;
 
 /**
- * Type-level capability-дескриптор коннектора. Объявляется в {@code ConnectorHandler.capabilities()},
- * персистится в каталог {@code connectors} бутстрапом — источник истины код. Маршрутизация исполнения
- * читает {@link #executionLocus()} с сущности {@code Connector} (включая connector {@code app}, у
- * которого нет handler-бина).
+ * Type-level дескриптор коннектора: декларативные характеристики того, как он подключён и исполняется
+ * (в отличие от à la carte capability-интерфейсов {@code ToolProvider}/… — «что коннектор предоставляет»).
+ * Объявляется в {@code ConnectorHandler.traits()}, персистится в каталог {@code connectors} бутстрапом —
+ * источник истины код. Маршрутизация исполнения читает {@link #executionLocus()} с сущности
+ * {@code Connector} (включая connector {@code app}, у которого нет handler-бина).
  *
  * @param transportDirection кто инициирует соединение (семантика секрета)
  * @param executionLocus     где исполняется тул (роутинг вызова)
@@ -19,7 +20,7 @@ import java.util.List;
  * @param supportedScopes    какие {@link IdentityScope} коннектор поддерживает (подключение выбирает один)
  * @param defaultScope       scope по умолчанию (∈ {@code supportedScopes})
  */
-public record ConnectorCapabilities(
+public record ConnectorTraits(
         TransportDirection transportDirection,
         ExecutionLocus executionLocus,
         ToolBinding toolBinding,
@@ -28,36 +29,36 @@ public record ConnectorCapabilities(
 ) {
 
     /** Internal-сервис: backend-исполнение, статические тулы, на агента. */
-    public static ConnectorCapabilities internal() {
-        return new ConnectorCapabilities(
+    public static ConnectorTraits internal() {
+        return new ConnectorTraits(
                 TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.STATIC,
                 List.of(IdentityScope.AGENT), IdentityScope.AGENT);
     }
 
     /** Outbound-интеграция со статическими тулами (telegram) — явный экземпляр. */
-    public static ConnectorCapabilities staticIntegration() {
-        return new ConnectorCapabilities(
+    public static ConnectorTraits staticIntegration() {
+        return new ConnectorTraits(
                 TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.STATIC,
                 List.of(IdentityScope.INSTANCE), IdentityScope.INSTANCE);
     }
 
     /** Outbound-интеграция с динамическими per-instance тулами (MCP) — явный экземпляр. */
-    public static ConnectorCapabilities dynamicIntegration() {
-        return new ConnectorCapabilities(
+    public static ConnectorTraits dynamicIntegration() {
+        return new ConnectorTraits(
                 TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.DYNAMIC,
                 List.of(IdentityScope.INSTANCE), IdentityScope.INSTANCE);
     }
 
     /** Inbound-устройство: исполнение на устройстве, динамические тулы (app) — явный экземпляр. */
-    public static ConnectorCapabilities device() {
-        return new ConnectorCapabilities(
+    public static ConnectorTraits device() {
+        return new ConnectorTraits(
                 TransportDirection.INBOUND, ExecutionLocus.EXTERNAL, ToolBinding.DYNAMIC,
                 List.of(IdentityScope.INSTANCE), IdentityScope.INSTANCE);
     }
 
     /** Loopback/agent-side: исполняет агент, control-api лишь авторизует. */
-    public static ConnectorCapabilities loopback() {
-        return new ConnectorCapabilities(
+    public static ConnectorTraits loopback() {
+        return new ConnectorTraits(
                 TransportDirection.INBOUND, ExecutionLocus.AGENT, ToolBinding.STATIC,
                 List.of(IdentityScope.AGENT), IdentityScope.AGENT);
     }

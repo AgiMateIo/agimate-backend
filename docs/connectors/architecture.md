@@ -22,13 +22,14 @@ AAD = `entity + owner_id` (нельзя расшифровать, перенес
 коннектора лежат в `secrets`, адресуются `connections.secret_id`; inbound-verifier устройства
 (`apps.key_*`) — невозвратный, в `secrets` не кладётся.
 
-**Capabilities** — type-level дескриптор на `connectors`, **разложен по колонкам** (рантайм ветвится
+**Traits** — type-level дескриптор на `connectors` (характеристики коннектора, в отличие от à la carte
+capability-интерфейсов), **разложен по колонкам** (рантайм ветвится
 на них напрямую, без отдельного `ConnectorType` — он удалён): `transport_direction` (OUTBOUND/INBOUND),
 `execution_locus` (BACKEND/EXTERNAL/AGENT — `ConnectorService.pushToConnector` роутит исполнение),
 `tool_binding` (STATIC рефлексией / DYNAMIC из `connection_tools` — единое место листинга
 `ToolDefinitionService` + gRPC), `supported_scopes` (JSONB-массив `IdentityScope`, какие scope
-коннектор поддерживает) + `default_scope`. Источник истины — SPI `ConnectorHandler.capabilities()`
-(агрегат `ConnectorCapabilities`), заполняется бутстрапом (`Connector.applyCapabilities`). «Интеграция»
+коннектор поддерживает) + `default_scope`. Источник истины — SPI `ConnectorHandler.traits()`
+(агрегат `ConnectorTraits`), заполняется бутстрапом (`Connector.applyTraits`). «Интеграция»
 (подключаемый юзером коннектор с кредами) = `credentialFields != null` (`Connector.isIntegration()`).
 
 **Identity scope** — `connections.identity_scope` (∈ `connector.supported_scopes`) + `scope_id` задают,

@@ -29,35 +29,35 @@ class McpToolDiscoveryListenerTest {
     private static final String MCP = McpConnectorService.CONNECTOR_CODE;
 
     @Mock
-    private McpToolService mcpToolService;
+    private McpToolDiscoveryService mcpToolDiscoveryService;
 
     private McpToolDiscoveryListener listener;
 
     @BeforeEach
     void setUp() {
-        listener = new McpToolDiscoveryListener(mcpToolService);
+        listener = new McpToolDiscoveryListener(mcpToolDiscoveryService);
     }
 
     @Test
     @DisplayName("created (mcp): discover → reconcile")
     void onCreated() {
         List<ConnectionTool> fresh = List.of(ConnectionTool.builder().name("a").build());
-        when(mcpToolService.discover(IDENTITY)).thenReturn(fresh);
+        when(mcpToolDiscoveryService.discover(IDENTITY)).thenReturn(fresh);
 
         listener.onCreated(new ConnectorCreatedEvent(MCP, IDENTITY_STR, USER_ID));
 
-        verify(mcpToolService).discover(IDENTITY);
-        verify(mcpToolService).reconcile(eq(IDENTITY), eq(fresh));
+        verify(mcpToolDiscoveryService).discover(IDENTITY);
+        verify(mcpToolDiscoveryService).reconcile(eq(IDENTITY), eq(fresh));
     }
 
     @Test
     @DisplayName("modified (mcp): пересинк тулов")
     void onModified() {
-        when(mcpToolService.discover(IDENTITY)).thenReturn(List.of());
+        when(mcpToolDiscoveryService.discover(IDENTITY)).thenReturn(List.of());
 
         listener.onModified(new ConnectorModifiedEvent(MCP, IDENTITY_STR, USER_ID));
 
-        verify(mcpToolService).reconcile(eq(IDENTITY), eq(List.of()));
+        verify(mcpToolDiscoveryService).reconcile(eq(IDENTITY), eq(List.of()));
     }
 
     @Test
@@ -65,7 +65,7 @@ class McpToolDiscoveryListenerTest {
     void onDeleted() {
         listener.onDeleted(new ConnectorDeletedEvent(MCP, IDENTITY_STR));
 
-        verify(mcpToolService).deleteByConnectionId(IDENTITY);
+        verify(mcpToolDiscoveryService).deleteByConnectionId(IDENTITY);
     }
 
     @Test
@@ -75,6 +75,6 @@ class McpToolDiscoveryListenerTest {
         listener.onModified(new ConnectorModifiedEvent("telegram", IDENTITY_STR, USER_ID));
         listener.onDeleted(new ConnectorDeletedEvent("telegram", IDENTITY_STR));
 
-        verifyNoInteractions(mcpToolService);
+        verifyNoInteractions(mcpToolDiscoveryService);
     }
 }

@@ -2,7 +2,7 @@ package ru.agimate.controlapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.model.ConnectorCapabilities;
+import ru.agimate.controlapi.database.model.ConnectorTraits;
 
 @Schema(description = "Connector response")
 public record ConnectorResponse(
@@ -16,7 +16,7 @@ public record ConnectorResponse(
         String description,
 
         @Schema(description = "Capabilities (transportDirection, executionLocus, toolBinding, supportedScopes, defaultScope)")
-        ConnectorCapabilities capabilities,
+        ConnectorTraits capabilities,
 
         @Schema(description = "Integration-specific metadata; populated only for integration connectors with a handler", nullable = true)
         IntegrationMeta integrationMeta
@@ -30,7 +30,7 @@ public record ConnectorResponse(
                 connector.getCode(),
                 connector.getName(),
                 connector.getDescription(),
-                connector.capabilities(),
+                connector.traits(),
                 integrationMeta
         );
     }

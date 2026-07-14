@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.connectors.core;
 
-import ru.agimate.controlapi.database.model.ConnectorCapabilities;
+import ru.agimate.controlapi.database.model.ConnectorTraits;
 
 /**
  * Identity-ядро SPI коннектора — общий для internal- и integration-коннекторов.
@@ -20,11 +20,11 @@ public interface ConnectorHandler {
     }
 
     /**
-     * Type-level capability-дескриптор (4 оси, см. {@link ConnectorCapabilities}). Источник истины —
+     * Type-level дескриптор коннектора (4 оси, см. {@link ConnectorTraits}). Источник истины —
      * код; бутстрап персистит в каталог {@code connectors}. Дефолт — internal (backend-исполнение,
      * статические тулы, приватный скоуп); коннекторы с иными осями переопределяют.
      */
-    default ConnectorCapabilities capabilities() {
-        return ConnectorCapabilities.internal();
+    default ConnectorTraits traits() {
+        return ConnectorTraits.internal();
     }
 }

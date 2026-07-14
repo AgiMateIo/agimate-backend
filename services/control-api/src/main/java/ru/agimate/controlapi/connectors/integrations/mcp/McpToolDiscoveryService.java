@@ -31,7 +31,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class McpToolService {
+public class McpToolDiscoveryService {
 
     private final ConnectionRepository connectionRepository;
     private final SecretRepository secretRepository;

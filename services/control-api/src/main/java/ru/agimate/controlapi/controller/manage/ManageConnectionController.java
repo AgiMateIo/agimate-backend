@@ -11,7 +11,7 @@ import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpConnectorService;
-import ru.agimate.controlapi.connectors.integrations.mcp.McpToolService;
+import ru.agimate.controlapi.connectors.integrations.mcp.McpToolDiscoveryService;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.controller.manage.dto.ConnectionResponse;
 import ru.agimate.controlapi.controller.manage.dto.ConnectionTestResponse;
@@ -43,7 +43,7 @@ public class ManageConnectionController {
     private final ToolDefinitionService toolDefinitionService;
     private final TriggerDefinitionService triggerDefinitionService;
     private final ConnectorJobManageService connectorJobManageService;
-    private final McpToolService mcpToolService;
+    private final McpToolDiscoveryService mcpToolDiscoveryService;
 
     @Operation(summary = "List the user's connections, filtered by connector code / scope / enabled")
     @GetMapping("/")
@@ -168,9 +168,9 @@ public class ManageConnectionController {
         String toolsError = null;
         if (validation.valid() && McpConnectorService.CONNECTOR_CODE.equals(connection.getConnectorCode())) {
             try {
-                List<ConnectionTool> fresh = mcpToolService.discover(connectionId);
+                List<ConnectionTool> fresh = mcpToolDiscoveryService.discover(connectionId);
                 if (fresh != null) {
-                    mcpToolService.reconcile(connectionId, fresh);
+                    mcpToolDiscoveryService.reconcile(connectionId, fresh);
                     toolsDiscovered = fresh.size();
                 }
             } catch (ConnectorException e) {
