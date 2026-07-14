@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
@@ -24,7 +23,7 @@ import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
-import ru.agimate.controlapi.security.AppSecurityUtils;
+import ru.agimate.controlapi.security.AppPrincipal;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.dto.AppCreateResult;
 import ru.agimate.controlapi.service.dto.AppTool;
@@ -159,14 +158,7 @@ public class AppService {
         return new AppCreateResult(saved, generatedKey.fullKey());
     }
 
-    public App getApp() {
-        UUID appId = AppSecurityUtils.getAppId();
-        return appRepository.findById(appId)
-                .orElseThrow(() -> new UnauthorizedStatusException("App not found"));
-    }
-
-    public App getApp(Authentication authentication) {
-        var principal = AppSecurityUtils.getPrincipal(authentication);
+    public App getApp(AppPrincipal principal) {
         return appRepository.findById(principal.appId())
                 .orElseThrow(() -> new UnauthorizedStatusException("App not found"));
     }
@@ -216,8 +208,8 @@ public class AppService {
 
 
     @Transactional
-    public App linkDevice(Authentication authentication, LinkDeviceRequest linkDeviceRequest) {
-        var app = getApp(authentication);
+    public App linkDevice(AppPrincipal principal, LinkDeviceRequest linkDeviceRequest) {
+        var app = getApp(principal);
 
         // If already linked to the same device — update capabilities
         if (app.isLinked() && app.getDeviceId().equals(linkDeviceRequest.deviceId())) {

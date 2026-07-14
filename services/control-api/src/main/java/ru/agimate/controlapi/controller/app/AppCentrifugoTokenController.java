@@ -5,7 +5,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -15,6 +15,7 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.controlapi.controller.app.dto.DeviceChannelTokenRequest;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.database.entities.App;
+import ru.agimate.controlapi.security.AppPrincipal;
 import ru.agimate.controlapi.service.AppService;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 
@@ -37,10 +38,10 @@ public class AppCentrifugoTokenController {
     public SuccessResponse<CentrifugoTokenResponse> getSubscriptionToken(
             @RequestBody @Valid
             DeviceChannelTokenRequest deviceChannelTokenRequest,
-            Authentication authentication,
+            @AuthenticationPrincipal AppPrincipal principal,
             HttpServletRequest request
     ) {
-        App app = appService.getApp(authentication);
+        App app = appService.getApp(principal);
 
         if (!app.isLinked() || !deviceChannelTokenRequest.deviceId().equals(app.getDeviceId())) {
             throw new ForbiddenStatusException("Device is not linked");

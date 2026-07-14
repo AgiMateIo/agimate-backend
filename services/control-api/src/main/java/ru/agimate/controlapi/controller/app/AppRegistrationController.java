@@ -4,11 +4,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.controlapi.controller.app.dto.LinkDeviceRequest;
+import ru.agimate.controlapi.security.AppPrincipal;
 import ru.agimate.controlapi.service.AppService;
 
 @Slf4j
@@ -29,11 +30,11 @@ public class AppRegistrationController {
     public SuccessResponse<String> linkDevice(
             @RequestBody @Valid
             LinkDeviceRequest linkDeviceRequest,
-            Authentication authentication
+            @AuthenticationPrincipal AppPrincipal principal
     ) {
         log.info("Link device - deviceId {}", linkDeviceRequest.deviceId());
 
-        var connector = appService.linkDevice(authentication, linkDeviceRequest);
+        var connector = appService.linkDevice(principal, linkDeviceRequest);
 
         if (connector == null) {
             throw new ConflictStatusException("Can't link this device. This connector key is probably already in use");
