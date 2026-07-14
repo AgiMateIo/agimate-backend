@@ -3,6 +3,7 @@ package ru.agimate.controlapi.connectors.integrations.mcp;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import ru.agimate.controlapi.connectors.core.ConnectionToolMapper;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
@@ -104,7 +105,7 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
         }
         Map<String, ConnectorToolSpec> tools = new LinkedHashMap<>();
         connectionToolRepository.findActiveByConnectionId(connectionId)
-                .forEach(tool -> tools.put(tool.getName(), McpToolMapper.toSpec(tool)));
+                .forEach(tool -> tools.put(tool.getName(), ConnectionToolMapper.toSpec(tool)));
         return tools;
     }
 

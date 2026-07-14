@@ -9,6 +9,7 @@ import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.ToolBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
 import ru.agimate.controlapi.database.model.ConnectorCapabilities;
+import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
 
 import java.util.List;
 import java.util.Map;
@@ -26,12 +27,9 @@ import java.util.Map;
 @Component
 public class WebchatConnectorService implements InternalConnectorHandler, TriggerProvider {
 
-    public static final String CONNECTOR_CODE = "webchat";
-    public static final String TRIGGER_MESSAGE_RECEIVED = "message_received";
-
     @Override
     public String connectorCode() {
-        return CONNECTOR_CODE;
+        return WebchatChannelHandler.CONNECTOR_CODE;
     }
 
     @Override
@@ -49,7 +47,7 @@ public class WebchatConnectorService implements InternalConnectorHandler, Trigge
 
     @Override
     public Map<String, TriggerSpec> getTriggers() {
-        return Map.of(TRIGGER_MESSAGE_RECEIVED, new TriggerSpec(
+        return Map.of(WebchatChannelHandler.TRIGGER_MESSAGE_RECEIVED, new TriggerSpec(
                 "Message from the user typed in the web chat",
                 List.of("sessionId", "messageId", "text")));
     }

@@ -17,7 +17,7 @@ import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.config.AcpWebSocketConfig;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
+import ru.agimate.controlapi.connectors.core.ConnectionToolMapper;
 import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
@@ -212,7 +212,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
                 continue;
             }
             String name = server + "__" + rawName;
-            specs.put(name, McpToolMapper.toSpec(name, tool));
+            specs.put(name, ConnectionToolMapper.toSpec(name, tool));
             refs.put(name, new AcpSessionRegistry.McpToolRef(server, rawName));
         }
         sessionRegistry.putMcpTools(sessionId, specs, refs);

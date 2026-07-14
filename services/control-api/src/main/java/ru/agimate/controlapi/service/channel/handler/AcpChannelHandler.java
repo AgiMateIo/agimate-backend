@@ -3,7 +3,6 @@ package ru.agimate.controlapi.service.channel.handler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.internal.acp.AcpConnectorService;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
@@ -31,6 +30,10 @@ import java.util.Optional;
 public class AcpChannelHandler implements ChannelHandler {
 
     public static final String NAME = "acp";
+    /** Код ACP-коннектора — единый источник истины (у канальных коннекторов совпадает с {@link #NAME}). */
+    public static final String CONNECTOR_CODE = NAME;
+    /** Триггер входящего сообщения из IDE — единый источник истины для коннектора и оркестратора. */
+    public static final String TRIGGER_MESSAGE_RECEIVED = "message_received";
 
     private static final String STREAM_PROGRESS = "progress";
     private static final String STREAM_ERROR = "error";
@@ -46,7 +49,7 @@ public class AcpChannelHandler implements ChannelHandler {
 
     @Override
     public List<TriggerDefinition> listOfTriggers(ChannelConfig config) {
-        return List.of(new TriggerDefinition(AcpConnectorService.TRIGGER_MESSAGE_RECEIVED));
+        return List.of(new TriggerDefinition(TRIGGER_MESSAGE_RECEIVED));
     }
 
     @Override
@@ -56,7 +59,7 @@ public class AcpChannelHandler implements ChannelHandler {
 
     @Override
     public void validateConfig(ChannelConfig config) {
-        if (!AcpConnectorService.CONNECTOR_CODE.equals(config.connectorCode())) {
+        if (!CONNECTOR_CODE.equals(config.connectorCode())) {
             throw new ConnectorException("acp channel handler requires connectorCode='acp'");
         }
     }

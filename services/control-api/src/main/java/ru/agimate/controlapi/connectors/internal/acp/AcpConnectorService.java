@@ -13,6 +13,7 @@ import ru.agimate.controlapi.database.enums.ToolBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
 import ru.agimate.controlapi.database.model.ConnectorCapabilities;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
+import ru.agimate.controlapi.service.channel.handler.AcpChannelHandler;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,9 +43,6 @@ import java.util.UUID;
 @Component
 public class AcpConnectorService extends BaseConnectorHandler
         implements InternalConnectorHandler, TriggerProvider {
-
-    public static final String CONNECTOR_CODE = "acp";
-    public static final String TRIGGER_MESSAGE_RECEIVED = "message_received";
 
     private final AcpToolService acpToolService;
     private final AcpSessionRegistry sessionRegistry;
@@ -83,7 +81,7 @@ public class AcpConnectorService extends BaseConnectorHandler
 
     @Override
     public String connectorCode() {
-        return CONNECTOR_CODE;
+        return AcpChannelHandler.CONNECTOR_CODE;
     }
 
     @Override
@@ -101,7 +99,7 @@ public class AcpConnectorService extends BaseConnectorHandler
 
     @Override
     public Map<String, TriggerSpec> getTriggers() {
-        return Map.of(TRIGGER_MESSAGE_RECEIVED, new TriggerSpec(
+        return Map.of(AcpChannelHandler.TRIGGER_MESSAGE_RECEIVED, new TriggerSpec(
                 "Message from the user typed in the IDE (ACP client)",
                 List.of("sessionId", "messageId", "text")));
     }

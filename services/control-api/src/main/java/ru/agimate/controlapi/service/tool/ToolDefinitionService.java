@@ -10,7 +10,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
-import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
+import ru.agimate.controlapi.connectors.core.ConnectionToolMapper;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
@@ -104,7 +104,7 @@ public class ToolDefinitionService {
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
         Map<String, ConnectorToolSpec> tools = new LinkedHashMap<>();
         connectionToolRepository.findActiveByConnectionId(connectionId)
-                .forEach(tool -> tools.put(tool.getName(), McpToolMapper.toSpec(tool)));
+                .forEach(tool -> tools.put(tool.getName(), ConnectionToolMapper.toSpec(tool)));
         return tools;
     }
 }

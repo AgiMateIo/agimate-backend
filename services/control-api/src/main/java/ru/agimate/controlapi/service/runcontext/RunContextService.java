@@ -17,7 +17,7 @@ import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
-import ru.agimate.controlapi.connectors.integrations.mcp.McpToolMapper;
+import ru.agimate.controlapi.connectors.core.ConnectionToolMapper;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSkill;
@@ -461,7 +461,7 @@ public class RunContextService {
     private Map<String, ConnectorToolSpec> dynamicTools(UUID connectionId) {
         Map<String, ConnectorToolSpec> tools = new LinkedHashMap<>();
         connectionToolRepository.findActiveByConnectionId(connectionId)
-                .forEach(tool -> tools.put(tool.getName(), McpToolMapper.toSpec(tool)));
+                .forEach(tool -> tools.put(tool.getName(), ConnectionToolMapper.toSpec(tool)));
         return tools;
     }
 

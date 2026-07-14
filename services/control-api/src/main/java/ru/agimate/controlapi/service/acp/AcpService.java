@@ -7,7 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.internal.acp.AcpConnectorService;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Channel;
@@ -62,16 +61,16 @@ public class AcpService {
     public ChannelSession startSession(UUID userId, UUID agentId) {
         Agent agent = requireOwnedAgent(userId, agentId);
         AgentConnection binding = connectionBindingService.bind(
-                userId, agentId, AcpConnectorService.CONNECTOR_CODE, null, null);
+                userId, agentId, AcpChannelHandler.CONNECTOR_CODE, null, null);
         UUID connectionId = binding.getConnectionId();
 
         Channel channel = channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
-                        agentId, AcpConnectorService.CONNECTOR_CODE, connectionId)
+                        agentId, AcpChannelHandler.CONNECTOR_CODE, connectionId)
                 .orElseGet(() -> channelService.create(userId, new ChannelService.CreateChannelData(
                         agentId,
                         "ACP: " + agent.getName(),
                         AcpChannelHandler.NAME,
-                        AcpConnectorService.CONNECTOR_CODE,
+                        AcpChannelHandler.CONNECTOR_CODE,
                         connectionId.toString(),
                         Map.of(),
                         null)));
@@ -114,9 +113,9 @@ public class AcpService {
         channelSessionService.bumpLastMessageAt(session);
 
         Trigger trigger = Trigger.createDirected(
-                AcpConnectorService.CONNECTOR_CODE,
+                AcpChannelHandler.CONNECTOR_CODE,
                 channel.getConnectionId().toString(),
-                AcpConnectorService.TRIGGER_MESSAGE_RECEIVED,
+                AcpChannelHandler.TRIGGER_MESSAGE_RECEIVED,
                 Map.of(
                         "sessionId", session.getId().toString(),
                         "messageId", messageId,
@@ -146,7 +145,7 @@ public class AcpService {
         if (!channel.getUserId().equals(userId) || !channel.getAgentId().equals(agentId)) {
             throw new ForbiddenStatusException("Access denied");
         }
-        if (!AcpConnectorService.CONNECTOR_CODE.equals(channel.getConnectorCode())) {
+        if (!AcpChannelHandler.CONNECTOR_CODE.equals(channel.getConnectorCode())) {
             throw new BadRequestStatusException("Not an ACP session");
         }
         return new SessionContext(session, channel);

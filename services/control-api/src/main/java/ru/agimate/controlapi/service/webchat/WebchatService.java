@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.internal.webchat.WebchatConnectorService;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
@@ -73,16 +72,16 @@ public class WebchatService {
     public WebchatSessionResponse startSession(UUID userId, UUID agentId) {
         Agent agent = requireOwnedAgent(userId, agentId);
         AgentConnection binding = connectionBindingService.bind(
-                userId, agentId, WebchatConnectorService.CONNECTOR_CODE, null, null);
+                userId, agentId, WebchatChannelHandler.CONNECTOR_CODE, null, null);
         UUID connectionId = binding.getConnectionId();
 
         Channel channel = channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
-                        agentId, WebchatConnectorService.CONNECTOR_CODE, connectionId)
+                        agentId, WebchatChannelHandler.CONNECTOR_CODE, connectionId)
                 .orElseGet(() -> channelService.create(userId, new ChannelService.CreateChannelData(
                         agentId,
                         "Webchat: " + agent.getName(),
                         WebchatChannelHandler.NAME,
-                        WebchatConnectorService.CONNECTOR_CODE,
+                        WebchatChannelHandler.CONNECTOR_CODE,
                         connectionId.toString(),
                         Map.of(),
                         null)));
@@ -95,7 +94,7 @@ public class WebchatService {
     @Transactional(readOnly = true)
     public List<WebchatSessionResponse> listSessions(UUID userId, UUID agentId) {
         List<Channel> channels = channelRepository
-                .findByUserIdAndConnectorCodeAndDeletedAtIsNull(userId, WebchatConnectorService.CONNECTOR_CODE)
+                .findByUserIdAndConnectorCodeAndDeletedAtIsNull(userId, WebchatChannelHandler.CONNECTOR_CODE)
                 .stream()
                 .filter(c -> agentId == null || agentId.equals(c.getAgentId()))
                 .toList();
@@ -136,9 +135,9 @@ public class WebchatService {
                 WebchatMessageDirection.USER, null, messageId, request.text());
 
         Trigger trigger = Trigger.createDirected(
-                WebchatConnectorService.CONNECTOR_CODE,
+                WebchatChannelHandler.CONNECTOR_CODE,
                 channel.getConnectionId().toString(),
-                WebchatConnectorService.TRIGGER_MESSAGE_RECEIVED,
+                WebchatChannelHandler.TRIGGER_MESSAGE_RECEIVED,
                 Map.of(
                         "sessionId", session.getId().toString(),
                         "messageId", messageId,
@@ -192,7 +191,7 @@ public class WebchatService {
         if (!channel.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied");
         }
-        if (!WebchatConnectorService.CONNECTOR_CODE.equals(channel.getConnectorCode())) {
+        if (!WebchatChannelHandler.CONNECTOR_CODE.equals(channel.getConnectorCode())) {
             throw new BadRequestStatusException("Not a webchat session");
         }
         return new SessionContext(session, channel);

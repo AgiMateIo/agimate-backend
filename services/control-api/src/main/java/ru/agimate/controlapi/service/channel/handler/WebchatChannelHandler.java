@@ -3,7 +3,6 @@ package ru.agimate.controlapi.service.channel.handler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.internal.webchat.WebchatConnectorService;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
@@ -32,6 +31,11 @@ import java.util.Optional;
 public class WebchatChannelHandler implements ChannelHandler {
 
     public static final String NAME = "webchat";
+    /** Код webchat-коннектора — единый источник истины (у канальных коннекторов совпадает с {@link #NAME}). */
+    public static final String CONNECTOR_CODE = NAME;
+    /** Триггер входящего сообщения из веб-чата — единый источник истины для коннектора и оркестратора. */
+    public static final String TRIGGER_MESSAGE_RECEIVED = "message_received";
+
     private static final String STREAM_ANSWER = "answer";
 
     private final ChannelRepository channelRepository;
@@ -44,7 +48,7 @@ public class WebchatChannelHandler implements ChannelHandler {
 
     @Override
     public List<TriggerDefinition> listOfTriggers(ChannelConfig config) {
-        return List.of(new TriggerDefinition(WebchatConnectorService.TRIGGER_MESSAGE_RECEIVED));
+        return List.of(new TriggerDefinition(TRIGGER_MESSAGE_RECEIVED));
     }
 
     @Override
@@ -54,7 +58,7 @@ public class WebchatChannelHandler implements ChannelHandler {
 
     @Override
     public void validateConfig(ChannelConfig config) {
-        if (!WebchatConnectorService.CONNECTOR_CODE.equals(config.connectorCode())) {
+        if (!CONNECTOR_CODE.equals(config.connectorCode())) {
             throw new ConnectorException("webchat channel handler requires connectorCode='webchat'");
         }
     }
