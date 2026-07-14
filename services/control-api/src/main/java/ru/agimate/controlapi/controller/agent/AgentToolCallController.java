@@ -11,12 +11,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.controlapi.controller.agent.dto.AgentToolResultRequest;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
+import ru.agimate.controlapi.controller.agent.dto.ToolResultResponse;
 import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.security.AgentPrincipal;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
@@ -63,19 +63,15 @@ public class AgentToolCallController {
 
     @Operation(
             summary = "Get tool_call result",
-            description = "Returns the tool use output if execution completed successfully, error if failed, or 204 if result is not yet available.",
+            description = "Returns the current tool call result. status=PENDING while execution is not finished; "
+                    + "poll until status is SUCCESS (output in result) or ERROR (message in error).",
             security = @SecurityRequirement(name = "ApiKey")
     )
     @ApiResponses({
             @ApiResponse(
                     responseCode = "200",
-                    description = "Execution completed (output or error)",
-                    content = @Content(schema = @Schema(oneOf = {SuccessResponse.class, ErrorResponse.class}))
-            ),
-            @ApiResponse(
-                    responseCode = "204",
-                    description = "Result not yet available",
-                    content = @Content
+                    description = "Current tool call result (status PENDING/SUCCESS/ERROR)",
+                    content = @Content(schema = @Schema(implementation = SuccessResponse.class))
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -84,21 +80,19 @@ public class AgentToolCallController {
             )
     })
     @GetMapping("/result/{toolCallId}")
-    public ResponseEntity<?> getToolResult(
+    public SuccessResponse<ToolResultResponse> getToolResult(
             @PathVariable String toolCallId,
             @AuthenticationPrincipal AgentPrincipal principal
     ) {
         var log = agentToolCallService.getToolCallLog(principal.agentId(), toolCallId);
 
         if (log.getFinishAt() == null) {
-            return ResponseEntity.noContent().build();
+            return SuccessResponse.ok(ToolResultResponse.pending());
         }
-
         if (log.getError() != null) {
-            return ResponseEntity.ok(new ErrorResponse(log.getError()));
+            return SuccessResponse.ok(ToolResultResponse.error(log.getError()));
         }
-
-        return ResponseEntity.ok(SuccessResponse.ok(log.getOutput()));
+        return SuccessResponse.ok(ToolResultResponse.success(log.getOutput()));
     }
 
     @Operation(
