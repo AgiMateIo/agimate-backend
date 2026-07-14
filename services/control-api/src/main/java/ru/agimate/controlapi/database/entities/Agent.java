@@ -50,8 +50,12 @@ public class Agent extends BaseEntity {
     @Column(name = "webhook_url", columnDefinition = "TEXT")
     private String webhookUrl;
 
-    @Column(name = "webhook_auth_header", columnDefinition = "TEXT")
-    private String webhookAuthHeader;
+    /**
+     * Значение Authorization-заголовка для outbound-webhook'ов: ссылка на {@code secrets}
+     * (entity = {@code agent_webhook_auth}, AAD-owner = {@code id}). {@code null} — без auth.
+     */
+    @Column(name = "webhook_auth_secret_id")
+    private UUID webhookAuthSecretId;
 
     @Column(name = "enabled", nullable = false)
     @Builder.Default
@@ -65,6 +69,6 @@ public class Agent extends BaseEntity {
     private String presetCode;
 
     public boolean hasWebhookAuth() {
-        return webhookAuthHeader != null && !webhookAuthHeader.isBlank();
+        return webhookAuthSecretId != null;
     }
 }

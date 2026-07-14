@@ -4,10 +4,12 @@ import ru.agimate.common.util.CryptoUtils;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 
@@ -177,7 +179,10 @@ public final class AppKeyUtils {
         if (secret == null || storedHash == null) {
             return false;
         }
-        return hashSecret(secret).equalsIgnoreCase(storedHash);
+        // Constant-time: сравнение хэшей не должно течь по таймингу.
+        return MessageDigest.isEqual(
+                hashSecret(secret).getBytes(StandardCharsets.UTF_8),
+                storedHash.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8));
     }
 
     /**

@@ -21,6 +21,9 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class SecretService {
 
+    /** Ключ мапы для одиночных значений ({@link #storeValue}/{@link #revealValue}). */
+    private static final String VALUE_KEY = "value";
+
     private final SecretRepository secretRepository;
     private final SecretEncryptionService encryptionService;
 
@@ -43,6 +46,21 @@ public class SecretService {
         byte[] plaintext = encryptionService.decrypt(secret, ownerId);
         return JsonUtils.readValue(new String(plaintext, StandardCharsets.UTF_8),
                 JsonUtils.MAP_STRING_TYPE_REFERENCE);
+    }
+
+    /** Одиночное значение (webhook-секреты и т.п.) — та же мапа с единственным ключом. */
+    @Transactional
+    public Secret storeValue(String entity, UUID ownerId, String value) {
+        return store(entity, ownerId, Map.of(VALUE_KEY, value));
+    }
+
+    @Transactional
+    public Secret updateValue(Secret secret, UUID ownerId, String value) {
+        return update(secret, ownerId, Map.of(VALUE_KEY, value));
+    }
+
+    public String revealValue(Secret secret, UUID ownerId) {
+        return reveal(secret, ownerId).get(VALUE_KEY);
     }
 
     private static byte[] toBytes(Map<String, String> credentials) {

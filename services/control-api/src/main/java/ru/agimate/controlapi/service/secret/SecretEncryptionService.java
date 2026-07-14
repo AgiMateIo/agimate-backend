@@ -28,6 +28,10 @@ public class SecretEncryptionService {
     private final SecretKey kek;
 
     public SecretEncryptionService(@Value("${app.secrets.encryption-key}") String kekBase64) {
+        if (kekBase64 == null || kekBase64.isBlank()) {
+            throw new IllegalStateException("app.secrets.encryption-key (env APP_SECRETS_ENCRYPTION_KEY) "
+                    + "is not set; generate with: openssl rand -base64 32");
+        }
         this.kek = CryptoUtils.keyFromBase64(kekBase64);
     }
 

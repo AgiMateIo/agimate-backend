@@ -90,11 +90,12 @@ jwt:
 
 app:
   integration:
-    encryption-key: "***REMOVED***"
     webhook-base-url: "http://localhost:8080/control"
   secrets:
     # KEK (master key) для envelope-шифрования секретов (AES-256, base64 32 байта).
-    encryption-key: "***REMOVED***"
+    # Дефолта нет намеренно: в проде задаётся env'ом APP_SECRETS_ENCRYPTION_KEY,
+    # для локальной разработки — в application-local.yaml. Пустое значение = отказ старта.
+    encryption-key: ""
   connectors:
     mcp:
       # SSRF-guard: разрешать ли MCP-серверы на приватных/loopback/link-local адресах.

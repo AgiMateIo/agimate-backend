@@ -23,6 +23,12 @@
 | `APP_OAUTH_FRONTEND_REDIRECT_URL` | Default frontend redirect URL after OAuth2 login     |
 | `APP_OAUTH_ALLOWED_REDIRECT_URLS` | Comma-separated whitelist for multi-domain redirects |
 
+### Secrets store (control-api)
+
+| Variable                     | Description                                                                                    |
+|------------------------------|------------------------------------------------------------------------------------------------|
+| `APP_SECRETS_ENCRYPTION_KEY` | KEK for the envelope-encrypted `secrets` store (AES-256, Base64, 32 bytes). Required outside `local`/`test` profiles — startup fails without it |
+
 ### Centrifugo (control-api)
 
 | Variable                | Description                            |
@@ -92,6 +98,7 @@ openssl rand -base64 32
 
 Use for:
 - `APP_OAUTH_COOKIE_ENCRYPTION_KEY`
+- `APP_SECRETS_ENCRYPTION_KEY`
 
 ### Centrifugo Keys
 

@@ -28,7 +28,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `CENTRIFUGO_APIKEY`     | Centrifugo HTTP API key           |
 | `CENTRIFUGO_PRIVATEKEY` | Centrifugo JWT private key        |
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT public key         |
-| `APP_INTEGRATION_ENCRYPTION_KEY` | AES-256 key for token encryption (Base64) |
+| `APP_SECRETS_ENCRYPTION_KEY` | KEK for the envelope-encrypted `secrets` store (AES-256, Base64, 32 bytes). Required outside `local`/`test` profiles — startup fails without it |
 | `APP_INTEGRATION_WEBHOOK_BASE_URL` | Public URL for webhook callbacks |
 
 ## API Endpoints
@@ -259,7 +259,7 @@ control-api integrates with Centrifugo for real-time messaging:
 - `trigger_logs` — Logged trigger events
 - `trigger_log_agents` — Trigger routing log per agent
 - `tool_call_logs` — Tool invocation logs (request + result)
-- `agents` — Agent configuration (instructions, triggers_allow_all, triggers_to, webhook_url, webhook_auth_header)
+- `agents` — Agent configuration (instructions, triggers_allow_all, triggers_to, webhook_url, webhook_auth_secret_id → `secrets`)
 - `agent_presets` — Role presets for the creation wizard (code, instructions prefill, skill_names)
 - `agent_tools` — Agent-to-tool access mapping
 - `agent_triggers` — Agent-to-trigger subscription mapping

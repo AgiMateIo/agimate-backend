@@ -43,7 +43,10 @@ import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionTriggerRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorJobRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
+import ru.agimate.controlapi.database.repositories.SecretRepository;
+import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
+import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.util.AppKeyUtils;
 import ru.agimate.controlapi.util.GeneratedAppKey;
 
@@ -58,6 +61,8 @@ import java.util.stream.Collectors;
 public class AgentService {
 
     public static final String AGENT_KEY_PREFIX = "agnt";
+    /** Authorization-заголовок outbound-webhook'ов (одиночное значение, AAD-owner = agent.id). */
+    public static final String WEBHOOK_AUTH_SECRET_ENTITY = "agent_webhook_auth";
 
     private final AgentRepository agentRepository;
     private final AgentConnectionRepository agentConnectionRepository;
@@ -75,6 +80,8 @@ public class AgentService {
     private final AppRepository appRepository;
     private final AgentLlmService agentLlmService;
     private final ConnectorJobRepository connectorJobRepository;
+    private final SecretRepository secretRepository;
+    private final SecretService secretService;
 
     public Page<AgentResponse> getAllForUser(UUID userId, UUID agenticTeamId, String search, int page, int size) {
         if (agenticTeamId != null) {
@@ -302,11 +309,12 @@ public class AgentService {
                 .instructions(request.instructions())
                 .type(type)
                 .webhookUrl(request.webhookUrl())
-                .webhookAuthHeader(request.webhookAuthHeader())
                 .agenticTeamId(team != null ? team.getId() : null)
                 .presetCode(presetCode)
                 .build();
+        // id генерится БД — секрет auth-заголовка (AAD-привязка к agent.id) кладём после save.
         agent = agentRepository.save(agent);
+        applyWebhookAuthHeader(agent, request.webhookAuthHeader());
 
         // Скилы мастера — в той же транзакции: агент создаётся сразу с финальным набором.
         if (request.skillIds() != null) {
@@ -370,7 +378,7 @@ public class AgentService {
         agent.setInstructions(request.instructions());
         agent.setType(type);
         agent.setWebhookUrl(request.webhookUrl());
-        agent.setWebhookAuthHeader(request.webhookAuthHeader());
+        applyWebhookAuthHeader(agent, request.webhookAuthHeader());
         if (request.enabled() != null) {
             agent.setEnabled(request.enabled());
         }
@@ -402,7 +410,13 @@ public class AgentService {
         connectorJobRepository.deleteByAgentId(agent.getId()); // динамические AGENT-джобы
         accessEvaluator.invalidateByAgent(agent.getId());
         // Оставшиеся (soft-deleted) agent_connections + их политики снимутся каскадом по FK на agents.
+        UUID webhookAuthSecretId = agent.getWebhookAuthSecretId();
         agentRepository.delete(agent);
+        if (webhookAuthSecretId != null) {
+            // Сначала flush удаления агента — он ссылается на secrets по FK.
+            agentRepository.flush();
+            secretRepository.deleteById(webhookAuthSecretId);
+        }
 
         log.info("Deleted agent id={}", id);
     }
@@ -418,6 +432,32 @@ public class AgentService {
         if (type == AgentType.WEBHOOK && (webhookUrl == null || webhookUrl.isBlank())) {
             throw new ValidationErrorStatusException("webhookUrl", "Webhook url is required when type is WEBHOOK");
         }
+    }
+
+    /**
+     * Auth-заголовок webhook'а хранится envelope-шифрованным в {@code secrets}
+     * (см. {@link #WEBHOOK_AUTH_SECRET_ENTITY}). Семантика повторяет прежний plaintext-set:
+     * {@code null}/blank — очистка (строка secrets удаляется), иначе — store/update.
+     */
+    private void applyWebhookAuthHeader(Agent agent, String header) {
+        if (header == null || header.isBlank()) {
+            if (agent.getWebhookAuthSecretId() != null) {
+                UUID secretId = agent.getWebhookAuthSecretId();
+                agent.setWebhookAuthSecretId(null);
+                agentRepository.saveAndFlush(agent);
+                secretRepository.deleteById(secretId);
+            }
+            return;
+        }
+        if (agent.getWebhookAuthSecretId() != null) {
+            Secret secret = secretRepository.findById(agent.getWebhookAuthSecretId()).orElse(null);
+            if (secret != null) {
+                secretService.updateValue(secret, agent.getId(), header);
+                return;
+            }
+        }
+        Secret secret = secretService.storeValue(WEBHOOK_AUTH_SECRET_ENTITY, agent.getId(), header);
+        agent.setWebhookAuthSecretId(secret.getId());
     }
 
     public record AgentCreateResult(Agent agent, AgenticTeam team, String plaintextKey) {}

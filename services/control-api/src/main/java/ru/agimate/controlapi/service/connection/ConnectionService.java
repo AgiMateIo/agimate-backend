@@ -47,6 +47,8 @@ import java.util.UUID;
 public class ConnectionService {
 
     private static final String SECRET_ENTITY = "connection";
+    /** Секрет валидации входящих webhook'ов (одиночное значение, AAD-owner = connection.id). */
+    public static final String WEBHOOK_SECRET_ENTITY = "connection_webhook";
 
     @Value("${app.integration.webhook-base-url}")
     private String webhookBaseUrl;
@@ -81,9 +83,7 @@ public class ConnectionService {
             throw new ConflictStatusException("Connection already exists for " + connectorCode + ": " + subCode);
         }
 
-        String webhookSecret = handler.supportsWebhooks() ? CryptoUtils.randomHex(32) : null;
-
-        // id нужен до шифрования секрета (AAD-привязка) и до webhook URL — сохраняем строку первой.
+        // id нужен до шифрования секретов (AAD-привязка) и до webhook URL — сохраняем строку первой.
         Connection connection = connectionRepository.save(Connection.builder()
                 .id(UUIDUtils.generateUUIDv8())
                 .identityScope(IdentityScope.INSTANCE)
@@ -92,11 +92,15 @@ public class ConnectionService {
                 .fullCode(FullCodes.fullCode(connectorCode, subCode))
                 .userId(userId)
                 .name(name)
-                .webhookSecret(webhookSecret)
                 .build());
 
         Secret secret = secretService.store(SECRET_ENTITY, connection.getId(), credentials);
         connection.setSecretId(secret.getId());
+        if (handler.supportsWebhooks()) {
+            Secret webhookSecret = secretService.storeValue(
+                    WEBHOOK_SECRET_ENTITY, connection.getId(), CryptoUtils.randomHex(32));
+            connection.setWebhookSecretId(webhookSecret.getId());
+        }
         connection = connectionRepository.save(connection);
 
         if (handler.supportsWebhooks()) {

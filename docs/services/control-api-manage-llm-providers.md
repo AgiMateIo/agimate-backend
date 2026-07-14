@@ -2,7 +2,7 @@
 
 API specification for the `/manage/llm-providers/**` and `/manage/agents/{agentPubId}/llms/**` endpoint groups, plus the agent-runtime endpoint `/agent/llm`.
 
-LLM providers are per-user. Agents can bind to multiple providers/models under arbitrary labels (`main_model`, `for_light_task`, `visual_task`, …). API keys are encrypted at rest (AES-GCM via `app.integration.encryption-key`) and only returned, decrypted, to the authenticated agent itself via `GET /agent/llm`.
+LLM providers are per-user. Agents can bind to multiple providers/models under arbitrary labels (`main_model`, `for_light_task`, `visual_task`, …). API keys are encrypted at rest (envelope AES-256-GCM in the `secrets` store, KEK = `app.secrets.encryption-key`) and only returned, decrypted, to the authenticated agent itself via `GET /agent/llm`.
 
 Besides user providers there is a single **platform provider** — a system-owned `llm_providers` row that serves as an implicit fallback for agents without any binding (see [Platform provider](#platform-provider)).
 
@@ -261,6 +261,6 @@ Usage and remaining quota per provider for the current calendar windows. Perspec
 ## Notes
 
 - Agents are responsible for calling the LLM themselves; the backend does not proxy LLM traffic.
-- Encryption key (`app.integration.encryption-key`) is shared with `IntegrationCredentials` — rotating it requires re-encrypting every row in both tables.
+- The KEK (`app.secrets.encryption-key`) is shared by the whole `secrets` store — rotating it requires re-wrapping the DEK of every `secrets` row.
 - Deleting a provider cascades to all agent bindings via `ON DELETE CASCADE` on `agent_llms.llm_provider_pub_id`.
 - Deleting an agent cascades to its bindings via `ON DELETE CASCADE` on `agent_llms.agent_pub_id`.

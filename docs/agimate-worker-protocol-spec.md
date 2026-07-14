@@ -213,7 +213,7 @@ Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_id` 
 ### 5.1 Транспорт и порт
 
 - gRPC-сервер поднимается внутри `control-api` (Spring Boot 4) на отдельном порту `9091` (HTTP/2). Управляется флагом `grpc.server.enabled`.
-- TLS включается через `grpc.server.security.enabled` + `certificate-chain` / `private-key` (PEM). В local dev допустим plaintext.
+- TLS включается через `grpc.server.security.enabled` + `certificate-chain` / `private-key` (PEM). Plaintext допустим только в профилях `local`/`test` — вне их сервер без TLS не стартует; воркер-клиент без TLS подключается только к loopback-таргету.
 - Реализация: прямые `io.grpc:grpc-netty-shaded` + `com.google.protobuf` 3.25.5 (без Spring-стартеров — для совместимости с SB 4.0). Жизненным циклом сервера управляет `GrpcServerLifecycle` (`@PostConstruct` start, `@PreDestroy` graceful shutdown).
 - Все Spring-бины `BindableService` автоматически биндятся; все `ServerInterceptor` бины — навешиваются как глобальные.
 

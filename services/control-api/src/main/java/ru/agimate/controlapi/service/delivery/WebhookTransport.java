@@ -13,9 +13,12 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.controller.manage.dto.WebhookDeliveryLogResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.entities.WebhookDeliveryLog;
+import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.database.repositories.WebhookDeliveryLogRepository;
+import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.dto.AgentMessage;
 import ru.agimate.controlapi.service.trigger.Channels;
@@ -35,6 +38,8 @@ public class WebhookTransport implements AgentTransport {
     private static final int MAX_RESPONSE_BODY_LENGTH = 10000;
 
     private final WebhookDeliveryLogRepository webhookDeliveryLogRepository;
+    private final SecretRepository secretRepository;
+    private final SecretService secretService;
 
     private final OkHttpClient httpClient = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -84,7 +89,7 @@ public class WebhookTransport implements AgentTransport {
                     .header("User-Agent", "Agimate-Webhooks/1.0");
 
             if (agent.hasWebhookAuth()) {
-                requestBuilder.header("Authorization", agent.getWebhookAuthHeader());
+                requestBuilder.header("Authorization", revealWebhookAuthHeader(agent));
             }
 
             log.debug("Delivering webhook to {} (type={})", agent.getWebhookUrl(), message.type());
@@ -125,6 +130,14 @@ public class WebhookTransport implements AgentTransport {
             }
             log.error("Unexpected error delivering webhook to {}: {}", agent.getWebhookUrl(), e.getMessage(), e);
         }
+    }
+
+    /** Auth-заголовок хранится envelope-шифрованным в {@code secrets} (entity = agent_webhook_auth). */
+    private String revealWebhookAuthHeader(Agent agent) {
+        Secret secret = secretRepository.findById(agent.getWebhookAuthSecretId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Webhook auth secret not found for agent " + agent.getId()));
+        return secretService.revealValue(secret, agent.getId());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

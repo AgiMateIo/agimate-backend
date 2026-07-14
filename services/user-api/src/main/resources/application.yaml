@@ -92,9 +92,12 @@ logging:
     ru.agimate: debug
 
 
+# Ключи намеренно без дефолтов: в проде задаются env'ами JWT_PRIVATEKEY/JWT_PUBLICKEY,
+# для локальной разработки — в application-local.yaml. Пустое значение = отказ старта
+# (SecurityPropertiesGuard).
 jwt:
-  privateKey: "***REMOVED***"
-  publicKey: "***REMOVED***"
+  privateKey: ""
+  publicKey: ""
   accessExpiration: 86400 # 24 hours
   refreshExpiration: 604800 # 7 days
 
@@ -110,7 +113,9 @@ app:
     # AES-256 encryption key for OAuth2 authorization request cookies (Base64-encoded, 32 bytes)
     # IMPORTANT: Use the same key across all backend instances for multi-instance deployments
     # Generate with: openssl rand -base64 32
-    cookie-encryption-key: ***REMOVED***
+    # Дефолта нет намеренно: в проде — env APP_OAUTH_COOKIE_ENCRYPTION_KEY,
+    # локально — application-local.yaml. Пустое значение = отказ старта (SecurityPropertiesGuard).
+    cookie-encryption-key: ""
 
 springdoc:
   swagger-ui:

@@ -80,8 +80,13 @@ public class Connection extends BaseEntity {
     @Column(name = "app_id")
     private UUID appId;
 
-    @Column(name = "webhook_secret", columnDefinition = "TEXT")
-    private String webhookSecret;
+    /**
+     * Секрет валидации входящих webhook'ов: ссылка на {@code secrets}
+     * (entity = {@code connection_webhook}, AAD-owner = {@code id}). {@code null}, если
+     * коннектор без webhook'ов.
+     */
+    @Column(name = "webhook_secret_id")
+    private UUID webhookSecretId;
 
     @Column(name = "enabled", nullable = false)
     @Builder.Default

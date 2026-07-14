@@ -9,6 +9,8 @@ import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.config.GrpcServerProperties;
 
@@ -23,9 +25,12 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class GrpcServerLifecycle {
 
+    private static final Profiles DEV_PROFILES = Profiles.of("local", "test");
+
     private final GrpcServerProperties properties;
     private final List<BindableService> services;
     private final List<ServerInterceptor> interceptors;
+    private final Environment environment;
     private Server server;
 
     @PostConstruct
@@ -46,6 +51,11 @@ public class GrpcServerLifecycle {
             builder.useTransportSecurity(cert, key);
             log.info("gRPC server starting on port {} with TLS (cert={})", properties.port(), cert.getName());
         } else {
+            // По worker-протоколу ходит переписка пользователей — plaintext допустим только в dev.
+            if (!environment.acceptsProfiles(DEV_PROFILES)) {
+                throw new IllegalStateException("gRPC server without TLS is allowed only for local/test profiles; "
+                        + "set grpc.server.security.* (env GRPC_SERVER_SECURITY_ENABLED etc.)");
+            }
             log.warn("gRPC server starting on port {} WITHOUT TLS (development only)", properties.port());
         }
 
