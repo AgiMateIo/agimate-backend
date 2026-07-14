@@ -3,9 +3,9 @@ package ru.agimate.controlapi.controller.manage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.ToolCallLogResponse;
@@ -28,13 +28,13 @@ public class ManageToolCallLogsController {
             description = "Returns the current user's tool use logs, optionally filtered by agent id"
     )
     @GetMapping("/")
-    public SuccessResponse<Page<ToolCallLogResponse>> getToolCallLogs(
+    public SuccessResponse<PageResponse<ToolCallLogResponse>> getToolCallLogs(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) UUID agentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(toolCallLogService.getToolCallLogs(userId, agentId, page, size));
+        return SuccessResponse.ok(PageResponse.from(toolCallLogService.getToolCallLogs(userId, agentId, page, size)));
     }
 }

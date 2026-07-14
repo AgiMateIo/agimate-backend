@@ -6,7 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.data.domain.Page;
+import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.AgentCreatedResponse;
@@ -29,7 +29,7 @@ public class ManageAgentController {
 
     @Operation(summary = "List agents for the current user")
     @GetMapping("/")
-    public SuccessResponse<Page<AgentResponse>> getAgents(
+    public SuccessResponse<PageResponse<AgentResponse>> getAgents(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) UUID agenticTeamId,
             @RequestParam(required = false) String search,
@@ -37,7 +37,7 @@ public class ManageAgentController {
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(agentService.getAllForUser(userId, agenticTeamId, search, page, size));
+        return SuccessResponse.ok(PageResponse.from(agentService.getAllForUser(userId, agenticTeamId, search, page, size)));
     }
 
     @Operation(summary = "Create an agent")

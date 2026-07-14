@@ -171,28 +171,15 @@ All paginated endpoints return a standard Spring `Page<T>`:
 {
   "response": {
     "content": [ ],
-    "pageable": {
-      "pageNumber": 0,
-      "pageSize": 20,
-      "sort": { "sorted": true, "unsorted": false, "empty": false },
-      "offset": 0,
-      "paged": true,
-      "unpaged": false
-    },
     "totalElements": 42,
     "totalPages": 3,
-    "last": false,
-    "first": true,
-    "numberOfElements": 20,
     "size": 20,
-    "number": 0,
-    "sort": { "sorted": true, "unsorted": false, "empty": false },
-    "empty": false
+    "number": 0
   }
 }
 ```
 
-The frontend should rely on `totalElements`, `totalPages`, `number` (current page), `first` and `last`. `MAX_PAGE_SIZE` on the backend is **100** — values above are silently clamped.
+The frontend relies on `totalElements`, `totalPages`, and `number` (current page); "is first/last page" is derived client-side (`number === 0`, `number >= totalPages - 1`). `MAX_PAGE_SIZE` on the backend is **100** — values above are silently clamped.
 
 ---
 
@@ -302,16 +289,10 @@ Sorted by agent `name` ascending.
         "enabled": true
       }
     ],
-    "pageable": { "pageNumber": 0, "pageSize": 20, "offset": 0, "paged": true, "unpaged": false, "sort": { "sorted": true, "unsorted": false, "empty": false } },
     "totalElements": 1,
     "totalPages": 1,
-    "last": true,
-    "first": true,
-    "numberOfElements": 1,
     "size": 20,
-    "number": 0,
-    "sort": { "sorted": true, "unsorted": false, "empty": false },
-    "empty": false
+    "number": 0
   }
 }
 ```
@@ -500,10 +481,7 @@ List skills currently bound to the agent. Each entry includes the connector requ
     "totalElements": 1,
     "totalPages": 1,
     "size": 20,
-    "number": 0,
-    "first": true,
-    "last": true,
-    "empty": false
+    "number": 0
   }
 }
 ```

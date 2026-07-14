@@ -97,34 +97,21 @@ Returned in the list endpoint and also as the item schema for reference in per-j
 
 ### Spring `Page<T>` envelope
 
-The list endpoint returns a standard Spring `Page<T>`:
+The list endpoint returns a paged result (`PageResponse<T>`, stable shape — no Spring `pageable`/`sort` internals):
 
 ```json
 {
   "response": {
     "content": [ /* ConnectorJobResponse[] */ ],
-    "pageable": {
-      "pageNumber": 0,
-      "pageSize": 20,
-      "sort": { "sorted": true, "unsorted": false, "empty": false },
-      "offset": 0,
-      "paged": true,
-      "unpaged": false
-    },
     "totalElements": 42,
     "totalPages": 3,
-    "last": false,
-    "first": true,
-    "numberOfElements": 20,
     "size": 20,
-    "number": 0,
-    "sort": { "sorted": true, "unsorted": false, "empty": false },
-    "empty": false
+    "number": 0
   }
 }
 ```
 
-The frontend should rely on `totalElements`, `totalPages`, `number` (current page), `first`, and `last`. `MAX_PAGE_SIZE` on the backend is **100** — values above are silently clamped.
+The frontend relies on `totalElements`, `totalPages`, and `number` (current page); "is first/last page" is derived client-side (`number === 0`, `number >= totalPages - 1`). `MAX_PAGE_SIZE` on the backend is **100** — values above are silently clamped.
 
 ---
 
@@ -182,23 +169,10 @@ List the **current user's** connector jobs (all kinds), sorted by `nextRunAt` as
         "createdAt": "2026-06-01T09:00:00"
       }
     ],
-    "pageable": {
-      "pageNumber": 0,
-      "pageSize": 20,
-      "sort": { "sorted": true, "unsorted": false, "empty": false },
-      "offset": 0,
-      "paged": true,
-      "unpaged": false
-    },
     "totalElements": 2,
     "totalPages": 1,
-    "last": true,
-    "first": true,
-    "numberOfElements": 2,
     "size": 20,
-    "number": 0,
-    "sort": { "sorted": true, "unsorted": false, "empty": false },
-    "empty": false
+    "number": 0
   }
 }
 ```

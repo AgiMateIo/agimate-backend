@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.*;
@@ -31,7 +32,7 @@ public class ManageAppsController {
 
     @Operation(summary = "Get all apps for the current user")
     @GetMapping("/")
-    public SuccessResponse<Page<AppResponse>> getApps(
+    public SuccessResponse<PageResponse<AppResponse>> getApps(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
@@ -39,7 +40,7 @@ public class ManageAppsController {
         UUID userId = UUID.fromString(principal.id());
         Page<AppResponse> response = appService.getAppsForUser(userId, page, size)
                 .map(AppResponse::from);
-        return SuccessResponse.ok(response);
+        return SuccessResponse.ok(PageResponse.from(response));
     }
 
     @Operation(summary = "Create a new app",

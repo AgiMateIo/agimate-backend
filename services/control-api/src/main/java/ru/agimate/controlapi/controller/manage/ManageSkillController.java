@@ -4,12 +4,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
@@ -36,7 +36,7 @@ public class ManageSkillController {
 
     @Operation(summary = "List own skills with optional search and connector filter")
     @GetMapping("/")
-    public SuccessResponse<Page<SkillResponse>> getMySkills(
+    public SuccessResponse<PageResponse<SkillResponse>> getMySkills(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String connectorCode,
@@ -44,18 +44,18 @@ public class ManageSkillController {
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(skillService.getMySkills(userId, search, connectorCode, page, size));
+        return SuccessResponse.ok(PageResponse.from(skillService.getMySkills(userId, search, connectorCode, page, size)));
     }
 
     @Operation(summary = "List public skills with optional search and connector filter")
     @GetMapping("/public/")
-    public SuccessResponse<Page<SkillResponse>> getPublicSkills(
+    public SuccessResponse<PageResponse<SkillResponse>> getPublicSkills(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String connectorCode,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        return SuccessResponse.ok(skillService.getPublicSkills(search, connectorCode, page, size));
+        return SuccessResponse.ok(PageResponse.from(skillService.getPublicSkills(search, connectorCode, page, size)));
     }
 
     @Operation(summary = "Get skill details with SKILL.md body")
@@ -70,7 +70,7 @@ public class ManageSkillController {
 
     @Operation(summary = "List user's agents that use this skill, with optional name/prompt search")
     @GetMapping("/{id}/agents/")
-    public SuccessResponse<Page<AgentSummaryResponse>> getSkillAgents(
+    public SuccessResponse<PageResponse<AgentSummaryResponse>> getSkillAgents(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id,
             @RequestParam(required = false) String search,
@@ -78,7 +78,7 @@ public class ManageSkillController {
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(skillService.getSkillAgents(id, userId, search, page, size));
+        return SuccessResponse.ok(PageResponse.from(skillService.getSkillAgents(id, userId, search, page, size)));
     }
 
     @Operation(summary = "Create skill from JSON with SKILL.md content")

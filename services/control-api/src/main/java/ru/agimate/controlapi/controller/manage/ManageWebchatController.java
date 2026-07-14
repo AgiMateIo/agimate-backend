@@ -4,7 +4,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
@@ -73,14 +73,14 @@ public class ManageWebchatController {
 
     @Operation(summary = "Session message history (UI log), newest first")
     @GetMapping("/sessions/{id}/messages/")
-    public SuccessResponse<Page<WebchatMessageResponse>> listMessages(
+    public SuccessResponse<PageResponse<WebchatMessageResponse>> listMessages(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID id,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(webchatService.listMessages(userId, id, page, size));
+        return SuccessResponse.ok(PageResponse.from(webchatService.listMessages(userId, id, page, size)));
     }
 
     @Operation(summary = "Close a session")

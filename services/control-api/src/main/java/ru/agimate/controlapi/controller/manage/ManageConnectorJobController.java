@@ -3,9 +3,9 @@ package ru.agimate.controlapi.controller.manage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.ConnectorJobResponse;
@@ -26,7 +26,7 @@ public class ManageConnectorJobController {
 
     @Operation(summary = "List background jobs with optional connector and kind filters")
     @GetMapping("/")
-    public SuccessResponse<Page<ConnectorJobResponse>> getJobs(
+    public SuccessResponse<PageResponse<ConnectorJobResponse>> getJobs(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) String connectorCode,
             @RequestParam(required = false) ConnectorJobKind kind,
@@ -34,7 +34,7 @@ public class ManageConnectorJobController {
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(connectorJobManageService.getJobs(userId, connectorCode, kind, page, size));
+        return SuccessResponse.ok(PageResponse.from(connectorJobManageService.getJobs(userId, connectorCode, kind, page, size)));
     }
 
     @Operation(summary = "Pause a job: scheduler stops picking it up until resumed")

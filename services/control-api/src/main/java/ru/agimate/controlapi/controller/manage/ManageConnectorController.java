@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
@@ -40,7 +41,7 @@ public class ManageConnectorController {
 
     @Operation(summary = "List available connectors with optional full-text search")
     @GetMapping("/")
-    public SuccessResponse<Page<ConnectorResponse>> getAll(
+    public SuccessResponse<PageResponse<ConnectorResponse>> getAll(
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
@@ -49,7 +50,7 @@ public class ManageConnectorController {
         PageRequest pageable = PageRequest.of(page, size, Sort.by("name").ascending());
         Page<ConnectorResponse> response = connectorRepository.search(normalizedSearch, pageable)
                 .map(this::toResponse);
-        return SuccessResponse.ok(response);
+        return SuccessResponse.ok(PageResponse.from(response));
     }
 
     @Operation(summary = "Get connector by code")

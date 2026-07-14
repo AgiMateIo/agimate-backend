@@ -4,9 +4,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillResponse;
@@ -28,14 +28,14 @@ public class ManageAgentSkillController {
 
     @Operation(summary = "List skills bound to an agent")
     @GetMapping("/")
-    public SuccessResponse<Page<AgentSkillResponse>> getAgentSkills(
+    public SuccessResponse<PageResponse<AgentSkillResponse>> getAgentSkills(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(agentSkillService.getAgentSkills(agentId, userId, page, size));
+        return SuccessResponse.ok(PageResponse.from(agentSkillService.getAgentSkills(agentId, userId, page, size)));
     }
 
     @Operation(summary = "Bind an own or public skill to an agent (also binds the skill's connectors)")

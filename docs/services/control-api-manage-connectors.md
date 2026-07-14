@@ -69,23 +69,10 @@ Results are sorted by `name` ascending.
         }
       }
     ],
-    "pageable": {
-      "pageNumber": 0,
-      "pageSize": 20,
-      "sort": { "sorted": true, "unsorted": false, "empty": false },
-      "offset": 0,
-      "paged": true,
-      "unpaged": false
-    },
     "totalElements": 2,
     "totalPages": 1,
-    "last": true,
-    "first": true,
-    "numberOfElements": 2,
     "size": 20,
-    "number": 0,
-    "sort": { "sorted": true, "unsorted": false, "empty": false },
-    "empty": false
+    "number": 0
   }
 }
 ```

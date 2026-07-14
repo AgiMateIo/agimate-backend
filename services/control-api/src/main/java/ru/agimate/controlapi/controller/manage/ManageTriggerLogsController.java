@@ -4,10 +4,10 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.IssueProbeRequest;
@@ -35,14 +35,14 @@ public class ManageTriggerLogsController {
             description = "Returns trigger logs for the current user with optional filtering"
     )
     @GetMapping("/")
-    public SuccessResponse<Page<TriggerLogResponse>> getTriggerLogs(
+    public SuccessResponse<PageResponse<TriggerLogResponse>> getTriggerLogs(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) String connectorCode,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(triggerLogService.getTriggerLogs(userId, connectorCode, page, size));
+        return SuccessResponse.ok(PageResponse.from(triggerLogService.getTriggerLogs(userId, connectorCode, page, size)));
     }
 
     @Operation(
