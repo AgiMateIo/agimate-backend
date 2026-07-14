@@ -8,8 +8,19 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.controlapi.controller.manage.dto.*;
-import ru.agimate.controlapi.connectors.internal.board.BoardService;
+import ru.agimate.controlapi.controller.manage.dto.CreateBoardRequest;
+import ru.agimate.controlapi.controller.manage.dto.CreateBoardTaskCommentRequest;
+import ru.agimate.controlapi.controller.manage.dto.CreateBoardTaskRequest;
+import ru.agimate.controlapi.controller.manage.dto.UpdateBoardTaskStatusRequest;
+import ru.agimate.controlapi.service.board.BoardService;
+import ru.agimate.controlapi.service.dto.board.BoardCreateCommand;
+import ru.agimate.controlapi.service.dto.board.BoardResponse;
+import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreateCommand;
+import ru.agimate.controlapi.service.dto.board.BoardTaskCommentResponse;
+import ru.agimate.controlapi.service.dto.board.BoardTaskCreateCommand;
+import ru.agimate.controlapi.service.dto.board.BoardTaskResponse;
+import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangeCommand;
+import ru.agimate.controlapi.service.dto.board.BoardTasksByStatusResponse;
 
 import java.util.List;
 import java.util.UUID;
@@ -50,7 +61,9 @@ public class ManageBoardController {
             @Valid @RequestBody CreateBoardRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(boardService.create(userId, request));
+        BoardCreateCommand command = new BoardCreateCommand(
+                request.agenticTeamId(), request.name(), request.description());
+        return SuccessResponse.ok(boardService.create(userId, command));
     }
 
     @Operation(summary = "Get board tasks grouped by status")
@@ -71,7 +84,10 @@ public class ManageBoardController {
             @Valid @RequestBody CreateBoardTaskRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(boardService.createTask(boardId, userId, request));
+        BoardTaskCreateCommand command = new BoardTaskCreateCommand(
+                request.type(), request.title(), request.description(),
+                request.createdByAgentId(), request.assigneeAgentId(), request.parentTaskId());
+        return SuccessResponse.ok(boardService.createTask(boardId, userId, command));
     }
 
     @Operation(summary = "Change task status")
@@ -83,7 +99,9 @@ public class ManageBoardController {
             @Valid @RequestBody UpdateBoardTaskStatusRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(boardService.changeTaskStatus(boardId, taskId, userId, request));
+        BoardTaskStatusChangeCommand command = new BoardTaskStatusChangeCommand(
+                request.status(), request.agentId());
+        return SuccessResponse.ok(boardService.changeTaskStatus(boardId, taskId, userId, command));
     }
 
     @Operation(summary = "Get comments for a task")
@@ -106,6 +124,8 @@ public class ManageBoardController {
             @Valid @RequestBody CreateBoardTaskCommentRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(boardService.createComment(boardId, taskId, userId, request));
+        BoardTaskCommentCreateCommand command = new BoardTaskCommentCreateCommand(
+                request.agentId(), request.content());
+        return SuccessResponse.ok(boardService.createComment(boardId, taskId, userId, command));
     }
 }

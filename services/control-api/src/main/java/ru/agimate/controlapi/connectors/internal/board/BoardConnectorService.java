@@ -8,17 +8,16 @@ import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.ToolBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
+import ru.agimate.controlapi.service.board.BoardService;
 
 import java.util.List;
 
 /**
  * Фасад board-коннектора: тулы живут в {@link BoardToolService}, фоновых тасок и триггеров
- * на уровне SPI нет (board-триггеры публикует {@link BoardService} напрямую).
+ * на уровне SPI нет (board-триггеры публикует core-{@link BoardService} напрямую).
  */
 @Component
 public class BoardConnectorService extends BaseConnectorHandler implements InternalConnectorHandler {
-
-    public static final String CONNECTOR_CODE = "board";
 
     public BoardConnectorService(BoardToolService toolService) {
         super(toolService);
@@ -26,7 +25,7 @@ public class BoardConnectorService extends BaseConnectorHandler implements Inter
 
     @Override
     public String connectorCode() {
-        return CONNECTOR_CODE;
+        return BoardService.CONNECTOR_CODE;
     }
 
     @Override

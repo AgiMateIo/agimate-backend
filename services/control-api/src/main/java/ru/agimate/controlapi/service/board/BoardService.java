@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.connectors.internal.board;
+package ru.agimate.controlapi.service.board;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -7,16 +7,23 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.controller.manage.dto.*;
 import ru.agimate.controlapi.database.entities.*;
 import ru.agimate.controlapi.database.enums.BoardTaskStatus;
 import ru.agimate.controlapi.database.enums.BoardTaskType;
 import ru.agimate.controlapi.database.repositories.*;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
+import ru.agimate.controlapi.service.dto.board.BoardCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardEventType;
+import ru.agimate.controlapi.service.dto.board.BoardResponse;
+import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreatedEvent;
+import ru.agimate.controlapi.service.dto.board.BoardTaskCommentResponse;
+import ru.agimate.controlapi.service.dto.board.BoardTaskCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCreatedEvent;
+import ru.agimate.controlapi.service.dto.board.BoardTaskResponse;
+import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangeCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangedEvent;
+import ru.agimate.controlapi.service.dto.board.BoardTasksByStatusResponse;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
@@ -26,11 +33,20 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Доменный сервис досок (ядро). Общий для HTTP-управления ({@code ManageBoardController}) и
+ * board-коннектора ({@code BoardToolService}); последний вызывает его как плагин поверх ядра и
+ * транслирует {@link ru.agimate.common.rest.error.BaseHttpStatusException} в {@code ConnectorException}
+ * на своей границе.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class BoardService {
+
+    /** Код board-коннектора; единый источник истины, {@code BoardConnectorService} ссылается сюда. */
+    public static final String CONNECTOR_CODE = "board";
 
     private final BoardRepository boardRepository;
     private final BoardTaskRepository boardTaskRepository;
@@ -56,8 +72,8 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardResponse create(UUID userId, CreateBoardRequest request) {
-        AgenticTeam team = agenticTeamRepository.findById(request.agenticTeamId())
+    public BoardResponse create(UUID userId, BoardCreateCommand command) {
+        AgenticTeam team = agenticTeamRepository.findById(command.agenticTeamId())
                 .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
         if (!team.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied to the specified team");
@@ -69,12 +85,12 @@ public class BoardService {
         Board board = Board.builder()
                 .userId(userId)
                 .agenticTeam(team)
-                .name(request.name())
-                .description(request.description())
+                .name(command.name())
+                .description(command.description())
                 .build();
         board = boardRepository.save(board);
 
-        log.info("Created board '{}' for agenticTeam={}, user={}", request.name(), team.getId(), userId);
+        log.info("Created board '{}' for agenticTeam={}, user={}", command.name(), team.getId(), userId);
         return BoardResponse.from(board, team);
     }
 
@@ -103,34 +119,34 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardTaskResponse createTask(UUID boardId, UUID userId, CreateBoardTaskRequest request) {
+    public BoardTaskResponse createTask(UUID boardId, UUID userId, BoardTaskCreateCommand command) {
         Board board = findBoardById(boardId);
         validateBoardOwnership(board, userId);
 
-        Agent createdBy = resolveTeamAgent(board, request.createdByAgentId());
+        Agent createdBy = resolveTeamAgent(board, command.createdByAgentId());
         Agent assignee = null;
-        if (request.assigneeAgentId() != null) {
-            assignee = resolveTeamAgent(board, request.assigneeAgentId());
+        if (command.assigneeAgentId() != null) {
+            assignee = resolveTeamAgent(board, command.assigneeAgentId());
         }
 
-        if (request.type() == BoardTaskType.EPIC && request.parentTaskId() != null) {
+        if (command.type() == BoardTaskType.EPIC && command.parentTaskId() != null) {
             throw new BadRequestStatusException("EPIC tasks cannot have a parent");
         }
-        if (request.type() == BoardTaskType.SUBTASK && request.parentTaskId() == null) {
+        if (command.type() == BoardTaskType.SUBTASK && command.parentTaskId() == null) {
             throw new BadRequestStatusException("SUBTASK must have a parent task");
         }
 
         UUID parentTaskId = null;
-        if (request.parentTaskId() != null) {
-            BoardTask parentTask = boardTaskRepository.findById(request.parentTaskId())
+        if (command.parentTaskId() != null) {
+            BoardTask parentTask = boardTaskRepository.findById(command.parentTaskId())
                     .orElseThrow(() -> new NotFoundStatusException("Parent task not found"));
             if (!parentTask.getBoardId().equals(board.getId())) {
                 throw new BadRequestStatusException("Parent task does not belong to this board");
             }
-            if (request.type() == BoardTaskType.SUBTASK && parentTask.getType() != BoardTaskType.TASK) {
+            if (command.type() == BoardTaskType.SUBTASK && parentTask.getType() != BoardTaskType.TASK) {
                 throw new BadRequestStatusException("SUBTASK parent must be a TASK");
             }
-            if (request.type() == BoardTaskType.TASK && parentTask.getType() != BoardTaskType.EPIC) {
+            if (command.type() == BoardTaskType.TASK && parentTask.getType() != BoardTaskType.EPIC) {
                 throw new BadRequestStatusException("TASK parent must be an EPIC");
             }
             parentTaskId = parentTask.getId();
@@ -140,15 +156,15 @@ public class BoardService {
                 .boardId(board.getId())
                 .userId(userId)
                 .parentTaskId(parentTaskId)
-                .type(request.type())
-                .title(request.title())
-                .description(request.description())
+                .type(command.type())
+                .title(command.title())
+                .description(command.description())
                 .createdByAgentId(createdBy.getId())
                 .assigneeAgentId(assignee != null ? assignee.getId() : null)
                 .build();
         task = boardTaskRepository.save(task);
 
-        log.info("Created board task '{}' on board={}", request.title(), boardId);
+        log.info("Created board task '{}' on board={}", command.title(), boardId);
 
         Map<String, Object> triggerData = new LinkedHashMap<>();
         triggerData.put("boardId", board.getId().toString());
@@ -170,7 +186,7 @@ public class BoardService {
         );
 
         Trigger trigger = Trigger.createDirected(
-                BoardConnectorService.CONNECTOR_CODE,
+                CONNECTOR_CODE,
                 board.getId().toString(),
                 "task_created",
                 triggerData,
@@ -212,33 +228,33 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardTaskResponse changeTaskStatus(UUID boardId, UUID taskId, UUID userId, UpdateBoardTaskStatusRequest request) {
+    public BoardTaskResponse changeTaskStatus(UUID boardId, UUID taskId, UUID userId, BoardTaskStatusChangeCommand command) {
         BoardTask task = requireTaskInBoard(boardId, taskId);
         Board board = boardRepository.findById(task.getBoardId())
                 .orElseThrow(() -> new NotFoundStatusException("Board not found"));
         validateBoardOwnership(board, userId);
 
-        resolveTeamAgent(board, request.agentId());
+        resolveTeamAgent(board, command.agentId());
 
         BoardTaskStatus oldStatus = task.getStatus();
-        task.setStatus(request.status());
+        task.setStatus(command.status());
         task = boardTaskRepository.save(task);
 
-        log.info("Changed task {} status from {} to {}", taskId, oldStatus, request.status());
+        log.info("Changed task {} status from {} to {}", taskId, oldStatus, command.status());
 
         Map<String, Object> triggerData = new LinkedHashMap<>();
         triggerData.put("taskId", task.getId().toString());
         triggerData.put("oldStatus", oldStatus.name());
-        triggerData.put("newStatus", request.status().name());
+        triggerData.put("newStatus", command.status().name());
 
         Map<UUID, Agent> agentsById = resolveAgentsForTasks(List.of(task));
         TriggerAudience audience = new TriggerAudience(
-                request.agentId(),
+                command.agentId(),
                 resolveTaskParticipantIds(task, agentsById)
         );
 
         Trigger trigger = Trigger.createDirected(
-                BoardConnectorService.CONNECTOR_CODE,
+                CONNECTOR_CODE,
                 board.getId().toString(),
                 "task_status_changed",
                 triggerData,
@@ -252,7 +268,7 @@ public class BoardService {
                         board.getId(),
                         task.getId(),
                         oldStatus,
-                        request.status()
+                        command.status()
                 ));
 
         Map<UUID, BoardTask> tasksById = task.getParentTaskId() != null
@@ -286,23 +302,23 @@ public class BoardService {
     }
 
     @Transactional
-    public BoardTaskCommentResponse createComment(UUID boardId, UUID taskId, UUID userId, CreateBoardTaskCommentRequest request) {
+    public BoardTaskCommentResponse createComment(UUID boardId, UUID taskId, UUID userId, BoardTaskCommentCreateCommand command) {
         BoardTask task = requireTaskInBoard(boardId, taskId);
         Board board = boardRepository.findById(task.getBoardId())
                 .orElseThrow(() -> new NotFoundStatusException("Board not found"));
         validateBoardOwnership(board, userId);
 
-        Agent agent = resolveTeamAgent(board, request.agentId());
+        Agent agent = resolveTeamAgent(board, command.agentId());
 
         BoardTaskComment comment = BoardTaskComment.builder()
                 .boardTaskId(task.getId())
                 .userId(userId)
                 .agentId(agent.getId())
-                .content(request.content())
+                .content(command.content())
                 .build();
         comment = boardTaskCommentRepository.save(comment);
 
-        log.info("Created comment on task {} by agent {}", taskId, request.agentId());
+        log.info("Created comment on task {} by agent {}", taskId, command.agentId());
 
         Map<String, Object> triggerData = new LinkedHashMap<>();
         triggerData.put("taskId", task.getId().toString());
@@ -317,7 +333,7 @@ public class BoardService {
         );
 
         Trigger trigger = Trigger.createDirected(
-                BoardConnectorService.CONNECTOR_CODE,
+                CONNECTOR_CODE,
                 board.getId().toString(),
                 "task_comment_created",
                 triggerData,

@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.controller.manage.dto;
+package ru.agimate.controlapi.service.dto.board;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.enums.BoardTaskStatus;

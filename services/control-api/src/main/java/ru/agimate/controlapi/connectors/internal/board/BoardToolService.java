@@ -3,14 +3,12 @@ package ru.agimate.controlapi.connectors.internal.board;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import ru.agimate.common.rest.error.BaseHttpStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
-import ru.agimate.controlapi.controller.manage.dto.CreateBoardTaskCommentRequest;
-import ru.agimate.controlapi.controller.manage.dto.CreateBoardTaskRequest;
-import ru.agimate.controlapi.controller.manage.dto.UpdateBoardTaskStatusRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgenticTeam;
 import ru.agimate.controlapi.database.entities.Board;
@@ -19,12 +17,20 @@ import ru.agimate.controlapi.database.enums.BoardTaskType;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.BoardRepository;
+import ru.agimate.controlapi.service.board.BoardService;
+import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreateCommand;
+import ru.agimate.controlapi.service.dto.board.BoardTaskCreateCommand;
+import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangeCommand;
 
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /**
- * Тулы board-коннектора. Контекст (agentId, userId) приходит через {@link ConnectorEnvHolder}.
+ * Тулы board-коннектора — тонкий адаптер поверх core-{@link BoardService}. Контекст (agentId, userId)
+ * приходит через {@link ConnectorEnvHolder}. Доменные {@link BaseHttpStatusException} ядра транслируются
+ * в {@link ConnectorException} на границе плагина, чтобы сообщение дошло до агента, а HTTP-исключения
+ * не протекали в коннекторный слой.
  */
 @Slf4j
 @Component
@@ -40,7 +46,7 @@ public class BoardToolService {
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public Map<String, Object> getTasks() {
         Board board = resolveBoard(resolveAgent());
-        var result = boardService.getTasksByStatus(board.getId(), userId());
+        var result = domain(() -> boardService.getTasksByStatus(board.getId(), userId()));
         return Map.of("tasks", result);
     }
 
@@ -71,9 +77,9 @@ public class BoardToolService {
         UUID parentId = parentTaskId != null ? UUID.fromString(parentTaskId) : null;
         UUID assigneeId = assigneeAgentId != null ? UUID.fromString(assigneeAgentId) : null;
 
-        var request = new CreateBoardTaskRequest(taskType, title, description,
+        var command = new BoardTaskCreateCommand(taskType, title, description,
                 agent.getId(), assigneeId, parentId);
-        var result = boardService.createTask(board.getId(), userId(), request);
+        var result = domain(() -> boardService.createTask(board.getId(), userId(), command));
         return Map.of("task", result);
     }
 
@@ -99,8 +105,8 @@ public class BoardToolService {
             throw new ConnectorException("Invalid status: '" + status + "'");
         }
 
-        var request = new UpdateBoardTaskStatusRequest(taskStatus, agent.getId());
-        var result = boardService.changeTaskStatus(null, taskUuid, userId(), request);
+        var command = new BoardTaskStatusChangeCommand(taskStatus, agent.getId());
+        var result = domain(() -> boardService.changeTaskStatus(null, taskUuid, userId(), command));
         return Map.of("task", result);
     }
 
@@ -109,7 +115,7 @@ public class BoardToolService {
     public Map<String, Object> getComments(
             @ToolParam("Task public ID") String taskId) {
         UUID taskUuid = UUID.fromString(taskId);
-        var result = boardService.getComments(null, taskUuid, userId());
+        var result = domain(() -> boardService.getComments(null, taskUuid, userId()));
         return Map.of("comments", result);
     }
 
@@ -121,9 +127,22 @@ public class BoardToolService {
         Agent agent = resolveAgent();
 
         UUID taskUuid = UUID.fromString(taskId);
-        var request = new CreateBoardTaskCommentRequest(agent.getId(), content);
-        var result = boardService.createComment(null, taskUuid, userId(), request);
+        var command = new BoardTaskCommentCreateCommand(agent.getId(), content);
+        var result = domain(() -> boardService.createComment(null, taskUuid, userId(), command));
         return Map.of("comment", result);
+    }
+
+    /**
+     * Выполнить доменную операцию ядра, транслируя её HTTP-исключения в {@link ConnectorException}:
+     * сообщение (напр. «SUBTASK must have a parent task») доходит до агента, а {@code *StatusException}
+     * не покидает коннекторный слой.
+     */
+    private <T> T domain(Supplier<T> op) {
+        try {
+            return op.get();
+        } catch (BaseHttpStatusException e) {
+            throw new ConnectorException(e.getMessage());
+        }
     }
 
     private UUID userId() {
