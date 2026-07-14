@@ -2,7 +2,7 @@ package ru.agimate.controlapi.controller.manage.dto.llm;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.controlapi.database.entities.LlmModelInfo;
+import ru.agimate.controlapi.database.model.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;

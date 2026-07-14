@@ -15,14 +15,32 @@ import java.util.Map;
 @UtilityClass
 public class JobSchedule {
 
+    public static final String KEY_INTERVAL_SECONDS = "intervalSeconds";
+    public static final String KEY_CRON = "cron";
+    public static final String KEY_ZONE = "zone";
+    public static final String DEFAULT_ZONE = "UTC";
+
+    /** Config-снимок расписания по типу задачи — единый источник формы для деклараций (@Job) и агентских тулов (time.schedule). */
+    public static Map<String, Object> onetimeConfig() {
+        return Map.of();
+    }
+
+    public static Map<String, Object> periodicConfig(long intervalSeconds) {
+        return Map.of(KEY_INTERVAL_SECONDS, intervalSeconds);
+    }
+
+    public static Map<String, Object> cronConfig(String cron, String zone) {
+        return Map.of(KEY_CRON, cron, KEY_ZONE, zone);
+    }
+
     public static LocalDateTime nextCron(Map<String, Object> config, LocalDateTime now) {
-        String expr = (String) config.get("cron");
+        String expr = (String) config.get(KEY_CRON);
         if (expr == null || expr.isBlank()) {
             // Без выражения в конфиге cron не запустится — отодвигаем далеко, чтобы не ловить
             // SKIP LOCKED'ом на каждом тике.
             return now.plusYears(10);
         }
-        String zoneId = (String) config.getOrDefault("zone", "UTC");
+        String zoneId = (String) config.getOrDefault(KEY_ZONE, DEFAULT_ZONE);
         CronExpression cron = CronExpression.parse(expr);
         var next = cron.next(now.atZone(ZoneId.of(zoneId)));
         return next != null ? next.toLocalDateTime() : now.plusYears(10);

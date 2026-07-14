@@ -26,7 +26,6 @@ import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Skill;
-import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.IdentityScope;
@@ -120,7 +119,7 @@ public class RunContextService {
         ContextSpec spec = channels != null && channels.prompt() != null
                 ? ContextSpec.DIALOGUE
                 : ContextSpec.SYSTEM_TRIGGER;
-        Trigger trigger = reconstructTrigger(run.getTriggerLog());
+        Trigger trigger = Trigger.fromLog(run.getTriggerLog());
 
         // Скиллы: listed — всегда; scoped определяет тела (SYSTEM_TRIGGER) и скоуп тулов.
         List<AgentSkillWithConnectorsResponse> listed = listedSkills(agentId);
@@ -391,16 +390,6 @@ public class RunContextService {
         return new RunBlock("event", "connector:" + trigger.connectorCode(), content, attrs, false, false);
     }
 
-    private static Trigger reconstructTrigger(TriggerLog log) {
-        return new Trigger(
-                log.getConnectorCode(),
-                log.getConnectionId(),
-                log.getName(),
-                log.getExternalId(),
-                log.getInput(),
-                log.getOccurredAt() == null ? null : log.getOccurredAt().toString(),
-                null);
-    }
 
     // ===== Тулы =====
 

@@ -7,7 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.RunStatus;
@@ -113,7 +112,7 @@ public class MessageLogPersistence {
 
     /** Каноника inbound: текст канала (тот же handleInput, что при dispatch) или компактный JSON события. */
     private String canonicalInbound(TriggerLogAgent run, Channels channels) {
-        Trigger trigger = reconstructTrigger(run.getTriggerLog());
+        Trigger trigger = Trigger.fromLog(run.getTriggerLog());
         if (channels != null && channels.prompt() != null) {
             return inboundTextResolver.resolve(channels.prompt().channelId(), trigger)
                     .orElseGet(() -> compactEvent(trigger));
@@ -129,14 +128,4 @@ public class MessageLogPersistence {
         return JsonUtils.writeValueAsString(event);
     }
 
-    private static Trigger reconstructTrigger(TriggerLog log) {
-        return new Trigger(
-                log.getConnectorCode(),
-                log.getConnectionId(),
-                log.getName(),
-                log.getExternalId(),
-                log.getInput(),
-                log.getOccurredAt() == null ? null : log.getOccurredAt().toString(),
-                null);
-    }
 }

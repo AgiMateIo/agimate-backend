@@ -5,7 +5,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.controlapi.database.entities.LlmModelInfo;
+import ru.agimate.controlapi.database.model.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 

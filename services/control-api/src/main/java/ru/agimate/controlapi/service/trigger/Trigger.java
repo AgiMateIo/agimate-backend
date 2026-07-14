@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.service.trigger;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import ru.agimate.controlapi.database.entities.TriggerLog;
 
 import java.time.Instant;
 import java.util.Map;
@@ -57,5 +58,21 @@ public record Trigger(
                 (occurredAt != null ? occurredAt : Instant.now()).toString(),
                 null
         );
+    }
+
+    /**
+     * Реконструирует {@link Trigger} из персистентной строки лога рана ({@link TriggerLog}) — для
+     * сборки контекста и каноникализации inbound. {@code context} не восстанавливается: маршрутизация
+     * уже произошла при первичной обработке события.
+     */
+    public static Trigger fromLog(TriggerLog log) {
+        return new Trigger(
+                log.getConnectorCode(),
+                log.getConnectionId(),
+                log.getName(),
+                log.getExternalId(),
+                log.getInput(),
+                log.getOccurredAt() == null ? null : log.getOccurredAt().toString(),
+                null);
     }
 }

@@ -13,7 +13,7 @@ import ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProvider
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.RefreshModelsResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest;
-import ru.agimate.controlapi.database.entities.LlmModelInfo;
+import ru.agimate.controlapi.database.model.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.LlmProviderType;

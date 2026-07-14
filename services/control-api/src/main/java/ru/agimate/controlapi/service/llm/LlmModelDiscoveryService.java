@@ -3,7 +3,7 @@ package ru.agimate.controlapi.service.llm;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.controlapi.database.entities.LlmModelInfo;
+import ru.agimate.controlapi.database.model.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 

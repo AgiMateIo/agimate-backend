@@ -7,7 +7,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.controlapi.database.entities.LlmModelInfo;
+import ru.agimate.controlapi.database.model.LlmModelInfo;
 
 import java.io.IOException;
 import java.io.InputStream;

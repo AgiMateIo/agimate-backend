@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.database.entities;
+package ru.agimate.controlapi.database.model;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;

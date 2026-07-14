@@ -93,7 +93,7 @@ public class ConnectorJobScheduler {
             case ONETIME -> now.plus(DEFAULT_ERROR_RETRY);
             case PERIODIC -> afterError
                     ? now.plus(DEFAULT_ERROR_RETRY)
-                    : now.plusSeconds(JobSchedule.readLong(config, "intervalSeconds", 0L));
+                    : now.plusSeconds(JobSchedule.readLong(config, JobSchedule.KEY_INTERVAL_SECONDS, 0L));
             case CRON -> JobSchedule.nextCron(config, now);
         };
     }

@@ -11,6 +11,7 @@ import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
+import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
@@ -98,18 +99,18 @@ public class TimeToolService {
         if (delaySeconds != null) {
             requirePositive(delaySeconds, "delaySeconds");
             type = ConnectorJobType.ONETIME;
-            config = Map.of();
+            config = JobSchedule.onetimeConfig();
             firstRunAt = now.plusSeconds(delaySeconds);
         } else if (intervalSeconds != null) {
             requirePositive(intervalSeconds, "intervalSeconds");
             type = ConnectorJobType.PERIODIC;
-            config = Map.of("intervalSeconds", intervalSeconds);
+            config = JobSchedule.periodicConfig(intervalSeconds);
             firstRunAt = now.plusSeconds(intervalSeconds);
         } else {
-            String resolvedZone = zone == null || zone.isBlank() ? "UTC" : zone;
+            String resolvedZone = zone == null || zone.isBlank() ? JobSchedule.DEFAULT_ZONE : zone;
             firstRunAt = nextCron(cron, resolvedZone, now);
             type = ConnectorJobType.CRON;
-            config = Map.of("cron", cron, "zone", resolvedZone);
+            config = JobSchedule.cronConfig(cron, resolvedZone);
         }
 
         JobSpec spec = new JobSpec(

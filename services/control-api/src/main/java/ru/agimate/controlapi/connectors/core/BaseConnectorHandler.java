@@ -8,6 +8,7 @@ import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
+import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
 import ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec;
 
 import java.lang.reflect.InvocationTargetException;
@@ -117,9 +118,9 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
 
     private static JobSpec toJobSpecification(String name, Job task) {
         Map<String, Object> config = switch (task.type()) {
-            case ONETIME -> Map.of();
-            case PERIODIC -> Map.of("intervalSeconds", task.intervalSeconds());
-            case CRON -> Map.of("cron", task.cron(), "zone", task.zone());
+            case ONETIME -> JobSchedule.onetimeConfig();
+            case PERIODIC -> JobSchedule.periodicConfig(task.intervalSeconds());
+            case CRON -> JobSchedule.cronConfig(task.cron(), task.zone());
         };
         return new JobSpec(name, task.type(), config, Map.of(), task.timeoutSeconds());
     }
