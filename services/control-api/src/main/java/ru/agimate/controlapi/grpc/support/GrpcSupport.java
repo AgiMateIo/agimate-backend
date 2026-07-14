@@ -7,6 +7,8 @@ import io.grpc.stub.StreamObserver;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.common.rest.error.ConflictStatusException;
+import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.JsonUtils;
@@ -70,26 +72,50 @@ public class GrpcSupport {
         return ByteString.copyFrom(JsonUtils.writeValueAsString(value).getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Общий маппинг исключения в gRPC-ответ для RPC, не различающих доменные статусы тоньше. */
+    /** Единый маппинг исключения в gRPC-ответ для всех RPC воркера. */
     public static void handleError(Exception e, StreamObserver<?> observer) {
+        handleError(e, observer, null);
+    }
+
+    /**
+     * Единый маппинг исключения в gRPC-ответ. Ожидаемые доменные исходы (deny/quota/not-found/…)
+     * логируются на DEBUG без стектрейса; неизвестная ошибка → {@code INTERNAL} с ERROR + стектрейсом.
+     *
+     * @param context короткое описание RPC/аргументов для лога сбоя (может быть {@code null})
+     */
+    public static void handleError(Exception e, StreamObserver<?> observer, String context) {
         if (e instanceof io.grpc.StatusRuntimeException sre) {
             observer.onError(sre);
             return;
         }
-        if (e instanceof NotFoundStatusException) {
-            observer.onError(Status.NOT_FOUND.withDescription(e.getMessage()).asRuntimeException());
+        String ctx = context == null ? "" : " [" + context + "]";
+        Status domain = domainStatus(e);
+        if (domain != null) {
+            log.debug("gRPC domain outcome {}{}: {}", domain.getCode(), ctx, e.getMessage());
+            observer.onError(domain.withDescription(e.getMessage()).asRuntimeException());
             return;
+        }
+        log.error("gRPC RPC failed{}", ctx, e);
+        observer.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
+    }
+
+    /** Доменное исключение → gRPC-статус ожидаемого исхода; {@code null} — неизвестная ошибка (INTERNAL). */
+    private static Status domainStatus(Exception e) {
+        if (e instanceof NotFoundStatusException) {
+            return Status.NOT_FOUND;
+        }
+        if (e instanceof ForbiddenStatusException) {
+            return Status.PERMISSION_DENIED;
+        }
+        if (e instanceof ConflictStatusException) {
+            return Status.ABORTED;
         }
         if (e instanceof BadRequestStatusException || e instanceof ValidationErrorStatusException) {
-            observer.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asRuntimeException());
-            return;
+            return Status.INVALID_ARGUMENT;
         }
         if (e instanceof QuotaExceededException) {
-            // Ожидаемый исход, не сбой: сообщение — для человека, доедет ERROR-сообщением рана.
-            observer.onError(Status.RESOURCE_EXHAUSTED.withDescription(e.getMessage()).asRuntimeException());
-            return;
+            return Status.RESOURCE_EXHAUSTED;
         }
-        log.error("gRPC RPC failed", e);
-        observer.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
+        return null;
     }
 }

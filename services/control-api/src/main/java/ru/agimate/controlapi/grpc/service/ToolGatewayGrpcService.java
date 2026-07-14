@@ -6,11 +6,6 @@ import io.grpc.stub.StreamObserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.common.rest.error.ConflictStatusException;
-import ru.agimate.common.rest.error.ForbiddenStatusException;
-import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
@@ -28,6 +23,7 @@ import ru.agimate.agentworker.ToolResultStatus;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
+import static ru.agimate.controlapi.grpc.support.GrpcSupport.handleError;
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 
 @Service
@@ -53,27 +49,9 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
                     .setToolCallId(toolCallId)
                     .build());
             responseObserver.onCompleted();
-        } catch (ForbiddenStatusException e) {
-            log.info("ToolGateway.ExecuteToolAsync denied pool={} workflow={} tool={} reason={}",
-                    poolId, request.getWorkflowId(), request.getToolName(), e.getMessage());
-            responseObserver.onError(Status.PERMISSION_DENIED
-                    .withDescription(e.getMessage()).asRuntimeException());
-        } catch (NotFoundStatusException e) {
-            responseObserver.onError(Status.NOT_FOUND
-                    .withDescription(e.getMessage()).asRuntimeException());
-        } catch (ConflictStatusException e) {
-            responseObserver.onError(Status.ABORTED
-                    .withDescription(e.getMessage()).asRuntimeException());
-        } catch (BadRequestStatusException | ValidationErrorStatusException e) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getMessage()).asRuntimeException());
-        } catch (io.grpc.StatusRuntimeException e) {
-            responseObserver.onError(e);
         } catch (Exception e) {
-            log.error("ToolGateway.ExecuteToolAsync failed pool={} workflow={}",
-                    poolId, request.getWorkflowId(), e);
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription(e.getMessage()).asRuntimeException());
+            handleError(e, responseObserver, "ExecuteToolAsync pool=" + poolId
+                    + " workflow=" + request.getWorkflowId() + " tool=" + request.getToolName());
         }
     }
 
@@ -131,19 +109,9 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
             }
             responseObserver.onNext(builder.build());
             responseObserver.onCompleted();
-        } catch (NotFoundStatusException e) {
-            responseObserver.onError(Status.NOT_FOUND
-                    .withDescription(e.getMessage()).asRuntimeException());
-        } catch (BadRequestStatusException | ValidationErrorStatusException e) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getMessage()).asRuntimeException());
-        } catch (io.grpc.StatusRuntimeException e) {
-            responseObserver.onError(e);
         } catch (Exception e) {
-            log.error("ToolGateway.GetToolResult failed pool={} toolCallId={}",
-                    poolId, request.getToolCallId(), e);
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription(e.getMessage()).asRuntimeException());
+            handleError(e, responseObserver, "GetToolResult pool=" + poolId
+                    + " toolCallId=" + request.getToolCallId());
         }
     }
 

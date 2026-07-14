@@ -6,8 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
+import ru.agimate.controlapi.grpc.mapper.MessageKindMapper;
 import ru.agimate.controlapi.service.channel.MessageLogService;
-import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.MessageLogGrpc;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.SaveMessageRequest;
@@ -37,7 +37,7 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
             if (request.getSeq() < 0) {
                 throw new BadRequestStatusException("seq must be >= 0");
             }
-            ChannelSessionMessageKind kind = mapKind(request.getKind());
+            ChannelSessionMessageKind kind = MessageKindMapper.toDomain(request.getKind());
             String progressType = request.getProgressType() == ProgressType.PROGRESS_TYPE_UNSPECIFIED
                     ? null
                     : request.getProgressType().name().replace("PROGRESS_TYPE_", "");
@@ -50,17 +50,8 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
                     .build());
             responseObserver.onCompleted();
         } catch (Exception e) {
-            handleError(e, responseObserver);
+            handleError(e, responseObserver, "SaveMessage agent=" + request.getAgentId()
+                    + " trigger=" + request.getTriggerId());
         }
-    }
-
-    private static ChannelSessionMessageKind mapKind(MessageKind kind) {
-        return switch (kind) {
-            case MESSAGE_KIND_INBOUND -> ChannelSessionMessageKind.INBOUND;
-            case MESSAGE_KIND_PROGRESS -> ChannelSessionMessageKind.PROGRESS;
-            case MESSAGE_KIND_ANSWER -> ChannelSessionMessageKind.ANSWER;
-            case MESSAGE_KIND_ERROR -> ChannelSessionMessageKind.ERROR;
-            default -> throw new BadRequestStatusException("Unknown message kind: " + kind);
-        };
     }
 }
