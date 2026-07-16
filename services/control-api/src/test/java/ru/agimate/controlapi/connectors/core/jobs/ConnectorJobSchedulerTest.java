@@ -14,10 +14,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -137,6 +140,39 @@ class ConnectorJobSchedulerTest {
         verify(jobService, timeout(VERIFY_TIMEOUT_MS))
                 .complete(eq(row.getId()), nextRun.capture(), isNull());
         assertTrue(nextRun.getValue().isAfter(LocalDateTime.now().plusYears(9)));
+    }
+
+    @Test
+    @DisplayName("shutdown: in-flight строка release'ится, ошибка от закрытия пулов не уводит в error-retry")
+    void shutdownReleasesInFlight() throws Exception {
+        ConnectorJob row = row(ConnectorJobType.PERIODIC, Map.of("intervalSeconds", 0));
+        when(jobService.claimReady(100)).thenReturn(List.of(row));
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch shutdownDone = new CountDownLatch(1);
+        when(jobExecutionService.executeJob(row)).thenAnswer(inv -> {
+            started.countDown();
+            shutdownDone.await(2, TimeUnit.SECONDS);
+            throw new IllegalStateException("pool closed");
+        });
+
+        scheduler.tick();
+        assertTrue(started.await(2, TimeUnit.SECONDS));
+        scheduler.releaseInFlight();
+        shutdownDone.countDown();
+
+        // release дважды: из @PreDestroy и из shutdown-ветки execute(); complete(+60s) — ни разу
+        verify(jobService, timeout(VERIFY_TIMEOUT_MS).times(2)).release(row.getId());
+        verify(jobService, timeout(200).times(0)).complete(eq(row.getId()), any(), contains("pool closed"));
+    }
+
+    @Test
+    @DisplayName("shutdown: новые тики не claim'ят строки")
+    void shutdownStopsClaiming() {
+        scheduler.releaseInFlight();
+
+        scheduler.tick();
+
+        verify(jobService, timeout(200).times(0)).claimReady(anyInt());
     }
 
     @Test

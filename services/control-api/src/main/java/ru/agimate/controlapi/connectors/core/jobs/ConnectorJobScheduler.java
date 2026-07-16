@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.connectors.core.jobs;
 
+import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -12,6 +13,9 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
 
 /**
@@ -48,15 +52,41 @@ public class ConnectorJobScheduler {
 
     private final ThreadFactory virtualThreads = Thread.ofVirtual().name("cjob-", 0).factory();
 
+    /** Строки, claim'нутые этой нодой и ещё не завершённые — кандидаты на release при shutdown. */
+    private final Set<UUID> inFlight = ConcurrentHashMap.newKeySet();
+
+    private volatile boolean shuttingDown;
+
     @Scheduled(fixedDelay = 1_000)
     public void tick() {
+        if (shuttingDown) {
+            return;
+        }
         List<ConnectorJob> claimed = jobService.claimReady(BATCH_SIZE);
         if (claimed.isEmpty()) {
             return;
         }
         log.debug("Claimed {} task(s)", claimed.size());
         for (ConnectorJob row : claimed) {
+            inFlight.add(row.getId());
             virtualThreads.newThread(() -> execute(row)).start();
+        }
+    }
+
+    /**
+     * Возвращает незавершённые итерации в очередь перед остановкой JVM. Без этого строка остаётся
+     * RUNNING до истечения lease (или уходит в error-retry из-за закрывающихся пулов), и после
+     * рестарта джоба молчит до timeout_seconds — для непрерывного long-poll'а это минута глухоты.
+     */
+    @PreDestroy
+    void releaseInFlight() {
+        shuttingDown = true;
+        for (UUID id : Set.copyOf(inFlight)) {
+            try {
+                jobService.release(id);
+            } catch (Exception e) {
+                log.warn("Failed to release job {} on shutdown: {}", id, e.getMessage());
+            }
         }
     }
 
@@ -71,8 +101,17 @@ public class ConnectorJobScheduler {
                     jobService.complete(row.getId(), computeNext(row, false), null);
                 }
             } catch (Exception e) {
-                log.error("Job {} failed: {}", jobKey, e.toString(), e);
-                jobService.complete(row.getId(), computeNext(row, true), summarize(e));
+                if (shuttingDown) {
+                    // Итерацию уронил сам shutdown (закрытие пулов) — это не сбой джобы,
+                    // error-retry отложил бы её на минуту после рестарта.
+                    log.info("Job {} interrupted by shutdown, released", jobKey);
+                    jobService.release(row.getId());
+                } else {
+                    log.error("Job {} failed: {}", jobKey, e.toString(), e);
+                    jobService.complete(row.getId(), computeNext(row, true), summarize(e));
+                }
+            } finally {
+                inFlight.remove(row.getId());
             }
         }
     }

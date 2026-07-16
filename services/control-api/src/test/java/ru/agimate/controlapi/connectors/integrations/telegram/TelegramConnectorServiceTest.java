@@ -135,7 +135,7 @@ class TelegramConnectorServiceTest {
             var spec = polling.getJobs().get(TelegramToolService.TASK_LONG_POLL);
             assertNotNull(spec);
             assertEquals(0L, spec.config().get("intervalSeconds"));
-            assertEquals(60, spec.timeoutSeconds());
+            assertEquals(30, spec.timeoutSeconds());
         }
     }
 

@@ -127,7 +127,9 @@ public class TelegramToolService {
      * {@code next_run_at = now + 60s} (общий error retry).
      */
     @Tool(name = TASK_LONG_POLL, description = "Long-poll Telegram updates and dispatch them as triggers")
-    @Job(intervalSeconds = 0, timeoutSeconds = 60)
+    // timeoutSeconds — это lease claim'а: итерация ~20s, короткий lease ограничивает паузу
+    // поллинга после аварийного рестарта (kill -9), когда graceful release не отработал.
+    @Job(intervalSeconds = 0, timeoutSeconds = 30)
     @SuppressWarnings("unchecked")
     public void longPoll() {
         ConnectorEnv ctx = ConnectorEnvHolder.current();

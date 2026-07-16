@@ -97,6 +97,15 @@ public class ConnectorJobService {
         connectorJobRepository.complete(taskId, nextRunAt, trimError(lastError));
     }
 
+    /**
+     * Возвращает claim'нутую этой нодой строку в очередь при остановке приложения: PENDING,
+     * запуск сразу после рестарта. Только для RUNNING — финализированные в гонке строки не трогает.
+     */
+    @Transactional
+    public void release(UUID taskId) {
+        connectorJobRepository.release(taskId, LocalDateTime.now());
+    }
+
     /** Финализирует успешно выполненный ONETIME: {@code status=COMPLETED}, без следующего запуска. */
     @Transactional
     public void markCompleted(UUID taskId, String lastError) {

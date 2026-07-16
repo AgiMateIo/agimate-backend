@@ -117,6 +117,22 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
                  @Param("nextRunAt") LocalDateTime nextRunAt,
                  @Param("lastError") String lastError);
 
+    /**
+     * Shutdown-release: возвращает RUNNING-строку в PENDING с немедленным {@code next_run_at};
+     * {@code last_error} не трогаем. Guard по статусу — ONETIME, успевший финализироваться
+     * ({@code markCompleted}) в гонке с остановкой, не воскрешаем.
+     */
+    @Modifying
+    @Query("""
+            UPDATE ConnectorJob t
+            SET t.status = ru.agimate.controlapi.database.enums.ConnectorJobStatus.PENDING,
+                t.leaseUntil = NULL,
+                t.nextRunAt = :nextRunAt
+            WHERE t.id = :id
+              AND t.status = ru.agimate.controlapi.database.enums.ConnectorJobStatus.RUNNING
+            """)
+    int release(@Param("id") UUID id, @Param("nextRunAt") LocalDateTime nextRunAt);
+
     @Modifying
     @Query("""
             UPDATE ConnectorJob t
