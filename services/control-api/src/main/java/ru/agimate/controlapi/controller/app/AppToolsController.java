@@ -10,6 +10,7 @@ import ru.agimate.controlapi.controller.app.dto.ToolResultRequest;
 import ru.agimate.controlapi.security.AppPrincipal;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.AppService;
+import ru.agimate.controlapi.service.dto.ToolResult;
 import ru.agimate.controlapi.service.tool.ToolCallLogService;
 
 @Slf4j
@@ -34,8 +35,16 @@ public class AppToolsController {
 
         var app = appService.getApp(principal);
 
-        var toolCallLog = toolCallLogService.recordOutput(app, toolResultRequest);
-        agentDeliveryService.deliverToolResult(toolCallLog.getAgentId(), toolResultRequest);
+        var toolCallLog = toolCallLogService.recordOutputFromDevice(app, toolResultRequest);
+
+        // Устройство прислало результат под PK лога; агенту доставляем под его external_id — агент
+        // (и gRPC-поллинг воркера) корреллируют вызовы в собственном пространстве идентификаторов.
+        var agentResult = new ToolResult(
+                toolCallLog.getExternalId(),
+                toolCallLog.getConnectorCode(),
+                toolCallLog.getOutput(),
+                toolCallLog.getError());
+        agentDeliveryService.deliverToolResult(toolCallLog.getAgentId(), agentResult);
 
         return SuccessResponse.empty();
     }

@@ -460,9 +460,11 @@ Associates device hardware information with the authenticated connector. Must be
 
 ### POST `/control/app/centrifugo/token`
 
-Generates Centrifugo connection and subscription tokens for the device's tools channel (`device:{deviceId}`).
+Generates Centrifugo connection and subscription tokens for the device's tools channel (`device:{appId}`).
 
 The `deviceId` in the request must match the `deviceId` stored on the connector (set during registration/link). Returns 403 if the connector is not linked or the `deviceId` does not match.
+
+> **Channel addressing.** The channel is keyed by the app's public ID (`app.id`, equal to the connection ID), **not** by the client-chosen `deviceId` — `deviceId` is not unique across tenants, so a shared value would put two users on the same channel. The device does not construct the channel name itself; it subscribes to the `channel` value returned below. Multiple agents may push tool calls to the same `device:{appId}` channel; results route back to the correct agent by the server-issued tool call ID (see `/app/tools/result`).
 
 **Request body:**
 ```json
@@ -481,7 +483,7 @@ The `deviceId` in the request must match the `deviceId` stored on the connector 
   "response": {
     "connectionToken": "<jwt>",
     "subscriptionToken": "<jwt>",
-    "channel": "device:device-abc123",
+    "channel": "device:01951234-abcd-ef01-2345-6789abcdef02",
     "wsUrl": "https://centrifugo.example.com/connection/websocket"
   }
 }
@@ -491,7 +493,7 @@ The `deviceId` in the request must match the `deviceId` stored on the connector 
 |-------|------|-------------|
 | `connectionToken` | `string` | ES256 JWT for the Centrifugo WebSocket connection |
 | `subscriptionToken` | `string` | ES256 JWT for subscribing to the device's channel |
-| `channel` | `string` | Channel name (`device:{deviceId}`) |
+| `channel` | `string` | Channel name (`device:{appId}`) — subscribe to exactly this value |
 | `wsUrl` | `string` | Centrifugo WebSocket URL |
 
 Tokens expire after **3600 seconds (1 hour)**.
@@ -507,25 +509,35 @@ Tokens expire after **3600 seconds (1 hour)**.
 
 ### POST `/control/app/tools/result`
 
-Submits the result of a tool execution from the device back to control-api. The result is stored in the `tool_call_log` and forwarded to the agent via the agent's Centrifugo channel.
+Submits the result of a tool execution from the device back to control-api. The result is stored in the `tool_call_log` and forwarded to the owning agent via the agent's Centrifugo channel.
+
+The device correlates by the **server-issued tool call ID** — the `id` field of the `toolCall` payload it received over Centrifugo (this is `tool_call_logs.id`, globally unique). control-api looks the log up by this ID and verifies it belongs to the calling app, then delivers the result to the agent under that agent's own `external_id`. This is what makes several agents sharing one app safe: each tool call has a distinct server-issued ID, so echoed results never cross agents.
 
 **Request body:**
 ```json
 {
-  "id": "toolu_01AbCdEfGh",
-  "name": "tool.device.tts.speak",
-  "result": {
-    "status": "ok",
-    "output": "Speech completed"
-  }
+  "id": "01951234-abcd-ef01-2345-6789abcdef77",
+  "connectorCode": "smarthome",
+  "output": "{\"status\":\"ok\",\"output\":\"Speech completed\"}",
+  "error": null
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | `string` | yes | Tool use correlation ID (from the original tool_call request) |
-| `name` | `string` | yes | Tool name that was executed |
-| `result` | `object` | yes | Execution result as a JSON object |
+| `id` | `string` | yes | Server-issued tool call ID from the `toolCall` payload (`tool_call_logs.id`) |
+| `connectorCode` | `string` | no | Connector code (informational) |
+| `output` | `string` | no | Serialized execution result |
+| `error` | `string` | no | Error message if execution failed |
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | `id` is not a valid tool call ID |
+| 401 | Invalid or missing `X-App-Auth-Key` |
+| 403 | The tool call does not belong to this app/device |
+| 404 | No tool call log found for the given `id` |
 
 **Response `200`:**
 ```json

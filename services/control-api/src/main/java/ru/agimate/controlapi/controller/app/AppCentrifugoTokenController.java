@@ -47,13 +47,14 @@ public class AppCentrifugoTokenController {
             throw new ForbiddenStatusException("Device is not linked");
         }
 
-        String deviceId = deviceChannelTokenRequest.deviceId();
-        String channel = "device:" + deviceId;
+        // Канал и subject токена — по app.id (= connectionId), а не по клиентскому device_id:
+        // device_id не уникален между тенантами. Устройство подписывается на возвращённый channel.
+        String channel = "device:" + app.getId();
 
-        CentrifugoTokenResponse tokens = centrifugoService.issueTokens(deviceId, channel);
+        CentrifugoTokenResponse tokens = centrifugoService.issueTokens(app.getId().toString(), channel);
 
-        log.debug("Generated Centrifugo tokens for device: {}, channel: {}, wsUrl: {}",
-                deviceId, channel, tokens.wsUrl());
+        log.debug("Generated Centrifugo tokens for app: {}, channel: {}, wsUrl: {}",
+                app.getId(), channel, tokens.wsUrl());
 
         return SuccessResponse.ok(tokens);
     }

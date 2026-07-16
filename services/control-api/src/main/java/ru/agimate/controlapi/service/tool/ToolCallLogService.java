@@ -74,9 +74,23 @@ public class ToolCallLogService {
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
     }
 
+    /**
+     * Записать результат tool-вызова, пришедший от устройства (app). Устройство корреллирует по PK лога
+     * ({@code tool_call_logs.id}, глобально уникален) — так результат однозначно привязывается к логу
+     * даже когда на одном app сидят несколько агентов (у них {@code external_id} может совпадать).
+     * Владение проверяется по {@code connectionId == app.id}.
+     */
     @Transactional
-    public ToolCallLog recordOutput(App app, IToolResult toolResult) {
-        var toolCallLog = getByExternalId(toolResult.getId());
+    public ToolCallLog recordOutputFromDevice(App app, IToolResult toolResult) {
+        UUID logId;
+        try {
+            logId = UUID.fromString(toolResult.getId());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestStatusException("Invalid tool call id: " + toolResult.getId());
+        }
+
+        var toolCallLog = toolCallLogRepository.findById(logId)
+                .orElseThrow(() -> new NotFoundStatusException("ToolCallLog", toolResult.getId()));
 
         if (!app.getId().toString().equals(toolCallLog.getConnectionId())) {
             throw new ForbiddenStatusException("Incorrect device");

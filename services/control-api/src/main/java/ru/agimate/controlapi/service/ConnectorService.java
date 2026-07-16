@@ -57,8 +57,11 @@ public class ConnectorService {
                         .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + toolCallLog.getConnectionId()));
                 var app = appRepository.findByIdAndUserIdNotDeleted(connection.getAppId(), toolCallLog.getUserId())
                         .orElseThrow(() -> new NotFoundStatusException("App not found: " + connection.getAppId()));
+                // Канал адресуется по app.id (= connectionId, глобально уникален), а не по device_id:
+                // device_id задаёт само устройство и не уникален между тенантами — общий device_id у двух
+                // пользователей означал бы общий канал и утечку toolCall между ними.
                 centrifugoService.publishMessage(
-                        "device:" + app.getDeviceId(), "toolCall", ToolCallPayload.from(toolCallLog));
+                        "device:" + app.getId(), "toolCall", ToolCallPayload.from(toolCallLog));
             }
             case AGENT -> log.warn("AGENT-locus connector called, ignoring. connectorCode={}, toolCall={}",
                     toolCallLog.getConnectorCode(), toolCallLog.getName());
