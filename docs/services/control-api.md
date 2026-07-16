@@ -30,6 +30,16 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT public key         |
 | `APP_SECRETS_ENCRYPTION_KEY` | KEK for the envelope-encrypted `secrets` store (AES-256, Base64, 32 bytes). Required outside `local`/`test` profiles — startup fails without it |
 | `APP_INTEGRATION_WEBHOOK_BASE_URL` | Public URL for webhook callbacks |
+| `INBOUND_RATE_LIMIT_ENABLED` | Inbound rate limiting for device/webhook traffic (default `true`) |
+| `INBOUND_RATE_LIMIT_TRIGGERS_PER_MINUTE` | Trigger events per minute per connection — `/app/trigger/new` + `/webhook/*` (default `120`, `<=0` disables) |
+| `INBOUND_RATE_LIMIT_TOOL_RESULTS_PER_MINUTE` | Tool results per minute per connection — `/app/tools/result` (default `120`, `<=0` disables) |
+
+## Inbound Rate Limiting
+
+Trigger and tool-result ingestion from external sources is rate-limited per connection (token bucket, in-memory, burst = the per-minute limit). The key is `connectionId` — for device apps `app.id == connection.id`, for webhooks it is the path parameter, so all inbound surfaces share one mechanism:
+
+- `/app/trigger/new`, `/app/tools/result` — over-limit requests get **429** `{ "error": { "message": "..." } }`; the device should back off.
+- `/webhook/{connectionId}` — over-limit requests are dropped silently with **200** `ok` (the source is unauthenticated, and webhook platforms endlessly retry non-2xx responses). The drop is logged.
 
 ## API Endpoints
 

@@ -11,6 +11,7 @@ import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
 import java.util.UUID;
@@ -27,6 +28,7 @@ public class ConnectionWebhookController {
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorEnvFactory envFactory;
     private final TriggerRouterService triggerRouterService;
+    private final InboundRateLimiter rateLimiter;
 
     @PostMapping("/{connectionId}")
     public ResponseEntity<String> handleWebhook(
@@ -34,6 +36,14 @@ public class ConnectionWebhookController {
             @RequestBody String rawBody,
             HttpServletRequest request
     ) {
+        // Первым, до обращения к БД: отклонённый флуд не должен стоить ни одного запроса к базе.
+        // Дропаем молча с 200: источник не аутентифицирован (лимиты не раскрываем), а платформы
+        // (Telegram и т.п.) бесконечно ретраят не-2xx — 429 превратил бы флуд в самоподдерживающийся.
+        if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.TRIGGER, connectionId)) {
+            log.warn("Webhook rate limit exceeded for connection: {}", connectionId);
+            return ResponseEntity.ok("ok");
+        }
+
         var connectionOpt = connectionRepository.findByIdNotDeleted(connectionId);
         if (connectionOpt.isEmpty()) {
             log.warn("Webhook received for unknown connection: {}", connectionId);

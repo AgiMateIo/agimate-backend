@@ -10,9 +10,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.common.rest.error.TooManyRequestsStatusException;
 import ru.agimate.controlapi.controller.app.dto.TriggerRequest;
 import ru.agimate.controlapi.security.AppPrincipal;
 import ru.agimate.controlapi.service.AppService;
+import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
 @Slf4j
@@ -25,6 +27,7 @@ public class AppTriggerController {
 
     private final AppService appService;
     private final TriggerRouterService triggerRouterService;
+    private final InboundRateLimiter rateLimiter;
 
     @Operation(
             summary = "Submit trigger from device",
@@ -36,6 +39,11 @@ public class AppTriggerController {
             TriggerRequest triggerRequest,
             @AuthenticationPrincipal AppPrincipal principal
     ) {
+        // До обращения к БД: ключ (appId == connectionId) уже аутентифицирован в principal.
+        if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.TRIGGER, principal.appId())) {
+            throw new TooManyRequestsStatusException("Trigger rate limit exceeded");
+        }
+
         log.info("Trigger received - {}", triggerRequest.toString());
 
         var app = appService.getApp(principal);

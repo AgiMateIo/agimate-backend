@@ -538,6 +538,7 @@ The device correlates by the **server-issued tool call ID** — the `id` field o
 | 401 | Invalid or missing `X-App-Auth-Key` |
 | 403 | The tool call does not belong to this app/device |
 | 404 | No tool call log found for the given `id` |
+| 429 | Tool result rate limit exceeded (per-connection, see `INBOUND_RATE_LIMIT_TOOL_RESULTS_PER_MINUTE`) |
 
 **Response `200`:**
 ```json
@@ -599,6 +600,7 @@ The response value is the `name` field from the request.
 |--------|-----------|
 | 400 | `name` or `data` missing |
 | 401 | Invalid or missing `X-App-Auth-Key` |
+| 429 | Trigger rate limit exceeded (per-connection, see `INBOUND_RATE_LIMIT_TRIGGERS_PER_MINUTE`) |
 
 ---
 

@@ -121,6 +121,11 @@ centrifugo:
   publicKey: ""
   token-ttl-seconds: 3600
 
+inbound-rate-limit:
+  enabled: true
+  triggers-per-minute: 120
+  tool-results-per-minute: 120
+
 grpc:
   server:
     enabled: false
