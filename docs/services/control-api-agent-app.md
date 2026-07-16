@@ -425,10 +425,29 @@ Associates device hardware information with the authenticated connector. Must be
     "camera": false
   },
   "triggers": {
-    "trigger.door.open": { "description": "Door open event" }
+    "door_open": {
+      "description": "Door open event",
+      "paramsSchema": {
+        "type": "object",
+        "properties": { "doorId": { "type": "string" }, "state": { "type": "string" } }
+      }
+    }
   },
   "tools": {
-    "tool.device.tts.speak": { "description": "Text-to-speech", "params": ["text", "voice"] }
+    "tts_speak": {
+      "title": "Speak text",
+      "description": "Text-to-speech on the device",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text":  { "type": "string" },
+          "voice": { "type": "string", "enum": ["default", "female", "male"] }
+        },
+        "required": ["text"]
+      },
+      "annotations": { "readOnlyHint": false, "openWorldHint": false }
+    },
+    "light_toggle": { "description": "Toggle a light", "params": ["lightId", "state"] }
   }
 }
 ```
@@ -439,8 +458,28 @@ Associates device hardware information with the authenticated connector. Must be
 | `deviceName` | `string` | no | Human-readable name of the device |
 | `deviceOs` | `string` | no | Operating system and version string |
 | `deviceFeatures` | `object` | no | Key-value map of device capability flags |
-| `triggers` | `object` | no | Map of trigger names to their metadata |
-| `tools` | `object` | no | Map of tool names to their metadata |
+| `triggers` | `object` | no | Map of trigger name → descriptor |
+| `tools` | `object` | no | Map of tool name → descriptor |
+
+**Tool descriptor** (value in the `tools` map) — aligned with the MCP `tools/list[]` element, so a
+device declares tools with full JSON Schema, on par with MCP and internal connectors:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | `string` | Human-readable name for UI |
+| `description` | `string` | Description for the LLM |
+| `inputSchema` | JSON Schema | Full input schema (draft-2020-12): types, `required`, `enum`, nested objects — stored losslessly |
+| `outputSchema` | JSON Schema | Result schema |
+| `annotations` | `object` | MCP behavioral hints: `readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint` |
+| `params` | `string[]` | Shorthand for simple devices: parameter names → synthesized minimal object schema. Ignored when `inputSchema` is present. |
+
+**Trigger descriptor** (value in the `triggers` map): `title`, `description`, `paramsSchema` (JSON
+Schema of the event `data`), and the `params` shorthand.
+
+Tool/trigger names are bare `snake_case` identifiers (no prefixes); the namespace is derived by the
+backend. `link` fully replaces the previously declared catalog. The declared schemas are mirrored
+into `connection_tools`/`connection_triggers` and surfaced to the agent verbatim — the backend does
+**not** validate tool input against the schema, the device must validate and report errors itself.
 
 **Response `200`:**
 ```json

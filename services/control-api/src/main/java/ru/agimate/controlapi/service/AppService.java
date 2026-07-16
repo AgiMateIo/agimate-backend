@@ -12,10 +12,9 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.controlapi.connectors.core.FullCodes;
 import ru.agimate.controlapi.controller.app.dto.LinkDeviceRequest;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.entities.ConnectionTool;
-import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.repositories.AppRepository;
@@ -195,10 +194,14 @@ public class AppService {
                 .map(entry -> {
                     var value = (Map<String, Object>) entry.getValue();
                     var description = value.getOrDefault("description", "").toString();
-                    var params = value.get("params") instanceof List<?> list
-                            ? list.stream().map(Object::toString).toList()
-                            : List.<String>of();
-                    return new AppTool(entry.getKey(), description, params);
+                    return new AppTool(
+                            entry.getKey(),
+                            asString(value.get("title")),
+                            description,
+                            deriveParams(value.get("params"), value.get("inputSchema")),
+                            value.get("inputSchema"),
+                            value.get("outputSchema"),
+                            value.get("annotations"));
                 })
                 .toList();
     }
@@ -210,12 +213,30 @@ public class AppService {
                 .map(entry -> {
                     var value = (Map<String, Object>) entry.getValue();
                     var description = value.getOrDefault("description", "").toString();
-                    var params = value.get("params") instanceof List<?> list
-                            ? list.stream().map(Object::toString).toList()
-                            : List.<String>of();
-                    return new AppTrigger(entry.getKey(), description, params);
+                    return new AppTrigger(
+                            entry.getKey(),
+                            asString(value.get("title")),
+                            description,
+                            deriveParams(value.get("params"), value.get("paramsSchema")),
+                            value.get("paramsSchema"));
                 })
                 .toList();
+    }
+
+    /** Имена параметров для UI: явный список {@code params}, иначе ключи {@code properties} схемы, иначе пусто. */
+    @SuppressWarnings("unchecked")
+    private List<String> deriveParams(Object params, Object schema) {
+        if (params instanceof List<?> list) {
+            return list.stream().map(Object::toString).toList();
+        }
+        if (schema instanceof Map<?, ?> map && map.get("properties") instanceof Map<?, ?> props) {
+            return props.keySet().stream().map(Object::toString).toList();
+        }
+        return List.of();
+    }
+
+    private static String asString(Object value) {
+        return value != null ? value.toString() : null;
     }
 
 
@@ -261,22 +282,18 @@ public class AppService {
         connectionTriggerRepository.deleteByConnectionId(connectionId);
 
         if (request.tools() != null) {
-            for (AppTool tool : parseTools(request.tools())) {
-                connectionToolRepository.save(ConnectionTool.builder()
-                        .connectionId(connectionId)
-                        .name(tool.name())
-                        .description(tool.description())
-                        .build());
-            }
+            request.tools().forEach((name, descriptor) -> {
+                if (name == null || name.isBlank()) return;
+                connectionToolRepository.save(
+                        AppCatalogMapper.toolEntity(connectionId, name, JsonUtils.MAPPER.valueToTree(descriptor)));
+            });
         }
         if (request.triggers() != null) {
-            for (AppTrigger trigger : parseTriggers(request.triggers())) {
-                connectionTriggerRepository.save(ConnectionTrigger.builder()
-                        .connectionId(connectionId)
-                        .name(trigger.name())
-                        .description(trigger.description())
-                        .build());
-            }
+            request.triggers().forEach((name, descriptor) -> {
+                if (name == null || name.isBlank()) return;
+                connectionTriggerRepository.save(
+                        AppCatalogMapper.triggerEntity(connectionId, name, JsonUtils.MAPPER.valueToTree(descriptor)));
+            });
         }
     }
 
