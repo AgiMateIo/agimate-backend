@@ -598,7 +598,7 @@ The response value is the `name` field from the request.
 
 | Status | Condition |
 |--------|-----------|
-| 400 | `name` or `data` missing |
+| 400 | `name` or `data` missing, or `name` was not declared by this device at registration/link |
 | 401 | Invalid or missing `X-App-Auth-Key` |
 | 429 | Trigger rate limit exceeded (per-connection, see `INBOUND_RATE_LIMIT_TRIGGERS_PER_MINUTE`) |
 

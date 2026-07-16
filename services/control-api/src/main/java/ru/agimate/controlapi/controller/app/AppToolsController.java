@@ -39,7 +39,10 @@ public class AppToolsController {
             throw new TooManyRequestsStatusException("Tool result rate limit exceeded");
         }
 
-        log.info("Tool result received - {}", toolResultRequest.toString());
+        // output может содержать пользовательский контент — полный payload только на debug.
+        log.info("Tool result received - id={}, app={}, hasError={}",
+                toolResultRequest.id(), principal.appId(), toolResultRequest.error() != null);
+        log.debug("Tool result payload - {}", toolResultRequest);
 
         var app = appService.getApp(principal);
 

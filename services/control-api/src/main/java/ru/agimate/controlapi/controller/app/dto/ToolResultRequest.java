@@ -1,9 +1,11 @@
 package ru.agimate.controlapi.controller.app.dto;
 
+import jakarta.validation.constraints.NotNull;
 import ru.agimate.controlapi.service.dto.IToolResult;
 
 
 public record ToolResultRequest(
+        @NotNull
         String id,
         String connectorCode,
         String output,

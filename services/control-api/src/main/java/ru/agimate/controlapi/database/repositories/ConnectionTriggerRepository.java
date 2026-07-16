@@ -16,6 +16,9 @@ public interface ConnectionTriggerRepository extends JpaRepository<ConnectionTri
     @Query("SELECT t FROM ConnectionTrigger t WHERE t.connectionId = :connectionId AND t.deletedAt IS NULL")
     List<ConnectionTrigger> findActiveByConnectionId(@Param("connectionId") UUID connectionId);
 
+    @Query("SELECT COUNT(t) > 0 FROM ConnectionTrigger t WHERE t.connectionId = :connectionId AND t.name = :name AND t.deletedAt IS NULL")
+    boolean existsActiveByConnectionIdAndName(@Param("connectionId") UUID connectionId, @Param("name") String name);
+
     @Modifying
     @Query("DELETE FROM ConnectionTrigger t WHERE t.connectionId = :connectionId")
     int deleteByConnectionId(@Param("connectionId") UUID connectionId);

@@ -163,6 +163,18 @@ public class AppService {
                 .orElseThrow(() -> new UnauthorizedStatusException("App not found"));
     }
 
+    /**
+     * Триггер обязан быть задекларирован устройством при link (каталог {@code connection_triggers} —
+     * источник истины для экземпляра): незадекларированное имя — нарушение контракта, а не событие
+     * для маршрутизации. Для устройств {@code connectionId == app.id}.
+     */
+    public void requireDeclaredTrigger(App app, String triggerName) {
+        if (!connectionTriggerRepository.existsActiveByConnectionIdAndName(app.getId(), triggerName)) {
+            throw new BadRequestStatusException(
+                    "Trigger '" + triggerName + "' is not declared by this device");
+        }
+    }
+
     public List<AppTool> getToolsByAppIdAndUser(UUID appId, UUID userId) {
         var app = appRepository.findByIdAndUserIdNotDeleted(appId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
