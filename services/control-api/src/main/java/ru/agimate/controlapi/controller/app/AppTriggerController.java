@@ -44,10 +44,10 @@ public class AppTriggerController {
             throw new TooManyRequestsStatusException("Trigger rate limit exceeded");
         }
 
-        // data может содержать пользовательский контент — полный payload только на debug.
-        log.info("Trigger received - name={}, id={}, app={}",
-                triggerRequest.name(), triggerRequest.id(), principal.appId());
-        log.debug("Trigger payload - {}", triggerRequest);
+        // data может содержать пользовательский контент — в лог только метаданные, не payload.
+        log.info("Trigger received - name={}, id={}, app={}, dataFields={}",
+                triggerRequest.name(), triggerRequest.id(), principal.appId(),
+                triggerRequest.data().size());
 
         var app = appService.getApp(principal);
         appService.requireDeclaredTrigger(app, triggerRequest.name());
