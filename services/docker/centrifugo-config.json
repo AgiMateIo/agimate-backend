@@ -17,7 +17,7 @@
   "channel": {
     "namespaces": [
       {
-        "name": "device",
+        "name": "app",
         "allow_subscribe_for_client": false,
         "allow_publish_for_client": false,
         "history": {

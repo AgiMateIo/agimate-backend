@@ -460,11 +460,11 @@ Associates device hardware information with the authenticated connector. Must be
 
 ### POST `/control/app/centrifugo/token`
 
-Generates Centrifugo connection and subscription tokens for the device's tools channel (`device:{appId}`).
+Generates Centrifugo connection and subscription tokens for the device's tools channel (`app:{appId}`).
 
 The `deviceId` in the request must match the `deviceId` stored on the connector (set during registration/link). Returns 403 if the connector is not linked or the `deviceId` does not match.
 
-> **Channel addressing.** The channel is keyed by the app's public ID (`app.id`, equal to the connection ID), **not** by the client-chosen `deviceId` — `deviceId` is not unique across tenants, so a shared value would put two users on the same channel. The device does not construct the channel name itself; it subscribes to the `channel` value returned below. Multiple agents may push tool calls to the same `device:{appId}` channel; results route back to the correct agent by the server-issued tool call ID (see `/app/tools/result`).
+> **Channel addressing.** The channel is keyed by the app's public ID (`app.id`, equal to the connection ID), **not** by the client-chosen `deviceId` — `deviceId` is not unique across tenants, so a shared value would put two users on the same channel. The device does not construct the channel name itself; it subscribes to the `channel` value returned below. Multiple agents may push tool calls to the same `app:{appId}` channel; results route back to the correct agent by the server-issued tool call ID (see `/app/tools/result`).
 
 **Request body:**
 ```json
@@ -483,7 +483,7 @@ The `deviceId` in the request must match the `deviceId` stored on the connector 
   "response": {
     "connectionToken": "<jwt>",
     "subscriptionToken": "<jwt>",
-    "channel": "device:01951234-abcd-ef01-2345-6789abcdef02",
+    "channel": "app:01951234-abcd-ef01-2345-6789abcdef02",
     "wsUrl": "https://centrifugo.example.com/connection/websocket"
   }
 }
@@ -493,7 +493,7 @@ The `deviceId` in the request must match the `deviceId` stored on the connector 
 |-------|------|-------------|
 | `connectionToken` | `string` | ES256 JWT for the Centrifugo WebSocket connection |
 | `subscriptionToken` | `string` | ES256 JWT for subscribing to the device's channel |
-| `channel` | `string` | Channel name (`device:{appId}`) — subscribe to exactly this value |
+| `channel` | `string` | Channel name (`app:{appId}`) — subscribe to exactly this value |
 | `wsUrl` | `string` | Centrifugo WebSocket URL |
 
 Tokens expire after **3600 seconds (1 hour)**.

@@ -61,7 +61,7 @@ public class ConnectorService {
                 // device_id задаёт само устройство и не уникален между тенантами — общий device_id у двух
                 // пользователей означал бы общий канал и утечку toolCall между ними.
                 centrifugoService.publishMessage(
-                        "device:" + app.getId(), "toolCall", ToolCallPayload.from(toolCallLog));
+                        "app:" + app.getId(), "toolCall", ToolCallPayload.from(toolCallLog));
             }
             case AGENT -> log.warn("AGENT-locus connector called, ignoring. connectorCode={}, toolCall={}",
                     toolCallLog.getConnectorCode(), toolCallLog.getName());

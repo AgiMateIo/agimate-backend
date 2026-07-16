@@ -49,7 +49,8 @@ public class AppCentrifugoTokenController {
 
         // Канал и subject токена — по app.id (= connectionId), а не по клиентскому device_id:
         // device_id не уникален между тенантами. Устройство подписывается на возвращённый channel.
-        String channel = "device:" + app.getId();
+        // Namespace "app" — см. centrifugo-config.json (allow_*_for_client=false: только server-side).
+        String channel = "app:" + app.getId();
 
         CentrifugoTokenResponse tokens = centrifugoService.issueTokens(app.getId().toString(), channel);
 

@@ -190,7 +190,7 @@ Key configuration options in `config.json`:
 
 | Namespace | Pattern                                    | Description                        |
 |-----------|--------------------------------------------|------------------------------------|
-| `device`  | `device:{deviceId}:(actions\|triggers)`    | Device-related events              |
+| `app`     | `app:{appId}`                              | Tool-call push to device apps      |
 | `agent`   | `agent:{apiKeyPubId}`                      | Agent events (tool results, triggers) |
 | `user`    | `user:{userId}`                            | User events for the management UI  |
 | `webchat` | `webchat:{sessionId}`                      | Webchat session messages (history+recovery enabled) |

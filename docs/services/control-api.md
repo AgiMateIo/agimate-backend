@@ -229,7 +229,7 @@ Predefined tools/triggers of a connector **type** moved to the catalog:
 ## Centrifugo Integration
 
 control-api integrates with Centrifugo for real-time messaging:
-- **Device channels** (`device:{deviceId}`) — push tool_call requests to devices
+- **App channels** (`app:{appId}`) — push tool_call requests to device apps
 - **Agent channels** (`agent:{apiKeyPubId}`) — deliver tool_result and trigger events to agents
 - Connection and subscription token generation (ES256 JWT)
 
