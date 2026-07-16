@@ -58,7 +58,12 @@ public class ChannelSessionMessage extends BaseEntity {
     @Column(name = "message", columnDefinition = "TEXT")
     private String message;
 
-    /** Дореформенный сериализованный LLM-ход; v2 больше не пишет (nullable), остаётся для чтения. */
+    /**
+     * v2.1: структурная запись tool-хода ({@code ToolTurnRecord}: text + calls + results) у
+     * PROGRESS/TOOL_CALL — история следующих ранов отдаёт её воркеру как нативные
+     * tool_use/tool_result. У остальных строк null. Дореформенные строки могли хранить здесь
+     * сериализованный LLM-ход старого формата — они различимы по kind (REQUEST/RESPONSE).
+     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "message_json", columnDefinition = "JSONB")
     private Map<String, Object> messageJson;

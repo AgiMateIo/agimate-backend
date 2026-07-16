@@ -26,10 +26,11 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
     @Query(value = """
             INSERT INTO channel_session_messages
                 (session_id, agent_id, run_id, seq, kind, progress_type, message,
-                 trigger_input, completed, created_at, updated_at)
+                 message_json, trigger_input, completed, created_at, updated_at)
             VALUES
                 (:sessionId, :agentId, :runId, :seq, :kind, :progressType, :message,
-                 CAST(:triggerInput AS jsonb), false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                 CAST(:messageJson AS jsonb), CAST(:triggerInput AS jsonb), false,
+                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (run_id, seq) DO NOTHING
             """, nativeQuery = true)
     int insertIgnoreConflict(@Param("sessionId") UUID sessionId,
@@ -39,6 +40,7 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
                              @Param("kind") String kind,
                              @Param("progressType") String progressType,
                              @Param("message") String message,
+                             @Param("messageJson") String messageJson,
                              @Param("triggerInput") String triggerInput);
 
     /** Финальный ANSWER завершает ран: вся его переписка становится видимой истории. */

@@ -2,6 +2,7 @@ package ru.agimate.controlapi.grpc.mapper;
 
 import lombok.experimental.UtilityClass;
 import ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec;
+import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.runcontext.RunBlock;
 import ru.agimate.controlapi.service.runcontext.RunHistoryMessage;
 import ru.agimate.controlapi.service.runcontext.RunTool;
@@ -9,6 +10,9 @@ import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.HistoryMessage;
 import ru.agimate.agentworker.PromptBlock;
 import ru.agimate.agentworker.ToolAnnotations;
+import ru.agimate.agentworker.ToolCallRec;
+import ru.agimate.agentworker.ToolResultRec;
+import ru.agimate.agentworker.ToolTurn;
 
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.nullToEmpty;
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.toJsonBytes;
@@ -64,9 +68,30 @@ public class RunContextMapper {
     }
 
     public static HistoryMessage toProto(RunHistoryMessage message) {
-        return HistoryMessage.newBuilder()
+        HistoryMessage.Builder builder = HistoryMessage.newBuilder()
                 .setKind(MessageKindMapper.toProto(message.kind()))
-                .setText(nullToEmpty(message.text()))
-                .build();
+                .setText(nullToEmpty(message.text()));
+        if (message.toolTurn() != null) {
+            builder.setToolTurn(toProto(message.toolTurn()));
+        }
+        return builder.build();
+    }
+
+    private static ToolTurn toProto(ToolTurnRecord turn) {
+        ToolTurn.Builder builder = ToolTurn.newBuilder().setText(nullToEmpty(turn.text()));
+        for (ToolTurnRecord.Call call : turn.calls()) {
+            builder.addCalls(ToolCallRec.newBuilder()
+                    .setId(nullToEmpty(call.id()))
+                    .setName(nullToEmpty(call.name()))
+                    .setArgumentsJson(nullToEmpty(call.argumentsJson())));
+        }
+        for (ToolTurnRecord.Result result : turn.results()) {
+            builder.addResults(ToolResultRec.newBuilder()
+                    .setId(nullToEmpty(result.id()))
+                    .setName(nullToEmpty(result.name()))
+                    .setOutputJson(nullToEmpty(result.outputJson()))
+                    .setFailed(result.failed()));
+        }
+        return builder.build();
     }
 }

@@ -16,6 +16,7 @@ import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
+import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
@@ -102,14 +103,14 @@ class MessageLogServiceTest {
             run(SESSION_ID, dialogueChannels());
             when(inboundTextResolver.resolve(eq(PROMPT_CHANNEL), any())).thenReturn(Optional.of("hi"));
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), isNull(), anyString(), anyString())).thenReturn(1);
+                    anyString(), isNull(), anyString(), isNull(), anyString())).thenReturn(1);
 
             var result = service.save(AGENT_ID, TRIGGER_ID, 0,
-                    ChannelSessionMessageKind.INBOUND, null, "");
+                    ChannelSessionMessageKind.INBOUND, null, "", null);
 
             assertFalse(result.duplicate());
             verify(messageRepository).insertIgnoreConflict(eq(SESSION_ID), eq(AGENT_ID), eq(TRIGGER_ID),
-                    eq(0), eq("INBOUND"), isNull(), eq("hi"), contains("\"text\""));
+                    eq(0), eq("INBOUND"), isNull(), eq("hi"), isNull(), contains("\"text\""));
             verifyNoInteractions(outboundService);
         }
 
@@ -118,10 +119,10 @@ class MessageLogServiceTest {
         void duplicate() {
             run(SESSION_ID, dialogueChannels());
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), anyString(), anyString(), isNull())).thenReturn(0);
+                    anyString(), anyString(), anyString(), isNull(), isNull())).thenReturn(0);
 
             var result = service.save(AGENT_ID, TRIGGER_ID, 3,
-                    ChannelSessionMessageKind.PROGRESS, "TOOL_CALL", "🔧 get_tasks");
+                    ChannelSessionMessageKind.PROGRESS, "TOOL_CALL", "🔧 get_tasks", null);
 
             assertTrue(result.duplicate());
         }
@@ -131,11 +132,53 @@ class MessageLogServiceTest {
         void answerCompletesRun() {
             run(SESSION_ID, dialogueChannels());
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), isNull(), anyString(), isNull())).thenReturn(1);
+                    anyString(), isNull(), anyString(), isNull(), isNull())).thenReturn(1);
 
-            service.save(AGENT_ID, TRIGGER_ID, 5, ChannelSessionMessageKind.ANSWER, null, "done");
+            service.save(AGENT_ID, TRIGGER_ID, 5, ChannelSessionMessageKind.ANSWER, null, "done", null);
 
             verify(messageRepository).markRunCompleted(TRIGGER_ID);
+        }
+
+        @Test
+        @DisplayName("TOOL_CALL с toolTurn → message_json со структурной записью")
+        void toolTurnPersisted() {
+            run(SESSION_ID, dialogueChannels());
+            when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
+                    anyString(), anyString(), anyString(), anyString(), isNull())).thenReturn(1);
+
+            var turn = new ToolTurnRecord("смотрю задачи",
+                    List.of(new ToolTurnRecord.Call("c1", "board.get_tasks", "{\"boardId\":1}")),
+                    List.of(new ToolTurnRecord.Result("c1", "board.get_tasks", "{\"tasks\":[]}", false)));
+            service.save(AGENT_ID, TRIGGER_ID, 2,
+                    ChannelSessionMessageKind.PROGRESS, "TOOL_CALL", "🔧 get_tasks", turn);
+
+            var jsonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+            verify(messageRepository).insertIgnoreConflict(eq(SESSION_ID), eq(AGENT_ID), eq(TRIGGER_ID),
+                    eq(2), eq("PROGRESS"), eq("TOOL_CALL"), eq("🔧 get_tasks"),
+                    jsonCaptor.capture(), isNull());
+            assertTrue(jsonCaptor.getValue().contains("\"board.get_tasks\""));
+            assertTrue(jsonCaptor.getValue().contains("\"argumentsJson\""));
+        }
+
+        @Test
+        @DisplayName("гигантский output капается при записи с маркером truncated")
+        void toolTurnOutputCapped() {
+            run(SESSION_ID, dialogueChannels());
+            when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
+                    anyString(), anyString(), anyString(), anyString(), isNull())).thenReturn(1);
+
+            String huge = "x".repeat(MessageLogPersistence.TOOL_JSON_WRITE_CAP + 100);
+            var turn = new ToolTurnRecord(null,
+                    List.of(new ToolTurnRecord.Call("c1", "t", "{}")),
+                    List.of(new ToolTurnRecord.Result("c1", "t", huge, false)));
+            service.save(AGENT_ID, TRIGGER_ID, 2,
+                    ChannelSessionMessageKind.PROGRESS, "TOOL_CALL", "🔧 t", turn);
+
+            var jsonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+            verify(messageRepository).insertIgnoreConflict(any(), any(), any(), anyInt(),
+                    anyString(), anyString(), anyString(), jsonCaptor.capture(), isNull());
+            assertTrue(jsonCaptor.getValue().contains("…[truncated]"));
+            assertFalse(jsonCaptor.getValue().contains(huge));
         }
 
         @Test
@@ -143,10 +186,10 @@ class MessageLogServiceTest {
         void directRun() {
             TriggerLogAgent run = run(null, null);
 
-            service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.ANSWER, null, "done");
+            service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.ANSWER, null, "done", null);
             assertEquals("done", run.getResult());
 
-            service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.ERROR, null, "boom");
+            service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.ERROR, null, "boom", null);
             assertEquals("boom", run.getError());
 
             verifyNoInteractions(messageRepository);
@@ -161,7 +204,7 @@ class MessageLogServiceTest {
         @BeforeEach
         void stubInsert() {
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
-                    anyString(), any(), anyString(), isNull())).thenReturn(1);
+                    anyString(), any(), anyString(), any(), isNull())).thenReturn(1);
         }
 
         @Test
@@ -169,8 +212,8 @@ class MessageLogServiceTest {
         void progressRouting() {
             run(SESSION_ID, dialogueChannels());
 
-            service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.PROGRESS, "TEXT", "thinking...");
-            service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.PROGRESS, "TEXT", "thinking...");
+            service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.PROGRESS, "TEXT", "thinking...", null);
+            service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.PROGRESS, "TEXT", "thinking...", null);
 
             // Оба вызова (ретрай) шлют один и тот же messageId — дедуп downstream.
             verify(outboundService, org.mockito.Mockito.times(2)).send(eq(AGENT_ID), eq(PROGRESS_CHANNEL),
@@ -185,7 +228,7 @@ class MessageLogServiceTest {
         void answerFallsBackToPrompt() {
             run(SESSION_ID, dialogueChannels());
 
-            service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done");
+            service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done", null);
 
             verify(outboundService).send(eq(AGENT_ID), eq(PROMPT_CHANNEL), eq(SESSION_ID),
                     any(OutboundMessage.class), anyString(), eq("answer"), isNull());
@@ -196,7 +239,7 @@ class MessageLogServiceTest {
         void progressWithoutChannel() {
             run(SESSION_ID, new Channels(new ChannelInfo(PROMPT_CHANNEL, SESSION_ID, null), null, null));
 
-            service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.PROGRESS, "TEXT", "line");
+            service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.PROGRESS, "TEXT", "line", null);
 
             verify(outboundService, never()).send(any(), any(), any(), any(), any(), any(), any());
         }
@@ -208,11 +251,11 @@ class MessageLogServiceTest {
             when(outboundService.send(any(), any(), any(), any(), any(), any(), any()))
                     .thenThrow(new NotFoundStatusException("Channel not found"));
 
-            var result = service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done");
+            var result = service.save(AGENT_ID, TRIGGER_ID, 4, ChannelSessionMessageKind.ANSWER, null, "done", null);
 
             assertFalse(result.duplicate());
             verify(messageRepository).insertIgnoreConflict(eq(SESSION_ID), eq(AGENT_ID), eq(TRIGGER_ID),
-                    eq(4), eq("ANSWER"), isNull(), eq("done"), isNull());
+                    eq(4), eq("ANSWER"), isNull(), eq("done"), isNull(), isNull());
             verify(messageRepository).markRunCompleted(TRIGGER_ID);
         }
     }
@@ -224,7 +267,7 @@ class MessageLogServiceTest {
         @BeforeEach
         void stubInsert() {
             org.mockito.Mockito.lenient().when(messageRepository.insertIgnoreConflict(any(), any(), any(),
-                    anyInt(), anyString(), any(), anyString(), any())).thenReturn(1);
+                    anyInt(), anyString(), any(), anyString(), any(), any())).thenReturn(1);
         }
 
         @Test
@@ -233,11 +276,11 @@ class MessageLogServiceTest {
             TriggerLogAgent run = run(SESSION_ID, dialogueChannels());
             when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of("hi"));
 
-            service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "");
+            service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "", null);
             assertEquals(RunStatus.RUNNING, run.getStatus());
             assertNotNull(run.getLastActivityAt());
 
-            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.ANSWER, null, "done");
+            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.ANSWER, null, "done", null);
             assertEquals(RunStatus.DONE, run.getStatus());
         }
 
@@ -246,12 +289,12 @@ class MessageLogServiceTest {
         void terminalIsSticky() {
             TriggerLogAgent run = run(SESSION_ID, dialogueChannels());
 
-            service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.ERROR, null, "boom");
+            service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.ERROR, null, "boom", null);
             assertEquals(RunStatus.FAILED, run.getStatus());
 
             // Реплей INBOUND после финиша не воскрешает ран.
             when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of("hi"));
-            service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "");
+            service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "", null);
             assertEquals(RunStatus.FAILED, run.getStatus());
         }
 
@@ -260,7 +303,7 @@ class MessageLogServiceTest {
         void progressTouchesOnly() {
             TriggerLogAgent run = run(SESSION_ID, dialogueChannels());
 
-            service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.PROGRESS, "TEXT", "step");
+            service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.PROGRESS, "TEXT", "step", null);
 
             assertEquals(RunStatus.ENQUEUED, run.getStatus());
             assertNotNull(run.getLastActivityAt());
@@ -273,6 +316,6 @@ class MessageLogServiceTest {
         run(SESSION_ID, dialogueChannels());
         assertThrows(BadRequestStatusException.class,
                 () -> service.save(UUID.randomUUID(), TRIGGER_ID, 0,
-                        ChannelSessionMessageKind.INBOUND, null, ""));
+                        ChannelSessionMessageKind.INBOUND, null, "", null));
     }
 }

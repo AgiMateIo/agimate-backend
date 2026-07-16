@@ -9,6 +9,7 @@ import ru.agimate.agentworker.agent.model.ToolDef;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 /**
  * Minimal agent turn-loop over {@link AgentChatMessage}. Drives a model conversation manually so
@@ -19,9 +20,26 @@ import java.util.function.Consumer;
  * <p>Loop: request the LLM; append the assistant reply; if it has no tool calls, notify and return
  * its text; otherwise dispatch all tool calls, append one tool-result message, notify, and continue
  * — up to {@code maxTurns}.
+ *
+ * <p>Guard: слабые модели (DeepSeek и др.) иногда пишут вызов тула текстом («🔧 name») вместо
+ * структурного tool call — без guard'а такой «финальный ответ» тихо завершает ран, а тул не
+ * исполняется. Ответ без tool calls, но с паттерном имитации не принимается: в диалог
+ * добавляется корректирующий user-ход (до {@value #MAX_IMITATION_CORRECTIONS} раз за ран),
+ * и цикл продолжается.
  */
 @Slf4j
 public class SimpleAgent {
+
+    /** Имитация вызова текстом: строка «🔧 …» (канальная проекция) или «[вызван инструмент …]» (история). */
+    private static final Pattern TOOL_TEXT_IMITATION =
+            Pattern.compile("(?m)^\\s*(🔧|\\[вызван инструмент)");
+
+    static final int MAX_IMITATION_CORRECTIONS = 2;
+
+    static final String IMITATION_CORRECTION =
+            "Вызов инструмента, написанный текстом, не исполняется. Если нужно вызвать инструмент — "
+            + "сделай настоящий структурный tool call через API. Если вызов не нужен — ответь без "
+            + "строк вида «🔧 …».";
 
     /** Injected single-model-request call; throws {@link LlmCallError} on HTTP/API failure. */
     @FunctionalInterface
@@ -58,6 +76,7 @@ public class SimpleAgent {
      * Throws {@link MaxTurnsExceeded} if no final reply is produced.
      */
     public String run(List<AgentChatMessage> messages) {
+        int corrections = 0;
         for (int turn = 1; turn <= maxTurns; turn++) {
             log.info("turn {}/{}: requesting LLM", turn, maxTurns);
             AgentChatMessage assistant = llmCaller.call(messages, toolDefs);
@@ -66,8 +85,15 @@ public class SimpleAgent {
             newInTurn.add(assistant);
 
             if (!assistant.hasToolCalls()) {
-                notify(newInTurn);
                 String text = assistant.text() != null ? assistant.text() : "";
+                if (corrections < MAX_IMITATION_CORRECTIONS && TOOL_TEXT_IMITATION.matcher(text).find()) {
+                    corrections++;
+                    log.warn("turn {}: tool call imitated as text, correcting ({}/{})",
+                            turn, corrections, MAX_IMITATION_CORRECTIONS);
+                    messages.add(AgentChatMessage.user(IMITATION_CORRECTION));
+                    continue;
+                }
+                notify(newInTurn);
                 log.info("turn {}: final answer ({} chars)", turn, text.length());
                 return text;
             }

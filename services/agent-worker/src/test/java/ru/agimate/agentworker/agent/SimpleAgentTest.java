@@ -62,4 +62,57 @@ class SimpleAgentTest {
         SimpleAgent agent = agent(llm, dispatcher, null, 3);
         assertThrows(MaxTurnsExceeded.class, () -> agent.run(new ArrayList<>()));
     }
+
+    @Test
+    @DisplayName("guard: имитация вызова текстом «🔧 …» не принимается как финал — корректирующий ход")
+    void textToolCallImitationCorrected() {
+        AtomicInteger turn = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
+                ? AgentChatMessage.assistant("Сейчас проверю.\n\n🔧 desktop.tool.apps.list", false, List.of())
+                : AgentChatMessage.assistant("готово", false, List.of());
+        SimpleAgent agent = agent(llm, calls -> List.of(), null, 10);
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        assertEquals("готово", agent.run(conv));
+        // user + assistant(имитация) + корректирующий user + assistant(финал)
+        assertEquals(4, conv.size());
+        assertEquals(SimpleAgent.IMITATION_CORRECTION, conv.get(2).text());
+    }
+
+    @Test
+    @DisplayName("guard: имитация «[вызван инструмент …]» тоже перехватывается")
+    void bracketImitationCorrected() {
+        AtomicInteger turn = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
+                ? AgentChatMessage.assistant("[вызван инструмент time.now]", false, List.of())
+                : AgentChatMessage.assistant("ok", false, List.of());
+        SimpleAgent agent = agent(llm, calls -> List.of(), null, 10);
+        assertEquals("ok", agent.run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+    }
+
+    @Test
+    @DisplayName("guard: после исчерпания коррекций имитация принимается как финал (без зацикливания)")
+    void imitationAcceptedAfterMaxCorrections() {
+        String imitation = "🔧 t";
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> AgentChatMessage.assistant(imitation, false, List.of());
+        SimpleAgent agent = agent(llm, calls -> List.of(), null, 10);
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        assertEquals(imitation, agent.run(conv));
+        // Коррекций ровно MAX_IMITATION_CORRECTIONS, затем финал.
+        long corrections = conv.stream()
+                .filter(m -> SimpleAgent.IMITATION_CORRECTION.equals(m.text()))
+                .count();
+        assertEquals(SimpleAgent.MAX_IMITATION_CORRECTIONS, corrections);
+    }
+
+    @Test
+    @DisplayName("guard: упоминание 🔧 в середине строки финала не триггерит коррекцию")
+    void inlineEmojiNotCorrected() {
+        SimpleAgent.LlmCaller llm = (msgs, defs) ->
+                AgentChatMessage.assistant("я использовал 🔧 для задачи", false, List.of());
+        SimpleAgent agent = agent(llm, calls -> List.of(), null, 10);
+        assertEquals("я использовал 🔧 для задачи",
+                agent.run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+    }
 }

@@ -8,10 +8,12 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.grpc.mapper.MessageKindMapper;
 import ru.agimate.controlapi.service.channel.MessageLogService;
+import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.agentworker.MessageLogGrpc;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.SaveMessageRequest;
 import ru.agimate.agentworker.SaveMessageResponse;
+import ru.agimate.agentworker.ToolTurn;
 
 import java.util.UUID;
 
@@ -43,7 +45,8 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
                     : request.getProgressType().name().replace("PROGRESS_TYPE_", "");
 
             MessageLogService.SaveResult result = messageLogService.save(
-                    agentId, triggerId, request.getSeq(), kind, progressType, request.getText());
+                    agentId, triggerId, request.getSeq(), kind, progressType, request.getText(),
+                    request.hasToolTurn() ? toDomain(request.getToolTurn()) : null);
 
             responseObserver.onNext(SaveMessageResponse.newBuilder()
                     .setDuplicate(result.duplicate())
@@ -53,5 +56,17 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
             handleError(e, responseObserver, "SaveMessage agent=" + request.getAgentId()
                     + " trigger=" + request.getTriggerId());
         }
+    }
+
+    private static ToolTurnRecord toDomain(ToolTurn turn) {
+        return new ToolTurnRecord(
+                turn.getText(),
+                turn.getCallsList().stream()
+                        .map(c -> new ToolTurnRecord.Call(c.getId(), c.getName(), c.getArgumentsJson()))
+                        .toList(),
+                turn.getResultsList().stream()
+                        .map(r -> new ToolTurnRecord.Result(r.getId(), r.getName(), r.getOutputJson(),
+                                r.getFailed()))
+                        .toList());
     }
 }

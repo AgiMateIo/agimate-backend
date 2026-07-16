@@ -36,15 +36,42 @@ message SaveMessageRequest {
   MessageKind kind = 4;
   ProgressType progress_type = 5;  // только для PROGRESS
   string text = 6;              // для INBOUND пуст
+  // Структурная запись tool-хода (протокол v2.1) — только для PROGRESS/TOOL_CALL. text при этом
+  // остаётся канальной 🔧-проекцией; в историю следующих ранов бэк отдаёт tool_turn (нативные
+  // tool_use/tool_result вместо имитируемого текста). Старый бэк поле игнорирует.
+  ToolTurn tool_turn = 7;
 }
 
 message SaveMessageResponse {
   bool duplicate = 1;           // (trigger_id, seq) уже записан — ретрай
 }
 
+// Один ход ассистента с тулами: преамбула + вызовы + результаты. Схема полей повторяет
+// AgentChatMessage воркера (и wire-формат OpenAI/Spring AI), без константы type="function".
+message ToolTurn {
+  string text = 1;                     // текст ассистента рядом с вызовами (может быть пуст)
+  repeated ToolCallRec calls = 2;
+  repeated ToolResultRec results = 3;
+}
+
+message ToolCallRec {
+  string id = 1;                       // id вызова из LLM-ответа
+  string name = 2;                     // LLM-имя тула ({namespace}.{name})
+  string arguments_json = 3;           // сырые JSON-аргументы
+}
+
+message ToolResultRec {
+  string id = 1;                       // = ToolCallRec.id
+  string name = 2;
+  string output_json = 3;              // сырой JSON результата (или {"error": ...} при failed)
+  bool failed = 4;
+}
+
 // История «как видел пользователь» — для RunContext.history. Бэк уже отфильтровал по
-// completed=true и historyDetail; воркер маппит kind на роль (INBOUND → user, остальные → assistant).
+// completed=true и historyDetail; воркер маппит kind на роль (INBOUND → user, остальные →
+// assistant), а tool_turn — на нативную пару assistant(tool_calls) + tool(results).
 message HistoryMessage {
   MessageKind kind = 1;
   string text = 2;
+  ToolTurn tool_turn = 3;       // только у PROGRESS/TOOL_CALL с сохранённой структурной записью
 }

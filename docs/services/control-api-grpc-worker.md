@@ -133,7 +133,7 @@ Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → 
 | `system_blocks` | Упорядоченные `PromptBlock` (stable-первые — prompt-cache): agent → инструкции → блоки `PromptBlockProvider`-коннекторов (memory) → team → skills-листинг → тела подошедших скиллов (SYSTEM_TRIGGER) → trigger guidance |
 | `user_blocks`   | User-ход: user-блоки коннекторов (memory notes, `ephemeral=true` — не персистятся в историю) + основной промпт последним (диалоговый текст `trusted`, событие триггера `trusted=false` → воркер оборачивает как untrusted data) |
 | `tools`         | `ConnectorToolSpec` уже отскоупленные (binding-гейт + скоуп скиллов; DIALOGUE — коннекторы всех скиллов, SYSTEM_TRIGGER — только подошедших) |
-| `history`       | Сессионная история «как видел пользователь»: только завершённые раны (`completed=true` — сообщения текущего рана и упавших ранов не видны), окно 50, фильтр `historyDetail` (FULL/NO_REASONING/DIALOGUE_ONLY) из пресета `ContextSpec`; дореформенные REQUEST/RESPONSE маппятся на INBOUND/ANSWER |
+| `history`       | Сессионная история «как видел пользователь»: только завершённые раны (`completed=true` — сообщения текущего рана и упавших ранов не видны), окно 50, фильтр `historyDetail` (FULL/NO_REASONING/DIALOGUE_ONLY) из пресета `ContextSpec`; дореформенные REQUEST/RESPONSE маппятся на INBOUND/ANSWER. Tool-ходы (v2.1): у PROGRESS/TOOL_CALL с сохранённым `message_json` наружу идёт структурный `tool_turn` (JSON-поля капаются до 4 KB с маркером `…[truncated]`), TEXT-преамбулы таких ранов скипаются (текст уже внутри `tool_turn`), легаси `🔧 name`-строки санитизируются в `[вызван инструмент name]` — текстовый паттерн вызова модель имитирует вместо реального tool call |
 
 ## SaveMessage (`MessageLog.SaveMessage`)
 
@@ -145,7 +145,11 @@ Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → 
 - `INBOUND` (seq=0, до prepare_context) — ack «агент получил»: текст пуст, канонику бэк берёт сам
   (`ChannelHandler.handleInput` от персистентного триггера / компактный JSON события), `trigger_input`
   заполняется из `trigger_log.input` (reply-context).
-- `PROGRESS` (+`progress_type` THINKING/TOOL_CALL/TEXT) → progress-канал (если есть).
+- `PROGRESS` (+`progress_type` THINKING/TOOL_CALL/TEXT) → progress-канал (если есть). У TOOL_CALL
+  воркер дополнительно шлёт `tool_turn{text, calls[{id, name, arguments_json}], results[{id, name,
+  output_json, failed}]}` (v2.1) — структурную запись tool-хода: бэк кладёт её в
+  `channel_session_messages.message_json` (JSON-поля капаются до 32 KB) и отдаёт истории следующих
+  ранов как нативные tool_use/tool_result; `text` остаётся канальной 🔧-проекцией.
 - `ANSWER` → answer-канал (fallback prompt); в той же транзакции все сообщения рана помечаются
   `completed=true` — ран становится видимым истории. Direct-ран → `trigger_log_agents.result`.
 - `ERROR` → progress/answer/prompt-фолбэк; direct-ран → `trigger_log_agents.error`. ERROR не
@@ -178,7 +182,7 @@ Errors:
 
 Тулы приходят в `RunContext.tools` (отдельных discovery-RPC больше нет), ключ — `connections.id`:
 активные `agent_connections`-binding'и (connector-level ABAC-гейт) фильтруются скоупом скиллов, затем
-по `tool_binding`: **STATIC** коннекторы (telegram, time, board, persist-memory) отдают тулы рефлексией
+по `definition_binding`: **STATIC** коннекторы (telegram, time, board, persist-memory) отдают тулы рефлексией
 `@Tool`-методов; **DYNAMIC** (`mcp`, device `app`) — per-instance набор из `connection_tools` (синк из
 `tools/list` / device link, без удалённого вызова на этом пути). Каждый `ConnectorToolSpec` несёт
 `connector_code`, `connection_id` (= `connection_id` на `ExecuteTool`) и `namespace`; воркер строит

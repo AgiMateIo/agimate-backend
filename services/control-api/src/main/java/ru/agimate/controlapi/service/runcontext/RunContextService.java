@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
@@ -41,6 +42,7 @@ import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.channel.InboundTextResolver;
+import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.trigger.Channels;
@@ -56,6 +58,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Сборка контекста рана для {@code GetRunContext}: политика ({@link ContextSpec}) выбирается по
@@ -82,6 +85,16 @@ public class RunContextService {
             + "- Каждый вызов инструмента должен быть обоснован: вызывай инструмент "
             + "только когда событие действительно требует действия, и коротко поясняй "
             + "причину вызова.";
+
+    /**
+     * Правило вызова инструментов — добавляется при наличии тулов в ране. Слабые модели имитируют
+     * вызов текстом («🔧 name»), скопировав паттерн из истории, — такой «вызов» не исполняется.
+     */
+    static final String TOOL_CALL_GUIDANCE =
+            "Инструменты вызывай только через структурный tool-calling API. Никогда не пиши вызов "
+            + "инструмента текстом ответа: строки вида «🔧 имя» или «[вызван инструмент …]» — "
+            + "служебная разметка уже выполненной работы, а не образец ответа; написанный текстом "
+            + "«вызов» не исполняется.";
 
     /** Детерминированная сериализация события (sorted keys) — одинаковый блок при любом порядке мапы. */
     private static final ObjectMapper EVENT_MAPPER = new ObjectMapper()
@@ -139,6 +152,8 @@ public class RunContextService {
         // connection этого канала, чтобы его тулы листались session-aware (session-scoped MCP из IDE).
         UUID sessionAwareConnectionId = addPromptChannelTools(promptChannelId, requiredConnectors);
 
+        List<RunTool> tools = collectTools(connections, requiredConnectors, sessionAwareConnectionId, promptSessionId);
+
         List<RunBlock> systemBlocks = new ArrayList<>();
         List<RunBlock> userBlocks = new ArrayList<>();
 
@@ -154,6 +169,9 @@ public class RunContextService {
         if (spec.loadsSkillBodies()) {
             systemBlocks.addAll(skillBodyBlocks(scoped));
         }
+        if (!tools.isEmpty()) {
+            systemBlocks.add(RunBlock.trusted("tool_guidance", "guidance", TOOL_CALL_GUIDANCE, Map.of()));
+        }
         if (spec.appendsTriggerGuidance()) {
             systemBlocks.add(RunBlock.trusted("trigger_guidance", "guidance", TRIGGER_GUIDANCE, Map.of()));
         }
@@ -163,7 +181,6 @@ public class RunContextService {
                 ? dialoguePromptBlock(channels, trigger)
                 : eventBlock(trigger));
 
-        List<RunTool> tools = collectTools(connections, requiredConnectors, sessionAwareConnectionId, promptSessionId);
         List<RunHistoryMessage> history = history(run.getSessionId(), spec.historyDetail());
         log.debug("run context agent={} trigger={} spec={} blocks={}/{} tools={} history={}",
                 agentId, triggerId, spec, systemBlocks.size(), userBlocks.size(), tools.size(), history.size());
@@ -174,11 +191,23 @@ public class RunContextService {
 
     private static final int HISTORY_WINDOW = 50;
 
+    /** Кап на один JSON tool-хода (аргументы/результат) в контексте — бюджет важнее полноты. */
+    static final int TOOL_JSON_CONTEXT_CAP = 4 * 1024;
+
+    private static final String PROGRESS_TOOL_CALL = "TOOL_CALL";
+    private static final String PROGRESS_TEXT = "TEXT";
+
     /**
      * История сессии «как видел пользователь»: только завершённые раны ({@code completed=true} —
      * поэтому сообщения текущего рана, включая его inbound-ack, сюда не попадают), хвост окном
      * {@value #HISTORY_WINDOW}, фильтр по {@link ContextSpec.HistoryDetail}. Дореформенные строки
      * маппятся на v2-виды (REQUEST → INBOUND, RESPONSE → ANSWER) по текстовой проекции.
+     *
+     * <p>Tool-ходы (v2.1): у PROGRESS/TOOL_CALL с {@code message_json} наружу идёт структурный
+     * {@code toolTurn} — воркер восстановит нативные tool_use/tool_result; текстовая 🔧-проекция
+     * в историю не попадает (модель имитирует её текстом вместо реального вызова). PROGRESS/TEXT
+     * такого рана скипается — преамбула уже внутри toolTurn. Легаси 🔧-строки без message_json
+     * санитизируются в констатацию «[вызван инструмент …]».
      */
     private List<RunHistoryMessage> history(UUID sessionId, ContextSpec.HistoryDetail detail) {
         if (sessionId == null) {
@@ -186,6 +215,7 @@ public class RunContextService {
         }
         List<ChannelSessionMessage> tail = messageRepository
                 .findBySessionIdAndCompletedTrueOrderByIdDesc(sessionId, PageRequest.of(0, HISTORY_WINDOW));
+        Set<UUID> structuredRuns = structuredToolRuns(tail);
         List<RunHistoryMessage> history = new ArrayList<>(tail.size());
         for (int i = tail.size() - 1; i >= 0; i--) {
             ChannelSessionMessage m = tail.get(i);
@@ -200,9 +230,48 @@ public class RunContextService {
             if (kind == ChannelSessionMessageKind.PROGRESS && excludedProgress(m, detail)) {
                 continue;
             }
-            history.add(new RunHistoryMessage(kind, m.getMessage()));
+            RunHistoryMessage mapped = toHistoryMessage(m, kind, structuredRuns);
+            if (mapped != null) {
+                history.add(mapped);
+            }
         }
         return history;
+    }
+
+    /** Раны окна, у которых tool-ходы записаны структурно, — их PROGRESS/TEXT дублируют toolTurn.text. */
+    private static Set<UUID> structuredToolRuns(List<ChannelSessionMessage> tail) {
+        Set<UUID> runs = new LinkedHashSet<>();
+        for (ChannelSessionMessage m : tail) {
+            if (m.getKind() == ChannelSessionMessageKind.PROGRESS
+                    && PROGRESS_TOOL_CALL.equals(m.getProgressType())
+                    && m.getMessageJson() != null) {
+                runs.add(m.getRunId());
+            }
+        }
+        return runs;
+    }
+
+    private static RunHistoryMessage toHistoryMessage(ChannelSessionMessage m, ChannelSessionMessageKind kind,
+                                                      Set<UUID> structuredRuns) {
+        if (kind != ChannelSessionMessageKind.PROGRESS) {
+            return new RunHistoryMessage(kind, m.getMessage());
+        }
+        if (PROGRESS_TOOL_CALL.equals(m.getProgressType())) {
+            if (m.getMessageJson() != null) {
+                Optional<ToolTurnRecord> turn = JsonUtils.fromMap(m.getMessageJson(), ToolTurnRecord.class);
+                if (turn.isPresent()) {
+                    return new RunHistoryMessage(kind, m.getMessage(), capToolTurn(turn.get()));
+                }
+                log.warn("unreadable tool turn message_json run={} seq={} — falling back to text",
+                        m.getRunId(), m.getSeq());
+            }
+            // Легаси-строка «🔧 name»: имитируемое действие → констатация прошлой работы.
+            return new RunHistoryMessage(kind, sanitizeToolLines(m.getMessage()));
+        }
+        if (PROGRESS_TEXT.equals(m.getProgressType()) && structuredRuns.contains(m.getRunId())) {
+            return null; // преамбула уже в toolTurn.text
+        }
+        return new RunHistoryMessage(kind, m.getMessage());
     }
 
     private static boolean excludedProgress(ChannelSessionMessage m, ContextSpec.HistoryDetail detail) {
@@ -211,6 +280,35 @@ public class RunContextService {
             case NO_REASONING -> "THINKING".equals(m.getProgressType());
             case DIALOGUE_ONLY -> true;
         };
+    }
+
+    /** «🔧 name» → «[вызван инструмент name]»: прошедшее время нельзя «исполнить», имитация теряет смысл. */
+    static String sanitizeToolLines(String text) {
+        return text.lines()
+                .map(line -> line.startsWith("🔧 ")
+                        ? "[вызван инструмент " + line.substring("🔧 ".length()).strip() + "]"
+                        : line)
+                .collect(Collectors.joining("\n"));
+    }
+
+    /** Обрезка JSON-полей tool-хода до контекстного бюджета {@value #TOOL_JSON_CONTEXT_CAP}. */
+    private static ToolTurnRecord capToolTurn(ToolTurnRecord turn) {
+        return new ToolTurnRecord(
+                turn.text(),
+                turn.calls().stream()
+                        .map(c -> new ToolTurnRecord.Call(c.id(), c.name(), capJson(c.argumentsJson())))
+                        .toList(),
+                turn.results().stream()
+                        .map(r -> new ToolTurnRecord.Result(r.id(), r.name(), capJson(r.outputJson()),
+                                r.failed()))
+                        .toList());
+    }
+
+    private static String capJson(String json) {
+        if (json == null || json.length() <= TOOL_JSON_CONTEXT_CAP) {
+            return json;
+        }
+        return json.substring(0, TOOL_JSON_CONTEXT_CAP) + "…[truncated]";
     }
 
     // ===== Скиллы =====
@@ -427,13 +525,13 @@ public class RunContextService {
                 continue;
             }
             Connector connector = connectorRepository.findById(connection.getConnectorCode()).orElse(null);
-            if (connector == null || connector.getToolBinding() == null) {
+            if (connector == null || connector.getDefinitionBinding() == null) {
                 continue;
             }
             ConnectorEnv listingEnv = connection.getId().equals(sessionAwareConnectionId)
                     ? envFactory.internal(connection.getId().toString(), null, null, null, promptSessionId)
                     : ConnectorEnvFactory.listing(connection.getId());
-            Map<String, ConnectorToolSpec> specs = switch (connector.getToolBinding()) {
+            Map<String, ConnectorToolSpec> specs = switch (connector.getDefinitionBinding()) {
                 case STATIC -> connectorRegistry
                         .findCapability(connection.getConnectorCode(), ToolProvider.class)
                         .map(p -> p.getTools(listingEnv))

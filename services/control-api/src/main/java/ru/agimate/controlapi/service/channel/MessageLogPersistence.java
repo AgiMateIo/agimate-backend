@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
+import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -44,9 +45,12 @@ public class MessageLogPersistence {
 
     public record Persisted(boolean duplicate, Channels channels) {}
 
+    /** Кап на один JSON (аргументы/результат) в {@code message_json} — защита строки истории от гигантских выводов. */
+    static final int TOOL_JSON_WRITE_CAP = 32 * 1024;
+
     @Transactional
     public Persisted persist(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,
-                             String progressType, String text) {
+                             String progressType, String text, ToolTurnRecord toolTurn) {
         TriggerLogAgent run = triggerLogAgentRepository.findById(triggerId)
                 .orElseThrow(() -> new NotFoundStatusException("Run not found: " + triggerId));
         if (!run.getAgent().getId().equals(agentId)) {
@@ -66,8 +70,12 @@ public class MessageLogPersistence {
             String triggerInput = kind == ChannelSessionMessageKind.INBOUND
                     ? JsonUtils.writeValueAsString(run.getTriggerLog().getInput())
                     : null;
+            String messageJson = toolTurn != null && !toolTurn.isEmpty()
+                    ? JsonUtils.writeValueAsString(capToolTurn(toolTurn))
+                    : null;
             int inserted = messageRepository.insertIgnoreConflict(
-                    sessionId, agentId, triggerId, seq, kind.name(), progressType, message, triggerInput);
+                    sessionId, agentId, triggerId, seq, kind.name(), progressType, message,
+                    messageJson, triggerInput);
             duplicate = inserted == 0;
             if (kind == ChannelSessionMessageKind.ANSWER) {
                 messageRepository.markRunCompleted(triggerId);
@@ -126,6 +134,30 @@ public class MessageLogPersistence {
         event.put("name", trigger.name());
         event.put("data", trigger.data());
         return JsonUtils.writeValueAsString(event);
+    }
+
+    /**
+     * Кап JSON-полей tool-хода при записи ({@value #TOOL_JSON_WRITE_CAP} символов на поле):
+     * история сессии — не аудит (полные данные в tool_call_logs), гигантский вывод тула не
+     * должен раздувать строку. Обрезанное значение перестаёт быть валидным JSON — для
+     * потребителя (контекст LLM) это просто строка, маркер делает усечение явным.
+     */
+    private static ToolTurnRecord capToolTurn(ToolTurnRecord turn) {
+        return new ToolTurnRecord(
+                turn.text(),
+                turn.calls().stream()
+                        .map(c -> new ToolTurnRecord.Call(c.id(), c.name(), cap(c.argumentsJson())))
+                        .toList(),
+                turn.results().stream()
+                        .map(r -> new ToolTurnRecord.Result(r.id(), r.name(), cap(r.outputJson()), r.failed()))
+                        .toList());
+    }
+
+    private static String cap(String json) {
+        if (json == null || json.length() <= TOOL_JSON_WRITE_CAP) {
+            return json;
+        }
+        return json.substring(0, TOOL_JSON_WRITE_CAP) + "…[truncated]";
     }
 
 }

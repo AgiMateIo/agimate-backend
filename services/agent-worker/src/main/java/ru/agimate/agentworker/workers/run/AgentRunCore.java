@@ -76,10 +76,16 @@ public class AgentRunCore {
                       String context) {
         ToolRegistry registry = prepared.registry();
 
+        // Батч notify — один ход: [assistant] или [assistant, toolResults] (notify после dispatchAll),
+        // поэтому результаты хода уже здесь — они уходят в структурную запись TOOL_CALL-строки.
         Consumer<List<AgentChatMessage>> onNewMessages = newMsgs -> {
+            AgentChatMessage toolResults = newMsgs.stream()
+                    .filter(m -> m.role() == AgentChatMessage.Role.TOOL)
+                    .findFirst().orElse(null);
             for (AgentChatMessage m : newMsgs) {
                 if (m.role() == AgentChatMessage.Role.ASSISTANT) {
-                    for (MessageCodec.ProgressLine line : MessageCodec.progressLines(m, registry.displayNames(m))) {
+                    for (MessageCodec.ProgressLine line
+                            : MessageCodec.progressLines(m, registry.displayNames(m), toolResults)) {
                         messages.progress(line);
                     }
                 }

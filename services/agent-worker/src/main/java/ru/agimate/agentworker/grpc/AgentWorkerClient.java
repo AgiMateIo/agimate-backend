@@ -16,6 +16,7 @@ import ru.agimate.agentworker.GetToolResultRequest;
 import ru.agimate.agentworker.GetToolResultResponse;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.MessageKind;
+import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.MessageLogGrpc;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.ReportLlmUsageRequest;
@@ -154,18 +155,27 @@ public class AgentWorkerClient {
 
     // ---- MessageLog --------------------------------------------------------------
 
-    /** Запись события диалога; идемпотентна по (trigger_id, seq) — персист и доставка на бэке. */
+    /**
+     * Запись события диалога; идемпотентна по (trigger_id, seq) — персист и доставка на бэке.
+     * {@code toolTurn} (nullable) — структурная запись tool-хода при PROGRESS/TOOL_CALL (v2.1).
+     */
     public SaveMessageResponse saveMessage(String agentId, String triggerId, int seq,
-                                           MessageKind kind, ProgressType progressType, String text) {
-        return call("SaveMessage", () -> messageLog.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
-                .saveMessage(SaveMessageRequest.newBuilder()
-                        .setAgentId(agentId)
-                        .setTriggerId(triggerId)
-                        .setSeq(seq)
-                        .setKind(kind)
-                        .setProgressType(progressType)
-                        .setText(text == null ? "" : text)
-                        .build()));
+                                           MessageKind kind, ProgressType progressType, String text,
+                                           ToolTurn toolTurn) {
+        return call("SaveMessage", () -> {
+            SaveMessageRequest.Builder request = SaveMessageRequest.newBuilder()
+                    .setAgentId(agentId)
+                    .setTriggerId(triggerId)
+                    .setSeq(seq)
+                    .setKind(kind)
+                    .setProgressType(progressType)
+                    .setText(text == null ? "" : text);
+            if (toolTurn != null) {
+                request.setToolTurn(toolTurn);
+            }
+            return messageLog.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+                    .saveMessage(request.build());
+        });
     }
 
     // ---- ToolGateway -----------------------------------------------------------------

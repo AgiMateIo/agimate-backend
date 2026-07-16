@@ -27,7 +27,7 @@ import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.IdentityScope;
-import ru.agimate.controlapi.database.enums.ToolBinding;
+import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
@@ -215,7 +215,7 @@ class RunContextServiceTest {
                     PromptBlock.user("memory_notes", "- note")));
             Connector connector = new Connector();
             connector.setCode("persist-memory");
-            connector.setToolBinding(ToolBinding.STATIC);
+            connector.setDefinitionBinding(DefinitionBinding.STATIC);
             when(connectorRepository.findById("persist-memory")).thenReturn(Optional.of(connector));
             when(memoryHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
                     "get_memory", new ConnectorToolSpec("get_memory", null, "d", null, null, null, null)));
@@ -268,7 +268,7 @@ class RunContextServiceTest {
 
             Connector connector = new Connector();
             connector.setCode("persist-memory");
-            connector.setToolBinding(ToolBinding.STATIC);
+            connector.setDefinitionBinding(DefinitionBinding.STATIC);
             when(connectorRepository.findById("persist-memory")).thenReturn(Optional.of(connector));
             when(memoryHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
                     "get_memory", new ConnectorToolSpec("get_memory", null, "d", null, null, null, null)));
@@ -319,9 +319,71 @@ class RunContextServiceTest {
             assertEquals(List.of(
                     new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "old question"),
                     new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "old answer"),
-                    new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks"),
+                    // Легаси 🔧-строка без message_json санитизируется в констатацию.
+                    new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, "[вызван инструмент get_tasks]"),
                     new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "ok, done")),
                     view.history());
+        }
+
+        @Test
+        @DisplayName("tool_turn из message_json уходит структурно; TEXT-преамбула того же рана скипается")
+        void structuredToolTurn() {
+            Agent agent = agent();
+            TriggerLogAgent run = run(agent, triggerLog("time", "due"), null);
+            run.setSessionId(SESSION_ID);
+            stubRun(run);
+            stubSkills(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+
+            UUID toolRunId = UUID.randomUUID();
+            ChannelSessionMessage toolMsg = msg(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks", "TOOL_CALL");
+            toolMsg.setRunId(toolRunId);
+            toolMsg.setMessageJson(Map.of(
+                    "text", "смотрю доску",
+                    "calls", List.of(Map.of("id", "c1", "name", "board.get_tasks",
+                            "argumentsJson", "{\"boardId\":1}")),
+                    "results", List.of(Map.of("id", "c1", "name", "board.get_tasks",
+                            "outputJson", "{\"tasks\":[]}", "failed", false))));
+            ChannelSessionMessage preamble = msg(ChannelSessionMessageKind.PROGRESS, "смотрю доску", "TEXT");
+            preamble.setRunId(toolRunId);
+            ChannelSessionMessage answer = msg(ChannelSessionMessageKind.ANSWER, "готово", null);
+            answer.setRunId(toolRunId);
+            when(messageRepository.findBySessionIdAndCompletedTrueOrderByIdDesc(eq(SESSION_ID), any()))
+                    .thenReturn(List.of(answer, toolMsg, preamble)); // новые первыми
+
+            List<RunHistoryMessage> history = service.build(AGENT_ID, TRIGGER_ID).history();
+
+            assertEquals(2, history.size()); // TEXT-преамбула скипнута
+            RunHistoryMessage turn = history.get(0);
+            assertEquals("смотрю доску", turn.toolTurn().text());
+            assertEquals("board.get_tasks", turn.toolTurn().calls().get(0).name());
+            assertEquals("{\"tasks\":[]}", turn.toolTurn().results().get(0).outputJson());
+            assertEquals("готово", history.get(1).text());
+        }
+
+        @Test
+        @DisplayName("гигантский output tool_turn режется до контекстного бюджета")
+        void toolTurnOutputCapped() {
+            Agent agent = agent();
+            TriggerLogAgent run = run(agent, triggerLog("time", "due"), null);
+            run.setSessionId(SESSION_ID);
+            stubRun(run);
+            stubSkills(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+
+            String huge = "x".repeat(RunContextService.TOOL_JSON_CONTEXT_CAP + 100);
+            ChannelSessionMessage toolMsg = msg(ChannelSessionMessageKind.PROGRESS, "🔧 t", "TOOL_CALL");
+            toolMsg.setMessageJson(Map.of(
+                    "calls", List.of(Map.of("id", "c1", "name", "t", "argumentsJson", "{}")),
+                    "results", List.of(Map.of("id", "c1", "name", "t", "outputJson", huge, "failed", false))));
+            when(messageRepository.findBySessionIdAndCompletedTrueOrderByIdDesc(eq(SESSION_ID), any()))
+                    .thenReturn(List.of(toolMsg));
+
+            List<RunHistoryMessage> history = service.build(AGENT_ID, TRIGGER_ID).history();
+
+            String output = history.get(0).toolTurn().results().get(0).outputJson();
+            assertTrue(output.endsWith("…[truncated]"));
+            assertTrue(output.length() < huge.length());
         }
 
         @Test

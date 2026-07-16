@@ -5,6 +5,7 @@ import dev.dbos.transact.workflow.StepOptions;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.ProgressType;
+import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.agent.MessageCodec;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.grpc.ControlApiCallException;
@@ -36,25 +37,27 @@ public class MessageLog {
 
     /** Ack «агент получил» (seq 0, до prepare_context): текст не шлём, канонику бэк берёт сам. */
     public void inbound() {
-        send(MessageKind.MESSAGE_KIND_INBOUND, ProgressType.PROGRESS_TYPE_UNSPECIFIED, "");
+        send(MessageKind.MESSAGE_KIND_INBOUND, ProgressType.PROGRESS_TYPE_UNSPECIFIED, "", null);
     }
 
+    /** Прогресс-строка; у TOOL_CALL — со структурной записью tool-хода (v2.1) для истории. */
     public void progress(MessageCodec.ProgressLine line) {
-        send(MessageKind.MESSAGE_KIND_PROGRESS, line.type(), line.text());
+        send(MessageKind.MESSAGE_KIND_PROGRESS, line.type(), line.text(), line.toolTurn());
     }
 
     public void answer(String text) {
-        send(MessageKind.MESSAGE_KIND_ANSWER, ProgressType.PROGRESS_TYPE_UNSPECIFIED, text);
+        send(MessageKind.MESSAGE_KIND_ANSWER, ProgressType.PROGRESS_TYPE_UNSPECIFIED, text, null);
     }
 
     public void error(String text) {
-        send(MessageKind.MESSAGE_KIND_ERROR, ProgressType.PROGRESS_TYPE_UNSPECIFIED, text);
+        send(MessageKind.MESSAGE_KIND_ERROR, ProgressType.PROGRESS_TYPE_UNSPECIFIED, text, null);
     }
 
-    private void send(MessageKind kind, ProgressType progressType, String text) {
+    private void send(MessageKind kind, ProgressType progressType, String text, ToolTurn toolTurn) {
         int n = seq++;
         boolean duplicate = dbos.runStep(
-                () -> client.saveMessage(agentId, triggerId, n, kind, progressType, text).getDuplicate(),
+                () -> client.saveMessage(agentId, triggerId, n, kind, progressType, text, toolTurn)
+                        .getDuplicate(),
                 new StepOptions("save_message").withMaxAttempts(3)
                         .withShouldRetry(ControlApiCallException::retriableInStep));
         if (duplicate) {

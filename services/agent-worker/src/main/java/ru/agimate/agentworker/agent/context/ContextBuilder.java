@@ -4,6 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.HistoryMessage;
 import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.PromptBlock;
+import ru.agimate.agentworker.ToolResultRec;
+import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.workers.run.PreparedContext;
@@ -82,10 +84,19 @@ public final class ContextBuilder {
                 registry.toolDefs(), registry.backendMap());
     }
 
-    /** История «как видел пользователь»: INBOUND → user, всё остальное — assistant-текст. */
+    /**
+     * История «как видел пользователь»: INBOUND → user, всё остальное — assistant-текст.
+     * Tool-ход с {@code tool_turn} (v2.1) разворачивается в нативную пару
+     * {@code assistant(tool_calls)} + {@code tool(results)} — прошлые вызовы модель видит в том
+     * же канале, которым обязана вызывать сама, а не как имитируемый текст.
+     */
     static List<AgentChatMessage> mapHistory(List<HistoryMessage> history) {
         List<AgentChatMessage> mapped = new ArrayList<>(history.size());
         for (HistoryMessage m : history) {
+            if (m.hasToolTurn() && m.getToolTurn().getCallsCount() > 0) {
+                mapToolTurn(m.getToolTurn(), mapped);
+                continue;
+            }
             if (m.getText().isBlank()) {
                 continue;
             }
@@ -94,6 +105,28 @@ public final class ContextBuilder {
                     : AgentChatMessage.assistant(m.getText(), false, List.of()));
         }
         return mapped;
+    }
+
+    /**
+     * Нативная пара tool-хода. Результат обязателен для каждого вызова (провайдеры отклоняют
+     * tool_use без ответа) — при отсутствии записи ставится заглушка {@code {"error": ...}}.
+     */
+    private static void mapToolTurn(ToolTurn turn, List<AgentChatMessage> mapped) {
+        List<AgentChatMessage.ToolCall> calls = turn.getCallsList().stream()
+                .map(c -> new AgentChatMessage.ToolCall(c.getId(), c.getName(), c.getArgumentsJson()))
+                .toList();
+        Map<String, AgentChatMessage.ToolResult> byId = new java.util.HashMap<>();
+        for (ToolResultRec r : turn.getResultsList()) {
+            byId.put(r.getId(), new AgentChatMessage.ToolResult(
+                    r.getId(), r.getName(), r.getOutputJson(), r.getFailed()));
+        }
+        List<AgentChatMessage.ToolResult> results = calls.stream()
+                .map(c -> byId.getOrDefault(c.id(), new AgentChatMessage.ToolResult(
+                        c.id(), c.name(), "{\"error\": \"result not recorded\"}", true)))
+                .toList();
+        mapped.add(AgentChatMessage.assistant(
+                turn.getText().isBlank() ? null : turn.getText(), false, calls));
+        mapped.add(AgentChatMessage.toolResults(results));
     }
 
     /** Blocks joined by a blank line, each rendered per the trust/name rules. Order untouched. */

@@ -4,8 +4,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import ru.agimate.agentworker.ConnectorToolSpec;
+import ru.agimate.agentworker.HistoryMessage;
+import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.PromptBlock;
 import ru.agimate.agentworker.ToolAnnotations;
+import ru.agimate.agentworker.ToolCallRec;
+import ru.agimate.agentworker.ToolResultRec;
+import ru.agimate.agentworker.ToolTurn;
+import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.workers.run.PreparedContext;
 
 import java.util.List;
@@ -188,6 +194,73 @@ class ContextBuilderTest {
                     List.of(closedWorld), List.of()));
 
             assertFalse(prepared.systemPrompt().contains(ContextBuilder.TOOL_OUTPUT_GUIDANCE));
+        }
+    }
+
+    @Nested
+    @DisplayName("history mapping")
+    class HistoryMapping {
+
+        @Test
+        @DisplayName("tool_turn разворачивается в нативную пару assistant(tool_calls) + tool(results)")
+        void toolTurnMapsToNativePair() {
+            HistoryMessage turn = HistoryMessage.newBuilder()
+                    .setKind(MessageKind.MESSAGE_KIND_PROGRESS)
+                    .setText("🔧 get_tasks")
+                    .setToolTurn(ToolTurn.newBuilder()
+                            .setText("смотрю доску")
+                            .addCalls(ToolCallRec.newBuilder()
+                                    .setId("c1").setName("board.get_tasks")
+                                    .setArgumentsJson("{\"boardId\":1}"))
+                            .addResults(ToolResultRec.newBuilder()
+                                    .setId("c1").setName("board.get_tasks")
+                                    .setOutputJson("{\"tasks\":[]}")))
+                    .build();
+
+            List<AgentChatMessage> mapped = ContextBuilder.mapHistory(List.of(turn));
+
+            assertEquals(2, mapped.size());
+            AgentChatMessage assistant = mapped.get(0);
+            assertEquals(AgentChatMessage.Role.ASSISTANT, assistant.role());
+            assertEquals("смотрю доску", assistant.text());
+            assertEquals("board.get_tasks", assistant.toolCalls().get(0).name());
+            assertEquals("{\"boardId\":1}", assistant.toolCalls().get(0).argumentsJson());
+            AgentChatMessage tool = mapped.get(1);
+            assertEquals(AgentChatMessage.Role.TOOL, tool.role());
+            assertEquals("{\"tasks\":[]}", tool.toolResults().get(0).contentJson());
+            // Текстовая 🔧-проекция в контекст не попадает.
+            assertTrue(mapped.stream().noneMatch(m -> m.text() != null && m.text().contains("🔧")));
+        }
+
+        @Test
+        @DisplayName("вызов без записанного результата получает заглушку failed-результата")
+        void missingResultStubbed() {
+            HistoryMessage turn = HistoryMessage.newBuilder()
+                    .setKind(MessageKind.MESSAGE_KIND_PROGRESS)
+                    .setToolTurn(ToolTurn.newBuilder()
+                            .addCalls(ToolCallRec.newBuilder().setId("c1").setName("t")))
+                    .build();
+
+            List<AgentChatMessage> mapped = ContextBuilder.mapHistory(List.of(turn));
+
+            assertEquals(2, mapped.size());
+            AgentChatMessage.ToolResult stub = mapped.get(1).toolResults().get(0);
+            assertEquals("c1", stub.id());
+            assertTrue(stub.failed());
+        }
+
+        @Test
+        @DisplayName("без tool_turn — прежнее поведение: INBOUND → user, остальное → assistant-текст")
+        void plainTextMapping() {
+            List<AgentChatMessage> mapped = ContextBuilder.mapHistory(List.of(
+                    HistoryMessage.newBuilder()
+                            .setKind(MessageKind.MESSAGE_KIND_INBOUND).setText("привет").build(),
+                    HistoryMessage.newBuilder()
+                            .setKind(MessageKind.MESSAGE_KIND_ANSWER).setText("здравствуй").build()));
+
+            assertEquals(2, mapped.size());
+            assertEquals(AgentChatMessage.Role.USER, mapped.get(0).role());
+            assertEquals(AgentChatMessage.Role.ASSISTANT, mapped.get(1).role());
         }
     }
 }
