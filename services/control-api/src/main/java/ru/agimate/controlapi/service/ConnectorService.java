@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
 import ru.agimate.controlapi.database.entities.Connector;
@@ -46,27 +47,40 @@ public class ConnectorService {
         Connector connector = connectorRepository.findById(toolCallLog.getConnectorCode())
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + toolCallLog.getConnectorCode()));
 
-        // Роутинг по execution locus: BACKEND — исполняем in-proc; EXTERNAL — пушим на устройство;
-        // AGENT — исполняет агент, control-api лишь авторизует (молчаливо игнорируем доставку).
+        // Роутинг по паре locus × direction: BACKEND — исполняем in-proc; DELEGATED×OUTBOUND — мы
+        // клиент внешней системы, прокси-вызов тоже in-proc; DELEGATED×INBOUND — исполнитель сам
+        // подключается к нам, вызов доставляется push'ем; AGENT — исполняет вызывающий (/check + /result),
+        // диспатч сюда — ошибка вызывающего.
         switch (connector.getExecutionLocus()) {
             case BACKEND -> toolExecutionService.executeTool(toolCallLog);
-            case EXTERNAL -> {
-                // connectionId = connections.id; устройство берём по connection.app_id.
-                Connection connection = connectionRepository
-                        .findByIdNotDeleted(UUID.fromString(toolCallLog.getConnectionId()))
-                        .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + toolCallLog.getConnectionId()));
-                var app = appRepository.findByIdAndUserIdNotDeleted(connection.getAppId(), toolCallLog.getUserId())
-                        .orElseThrow(() -> new NotFoundStatusException("App not found: " + connection.getAppId()));
-                // Канал адресуется по app.id (= connectionId, глобально уникален), а не по device_id:
-                // device_id задаёт само устройство и не уникален между тенантами — общий device_id у двух
-                // пользователей означал бы общий канал и утечку toolCall между ними.
-                centrifugoService.publishMessage(
-                        "app:" + app.getId(), "toolCall", ToolCallPayload.from(toolCallLog));
+            case DELEGATED -> {
+                switch (connector.getTransportDirection()) {
+                    case OUTBOUND -> toolExecutionService.executeTool(toolCallLog);
+                    case INBOUND -> pushToApp(toolCallLog);
+                    case null -> throw new NotFoundStatusException(
+                            "Connector has no transport direction: " + toolCallLog.getConnectorCode());
+                }
             }
-            case AGENT -> log.warn("AGENT-locus connector called, ignoring. connectorCode={}, toolCall={}",
-                    toolCallLog.getConnectorCode(), toolCallLog.getName());
+            case AGENT -> throw new BadRequestStatusException(
+                    "Tools of connector '" + toolCallLog.getConnectorCode()
+                            + "' execute on the caller side; use /tool/check and report via /tool/result");
             case null -> throw new NotFoundStatusException(
                     "Connector has no execution locus: " + toolCallLog.getConnectorCode());
         }
+    }
+
+    /** Доставка INBOUND-исполнителю: push в канал приложения. */
+    private void pushToApp(ToolCallLog toolCallLog) {
+        // connectionId = connections.id; устройство берём по connection.app_id.
+        Connection connection = connectionRepository
+                .findByIdNotDeleted(UUID.fromString(toolCallLog.getConnectionId()))
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + toolCallLog.getConnectionId()));
+        var app = appRepository.findByIdAndUserIdNotDeleted(connection.getAppId(), toolCallLog.getUserId())
+                .orElseThrow(() -> new NotFoundStatusException("App not found: " + connection.getAppId()));
+        // Канал адресуется по app.id (= connectionId, глобально уникален), а не по device_id:
+        // device_id задаёт само устройство и не уникален между тенантами — общий device_id у двух
+        // пользователей означал бы общий канал и утечку toolCall между ними.
+        centrifugoService.publishMessage(
+                "app:" + app.getId(), "toolCall", ToolCallPayload.from(toolCallLog));
     }
 }

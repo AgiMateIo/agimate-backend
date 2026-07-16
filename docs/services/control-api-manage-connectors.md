@@ -252,7 +252,7 @@ Additional JSON Schema keywords (e.g., `anyOf`, `oneOf`, `$ref`, `format`, `defa
 
 | Status | Condition |
 |--------|-----------|
-| 400 | Connector does not expose tool definitions (no `toolBinding` configured) |
+| 400 | Connector does not expose tool definitions (no `definitionBinding` configured) |
 | 401 | Missing or invalid JWT |
 | 403 | JWT does not carry sufficient privileges |
 | 404 | No connector found with the given `code` |

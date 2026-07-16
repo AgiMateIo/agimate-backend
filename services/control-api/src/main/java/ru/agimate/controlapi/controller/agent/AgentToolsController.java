@@ -46,7 +46,7 @@ public class AgentToolsController {
     @Operation(
             summary = "Get available tools for a connector",
             description = "Returns tool definitions for the given connector code. Tool source is resolved " +
-                    "from the connector's toolBinding; dynamic connectors need an instance connectionId.",
+                    "from the connector's definitionBinding; dynamic connectors need an instance connectionId.",
             security = @SecurityRequirement(name = "ApiKey")
     )
     @GetMapping("/{connectorCode}")

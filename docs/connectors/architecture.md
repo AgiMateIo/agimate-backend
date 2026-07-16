@@ -24,11 +24,16 @@ AAD = `entity + owner_id` (нельзя расшифровать, перенес
 
 **Traits** — type-level дескриптор на `connectors` (характеристики коннектора, в отличие от à la carte
 capability-интерфейсов), **разложен по колонкам** (рантайм ветвится
-на них напрямую, без отдельного `ConnectorType` — он удалён): `transport_direction` (OUTBOUND/INBOUND),
-`execution_locus` (BACKEND/EXTERNAL/AGENT — `ConnectorService.pushToConnector` роутит исполнение),
-`tool_binding` (STATIC рефлексией / DYNAMIC из `connection_tools` — единое место листинга
-`ToolDefinitionService` + gRPC), `supported_scopes` (JSONB-массив `IdentityScope`, какие scope
-коннектор поддерживает) + `default_scope`. Источник истины — SPI `ConnectorHandler.traits()`
+на них напрямую, без отдельного `ConnectorType` — он удалён): `transport_direction` (OUTBOUND/INBOUND —
+кто инициирует соединение, семантика секрета), `execution_locus` (кто выполняет работу тула, граница
+доверия: BACKEND — наша инфра / DELEGATED — внешняя система: telegram, mcp, app / AGENT — вызывающий
+агент, loopback; `ConnectorService.pushToConnector` роутит по паре locus × direction: BACKEND и
+DELEGATED×OUTBOUND — in-proc, DELEGATED×INBOUND — push в app-канал, AGENT — отказ, цикл `/tool/check`
++ `/tool/result`),
+`definition_binding` (откуда определения тулов/триггеров: STATIC рефлексией/SPI / DYNAMIC из
+`connection_tools`/`connection_triggers` — единое место листинга `ToolDefinitionService` + gRPC),
+`supported_scopes` (JSONB-массив `IdentityScope`, какие scope коннектор поддерживает; список
+упорядочен — первый элемент является scope по умолчанию). Источник истины — SPI `ConnectorHandler.traits()`
 (агрегат `ConnectorTraits`), заполняется бутстрапом (`Connector.applyTraits`). «Интеграция»
 (подключаемый юзером коннектор с кредами) = `credentialFields != null` (`Connector.isIntegration()`).
 

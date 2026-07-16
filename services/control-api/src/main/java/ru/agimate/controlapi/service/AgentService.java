@@ -214,7 +214,7 @@ public class AgentService {
 
     /**
      * Доступные агенту тулы = объединение тулов всех привязанных ({@code agent_connections}) активных
-     * экземпляров, за вычетом DENY-правил (дефолт-allow). Источник имён по {@code toolBinding}:
+     * экземпляров, за вычетом DENY-правил (дефолт-allow). Источник имён по {@code definitionBinding}:
      * STATIC — рефлексия handler'а, DYNAMIC — {@code connection_tools}.
      */
     private Set<String> availableToolNames(Agent agent) {
@@ -233,7 +233,7 @@ public class AgentService {
                 continue;
             }
             Connector connector = connectorRepository.findById(connection.getConnectorCode()).orElse(null);
-            if (connector == null || connector.getToolBinding() == null) {
+            if (connector == null || connector.getDefinitionBinding() == null) {
                 continue;
             }
             for (String name : namesFor(connector, connection, kind)) {
@@ -246,7 +246,7 @@ public class AgentService {
     }
 
     private Set<String> namesFor(Connector connector, Connection connection, PolicyKind kind) {
-        return switch (connector.getToolBinding()) {
+        return switch (connector.getDefinitionBinding()) {
             case STATIC -> kind == PolicyKind.TOOL
                     ? connectorRegistry.findCapability(connector.getCode(), ToolProvider.class)
                             .map(p -> p.getTools().keySet()).orElse(Set.of())

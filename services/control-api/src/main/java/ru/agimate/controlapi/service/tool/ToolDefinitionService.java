@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Единое место листинга тулов экземпляра — источник определяется {@code toolBinding}:
+ * Единое место листинга тулов экземпляра — источник определяется {@code definitionBinding}:
  * STATIC → рефлексия handler'а ({@code getTools(ctx)}); DYNAMIC → {@code connection_tools} по connectionId.
  * Сюда же делегируют agent- и gRPC-листинги, чтобы не дублировать ветвление.
  *
@@ -45,7 +45,7 @@ public class ToolDefinitionService {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
-        return switch (connector.getToolBinding()) {
+        return switch (connector.getDefinitionBinding()) {
             // STATIC без ToolProvider — легальный «канальный» коннектор без тулов (webchat/acp): пустой набор.
             case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
                     .map(provider -> provider.getTools(ConnectorEnvFactory.listing(connectionId)))
@@ -68,7 +68,7 @@ public class ToolDefinitionService {
     public Map<String, ConnectorToolSpec> getCatalogTools(String connectorCode) {
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
-        return switch (connector.getToolBinding()) {
+        return switch (connector.getDefinitionBinding()) {
             case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
                     .map(provider -> provider.getTools(ConnectorEnvFactory.listing(null)))
                     .orElseGet(Map::of);

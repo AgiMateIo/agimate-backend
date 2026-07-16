@@ -1,18 +1,24 @@
 package ru.agimate.controlapi.database.enums;
 
 /**
- * Где физически исполняется тул коннектора — определяет роутинг вызова.
+ * Кто фактически выполняет работу тула — граница доверия (покидают ли данные нашу инфраструктуру).
  * <ul>
- *   <li>{@link #BACKEND} — исполняет control-api in-proc (internal-сервисы, telegram, mcp-proxy).
- *       Вызов идёт в {@code ToolExecutionService}.</li>
- *   <li>{@link #EXTERNAL} — исполняет внешнее устройство; control-api лишь пушит вызов
- *       (app → Centrifugo {@code app:{appId}}). Сам не исполняет.</li>
- *   <li>{@link #AGENT} — исполняет агент на своей стороне; control-api только проверяет право
- *       (ABAC) и не исполняет.</li>
+ *   <li>{@link #BACKEND} — эффект тула живёт в нашей БД/инфре, исполняет control-api in-proc
+ *       (time, memory, board, webchat, acp).</li>
+ *   <li>{@link #DELEGATED} — работу выполняет внешняя система (telegram, mcp, app). Механика
+ *       диспатча определяется парой с {@link TransportDirection}: OUTBOUND — мы клиент внешней
+ *       системы, прокси-вызов исполняется in-proc (telegram, mcp); INBOUND — исполнитель сам
+ *       подключается к нам, вызов доставляется push'ем в Centrifugo-канал {@code app:{appId}}.</li>
+ *   <li>{@link #AGENT} — исполняет вызывающий агент на своей стороне (loopback, claude-code);
+ *       control-api только авторизует (ABAC) и аудирует. Штатный цикл — {@code /tool/check} +
+ *       {@code /tool/result}; попытка диспатча ({@code /tool/call}) отклоняется.</li>
  * </ul>
+ *
+ * <p>Роутинг диспатча ({@code ConnectorService.pushToConnector}) — по паре locus × direction:
+ * BACKEND и DELEGATED×OUTBOUND → in-proc исполнение; DELEGATED×INBOUND → push; AGENT → отказ.
  */
 public enum ExecutionLocus {
     BACKEND,
-    EXTERNAL,
+    DELEGATED,
     AGENT
 }

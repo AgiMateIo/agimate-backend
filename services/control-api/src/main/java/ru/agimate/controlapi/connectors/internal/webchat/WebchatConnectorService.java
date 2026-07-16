@@ -6,7 +6,7 @@ import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.enums.IdentityScope;
-import ru.agimate.controlapi.database.enums.ToolBinding;
+import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
@@ -41,8 +41,8 @@ public class WebchatConnectorService implements InternalConnectorHandler, Trigge
     @Override
     public ConnectorTraits traits() {
         return new ConnectorTraits(
-                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.STATIC,
-                List.of(IdentityScope.USER), IdentityScope.USER);
+                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, DefinitionBinding.STATIC,
+                List.of(IdentityScope.USER));
     }
 
     @Override

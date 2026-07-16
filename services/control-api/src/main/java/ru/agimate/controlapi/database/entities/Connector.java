@@ -7,7 +7,7 @@ import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.enums.IdentityScope;
-import ru.agimate.controlapi.database.enums.ToolBinding;
+import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 
@@ -45,29 +45,25 @@ public class Connector extends BaseEntity {
     @Column(name = "transport_direction", columnDefinition = "TEXT")
     private TransportDirection transportDirection;
 
-    /** Где исполняется тул: BACKEND (in-proc) / EXTERNAL (устройство) / AGENT (агент). */
+    /** Кто выполняет работу тула: BACKEND (наша инфра) / DELEGATED (внешняя система) / AGENT (вызывающий). */
     @Enumerated(EnumType.STRING)
     @Column(name = "execution_locus", columnDefinition = "TEXT")
     private ExecutionLocus executionLocus;
 
     /** Откуда тулы/триггеры: STATIC (рефлексия handler'а) / DYNAMIC ({@code connection_tools}). */
     @Enumerated(EnumType.STRING)
-    @Column(name = "tool_binding", columnDefinition = "TEXT")
-    private ToolBinding toolBinding;
+    @Column(name = "definition_binding", columnDefinition = "TEXT")
+    private DefinitionBinding definitionBinding;
 
     /**
      * Какие {@link IdentityScope} коннектор поддерживает (type-level). Подключение выбирает один из
      * них в {@code connections.identity_scope}. Один элемент → выбора нет (telegram/mcp → INSTANCE,
-     * board → TEAM); несколько → выбор при создании (память → AGENT/TEAM).
+     * board → TEAM); несколько → выбор при создании (память → AGENT/TEAM). Список упорядочен:
+     * первый элемент — scope по умолчанию.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "supported_scopes", columnDefinition = "JSONB")
     private List<IdentityScope> supportedScopes;
-
-    /** Дефолтный scope, если подключение его не указало (∈ {@link #supportedScopes}). */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "default_scope", columnDefinition = "TEXT")
-    private IdentityScope defaultScope;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "features", columnDefinition = "JSONB")
@@ -75,23 +71,19 @@ public class Connector extends BaseEntity {
 
     /** Агрегат traits (для API/бутстрапа); рантайм читает отдельные поля. */
     public ConnectorTraits traits() {
-        return new ConnectorTraits(transportDirection, executionLocus, toolBinding,
-                supportedScopes, defaultScope);
+        return new ConnectorTraits(transportDirection, executionLocus, definitionBinding,
+                supportedScopes);
     }
 
     public void applyTraits(ConnectorTraits c) {
         this.transportDirection = c.transportDirection();
         this.executionLocus = c.executionLocus();
-        this.toolBinding = c.toolBinding();
+        this.definitionBinding = c.definitionBinding();
         this.supportedScopes = c.supportedScopes();
-        this.defaultScope = c.defaultScope();
     }
 
-    /** Scope по умолчанию для нового подключения: явный {@link #defaultScope} или единственный поддерживаемый. */
+    /** Scope по умолчанию для нового подключения — первый из {@link #supportedScopes}. */
     public IdentityScope resolveDefaultScope() {
-        if (defaultScope != null) {
-            return defaultScope;
-        }
         return supportedScopes != null && !supportedScopes.isEmpty() ? supportedScopes.get(0) : null;
     }
 

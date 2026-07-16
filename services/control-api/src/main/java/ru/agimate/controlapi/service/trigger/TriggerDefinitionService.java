@@ -27,7 +27,7 @@ import java.util.UUID;
  * объединение type-declared с динамическими триггерами {@code connection_triggers} (device-apps),
  * так как разные экземпляры одного коннектора могут открывать разные наборы.
  *
- * <p>Источники мёржатся напрямую (не через {@code toolBinding} — это тул-концепт): type-declared
+ * <p>Источники мёржатся напрямую (объединение, а не switch по {@code definitionBinding}): type-declared
  * из {@link TriggerProvider}, динамические — из {@code connection_triggers} по {@code connectionId},
  * который проверяется на принадлежность вызывающему (иначе IDOR).
  */

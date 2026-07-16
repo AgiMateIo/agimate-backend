@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * Capability коннектора: декларация триггеров, которые тип коннектора может публиковать
  * (webhook-нормализация, directed-триггеры фоновых тасок). Динамические триггеры экземпляров
- * (DYNAMIC toolBinding) живут в {@code connection_triggers} и сюда не попадают.
+ * (DYNAMIC definitionBinding) живут в {@code connection_triggers} и сюда не попадают.
  */
 public interface TriggerProvider {
 

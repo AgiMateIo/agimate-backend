@@ -12,7 +12,7 @@ import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
 import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.enums.IdentityScope;
-import ru.agimate.controlapi.database.enums.ToolBinding;
+import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 
@@ -69,8 +69,8 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
     @Override
     public ConnectorTraits traits() {
         return new ConnectorTraits(
-                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.STATIC,
-                List.of(IdentityScope.AGENT, IdentityScope.TEAM), IdentityScope.AGENT);
+                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, DefinitionBinding.STATIC,
+                List.of(IdentityScope.AGENT, IdentityScope.TEAM));
     }
 
     @Override

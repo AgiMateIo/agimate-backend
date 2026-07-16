@@ -6,7 +6,7 @@ import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.enums.IdentityScope;
-import ru.agimate.controlapi.database.enums.ToolBinding;
+import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
 import ru.agimate.controlapi.service.board.BoardService;
 
@@ -37,7 +37,7 @@ public class BoardConnectorService extends BaseConnectorHandler implements Inter
     @Override
     public ConnectorTraits traits() {
         return new ConnectorTraits(
-                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.STATIC,
-                List.of(IdentityScope.TEAM), IdentityScope.TEAM);
+                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, DefinitionBinding.STATIC,
+                List.of(IdentityScope.TEAM));
     }
 }

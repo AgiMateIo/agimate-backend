@@ -299,11 +299,10 @@ public class ChannelService {
         }
     }
 
-    /** Доступные триггеры экземпляра: статические из handler (SPI) + динамические из connection_triggers. */
-    /** Источник по toolBinding: STATIC — из handler (SPI), DYNAMIC — из connection_triggers. */
+    /** Источник по definitionBinding: STATIC — из handler (SPI), DYNAMIC — из connection_triggers. */
     private Set<String> lookupTriggerNames(Connector connector, UUID userId, String connectionId) {
         Connection connection = loadConnection(userId, connector.getCode(), connectionId);
-        return switch (connector.getToolBinding()) {
+        return switch (connector.getDefinitionBinding()) {
             case STATIC -> connectorRegistry.findCapability(connector.getCode(), TriggerProvider.class)
                     .map(provider -> provider.getTriggers().keySet()).orElse(Set.of());
             case DYNAMIC -> connectionTriggerRepository.findActiveByConnectionId(connection.getId()).stream()
@@ -312,10 +311,10 @@ public class ChannelService {
         };
     }
 
-    /** Источник по toolBinding: STATIC — из handler (SPI), DYNAMIC — из connection_tools. */
+    /** Источник по definitionBinding: STATIC — из handler (SPI), DYNAMIC — из connection_tools. */
     private Set<String> lookupToolNames(Connector connector, UUID userId, String connectionId) {
         Connection connection = loadConnection(userId, connector.getCode(), connectionId);
-        return switch (connector.getToolBinding()) {
+        return switch (connector.getDefinitionBinding()) {
             case STATIC -> connectorRegistry.findCapability(connector.getCode(), ToolProvider.class)
                     .map(provider -> provider.getTools().keySet()).orElse(Set.of());
             case DYNAMIC -> connectionToolRepository.findActiveByConnectionId(connection.getId()).stream()

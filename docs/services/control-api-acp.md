@@ -61,11 +61,11 @@ answer → `agent_message_chunk`.
 ## IDE-тулы (fs/terminal) — обратный вызов в живое соединение
 
 Агент получает тулы, исполняемые **на машине пользователя** обратным JSON-RPC-вызовом в живой
-WebSocket ACP-сессии (клиент — Zed). Это связывает два существующих паттерна: EXTERNAL-подобную
+WebSocket ACP-сессии (клиент — Zed). Это связывает два существующих паттерна: DELEGATED-подобную
 доставку вызова наружу (control-api диспатчит, но сам не исполняет) и `session/request_permission`
 (диалог подтверждения рисует IDE).
 
-**Тулы** (`connectors/internal/acp/AcpToolService`, `ToolBinding.STATIC`):
+**Тулы** (`connectors/internal/acp/AcpToolService`, `DefinitionBinding.STATIC`):
 
 | Тул | ACP-вызовы | Подтверждение | Хинты |
 |---|---|---|---|

@@ -17,6 +17,7 @@ import ru.agimate.controlapi.controller.manage.dto.AgentSummaryResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateSkillRequest;
 import ru.agimate.controlapi.controller.manage.dto.SkillDetailResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
+import ru.agimate.controlapi.controller.manage.dto.UpdateSkillConnectorsRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
 import ru.agimate.controlapi.service.SkillService;
 
@@ -126,6 +127,18 @@ public class ManageSkillController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(skillService.update(id, userId, principal.isAdmin(), request));
+    }
+
+    @Operation(summary = "Replace the skill's required connector codes (does not touch the body; "
+            + "bound agents are not auto-resynced)")
+    @PutMapping("/{id}/connectors")
+    public SuccessResponse<SkillResponse> updateSkillConnectors(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateSkillConnectorsRequest request
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(skillService.updateConnectors(id, userId, principal.isAdmin(), request));
     }
 
     @Operation(summary = "Delete skill (soft delete)")

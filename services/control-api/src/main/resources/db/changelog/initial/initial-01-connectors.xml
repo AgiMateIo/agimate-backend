@@ -19,10 +19,9 @@
                  Источник истины — SPI capabilities(), заполняется бутстрапом. -->
             <column name="transport_direction" type="TEXT"/>
             <column name="execution_locus" type="TEXT"/>
-            <column name="tool_binding" type="TEXT"/>
+            <column name="definition_binding" type="TEXT"/>
             <!-- Поддерживаемые identity-scope (JSONB-массив) + дефолт; подключение выбирает один. -->
             <column name="supported_scopes" type="JSONB"/>
-            <column name="default_scope" type="TEXT"/>
             <column name="features" type="JSONB"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>

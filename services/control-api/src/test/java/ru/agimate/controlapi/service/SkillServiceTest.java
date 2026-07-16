@@ -11,8 +11,6 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.core.ConnectorHandler;
-import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.manage.dto.CreateSkillRequest;
 import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
@@ -20,6 +18,7 @@ import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
+import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 
 import java.util.List;
@@ -54,7 +53,7 @@ class SkillServiceTest {
     @Mock
     private AgentPresetRepository agentPresetRepository;
     @Mock
-    private ConnectorRegistry connectorRegistry;
+    private ConnectorRepository connectorRepository;
 
     @InjectMocks
     private SkillService service;
@@ -64,12 +63,9 @@ class SkillServiceTest {
     class Create {
 
         private void knownConnectors(String... codes) {
-            List<ConnectorHandler> handlers = java.util.Arrays.stream(codes).map(code -> {
-                ConnectorHandler handler = mock(ConnectorHandler.class);
-                when(handler.connectorCode()).thenReturn(code);
-                return handler;
-            }).toList();
-            when(connectorRegistry.getHandlers()).thenReturn(List.copyOf(handlers));
+            List<String> known = List.of(codes);
+            when(connectorRepository.existsById(any(String.class)))
+                    .thenAnswer(inv -> known.contains(inv.<String>getArgument(0)));
         }
 
         private String skillMd(String connectorsYaml) {

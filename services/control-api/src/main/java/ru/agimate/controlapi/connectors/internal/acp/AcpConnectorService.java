@@ -9,7 +9,7 @@ import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.database.enums.ExecutionLocus;
 import ru.agimate.controlapi.database.enums.IdentityScope;
-import ru.agimate.controlapi.database.enums.ToolBinding;
+import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.enums.TransportDirection;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
@@ -31,7 +31,7 @@ import java.util.UUID;
  * соединение).
  *
  * <p>Тулы IDE ({@link AcpToolService}: read_file/write_file/run_command) исполняются обратным
- * JSON-RPC в живое соединение сессии — {@code ToolBinding.STATIC}, {@code ExecutionLocus.BACKEND}
+ * JSON-RPC в живое соединение сессии — {@code DefinitionBinding.STATIC}, {@code ExecutionLocus.BACKEND}
  * (control-api диспатчит вызов, но само действие делает клиент).
  *
  * <p>Плюс session-scoped MCP-тулы, проброшенные из IDE (мост поднял MCP-серверы Zed и сделал
@@ -93,8 +93,8 @@ public class AcpConnectorService extends BaseConnectorHandler
     @Override
     public ConnectorTraits traits() {
         return new ConnectorTraits(
-                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, ToolBinding.STATIC,
-                List.of(IdentityScope.USER), IdentityScope.USER);
+                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, DefinitionBinding.STATIC,
+                List.of(IdentityScope.USER));
     }
 
     @Override

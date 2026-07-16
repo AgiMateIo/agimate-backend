@@ -15,7 +15,7 @@ public record ConnectorResponse(
         @Schema(description = "Connector description")
         String description,
 
-        @Schema(description = "Capabilities (transportDirection, executionLocus, toolBinding, supportedScopes, defaultScope)")
+        @Schema(description = "Traits (transportDirection, executionLocus, definitionBinding, supportedScopes; first scope is the default)")
         ConnectorTraits capabilities,
 
         @Schema(description = "Integration-specific metadata; populated only for integration connectors with a handler", nullable = true)

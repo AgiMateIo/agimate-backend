@@ -13,17 +13,17 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.controlapi.connectors.core.ConnectorHandler;
-import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.controller.manage.dto.AgentSummaryResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateSkillRequest;
 import ru.agimate.controlapi.controller.manage.dto.SkillDetailResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
+import ru.agimate.controlapi.controller.manage.dto.UpdateSkillConnectorsRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
+import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.SkillSpecs;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
@@ -31,9 +31,7 @@ import ru.agimate.controlapi.util.SkillFrontmatterParser;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -47,7 +45,7 @@ public class SkillService {
     private final AgentRepository agentRepository;
     private final AgentSkillRepository agentSkillRepository;
     private final AgentPresetRepository agentPresetRepository;
-    private final ConnectorRegistry connectorRegistry;
+    private final ConnectorRepository connectorRepository;
 
     public Page<SkillResponse> getMySkills(UUID userId, String search, String connectorCode, int page, int size) {
         return findSkills(SkillSpecs.ownedBy(userId), search, connectorCode, page, size);
@@ -147,6 +145,26 @@ public class SkillService {
         return SkillResponse.from(skill);
     }
 
+    /**
+     * Точечно заменить список коннекторов скилла (без правки тела/имени). Права — как у полного
+     * {@link #update}: свой скилл или системный для ADMIN. Add-only-политика ({@code AgentSkillPolicyService})
+     * означает, что уже привязанные агенты новые коннекторы сами не подхватят — их синхронизируют явно
+     * (per-agent {@code sync-policies}); поэтому здесь только бампаем версию для детекции дрейфа.
+     */
+    @Transactional
+    public SkillResponse updateConnectors(UUID id, UUID userId, boolean admin, UpdateSkillConnectorsRequest request) {
+        Skill skill = findOwnedOrSystemAdmin(id, userId, admin);
+        validateConnectorCodes(request.connectorCodes());
+
+        skill.setConnectorCodes(new ArrayList<>(request.connectorCodes()));
+        skill.setVersion(skill.getVersion() + 1);
+        skill = skillRepository.save(skill);
+
+        log.info("Updated connectors of skill '{}' id={} version={}: {}",
+                skill.getName(), id, skill.getVersion(), skill.getConnectorCodes());
+        return SkillResponse.from(skill);
+    }
+
     @Transactional
     public void delete(UUID id, UUID userId, boolean admin) {
         Skill skill = findOwnedOrSystemAdmin(id, userId, admin);
@@ -222,20 +240,19 @@ public class SkillService {
     }
 
     /**
-     * Коды коннекторов скилла должны существовать в каталоге (registry). Иначе скилл нельзя было бы
-     * осмысленно привязать — при bind'е такой код всё равно пропускается ({@code AgentSkillPolicyService}),
-     * поэтому отсекаем мусор на входе. Пустой список (скилл без коннекторов) допустим.
+     * Коды коннекторов скилла должны существовать в каталоге коннекторов (таблица {@code connectors}) —
+     * это же источник истины для привязки ({@link ru.agimate.controlapi.service.connection.ConnectionBindingService}).
+     * Каталог шире SPI-реестра: помимо код-хендлеров в нём есть статические коннекторы без хендлера
+     * ({@code app}, {@code claude-code}) — их скилл тоже может объявлять (INSTANCE-коннектор привязывается
+     * позже вручную по connectionId). Пустой список (скилл без коннекторов) допустим.
      */
     private void validateConnectorCodes(List<String> codes) {
         if (codes.isEmpty()) {
             return;
         }
-        Set<String> known = connectorRegistry.getHandlers().stream()
-                .map(ConnectorHandler::connectorCode)
-                .collect(Collectors.toSet());
         List<String> unknown = codes.stream()
-                .filter(code -> !known.contains(code))
                 .distinct()
+                .filter(code -> !connectorRepository.existsById(code))
                 .toList();
         if (!unknown.isEmpty()) {
             throw new BadRequestStatusException("Unknown connector code(s): " + String.join(", ", unknown));

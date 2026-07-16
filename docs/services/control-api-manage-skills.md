@@ -85,6 +85,7 @@ System skills (time, board, persist-memory) are owned by the synthetic system us
 | POST | `/control/manage/skills/system` | **ADMIN** — create a system (platform) skill |
 | POST | `/control/manage/skills/upload` | Create skill by uploading a SKILL.md file |
 | PUT | `/control/manage/skills/{id}` | Update skill (bumps `version`); ADMIN may edit system skills |
+| PUT | `/control/manage/skills/{id}/connectors` | Replace only the required connector codes (bumps `version`) |
 | DELETE | `/control/manage/skills/{id}` | Soft-delete skill (system skills restricted) |
 
 ### Agent-skill bindings — `/control/manage/agents/{agentId}/skills`
@@ -333,7 +334,7 @@ The backend parses the frontmatter (`name`, `description`, `connectors`) and sto
 | Status | Condition |
 |--------|-----------|
 | 400 | `skillMd` is empty, missing frontmatter, missing `name` field, or YAML is invalid |
-| 400 | `Unknown connector code(s): …` — frontmatter `connectors` lists a code not present in the connector registry |
+| 400 | `Unknown connector code(s): …` — frontmatter `connectors` lists a code not present in the connector catalog (`connectors` table). The catalog includes SPI-backed connectors (`board`, `time`, `telegram`, `mcp`, …) **and** static ones without a handler (`app`, `claude-code`) |
 | 409 | A skill with this `name` already exists for the user |
 
 ---
@@ -414,6 +415,42 @@ Update an existing skill. Bumps `version` by 1, re-parses `name`, `description`,
 | 409 | Renaming would collide with an existing skill name in the owner's collection |
 
 > **ADMIN + system skills:** an ADMIN may `PUT` a system skill (edits its body/connectors/`isPublic`, bumps `version`) but **cannot rename it** (`400`). To retire a system skill without deleting, an ADMIN sets `isPublic: false` — it stops being offered to new agents while existing bindings keep working.
+
+---
+
+### PUT `/control/manage/skills/{id}/connectors`
+
+Replace **only** the skill's required connector codes without touching its body, name, or `description`. Convenient for editing the connector list programmatically — no need to reconstruct and re-send the full SKILL.md frontmatter. Bumps `version` by 1.
+
+**Path parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `id` | `uuid` | Skill identifier |
+
+**Request body:**
+
+```json
+{
+  "connectorCodes": ["board", "time"]
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `connectorCodes` | `string[]` | yes (`@NotNull`) | Codes required by the skill, validated against the connector catalog (`connectors` table — same source used for binding; includes `app`, `claude-code`). Empty array = skill without connectors. Replaces the existing list wholesale. |
+
+**Response `200`:** `SkillResponse` with the new `version` and updated `connectorCodes`.
+
+**Errors:**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Unknown connector code(s) (not in the `connectors` catalog) |
+| 403 | Caller is not the owner (and not an ADMIN editing a system skill) |
+| 404 | Skill not found or soft-deleted |
+
+> **Bound agents are not auto-resynced.** Skill→connector bindings are add-only (`AgentSkillPolicyService`): changing a skill's connectors does **not** bind the new connectors to agents that already have the skill installed. They pick up the change explicitly via `POST /control/manage/agents/{agentId}/skills/sync-policies` (or on next bind). `version` bumps so drift is detectable against `AgentSkill.installed_skill_version`.
 
 ---
 
