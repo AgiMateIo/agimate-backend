@@ -390,6 +390,25 @@ class TelegramConnectorServiceTest {
         }
 
         @Test
+        @DisplayName("agf_-файл больше лимита Bot API (50 MB) → ConnectorException без вызова API")
+        void sendPhotoOverBotUploadLimit() {
+            StoredFile stored = StoredFile.builder()
+                    .id(UUID.randomUUID()).userId(USER_ID).status(FileStatus.READY)
+                    .mime("video/mp4").sizeBytes(51L * 1024 * 1024)
+                    .expiresAt(LocalDateTime.now().plusDays(1)).build();
+            String fileId = FileIds.external(stored.getId());
+            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
+                    stored, new ByteArrayInputStream(new byte[]{1})));
+
+            ConnectorException e = assertThrows(ConnectorException.class, () ->
+                    handler.executeTool(env(), "send_video", Map.of("chatId", "100", "video", fileId)));
+
+            assertTrue(e.getMessage().contains("too large"));
+            assertTrue(e.getMessage().contains(fileId));
+            verifyNoInteractions(telegramApiClient);
+        }
+
+        @Test
         @DisplayName("неизвестный/чужой agf_-id → ConnectorException с причиной для агента")
         void sendPhotoWithUnknownFileRef() {
             String fileId = FileIds.external(UUID.randomUUID());

@@ -3,6 +3,7 @@ package ru.agimate.controlapi.connectors.integrations.telegram;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -20,12 +21,18 @@ public class TelegramApiClient {
 
     private static final String BASE_URL = "https://api.telegram.org";
     private static final Duration LONG_POLL_READ_TIMEOUT = Duration.ofSeconds(25);
+    private static final Duration SEND_READ_TIMEOUT = Duration.ofSeconds(120);
 
     private final RestClient restClient;
     private final RestClient longPollClient;
 
     public TelegramApiClient() {
-        this.restClient = RestClient.builder().baseUrl(BASE_URL).build();
+        // Явная стриминговая фабрика (JDK HttpClient): multipart-тело (до 50 MB) не буферизуется
+        // в heap. Дефолтный билдер выбирает фабрику детектом classpath (сейчас HttpComponents
+        // приезжает транзитивно с AWS SDK) — полагаться на это нельзя.
+        JdkClientHttpRequestFactory sendFactory = new JdkClientHttpRequestFactory();
+        sendFactory.setReadTimeout(SEND_READ_TIMEOUT);
+        this.restClient = RestClient.builder().baseUrl(BASE_URL).requestFactory(sendFactory).build();
 
         SimpleClientHttpRequestFactory longPollFactory = new SimpleClientHttpRequestFactory();
         longPollFactory.setReadTimeout(LONG_POLL_READ_TIMEOUT);

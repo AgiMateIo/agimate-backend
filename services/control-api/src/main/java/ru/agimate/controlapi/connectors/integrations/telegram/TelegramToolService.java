@@ -38,6 +38,9 @@ public class TelegramToolService {
     public static final String TASK_LONG_POLL = "long_poll";
     private static final int LONG_POLL_TIMEOUT_SEC = 20;
 
+    /** Лимит Bot API на аплоад файла ботом. Свой чек — не полагаемся на app.files.max-file-size-bytes. */
+    private static final long BOT_UPLOAD_LIMIT_BYTES = 50L * 1024 * 1024;
+
     private final TelegramApiClient telegramApiClient;
     private final TriggerRouterService triggerRouterService;
     private final FileStorageService fileStorageService;
@@ -132,6 +135,11 @@ public class TelegramToolService {
         try {
             FileStorageService.FileContent file = fileStorageService.open(env.userId(), value);
             try (InputStream content = file.content()) {
+                long sizeBytes = file.file().getSizeBytes();
+                if (sizeBytes > BOT_UPLOAD_LIMIT_BYTES) {
+                    throw new ConnectorException("file " + value + " is too large for Telegram bot upload: "
+                            + sizeBytes + " bytes, limit " + BOT_UPLOAD_LIMIT_BYTES + " (50 MB)");
+                }
                 String effectiveName = fileName != null && !fileName.isBlank()
                         ? fileName : defaultFilename(value, file.file().getMime());
                 return telegramApiClient.sendRequestMultipart(method, token, apiParams, field,
