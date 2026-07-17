@@ -124,15 +124,15 @@ public class TelegramChannelHandler implements ChannelHandler {
         }
         // Вложения — отдельными сообщениями (не caption'ом): сбой доставки одного не топит
         // остальные, а send_* сам резолвит agf_ в байты (см. TelegramToolService.sendMedia).
-        List<Part> parts = outbound.parts();
-        for (int i = 0; i < parts.size(); i++) {
-            Part part = parts.get(i);
+        for (Part part : outbound.parts()) {
             MediaTool tool = mediaTool(part.type());
             Map<String, Object> args = new LinkedHashMap<>();
             args.put("chatId", chatId.toString());
             args.put(tool.param(), part.storageRef());
-            // Детерминированный суффикс — идемпотентность каждой части при повторе messageId.
-            requests.add(request(config, dispatch.messageId() + ":att" + i, tool.name(), args));
+            // Контентный ключ идемпотентности (messageId:fileId): устойчив к изменению состава
+            // parts между ретраями — позиционный суффикс давал бы InputConflict при сдвиге.
+            // Дубль одного файла в сообщении схлопывается в replay и доставляется один раз.
+            requests.add(request(config, dispatch.messageId() + ":" + part.storageRef(), tool.name(), args));
         }
         return requests;
     }

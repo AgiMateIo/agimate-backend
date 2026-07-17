@@ -212,7 +212,7 @@ class TelegramChannelHandlerTest {
             assertEquals("send_message", requests.get(0).getName());
             ToolCallRequest photo = requests.get(1);
             assertEquals("send_photo", photo.getName());
-            assertEquals("call-3:att0", photo.getId());
+            assertEquals("call-3:" + outbound.parts().get(0).storageRef(), photo.getId());
             assertEquals("42", photo.getInput().get("chatId"));
             assertEquals(outbound.parts().get(0).storageRef(), photo.getInput().get("photo"));
         }
@@ -232,7 +232,7 @@ class TelegramChannelHandlerTest {
             assertEquals(outbound.parts().get(0).storageRef(), requests.get(0).getInput().get("video"));
             assertEquals("send_document", requests.get(1).getName());
             assertEquals(outbound.parts().get(1).storageRef(), requests.get(1).getInput().get("document"));
-            assertEquals("call-4:att1", requests.get(1).getId());
+            assertEquals("call-4:" + outbound.parts().get(1).storageRef(), requests.get(1).getId());
         }
 
         @Test
