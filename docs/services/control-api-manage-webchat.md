@@ -39,7 +39,23 @@ user JWT (audience `manage`). Архитектура коннектора: `docs
 
 ```json
 { "id": "...", "messageId": "...", "direction": "USER|AGENT",
-  "stream": "answer|progress|error|null", "text": "...", "createdAt": "..." }
+  "stream": "answer|progress|error|null", "text": "...",
+  "parts": [ { "type": "image", "fileId": "agf_…", "mime": "image/png", "size": 384211,
+               "url": "/files/agf_…?exp=…&sig=…" } ],
+  "createdAt": "..." }
 ```
 
-`parts` в запросе зарезервирован под вложения (файлы/картинки) — сейчас должен быть пуст.
+`parts` в запросе зарезервирован под вложения от пользователя — сейчас должен быть пуст.
+
+### Вложения ответа агента (`parts`)
+
+Ответ агента может нести файлы (attach-конвенция, `docs/connectors/files.md`); они приходят и в
+событии `webchat_message`, и в истории — полем `parts` (`null` — сообщение без вложений).
+
+- `url` — подписанный URL содержимого (`GET /files/{fileId}?exp&sig`, без Authorization-заголовка —
+  работает в `<img src>`), относительный к context path: фронт префиксует `{origin}/control`.
+- Ссылка живёт `app.files.url-ttl` (дефолт 15 мин). Протухла (403) — перечитать историю: каждая
+  выдача подписывает ссылки заново. Файл с истёкшим TTL хранилища отдаёт 404 — показывать заглушку.
+- Изображения отдаются `Content-Disposition: inline` (рендер в браузере), остальные типы —
+  `attachment`; активный контент (SVG/HTML и т.п.) деградирует до `octet-stream`.
+- `parts` несёт только `stream=answer` — в `progress` вложения не приходят.

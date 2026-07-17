@@ -24,10 +24,10 @@ public interface WebchatMessageRepository extends JpaRepository<WebchatMessage, 
     @Query(value = """
             INSERT INTO webchat_messages
                 (user_id, agent_id, channel_id, session_id, direction, stream, message_id, text,
-                 created_at, updated_at)
+                 parts, created_at, updated_at)
             VALUES
                 (:userId, :agentId, :channelId, :sessionId, :direction, :stream, :messageId, :text,
-                 CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                 CAST(:partsJson AS jsonb), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (session_id, message_id) DO NOTHING
             """, nativeQuery = true)
     int insertIgnoreConflict(@Param("userId") UUID userId,
@@ -37,7 +37,8 @@ public interface WebchatMessageRepository extends JpaRepository<WebchatMessage, 
                              @Param("direction") String direction,
                              @Param("stream") String stream,
                              @Param("messageId") String messageId,
-                             @Param("text") String text);
+                             @Param("text") String text,
+                             @Param("partsJson") String partsJson);
 
     Page<WebchatMessage> findBySessionId(UUID sessionId, Pageable pageable);
 }

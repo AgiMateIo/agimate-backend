@@ -78,6 +78,12 @@ public class WebchatChannelHandler implements ChannelHandler {
         return true;
     }
 
+    /** Вложения ответа доставляются parts'ами webchat-сообщения (изображения рендерит фронт). */
+    @Override
+    public boolean supportsOutboundAttachments() {
+        return true;
+    }
+
     @Override
     public List<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
                                                   OutboundDispatch dispatch) {
@@ -86,7 +92,8 @@ public class WebchatChannelHandler implements ChannelHandler {
         String stream = dispatch.stream() != null ? dispatch.stream() : STREAM_ANSWER;
         webchatMessagePublisher.record(
                 channel.getUserId(), config.agentId(), channel.getId(), dispatch.sessionId(),
-                WebchatMessageDirection.AGENT, stream, dispatch.messageId(), outbound.text());
+                WebchatMessageDirection.AGENT, stream, dispatch.messageId(), outbound.text(),
+                outbound.parts());
         return List.of();
     }
 }

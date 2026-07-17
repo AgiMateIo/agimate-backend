@@ -28,6 +28,7 @@ import ru.agimate.controlapi.service.channel.ChannelSessionService;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
+import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -74,6 +75,8 @@ class WebchatServiceTest {
     private WebchatMessageRepository webchatMessageRepository;
     @Mock
     private CentrifugoService centrifugoService;
+    @Mock
+    private SignedFileUrlService signedFileUrlService;
 
     private WebchatService webchatService;
 
@@ -85,7 +88,8 @@ class WebchatServiceTest {
     void setUp() {
         webchatService = new WebchatService(agentRepository, channelRepository, channelService,
                 channelSessionService, connectionBindingService, triggerRouterService,
-                webchatMessagePublisher, webchatMessageRepository, centrifugoService);
+                webchatMessagePublisher, webchatMessageRepository, centrifugoService,
+                signedFileUrlService);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).name("Assistant").build();
         channel = Channel.builder()
                 .id(CHANNEL_ID)
@@ -163,7 +167,7 @@ class WebchatServiceTest {
                     new WebchatSendMessageRequest("привет", null));
 
             verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
-                    WebchatMessageDirection.USER, null, response.messageId(), "привет");
+                    WebchatMessageDirection.USER, null, response.messageId(), "привет", null);
             verify(channelSessionService).setTitleIfEmpty(session, "привет");
 
             ArgumentCaptor<Trigger> captor = ArgumentCaptor.forClass(Trigger.class);

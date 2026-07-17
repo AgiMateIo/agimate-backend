@@ -120,6 +120,10 @@ app:
     region: us-east-1
     endpoint: ""
     path-style: true
+    # HMAC-секрет подписанных ссылок на файлы (GET /files/…?exp&sig — webchat-вложения).
+    # Дефолта нет намеренно: в проде — env APP_FILES_URL_SECRET (без него отказ старта),
+    # в dev пустое значение = случайный per-boot ключ.
+    url-secret: ""
 
 dbos:
   enabled: false

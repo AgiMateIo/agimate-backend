@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.service.webchat;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -8,6 +9,9 @@ import java.util.UUID;
  *
  * @param direction {@code USER} (echo сообщения пользователя) или {@code AGENT}
  * @param stream    поток вывода агента: {@code answer}/{@code progress}/{@code error}; null для USER
+ * @param parts     вложения со свежими подписанными ссылками; null — сообщение без вложений.
+ *                  Ссылка живёт {@code app.files.url-ttl} — при протухании фронт перечитывает
+ *                  историю и получает новую
  */
 public record WebchatMessageEvent(
         UUID sessionId,
@@ -17,6 +21,7 @@ public record WebchatMessageEvent(
         String direction,
         String stream,
         String text,
+        List<WebchatAttachment> parts,
         String createdAt
 ) {
 }

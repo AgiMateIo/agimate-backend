@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -18,6 +19,7 @@ import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
 
 import java.util.List;
@@ -27,6 +29,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -126,6 +129,30 @@ class ChannelMessageOutboundServiceTest {
             assertEquals("m1", result.messageId());
             verify(agentToolCallService).processToolCall(AGENT_ID, text);
             verify(agentToolCallService).processToolCall(AGENT_ID, att1);
+        }
+
+        @Test
+        @DisplayName("parts доставляются только в answer-стрим: progress получает текст без вложений")
+        void progressStreamDropsParts() {
+            OutboundMessage outbound = OutboundMessage.text("думаю про [[attach:agf_x]]");
+            OutboundMessage parsed = new OutboundMessage("думаю про",
+                    List.of(new Part("image", "agf_" + UUID.randomUUID(), "image/png", 5, Map.of())));
+            when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            when(channelHandlerRegistry.find("telegram")).thenReturn(Optional.of(handler));
+            when(channelSessionService.findOrCreateActive(channel, null)).thenReturn(session);
+            when(channelSessionMessageRepository
+                    .findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(SESSION_ID))
+                    .thenReturn(Optional.empty());
+            when(attachmentParser.parse(USER_ID, outbound)).thenReturn(parsed);
+            when(handler.supportsOutboundAttachments()).thenReturn(true);
+            when(handler.handleOutput(any(), any(), any())).thenReturn(List.of());
+
+            service.send(AGENT_ID, CHANNEL_ID, null, outbound, "m1", "progress", "THINKING");
+
+            ArgumentCaptor<OutboundMessage> delivered = ArgumentCaptor.forClass(OutboundMessage.class);
+            verify(handler).handleOutput(any(), delivered.capture(), any());
+            assertEquals("думаю про", delivered.getValue().text());
+            assertTrue(delivered.getValue().parts().isEmpty());
         }
 
         @Test

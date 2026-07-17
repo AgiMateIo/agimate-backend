@@ -14,6 +14,7 @@ public class SecurityGuardConfig {
     public SecurityPropertiesGuard securityPropertiesGuard(Environment environment) {
         return new SecurityPropertiesGuard(environment, List.of(
                 "app.secrets.encryption-key",
+                "app.files.url-secret",
                 "jwt.publicKey"));
     }
 }

@@ -92,11 +92,8 @@ public class FileStorageService {
      * {@code empty} — id неизвестен/чужой/просрочен/не дозагружен (причины намеренно неразличимы).
      */
     public Optional<StoredFile> findReadable(UUID userId, String fileId) {
-        return FileIds.parse(fileId)
-                .flatMap(storedFileRepository::findById)
-                .filter(f -> f.getUserId().equals(userId))
-                .filter(f -> f.getStatus() == FileStatus.READY)
-                .filter(f -> f.getExpiresAt().isAfter(LocalDateTime.now()));
+        return findLive(fileId)
+                .filter(f -> f.getUserId().equals(userId));
     }
 
     /** Открывает файл по публичному id ({@code agf_<uuid>}) с проверкой владения (см. {@link #findReadable}). */
@@ -104,6 +101,25 @@ public class FileStorageService {
         StoredFile file = findReadable(userId, fileId)
                 .orElseThrow(() -> new StoredFileNotFoundException(fileId));
         return new FileContent(file, blobStore.get(blobKey(file)));
+    }
+
+    /**
+     * Открывает файл без проверки владения — только для доступа по подписанной ссылке
+     * ({@code SignedFileUrlService}): владение доказано при выдаче ссылки, подпись уже проверена
+     * вызывающим. Остальные фильтры (READY, TTL) действуют.
+     */
+    public FileContent openSigned(String fileId) {
+        StoredFile file = findLive(fileId)
+                .orElseThrow(() -> new StoredFileNotFoundException(fileId));
+        return new FileContent(file, blobStore.get(blobKey(file)));
+    }
+
+    /** Строка файла, пригодного к чтению: существует + READY + не просрочен (без проверки владения). */
+    private Optional<StoredFile> findLive(String fileId) {
+        return FileIds.parse(fileId)
+                .flatMap(storedFileRepository::findById)
+                .filter(f -> f.getStatus() == FileStatus.READY)
+                .filter(f -> f.getExpiresAt().isAfter(LocalDateTime.now()));
     }
 
     /**

@@ -43,6 +43,7 @@ import ru.agimate.controlapi.controller.manage.ManageLlmUsageController;
 import ru.agimate.controlapi.controller.manage.ManageSkillController;
 import ru.agimate.controlapi.controller.manage.ManageWebchatController;
 import ru.agimate.controlapi.controller.manage.ManageWebhookDeliveryLogsController;
+import ru.agimate.controlapi.controller.files.FileDownloadController;
 import ru.agimate.controlapi.controller.webhook.ConnectionWebhookController;
 import ru.agimate.controlapi.security.AgentAuthFilter;
 import ru.agimate.controlapi.security.AppAuthFilter;
@@ -189,7 +190,9 @@ public class SecurityConfig {
                         "/favicon.ico",
                         "/docs/**",
                         "/actuator/health",
-                        ConnectionWebhookController.PATH + "/**"
+                        ConnectionWebhookController.PATH + "/**",
+                        // Аутентификация — HMAC-подпись в query (exp+sig), не Spring Security.
+                        FileDownloadController.PATH + "/**"
                 ).permitAll()
                 .anyRequest().authenticated()
         );

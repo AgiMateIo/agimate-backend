@@ -15,10 +15,12 @@ import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.webchat.WebchatMessagePublisher;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -65,6 +67,12 @@ class WebchatChannelHandlerTest {
             assertEquals("message_received", handler.listOfTriggers(config).get(0).triggerName());
             assertTrue(handler.listOfTools(config).isEmpty());
             assertTrue(handler.deliverProgress(config));
+        }
+
+        @Test
+        @DisplayName("supportsOutboundAttachments = true")
+        void supportsAttachments() {
+            assertTrue(handler.supportsOutboundAttachments());
         }
 
         @Test
@@ -119,7 +127,20 @@ class WebchatChannelHandlerTest {
             assertTrue(handler.handleOutput(config, OutboundMessage.text("готово"), dispatch).isEmpty());
 
             verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
-                    WebchatMessageDirection.AGENT, "answer", "msg-1", "готово");
+                    WebchatMessageDirection.AGENT, "answer", "msg-1", "готово", List.of());
+        }
+
+        @Test
+        @DisplayName("parts ответа прокидываются в publisher как есть")
+        void passesPartsThrough() {
+            when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            List<Part> parts = List.of(new Part("image", "agf_" + UUID.randomUUID(), "image/png", 5, Map.of()));
+            OutboundDispatch dispatch = new OutboundDispatch("msg-4", null, null, CHANNEL_ID, SESSION_ID, Map.of());
+
+            handler.handleOutput(config, new OutboundMessage("вот скриншот", parts), dispatch);
+
+            verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                    WebchatMessageDirection.AGENT, "answer", "msg-4", "вот скриншот", parts);
         }
 
         @Test
@@ -131,7 +152,7 @@ class WebchatChannelHandlerTest {
             handler.handleOutput(config, OutboundMessage.text("думаю..."), dispatch);
 
             verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
-                    WebchatMessageDirection.AGENT, "progress", "msg-2", "думаю...");
+                    WebchatMessageDirection.AGENT, "progress", "msg-2", "думаю...", List.of());
         }
 
         @Test

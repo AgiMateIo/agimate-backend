@@ -9,6 +9,7 @@ import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
+import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
@@ -65,6 +66,13 @@ public class ChannelMessageOutboundService {
         if (!effectiveOutbound.parts().isEmpty() && !handler.supportsOutboundAttachments()) {
             log.warn("Channel {} handler={} does not support outbound attachments — dropping {} part(s)",
                     channel.getId(), handler.name(), effectiveOutbound.parts().size());
+            effectiveOutbound = new OutboundMessage(effectiveOutbound.text(), List.of());
+        }
+        // Вложения несёт только answer-стрим: маркер, упомянутый в progress-тексте, — анонс будущего
+        // ответа; доставка и там и там задублировала бы файл (message_id у стримов разные).
+        boolean answerStream = stream == null
+                || ChannelSessionMessageKind.ANSWER.name().equalsIgnoreCase(stream);
+        if (!effectiveOutbound.parts().isEmpty() && !answerStream) {
             effectiveOutbound = new OutboundMessage(effectiveOutbound.text(), List.of());
         }
 

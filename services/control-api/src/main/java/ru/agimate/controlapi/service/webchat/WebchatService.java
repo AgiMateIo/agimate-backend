@@ -19,6 +19,7 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.WebchatMessage;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
@@ -34,6 +35,7 @@ import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
+import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.util.List;
 import java.util.Map;
@@ -66,6 +68,7 @@ public class WebchatService {
     private final WebchatMessagePublisher webchatMessagePublisher;
     private final WebchatMessageRepository webchatMessageRepository;
     private final CentrifugoService centrifugoService;
+    private final SignedFileUrlService signedFileUrlService;
 
     /** Новая сессия чата с агентом; binding и канал материализуются лениво (find-or-create). */
     @Transactional
@@ -132,7 +135,7 @@ public class WebchatService {
         channelSessionService.setTitleIfEmpty(session, request.text());
         channelSessionService.bumpLastMessageAt(session);
         webchatMessagePublisher.record(userId, channel.getAgentId(), channel.getId(), session.getId(),
-                WebchatMessageDirection.USER, null, messageId, request.text());
+                WebchatMessageDirection.USER, null, messageId, request.text(), null);
 
         Trigger trigger = Trigger.createDirected(
                 WebchatChannelHandler.CONNECTOR_CODE,
@@ -157,7 +160,12 @@ public class WebchatService {
         PageRequest pageRequest = PageRequest.of(page, size,
                 Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
         return webchatMessageRepository.findBySessionId(sessionId, pageRequest)
-                .map(WebchatMessageResponse::from);
+                .map(message -> WebchatMessageResponse.from(message, attachments(message)));
+    }
+
+    /** Хранимые parts + свежая подписанная ссылка на содержимое (протухшие ссылки не хранятся). */
+    private List<WebchatAttachment> attachments(WebchatMessage message) {
+        return WebchatAttachment.fromStored(message.getParts(), signedFileUrlService::issue);
     }
 
     @Transactional

@@ -39,4 +39,12 @@ public class FileStorageProperties {
     private long userDailyBytes = 500L * 1024 * 1024;
     /** TTL по умолчанию, когда продюсер не задал свой. */
     private Duration defaultTtl = Duration.ofDays(7);
+
+    /**
+     * HMAC-секрет подписанных ссылок ({@code GET /files/…?exp&sig}); только env
+     * ({@code APP_FILES_URL_SECRET}), вне dev-профилей обязателен ({@code SecurityGuardConfig}).
+     */
+    private String urlSecret;
+    /** Срок жизни подписанной ссылки; история чата выдаёт свежие ссылки при каждом чтении. */
+    private Duration urlTtl = Duration.ofMinutes(15);
 }

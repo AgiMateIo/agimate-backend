@@ -32,7 +32,10 @@ progress-роль `Channels` тем же каналом, и worker шлёт и �
 ```json
 { "type": "webchat_message",
   "payload": { "sessionId": "...", "channelId": "...", "agentId": "...", "messageId": "...",
-               "direction": "AGENT", "stream": "answer", "text": "...", "createdAt": "..." } }
+               "direction": "AGENT", "stream": "answer", "text": "...",
+               "parts": [ { "type": "image", "fileId": "agf_…", "mime": "image/png",
+                            "size": 384211, "url": "/files/agf_…?exp=…&sig=…" } ],
+               "createdAt": "..." } }
 ```
 
 События — at-least-once (replay переиздаёт), фронт дедуплицирует по `messageId`. Echo сообщений
@@ -46,8 +49,13 @@ progress-роль `Channels` тем же каналом, и worker шлёт и �
 | `channel_session_messages` | LLM-история сессии (turn'ы для восстановления контекста воркером) | worker (gRPC Append) |
 | `webchat_messages` | UI-лог: что реально показано пользователю (USER + AGENT answer/progress) | control-api на границе доставки |
 
-## Файлы (следующая фаза)
+## Файлы
 
-Контракт заложен: `Part(type, storageRef, mime, size, meta)` в `InboundMessage`/`OutboundMessage`/proto,
-колонка `parts JSONB` в `webchat_messages`, поле `parts` в send-запросе (пока обязано быть пустым).
-Понадобится storage-сервис (S3/minio) + upload-эндпойнт + прокачка parts в worker/LLM.
+**Вложения ответа агента работают** (attach-конвенция, `docs/connectors/files.md`):
+`supportsOutboundAttachments = true`, `OutboundMessage.parts` пишутся в `webchat_messages.parts`
+(без URL — только `type/fileId/mime/size`) и уходят фронту в событии и истории со свежим
+подписанным URL содержимого (`GET /files/{fileId}?exp&sig`, TTL `app.files.url-ttl`). Parts несёт
+только answer-стрим. Изображения фронт рендерит `<img src>` прямо по ссылке.
+
+Следующая фаза — входящие файлы от пользователя: поле `parts` в send-запросе пока обязано быть
+пустым, понадобится upload-эндпойнт + прокачка parts в worker/LLM («зрение»).

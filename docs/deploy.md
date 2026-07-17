@@ -42,6 +42,8 @@ Blob store for the connector file layer (`docs/connectors/files.md`).
 | `APP_FILES_REGION`     | s3 only: region (default `us-east-1`)                                |
 | `APP_FILES_ACCESS_KEY` | s3 only: access key; empty (with empty secret) = AWS credentials chain |
 | `APP_FILES_SECRET_KEY` | s3 only: secret key                                                  |
+| `APP_FILES_URL_SECRET` | HMAC secret for signed file links (`GET /files/…?exp&sig`, webchat attachments). Required outside `local`/`test` profiles — startup fails without it; dev fallback is a random per-boot key |
+| `APP_FILES_URL_TTL`    | Signed link lifetime (default `15m`)                                 |
 
 ### Centrifugo (control-api)
 
