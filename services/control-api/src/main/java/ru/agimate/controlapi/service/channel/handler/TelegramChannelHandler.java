@@ -65,7 +65,12 @@ public class TelegramChannelHandler implements ChannelHandler {
 
     @Override
     public List<ToolDefinition> listOfTools(ChannelConfig config) {
-        return List.of(new ToolDefinition(config.connectionId(), TOOL_SEND_MESSAGE));
+        // Всё, что может вернуть handleOutput: текст + вложения attach-конвенции.
+        return List.of(
+                new ToolDefinition(config.connectionId(), TOOL_SEND_MESSAGE),
+                new ToolDefinition(config.connectionId(), TOOL_SEND_PHOTO),
+                new ToolDefinition(config.connectionId(), TOOL_SEND_VIDEO),
+                new ToolDefinition(config.connectionId(), TOOL_SEND_DOCUMENT));
     }
 
     @Override

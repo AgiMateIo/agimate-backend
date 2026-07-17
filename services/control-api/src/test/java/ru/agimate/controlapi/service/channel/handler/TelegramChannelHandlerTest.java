@@ -56,11 +56,13 @@ class TelegramChannelHandlerTest {
         }
 
         @Test
-        @DisplayName("reply tool is send_message bound to channel connectionId")
+        @DisplayName("declares every tool handleOutput can emit, bound to channel connectionId")
         void tools() {
-            ToolDefinition tool = handler.listOfTools(config).get(0);
-            assertEquals(IDENTITY, tool.connectionId());
-            assertEquals("send_message", tool.toolName());
+            List<ToolDefinition> tools = handler.listOfTools(config);
+            assertTrue(tools.stream().allMatch(t -> IDENTITY.equals(t.connectionId())));
+            assertEquals(
+                    List.of("send_message", "send_photo", "send_video", "send_document"),
+                    tools.stream().map(ToolDefinition::toolName).toList());
         }
 
         @Test
