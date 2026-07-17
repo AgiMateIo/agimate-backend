@@ -23,12 +23,6 @@ spring:
   mvc:
     throw-exception-if-no-handler-found: true
     publish-request-handled-events: false
-  servlet:
-    multipart:
-      # Аплоад файлов device-apps (/app/files); содержательный лимит — app.files.max-file-size-bytes
-      # (50 MB), здесь чуть выше, чтобы отказ был доменным (400), а не транспортным.
-      max-file-size: 51MB
-      max-request-size: 52MB
   web:
     resources:
       add-mappings: false
@@ -56,8 +50,10 @@ spring:
     change-log: classpath:db/changelog/db.changelog-master.yaml
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 20MB
+      # Аплоад файлов device-apps (/app/files); содержательный лимит — app.files.max-file-size-bytes
+      # (50 MB), здесь чуть выше, чтобы отказ был доменным (400), а не транспортным.
+      max-file-size: 51MB
+      max-request-size: 52MB
   jpa:
     hibernate:
       ddl-auto: validate
