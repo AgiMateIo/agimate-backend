@@ -6,6 +6,7 @@ import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.service.channel.handler.dto.*;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,9 @@ public class TelegramChannelHandler implements ChannelHandler {
     private static final String TRIGGER_COMMAND = "command_received";
     private static final String TRIGGER_CALLBACK = "callback_query";
     private static final String TOOL_SEND_MESSAGE = "send_message";
+    private static final String TOOL_SEND_PHOTO = "send_photo";
+    private static final String TOOL_SEND_VIDEO = "send_video";
+    private static final String TOOL_SEND_DOCUMENT = "send_document";
     private static final String CFG_ALLOWED_CHAT_IDS = "allowedChatIds";
     private static final String CFG_DEFAULT_CHAT_ID = "defaultChatId";
 
@@ -88,8 +92,13 @@ public class TelegramChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public Optional<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
-                                                  OutboundDispatch dispatch) {
+    public boolean supportsOutboundAttachments() {
+        return true;
+    }
+
+    @Override
+    public List<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
+                                              OutboundDispatch dispatch) {
         Map<String, Object> replyContext = dispatch.replyContext() != null ? dispatch.replyContext() : Map.of();
         // Адрес ответа: из входящего (replyContext) → дефолт из config (проактивные/не-канальные триггеры).
         Object chatId = replyContext.get("chatId");
@@ -100,16 +109,48 @@ public class TelegramChannelHandler implements ChannelHandler {
             throw new ConnectorException(
                     "cannot send Telegram reply: no chatId in reply context and no defaultChatId in config");
         }
-        Map<String, Object> args = new LinkedHashMap<>();
-        args.put("chatId", chatId.toString());
-        args.put("text", outbound.text());
-        return Optional.of(ToolCallRequest.builder()
-                .id(dispatch.messageId())
+
+        List<ToolCallRequest> requests = new ArrayList<>();
+        if (outbound.text() != null && !outbound.text().isBlank()) {
+            Map<String, Object> args = new LinkedHashMap<>();
+            args.put("chatId", chatId.toString());
+            args.put("text", outbound.text());
+            requests.add(request(config, dispatch.messageId(), TOOL_SEND_MESSAGE, args));
+        }
+        // Вложения — отдельными сообщениями (не caption'ом): сбой доставки одного не топит
+        // остальные, а send_* сам резолвит agf_ в байты (см. TelegramToolService.sendMedia).
+        List<Part> parts = outbound.parts();
+        for (int i = 0; i < parts.size(); i++) {
+            Part part = parts.get(i);
+            MediaTool tool = mediaTool(part.type());
+            Map<String, Object> args = new LinkedHashMap<>();
+            args.put("chatId", chatId.toString());
+            args.put(tool.param(), part.storageRef());
+            // Детерминированный суффикс — идемпотентность каждой части при повторе messageId.
+            requests.add(request(config, dispatch.messageId() + ":att" + i, tool.name(), args));
+        }
+        return requests;
+    }
+
+    private record MediaTool(String name, String param) {}
+
+    private static MediaTool mediaTool(String partType) {
+        return switch (partType) {
+            case "image" -> new MediaTool(TOOL_SEND_PHOTO, "photo");
+            case "video" -> new MediaTool(TOOL_SEND_VIDEO, "video");
+            default -> new MediaTool(TOOL_SEND_DOCUMENT, "document");
+        };
+    }
+
+    private static ToolCallRequest request(ChannelConfig config, String id, String tool,
+                                           Map<String, Object> args) {
+        return ToolCallRequest.builder()
+                .id(id)
                 .connectorCode(config.connectorCode())
                 .connectionId(config.connectionId())
-                .name(TOOL_SEND_MESSAGE)
+                .name(tool)
                 .input(args)
-                .build());
+                .build();
     }
 
     private static boolean chatAllowed(ChannelConfig config, Object chatId) {

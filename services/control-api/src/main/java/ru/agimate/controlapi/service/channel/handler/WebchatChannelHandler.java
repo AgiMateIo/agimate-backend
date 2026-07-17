@@ -79,7 +79,7 @@ public class WebchatChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public Optional<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
+    public List<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
                                                   OutboundDispatch dispatch) {
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(dispatch.channelId())
                 .orElseThrow(() -> new ConnectorException("webchat channel not found: " + dispatch.channelId()));
@@ -87,6 +87,6 @@ public class WebchatChannelHandler implements ChannelHandler {
         webchatMessagePublisher.record(
                 channel.getUserId(), config.agentId(), channel.getId(), dispatch.sessionId(),
                 WebchatMessageDirection.AGENT, stream, dispatch.messageId(), outbound.text());
-        return Optional.empty();
+        return List.of();
     }
 }

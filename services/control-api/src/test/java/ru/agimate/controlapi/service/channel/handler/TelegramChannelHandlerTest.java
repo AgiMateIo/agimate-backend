@@ -11,6 +11,7 @@ import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.channel.handler.dto.ToolDefinition;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -172,7 +173,9 @@ class TelegramChannelHandlerTest {
             OutboundMessage outbound = OutboundMessage.text("Готово");
             OutboundDispatch dispatch = new OutboundDispatch("call-1", null, null, null, null, Map.of("chatId", 42));
 
-            ToolCallRequest r = handler.handleOutput(config, outbound, dispatch).orElseThrow();
+            List<ToolCallRequest> requests = handler.handleOutput(config, outbound, dispatch);
+            assertEquals(1, requests.size());
+            ToolCallRequest r = requests.get(0);
 
             assertEquals("telegram", r.getConnectorCode());
             assertEquals(IDENTITY, r.getConnectionId());
@@ -189,9 +192,51 @@ class TelegramChannelHandlerTest {
             OutboundMessage outbound = OutboundMessage.text("Напоминание");
             OutboundDispatch dispatch = new OutboundDispatch("call-2", null, null, null, null, Map.of());
 
-            ToolCallRequest r = handler.handleOutput(withDefault, outbound, dispatch).orElseThrow();
+            ToolCallRequest r = handler.handleOutput(withDefault, outbound, dispatch).get(0);
 
             assertEquals("777", r.getInput().get("chatId"));
+        }
+
+        @Test
+        @DisplayName("текст + image-part → send_message и send_photo с суффиксом идемпотентности")
+        void textWithImagePart() {
+            OutboundMessage outbound = new OutboundMessage("Вот скриншот",
+                    List.of(new Part("image", "agf_" + UUID.randomUUID(), "image/png", 5, Map.of())));
+            OutboundDispatch dispatch = new OutboundDispatch("call-3", null, null, null, null, Map.of("chatId", 42));
+
+            List<ToolCallRequest> requests = handler.handleOutput(config, outbound, dispatch);
+
+            assertEquals(2, requests.size());
+            assertEquals("send_message", requests.get(0).getName());
+            ToolCallRequest photo = requests.get(1);
+            assertEquals("send_photo", photo.getName());
+            assertEquals("call-3:att0", photo.getId());
+            assertEquals("42", photo.getInput().get("chatId"));
+            assertEquals(outbound.parts().get(0).storageRef(), photo.getInput().get("photo"));
+        }
+
+        @Test
+        @DisplayName("part без текста: video → send_video, file → send_document")
+        void partsOnlyMapping() {
+            OutboundMessage outbound = new OutboundMessage("  ", List.of(
+                    new Part("video", "agf_" + UUID.randomUUID(), "video/mp4", 5, Map.of()),
+                    new Part("file", "agf_" + UUID.randomUUID(), "application/pdf", 5, Map.of())));
+            OutboundDispatch dispatch = new OutboundDispatch("call-4", null, null, null, null, Map.of("chatId", 42));
+
+            List<ToolCallRequest> requests = handler.handleOutput(config, outbound, dispatch);
+
+            assertEquals(2, requests.size());
+            assertEquals("send_video", requests.get(0).getName());
+            assertEquals(outbound.parts().get(0).storageRef(), requests.get(0).getInput().get("video"));
+            assertEquals("send_document", requests.get(1).getName());
+            assertEquals(outbound.parts().get(1).storageRef(), requests.get(1).getInput().get("document"));
+            assertEquals("call-4:att1", requests.get(1).getId());
+        }
+
+        @Test
+        @DisplayName("supportsOutboundAttachments = true")
+        void supportsAttachments() {
+            assertTrue(handler.supportsOutboundAttachments());
         }
 
         @Test

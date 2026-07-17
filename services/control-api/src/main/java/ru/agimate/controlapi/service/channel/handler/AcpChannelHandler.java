@@ -85,7 +85,7 @@ public class AcpChannelHandler implements ChannelHandler {
     }
 
     @Override
-    public Optional<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
+    public List<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
                                                   OutboundDispatch dispatch) {
         String stream = dispatch.stream();
         if (STREAM_ERROR.equals(stream)) {
@@ -96,16 +96,16 @@ public class AcpChannelHandler implements ChannelHandler {
             sessionRegistry.sendUpdate(dispatch.sessionId(),
                     contentUpdate("agent_message_chunk", outbound.text()));
             sessionRegistry.completePrompt(dispatch.sessionId(), AcpSessionRegistry.STOP_END_TURN);
-            return Optional.empty();
+            return List.of();
         }
         if (STREAM_PROGRESS.equals(stream)) {
             sessionRegistry.sendUpdate(dispatch.sessionId(), progressUpdate(dispatch, outbound.text()));
-            return Optional.empty();
+            return List.of();
         }
         // answer (или сообщение без роли — по контракту OutboundDispatch это answer)
         sessionRegistry.sendUpdate(dispatch.sessionId(), contentUpdate("agent_message_chunk", outbound.text()));
         sessionRegistry.completePrompt(dispatch.sessionId(), AcpSessionRegistry.STOP_END_TURN);
-        return Optional.empty();
+        return List.of();
     }
 
     private static Map<String, Object> progressUpdate(OutboundDispatch dispatch, String text) {

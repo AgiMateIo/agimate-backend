@@ -17,6 +17,7 @@ import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -31,6 +32,7 @@ public class ChannelMessageOutboundService {
     private final ChannelSessionService channelSessionService;
     private final ChannelHandlerRegistry channelHandlerRegistry;
     private final AgentToolCallService agentToolCallService;
+    private final OutboundAttachmentParser attachmentParser;
 
     public record OutboundResult(ChannelSession session, String messageId) {}
 
@@ -57,6 +59,14 @@ public class ChannelMessageOutboundService {
         ChannelSession session = resolveSession(channel, sessionIdOrNull);
         Map<String, Object> replyContext = lookupLastInboundTrigger(session);
 
+        // Attach-конвенция: маркеры [[attach:agf_…]] из текста → parts (владелец — user канала).
+        OutboundMessage effectiveOutbound = attachmentParser.parse(channel.getUserId(), outbound);
+        if (!effectiveOutbound.parts().isEmpty() && !handler.supportsOutboundAttachments()) {
+            log.warn("Channel {} handler={} does not support outbound attachments — dropping {} part(s)",
+                    channel.getId(), handler.name(), effectiveOutbound.parts().size());
+            effectiveOutbound = new OutboundMessage(effectiveOutbound.text(), List.of());
+        }
+
         // Resolve the idempotency key once so it is both used by the dispatcher and returned to the worker.
         String effectiveMessageId = messageId != null && !messageId.isBlank()
                 ? messageId : UUID.randomUUID().toString();
@@ -66,8 +76,8 @@ public class ChannelMessageOutboundService {
         OutboundDispatch dispatch = new OutboundDispatch(
                 effectiveMessageId, stream, progressType, channel.getId(), session.getId(), replyContext);
 
-        handler.handleOutput(config, outbound, dispatch)
-                .ifPresent(request -> agentToolCallService.processToolCall(channel.getAgentId(), request));
+        handler.handleOutput(config, effectiveOutbound, dispatch)
+                .forEach(request -> agentToolCallService.processToolCall(channel.getAgentId(), request));
 
         log.info("Dispatched OUT message session={} channel={} via handler={}",
                 session.getId(), channel.getId(), handler.name());

@@ -96,6 +96,18 @@ public class RunContextService {
             + "служебная разметка уже выполненной работы, а не образец ответа; написанный текстом "
             + "«вызов» не исполняется.";
 
+    /**
+     * Attach-конвенция ответа — добавляется только в DIALOGUE-ранах, чей prompt-канал умеет
+     * вложения ({@code ChannelHandler.supportsOutboundAttachments()}); иначе агент приложил бы
+     * файл, который канал молча не доставит.
+     */
+    static final String ATTACHMENT_GUIDANCE =
+            "Чтобы приложить файл к своему ответу пользователю, вставь в текст ответа маркер "
+            + "[[attach:agf_...]] с id файла из результата инструмента (поле file.id, формат "
+            + "agf_<uuid>). Маркер будет вырезан из текста, а файл доставлен в канал вложением "
+            + "(изображение/видео/документ — по типу файла). Не выдумывай id: используй только "
+            + "полученные из результатов инструментов в этом разговоре.";
+
     /** Детерминированная сериализация события (sorted keys) — одинаковый блок при любом порядке мапы. */
     private static final ObjectMapper EVENT_MAPPER = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT)
@@ -174,6 +186,9 @@ public class RunContextService {
         }
         if (spec.appendsTriggerGuidance()) {
             systemBlocks.add(RunBlock.trusted("trigger_guidance", "guidance", TRIGGER_GUIDANCE, Map.of()));
+        }
+        if (spec == ContextSpec.DIALOGUE && promptChannelSupportsAttachments(channels)) {
+            systemBlocks.add(RunBlock.trusted("attachment_guidance", "guidance", ATTACHMENT_GUIDANCE, Map.of()));
         }
 
         // Основной промпт рана — последним user-блоком.
@@ -457,6 +472,17 @@ public class RunContextService {
      * ({@link InboundTextResolver}). Fallback на untrusted-блок события, если канал/handler
      * исчезли или текст не извлёкся.
      */
+    /** Умеет ли handler prompt-канала доставлять вложения из ответа ({@code [[attach:…]]}). */
+    private boolean promptChannelSupportsAttachments(Channels channels) {
+        if (channels == null || channels.prompt() == null) {
+            return false;
+        }
+        return channelRepository.findByIdAndDeletedAtIsNull(channels.prompt().channelId())
+                .flatMap(channel -> channelHandlerRegistry.find(channel.getChannelHandler()))
+                .map(ChannelHandler::supportsOutboundAttachments)
+                .orElse(false);
+    }
+
     private RunBlock dialoguePromptBlock(Channels channels, Trigger trigger) {
         return inboundTextResolver.resolve(channels.prompt().channelId(), trigger)
                 .map(text -> RunBlock.trusted("", "user", text, Map.of()))

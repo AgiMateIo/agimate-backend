@@ -74,13 +74,24 @@ public interface ChannelHandler {
     }
 
     /**
-     * Маппит ответ модели на действие канала. Handler либо доставляет сам (webchat/acp — пуш в
-     * живое соединение) и возвращает {@code empty}, либо возвращает {@link ToolCallRequest} —
-     * его исполняет вызывающий (идемпотентность + ABAC + диспатч после коммита лога). Ключ
-     * идемпотентности — {@link OutboundDispatch#messageId()}; адрес ответа — из
-     * {@link OutboundDispatch#replyContext()}. Побочных эффектов с тулами внутри handler'а нет —
-     * это разрывает цикл бинов с роутером инбаунда и держит диспатч вне транзакций.
+     * Поддерживает ли handler вложения в исходящем ответе ({@link OutboundMessage#parts()}).
+     * {@code true} → {@code RunContextService} объясняет агенту attach-конвенцию
+     * ({@code [[attach:agf_…]]}), а {@link #handleOutput} обязан доставить parts.
+     * {@code false} → parts молча не доставляются (маркеры из текста всё равно вырезаны).
      */
-    Optional<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
-                                           OutboundDispatch dispatch);
+    default boolean supportsOutboundAttachments() {
+        return false;
+    }
+
+    /**
+     * Маппит ответ модели на действия канала. Handler либо доставляет сам (webchat/acp — пуш в
+     * живое соединение) и возвращает пустой список, либо возвращает {@link ToolCallRequest}'ы —
+     * их исполняет вызывающий (идемпотентность + ABAC + диспатч после коммита лога). Ключ
+     * идемпотентности — {@link OutboundDispatch#messageId()} (для дополнительных запросов —
+     * детерминированный суффикс); адрес ответа — из {@link OutboundDispatch#replyContext()}.
+     * Побочных эффектов с тулами внутри handler'а нет — это разрывает цикл бинов с роутером
+     * инбаунда и держит диспатч вне транзакций.
+     */
+    List<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
+                                       OutboundDispatch dispatch);
 }

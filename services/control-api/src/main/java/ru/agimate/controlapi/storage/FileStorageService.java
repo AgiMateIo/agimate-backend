@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -87,15 +88,20 @@ public class FileStorageService {
     }
 
     /**
-     * Открывает файл по публичному id ({@code agf_<uuid>}) с проверкой владения.
-     * Неизвестный/чужой/непросроченный-но-не-READY id неразличимы для вызывающего.
+     * Метаданные файла, доступного вызывающему для чтения: свой + READY + не просрочен.
+     * {@code empty} — id неизвестен/чужой/просрочен/не дозагружен (причины намеренно неразличимы).
      */
-    public FileContent open(UUID userId, String fileId) {
-        StoredFile file = FileIds.parse(fileId)
+    public Optional<StoredFile> findReadable(UUID userId, String fileId) {
+        return FileIds.parse(fileId)
                 .flatMap(storedFileRepository::findById)
                 .filter(f -> f.getUserId().equals(userId))
                 .filter(f -> f.getStatus() == FileStatus.READY)
-                .filter(f -> f.getExpiresAt().isAfter(LocalDateTime.now()))
+                .filter(f -> f.getExpiresAt().isAfter(LocalDateTime.now()));
+    }
+
+    /** Открывает файл по публичному id ({@code agf_<uuid>}) с проверкой владения (см. {@link #findReadable}). */
+    public FileContent open(UUID userId, String fileId) {
+        StoredFile file = findReadable(userId, fileId)
                 .orElseThrow(() -> new StoredFileNotFoundException(fileId));
         return new FileContent(file, blobStore.get(blobKey(file)));
     }
