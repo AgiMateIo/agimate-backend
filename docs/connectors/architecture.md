@@ -169,7 +169,9 @@ BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — 
 планирование отложенных задач агента, см. [«Планирование задач агентом»](#планирование-задач-агентом-time)),
 `integrations/mcp/` (MCP-коннектор к удалённым серверам, см. [«MCP-коннектор»](#mcp-коннектор)),
 `internal/webchat/` (чат с агентом из фронта; scope `USER` — одна connection на пользователя, без
-тулов/джоб, см. `docs/connectors/webchat.md`).
+тулов/джоб, см. `docs/connectors/webchat.md`), `internal/astro/` + `internal/divination/`
+(астрология по эфемеридам и Матрица/нумерология/Таро для пресета «Астролог», см.
+`docs/connectors/astro-divination.md`).
 
 ### MCP-коннектор
 

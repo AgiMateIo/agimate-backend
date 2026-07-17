@@ -15,6 +15,8 @@ java {
 
 repositories {
     mavenCentral()
+    // Astronomy Engine (astro-коннектор) публикуется только на JitPack, в Maven Central его нет
+    maven { url = uri("https://jitpack.io") }
 }
 
 dependencies {
@@ -47,6 +49,9 @@ dependencies {
     implementation("com.github.ben-manes.caffeine:caffeine")
 
     implementation("com.squareup.okhttp3:okhttp")
+
+    // Астрономические расчёты astro-коннектора: MIT, self-contained, ±1 угл. минута
+    implementation("io.github.cosinekitty:astronomy")
 
     // S3-совместимое хранилище файлового слоя коннекторов (docs/connectors/files.md)
     implementation(platform("software.amazon.awssdk:bom:2.46.7"))

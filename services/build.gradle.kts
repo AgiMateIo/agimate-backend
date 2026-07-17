@@ -55,6 +55,9 @@ allprojects {
                 implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.0")
                 implementation("org.postgresql:postgresql:42.7.5")
                 implementation("org.liquibase:liquibase-core:4.29.2")
+
+                // Astronomy Engine (astro-коннектор control-api) — с JitPack
+                implementation("io.github.cosinekitty:astronomy:2.1.19")
             }
         }
     }

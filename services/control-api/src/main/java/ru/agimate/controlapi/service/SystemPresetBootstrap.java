@@ -41,7 +41,8 @@ public class SystemPresetBootstrap {
     static final int BOOTSTRAP_ORDER = SystemSkillBootstrap.BOOTSTRAP_ORDER + 1;
 
     private static final List<String> SYSTEM_PRESET_RESOURCES = List.of(
-            "presets/personal-assistant/PRESET.md");
+            "presets/personal-assistant/PRESET.md",
+            "presets/astrologer/PRESET.md");
 
     private final AgentPresetRepository agentPresetRepository;
     private final SkillRepository skillRepository;
