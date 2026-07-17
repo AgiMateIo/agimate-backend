@@ -57,7 +57,7 @@ multipart в Telegram). Агент — курьер ссылок: получае
 
 - **Серверные коннекторы** (locus BACKEND): пишут в `FileStorageService` напрямую, байты не
   покидают control-api.
-- **Device-apps** (locus DELEGATED×INBOUND): `POST /apps/files` — multipart под тем же app-ключом,
+- **Device-apps** (locus DELEGATED×INBOUND): `POST /app/files` — multipart под тем же app-ключом,
   ответ — `fileId`; тул устройства (скриншот и т.п.) кладёт в `output` `{"file": …}` вместо base64.
   Presigned-URL напрямую в S3 — оптимизация позже, если трафик через control-api станет узким местом.
 - **mcp-коннектор**: бинарные блоки ответа внешнего сервера → storage (см. выше).
@@ -70,7 +70,7 @@ multipart в Telegram). Агент — курьер ссылок: получае
 - **Telegram**: multipart-загрузка в `TelegramApiClient`; `send_photo` принимает URL / telegram
   file_id / `agf_…` (обратная совместимость), новые тулы `send_document`, `send_video`
   (Bot API: до 50 MB от бота).
-- **Device-apps как приёмник**: `GET /apps/files/{id}` под app-ключом — когда файл нужно доставить
+- **Device-apps как приёмник**: `GET /app/files/{id}` под app-ключом — когда файл нужно доставить
   на устройство (аргумент-`FileRef` app-тула прокидывается устройству ссылкой, скачивание — по этому
   endpoint'у).
 - **Webchat/UI**: короткоживущий signed URL (`GET /files/{id}?sig=…`) для отображения в истории —

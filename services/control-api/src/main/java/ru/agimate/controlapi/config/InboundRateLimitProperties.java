@@ -19,4 +19,6 @@ public class InboundRateLimitProperties {
     private int triggersPerMinute = 120;
     /** Результаты тулов ({@code /app/tools/result}) в минуту на connection. */
     private int toolResultsPerMinute = 120;
+    /** Загрузки файлов ({@code /app/files}) в минуту на connection. */
+    private int fileUploadsPerMinute = 30;
 }

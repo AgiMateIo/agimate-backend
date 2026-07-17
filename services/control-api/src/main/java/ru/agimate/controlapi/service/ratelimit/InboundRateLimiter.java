@@ -24,7 +24,7 @@ import java.util.function.LongSupplier;
 public class InboundRateLimiter {
 
     /** Класс входящего трафика — у каждого свой лимит и своё ведро на connection. */
-    public enum Scope { TRIGGER, TOOL_RESULT }
+    public enum Scope { TRIGGER, TOOL_RESULT, FILE_UPLOAD }
 
     private record BucketKey(Scope scope, UUID connectionId) {}
 
@@ -54,6 +54,7 @@ public class InboundRateLimiter {
         int perMinute = switch (scope) {
             case TRIGGER -> properties.getTriggersPerMinute();
             case TOOL_RESULT -> properties.getToolResultsPerMinute();
+            case FILE_UPLOAD -> properties.getFileUploadsPerMinute();
         };
         if (perMinute <= 0) {
             return true;

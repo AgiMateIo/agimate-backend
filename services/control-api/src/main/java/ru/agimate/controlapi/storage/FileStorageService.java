@@ -51,15 +51,15 @@ public class FileStorageService {
     public StoredFile store(UUID userId, String origin, String mime, long sizeBytes,
                             InputStream content, Duration ttl) {
         if (sizeBytes <= 0) {
-            throw new FileStorageException("file size must be positive, got " + sizeBytes);
+            throw new FileRejectedException("file size must be positive, got " + sizeBytes);
         }
         if (sizeBytes > props.getMaxFileSizeBytes()) {
-            throw new FileStorageException("file too large: " + sizeBytes + " bytes, limit "
+            throw new FileRejectedException("file too large: " + sizeBytes + " bytes, limit "
                     + props.getMaxFileSizeBytes());
         }
         long usedToday = storedFileRepository.sumBytesSince(userId, LocalDateTime.now().minusDays(1));
         if (usedToday + sizeBytes > props.getUserDailyBytes()) {
-            throw new FileStorageException("daily file quota exceeded: " + usedToday + " of "
+            throw new FileRejectedException("daily file quota exceeded: " + usedToday + " of "
                     + props.getUserDailyBytes() + " bytes used in the last 24h");
         }
 
@@ -96,7 +96,7 @@ public class FileStorageService {
                 .filter(f -> f.getUserId().equals(userId))
                 .filter(f -> f.getStatus() == FileStatus.READY)
                 .filter(f -> f.getExpiresAt().isAfter(LocalDateTime.now()))
-                .orElseThrow(() -> new FileStorageException("file not found: " + fileId));
+                .orElseThrow(() -> new StoredFileNotFoundException(fileId));
         return new FileContent(file, blobStore.get(blobKey(file)));
     }
 

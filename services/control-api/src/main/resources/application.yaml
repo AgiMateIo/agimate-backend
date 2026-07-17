@@ -23,6 +23,12 @@ spring:
   mvc:
     throw-exception-if-no-handler-found: true
     publish-request-handled-events: false
+  servlet:
+    multipart:
+      # Аплоад файлов device-apps (/app/files); содержательный лимит — app.files.max-file-size-bytes
+      # (50 MB), здесь чуть выше, чтобы отказ был доменным (400), а не транспортным.
+      max-file-size: 51MB
+      max-request-size: 52MB
   web:
     resources:
       add-mappings: false
@@ -134,6 +140,7 @@ inbound-rate-limit:
   enabled: true
   triggers-per-minute: 120
   tool-results-per-minute: 120
+  file-uploads-per-minute: 30
 
 grpc:
   server:

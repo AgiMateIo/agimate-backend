@@ -643,6 +643,55 @@ The response value is the `name` field from the request.
 
 ---
 
+### POST `/control/app/files`
+
+Uploads a binary artifact (screenshot, document, …) to the connector file layer
+(`docs/connectors/files.md`) instead of inlining base64 into a tool result. The returned `id`
+(`agf_<uuid>`) is what the tool result should reference: `{"file": {"id": "agf_…", "mime": …,
+"size": …}}`. The file is owned by the app's user; TTL and daily byte quota apply.
+
+**Request:** `multipart/form-data` with a single `file` part (max 50 MB).
+
+**Response `200`:**
+```json
+{
+  "response": {
+    "id": "agf_019f6c63-67f5-7fe8-be0f-031b9b4645ae",
+    "mime": "image/png",
+    "size": 384211,
+    "sha256": "2cf24d…",
+    "expiresAt": "2026-07-24T12:00:00"
+  }
+}
+```
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Empty/oversized file or daily byte quota exceeded |
+| 401 | Invalid or missing `X-App-Auth-Key` |
+| 429 | Upload rate limit exceeded (per-connection, see `INBOUND_RATE_LIMIT_FILE_UPLOADS_PER_MINUTE`) |
+
+---
+
+### GET `/control/app/files/{fileId}`
+
+Downloads a file by its public id (`agf_<uuid>`) — used when a file needs to be delivered *to*
+the device (a `FileRef` argument of an app tool arrives as an id, the device fetches the bytes
+here). Only files owned by the app's user resolve.
+
+**Response `200`:** raw bytes with `Content-Type`/`Content-Length` from the file metadata.
+
+**Error responses:**
+
+| Status | Condition |
+|--------|-----------|
+| 404 | Unknown, foreign, expired or not-yet-ready file id (indistinguishable by design) |
+| 401 | Invalid or missing `X-App-Auth-Key` |
+
+---
+
 ## End-to-end Flow Summary
 
 ### Agent Tool Invocation Flow

@@ -15,6 +15,7 @@ import ru.agimate.controlapi.database.repositories.ConnectorJobRepository;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -95,6 +96,34 @@ public class ConnectorJobService {
     @Transactional
     public void complete(UUID taskId, LocalDateTime nextRunAt, String lastError) {
         connectorJobRepository.complete(taskId, nextRunAt, trimError(lastError));
+    }
+
+    /**
+     * Startup-пересинк существующих SYSTEM-строк с декларацией коннекторов ({@code getJobs()}):
+     * изменение {@code @Job} (интервал/timeout/config) попадает в БД без пересоздания подключения;
+     * строки, чьи имена больше не декларируются (например, смена режима telegram polling→webhook),
+     * удаляются. Новые строки не создаёт — их заводят lifecycle-события подключений. Спека
+     * обновляется точечным UPDATE — status/lease конкурентно пишет scheduler (свой и соседних нод).
+     */
+    @Transactional
+    public void resyncSystemJobs(Map<String, Map<String, JobSpec>> declaredByConnector) {
+        for (ConnectorJob row : connectorJobRepository.findByKind(ConnectorJobKind.SYSTEM)) {
+            Map<String, JobSpec> declared = declaredByConnector.get(row.getConnectorCode());
+            if (declared == null) {
+                log.warn("System job {}/{}/{}: no handler in registry — left as is",
+                        row.getConnectorCode(), row.getConnectionId(), row.getName());
+                continue;
+            }
+            JobSpec spec = declared.get(row.getName());
+            if (spec == null) {
+                connectorJobRepository.deleteById(row.getId());
+                log.info("Removed undeclared system job {}/{}/{}",
+                        row.getConnectorCode(), row.getConnectionId(), row.getName());
+                continue;
+            }
+            connectorJobRepository.updateSpec(
+                    row.getId(), spec.type(), spec.config(), spec.args(), spec.timeoutSeconds());
+        }
     }
 
     /**

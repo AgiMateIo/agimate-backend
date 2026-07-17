@@ -7,10 +7,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.ConnectorJob;
+import ru.agimate.controlapi.database.enums.ConnectorJobKind;
+import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -116,6 +119,28 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
     int complete(@Param("id") UUID id,
                  @Param("nextRunAt") LocalDateTime nextRunAt,
                  @Param("lastError") String lastError);
+
+    /** Все строки заданного kind — для startup-пересинка SYSTEM-джоб с декларацией коннекторов. */
+    List<ConnectorJob> findByKind(ConnectorJobKind kind);
+
+    /**
+     * Обновляет только спеку джобы (type/config/args/timeout): точечный UPDATE — entity-save
+     * затёр бы {@code status}/{@code lease_until}, которые конкурентно пишет scheduler.
+     */
+    @Modifying
+    @Query("""
+            UPDATE ConnectorJob t
+            SET t.type = :type,
+                t.config = :config,
+                t.args = :args,
+                t.timeoutSeconds = :timeoutSeconds
+            WHERE t.id = :id
+            """)
+    int updateSpec(@Param("id") UUID id,
+                   @Param("type") ConnectorJobType type,
+                   @Param("config") Map<String, Object> config,
+                   @Param("args") Map<String, Object> args,
+                   @Param("timeoutSeconds") Integer timeoutSeconds);
 
     /**
      * Shutdown-release: возвращает RUNNING-строку в PENDING с немедленным {@code next_run_at};
