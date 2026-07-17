@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Soft-delete агента: физически строка не удаляется, поэтому ни один FK на agents
+      (channels/agent_llms/agent_skills/channel_session_messages/trigger_log_agents/board_*)
+      больше не срабатывает при удалении. Строка помечается deleted_at и скрывается из всех
+      выборок через @SQLRestriction на сущности Agent (как у Connection). Партиал-уникального
+      индекса не требуется — единственный уникальный ключ key_id генерится случайно на агента.
+    -->
+    <changeSet id="agents-add-deleted-at" author="agimate">
+        <addColumn tableName="agents">
+            <column name="deleted_at" type="TIMESTAMP"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

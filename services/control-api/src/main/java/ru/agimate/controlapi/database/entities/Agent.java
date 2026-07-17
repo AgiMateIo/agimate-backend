@@ -4,13 +4,23 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
+import org.hibernate.annotations.SQLRestriction;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.AgentType;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
+/**
+ * Агенты удаляются мягко: {@code deleted_at} проставляется вместо физического DELETE, строка
+ * остаётся ради целостности всех ссылающихся таблиц (channels, trigger_log_agents, board_*,
+ * channel_session_messages, agent_llms/skills, secrets). {@link SQLRestriction} скрывает
+ * удалённых из всех выборок и join'ов (включая auth {@code findByKeyId} и роутинг триггеров) —
+ * ни одного ручного {@code deletedAt IS NULL} по месту не требуется.
+ */
 @Entity
 @Table(name = "agents", uniqueConstraints = @UniqueConstraint(columnNames = "key_id"))
+@SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
 @Builder
@@ -68,7 +78,15 @@ public class Agent extends BaseEntity {
     @Column(name = "preset_code", columnDefinition = "TEXT")
     private String presetCode;
 
+    /** Момент мягкого удаления; {@code null} — активен. Скрытие из выборок — через {@link SQLRestriction}. */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     public boolean hasWebhookAuth() {
         return webhookAuthSecretId != null;
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
     }
 }

@@ -50,6 +50,7 @@ import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.util.AppKeyUtils;
 import ru.agimate.controlapi.util.GeneratedAppKey;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -409,16 +410,12 @@ public class AgentService {
         }
         connectorJobRepository.deleteByAgentId(agent.getId()); // динамические AGENT-джобы
         accessEvaluator.invalidateByAgent(agent.getId());
-        // Оставшиеся (soft-deleted) agent_connections + их политики снимутся каскадом по FK на agents.
-        UUID webhookAuthSecretId = agent.getWebhookAuthSecretId();
-        agentRepository.delete(agent);
-        if (webhookAuthSecretId != null) {
-            // Сначала flush удаления агента — он ссылается на secrets по FK.
-            agentRepository.flush();
-            secretRepository.deleteById(webhookAuthSecretId);
-        }
+        // Мягкое удаление: строка остаётся (все FK на agents целы), @SQLRestriction скрывает её
+        // из всех выборок/join'ов. Bindings уже сняты unbind'ом выше; webhook-секрет НЕ трогаем —
+        // agents.webhook_auth_secret_id по-прежнему ссылается на него по FK.
+        agent.setDeletedAt(LocalDateTime.now());
 
-        log.info("Deleted agent id={}", id);
+        log.info("Soft-deleted agent id={}", id);
     }
 
     private AgenticTeam resolveTeam(UUID agenticTeamId) {
