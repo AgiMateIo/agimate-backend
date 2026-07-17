@@ -133,6 +133,26 @@ class AppFilesControllerTest {
         assertEquals(5L, response.getHeaders().getContentLength());
         assertEquals("hello", new String(
                 response.getBody().getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+        // Защитные заголовки: скачивание, не документ (клиентский mime → stored-XSS иначе).
+        assertTrue(response.getHeaders().getFirst("Content-Disposition").startsWith("attachment"));
+        assertEquals("nosniff", response.getHeaders().getFirst("X-Content-Type-Options"));
+        assertNotNull(response.getHeaders().getFirst("Content-Security-Policy"));
+    }
+
+    @Test
+    @DisplayName("download: активный контент (text/html, svg) → octet-stream")
+    void downloadNeutralizesActiveContent() {
+        when(appService.getApp(PRINCIPAL)).thenReturn(app());
+        for (String mime : new String[]{"text/html", "image/svg+xml", "application/xhtml+xml"}) {
+            StoredFile stored = storedFile();
+            stored.setMime(mime);
+            String fileId = FileIds.external(stored.getId());
+            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
+                    stored, new ByteArrayInputStream(new byte[]{1})));
+
+            ResponseEntity<InputStreamResource> response = controller.downloadFile(fileId, PRINCIPAL);
+            assertEquals(MediaType.APPLICATION_OCTET_STREAM, response.getHeaders().getContentType(), mime);
+        }
     }
 
     @Test

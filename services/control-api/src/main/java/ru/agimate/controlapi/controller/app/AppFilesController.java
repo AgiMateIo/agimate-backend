@@ -3,6 +3,7 @@ package ru.agimate.controlapi.controller.app;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -16,10 +17,12 @@ import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.security.AppPrincipal;
 import ru.agimate.controlapi.service.AppService;
 import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
+import ru.agimate.controlapi.storage.FileIds;
 import ru.agimate.controlapi.storage.FileStorageService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Set;
 
 /**
  * Файловый слой для device-apps (docs/connectors/files.md): аплоад бинарных результатов тулов
@@ -71,15 +74,31 @@ public class AppFilesController {
     ) {
         var app = appService.getApp(principal);
         FileStorageService.FileContent content = fileStorageService.open(app.getUserId(), fileId);
+        // mime — клиентский (задан при аплоаде), поэтому отдаём как «файл на скачивание», а не
+        // документ: attachment + nosniff + CSP-sandbox, активный контент — octet-stream. Устройствам
+        // заголовки безразличны, а браузеру (будущие signed-URL) это закрывает stored-XSS.
         return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + FileIds.external(content.file().getId()) + "\"")
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "sandbox; default-src 'none'")
                 .contentType(safeMediaType(content.file().getMime()))
                 .contentLength(content.file().getSizeBytes())
                 .body(new InputStreamResource(content.content()));
     }
 
+    /** MIME-типы, которые браузер может исполнить в origin'е сервиса — отдаются как octet-stream. */
+    private static final Set<String> ACTIVE_CONTENT_TYPES = Set.of(
+            "text/html", "application/xhtml+xml", "image/svg+xml", "application/xml", "text/xml",
+            "text/javascript", "application/javascript");
+
     private static MediaType safeMediaType(String mime) {
         try {
-            return MediaType.parseMediaType(mime);
+            MediaType parsed = MediaType.parseMediaType(mime);
+            if (ACTIVE_CONTENT_TYPES.contains(parsed.getType() + "/" + parsed.getSubtype())) {
+                return MediaType.APPLICATION_OCTET_STREAM;
+            }
+            return parsed;
         } catch (Exception e) {
             return MediaType.APPLICATION_OCTET_STREAM;
         }
