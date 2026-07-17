@@ -1,12 +1,15 @@
 package ru.agimate.controlapi.connectors.integrations.telegram;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import ru.agimate.common.util.JsonUtils;
 
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -72,6 +75,52 @@ public class TelegramApiClient {
                 .retrieve()
                 .body(String.class);
         return JsonUtils.fromJsonToMap(body);
+    }
+
+    /**
+     * Вызов метода Bot API с загрузкой бинарного контента multipart'ом (sendPhoto/sendDocument/
+     * sendVideo с байтами вместо URL/file_id). Остальные параметры уходят текстовыми частями.
+     * Лимит бот-аплоада Telegram — 50 MB.
+     */
+    public Map<String, Object> sendRequestMultipart(String method, String token, Map<String, Object> params,
+                                                    String fileField, String filename, String mime,
+                                                    InputStream content, long contentLength) {
+        MultipartBodyBuilder builder = new MultipartBodyBuilder();
+        params.forEach((key, value) -> {
+            if (value != null) {
+                builder.part(key, value.toString());
+            }
+        });
+        InputStreamResource resource = new InputStreamResource(content) {
+            @Override
+            public String getFilename() {
+                return filename;
+            }
+
+            @Override
+            public long contentLength() {
+                // База читает стрим ради длины — размер известен из метаданных файла.
+                return contentLength;
+            }
+        };
+        builder.part(fileField, resource, safeMediaType(mime));
+
+        String body = restClient.post()
+                .uri("/bot{token}/{method}", token, method)
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(builder.build())
+                .retrieve()
+                .body(String.class);
+        return JsonUtils.fromJsonToMap(body);
+    }
+
+    private static MediaType safeMediaType(String mime) {
+        try {
+            return MediaType.parseMediaType(mime);
+        } catch (Exception e) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
     public Map<String, Object> getUpdates(String token, Long offset, int timeoutSec) {

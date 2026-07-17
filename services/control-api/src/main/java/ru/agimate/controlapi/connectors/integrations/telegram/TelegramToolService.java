@@ -13,7 +13,12 @@ import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
+import ru.agimate.controlapi.storage.FileIds;
+import ru.agimate.controlapi.storage.FileStorageException;
+import ru.agimate.controlapi.storage.FileStorageService;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +40,7 @@ public class TelegramToolService {
 
     private final TelegramApiClient telegramApiClient;
     private final TriggerRouterService triggerRouterService;
+    private final FileStorageService fileStorageService;
 
     /**
      * Per‑integration cache long‑poll'а (ключ — connectionId, т.е. {@code connections.id}):
@@ -74,13 +80,81 @@ public class TelegramToolService {
             annotations = @ToolAnnotations(destructiveHint = false))
     public Map<String, Object> toolSendPhoto(
             @ToolParam("Target chat ID") String chatId,
-            @ToolParam("Photo URL or file ID") String photo,
+            @ToolParam("Photo: URL, Telegram file_id, or agimate file id (agf_… from a tool result)")
+            String photo,
             @ToolParam(value = "Photo caption", required = false) String caption) {
         Map<String, Object> apiParams = new LinkedHashMap<>();
         apiParams.put("chat_id", chatId);
-        apiParams.put("photo", photo);
         if (caption != null) apiParams.put("caption", TelegramUtils.truncate(caption, TelegramUtils.MAX_CAPTION_LENGTH));
-        return sendTelegramRequest("sendPhoto", apiParams);
+        return sendMedia("sendPhoto", "photo", photo, null, apiParams);
+    }
+
+    @Tool(name = "send_document", description = "Send a document (file)",
+            annotations = @ToolAnnotations(destructiveHint = false))
+    public Map<String, Object> toolSendDocument(
+            @ToolParam("Target chat ID") String chatId,
+            @ToolParam("Document: URL, Telegram file_id, or agimate file id (agf_… from a tool result)")
+            String document,
+            @ToolParam(value = "Document caption", required = false) String caption,
+            @ToolParam(value = "Display file name (agimate files only)", required = false) String fileName) {
+        Map<String, Object> apiParams = new LinkedHashMap<>();
+        apiParams.put("chat_id", chatId);
+        if (caption != null) apiParams.put("caption", TelegramUtils.truncate(caption, TelegramUtils.MAX_CAPTION_LENGTH));
+        return sendMedia("sendDocument", "document", document, fileName, apiParams);
+    }
+
+    @Tool(name = "send_video", description = "Send a video",
+            annotations = @ToolAnnotations(destructiveHint = false))
+    public Map<String, Object> toolSendVideo(
+            @ToolParam("Target chat ID") String chatId,
+            @ToolParam("Video: URL, Telegram file_id, or agimate file id (agf_… from a tool result)")
+            String video,
+            @ToolParam(value = "Video caption", required = false) String caption) {
+        Map<String, Object> apiParams = new LinkedHashMap<>();
+        apiParams.put("chat_id", chatId);
+        if (caption != null) apiParams.put("caption", TelegramUtils.truncate(caption, TelegramUtils.MAX_CAPTION_LENGTH));
+        return sendMedia("sendVideo", "video", video, null, apiParams);
+    }
+
+    /**
+     * Отправка медиа: {@code agf_…} — байты из файлового слоя multipart'ом (владение проверяет
+     * {@link FileStorageService#open} по userId из env), иначе значение уходит как есть
+     * (URL / Telegram file_id) обычным JSON-вызовом.
+     */
+    private Map<String, Object> sendMedia(String method, String field, String value,
+                                          String fileName, Map<String, Object> apiParams) {
+        ConnectorEnv env = ConnectorEnvHolder.current();
+        String token = env.credentials().get("token");
+        if (FileIds.parse(value).isEmpty()) {
+            apiParams.put(field, value);
+            return telegramApiClient.sendRequest(method, token, apiParams);
+        }
+        try {
+            FileStorageService.FileContent file = fileStorageService.open(env.userId(), value);
+            try (InputStream content = file.content()) {
+                String effectiveName = fileName != null && !fileName.isBlank()
+                        ? fileName : defaultFilename(value, file.file().getMime());
+                return telegramApiClient.sendRequestMultipart(method, token, apiParams, field,
+                        effectiveName, file.file().getMime(), content, file.file().getSizeBytes());
+            }
+        } catch (FileStorageException e) {
+            // Сообщение уходит агенту: «file not found: agf_…» / причина отказа хранилища.
+            throw new ConnectorException(e.getMessage());
+        } catch (IOException e) {
+            throw new ConnectorException("Failed to read file " + value + ": " + e.getClass().getSimpleName());
+        }
+    }
+
+    /** Имя файла для multipart-части: Telegram показывает его в чате для документов. */
+    private static String defaultFilename(String fileId, String mime) {
+        String subtype = mime != null && mime.contains("/")
+                ? mime.substring(mime.indexOf('/') + 1) : "bin";
+        // "svg+xml" и т.п. → берём часть до '+'; неалфавитные хвосты не годятся в расширение
+        int plus = subtype.indexOf('+');
+        if (plus > 0) {
+            subtype = subtype.substring(0, plus);
+        }
+        return fileId + "." + subtype;
     }
 
     // edit_message перезаписывает прежний текст → destructiveHint=true (дефолт).

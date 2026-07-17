@@ -14,10 +14,18 @@ import org.springframework.web.client.HttpClientErrorException;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.database.entities.StoredFile;
+import ru.agimate.controlapi.database.enums.FileStatus;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
+import ru.agimate.controlapi.storage.FileIds;
+import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.storage.StoredFileNotFoundException;
 import tools.jackson.databind.ObjectMapper;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +33,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -43,6 +52,9 @@ class TelegramConnectorServiceTest {
     @Mock
     private TriggerRouterService triggerRouterService;
 
+    @Mock
+    private FileStorageService fileStorageService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private TelegramConnectorService handler;
@@ -54,7 +66,7 @@ class TelegramConnectorServiceTest {
 
     private TelegramConnectorService newHandler(String mode) {
         return new TelegramConnectorService(
-                new TelegramToolService(telegramApiClient, triggerRouterService),
+                new TelegramToolService(telegramApiClient, triggerRouterService, fileStorageService),
                 telegramApiClient, objectMapper, mode);
     }
 
@@ -84,12 +96,14 @@ class TelegramConnectorServiceTest {
         }
 
         @Test
-        @DisplayName("getTools содержит все пять тулов, но не long_poll")
+        @DisplayName("getTools содержит все семь тулов, но не long_poll")
         void tools() {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
             assertTrue(tools.containsKey("send_message"));
             assertTrue(tools.containsKey("send_photo"));
+            assertTrue(tools.containsKey("send_document"));
+            assertTrue(tools.containsKey("send_video"));
             assertTrue(tools.containsKey("edit_message"));
             assertTrue(tools.containsKey("delete_message"));
             assertTrue(tools.containsKey("answer_callback_query"));
@@ -314,6 +328,79 @@ class TelegramConnectorServiceTest {
                     "answer_callback_query", Map.of("callbackQueryId", "cb1", "text", "Done"));
 
             assertEquals(expectedResponse, result);
+        }
+
+        @Test
+        @DisplayName("send_photo с URL — обычный JSON-вызов, без файлового слоя")
+        void sendPhotoWithUrl() {
+            when(telegramApiClient.sendRequest(eq("sendPhoto"), eq("token123"), any()))
+                    .thenReturn(Map.of("ok", true));
+
+            handler.executeTool(env(), "send_photo",
+                    Map.of("chatId", "100", "photo", "https://example.com/cat.png"));
+
+            verify(telegramApiClient).sendRequest(eq("sendPhoto"), eq("token123"),
+                    argThat((Map<String, Object> p) -> "https://example.com/cat.png".equals(p.get("photo"))));
+            verifyNoInteractions(fileStorageService);
+        }
+
+        @Test
+        @DisplayName("send_photo с agf_-id — байты из файлового слоя multipart'ом, ownership по env")
+        void sendPhotoWithFileRef() {
+            StoredFile stored = StoredFile.builder()
+                    .id(UUID.randomUUID()).userId(USER_ID).status(FileStatus.READY)
+                    .mime("image/png").sizeBytes(5L)
+                    .expiresAt(LocalDateTime.now().plusDays(1)).build();
+            String fileId = FileIds.external(stored.getId());
+            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
+                    stored, new ByteArrayInputStream("bytes".getBytes(StandardCharsets.UTF_8))));
+            when(telegramApiClient.sendRequestMultipart(eq("sendPhoto"), eq("token123"), any(),
+                    eq("photo"), eq(fileId + ".png"), eq("image/png"), any(), eq(5L)))
+                    .thenReturn(Map.of("ok", true));
+
+            var result = handler.executeTool(env(), "send_photo",
+                    Map.of("chatId", "100", "photo", fileId, "caption", "screenshot"));
+
+            assertEquals(Map.of("ok", true), result);
+            verify(telegramApiClient).sendRequestMultipart(eq("sendPhoto"), eq("token123"),
+                    argThat((Map<String, Object> p) ->
+                            "100".equals(p.get("chat_id")) && "screenshot".equals(p.get("caption"))
+                                    && !p.containsKey("photo")),
+                    eq("photo"), eq(fileId + ".png"), eq("image/png"), any(), eq(5L));
+        }
+
+        @Test
+        @DisplayName("send_document с agf_-id и fileName — имя части берётся из fileName")
+        void sendDocumentWithFileName() {
+            StoredFile stored = StoredFile.builder()
+                    .id(UUID.randomUUID()).userId(USER_ID).status(FileStatus.READY)
+                    .mime("application/pdf").sizeBytes(3L)
+                    .expiresAt(LocalDateTime.now().plusDays(1)).build();
+            String fileId = FileIds.external(stored.getId());
+            when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
+                    stored, new ByteArrayInputStream(new byte[]{1, 2, 3})));
+            when(telegramApiClient.sendRequestMultipart(any(), any(), any(), any(), any(), any(), any(), anyLong()))
+                    .thenReturn(Map.of("ok", true));
+
+            handler.executeTool(env(), "send_document",
+                    Map.of("chatId", "100", "document", fileId, "fileName", "report.pdf"));
+
+            verify(telegramApiClient).sendRequestMultipart(eq("sendDocument"), eq("token123"), any(),
+                    eq("document"), eq("report.pdf"), eq("application/pdf"), any(), eq(3L));
+        }
+
+        @Test
+        @DisplayName("неизвестный/чужой agf_-id → ConnectorException с причиной для агента")
+        void sendPhotoWithUnknownFileRef() {
+            String fileId = FileIds.external(UUID.randomUUID());
+            when(fileStorageService.open(USER_ID, fileId))
+                    .thenThrow(new StoredFileNotFoundException(fileId));
+
+            ConnectorException e = assertThrows(ConnectorException.class, () ->
+                    handler.executeTool(env(), "send_photo", Map.of("chatId", "100", "photo", fileId)));
+
+            assertTrue(e.getMessage().contains(fileId));
+            verifyNoInteractions(telegramApiClient);
         }
 
         @Test
