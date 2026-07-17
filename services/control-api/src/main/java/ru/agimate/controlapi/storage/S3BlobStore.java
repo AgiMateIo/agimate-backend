@@ -2,6 +2,7 @@ package ru.agimate.controlapi.storage;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.config.FileStorageProperties;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -19,12 +20,13 @@ import java.io.InputStream;
 import java.net.URI;
 
 /**
- * S3-совместимый {@link BlobStore} (AWS S3 / MinIO). Клиент создаётся лениво при первом
- * обращении — control-api стартует и без настроенного хранилища, ошибка конфигурации всплывает
- * на первом реальном использовании, а не на bootRun.
+ * S3-совместимый {@link BlobStore} (AWS S3 / MinIO), включается {@code app.files.backend=s3}.
+ * Клиент создаётся лениво при первом обращении — control-api стартует и без настроенного
+ * хранилища, ошибка конфигурации всплывает на первом реальном использовании, а не на bootRun.
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(prefix = "app.files", name = "backend", havingValue = "s3")
 @RequiredArgsConstructor
 public class S3BlobStore implements BlobStore {
 

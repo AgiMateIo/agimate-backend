@@ -27,8 +27,9 @@ multipart в Telegram). Агент — курьер ссылок: получае
 
 ## Хранилище
 
-Таблица `files` + `FileStorageService` (пакет `controlapi/storage`), backend — S3-совместимый
-(MinIO локально, любой S3 в проде).
+Таблица `files` + `FileStorageService` (пакет `controlapi/storage`); блобы — за интерфейсом
+`BlobStore`: `local` (диск, дефолт — разработка/single-node, корень `app.files.local-dir`,
+пусто = `~/.agimate/files`) или `s3` (AWS S3 / MinIO), переключается `app.files.backend`.
 
 | колонка      | тип       | назначение |
 |--------------|-----------|------------|

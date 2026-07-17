@@ -19,6 +19,11 @@ import java.time.Duration;
 @Setter
 public class FileStorageProperties {
 
+    /** Backend блобов: {@code local} (диск, дефолт — для разработки/single-node) или {@code s3}. */
+    private String backend = "local";
+    /** Корень локального backend'а; пусто — {@code ~/.agimate/files}. */
+    private String localDir;
+
     private String bucket = "agimate-files";
     private String region = "us-east-1";
     /** S3-совместимый endpoint (MinIO и т.п.); пусто — AWS. */

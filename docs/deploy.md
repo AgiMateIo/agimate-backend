@@ -31,15 +31,17 @@
 
 ### File storage (control-api)
 
-S3-compatible blob store for the connector file layer (`docs/connectors/files.md`).
+Blob store for the connector file layer (`docs/connectors/files.md`).
 
 | Variable               | Description                                                          |
 |------------------------|----------------------------------------------------------------------|
-| `APP_FILES_BUCKET`     | Bucket name (default `agimate-files`)                                |
-| `APP_FILES_ENDPOINT`   | S3-compatible endpoint (MinIO etc.); empty = AWS                     |
-| `APP_FILES_REGION`     | Region (default `us-east-1`)                                         |
-| `APP_FILES_ACCESS_KEY` | Access key; empty (with empty secret) = AWS credentials chain        |
-| `APP_FILES_SECRET_KEY` | Secret key                                                           |
+| `APP_FILES_BACKEND`    | `local` (disk, default — dev/single-node) or `s3`                    |
+| `APP_FILES_LOCAL_DIR`  | Root dir for the local backend; empty = `~/.agimate/files`           |
+| `APP_FILES_BUCKET`     | s3 only: bucket name (default `agimate-files`)                       |
+| `APP_FILES_ENDPOINT`   | s3 only: S3-compatible endpoint (MinIO etc.); empty = AWS            |
+| `APP_FILES_REGION`     | s3 only: region (default `us-east-1`)                                |
+| `APP_FILES_ACCESS_KEY` | s3 only: access key; empty (with empty secret) = AWS credentials chain |
+| `APP_FILES_SECRET_KEY` | s3 only: secret key                                                  |
 
 ### Centrifugo (control-api)
 

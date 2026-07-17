@@ -110,10 +110,12 @@ app:
       # В проде держим false; true — для локальной разработки против localhost-серверов.
       allow-private-targets: false
   files:
-    # Файловый слой коннекторов (docs/connectors/files.md), S3-совместимый backend.
-    # endpoint пустой = AWS; для локальной разработки — MinIO (например http://localhost:9002,
-    # 9000 занят Centrifugo). Креды — только env: APP_FILES_ACCESS_KEY / APP_FILES_SECRET_KEY;
-    # без них используется стандартная AWS credentials chain.
+    # Файловый слой коннекторов (docs/connectors/files.md).
+    # backend: local — блобы на диске (local-dir, пусто = ~/.agimate/files); s3 — S3/MinIO
+    # (bucket/endpoint/region ниже; endpoint пустой = AWS; креды — только env:
+    # APP_FILES_ACCESS_KEY / APP_FILES_SECRET_KEY, без них — AWS credentials chain).
+    backend: local
+    local-dir: ""
     bucket: agimate-files
     region: us-east-1
     endpoint: ""
