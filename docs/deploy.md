@@ -29,6 +29,18 @@
 |------------------------------|------------------------------------------------------------------------------------------------|
 | `APP_SECRETS_ENCRYPTION_KEY` | KEK for the envelope-encrypted `secrets` store (AES-256, Base64, 32 bytes). Required outside `local`/`test` profiles — startup fails without it |
 
+### File storage (control-api)
+
+S3-compatible blob store for the connector file layer (`docs/connectors/files.md`).
+
+| Variable               | Description                                                          |
+|------------------------|----------------------------------------------------------------------|
+| `APP_FILES_BUCKET`     | Bucket name (default `agimate-files`)                                |
+| `APP_FILES_ENDPOINT`   | S3-compatible endpoint (MinIO etc.); empty = AWS                     |
+| `APP_FILES_REGION`     | Region (default `us-east-1`)                                         |
+| `APP_FILES_ACCESS_KEY` | Access key; empty (with empty secret) = AWS credentials chain        |
+| `APP_FILES_SECRET_KEY` | Secret key                                                           |
+
 ### Centrifugo (control-api)
 
 | Variable                | Description                            |

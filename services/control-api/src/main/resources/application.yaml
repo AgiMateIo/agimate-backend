@@ -101,6 +101,15 @@ app:
       # SSRF-guard: разрешать ли MCP-серверы на приватных/loopback/link-local адресах.
       # В проде держим false; true — для локальной разработки против localhost-серверов.
       allow-private-targets: false
+  files:
+    # Файловый слой коннекторов (docs/connectors/files.md), S3-совместимый backend.
+    # endpoint пустой = AWS; для локальной разработки — MinIO (например http://localhost:9002,
+    # 9000 занят Centrifugo). Креды — только env: APP_FILES_ACCESS_KEY / APP_FILES_SECRET_KEY;
+    # без них используется стандартная AWS credentials chain.
+    bucket: agimate-files
+    region: us-east-1
+    endpoint: ""
+    path-style: true
 
 dbos:
   enabled: false

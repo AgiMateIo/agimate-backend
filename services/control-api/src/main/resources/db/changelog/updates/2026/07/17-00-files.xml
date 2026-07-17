@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Файловый слой коннекторов (docs/connectors/files.md): метаданные бинарных артефактов,
+         байты — в S3-совместимом хранилище под ключом user_id/agf_<id>. id назначается приложением
+         (UUIDUtils.generateUUIDv8 — наружу уходит как agf_<uuid>), поэтому без DB-default.
+         UPLOADING-строка старше часа считается брошенной и подметается чисткой вместе с
+         просроченными READY. -->
+    <changeSet id="2026-07-17-00-files" author="agimate">
+        <createTable tableName="files">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- UPLOADING | READY -->
+            <column name="status" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="mime" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="size" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- hex SHA-256 содержимого; заполняется по завершении загрузки (status=READY) -->
+            <column name="sha256" type="TEXT"/>
+            <!-- провенанс: connector_code/tool/connection, породившие файл -->
+            <column name="origin" type="TEXT"/>
+            <column name="expires_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- суточная квота: sum(size) по владельцу за окно -->
+        <createIndex tableName="files" indexName="idx_files_user_created">
+            <column name="user_id"/>
+            <column name="created_at"/>
+        </createIndex>
+        <!-- чистка просроченных -->
+        <createIndex tableName="files" indexName="idx_files_expires_at">
+            <column name="expires_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

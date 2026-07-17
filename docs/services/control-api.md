@@ -33,6 +33,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `INBOUND_RATE_LIMIT_ENABLED` | Inbound rate limiting for device/webhook traffic (default `true`) |
 | `INBOUND_RATE_LIMIT_TRIGGERS_PER_MINUTE` | Trigger events per minute per connection — `/app/trigger/new` + `/webhook/*` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_TOOL_RESULTS_PER_MINUTE` | Tool results per minute per connection — `/app/tools/result` (default `120`, `<=0` disables) |
+| `APP_FILES_BUCKET` / `APP_FILES_ENDPOINT` / `APP_FILES_REGION` / `APP_FILES_ACCESS_KEY` / `APP_FILES_SECRET_KEY` | S3-compatible file storage for the connector file layer (`docs/connectors/files.md`); empty endpoint = AWS, empty keys = AWS credentials chain |
 
 ## Inbound Rate Limiting
 

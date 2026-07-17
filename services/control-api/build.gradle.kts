@@ -48,6 +48,10 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp")
 
+    // S3-совместимое хранилище файлового слоя коннекторов (docs/connectors/files.md)
+    implementation(platform("software.amazon.awssdk:bom:2.46.7"))
+    implementation("software.amazon.awssdk:s3")
+
     implementation("dev.dbos:transact:1.0.0")
 
     implementation("org.opensolutionlab.httpclients:javacent:2.0.0")
