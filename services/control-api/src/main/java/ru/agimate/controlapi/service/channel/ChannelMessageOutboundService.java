@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.ChannelSession;
@@ -76,12 +77,37 @@ public class ChannelMessageOutboundService {
         OutboundDispatch dispatch = new OutboundDispatch(
                 effectiveMessageId, stream, progressType, channel.getId(), session.getId(), replyContext);
 
-        handler.handleOutput(config, effectiveOutbound, dispatch)
-                .forEach(request -> agentToolCallService.processToolCall(channel.getAgentId(), request));
+        dispatchAll(channel, handler.handleOutput(config, effectiveOutbound, dispatch));
 
         log.info("Dispatched OUT message session={} channel={} via handler={}",
                 session.getId(), channel.getId(), handler.name());
         return new OutboundResult(session, effectiveMessageId);
+    }
+
+    /**
+     * Запросы независимы (текст и каждое вложение — отдельные сообщения), поэтому сбой одного не
+     * топит остальные: вложения — best-effort (как и отброс нерезолвимых маркеров в парсере),
+     * доставленный текст важнее. Полный провал пробрасывается — доставки не было вовсе, а ретрай
+     * вызывающего безопасен: ключи идемпотентны, повтор успешного запроса — replay.
+     */
+    private void dispatchAll(Channel channel, List<ToolCallRequest> requests) {
+        RuntimeException firstFailure = null;
+        int failed = 0;
+        for (ToolCallRequest request : requests) {
+            try {
+                agentToolCallService.processToolCall(channel.getAgentId(), request);
+            } catch (RuntimeException e) {
+                failed++;
+                if (firstFailure == null) {
+                    firstFailure = e;
+                }
+                log.warn("Failed to dispatch outbound request {} (tool={}) to channel {}: {}",
+                        request.getId(), request.getName(), channel.getId(), e.getMessage());
+            }
+        }
+        if (firstFailure != null && failed == requests.size()) {
+            throw firstFailure;
+        }
     }
 
     private ChannelSession resolveSession(Channel channel, UUID sessionIdOrNull) {
