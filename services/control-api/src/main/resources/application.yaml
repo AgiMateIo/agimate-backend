@@ -59,6 +59,12 @@ spring:
       ddl-auto: validate
     show-sql: false
     open-in-view: false
+  data:
+    jpa:
+      repositories:
+        # Bootstrap Hibernate/EMF в фоновом потоке: Tomcat/gRPC поднимаются, не дожидаясь JPA;
+        # первый, кто коснётся репозиториев (обычно ConnectorBootstrap на ready), дождётся EMF.
+        bootstrap-mode: deferred
 micrometer:
   observations:
     annotations:
