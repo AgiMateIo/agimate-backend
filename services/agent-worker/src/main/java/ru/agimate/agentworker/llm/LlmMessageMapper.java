@@ -66,8 +66,14 @@ public class LlmMessageMapper {
     private static Message userMessage(AgentChatMessage m, Map<String, byte[]> mediaBytes) {
         List<Media> media = new ArrayList<>();
         for (FilePartRef part : m.parts()) {
+            if (!part.isImage()) {
+                continue;
+            }
             byte[] bytes = mediaBytes.get(part.fileId());
-            if (!part.isImage() || bytes == null) {
+            if (bytes == null || bytes.length == 0) {
+                // image-part без байтов: GetFile не удался или вернул пусто — модель картинку не увидит.
+                log.warn("inbound image {} has no bytes ({}) — user turn goes text-only",
+                        part.fileId(), bytes == null ? "not fetched" : "empty");
                 continue;
             }
             MimeType mimeType = safeMimeType(part.mime());
@@ -76,6 +82,8 @@ public class LlmMessageMapper {
                 continue;
             }
             media.add(Media.builder().mimeType(mimeType).data(new ByteArrayResource(bytes)).build());
+            log.info("attached inbound image {} to user turn: {} bytes, mime={}",
+                    part.fileId(), bytes.length, mimeType);
         }
         if (media.isEmpty()) {
             return new UserMessage(nullToEmpty(m.text()));

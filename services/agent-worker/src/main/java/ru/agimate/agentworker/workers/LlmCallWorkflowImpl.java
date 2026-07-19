@@ -138,7 +138,10 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
                     continue;
                 }
                 try {
-                    bytes.put(part.fileId(), client.getFile(part.fileId(), agentId));
+                    byte[] data = client.getFile(part.fileId(), agentId);
+                    bytes.put(part.fileId(), data);
+                    log.info("inbound image {} fetched: {} bytes (mime={})",
+                            part.fileId(), data.length, part.mime());
                 } catch (Exception e) {
                     log.warn("inbound image {} unavailable — sending text only: {}",
                             part.fileId(), e.getMessage());

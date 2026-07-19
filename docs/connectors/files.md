@@ -128,9 +128,14 @@ multipart в Telegram). Агент — курьер ссылок: получае
     `photo`/`document` в data триггера на `parts`. Сбой скачивания → деградация к прежней
     текст-заглушке, триггер не теряется. Токен в логи/исключения не попадает.
 - **Канонизация**. `ChannelHandler.handleInput` маппит `data.parts` → `InboundMessage.parts` и строит
-  текст с заглушкой-стабом на каждое вложение (`[приложено изображение: agf_…, image/png, 375 KB]`) —
-  это и плейсхолдер в истории (протокол текстовый), и подсказка агенту. `InboundTextResolver`
-  возвращает полное `InboundMessage`; `RunContextService` кладёт ссылки в `RunContextView.inboundParts`.
+  текст с «описанием загруженного файла» на каждое вложение (`MediaStubs`): `[Описание загруженного
+  файла: изображение, уже приложено к этому сообщению — ты видишь его напрямую, image/jpeg, 18 KB.
+  id: agf_…. Файл уже доступен, скачивать по id не нужно; id — только чтобы сослаться на файл.]`.
+  Рамка намеренная: сырой `[… agf_…]` сбивал модель — она принимала инлайн-картинку за «файл по id,
+  который надо достать» и игнорировала зрение. id в описании даёт модели переиспользовать файл
+  (`[[attach:agf_…]]`, см. `ATTACHMENT_GUIDANCE` — расширен на inbound-файлы). Это одновременно
+  плейсхолдер в истории (протокол текстовый). `InboundTextResolver` возвращает полное
+  `InboundMessage`; `RunContextService` кладёт ссылки в `RunContextView.inboundParts`.
 - **Протокол v2**. `RunContext.inbound_parts` (`repeated FilePart` — только `agf_`-ссылки, без байтов;
   безопасно для DBOS-чекпоинта `prepare_context`). Новый RPC `AgentContext.GetFile` (server-streaming
   чанки 128 KB) отдаёт содержимое воркеру с ownership-гейтом `file.user_id == agent.user_id`.

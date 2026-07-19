@@ -149,6 +149,8 @@ class TelegramChannelHandlerTest {
             assertEquals("agf_1", inbound.parts().get(0).storageRef());
             assertEquals("image", inbound.parts().get(0).type());
             assertTrue(inbound.text().startsWith("смотри"));
+            // Описание файла с id в рамке «уже приложено» (картинка идёт инлайном как Media).
+            assertTrue(inbound.text().contains("Описание загруженного файла"));
             assertTrue(inbound.text().contains("agf_1"));
         }
     }

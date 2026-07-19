@@ -129,11 +129,17 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
 
             long total = content.file().getSizeBytes();
             String mime = nullToEmpty(content.file().getMime());
+            long streamed = 0;
+            String signature = null;
             try (InputStream in = content.content()) {
                 byte[] buf = new byte[FILE_CHUNK_BYTES];
                 int read;
                 boolean first = true;
                 while ((read = in.read(buf)) != -1) {
+                    if (signature == null && read > 0) {
+                        signature = imageSignature(buf, read);
+                    }
+                    streamed += read;
                     FileChunk.Builder chunk = FileChunk.newBuilder()
                             .setData(ByteString.copyFrom(buf, 0, read));
                     if (first) {
@@ -147,7 +153,13 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                     responseObserver.onNext(FileChunk.newBuilder().setMime(mime).setTotalSize(total).build());
                 }
             }
-            log.debug("streamed file {} pool={} agent={} bytes={}", fileId, poolId, agentId, total);
+            // Диагностика: mime заявленный vs сигнатура содержимого + факт полной выгрузки.
+            log.info("streamed file {} pool={} agent={} mime={} signature={} declared={} streamed={}",
+                    fileId, poolId, agentId, mime, signature, total, streamed);
+            if (streamed != total) {
+                log.warn("file {} size mismatch: declared={} streamed={} — блоб усечён/битый",
+                        fileId, total, streamed);
+            }
             responseObserver.onCompleted();
         } catch (IOException e) {
             handleError(new IllegalStateException("failed to stream file", e), responseObserver,
@@ -238,5 +250,27 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     /** proto3 не различает 0 и «не прислано» — нулевые кэш-метрики храним как NULL. */
     private static Integer zeroToNull(int value) {
         return value == 0 ? null : value;
+    }
+
+    /**
+     * Метка формата по магическим байтам заголовка (не содержимое, только сигнатура) — для
+     * диагностики: заявленный mime {@code image/jpeg} vs реальные байты. {@code unknown} при
+     * несовпадении = битый/не-тот файл; расхождение с mime = вероятная причина «модель не видит».
+     */
+    private static String imageSignature(byte[] buf, int len) {
+        if (len >= 3 && (buf[0] & 0xFF) == 0xFF && (buf[1] & 0xFF) == 0xD8 && (buf[2] & 0xFF) == 0xFF) {
+            return "jpeg";
+        }
+        if (len >= 8 && (buf[0] & 0xFF) == 0x89 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') {
+            return "png";
+        }
+        if (len >= 6 && buf[0] == 'G' && buf[1] == 'I' && buf[2] == 'F') {
+            return "gif";
+        }
+        if (len >= 12 && buf[0] == 'R' && buf[1] == 'I' && buf[2] == 'F' && buf[3] == 'F'
+                && buf[8] == 'W' && buf[9] == 'E' && buf[10] == 'B' && buf[11] == 'P') {
+            return "webp";
+        }
+        return "unknown";
     }
 }

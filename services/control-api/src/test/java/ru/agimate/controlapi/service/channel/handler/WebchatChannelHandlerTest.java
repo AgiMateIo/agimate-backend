@@ -117,17 +117,21 @@ class WebchatChannelHandlerTest {
             assertEquals("agf_1", inbound.parts().get(0).storageRef());
             assertEquals("image", inbound.parts().get(0).type());
             assertTrue(inbound.text().startsWith("что тут?"));
+            // Описание файла: id присутствует, но в рамке «уже приложено / скачивать не нужно».
+            assertTrue(inbound.text().contains("Описание загруженного файла"));
             assertTrue(inbound.text().contains("agf_1"));
+            assertTrue(inbound.text().contains("скачивать по id не нужно"));
         }
 
         @Test
-        @DisplayName("только parts, пустой text → сообщение из одних стабов")
+        @DisplayName("только parts, пустой text → сообщение из одних описаний файлов")
         void partsOnly() {
             Trigger trigger = Trigger.createBasic("webchat", IDENTITY, "message_received", Map.of(
                     "parts", List.of(Map.of(
                             "type", "image", "fileId", "agf_1", "mime", "image/png", "size", 4096))));
             InboundMessage inbound = handler.handleInput(config, trigger).orElseThrow();
             assertEquals(1, inbound.parts().size());
+            assertTrue(inbound.text().contains("Описание загруженного файла"));
             assertTrue(inbound.text().contains("agf_1"));
         }
     }
