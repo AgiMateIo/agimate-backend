@@ -4,12 +4,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.entities.LlmProviderModel;
 import ru.agimate.controlapi.database.entities.Secret;
+import ru.agimate.controlapi.database.enums.LlmProviderModelStatus;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.model.LlmModelInfo;
+import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.llm.LlmModelDiscoveryService;
@@ -22,6 +27,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +46,8 @@ class LlmProviderServiceTest {
 
     @Mock
     private LlmProviderRepository llmProviderRepository;
+    @Mock
+    private LlmProviderModelRepository llmProviderModelRepository;
     @Mock
     private SecretRepository secretRepository;
     @Mock
@@ -189,7 +197,7 @@ class LlmProviderServiceTest {
             assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
                     () -> service.update(platform.getId(), adminId, true,
                             new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
-                                    "renamed", null, null, null, null)));
+                                    "renamed", null, null, null, null, null)));
 
             assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
                     () -> service.delete(platform.getId(), adminId, true));
@@ -204,11 +212,144 @@ class LlmProviderServiceTest {
 
             var response = service.update(platform.getId(), adminId, true,
                     new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
-                            null, null, null, "gemini-flash", true));
+                            null, null, null, "gemini-flash", null, true));
 
             assertTrue(response.enabled());
             assertEquals("gemini-flash", response.defaultModel());
             assertTrue(response.platform());
+        }
+    }
+
+    @Nested
+    @DisplayName("refreshModels — upsert-реестр")
+    class RefreshModels {
+
+        private final UUID adminId = UUID.randomUUID();
+        private LlmProvider provider;
+
+        private void mockProviderWithKey() {
+            provider = existingProvider(true);
+            when(llmProviderRepository.findById(provider.getId())).thenReturn(Optional.of(provider));
+            Secret secret = secretWithId(provider.getSecretId());
+            when(secretRepository.findById(provider.getSecretId())).thenReturn(Optional.of(secret));
+            when(secretService.reveal(secret, provider.getId())).thenReturn(Map.of("api_key", API_KEY));
+        }
+
+        @Test
+        @DisplayName("новая модель из листинга → строка AVAILABLE с first/last_seen и метаданными")
+        void insertsNewModel() {
+            mockProviderWithKey();
+            when(modelDiscoveryService.discover(eq(provider), any())).thenReturn(List.of(
+                    new LlmModelInfo("moonshotai/kimi-k2.5", "Kimi K2.5",
+                            262144, List.of("text", "image"), List.of("tools"))));
+            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
+                    .thenReturn(List.of());
+            when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.refreshModels(provider.getId(), adminId, true);
+
+            ArgumentCaptor<List<LlmProviderModel>> captor = ArgumentCaptor.forClass(List.class);
+            verify(llmProviderModelRepository).saveAll(captor.capture());
+            LlmProviderModel row = captor.getValue().get(0);
+            assertEquals("moonshotai/kimi-k2.5", row.getModel());
+            assertEquals(LlmProviderModelStatus.AVAILABLE, row.getStatus());
+            assertEquals(262144, row.getContextWindow());
+            assertEquals(List.of("text", "image"), row.getInputModalities());
+            assertTrue(row.getFirstSeenAt() != null && row.getLastSeenAt() != null);
+        }
+
+        @Test
+        @DisplayName("модель пропала из листинга → UNAVAILABLE, строка не удаляется")
+        void marksDisappearedUnavailable() {
+            mockProviderWithKey();
+            LlmProviderModel gone = LlmProviderModel.builder()
+                    .providerId(provider.getId()).model("old-model")
+                    .status(LlmProviderModelStatus.AVAILABLE).build();
+            when(modelDiscoveryService.discover(eq(provider), any()))
+                    .thenReturn(List.of(new LlmModelInfo("new-model", null)));
+            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
+                    .thenReturn(List.of(gone));
+            when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.refreshModels(provider.getId(), adminId, true);
+
+            assertEquals(LlmProviderModelStatus.UNAVAILABLE, gone.getStatus());
+            verify(llmProviderModelRepository, never()).delete(any());
+            verify(llmProviderModelRepository, never()).deleteAll(any());
+        }
+
+        @Test
+        @DisplayName("вернувшаяся/сконфигуренная руками модель → AVAILABLE, first_seen проставляется")
+        void revivesManualRow() {
+            mockProviderWithKey();
+            LlmProviderModel manual = LlmProviderModel.builder()
+                    .providerId(provider.getId()).model("moonshotai/kimi-k2.5")
+                    .status(LlmProviderModelStatus.UNAVAILABLE)
+                    .extraBody(Map.of("provider", Map.of("only", List.of("moonshotai"))))
+                    .build();
+            when(modelDiscoveryService.discover(eq(provider), any()))
+                    .thenReturn(List.of(new LlmModelInfo("moonshotai/kimi-k2.5", null)));
+            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
+                    .thenReturn(List.of(manual));
+            when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.refreshModels(provider.getId(), adminId, true);
+
+            assertEquals(LlmProviderModelStatus.AVAILABLE, manual.getStatus());
+            assertTrue(manual.getFirstSeenAt() != null, "конфиг заведён руками до появления в листинге");
+            assertEquals(Map.of("provider", Map.of("only", List.of("moonshotai"))), manual.getExtraBody(),
+                    "extra_body при refresh не трогается");
+        }
+
+        @Test
+        @DisplayName("guard: пустой листинг — статусы не трогаем, refreshed_at не двигаем")
+        void emptyListingLeavesRegistryUntouched() {
+            mockProviderWithKey();
+            when(modelDiscoveryService.discover(eq(provider), any())).thenReturn(List.of());
+
+            service.refreshModels(provider.getId(), adminId, true);
+
+            verify(llmProviderModelRepository, never()).saveAll(any());
+            verify(llmProviderRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("upsertModelExtraBody")
+    class UpsertExtraBody {
+
+        private final UUID adminId = UUID.randomUUID();
+
+        @Test
+        @DisplayName("строки нет → создаётся UNAVAILABLE без first_seen (конфиг до refresh)")
+        void createsRowForUnlistedModel() {
+            LlmProvider provider = existingProvider(true);
+            when(llmProviderRepository.findById(provider.getId())).thenReturn(Optional.of(provider));
+            when(llmProviderModelRepository.findByProviderIdAndModel(provider.getId(), "x/y"))
+                    .thenReturn(Optional.empty());
+            when(llmProviderModelRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            var response = service.upsertModelExtraBody(provider.getId(), adminId, true,
+                    new ru.agimate.controlapi.controller.manage.dto.llm.UpsertModelExtraBodyRequest(
+                            "x/y", Map.of("transforms", List.of("middle-out"))));
+
+            assertEquals("x/y", response.model());
+            assertEquals(LlmProviderModelStatus.UNAVAILABLE, response.status());
+            assertNull(response.firstSeenAt());
+            assertEquals(Map.of("transforms", List.of("middle-out")), response.extraBody());
+        }
+
+        @Test
+        @DisplayName("слишком большой extra_body — 400")
+        void rejectsOversizedExtraBody() {
+            LlmProvider provider = existingProvider(true);
+            when(llmProviderRepository.findById(provider.getId())).thenReturn(Optional.of(provider));
+
+            assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
+                    () -> service.upsertModelExtraBody(provider.getId(), adminId, true,
+                            new ru.agimate.controlapi.controller.manage.dto.llm.UpsertModelExtraBodyRequest(
+                                    "x/y", Map.of("junk", "a".repeat(17 * 1024)))));
+            verify(llmProviderModelRepository, never()).save(any());
         }
     }
 

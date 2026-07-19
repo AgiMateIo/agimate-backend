@@ -7,16 +7,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.entities.LlmProviderModel;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
+import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.grpc.mapper.RunContextMapper;
 import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.LlmUsageService;
+import ru.agimate.controlapi.service.llm.ExtraBodyMerge;
 import ru.agimate.controlapi.service.llm.LlmQuotaService;
 import ru.agimate.controlapi.service.runcontext.RunContextService;
 import ru.agimate.controlapi.service.runcontext.RunContextView;
@@ -37,6 +41,7 @@ import com.google.protobuf.ByteString;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 import java.util.UUID;
 
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.handleError;
@@ -64,6 +69,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final RunActivityService runActivityService;
     private final AgentLlmRepository agentLlmRepository;
     private final LlmProviderRepository llmProviderRepository;
+    private final LlmProviderModelRepository llmProviderModelRepository;
     private final LlmProviderService llmProviderService;
     private final AgentRepository agentRepository;
     private final LlmUsageService llmUsageService;
@@ -211,6 +217,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                     .setApiKey(apiKey)
                     .setModel(nullToEmpty(model))
                     .setProviderId(provider.getId().toString())
+                    .setExtraBodyJson(resolveExtraBody(provider, model))
                     .build();
             log.info("issued LLM credentials pool={} agent={} providerType={} platform={}",
                     WorkerPoolContextHolder.current().poolId(), agentId, provider.getProviderType(),
@@ -250,6 +257,27 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     /** proto3 не различает 0 и «не прислано» — нулевые кэш-метрики храним как NULL. */
     private static Integer zeroToNull(int value) {
         return value == 0 ? null : value;
+    }
+
+    /**
+     * Финальный extra_body для воркера: deep-merge провайдер-уровневого и пер-модельного
+     * (модель побеждает, см. {@link ExtraBodyMerge}). Пустой результат → пустая строка
+     * («нет доп. полей» — то же видит воркер от старого control-api при rolling deploy).
+     */
+    private String resolveExtraBody(LlmProvider provider, String model) {
+        Map<String, Object> perModel = model == null ? null : llmProviderModelRepository
+                .findByProviderIdAndModel(provider.getId(), model)
+                .map(LlmProviderModel::getExtraBody)
+                .orElse(null);
+        Map<String, Object> merged = ExtraBodyMerge.merge(provider.getExtraBody(), perModel);
+        if (merged.isEmpty()) {
+            return "";
+        }
+        return JsonUtils.toJson(merged).orElseGet(() -> {
+            log.error("extra_body for provider {} model {} is not serializable — sending none",
+                    provider.getId(), model);
+            return "";
+        });
     }
 
     /**

@@ -17,7 +17,8 @@ public record CreateAgentLlmRequest(
         UUID llmProviderId,
 
         @NotBlank
-        @Schema(description = "Model name (must exist in provider's availableModels if list is non-empty)")
+        @Schema(description = "Model name (must exist in the provider's model registry if it is non-empty; "
+                + "UNAVAILABLE rows count — the status is advisory)")
         String model
 ) {
 }

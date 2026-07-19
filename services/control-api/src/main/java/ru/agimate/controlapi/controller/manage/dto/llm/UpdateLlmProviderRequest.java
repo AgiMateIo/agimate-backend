@@ -2,6 +2,8 @@ package ru.agimate.controlapi.controller.manage.dto.llm;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.util.Map;
+
 @Schema(description = "Request to update an LLM provider configuration (partial update)")
 public record UpdateLlmProviderRequest(
         @Schema(description = "New name")
@@ -15,6 +17,10 @@ public record UpdateLlmProviderRequest(
 
         @Schema(description = "Default model; blank clears it, absent — kept")
         String defaultModel,
+
+        @Schema(description = "Provider-level extra chat/completions body fields; empty object "
+                + "clears it, absent — kept")
+        Map<String, Object> extraBody,
 
         @Schema(description = "Whether the provider is enabled")
         Boolean enabled

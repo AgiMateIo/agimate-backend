@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.common.util.CryptoUtils;
+import ru.agimate.common.util.JsonUtils;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -55,8 +56,10 @@ public class ModelFactory {
 
     /** Cache key. Carries a SHA-256 of the api key, never the secret itself (records auto-expose
      * every field via {@code toString()}, so a plaintext key would be one debug log away from
-     * leaking); the plaintext for building the client travels via the {@code build} closure. */
-    private record ModelKey(String baseUrl, String apiKeyHash, String model) {}
+     * leaking); the plaintext for building the client travels via the {@code build} closure.
+     * extraBodyJson participates too: a changed extra_body (провайдер-роутинг и т.п.) must
+     * produce a new client with new default options, not a stale cache hit. */
+    private record ModelKey(String baseUrl, String apiKeyHash, String model, String extraBodyJson) {}
 
     public ModelFactory(AgentProperties props) {
         this.app = props.getApp();
@@ -67,18 +70,24 @@ public class ModelFactory {
         if (!OPENAI_COMPATIBLE.contains(providerType)) {
             throw new IllegalArgumentException("Unsupported provider_type: " + creds.getProviderType());
         }
-        ModelKey key = new ModelKey(emptyToNull(creds.getBaseUrl()), CryptoUtils.sha256Hex(creds.getApiKey()), creds.getModel());
+        ModelKey key = new ModelKey(emptyToNull(creds.getBaseUrl()), CryptoUtils.sha256Hex(creds.getApiKey()),
+                creds.getModel(), creds.getExtraBodyJson());
         return models.get(key, k -> buildModel(k.baseUrl(), creds));
     }
 
     private OpenAiChatModel buildModel(String baseUrl, LlmCredentials creds) {
-        log.info("building chat model: baseUrl={} model={}", baseUrl, creds.getModel());
+        // Доп. поля тела chat/completions от бэка (deep-merge провайдер+модель уже выполнен там).
+        // Spring AI мёржит их в запрос сам (createRequest → extraBody). Целиком не логируем.
+        Map<String, Object> extraBody = JsonUtils.fromJsonToMap(creds.getExtraBodyJson());
+        log.info("building chat model: baseUrl={} model={} extraBodyKeys={}",
+                baseUrl, creds.getModel(), extraBody.keySet());
         OpenAiChatOptions options = OpenAiChatOptions.builder()
                 .baseUrl(baseUrl)
                 .apiKey(creds.getApiKey())
                 .model(creds.getModel())
                 .timeout(REQUEST_TIMEOUT)
                 .customHeaders(requestHeaders(baseUrl))
+                .extraBody(extraBody.isEmpty() ? null : extraBody)
                 .build();
         return OpenAiChatModel.builder().options(options).build();
     }

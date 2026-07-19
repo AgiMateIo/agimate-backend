@@ -11,9 +11,11 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreateLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProviderRequest;
+import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderModelResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.RefreshModelsResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest;
+import ru.agimate.controlapi.controller.manage.dto.llm.UpsertModelExtraBodyRequest;
 import ru.agimate.controlapi.service.LlmProviderService;
 
 import java.util.List;
@@ -98,5 +100,29 @@ public class ManageLlmProviderController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(llmProviderService.refreshModels(id, userId, principal.isAdmin()));
+    }
+
+    @Operation(summary = "List the provider's model registry (metadata, availability status, "
+            + "per-model extra_body)")
+    @GetMapping("/{id}/models/")
+    public SuccessResponse<List<LlmProviderModelResponse>> listModels(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID id
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(llmProviderService.listModelsForUser(id, userId, principal.isAdmin()));
+    }
+
+    @Operation(summary = "Set or clear per-model extra_body (upserts the registry row; model id "
+            + "goes in the body — it may contain slashes)")
+    @PutMapping("/{id}/models/extra-body")
+    public SuccessResponse<LlmProviderModelResponse> upsertModelExtraBody(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody UpsertModelExtraBodyRequest request
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(
+                llmProviderService.upsertModelExtraBody(id, userId, principal.isAdmin(), request));
     }
 }

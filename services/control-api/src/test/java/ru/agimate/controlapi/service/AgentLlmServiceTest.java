@@ -13,6 +13,7 @@ import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
+import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 
 import java.util.List;
@@ -37,6 +38,8 @@ class AgentLlmServiceTest {
     private AgentRepository agentRepository;
     @Mock
     private LlmProviderRepository llmProviderRepository;
+    @Mock
+    private LlmProviderModelRepository llmProviderModelRepository;
     @Mock
     private LlmProviderService llmProviderService;
 

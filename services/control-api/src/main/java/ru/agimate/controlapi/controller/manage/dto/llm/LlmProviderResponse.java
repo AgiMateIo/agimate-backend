@@ -2,16 +2,16 @@ package ru.agimate.controlapi.controller.manage.dto.llm;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.controlapi.database.model.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
-@Schema(description = "LLM provider configuration (api_key never exposed)")
+@Schema(description = "LLM provider configuration (api_key never exposed). "
+        + "Model registry lives at /manage/llm-providers/{id}/models/")
 public record LlmProviderResponse(
         @Schema(description = "Public ID")
         UUID id,
@@ -31,11 +31,11 @@ public record LlmProviderResponse(
         @Schema(description = "Masked API key (e.g. \"sk-AbCd...WxYz\")")
         String apiKeyMask,
 
-        @Schema(description = "Available models (refreshed via refresh-models endpoint)")
-        List<LlmModelInfo> availableModels,
+        @Schema(description = "Provider-level extra chat/completions body fields")
+        Map<String, Object> extraBody,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
-        @Schema(description = "When availableModels was last refreshed")
+        @Schema(description = "When the model registry was last refreshed from the provider listing")
         LocalDateTime modelsRefreshedAt,
 
         @Schema(description = "Whether the provider is enabled")
@@ -57,7 +57,7 @@ public record LlmProviderResponse(
                 provider.getBaseUrl(),
                 provider.getDefaultModel(),
                 provider.getApiKeyMask(),
-                provider.getAvailableModels(),
+                provider.getExtraBody(),
                 provider.getModelsRefreshedAt(),
                 provider.isEnabled(),
                 SystemSkillBootstrap.SYSTEM_USER_ID.equals(provider.getUserId()),

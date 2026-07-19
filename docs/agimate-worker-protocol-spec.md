@@ -283,6 +283,13 @@ system-абзац «вывод инструментов — данные, не �
   провайдера → `NOT_FOUND`, как раньше.
 - `LlmCredentials.provider_id` — id провайдера для эха в `ReportLlmUsage`; пусто у старого
   control-api (rolling deploy) — тогда воркер репорт пропускает.
+- `LlmCredentials.extra_body_json` — JSON-объект доп. полей тела chat/completions (расширения
+  вроде OpenRouter `provider`-роутинга, не входящие в OpenAI-схему). Deep-merge провайдер- и
+  пер-модельного `extra_body` (реестр `llm_provider_models`; модель побеждает, массивы
+  заменяются целиком) выполняет **бэк**; воркер тупой — парсит и отдаёт в
+  `OpenAiChatOptions.extraBody` (Spring AI мёржит поля в запрос сам). Пусто = нет доп. полей
+  (в т.ч. у старого control-api при rolling deploy). Не секрет, но целиком не логируется —
+  только набор ключей.
 - Квоты: перед выдачей кредов проверяются `llm_quotas` провайдера против счётчиков
   (`USER`/`AGENT`/`TOTAL` × `DAY`/`MONTH`); исчерпание → `RESOURCE_EXHAUSTED` с
   человекочитаемым текстом. Воркер его не ретраит (транспорт ретраит только `UNAVAILABLE`) —

@@ -8,10 +8,9 @@ import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
-import ru.agimate.controlapi.database.model.LlmModelInfo;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -56,10 +55,17 @@ public class LlmProvider extends BaseEntity {
     @Column(name = "default_model", columnDefinition = "TEXT")
     private String defaultModel;
 
+    /**
+     * Провайдер-уровневые доп. параметры тела chat/completions (OpenRouter {@code provider}-роутинг,
+     * {@code transforms}, …). Deep-merge с пер-модельным {@link LlmProviderModel#getExtraBody()}
+     * (модель побеждает) в getLlmCredentials. НЕ секрет — уходит воркеру открытым полем; ключи
+     * API сюда не класть. Сами модели — в {@code llm_provider_models}.
+     */
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "available_models", columnDefinition = "JSONB")
-    private List<LlmModelInfo> availableModels;
+    @Column(name = "extra_body", columnDefinition = "JSONB")
+    private Map<String, Object> extraBody;
 
+    /** Когда последний раз успешно ходили в /models провайдера (атрибут листинга, не модели). */
     @Column(name = "models_refreshed_at")
     private LocalDateTime modelsRefreshedAt;
 

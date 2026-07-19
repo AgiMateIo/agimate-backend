@@ -5,6 +5,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 
+import java.util.Map;
+
 @Schema(description = "Request to create an LLM provider configuration")
 public record CreateLlmProviderRequest(
         @NotBlank
@@ -24,6 +26,11 @@ public record CreateLlmProviderRequest(
 
         @Schema(description = "Default model (UI preselect; on the platform provider — the fallback model)")
         String defaultModel,
+
+        @Schema(description = "Provider-level extra chat/completions body fields (e.g. OpenRouter "
+                + "provider routing); deep-merged with per-model extra_body, model wins. "
+                + "Not a secret store — do not put API keys here")
+        Map<String, Object> extraBody,
 
         @Schema(description = "Whether the provider is enabled")
         Boolean enabled

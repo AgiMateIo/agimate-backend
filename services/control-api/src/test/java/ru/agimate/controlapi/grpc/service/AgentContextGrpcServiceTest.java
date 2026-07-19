@@ -66,6 +66,9 @@ class AgentContextGrpcServiceTest {
     private final RunContextService runContextService = mock(RunContextService.class);
     private final AgentLlmRepository agentLlmRepository = mock(AgentLlmRepository.class);
     private final LlmProviderRepository llmProviderRepository = mock(LlmProviderRepository.class);
+    private final ru.agimate.controlapi.database.repositories.LlmProviderModelRepository
+            llmProviderModelRepository =
+            mock(ru.agimate.controlapi.database.repositories.LlmProviderModelRepository.class);
     private final LlmProviderService llmProviderService = mock(LlmProviderService.class);
     private final AgentRepository agentRepository = mock(AgentRepository.class);
     private final LlmUsageService llmUsageService = mock(LlmUsageService.class);
@@ -77,6 +80,7 @@ class AgentContextGrpcServiceTest {
             mock(ru.agimate.controlapi.service.trigger.RunActivityService.class),
             agentLlmRepository,
             llmProviderRepository,
+            llmProviderModelRepository,
             llmProviderService,
             agentRepository,
             llmUsageService,

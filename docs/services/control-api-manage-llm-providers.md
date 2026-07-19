@@ -37,8 +37,8 @@ Besides user providers there is a single **platform provider** — a system-owne
 | `providerType` | enum | One of `OPENAI`, `ANTHROPIC`, `GEMINI`, `OPENAI_COMPATIBLE` |
 | `baseUrl` | string? | Custom endpoint, null = provider default |
 | `apiKeyMask` | string | Masked key (e.g. `sk-...AbCd`); the real key is never returned |
-| `availableModels` | string[]? | Models from the last refresh |
-| `modelsRefreshedAt` | datetime? | When `availableModels` was refreshed |
+| `extraBody` | object? | Provider-level extra chat/completions body fields (e.g. OpenRouter `provider` routing). Deep-merged with per-model `extraBody` (model wins) and sent to the worker with LLM credentials. **Not a secret store.** |
+| `modelsRefreshedAt` | datetime? | When the model registry was last refreshed from the provider listing |
 | `enabled` | boolean | Disabled providers are filtered out from `GET /agent/llm` |
 | `platform` | boolean | `true` for the system-owned platform (free-tier) row. Visible to ADMIN only; rename/delete are rejected. |
 | `createdAt` | datetime | |
@@ -78,16 +78,50 @@ Cascades to `agent_llms` (bindings disappear from `GET /agent/llm`).
 
 ### `POST /control/manage/llm-providers/{pubId}/refresh-models`
 
-Synchronously calls the provider to fetch its models, replaces `availableModels`, updates `modelsRefreshedAt`. Connect timeout 5 s, read timeout 10 s. Provider errors → `400` with the provider's status code echoed.
+Synchronously calls the provider listing and **upserts the model registry** (`llm_provider_models`): listed models get metadata + `lastSeenAt` + `status=AVAILABLE`; models that disappeared from the listing are kept with `status=UNAVAILABLE` (they may carry config and agent bindings). Guard: an empty listing leaves statuses untouched. Connect timeout 5 s, read timeout 10 s. Provider errors → `400` with the provider's status code echoed.
 
 Response:
 
 ```json
 {
   "response": {
-    "availableModels": ["gpt-4o", "gpt-4o-mini", "..."],
+    "models": [ { "model": "gpt-4o", "status": "AVAILABLE", "...": "..." } ],
     "refreshedAt": "2026-05-07T12:34:56"
   }
+}
+```
+
+## Model registry
+
+Per-provider model registry rows (`llm_provider_models`, unique `(provider, model)`): discovery metadata, availability lifecycle and per-model `extraBody` override. `status` is **advisory** — listings can be incomplete, so an `UNAVAILABLE` model still binds and still gets credentials; the UI uses it for warnings only.
+
+### `LlmProviderModelResponse`
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | UUID | Registry row id |
+| `model` | string | Provider-specific model id (e.g. `moonshotai/kimi-k2.5`) |
+| `displayName` | string? | From the listing |
+| `contextWindow` | int? | `context_length` from the listing (OpenRouter-style providers) |
+| `inputModalities` | string[]? | e.g. `["text","image"]` — whether the model has vision |
+| `supportedParameters` | string[]? | e.g. `["tools","reasoning"]` |
+| `extraBody` | object? | Per-model extra chat/completions body fields; deep-merged over the provider-level `extraBody`, model wins, arrays replaced whole |
+| `status` | enum | `AVAILABLE` / `UNAVAILABLE` (advisory, per the last successful refresh) |
+| `firstSeenAt` | datetime? | `null` — never listed (config added manually before refresh) |
+| `lastSeenAt` | datetime? | Last time seen in the listing |
+
+### `GET /control/manage/llm-providers/{pubId}/models/`
+
+List the registry.
+
+### `PUT /control/manage/llm-providers/{pubId}/models/extra-body`
+
+Set or clear per-model `extraBody`. The model id goes in the body (it may contain slashes). Upserts the row — config may be added for a model the provider hasn't listed yet (`firstSeenAt=null`, `UNAVAILABLE`). `extraBody: null` clears the override; serialized size is capped at 16 KB.
+
+```json
+{
+  "model": "moonshotai/kimi-k2.5",
+  "extraBody": { "provider": { "only": ["moonshotai"], "require_parameters": true } }
 }
 ```
 
@@ -125,7 +159,7 @@ Body:
 Validation:
 - `name` unique per agent → `409` on conflict.
 - Provider must belong to the same user → `404` otherwise.
-- If the provider has a non-empty `availableModels`, `model` must be in that list → `400` otherwise. If the list is empty (never refreshed), the model is accepted with a server-side warning.
+- If the provider's model registry is non-empty, `model` must be a registry row (any status — `UNAVAILABLE` is advisory) → `400` otherwise. If the registry is empty (never refreshed), the model is accepted with a server-side warning.
 
 ### `PUT /control/manage/agents/{agentPubId}/llms/{name}`
 

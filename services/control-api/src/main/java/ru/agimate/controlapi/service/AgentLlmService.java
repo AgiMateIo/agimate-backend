@@ -14,10 +14,11 @@ import ru.agimate.controlapi.controller.manage.dto.llm.CreateAgentLlmRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateAgentLlmRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
-import ru.agimate.controlapi.database.model.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.entities.LlmProviderModel;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
+import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 
 import java.util.HashMap;
@@ -36,6 +37,7 @@ public class AgentLlmService {
     private final AgentLlmRepository agentLlmRepository;
     private final AgentRepository agentRepository;
     private final LlmProviderRepository llmProviderRepository;
+    private final LlmProviderModelRepository llmProviderModelRepository;
     private final LlmProviderService llmProviderService;
 
     public List<AgentLlmResponse> listForAgent(UUID agentId, UUID userId) {
@@ -181,18 +183,24 @@ public class AgentLlmService {
         return agent;
     }
 
+    /**
+     * Защита от опечаток по реестру {@code llm_provider_models}. Advisory-принцип: строка с любым
+     * статусом проходит (UNAVAILABLE = пропала из последнего листинга, но перебиндить её можно —
+     * листинги бывают неполными); пустой реестр = discovery ещё не запускали, пропускаем.
+     */
     private void validateModel(LlmProvider provider, String model) {
-        List<LlmModelInfo> models = provider.getAvailableModels();
-        if (models == null || models.isEmpty()) {
-            log.warn("LLM provider {} has no availableModels list — skipping model validation for '{}'",
+        List<LlmProviderModel> models = llmProviderModelRepository
+                .findAllByProviderIdOrderByModel(provider.getId());
+        if (models.isEmpty()) {
+            log.warn("LLM provider {} has an empty model registry — skipping model validation for '{}'",
                     provider.getId(), model);
             return;
         }
-        boolean matches = models.stream().anyMatch(m -> model.equals(m.id()));
+        boolean matches = models.stream().anyMatch(m -> model.equals(m.getModel()));
         if (!matches) {
-            List<String> ids = models.stream().map(LlmModelInfo::id).toList();
+            List<String> ids = models.stream().map(LlmProviderModel::getModel).toList();
             throw new BadRequestStatusException(
-                    "Model '" + model + "' is not in the provider's available models. "
+                    "Model '" + model + "' is not in the provider's model registry. "
                             + "Refresh models or use one of: " + ids);
         }
     }

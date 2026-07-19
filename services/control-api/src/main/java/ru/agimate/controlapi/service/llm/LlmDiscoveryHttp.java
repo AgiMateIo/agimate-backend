@@ -79,7 +79,27 @@ public class LlmDiscoveryHttp {
                 displayName = s;
             }
         }
-        return new LlmModelInfo(idStr, displayName);
+        return new LlmModelInfo(idStr, displayName,
+                intOrNull(entry.get("context_length")),
+                stringListOrNull(entry.get("architecture") instanceof Map<?, ?> arch
+                        ? arch.get("input_modalities") : null),
+                stringListOrNull(entry.get("supported_parameters")));
+    }
+
+    /** Опортунистические метаданные OpenRouter-стиля; у не отдающих их провайдеров остаются null. */
+    private static Integer intOrNull(Object raw) {
+        return raw instanceof Number n ? n.intValue() : null;
+    }
+
+    private static List<String> stringListOrNull(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return null;
+        }
+        List<String> result = list.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .toList();
+        return result.isEmpty() ? null : result;
     }
 
     private static String readBody(InputStream is) throws IOException {
