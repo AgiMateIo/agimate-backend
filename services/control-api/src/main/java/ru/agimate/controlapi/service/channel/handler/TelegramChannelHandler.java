@@ -14,11 +14,12 @@ import java.util.Optional;
 
 /**
  * Код-handler для Telegram-каналов: сводит все типы входящих сообщений к единому
- * {@link InboundMessage} и отправляет текстовый ответ через {@code telegram.send_message}.
+ * {@link InboundMessage} и отправляет ответ (текст + вложения) через {@code telegram.send_*}.
  *
- * <p>Текущий этап: файлы (фото/документы) НЕ скачиваются и не обрабатываются — вместо контента
- * во входящий текст подставляется описание («пользователь отправил изображение/документ») плюс
- * подпись, если она есть. Скачивание/транскрибация — отдельный этап (мультимодальность).
+ * <p>Входящие фото/документы скачиваются на ingest-границе ({@link ru.agimate.controlapi.connectors
+ * .integrations.telegram.TelegramMediaService}) и приходят сюда готовыми {@code data.parts} —
+ * handler маппит их в {@link InboundMessage#parts()} + текст-заглушку (image воркер подаёт в LLM).
+ * Если parts нет (скачивание отключено/не удалось), подставляется описание + подпись, как раньше.
  */
 @Component
 public class TelegramChannelHandler implements ChannelHandler {
@@ -86,6 +87,12 @@ public class TelegramChannelHandler implements ChannelHandler {
         if (!chatAllowed(config, data.get("chatId"))) {
             return Optional.empty();
         }
+        // Медиа скачано на ingest'е → data.parts; текст = подпись + заглушки (image → LLM видит).
+        List<Part> parts = parts(data.get("parts"));
+        if (!parts.isEmpty()) {
+            String caption = asString(data.get("caption"));
+            return Optional.of(new InboundMessage(MediaStubs.withStubs(caption, parts), parts));
+        }
         String text = switch (trigger.name()) {
             case TRIGGER_MESSAGE, TRIGGER_COMMAND -> asString(data.get("text"));
             case TRIGGER_CALLBACK -> "[Нажата кнопка] " + asString(data.get("data"));
@@ -94,6 +101,31 @@ public class TelegramChannelHandler implements ChannelHandler {
             default -> "[Получено сообщение неподдерживаемого типа: " + trigger.name() + "]";
         };
         return Optional.of(InboundMessage.text(text));
+    }
+
+    /** Вложения из {@code data.parts} ({@code [{type,fileId,mime,size,name}]}), материализованные на ingest'е. */
+    @SuppressWarnings("unchecked")
+    private static List<Part> parts(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<Part> parts = new ArrayList<>(list.size());
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Map<String, Object> m = (Map<String, Object>) map;
+            Object fileId = m.get("fileId");
+            if (fileId == null || fileId.toString().isBlank()) {
+                continue;
+            }
+            String mime = m.get("mime") != null ? m.get("mime").toString() : null;
+            String type = m.get("type") != null ? m.get("type").toString() : Part.typeForMime(mime);
+            long size = m.get("size") instanceof Number n ? n.longValue() : 0L;
+            Map<String, Object> meta = m.get("name") != null ? Map.of("name", m.get("name")) : Map.of();
+            parts.add(new Part(type, fileId.toString(), mime, size, meta));
+        }
+        return parts;
     }
 
     @Override

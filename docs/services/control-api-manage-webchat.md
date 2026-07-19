@@ -9,10 +9,12 @@ user JWT (audience `manage`). Архитектура коннектора: `docs
 
 1. `POST /manage/webchat/sessions` `{agentId}` — новая сессия (binding/канал материализуются лениво).
 2. `POST /manage/webchat/sessions/{id}/token` — Centrifugo-токены; подписка на `webchat:{sessionId}`.
-3. `POST /manage/webchat/sessions/{id}/messages` `{text}` — отправка; в канал прилетают события
-   `webchat_message`: echo (`direction=USER`), прогресс (`direction=AGENT, stream=progress`) и ответ
+3. (опц.) `POST /manage/webchat/files` — загрузить вложения, получить `fileId` каждого.
+4. `POST /manage/webchat/sessions/{id}/messages` `{text?, parts?}` — отправка (текст и/или
+   `parts: [{fileId}]`, хотя бы одно непустое); в канал прилетают события `webchat_message`: echo
+   (`direction=USER`, со своими `parts`), прогресс (`direction=AGENT, stream=progress`) и ответ
    (`stream=answer`). Дедупликация — по `messageId` (события at-least-once).
-4. При открытии существующей сессии история — `GET /manage/webchat/sessions/{id}/messages/`.
+5. При открытии существующей сессии история — `GET /manage/webchat/sessions/{id}/messages/`.
 
 Сообщение в сессию с активным run'ом обрабатывается штатной steering-политикой воркера
 (`queue`/`steer`/`interrupt`).
@@ -23,10 +25,22 @@ user JWT (audience `manage`). Архитектура коннектора: `docs
 |---|---|---|
 | POST | `/manage/webchat/sessions` | Новая сессия: `{agentId}` → `WebchatSessionResponse` |
 | GET | `/manage/webchat/sessions/` | Список сессий (`?agentId=` опционально), свежие сверху |
-| POST | `/manage/webchat/sessions/{id}/messages` | Отправить сообщение: `{text, parts?}` → `{sessionId, messageId}`; закрытая сессия/непустой `parts` → 400 |
+| POST | `/manage/webchat/files` | Загрузить файл (multipart `file`) → `WebchatFileResponse`; rate-limit 429 |
+| POST | `/manage/webchat/sessions/{id}/messages` | Отправить сообщение: `{text?, parts?}` → `{sessionId, messageId}`; закрытая сессия / пустое сообщение / невалидный `parts` → 400 |
 | GET | `/manage/webchat/sessions/{id}/messages/` | История UI-лога (`page`, `size`; новые сначала) |
 | DELETE | `/manage/webchat/sessions/{id}` | Закрыть сессию (`closedAt`; история остаётся читаемой) |
 | POST | `/manage/webchat/sessions/{id}/token` | Centrifugo connection+subscription токены на `webchat:{sessionId}` |
+
+### Загрузка файла (`WebchatFileResponse`)
+
+`POST /manage/webchat/files` — multipart-часть `file`; лимит размера/суточная квота — общие для
+файлового слоя (`app.files.*`), rate-limit — bucket `FILE_UPLOAD` (429 при превышении).
+
+```json
+{ "fileId": "agf_…", "mime": "image/png", "size": 384211, "expiresAt": "..." }
+```
+
+`fileId` кладётся во вложения сообщения: `parts: [{ "fileId": "agf_…" }]` при отправке.
 
 ### `WebchatSessionResponse`
 
@@ -45,7 +59,10 @@ user JWT (audience `manage`). Архитектура коннектора: `docs
   "createdAt": "..." }
 ```
 
-`parts` в запросе зарезервирован под вложения от пользователя — сейчас должен быть пуст.
+В **запросе** отправки `parts` — вложения пользователя: `[{ "fileId": "agf_…" }]` (файлы из
+`POST /manage/webchat/files`). В **ответе**/истории `parts` — полное описание (URL — подписанная
+ссылка на содержимое, как у вложений агента). Текст опционален при непустых `parts`; пустое
+сообщение (ни текста, ни вложений) → 400.
 
 ### Вложения ответа агента (`parts`)
 

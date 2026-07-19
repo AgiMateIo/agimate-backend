@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.AgentContextGrpc;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.ExecuteToolRequest;
+import ru.agimate.agentworker.FileChunk;
+import ru.agimate.agentworker.GetFileRequest;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetRunContextRequest;
 import ru.agimate.agentworker.RunContext;
@@ -30,6 +32,8 @@ import ru.agimate.agentworker.WorkerControlGrpc;
 import ru.agimate.agentworker.WorkerMessageType;
 import ru.agimate.agentworker.config.AgentProperties;
 
+import java.io.ByteArrayOutputStream;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -133,6 +137,35 @@ public class AgentWorkerClient {
     public LlmCredentials getLlmCredentials(String agentId) {
         return call("GetLlmCredentials", () -> ctx().getLlmCredentials(GetLlmCredentialsRequest.newBuilder()
                 .setWorkflowId(workflowId()).setAgentId(agentId).build()));
+    }
+
+    /** Дедлайн стрима содержимого файла — больше unary-таймаута: файл может быть крупным. */
+    private static final long FILE_STREAM_DEADLINE_MS = 60_000;
+    /** Потолок собираемого в память файла — защита от бесконечного/раздутого стрима. */
+    private static final int FILE_MAX_BYTES = 32 * 1024 * 1024;
+
+    /**
+     * Содержимое inbound-вложения (server-streaming чанки) в {@code byte[]}. Тянется inline при
+     * LLM-вызове — как {@link #getLlmCredentials}, вне DBOS-чекпоинта. Слишком большой стрим
+     * обрывается {@code OUT_OF_RANGE}.
+     */
+    public byte[] getFile(String fileId, String agentId) {
+        return call("GetFile", () -> {
+            Iterator<FileChunk> chunks = agentContext
+                    .withDeadlineAfter(FILE_STREAM_DEADLINE_MS, TimeUnit.MILLISECONDS)
+                    .getFile(GetFileRequest.newBuilder().setFileId(fileId).setAgentId(agentId).build());
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            while (chunks.hasNext()) {
+                byte[] data = chunks.next().getData().toByteArray();
+                if ((long) out.size() + data.length > FILE_MAX_BYTES) {
+                    throw Status.OUT_OF_RANGE
+                            .withDescription("file exceeds " + FILE_MAX_BYTES + " bytes")
+                            .asRuntimeException();
+                }
+                out.writeBytes(data);
+            }
+            return out.toByteArray();
+        });
     }
 
     /** Учёт расхода токенов; идемпотентен по callId (бэк дедуплицирует повторы/реплеи). */

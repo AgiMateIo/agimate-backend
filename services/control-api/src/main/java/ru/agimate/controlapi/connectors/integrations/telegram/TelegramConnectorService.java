@@ -6,12 +6,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
+import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import tools.jackson.databind.ObjectMapper;
 
@@ -20,6 +23,7 @@ import java.security.MessageDigest;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Фасад Telegram-коннектора: credentials/webhooks/триггеры. Тулы и таски живут в
@@ -37,15 +41,24 @@ public class TelegramConnectorService extends BaseConnectorHandler
 
     private final TelegramApiClient telegramApiClient;
     private final ObjectMapper objectMapper;
+    private final TelegramMediaService mediaService;
+    private final ConnectorEnvFactory envFactory;
+    private final ConnectionRepository connectionRepository;
     private final String mode;
 
     public TelegramConnectorService(TelegramToolService toolService,
                                     TelegramApiClient telegramApiClient,
                                     ObjectMapper objectMapper,
+                                    TelegramMediaService mediaService,
+                                    ConnectorEnvFactory envFactory,
+                                    ConnectionRepository connectionRepository,
                                     @Value("${app.integration.telegram.mode:webhook}") String mode) {
         super(toolService);
         this.telegramApiClient = telegramApiClient;
         this.objectMapper = objectMapper;
+        this.mediaService = mediaService;
+        this.envFactory = envFactory;
+        this.connectionRepository = connectionRepository;
         this.mode = mode;
     }
 
@@ -136,7 +149,30 @@ public class TelegramConnectorService extends BaseConnectorHandler
     @SuppressWarnings("unchecked")
     public Trigger normalizeInbound(ConnectorEnv env, String rawBody) {
         Map<String, Object> update = objectMapper.readValue(rawBody, Map.class);
-        return TelegramUtils.normalizeUpdate(update, env.connectionId());
+        Trigger trigger = TelegramUtils.normalizeUpdate(update, env.connectionId());
+        if (!mediaService.hasMedia(trigger)) {
+            return trigger;
+        }
+        // Webhook hot path не расшифровывает credentials — токен для скачивания достаём лениво,
+        // только когда во входящем есть медиа.
+        String token = webhookToken(env);
+        return mediaService.materialize(token, env.userId(), env.connectionId(), trigger);
+    }
+
+    /** Токен бота для скачивания медиа на webhook-пути; {@code null} → materialize деградирует. */
+    private String webhookToken(ConnectorEnv env) {
+        try {
+            Connection connection = connectionRepository.findByIdNotDeleted(UUID.fromString(env.connectionId()))
+                    .orElse(null);
+            if (connection == null) {
+                return null;
+            }
+            return envFactory.forConnection(connection, null, null).credentials().get("token");
+        } catch (Exception e) {
+            log.warn("Failed to resolve Telegram token for media on connection {}: {}",
+                    env.connectionId(), e.getClass().getSimpleName());
+            return null;
+        }
     }
 
     @Override

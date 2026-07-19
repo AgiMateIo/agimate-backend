@@ -135,6 +135,22 @@ class TelegramChannelHandlerTest {
                             Map.of("chatId", 42, "document", Map.of("file_name", "report.pdf")))).orElseThrow().text();
             assertEquals("[Пользователь отправил документ: report.pdf]", text);
         }
+
+        @Test
+        @DisplayName("материализованное photo (data.parts) → InboundMessage.parts + стаб с caption")
+        void photoWithMaterializedParts() {
+            var inbound = handler.handleInput(config, trigger("photo_received", Map.of(
+                    "chatId", 42,
+                    "caption", "смотри",
+                    "parts", java.util.List.of(Map.of(
+                            "type", "image", "fileId", "agf_1", "mime", "image/jpeg", "size", 8000)))))
+                    .orElseThrow();
+            assertEquals(1, inbound.parts().size());
+            assertEquals("agf_1", inbound.parts().get(0).storageRef());
+            assertEquals("image", inbound.parts().get(0).type());
+            assertTrue(inbound.text().startsWith("смотри"));
+            assertTrue(inbound.text().contains("agf_1"));
+        }
     }
 
     @Nested

@@ -22,8 +22,9 @@ multipart в Telegram). Агент — курьер ссылок: получае
 - **канальный ответ** (`OutboundMessage.parts`, см. «Вложения в ответе» ниже): файл — часть
   ответа пользователю; адресацию и транспорт выбирает channel handler, агент не знает ни
   chatId, ни имени тула.
-
-`InboundMessage.parts` (юзер прислал фото боту) остаётся зарезервированным — отдельная фаза.
+- **входящее вложение** (`InboundMessage.parts`, см. «Входящие вложения» ниже): юзер прислал
+  файл/фото; control-api материализует его в файловый слой на ingest'е, а воркер подтягивает
+  байты изображения при LLM-вызове («зрение»).
 
 ## Хранилище
 
@@ -114,12 +115,40 @@ multipart в Telegram). Агент — курьер ссылок: получае
 - Структурные parts в протоколе воркера (v2.x) — отложенная фаза: конвенция маркеров
   конвертируема в неё без изменения этого слоя.
 
+## Входящие вложения (зрение)
+
+Пользователь присылает файл/фото → агент «видит» изображение. Тракт (webchat + Telegram):
+
+- **Ingest → материализация**. Файл кладётся в файловый слой ОДИН раз на ingest-границе:
+  - **webchat**: `POST /manage/webchat/files` (multipart, JWT, rate-limit `FILE_UPLOAD`) → `fileId`;
+    фронт передаёт его в `parts: [{"fileId": "agf_…"}]` при отправке сообщения. `WebchatService`
+    валидирует каждый (`findReadable`: свой + READY + не протух, ≤ 5) и кладёт `parts` в data триггера.
+  - **Telegram**: `TelegramMediaService` на webhook/long-poll качает крупнейший `PhotoSize`
+    (или документ) через Bot API `getFile`+download, сохраняет в файловый слой и заменяет сырой
+    `photo`/`document` в data триггера на `parts`. Сбой скачивания → деградация к прежней
+    текст-заглушке, триггер не теряется. Токен в логи/исключения не попадает.
+- **Канонизация**. `ChannelHandler.handleInput` маппит `data.parts` → `InboundMessage.parts` и строит
+  текст с заглушкой-стабом на каждое вложение (`[приложено изображение: agf_…, image/png, 375 KB]`) —
+  это и плейсхолдер в истории (протокол текстовый), и подсказка агенту. `InboundTextResolver`
+  возвращает полное `InboundMessage`; `RunContextService` кладёт ссылки в `RunContextView.inboundParts`.
+- **Протокол v2**. `RunContext.inbound_parts` (`repeated FilePart` — только `agf_`-ссылки, без байтов;
+  безопасно для DBOS-чекпоинта `prepare_context`). Новый RPC `AgentContext.GetFile` (server-streaming
+  чанки 128 KB) отдаёт содержимое воркеру с ownership-гейтом `file.user_id == agent.user_id`.
+- **Воркер → LLM**. `inbound_parts` доезжают до `AgentChatMessage.parts` (только ссылки). Байты
+  image-вложений воркер тянет `GetFile`'ом **inline при llm_call** — как `api_key`, вне чекпоинта —
+  и подаёт в модель через Spring AI `Media` (`LlmMessageMapper`). Недоступный файл (NOT_FOUND/сбой) →
+  без Media, текст со стабом (деградация, ран не падает). Не-image (pdf/zip…) в модель не подаётся —
+  только стаб; агент может переслать его attach-конвенцией.
+- **История — плейсхолдеры**: картинка видна только в ране, куда пришла; в истории следующих ранов —
+  текст-стаб. Реприкрепление изображений из истории — возможная следующая фаза.
+
 ## Порядок работ
 
 1. `files` + `FileStorageService` + TTL/квоты/чистка;
 2. app upload/download endpoints; скриншот-тул возвращает `{"file": …}`;
-3. `FileRef` в reflector/handler; multipart + `send_document`/`send_video` в Telegram.
+3. `FileRef` в reflector/handler; multipart + `send_document`/`send_video` в Telegram;
+4. входящие вложения: `RunContext.inbound_parts` + `GetFile`, webchat-upload, Telegram-download,
+   `Media` в воркере (см. «Входящие вложения»).
 
-Вне скоупа документа (следующие фазы): коннекторы-генераторы изображений/видео, «зрение» агента
-(инжект картинки в LLM-контекст — единственное место, где потребуется расширение протокола
-воркера), входящие медиа каналов через `InboundMessage.parts`.
+Вне скоупа документа (следующие фазы): коннекторы-генераторы изображений/видео, реприкрепление
+изображений из истории, транскрибация аудио, входящие вложения в ACP-канале.

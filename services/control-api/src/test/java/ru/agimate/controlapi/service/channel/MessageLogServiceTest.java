@@ -101,7 +101,7 @@ class MessageLogServiceTest {
         @DisplayName("INBOUND: каноника из канала, trigger_input из trigger_log, доставки нет")
         void inboundAck() {
             run(SESSION_ID, dialogueChannels());
-            when(inboundTextResolver.resolve(eq(PROMPT_CHANNEL), any())).thenReturn(Optional.of("hi"));
+            when(inboundTextResolver.resolveText(eq(PROMPT_CHANNEL), any())).thenReturn(Optional.of("hi"));
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
                     anyString(), isNull(), anyString(), isNull(), anyString())).thenReturn(1);
 
@@ -274,7 +274,7 @@ class MessageLogServiceTest {
         @DisplayName("INBOUND → RUNNING (+ last_activity_at), ANSWER → DONE, ERROR → FAILED")
         void transitions() {
             TriggerLogAgent run = run(SESSION_ID, dialogueChannels());
-            when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of("hi"));
+            when(inboundTextResolver.resolveText(any(), any())).thenReturn(Optional.of("hi"));
 
             service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "", null);
             assertEquals(RunStatus.RUNNING, run.getStatus());
@@ -293,7 +293,7 @@ class MessageLogServiceTest {
             assertEquals(RunStatus.FAILED, run.getStatus());
 
             // Реплей INBOUND после финиша не воскрешает ран.
-            when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of("hi"));
+            when(inboundTextResolver.resolveText(any(), any())).thenReturn(Optional.of("hi"));
             service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "", null);
             assertEquals(RunStatus.FAILED, run.getStatus());
         }

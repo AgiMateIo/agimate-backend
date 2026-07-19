@@ -7,6 +7,8 @@ import io.grpc.stub.StreamObserver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import ru.agimate.agentworker.FileChunk;
+import ru.agimate.agentworker.GetFileRequest;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetRunContextRequest;
 import ru.agimate.agentworker.LlmCredentials;
@@ -30,6 +32,7 @@ import ru.agimate.controlapi.service.LlmUsageService;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
 import ru.agimate.controlapi.service.llm.LlmQuotaService;
 import ru.agimate.controlapi.service.llm.QuotaExceededException;
+import ru.agimate.controlapi.service.runcontext.InboundPart;
 import ru.agimate.controlapi.service.runcontext.RunBlock;
 import ru.agimate.controlapi.service.runcontext.RunContextService;
 import ru.agimate.controlapi.service.runcontext.RunContextView;
@@ -67,6 +70,8 @@ class AgentContextGrpcServiceTest {
     private final AgentRepository agentRepository = mock(AgentRepository.class);
     private final LlmUsageService llmUsageService = mock(LlmUsageService.class);
     private final LlmQuotaService llmQuotaService = mock(LlmQuotaService.class);
+    private final ru.agimate.controlapi.storage.FileStorageService fileStorageService =
+            mock(ru.agimate.controlapi.storage.FileStorageService.class);
     private final AgentContextGrpcService service = new AgentContextGrpcService(
             runContextService,
             mock(ru.agimate.controlapi.service.trigger.RunActivityService.class),
@@ -75,7 +80,8 @@ class AgentContextGrpcServiceTest {
             llmProviderService,
             agentRepository,
             llmUsageService,
-            llmQuotaService);
+            llmQuotaService,
+            fileStorageService);
 
     @Test
     @DisplayName("все четыре коллекции view доезжают до ответа: блоки, тулы и история")
@@ -90,7 +96,8 @@ class AgentContextGrpcServiceTest {
                         new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "привет"),
                         new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks"),
                         new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "готово"),
-                        new RunHistoryMessage(ChannelSessionMessageKind.ERROR, "упс")));
+                        new RunHistoryMessage(ChannelSessionMessageKind.ERROR, "упс")),
+                List.of(new InboundPart("agf_img", "image", "image/png", 4096, "shot.png")));
         when(runContextService.build(any(), any())).thenReturn(view);
 
         RunContext response = callGetRunContext();
@@ -114,13 +121,20 @@ class AgentContextGrpcServiceTest {
         assertEquals(MessageKind.MESSAGE_KIND_PROGRESS, response.getHistory(1).getKind());
         assertEquals(MessageKind.MESSAGE_KIND_ANSWER, response.getHistory(2).getKind());
         assertEquals(MessageKind.MESSAGE_KIND_ERROR, response.getHistory(3).getKind());
+
+        assertEquals(1, response.getInboundPartsCount());
+        assertEquals("agf_img", response.getInboundParts(0).getFileId());
+        assertEquals("image", response.getInboundParts(0).getType());
+        assertEquals("image/png", response.getInboundParts(0).getMime());
+        assertEquals(4096, response.getInboundParts(0).getSize());
+        assertEquals("shot.png", response.getInboundParts(0).getName());
     }
 
     @Test
     @DisplayName("пустая история → пустой repeated, без ошибок")
     void emptyHistory() throws Exception {
         when(runContextService.build(any(), any())).thenReturn(
-                new RunContextView(List.of(), List.of(), List.of(), List.of()));
+                new RunContextView(List.of(), List.of(), List.of(), List.of(), List.of()));
 
         assertEquals(0, callGetRunContext().getHistoryCount());
     }
@@ -371,6 +385,101 @@ class AgentContextGrpcServiceTest {
             }
             assertNull(error.get(), () -> "ReportLlmUsage failed: " + error.get());
             return response.get();
+        }
+    }
+
+    @Nested
+    @DisplayName("getFile — стрим содержимого вложения")
+    class GetFile {
+
+        private final UUID agentId = UUID.randomUUID();
+        private final UUID userId = UUID.randomUUID();
+
+        private void stubAgent() {
+            Agent agent = new Agent();
+            agent.setId(agentId);
+            agent.setUserId(userId);
+            when(agentRepository.findById(agentId)).thenReturn(Optional.of(agent));
+        }
+
+        @Test
+        @DisplayName("отдаёт байты чанками; первый чанк несёт mime и total_size")
+        void streamsChunks() throws Exception {
+            stubAgent();
+            byte[] content = new byte[200_000]; // > 128 KB чанка → минимум два чанка
+            for (int i = 0; i < content.length; i++) {
+                content[i] = (byte) (i % 7);
+            }
+            ru.agimate.controlapi.database.entities.StoredFile file =
+                    ru.agimate.controlapi.database.entities.StoredFile.builder()
+                            .id(UUID.randomUUID()).userId(userId).mime("image/png")
+                            .sizeBytes((long) content.length).build();
+            when(fileStorageService.open(userId, "agf_x")).thenReturn(
+                    new ru.agimate.controlapi.storage.FileStorageService.FileContent(
+                            file, new java.io.ByteArrayInputStream(content)));
+
+            List<FileChunk> chunks = callGetFile("agf_x");
+
+            assertTrue(chunks.size() >= 2, "ожидали несколько чанков");
+            assertEquals("image/png", chunks.get(0).getMime());
+            assertEquals(content.length, chunks.get(0).getTotalSize());
+            java.io.ByteArrayOutputStream all = new java.io.ByteArrayOutputStream();
+            chunks.forEach(c -> all.writeBytes(c.getData().toByteArray()));
+            assertEquals(content.length, all.size());
+        }
+
+        @Test
+        @DisplayName("недоступный файл (чужой/протух) → NOT_FOUND")
+        void notFound() {
+            stubAgent();
+            when(fileStorageService.open(userId, "agf_x"))
+                    .thenThrow(new ru.agimate.controlapi.storage.StoredFileNotFoundException("agf_x"));
+
+            StatusRuntimeException error = assertThrows(StatusRuntimeException.class,
+                    () -> callGetFile("agf_x"));
+            assertEquals(Status.Code.NOT_FOUND, error.getStatus().getCode());
+        }
+
+        @Test
+        @DisplayName("пустой file_id → INVALID_ARGUMENT")
+        void blankFileId() {
+            stubAgent();
+            StatusRuntimeException error = assertThrows(StatusRuntimeException.class,
+                    () -> callGetFile(""));
+            assertEquals(Status.Code.INVALID_ARGUMENT, error.getStatus().getCode());
+        }
+
+        private List<FileChunk> callGetFile(String fileId) throws Exception {
+            GetFileRequest request = GetFileRequest.newBuilder()
+                    .setAgentId(agentId.toString()).setFileId(fileId).build();
+            List<FileChunk> chunks = new java.util.ArrayList<>();
+            AtomicReference<Throwable> error = new AtomicReference<>();
+            StreamObserver<FileChunk> observer = new StreamObserver<>() {
+                @Override
+                public void onNext(FileChunk value) {
+                    chunks.add(value);
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    error.set(t);
+                }
+
+                @Override
+                public void onCompleted() {
+                }
+            };
+            Context ctx = Context.current().withValue(
+                    WorkerPoolContextHolder.CONTEXT_KEY, new WorkerPoolContext("pool-1", "worker-1"));
+            ctx.call(() -> {
+                service.getFile(request, observer);
+                return null;
+            });
+            if (error.get() instanceof StatusRuntimeException sre) {
+                throw sre;
+            }
+            assertNull(error.get(), () -> "GetFile failed: " + error.get());
+            return chunks;
         }
     }
 

@@ -92,7 +92,7 @@ public class AgentRunCore {
             }
         };
 
-        AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt());
+        AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
         AgentChatMessage modelRequest = withEphemeralSuffix(initialRequest, prepared.ephemeralUserSuffix());
 
         LlmCallDispatcher llmDispatcher = new LlmCallDispatcher(dbos, llm, llmQueue, agentId);
@@ -112,7 +112,8 @@ public class AgentRunCore {
             return initialRequest;
         }
         String base = initialRequest.text() != null ? initialRequest.text() : "";
-        return AgentChatMessage.user(base + "\n\n" + suffix);
+        // Вложения переносим на суффиксированный ход — иначе «зрение» терялось бы при memory-notes.
+        return AgentChatMessage.user(base + "\n\n" + suffix, initialRequest.parts());
     }
 
     /**

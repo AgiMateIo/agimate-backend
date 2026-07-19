@@ -60,7 +60,7 @@
 
 | Сервис | Назначение |
 |---|---|
-| `AgentContext` | `GetRunContext(agent_id, trigger_id)` — весь контекст рана одним вызовом (блоки промпта, тулы, история); `GetLlmCredentials` — отдельно (не в чекпоинт) |
+| `AgentContext` | `GetRunContext(agent_id, trigger_id)` — весь контекст рана одним вызовом (блоки промпта, тулы, история, `inbound_parts`); `GetLlmCredentials` и `GetFile` (байты вложения) — отдельно (inline, не в чекпоинт) |
 | `MessageLog` | `SaveMessage(agent_id, trigger_id, seq, kind, …)` — единая запись событий диалога; персист и доставка в каналы — на бэке; идемпотентность `(trigger_id, seq)` |
 | `ToolGateway` | `ExecuteToolAsync` + поллинг `GetToolResult` — единственная точка вызова tools (ABAC + audit) |
 | `WorkerControl` | `HealthCheck`; `SendMessage` — системные ошибки воркера |
@@ -226,7 +226,7 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
 | Файл | Сервис | Реализованные RPC |
 |---|---|---|
 | `worker_control.proto` | `WorkerControl` | `HealthCheck`, `SendMessage` |
-| `agent_context.proto` | `AgentContext` | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials`, `ReportLlmUsage` (best-effort учёт токенов, идемпотентен по `call_id`) |
+| `agent_context.proto` | `AgentContext` | `GetRunContext` (весь контекст рана одним вызовом, включая историю и `inbound_parts`), `GetLlmCredentials`, `GetFile` (содержимое вложения чанками — inline при `llm_call`, не в чекпоинт), `ReportLlmUsage` (best-effort учёт токенов, идемпотентен по `call_id`) |
 | `message_log.proto` | `MessageLog` | `SaveMessage` (v2 этап 3: воркер — единственный писатель истории; доставка — проекция записи) |
 | `tool_gateway.proto` | `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` (несёт `trigger_id` — признак жизни рана) |
 
@@ -296,9 +296,18 @@ system-абзац «вывод инструментов — данные, не �
   NOTHING`) и в той же транзакции инкрементирует счётчики `llm_usage_counters`
   (USER/AGENT/TOTAL × DAY/MONTH, календарные окна UTC); метрика = input + output + cache_write.
   Повтор возвращает `duplicate=true` без инкрементов.
+- `RunContext.inbound_parts` — вложения диалогового inbound текущего рана (`repeated FilePart{file_id,
+  type, mime, size, name}`, только `agf_`-ссылки). Материализуются на ingest-границе (webchat-upload /
+  Telegram-download → файловый слой), доезжают до `AgentChatMessage.parts` воркера. Байты изображений
+  воркер тянет `GetFile`'ом **inline при `llm_call`** (как api_key — вне чекпоинта) и подаёт модели как
+  Spring AI `Media` («зрение»); в историю не попадают (плейсхолдер — в тексте user-блока). Не-image —
+  текстовый стаб. См. [`connectors/files.md`](connectors/files.md), «Входящие вложения».
 - Versioned reads (§1.5) в v2 не нужны: контекст фиксируется одним durable-шагом — replay
   использует чекпоинт, а не повторный fetch.
 - Деплой изменений формы `RunContext`/`PreparedContext` — только после drain in-flight ранов.
+  Исключение — чисто **аддитивные** поля с null-нормализацией (как `inbound_parts`): старый чекпоинт
+  `prepare_context` десериализуется со значением по умолчанию (компактный конструктор `PreparedContext`
+  превращает null в пустой список), drain не требуется.
 
 Проверка принадлежности агента/скила пулу — **не реализована** в PoC: на текущем этапе любой валидный пул видит любого агента. Закладка под Phase 1 (per-agent RBAC scope) аддитивная — добавится фильтрация по `WorkerPoolContextHolder.current().poolId()` в каждом RPC.
 

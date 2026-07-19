@@ -18,7 +18,9 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
+import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
@@ -42,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -77,6 +80,10 @@ class WebchatServiceTest {
     private CentrifugoService centrifugoService;
     @Mock
     private SignedFileUrlService signedFileUrlService;
+    @Mock
+    private ru.agimate.controlapi.storage.FileStorageService fileStorageService;
+    @Mock
+    private ru.agimate.controlapi.service.ratelimit.InboundRateLimiter rateLimiter;
 
     private WebchatService webchatService;
 
@@ -89,7 +96,7 @@ class WebchatServiceTest {
         webchatService = new WebchatService(agentRepository, channelRepository, channelService,
                 channelSessionService, connectionBindingService, triggerRouterService,
                 webchatMessagePublisher, webchatMessageRepository, centrifugoService,
-                signedFileUrlService);
+                signedFileUrlService, fileStorageService, rateLimiter);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).name("Assistant").build();
         channel = Channel.builder()
                 .id(CHANNEL_ID)
@@ -167,7 +174,7 @@ class WebchatServiceTest {
                     new WebchatSendMessageRequest("привет", null));
 
             verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
-                    WebchatMessageDirection.USER, null, response.messageId(), "привет", null);
+                    WebchatMessageDirection.USER, null, response.messageId(), "привет", List.of());
             verify(channelSessionService).setTitleIfEmpty(session, "привет");
 
             ArgumentCaptor<Trigger> captor = ArgumentCaptor.forClass(Trigger.class);
@@ -196,13 +203,65 @@ class WebchatServiceTest {
         }
 
         @Test
-        @DisplayName("непустые parts — 400 (вложения пока не поддержаны)")
-        void partsRejected() {
+        @DisplayName("part без fileId — 400, ничего не отправляется")
+        void partMissingFileId() {
             stubOwnedSession();
 
             assertThrows(BadRequestStatusException.class, () -> webchatService.send(USER_ID, SESSION_ID,
                     new WebchatSendMessageRequest("привет", List.of(Map.of("type", "image")))));
             verifyNoInteractions(triggerRouterService, webchatMessagePublisher);
+        }
+
+        @Test
+        @DisplayName("part с чужим/протухшим fileId — 400")
+        void partNotReadable() {
+            stubOwnedSession();
+            when(fileStorageService.findReadable(USER_ID, "agf_x")).thenReturn(Optional.empty());
+
+            assertThrows(BadRequestStatusException.class, () -> webchatService.send(USER_ID, SESSION_ID,
+                    new WebchatSendMessageRequest("привет", List.of(Map.of("fileId", "agf_x")))));
+            verifyNoInteractions(triggerRouterService, webchatMessagePublisher);
+        }
+
+        @Test
+        @DisplayName("ни текста, ни вложений — 400")
+        void emptyMessageRejected() {
+            stubOwnedSession();
+
+            assertThrows(BadRequestStatusException.class, () -> webchatService.send(USER_ID, SESSION_ID,
+                    new WebchatSendMessageRequest("  ", null)));
+            verifyNoInteractions(triggerRouterService, webchatMessagePublisher);
+        }
+
+        @Test
+        @DisplayName("валидный fileId → part в data триггера и в echo, type выведен из mime")
+        void sendsWithParts() {
+            stubOwnedSession();
+            StoredFile file = StoredFile.builder()
+                    .id(UUID.randomUUID()).userId(USER_ID).mime("image/png").sizeBytes(4096L).build();
+            when(fileStorageService.findReadable(USER_ID, "agf_x")).thenReturn(Optional.of(file));
+
+            WebchatSendResponse response = webchatService.send(USER_ID, SESSION_ID,
+                    new WebchatSendMessageRequest(null, List.of(Map.of("fileId", "agf_x"))));
+
+            ArgumentCaptor<List<Part>> partsCaptor = ArgumentCaptor.forClass(List.class);
+            verify(webchatMessagePublisher).record(eq(USER_ID), eq(AGENT_ID), eq(CHANNEL_ID), eq(SESSION_ID),
+                    eq(WebchatMessageDirection.USER), isNull(), eq(response.messageId()), isNull(),
+                    partsCaptor.capture());
+            List<Part> echoed = partsCaptor.getValue();
+            assertEquals(1, echoed.size());
+            assertEquals("image", echoed.get(0).type());
+            assertEquals("image/png", echoed.get(0).mime());
+            assertEquals("agf_x", echoed.get(0).storageRef());
+            assertEquals(4096L, echoed.get(0).size());
+
+            ArgumentCaptor<Trigger> captor = ArgumentCaptor.forClass(Trigger.class);
+            verify(triggerRouterService).routeTrigger(eq(USER_ID), captor.capture());
+            List<?> dataParts = (List<?>) captor.getValue().data().get("parts");
+            assertEquals(1, dataParts.size());
+            Map<?, ?> part = (Map<?, ?>) dataParts.get(0);
+            assertEquals("image", part.get("type"));
+            assertEquals("agf_x", part.get("fileId"));
         }
 
         @Test

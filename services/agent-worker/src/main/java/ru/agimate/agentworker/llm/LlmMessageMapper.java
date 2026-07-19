@@ -6,15 +6,21 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.content.Media;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.DefaultToolDefinition;
 import org.springframework.ai.tool.definition.ToolDefinition;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.MimeType;
+import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.FilePartRef;
 import ru.agimate.agentworker.agent.model.ToolDef;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Maps between the worker's {@link AgentChatMessage} model and Spring AI's message/tool types.
@@ -22,15 +28,25 @@ import java.util.List;
  * the worker drives tool execution itself (no advisor), so Spring AI only forwards the tool
  * definitions to the model and returns any tool calls for us to dispatch.
  */
+@Slf4j
 @Component
 public class LlmMessageMapper {
 
     public List<Message> toSpringMessages(List<AgentChatMessage> messages) {
+        return toSpringMessages(messages, Map.of());
+    }
+
+    /**
+     * Как {@link #toSpringMessages(List)}, но у user-сообщений с image-вложениями подмешивает
+     * {@link Media} из {@code mediaBytes} (fileId → байты, подтянутые GetFile'ом при LLM-вызове).
+     * Нет байтов для ссылки (недоступна/не image) → вложение опускается: текст уже несёт стаб.
+     */
+    public List<Message> toSpringMessages(List<AgentChatMessage> messages, Map<String, byte[]> mediaBytes) {
         List<Message> out = new ArrayList<>(messages.size());
         for (AgentChatMessage m : messages) {
             switch (m.role()) {
                 case SYSTEM -> out.add(new SystemMessage(nullToEmpty(m.text())));
-                case USER -> out.add(new UserMessage(nullToEmpty(m.text())));
+                case USER -> out.add(userMessage(m, mediaBytes));
                 case ASSISTANT -> out.add(AssistantMessage.builder()
                         .content(nullToEmpty(m.text()))
                         .toolCalls(m.toolCalls().stream()
@@ -45,6 +61,34 @@ public class LlmMessageMapper {
             }
         }
         return out;
+    }
+
+    private static Message userMessage(AgentChatMessage m, Map<String, byte[]> mediaBytes) {
+        List<Media> media = new ArrayList<>();
+        for (FilePartRef part : m.parts()) {
+            byte[] bytes = mediaBytes.get(part.fileId());
+            if (!part.isImage() || bytes == null) {
+                continue;
+            }
+            MimeType mimeType = safeMimeType(part.mime());
+            if (mimeType == null) {
+                log.warn("skipping inbound image {} — unparseable mime '{}'", part.fileId(), part.mime());
+                continue;
+            }
+            media.add(Media.builder().mimeType(mimeType).data(new ByteArrayResource(bytes)).build());
+        }
+        if (media.isEmpty()) {
+            return new UserMessage(nullToEmpty(m.text()));
+        }
+        return UserMessage.builder().text(nullToEmpty(m.text())).media(media).build();
+    }
+
+    private static MimeType safeMimeType(String mime) {
+        try {
+            return mime == null || mime.isBlank() ? null : MimeType.valueOf(mime);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** Metadata key Spring AI's OpenAI module stores the provider's reasoning content under. */

@@ -45,6 +45,8 @@ import ru.agimate.controlapi.service.channel.InboundTextResolver;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
+import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -191,15 +193,23 @@ public class RunContextService {
             systemBlocks.add(RunBlock.trusted("attachment_guidance", "guidance", ATTACHMENT_GUIDANCE, Map.of()));
         }
 
-        // Основной промпт рана — последним user-блоком.
-        userBlocks.add(spec == ContextSpec.DIALOGUE
-                ? dialoguePromptBlock(channels, trigger)
-                : eventBlock(trigger));
+        // Основной промпт рана — последним user-блоком; вложения inbound — отдельно (мультимодальность),
+        // резолвим сообщение один раз: text → блок, parts → RunContextView.
+        List<InboundPart> inboundParts = List.of();
+        if (spec == ContextSpec.DIALOGUE) {
+            Optional<InboundMessage> inbound = inboundTextResolver.resolve(channels.prompt().channelId(), trigger);
+            userBlocks.add(dialoguePromptBlock(inbound, trigger));
+            inboundParts = inboundParts(inbound);
+        } else {
+            userBlocks.add(eventBlock(trigger));
+        }
 
         List<RunHistoryMessage> history = history(run.getSessionId(), spec.historyDetail());
-        log.debug("run context agent={} trigger={} spec={} blocks={}/{} tools={} history={}",
-                agentId, triggerId, spec, systemBlocks.size(), userBlocks.size(), tools.size(), history.size());
-        return new RunContextView(List.copyOf(systemBlocks), List.copyOf(userBlocks), tools, history);
+        log.debug("run context agent={} trigger={} spec={} blocks={}/{} tools={} history={} parts={}",
+                agentId, triggerId, spec, systemBlocks.size(), userBlocks.size(), tools.size(),
+                history.size(), inboundParts.size());
+        return new RunContextView(List.copyOf(systemBlocks), List.copyOf(userBlocks), tools, history,
+                inboundParts);
     }
 
     // ===== История =====
@@ -483,14 +493,28 @@ public class RunContextService {
                 .orElse(false);
     }
 
-    private RunBlock dialoguePromptBlock(Channels channels, Trigger trigger) {
-        return inboundTextResolver.resolve(channels.prompt().channelId(), trigger)
+    private RunBlock dialoguePromptBlock(Optional<InboundMessage> inbound, Trigger trigger) {
+        return inbound.map(InboundMessage::text)
+                .filter(text -> text != null && !text.isBlank())
                 .map(text -> RunBlock.trusted("", "user", text, Map.of()))
                 .orElseGet(() -> {
-                    log.warn("Prompt channel {} unusable for trigger {} — falling back to event block",
-                            channels.prompt().channelId(), trigger.id());
+                    log.warn("Prompt channel unusable for trigger {} — falling back to event block",
+                            trigger.id());
                     return eventBlock(trigger);
                 });
+    }
+
+    /** Вложения inbound → ссылки {@link InboundPart} (только image/video/audio/file идут в контекст). */
+    private static List<InboundPart> inboundParts(Optional<InboundMessage> inbound) {
+        return inbound.map(m -> m.parts().stream()
+                        .map(p -> new InboundPart(p.storageRef(), p.type(), p.mime(), p.size(), partName(p)))
+                        .toList())
+                .orElse(List.of());
+    }
+
+    private static String partName(Part part) {
+        Object name = part.meta() != null ? part.meta().get("name") : null;
+        return name != null ? name.toString() : "";
     }
 
     /** Событие как данные: untrusted-блок, обёртку/преамбулу ставит рендерер воркера. */

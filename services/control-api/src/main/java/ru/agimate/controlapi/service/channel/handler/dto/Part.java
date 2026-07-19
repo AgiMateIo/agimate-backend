@@ -21,4 +21,21 @@ public record Part(
         long size,
         Map<String, Object> meta
 ) {
+
+    /** Тип вложения по MIME: {@code image|video|audio|file} — как рендерить/подавать в LLM. */
+    public static String typeForMime(String mime) {
+        if (mime == null) {
+            return "file";
+        }
+        if (mime.startsWith("image/")) {
+            return "image";
+        }
+        if (mime.startsWith("video/")) {
+            return "video";
+        }
+        if (mime.startsWith("audio/")) {
+            return "audio";
+        }
+        return "file";
+    }
 }

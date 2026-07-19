@@ -12,8 +12,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.HttpClientErrorException;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.FileStatus;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -55,6 +57,15 @@ class TelegramConnectorServiceTest {
     @Mock
     private FileStorageService fileStorageService;
 
+    @Mock
+    private TelegramMediaService mediaService;
+
+    @Mock
+    private ConnectorEnvFactory envFactory;
+
+    @Mock
+    private ConnectionRepository connectionRepository;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private TelegramConnectorService handler;
@@ -66,8 +77,8 @@ class TelegramConnectorServiceTest {
 
     private TelegramConnectorService newHandler(String mode) {
         return new TelegramConnectorService(
-                new TelegramToolService(telegramApiClient, triggerRouterService, fileStorageService),
-                telegramApiClient, objectMapper, mode);
+                new TelegramToolService(telegramApiClient, triggerRouterService, fileStorageService, mediaService),
+                telegramApiClient, objectMapper, mediaService, envFactory, connectionRepository, mode);
     }
 
     private static ConnectorEnv env() {
@@ -457,6 +468,9 @@ class TelegramConnectorServiceTest {
                     .thenReturn(Map.of("ok", true, "result", List.of(update(5, "hi"))));
             when(telegramApiClient.getUpdates("token123", 6L, 20))
                     .thenReturn(Map.of("ok", true, "result", List.of()));
+            // Текстовое сообщение без медиа — materialize возвращает триггер как есть.
+            when(mediaService.materialize(any(), any(), any(), any()))
+                    .thenAnswer(inv -> inv.getArgument(3));
 
             handler.executeJob(env(), TelegramToolService.TASK_LONG_POLL, Map.of());
             handler.executeJob(env(), TelegramToolService.TASK_LONG_POLL, Map.of());

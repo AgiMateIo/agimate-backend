@@ -25,6 +25,6 @@ public class ContextMaterialsFetcher {
                 context.getSystemBlocksCount(), context.getUserBlocksCount(), context.getToolsCount());
         return new ContextMaterials(
                 context.getSystemBlocksList(), context.getUserBlocksList(),
-                context.getToolsList(), context.getHistoryList());
+                context.getToolsList(), context.getHistoryList(), context.getInboundPartsList());
     }
 }

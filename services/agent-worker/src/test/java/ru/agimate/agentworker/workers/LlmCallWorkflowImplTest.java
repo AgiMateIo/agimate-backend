@@ -75,13 +75,13 @@ class LlmCallWorkflowImplTest {
         private void stubSuccessfulCall(String providerId) {
             when(client.getLlmCredentials("agent-1")).thenReturn(creds(providerId));
             when(modelFactory.build(any())).thenReturn(model);
-            when(mapper.toSpringMessages(any())).thenReturn(List.of());
+            when(mapper.toSpringMessages(any(), any())).thenReturn(List.of());
             when(mapper.toolCallbacks(any())).thenReturn(List.of());
             ChatResponse response = new ChatResponse(List.of(),
                     ChatResponseMetadata.builder().usage(new DefaultUsage(100, 20)).build());
             when(model.call(any(Prompt.class))).thenReturn(response);
             when(mapper.fromResponse(response)).thenReturn(
-                    new AgentChatMessage(AgentChatMessage.Role.ASSISTANT, "ok", false, null, null));
+                    AgentChatMessage.assistant("ok", false, List.of()));
         }
 
         @Test

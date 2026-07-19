@@ -1,6 +1,7 @@
 package ru.agimate.agentworker.agent.context;
 
 import lombok.extern.slf4j.Slf4j;
+import ru.agimate.agentworker.FilePart;
 import ru.agimate.agentworker.HistoryMessage;
 import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.PromptBlock;
@@ -8,6 +9,7 @@ import ru.agimate.agentworker.ToolResultRec;
 import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.FilePartRef;
 import ru.agimate.agentworker.workers.run.PreparedContext;
 
 import java.util.ArrayList;
@@ -75,13 +77,23 @@ public final class ContextBuilder {
 
         ToolRegistry registry = ToolRegistry.build(materials.tools());
         List<AgentChatMessage> history = mapHistory(materials.history());
-        log.info("context ready: {} system / {} user block(s), {} tool(s), {} history msg(s)",
+        List<FilePartRef> inboundParts = mapParts(materials.inboundParts());
+        log.info("context ready: {} system / {} user block(s), {} tool(s), {} history msg(s), {} part(s)",
                 materials.systemBlocks().size(), materials.userBlocks().size(),
-                registry.toolDefs().size(), history.size());
+                registry.toolDefs().size(), history.size(), inboundParts.size());
         log.debug("tools: {}", registry.names());
 
         return new PreparedContext(systemPrompt, userPrompt, ephemeralSuffix, history,
-                registry.toolDefs(), registry.backendMap());
+                registry.toolDefs(), registry.backendMap(), inboundParts);
+    }
+
+    /** proto {@code FilePart} → воркерский {@link FilePartRef} (только ссылки; байты — GetFile'ом). */
+    static List<FilePartRef> mapParts(List<FilePart> parts) {
+        List<FilePartRef> refs = new ArrayList<>(parts.size());
+        for (FilePart p : parts) {
+            refs.add(new FilePartRef(p.getFileId(), p.getType(), p.getMime(), p.getSize(), p.getName()));
+        }
+        return refs;
     }
 
     /**

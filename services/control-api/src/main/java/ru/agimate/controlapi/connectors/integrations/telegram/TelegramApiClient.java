@@ -130,6 +130,23 @@ public class TelegramApiClient {
         }
     }
 
+    /** Метаданные файла бота ({@code file_path}, {@code file_size}) по его {@code file_id}. */
+    public Map<String, Object> getFile(String token, String fileId) {
+        return sendRequest("getFile", token, Map.of("file_id", fileId));
+    }
+
+    /**
+     * Скачивает содержимое файла бота по {@code file_path} из {@link #getFile} (буфер в память —
+     * лимит скачивания ботом ~20 MB). Хост тот же, но префикс пути другой ({@code /file/bot…}).
+     * URI собираем строкой: {@code file_path} содержит слэши, шаблон RestClient их бы заэнкодил.
+     */
+    public byte[] downloadFile(String token, String filePath) {
+        return restClient.get()
+                .uri(java.net.URI.create(BASE_URL + "/file/bot" + token + "/" + filePath))
+                .retrieve()
+                .body(byte[].class);
+    }
+
     public Map<String, Object> getUpdates(String token, Long offset, int timeoutSec) {
         Map<String, Object> body = new LinkedHashMap<>();
         if (offset != null) body.put("offset", offset);

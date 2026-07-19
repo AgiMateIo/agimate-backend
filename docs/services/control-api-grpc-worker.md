@@ -15,7 +15,7 @@ credentials from the backend and execute tools through the Tool Gateway.
 | Service                 | RPCs (PoC)                                                                                        | Status   |
 |-------------------------|---------------------------------------------------------------------------------------------------|----------|
 | `WorkerControl`         | `HealthCheck`                                                                                     | done     |
-| `AgentContext`          | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials`           | done     |
+| `AgentContext`          | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials`, `GetFile` (содержимое вложения чанками), `ReportLlmUsage` | done     |
 | `MessageLog`            | `SaveMessage` — единая запись событий диалога, доставка как её проекция                            | done     |
 | `ToolGateway`           | `ExecuteToolAsync`, `GetToolResult` (несёт `trigger_id` — liveness рана)                          | done     |
 | `WorkflowReporting`     | —                                                                                                 | post-PoC |
@@ -134,6 +134,18 @@ Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → 
 | `user_blocks`   | User-ход: user-блоки коннекторов (memory notes, `ephemeral=true` — не персистятся в историю) + основной промпт последним (диалоговый текст `trusted`, событие триггера `trusted=false` → воркер оборачивает как untrusted data) |
 | `tools`         | `ConnectorToolSpec` уже отскоупленные (binding-гейт + скоуп скиллов; DIALOGUE — коннекторы всех скиллов, SYSTEM_TRIGGER — только подошедших) |
 | `history`       | Сессионная история «как видел пользователь»: только завершённые раны (`completed=true` — сообщения текущего рана и упавших ранов не видны), окно 50, фильтр `historyDetail` (FULL/NO_REASONING/DIALOGUE_ONLY) из пресета `ContextSpec`; дореформенные REQUEST/RESPONSE маппятся на INBOUND/ANSWER. Tool-ходы (v2.1): у PROGRESS/TOOL_CALL с сохранённым `message_json` наружу идёт структурный `tool_turn` (JSON-поля капаются до 4 KB с маркером `…[truncated]`), TEXT-преамбулы таких ранов скипаются (текст уже внутри `tool_turn`), легаси `🔧 name`-строки санитизируются в `[вызван инструмент name]` — текстовый паттерн вызова модель имитирует вместо реального tool call |
+| `inbound_parts` | Вложения диалогового inbound текущего рана (`repeated FilePart{file_id, type, mime, size, name}`) — только `agf_`-ссылки, без байтов (безопасно для чекпоинта `prepare_context`). Пусто вне DIALOGUE и у старого control-api. Байты изображений воркер тянет `GetFile`'ом inline при `llm_call` и подаёт модели как `Media`; в историю не попадают (плейсхолдер — в тексте user-блока). См. docs/connectors/files.md, «Входящие вложения» |
+
+## GetFile (`AgentContext.GetFile`)
+
+`GetFile(file_id, agent_id)` → `stream FileChunk{data, mime, total_size}` — содержимое inbound-вложения
+чанками (~128 KB, << 4 MB лимита gRPC-сообщения; первый чанк несёт `mime`+`total_size`). Ownership-гейт:
+`file.user_id == agent.user_id`, иначе `NOT_FOUND` (существование чужих файлов не раскрывается).
+
+Как `GetLlmCredentials`, вызывается **inline при `llm_call`**, не оборачивается в durable-шаг — байты в
+DBOS-чекпоинт не попадают (`RunContext.inbound_parts` несёт только ссылки). Недоступный файл
+(NOT_FOUND/сбой) воркер пропускает: текст сообщения уже содержит стаб, «зрение» деградирует, ран не
+падает. Собирается воркером в `byte[]` с потолком 32 MB.
 
 ## SaveMessage (`MessageLog.SaveMessage`)
 

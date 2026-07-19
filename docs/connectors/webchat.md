@@ -57,5 +57,8 @@ progress-роль `Channels` тем же каналом, и worker шлёт и �
 подписанным URL содержимого (`GET /files/{fileId}?exp&sig`, TTL `app.files.url-ttl`). Parts несёт
 только answer-стрим. Изображения фронт рендерит `<img src>` прямо по ссылке.
 
-Следующая фаза — входящие файлы от пользователя: поле `parts` в send-запросе пока обязано быть
-пустым, понадобится upload-эндпойнт + прокачка parts в worker/LLM («зрение»).
+**Входящие файлы от пользователя работают** (docs/connectors/files.md, раздел «Входящие вложения»):
+`POST /manage/webchat/files` (multipart) → `fileId`, затем `parts: [{fileId}]` в send-запросе.
+`WebchatService` валидирует владение/READY/TTL, кладёт `parts` в data триггера; `handleInput` мапит
+их в `InboundMessage.parts` + текст-стаб. Воркер тянет байты изображения `GetFile`'ом при LLM-вызове
+и подаёт модели как `Media` («зрение»). Эхо USER-сообщения несёт свои `parts` (подписанный URL).

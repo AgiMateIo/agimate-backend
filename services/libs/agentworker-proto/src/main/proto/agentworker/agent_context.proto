@@ -20,6 +20,10 @@ service AgentContext {
   // Учёт расхода токенов: best-effort репорт воркера после каждого успешного LLM-вызова.
   // Идемпотентен по call_id (DBOS workflow id LLM-вызова) — повтор возвращает duplicate=true.
   rpc ReportLlmUsage(ReportLlmUsageRequest) returns (ReportLlmUsageResponse);
+  // Содержимое inbound-вложения (изображение и т.п.) чанками. Как api_key — тянется inline
+  // при llm_call и в DBOS-чекпоинт не попадает; RunContext несёт только ссылки (FilePart).
+  // Ownership-гейт по agent_id: file.user_id == agent.user_id, иначе NOT_FOUND.
+  rpc GetFile(GetFileRequest) returns (stream FileChunk);
 }
 
 message GetRunContextRequest {
@@ -48,6 +52,33 @@ message RunContext {
   // История сессии «как видел пользователь»: только завершённые раны (completed=true),
   // отфильтрована по historyDetail пресета ContextSpec, окно на бэке. Пусто для direct-ранов.
   repeated HistoryMessage history = 4;
+  // Вложения диалогового inbound текущего рана — только ссылки; байты воркер тянет GetFile'ом.
+  // Пусто вне DIALOGUE-контекста и у старого control-api (rolling deploy) — воркер работает
+  // как текстовый. В историю не попадают (плейсхолдер — в тексте user-блока).
+  repeated FilePart inbound_parts = 5;
+}
+
+// Ссылка на inbound-вложение (без байтов). type ведёт мультимодальность воркера: image идёт
+// в LLM как Media, прочее — текстовым стабом (агент может переслать attach-конвенцией).
+message FilePart {
+  string file_id = 1;   // agf_<uuid>
+  string type = 2;      // image | video | audio | file
+  string mime = 3;
+  int64 size = 4;
+  string name = 5;      // имя файла, если известно (Telegram document); иначе пусто
+}
+
+message GetFileRequest {
+  string file_id = 1;   // agf_<uuid>
+  string agent_id = 2;  // ownership-гейт: file.user_id == agent.user_id
+}
+
+// Первый чанк несёт mime и total_size; последующие — только data. Чанки ~128 KB, чтобы не
+// упираться в дефолтный 4 MB предел gRPC-сообщения.
+message FileChunk {
+  bytes data = 1;
+  string mime = 2;
+  int64 total_size = 3;
 }
 
 message GetLlmCredentialsRequest {

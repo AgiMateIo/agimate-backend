@@ -17,13 +17,16 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.FilePartRef;
 import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.grpc.ControlApiCallException;
 import ru.agimate.agentworker.llm.LlmMessageMapper;
 import ru.agimate.agentworker.llm.ModelFactory;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * LLM worker: one model request per queue item. Credentials are fetched inline (not via a step) so
@@ -74,7 +77,9 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
                     .model(creds.getModel())
                     .toolCallbacks(mapper.toolCallbacks(toolDefs))
                     .build();
-            Prompt prompt = new Prompt(mapper.toSpringMessages(messages), options);
+            // Байты вложений тянем inline (как креды) — в DBOS-чекпоинт входа воркфлоу не попадают.
+            Map<String, byte[]> mediaBytes = fetchImageBytes(messages, agentId);
+            Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes), options);
             ChatResponse response = callWithRetry(model, prompt);
             reportUsage(response, creds, agentId);
             return Result.ok(mapper.fromResponse(response));
@@ -117,6 +122,30 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
         } catch (Exception e) {
             log.warn("LLM usage report failed (best-effort): {}", e.getMessage());
         }
+    }
+
+    /**
+     * Байты image-вложений всех user-сообщений запроса ({@code fileId → bytes}) — inline, чтобы не
+     * попасть в чекпоинт (как {@code api_key}). Недоступный файл (NOT_FOUND/сбой) пропускается:
+     * текст сообщения уже содержит стаб, «зрение» деградирует, ран не падает. На практике parts
+     * есть только у последнего user-сообщения — цикл дешёвый.
+     */
+    private Map<String, byte[]> fetchImageBytes(List<AgentChatMessage> messages, String agentId) {
+        Map<String, byte[]> bytes = new LinkedHashMap<>();
+        for (AgentChatMessage m : messages) {
+            for (FilePartRef part : m.parts()) {
+                if (!part.isImage() || bytes.containsKey(part.fileId())) {
+                    continue;
+                }
+                try {
+                    bytes.put(part.fileId(), client.getFile(part.fileId(), agentId));
+                } catch (Exception e) {
+                    log.warn("inbound image {} unavailable — sending text only: {}",
+                            part.fileId(), e.getMessage());
+                }
+            }
+        }
+        return bytes;
     }
 
     /** Собственный workflow id LLM-вызова; шов для тестов. */

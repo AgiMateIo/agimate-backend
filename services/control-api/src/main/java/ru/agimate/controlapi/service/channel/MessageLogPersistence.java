@@ -122,7 +122,7 @@ public class MessageLogPersistence {
     private String canonicalInbound(TriggerLogAgent run, Channels channels) {
         Trigger trigger = Trigger.fromLog(run.getTriggerLog());
         if (channels != null && channels.prompt() != null) {
-            return inboundTextResolver.resolve(channels.prompt().channelId(), trigger)
+            return inboundTextResolver.resolveText(channels.prompt().channelId(), trigger)
                     .orElseGet(() -> compactEvent(trigger));
         }
         return compactEvent(trigger);

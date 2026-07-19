@@ -39,6 +39,7 @@ import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.channel.InboundTextResolver;
+import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
@@ -205,7 +206,8 @@ class RunContextServiceTest {
             stubSkills(List.of(new AgentSkillWithConnectorsResponse(
                     UUID.randomUUID(), "Memory", "d", List.of("persist-memory"))));
 
-            when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of("hello agent"));
+            when(inboundTextResolver.resolve(any(), any()))
+                    .thenReturn(Optional.of(InboundMessage.text("hello agent")));
 
             // memory-коннектор привязан: system-блок memory + ephemeral user-блок notes + тул.
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
@@ -250,7 +252,8 @@ class RunContextServiceTest {
             stubRun(run(agent, triggerLog("acp", "message_received"), channels));
             stubSkills(List.of()); // ни один скилл не требует коннектор
 
-            when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of("hi"));
+            when(inboundTextResolver.resolve(any(), any()))
+                    .thenReturn(Optional.of(InboundMessage.text("hi")));
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
                     .thenReturn(List.of(memoryConnection()));
             org.mockito.Mockito.lenient().when(memoryHandler.promptBlocks(any(ConnectorEnv.class)))

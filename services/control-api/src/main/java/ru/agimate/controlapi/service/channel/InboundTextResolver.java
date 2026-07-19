@@ -15,10 +15,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Канонический текст inbound-сообщения канала: тот же {@link ChannelHandler#handleInput}, что и
- * при dispatch триггера — детерминированная функция от персистентных данных (конфиг канала +
+ * Каноническое inbound-сообщение канала: тот же {@link ChannelHandler#handleInput}, что и при
+ * dispatch триггера — детерминированная функция от персистентных данных (конфиг канала +
  * {@code trigger_log.input}). Общий для сборки контекста ({@code RunContextService}) и записи
  * истории ({@code MessageLogService}).
+ *
+ * <p>{@link #resolve} возвращает полное {@link InboundMessage} (текст + вложения) — вложения нужны
+ * контексту рана (мультимодальность); {@link #resolveText} — text-only обёртка для записи истории.
  */
 @Slf4j
 @Service
@@ -28,7 +31,8 @@ public class InboundTextResolver {
     private final ChannelRepository channelRepository;
     private final ChannelHandlerRegistry channelHandlerRegistry;
 
-    public Optional<String> resolve(UUID promptChannelId, Trigger trigger) {
+    /** Полное inbound-сообщение (текст + parts); {@code empty} — канал/handler исчезли. */
+    public Optional<InboundMessage> resolve(UUID promptChannelId, Trigger trigger) {
         Channel channel = channelRepository.findById(promptChannelId)
                 .filter(c -> c.getDeletedAt() == null)
                 .orElse(null);
@@ -43,7 +47,12 @@ public class InboundTextResolver {
         }
         ChannelConfig config = new ChannelConfig(channel.getAgentId(), channel.getConnectorCode(),
                 channel.getConnectionId().toString(), channel.getConfig());
-        return handler.handleInput(config, trigger)
+        return handler.handleInput(config, trigger);
+    }
+
+    /** Каноничный текст inbound: непустой текст извлечённого сообщения, иначе {@code empty}. */
+    public Optional<String> resolveText(UUID promptChannelId, Trigger trigger) {
+        return resolve(promptChannelId, trigger)
                 .map(InboundMessage::text)
                 .filter(text -> text != null && !text.isBlank());
     }

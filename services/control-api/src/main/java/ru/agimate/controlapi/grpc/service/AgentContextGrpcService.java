@@ -21,7 +21,11 @@ import ru.agimate.controlapi.service.llm.LlmQuotaService;
 import ru.agimate.controlapi.service.runcontext.RunContextService;
 import ru.agimate.controlapi.service.runcontext.RunContextView;
 import ru.agimate.controlapi.service.trigger.RunActivityService;
+import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.storage.StoredFileNotFoundException;
 import ru.agimate.agentworker.AgentContextGrpc;
+import ru.agimate.agentworker.FileChunk;
+import ru.agimate.agentworker.GetFileRequest;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetRunContextRequest;
 import ru.agimate.agentworker.LlmCredentials;
@@ -29,6 +33,10 @@ import ru.agimate.agentworker.ReportLlmUsageRequest;
 import ru.agimate.agentworker.ReportLlmUsageResponse;
 import ru.agimate.agentworker.RunContext;
 
+import com.google.protobuf.ByteString;
+
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.UUID;
 
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.handleError;
@@ -39,8 +47,9 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 /**
  * Поверхность протокола воркера: {@code GetRunContext} (весь контекст рана одним вызовом,
  * сборка — {@link RunContextService}), {@code GetLlmCredentials} (отдельно: результат
- * GetRunContext чекпоинтится воркером, api_key в чекпоинт попадать не должен) и
- * {@code ReportLlmUsage} (учёт расхода токенов).
+ * GetRunContext чекпоинтится воркером, api_key в чекпоинт попадать не должен),
+ * {@code GetFile} (содержимое inbound-вложения чанками — как api_key, тянется inline и в
+ * чекпоинт не попадает) и {@code ReportLlmUsage} (учёт расхода токенов).
  *
  * <p>Транзакции — на методах, НЕ на классе: {@code ReportLlmUsage} пишет, и классовый
  * {@code readOnly = true} заворачивал бы его INSERT'ы в read-only транзакцию (внутренний
@@ -59,6 +68,10 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final AgentRepository agentRepository;
     private final LlmUsageService llmUsageService;
     private final LlmQuotaService llmQuotaService;
+    private final FileStorageService fileStorageService;
+
+    /** Размер чанка содержимого файла: << дефолтный 4 MB предел gRPC-сообщения. */
+    private static final int FILE_CHUNK_BYTES = 128 * 1024;
 
     @Override
     @Transactional(readOnly = true)
@@ -76,6 +89,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             view.userBlocks().forEach(b -> builder.addUserBlocks(RunContextMapper.toProto(b)));
             view.tools().forEach(t -> builder.addTools(RunContextMapper.toProto(t)));
             view.history().forEach(h -> builder.addHistory(RunContextMapper.toProto(h)));
+            view.inboundParts().forEach(p -> builder.addInboundParts(RunContextMapper.toProto(p)));
 
             log.debug("issued RunContext pool={} agent={} trigger={}", poolId, agentId, triggerId);
             responseObserver.onNext(builder.build());
@@ -83,6 +97,64 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
         } catch (Exception e) {
             handleError(e, responseObserver, "GetRunContext pool=" + poolId
                     + " agent=" + request.getAgentId() + " trigger=" + request.getTriggerId());
+        }
+    }
+
+    /**
+     * Содержимое inbound-вложения чанками. НЕ {@code @Transactional}: держать DB-соединение на всё
+     * время стрима байтов нельзя; ownership-гейт (file.user_id == agent.user_id) — через
+     * {@link FileStorageService#findReadable}. Первый чанк несёт mime и total_size.
+     */
+    @Override
+    public void getFile(GetFileRequest request, StreamObserver<FileChunk> responseObserver) {
+        String poolId = WorkerPoolContextHolder.current().poolId();
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            String fileId = request.getFileId();
+            if (fileId.isBlank()) {
+                throw Status.INVALID_ARGUMENT.withDescription("file_id is required").asRuntimeException();
+            }
+            Agent agent = agentRepository.findById(agentId)
+                    .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
+
+            FileStorageService.FileContent content;
+            try {
+                content = fileStorageService.open(agent.getUserId(), fileId);
+            } catch (StoredFileNotFoundException e) {
+                // Владение/просрочка/незавершённость неразличимы — файл просто недоступен воркеру.
+                responseObserver.onError(Status.NOT_FOUND
+                        .withDescription("file not available").asRuntimeException());
+                return;
+            }
+
+            long total = content.file().getSizeBytes();
+            String mime = nullToEmpty(content.file().getMime());
+            try (InputStream in = content.content()) {
+                byte[] buf = new byte[FILE_CHUNK_BYTES];
+                int read;
+                boolean first = true;
+                while ((read = in.read(buf)) != -1) {
+                    FileChunk.Builder chunk = FileChunk.newBuilder()
+                            .setData(ByteString.copyFrom(buf, 0, read));
+                    if (first) {
+                        chunk.setMime(mime).setTotalSize(total);
+                        first = false;
+                    }
+                    responseObserver.onNext(chunk.build());
+                }
+                if (first) {
+                    // Пустой файл (0 байт READY не бывает — store отвергает size<=0, но на всякий).
+                    responseObserver.onNext(FileChunk.newBuilder().setMime(mime).setTotalSize(total).build());
+                }
+            }
+            log.debug("streamed file {} pool={} agent={} bytes={}", fileId, poolId, agentId, total);
+            responseObserver.onCompleted();
+        } catch (IOException e) {
+            handleError(new IllegalStateException("failed to stream file", e), responseObserver,
+                    "GetFile pool=" + poolId + " agent=" + request.getAgentId());
+        } catch (Exception e) {
+            handleError(e, responseObserver, "GetFile pool=" + poolId
+                    + " agent=" + request.getAgentId());
         }
     }
 

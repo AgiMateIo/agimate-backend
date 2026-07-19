@@ -19,6 +19,11 @@ public record Trigger(
         TriggerContext context
 ) {
 
+    /** Копия триггера с заменённой {@code data} (ingest-материализация медиа: сырые дескрипторы → parts). */
+    public Trigger withData(Map<String, Object> newData) {
+        return new Trigger(connectorCode, connectionId, name, id, newData, occurredAt, context);
+    }
+
     public static Trigger createBasic(String connectorCode, String connectionId, String name, Map<String, Object> data) {
         return new Trigger(
                 connectorCode,

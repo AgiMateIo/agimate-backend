@@ -44,6 +44,7 @@ public class TelegramToolService {
     private final TelegramApiClient telegramApiClient;
     private final TriggerRouterService triggerRouterService;
     private final FileStorageService fileStorageService;
+    private final TelegramMediaService mediaService;
 
     /**
      * Per‑integration cache long‑poll'а (ключ — connectionId, т.е. {@code connections.id}):
@@ -267,6 +268,9 @@ public class TelegramToolService {
     private void dispatch(ConnectorEnv ctx, Map<String, Object> update) {
         try {
             Trigger trigger = TelegramUtils.normalizeUpdate(update, ctx.connectionId());
+            // Токен уже расшифрован в env long-poll'а — материализуем медиа перед маршрутизацией.
+            trigger = mediaService.materialize(ctx.credentials().get("token"), ctx.userId(),
+                    ctx.connectionId(), trigger);
             triggerRouterService.routeWhTrigger(ctx.userId(), trigger);
         } catch (Exception e) {
             log.error("Failed to dispatch update for integration {}: {}",

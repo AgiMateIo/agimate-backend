@@ -11,11 +11,14 @@ import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.channel.handler.dto.ToolDefinition;
 import ru.agimate.controlapi.service.channel.handler.dto.TriggerDefinition;
+import ru.agimate.controlapi.service.channel.handler.MediaStubs;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.webchat.WebchatMessagePublisher;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -66,11 +69,37 @@ public class WebchatChannelHandler implements ChannelHandler {
     @Override
     public Optional<InboundMessage> handleInput(ChannelConfig config, Trigger trigger) {
         Map<String, Object> data = trigger.data() != null ? trigger.data() : Map.of();
-        Object text = data.get("text");
-        if (text == null || text.toString().isBlank()) {
+        List<Part> parts = parts(data.get("parts"));
+        Object textRaw = data.get("text");
+        String userText = textRaw != null ? textRaw.toString() : "";
+        if (userText.isBlank() && parts.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(InboundMessage.text(text.toString()));
+        return Optional.of(new InboundMessage(MediaStubs.withStubs(userText, parts), parts));
+    }
+
+    /** Вложения из data триггера ({@code [{type,fileId,mime,size}]}) — уже провалидированы при отправке. */
+    @SuppressWarnings("unchecked")
+    private static List<Part> parts(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return List.of();
+        }
+        List<Part> parts = new ArrayList<>(list.size());
+        for (Object item : list) {
+            if (!(item instanceof Map<?, ?> map)) {
+                continue;
+            }
+            Map<String, Object> m = (Map<String, Object>) map;
+            Object fileId = m.get("fileId");
+            if (fileId == null || fileId.toString().isBlank()) {
+                continue;
+            }
+            String mime = m.get("mime") != null ? m.get("mime").toString() : null;
+            String type = m.get("type") != null ? m.get("type").toString() : Part.typeForMime(mime);
+            long size = m.get("size") instanceof Number n ? n.longValue() : 0L;
+            parts.add(new Part(type, fileId.toString(), mime, size, Map.of()));
+        }
+        return parts;
     }
 
     @Override

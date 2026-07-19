@@ -3,10 +3,12 @@ package ru.agimate.controlapi.grpc.mapper;
 import lombok.experimental.UtilityClass;
 import ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
+import ru.agimate.controlapi.service.runcontext.InboundPart;
 import ru.agimate.controlapi.service.runcontext.RunBlock;
 import ru.agimate.controlapi.service.runcontext.RunHistoryMessage;
 import ru.agimate.controlapi.service.runcontext.RunTool;
 import ru.agimate.agentworker.ConnectorToolSpec;
+import ru.agimate.agentworker.FilePart;
 import ru.agimate.agentworker.HistoryMessage;
 import ru.agimate.agentworker.PromptBlock;
 import ru.agimate.agentworker.ToolAnnotations;
@@ -32,6 +34,16 @@ public class RunContextMapper {
                 .putAllAttrs(block.attrs())
                 .setTrusted(block.trusted())
                 .setEphemeral(block.ephemeral())
+                .build();
+    }
+
+    public static FilePart toProto(InboundPart part) {
+        return FilePart.newBuilder()
+                .setFileId(nullToEmpty(part.fileId()))
+                .setType(nullToEmpty(part.type()))
+                .setMime(nullToEmpty(part.mime()))
+                .setSize(part.size())
+                .setName(nullToEmpty(part.name()))
                 .build();
     }
 

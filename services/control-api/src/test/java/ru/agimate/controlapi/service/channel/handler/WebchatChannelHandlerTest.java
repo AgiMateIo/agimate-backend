@@ -104,6 +104,32 @@ class WebchatChannelHandlerTest {
             Trigger trigger = Trigger.createBasic("webchat", IDENTITY, "message_received", data);
             assertTrue(handler.handleInput(config, trigger).isEmpty());
         }
+
+        @Test
+        @DisplayName("parts из data → InboundMessage.parts + текст-стаб")
+        void mapsParts() {
+            Trigger trigger = Trigger.createBasic("webchat", IDENTITY, "message_received", Map.of(
+                    "text", "что тут?",
+                    "parts", List.of(Map.of(
+                            "type", "image", "fileId", "agf_1", "mime", "image/png", "size", 4096))));
+            InboundMessage inbound = handler.handleInput(config, trigger).orElseThrow();
+            assertEquals(1, inbound.parts().size());
+            assertEquals("agf_1", inbound.parts().get(0).storageRef());
+            assertEquals("image", inbound.parts().get(0).type());
+            assertTrue(inbound.text().startsWith("что тут?"));
+            assertTrue(inbound.text().contains("agf_1"));
+        }
+
+        @Test
+        @DisplayName("только parts, пустой text → сообщение из одних стабов")
+        void partsOnly() {
+            Trigger trigger = Trigger.createBasic("webchat", IDENTITY, "message_received", Map.of(
+                    "parts", List.of(Map.of(
+                            "type", "image", "fileId", "agf_1", "mime", "image/png", "size", 4096))));
+            InboundMessage inbound = handler.handleInput(config, trigger).orElseThrow();
+            assertEquals(1, inbound.parts().size());
+            assertTrue(inbound.text().contains("agf_1"));
+        }
     }
 
     @Nested
