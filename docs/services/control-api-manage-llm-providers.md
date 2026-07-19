@@ -95,6 +95,8 @@ Response:
 
 Per-provider model registry rows (`llm_provider_models`, unique `(provider, model)`): discovery metadata, availability lifecycle and per-model `extraBody` override. `status` is **advisory** — listings can be incomplete, so an `UNAVAILABLE` model still binds and still gets credentials; the UI uses it for warnings only.
 
+Models whose parameters the provider does not report (e.g. bare-id listings from OpenAI/Anthropic) are backfilled at refresh time from a curated **model defaults** table (discovered values always win). Absence of a default row just leaves the fields `null` — same as before.
+
 ### `LlmProviderModelResponse`
 
 | Field | Type | Description |
@@ -102,8 +104,10 @@ Per-provider model registry rows (`llm_provider_models`, unique `(provider, mode
 | `id` | UUID | Registry row id |
 | `model` | string | Provider-specific model id (e.g. `moonshotai/kimi-k2.5`) |
 | `displayName` | string? | From the listing |
-| `contextWindow` | int? | `context_length` from the listing (OpenRouter-style providers) |
-| `inputModalities` | string[]? | e.g. `["text","image"]` — whether the model has vision |
+| `contextWindow` | int? | Context window in tokens (from the listing or model defaults) |
+| `maxOutputTokens` | int? | Max output tokens (`top_provider.max_completion_tokens`) |
+| `inputModalities` | string[]? | e.g. `["text","image"]` — `image` means the model has vision |
+| `outputModalities` | string[]? | e.g. `["image"]` / `["audio"]` — basis for model-as-tool routing |
 | `supportedParameters` | string[]? | e.g. `["tools","reasoning"]` |
 | `extraBody` | object? | Per-model extra chat/completions body fields; deep-merged over the provider-level `extraBody`, model wins, arrays replaced whole |
 | `status` | enum | `AVAILABLE` / `UNAVAILABLE` (advisory, per the last successful refresh) |

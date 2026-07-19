@@ -17,11 +17,13 @@ import ru.agimate.controlapi.controller.manage.dto.llm.RefreshModelsResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpsertModelExtraBodyRequest;
 import ru.agimate.controlapi.database.model.LlmModelInfo;
+import ru.agimate.controlapi.database.entities.LlmModelDefaults;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.entities.LlmProviderModel;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.LlmProviderModelStatus;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.repositories.LlmModelDefaultsRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
@@ -56,6 +58,7 @@ public class LlmProviderService {
 
     private final LlmProviderRepository llmProviderRepository;
     private final LlmProviderModelRepository llmProviderModelRepository;
+    private final LlmModelDefaultsRepository llmModelDefaultsRepository;
     private final SecretRepository secretRepository;
     private final SecretService secretService;
     private final LlmModelDiscoveryService modelDiscoveryService;
@@ -269,6 +272,9 @@ public class LlmProviderService {
         Map<String, LlmProviderModel> existing = llmProviderModelRepository
                 .findAllByProviderIdOrderByModel(provider.getId()).stream()
                 .collect(Collectors.toMap(LlmProviderModel::getModel, Function.identity()));
+        Map<String, LlmModelDefaults> defaults = llmModelDefaultsRepository
+                .findByModelIn(discovered.stream().map(LlmModelInfo::id).toList()).stream()
+                .collect(Collectors.toMap(LlmModelDefaults::getModel, Function.identity()));
 
         List<LlmProviderModel> toSave = new ArrayList<>();
         Set<String> seen = new HashSet<>();
@@ -286,8 +292,12 @@ public class LlmProviderService {
             }
             row.setDisplayName(info.displayName());
             row.setContextWindow(info.contextWindow());
+            row.setMaxOutputTokens(info.maxOutputTokens());
             row.setInputModalities(info.inputModalities());
+            row.setOutputModalities(info.outputModalities());
             row.setSupportedParameters(info.supportedParameters());
+            row.setRawMetadata(info.rawMetadata());
+            applyDefaults(row, defaults.get(info.id())); // write-time оверлей: дырки discovery
             row.setStatus(LlmProviderModelStatus.AVAILABLE);
             if (row.getFirstSeenAt() == null) {
                 row.setFirstSeenAt(now); // конфиг был заведён руками до первого появления в листинге
@@ -304,6 +314,35 @@ public class LlmProviderService {
             }
         }
         llmProviderModelRepository.saveAll(toSave);
+    }
+
+    /**
+     * Пер-полевой фолбэк из {@code llm_model_defaults}: заполняем только те капабилити, что
+     * discovery не отдал (discovered побеждает). Write-time — правка справочника долетит до строк
+     * при следующем refresh. Провенанс (discovered vs assumed) намеренно не храним (см. дизайн).
+     */
+    private static void applyDefaults(LlmProviderModel row, LlmModelDefaults def) {
+        if (def == null) {
+            return;
+        }
+        if (row.getDisplayName() == null) {
+            row.setDisplayName(def.getDisplayName());
+        }
+        if (row.getContextWindow() == null) {
+            row.setContextWindow(def.getContextWindow());
+        }
+        if (row.getMaxOutputTokens() == null) {
+            row.setMaxOutputTokens(def.getMaxOutputTokens());
+        }
+        if (row.getInputModalities() == null) {
+            row.setInputModalities(def.getInputModalities());
+        }
+        if (row.getOutputModalities() == null) {
+            row.setOutputModalities(def.getOutputModalities());
+        }
+        if (row.getSupportedParameters() == null) {
+            row.setSupportedParameters(def.getSupportedParameters());
+        }
     }
 
     /** Реестр моделей провайдера (сортировка по model). */

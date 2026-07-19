@@ -79,11 +79,28 @@ public class LlmDiscoveryHttp {
                 displayName = s;
             }
         }
+        Map<?, ?> arch = entry.get("architecture") instanceof Map<?, ?> a ? a : Map.of();
         return new LlmModelInfo(idStr, displayName,
                 intOrNull(entry.get("context_length")),
-                stringListOrNull(entry.get("architecture") instanceof Map<?, ?> arch
-                        ? arch.get("input_modalities") : null),
-                stringListOrNull(entry.get("supported_parameters")));
+                maxOutputTokens(entry),
+                stringListOrNull(arch.get("input_modalities")),
+                stringListOrNull(arch.get("output_modalities")),
+                stringListOrNull(entry.get("supported_parameters")),
+                rawMetadata(entry));
+    }
+
+    /** {@code top_provider.max_completion_tokens} (OpenRouter) с фолбэком на корневой ключ (Polza). */
+    private static Integer maxOutputTokens(Map<?, ?> entry) {
+        if (entry.get("top_provider") instanceof Map<?, ?> tp && tp.get("max_completion_tokens") != null) {
+            return intOrNull(tp.get("max_completion_tokens"));
+        }
+        return intOrNull(entry.get("max_completion_tokens"));
+    }
+
+    /** Сырой entry как есть — сохраняем всё, что отдал провайдер, для будущего backfill. */
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> rawMetadata(Map<?, ?> entry) {
+        return entry.isEmpty() ? null : (Map<String, Object>) entry;
     }
 
     /** Опортунистические метаданные OpenRouter-стиля; у не отдающих их провайдеров остаются null. */

@@ -8,12 +8,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import ru.agimate.controlapi.database.entities.LlmModelDefaults;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.entities.LlmProviderModel;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.LlmProviderModelStatus;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.model.LlmModelInfo;
+import ru.agimate.controlapi.database.repositories.LlmModelDefaultsRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
@@ -48,6 +50,8 @@ class LlmProviderServiceTest {
     private LlmProviderRepository llmProviderRepository;
     @Mock
     private LlmProviderModelRepository llmProviderModelRepository;
+    @Mock
+    private LlmModelDefaultsRepository llmModelDefaultsRepository;
     @Mock
     private SecretRepository secretRepository;
     @Mock
@@ -240,8 +244,8 @@ class LlmProviderServiceTest {
         void insertsNewModel() {
             mockProviderWithKey();
             when(modelDiscoveryService.discover(eq(provider), any())).thenReturn(List.of(
-                    new LlmModelInfo("moonshotai/kimi-k2.5", "Kimi K2.5",
-                            262144, List.of("text", "image"), List.of("tools"))));
+                    new LlmModelInfo("moonshotai/kimi-k2.5", "Kimi K2.5", 262144, 8192,
+                            List.of("text", "image"), List.of("text"), List.of("tools"), null)));
             when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
                     .thenReturn(List.of());
             when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -254,8 +258,38 @@ class LlmProviderServiceTest {
             assertEquals("moonshotai/kimi-k2.5", row.getModel());
             assertEquals(LlmProviderModelStatus.AVAILABLE, row.getStatus());
             assertEquals(262144, row.getContextWindow());
+            assertEquals(8192, row.getMaxOutputTokens());
             assertEquals(List.of("text", "image"), row.getInputModalities());
+            assertEquals(List.of("text"), row.getOutputModalities());
             assertTrue(row.getFirstSeenAt() != null && row.getLastSeenAt() != null);
+        }
+
+        @Test
+        @DisplayName("write-time оверлей: null-поля добираются из defaults, discovered побеждает")
+        void appliesDefaultsToDiscoveryGaps() {
+            mockProviderWithKey();
+            // Провайдер отдал только id + context, модальности/output не знает.
+            when(modelDiscoveryService.discover(eq(provider), any())).thenReturn(List.of(
+                    new LlmModelInfo("whisper-1", null, 4096, null, null, null, null, null)));
+            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
+                    .thenReturn(List.of());
+            when(llmModelDefaultsRepository.findByModelIn(List.of("whisper-1"))).thenReturn(List.of(
+                    LlmModelDefaults.builder()
+                            .model("whisper-1")
+                            .contextWindow(999) // discovered 4096 должен победить
+                            .inputModalities(List.of("audio"))
+                            .outputModalities(List.of("text"))
+                            .build()));
+            when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            service.refreshModels(provider.getId(), adminId, true);
+
+            ArgumentCaptor<List<LlmProviderModel>> captor = ArgumentCaptor.forClass(List.class);
+            verify(llmProviderModelRepository).saveAll(captor.capture());
+            LlmProviderModel row = captor.getValue().get(0);
+            assertEquals(4096, row.getContextWindow(), "discovered побеждает default");
+            assertEquals(List.of("audio"), row.getInputModalities(), "дырка добрана из default");
+            assertEquals(List.of("text"), row.getOutputModalities(), "дырка добрана из default");
         }
 
         @Test

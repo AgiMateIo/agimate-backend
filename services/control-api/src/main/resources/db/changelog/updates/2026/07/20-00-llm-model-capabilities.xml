@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Капабилити-поля под «модель-как-инструмент»: output_modalities (ядро матчинга
+         gen_image/gen_audio), max_output_tokens (потолок ответа), raw_metadata (весь сырой entry
+         /models — не выбрасываем полученное, backfill новых полей без ре-дискавери).
+         Аддитивно к уже применённому 19-00 (тот changeSet трогать нельзя — checksum). -->
+    <changeSet id="2026-07-20-00-llm-provider-models-capabilities" author="agimate">
+        <addColumn tableName="llm_provider_models">
+            <column name="max_output_tokens" type="INTEGER"/>
+            <column name="output_modalities" type="JSONB"/>
+            <column name="raw_metadata" type="JSONB"/>
+        </addColumn>
+    </changeSet>
+
+    <!-- Курируемый фолбэк капабилити для недискаверабельных моделей: провайдеры вроде OpenAI/
+         Anthropic отдают в /models голые id без метаданных. Глобальная (по id first-party модели —
+         однозначен, роутинга нет). Fallback-only, пер-полевой: при refresh дырки discovery
+         добираются отсюда (discovered побеждает). Отсутствие строки = капабилити unknown, как
+         сегодня — никакой синхронизации с реестром. Сид заводится позже, на основе живых данных. -->
+    <changeSet id="2026-07-20-00-llm-model-defaults" author="agimate">
+        <createTable tableName="llm_model_defaults">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="model" type="TEXT">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_llm_model_defaults_model"/>
+            </column>
+            <column name="display_name" type="TEXT"/>
+            <column name="context_window" type="INTEGER"/>
+            <column name="max_output_tokens" type="INTEGER"/>
+            <column name="input_modalities" type="JSONB"/>
+            <column name="output_modalities" type="JSONB"/>
+            <column name="supported_parameters" type="JSONB"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

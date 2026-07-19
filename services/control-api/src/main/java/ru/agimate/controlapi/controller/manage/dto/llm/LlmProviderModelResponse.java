@@ -24,11 +24,17 @@ public record LlmProviderModelResponse(
         @Schema(description = "Human-readable name (when the provider supplies one)")
         String displayName,
 
-        @Schema(description = "Context window in tokens (when the provider supplies it)")
+        @Schema(description = "Context window in tokens (when known)")
         Integer contextWindow,
 
-        @Schema(description = "Input modalities, e.g. [\"text\",\"image\"]")
+        @Schema(description = "Max output tokens (when known)")
+        Integer maxOutputTokens,
+
+        @Schema(description = "Input modalities, e.g. [\"text\",\"image\"] — \"image\" means the model has vision")
         List<String> inputModalities,
+
+        @Schema(description = "Output modalities, e.g. [\"image\"] / [\"audio\"] — basis for model-as-tool routing")
+        List<String> outputModalities,
 
         @Schema(description = "Supported request parameters, e.g. [\"tools\",\"reasoning\"]")
         List<String> supportedParameters,
@@ -56,7 +62,9 @@ public record LlmProviderModelResponse(
                 entity.getModel(),
                 entity.getDisplayName(),
                 entity.getContextWindow(),
+                entity.getMaxOutputTokens(),
                 entity.getInputModalities(),
+                entity.getOutputModalities(),
                 entity.getSupportedParameters(),
                 entity.getExtraBody(),
                 entity.getStatus(),

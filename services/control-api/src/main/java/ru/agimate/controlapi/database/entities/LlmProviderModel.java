@@ -52,15 +52,29 @@ public class LlmProviderModel extends BaseEntity {
     @Column(name = "context_window")
     private Integer contextWindow;
 
+    /** Потолок токенов ответа ({@code top_provider.max_completion_tokens}), если провайдер отдаёт. */
+    @Column(name = "max_output_tokens")
+    private Integer maxOutputTokens;
+
     /** Входные модальности ({@code ["text","image"]}) — «умеет ли модель зрение». */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "input_modalities", columnDefinition = "JSONB")
     private List<String> inputModalities;
 
+    /** Выходные модальности ({@code ["image"]}, {@code ["audio"]}) — основа матчинга «модель-как-инструмент». */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "output_modalities", columnDefinition = "JSONB")
+    private List<String> outputModalities;
+
     /** Поддерживаемые параметры запроса ({@code reasoning}, {@code tools}, …), если провайдер отдаёт. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "supported_parameters", columnDefinition = "JSONB")
     private List<String> supportedParameters;
+
+    /** Сырой entry ответа /models провайдера целиком — источник для backfill новых полей без ре-дискавери. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "raw_metadata", columnDefinition = "JSONB")
+    private Map<String, Object> rawMetadata;
 
     /**
      * Пер-модельные доп. параметры тела chat/completions (например OpenRouter
