@@ -76,6 +76,9 @@ public class RunContextMapper {
         if (spec.meta() != null) {
             builder.putAllMeta(spec.meta());
         }
+        if (spec.timeoutSeconds() != null && spec.timeoutSeconds() > 0) {
+            builder.setTimeoutSeconds(spec.timeoutSeconds());
+        }
         return builder.build();
     }
 

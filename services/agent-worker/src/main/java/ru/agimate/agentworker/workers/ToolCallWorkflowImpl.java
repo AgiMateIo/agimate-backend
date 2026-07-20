@@ -19,15 +19,22 @@ import java.nio.charset.StandardCharsets;
  * {@code toolCallId} arrives as a workflow argument (identical across replays), so replays issue
  * the same {@code ExecuteToolAsync} and poll the same id.
  *
- * <p>The poll budget ({@code agent.tool.poll-timeout}) bounds waiting only — it does not cancel
- * the backend job, so a timed-out tool may still complete and apply its effects. The timeout
- * message says so explicitly: the model must check state before retrying a non-idempotent tool.
+ * <p>The poll budget bounds waiting only — it does not cancel the backend job, so a timed-out
+ * tool may still complete and apply its effects. The timeout message says so explicitly: the
+ * model must check state before retrying a non-idempotent tool. The budget is per-tool: the
+ * spec's {@code timeout_seconds} (clamped to {@value #MAX_TIMEOUT_SECONDS}s) when declared,
+ * otherwise {@code agent.tool.poll-timeout}.
  */
 @Slf4j
 @WorkflowClassName(Queues.TOOL_CLASS)
 public class ToolCallWorkflowImpl implements ToolCallWorkflow {
 
     private static final long POLL_INTERVAL_MS = 500;
+    /** После первой минуты ожидания поллим реже: долгие тулы не заслуживают 2 rps на gRPC. */
+    private static final long SLOW_POLL_INTERVAL_MS = 2_000;
+    private static final long SLOW_POLL_AFTER_MS = 60_000;
+    /** Потолок заявленного спеком бюджета — 30 минут. */
+    static final int MAX_TIMEOUT_SECONDS = 1800;
 
     private final AgentWorkerClient client;
     private final DBOS dbos;
@@ -44,10 +51,12 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
     @Override
     @Workflow(name = Queues.TOOL_WORKFLOW)
     public Outcome toolCall(String connectorCode, String backendName, String argsJson,
-                                    String toolCallId, String agentId, String triggerId, String connectionId) {
+                                    String toolCallId, String agentId, String triggerId, String connectionId,
+                                    int timeoutSeconds) {
         try {
             String outputJson = dbos.runStep(
-                    () -> callConnectorTool(connectorCode, backendName, argsJson, toolCallId, connectionId, agentId, triggerId),
+                    () -> callConnectorTool(connectorCode, backendName, argsJson, toolCallId, connectionId,
+                            agentId, triggerId, effectiveTimeoutMs(timeoutSeconds, pollTimeoutMs)),
                     "call_connector_tool");
             return Outcome.ok(outputJson);
         } catch (Exception e) {
@@ -57,11 +66,21 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
         }
     }
 
+    /** Бюджет ожидания: заявленный спеком (кламп 30 мин) либо дефолт воркера. */
+    static long effectiveTimeoutMs(int specTimeoutSeconds, long defaultMs) {
+        if (specTimeoutSeconds <= 0) {
+            return defaultMs;
+        }
+        return Math.min(specTimeoutSeconds, MAX_TIMEOUT_SECONDS) * 1000L;
+    }
+
     private String callConnectorTool(String connectorCode, String toolName, String argsJson,
-                                     String toolCallId, String connectionId, String agentId, String triggerId) {
+                                     String toolCallId, String connectionId, String agentId, String triggerId,
+                                     long budgetMs) {
         client.executeToolAsync(toolCallId, connectorCode, connectionId, toolName,
                 argsJson.getBytes(StandardCharsets.UTF_8), agentId, triggerId);
-        long deadline = System.currentTimeMillis() + pollTimeoutMs;
+        long start = System.currentTimeMillis();
+        long deadline = start + budgetMs;
         while (true) {
             GetToolResultResponse result = client.getToolResult(agentId, toolCallId, triggerId);
             if (result.getStatus() == ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS) {
@@ -73,14 +92,15 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
                 throw new IllegalStateException("tool " + toolName + " failed: "
                         + (err.isBlank() ? "no error message" : err));
             }
-            if (System.currentTimeMillis() > deadline) {
+            long now = System.currentTimeMillis();
+            if (now > deadline) {
                 throw new IllegalStateException("tool " + toolName + " (id=" + toolCallId
-                        + ") did not finish within " + (pollTimeoutMs / 1000) + "s; the call was NOT"
+                        + ") did not finish within " + (budgetMs / 1000) + "s; the call was NOT"
                         + " cancelled and may still complete with its effects applied — verify the"
                         + " current state before retrying");
             }
             try {
-                Thread.sleep(POLL_INTERVAL_MS);
+                Thread.sleep(now - start < SLOW_POLL_AFTER_MS ? POLL_INTERVAL_MS : SLOW_POLL_INTERVAL_MS);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("interrupted while polling tool " + toolName, ie);

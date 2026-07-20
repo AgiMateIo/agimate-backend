@@ -34,4 +34,24 @@ class ToolCallWorkflowImplTest {
         assertTrue(cut.contains("first 4 shown"));
         assertEquals("ab😀", cut.substring(0, 4));
     }
+
+    @Test
+    @DisplayName("effectiveTimeoutMs: спек не задал бюджет → дефолт воркера")
+    void defaultBudgetWhenSpecSilent() {
+        assertEquals(60_000L, ToolCallWorkflowImpl.effectiveTimeoutMs(0, 60_000L));
+        assertEquals(60_000L, ToolCallWorkflowImpl.effectiveTimeoutMs(-5, 60_000L));
+    }
+
+    @Test
+    @DisplayName("effectiveTimeoutMs: заявленный бюджет побеждает дефолт")
+    void specBudgetOverridesDefault() {
+        assertEquals(1_800_000L, ToolCallWorkflowImpl.effectiveTimeoutMs(1800, 60_000L));
+        assertEquals(300_000L, ToolCallWorkflowImpl.effectiveTimeoutMs(300, 60_000L));
+    }
+
+    @Test
+    @DisplayName("effectiveTimeoutMs: бюджет свыше 30 минут клампится")
+    void specBudgetClampedToMax() {
+        assertEquals(1_800_000L, ToolCallWorkflowImpl.effectiveTimeoutMs(7200, 60_000L));
+    }
 }

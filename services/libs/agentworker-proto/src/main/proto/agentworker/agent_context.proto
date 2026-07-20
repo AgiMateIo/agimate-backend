@@ -142,4 +142,7 @@ message ConnectorToolSpec {
   string namespace = 9 [json_name = "namespace"];
   // Тип коннектора — для маршрутизации ExecuteTool (раньше приходил из GetConnections).
   string connector_code = 10 [json_name = "connectorCode"];
+  // Бюджет ожидания результата тула воркером, секунды. 0 — дефолт воркера
+  // (agent.tool.poll-timeout); воркер клампит значение сверху (30 мин).
+  uint32 timeout_seconds = 11 [json_name = "timeoutSeconds"];
 }

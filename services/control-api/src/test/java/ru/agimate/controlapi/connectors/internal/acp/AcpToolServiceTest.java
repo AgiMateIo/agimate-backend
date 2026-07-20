@@ -215,7 +215,7 @@ class AcpToolServiceTest {
             var spec = new ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec(
                     TOOL, null, "d", null, null,
                     new ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec(readOnly, !readOnly, false, true),
-                    null);
+                    null, null);
             lenient().when(registry.mcpToolRef(SESSION_ID, TOOL))
                     .thenReturn(new AcpSessionRegistry.McpToolRef("tinvest", "get_portfolio"));
             lenient().when(registry.mcpToolSpec(SESSION_ID, TOOL)).thenReturn(spec);
@@ -268,7 +268,7 @@ class AcpToolServiceTest {
         @DisplayName("getTools(env) мёржит фиксированные тулы и session MCP-тулы")
         void getToolsMerges() {
             var mcpSpec = new ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec(
-                    TOOL, null, "d", null, null, null, null);
+                    TOOL, null, "d", null, null, null, null, null);
             when(registry.mcpToolSpecs(SESSION_ID)).thenReturn(Map.of(TOOL, mcpSpec));
 
             var tools = handler.getTools(env());

@@ -77,9 +77,10 @@ public class AgentProperties {
     @Setter
     public static class Tool {
         /**
-         * Poll budget for one backend tool call ({@code GetToolResult}); a tool that has not
-         * finished within it is reported to the model as failed (the backend job may still
-         * complete — the timeout does not cancel it).
+         * Default poll budget for one backend tool call ({@code GetToolResult}); a tool that has
+         * not finished within it is reported to the model as failed (the backend job may still
+         * complete — the timeout does not cancel it). A tool spec may declare its own
+         * {@code timeout_seconds} (clamped to 30 min), which overrides this default.
          */
         private Duration pollTimeout = Duration.ofSeconds(60);
         /**

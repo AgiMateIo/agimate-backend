@@ -218,7 +218,7 @@ class AcpSessionRegistryTest {
 
         private final ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec spec =
                 new ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec(
-                        "srv__t", null, "d", null, null, null, null);
+                        "srv__t", null, "d", null, null, null, null, null);
 
         @Test
         @DisplayName("putMcpTools кладёт спеки и ссылки, доступные по имени")

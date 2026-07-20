@@ -99,7 +99,7 @@ class AgentContextGrpcServiceTest {
                 List.of(RunBlock.trusted("agent", "agent", "- id: a-1", Map.of("k", "v"))),
                 List.of(new RunBlock("event", "connector:time", "{}", Map.of(), false, true)),
                 List.of(new RunTool(
-                        new ConnectorToolSpec("get_tasks", null, "desc", null, null, null, null),
+                        new ConnectorToolSpec("get_tasks", null, "desc", null, null, null, null, null),
                         "board", "conn-1", "board")),
                 List.of(
                         new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "привет"),

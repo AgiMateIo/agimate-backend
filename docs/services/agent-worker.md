@@ -79,7 +79,8 @@ single-writer'а и контрактное требование к трансп�
 Bound from `application.yaml` under `agent.*`; every value is overridable via env (relaxed
 binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example`. Key sections:
 `grpc` (target/tls/auth-token), `agent` (id/workflow-id), `concurrency` (agent-runs/llm/tool),
-`session` (run-ttl-seconds), `tool` (poll-timeout — бюджет ожидания результата тул-вызова, таймаут
+`session` (run-ttl-seconds), `tool` (poll-timeout — дефолтный бюджет ожидания результата тул-вызова;
+спек тула может заявить свой `timeout_seconds` (кламп 30 мин) — тогда он побеждает; таймаут
 не отменяет джобу на бэке, модель получает явное «could still complete»; max-output-chars — потолок
 вывода одного тула: гигантский вывод раздувает контекст всех последующих turns и DBOS-чекпоинты,
 поэтому обрезается с явной пометкой ещё внутри durable-шага), `dbos` (system database —

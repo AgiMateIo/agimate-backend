@@ -220,7 +220,7 @@ class RunContextServiceTest {
             connector.setDefinitionBinding(DefinitionBinding.STATIC);
             when(connectorRepository.findById("persist-memory")).thenReturn(Optional.of(connector));
             when(memoryHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
-                    "get_memory", new ConnectorToolSpec("get_memory", null, "d", null, null, null, null)));
+                    "get_memory", new ConnectorToolSpec("get_memory", null, "d", null, null, null, null, null)));
 
             RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
 
@@ -274,7 +274,7 @@ class RunContextServiceTest {
             connector.setDefinitionBinding(DefinitionBinding.STATIC);
             when(connectorRepository.findById("persist-memory")).thenReturn(Optional.of(connector));
             when(memoryHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
-                    "get_memory", new ConnectorToolSpec("get_memory", null, "d", null, null, null, null)));
+                    "get_memory", new ConnectorToolSpec("get_memory", null, "d", null, null, null, null, null)));
 
             RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
 

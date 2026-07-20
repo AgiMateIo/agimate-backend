@@ -18,6 +18,8 @@ public record ConnectorToolSpec(
         JsonSchema inputSchema,
         JsonSchema outputSchema,
         ToolAnnotationsSpec annotations,
-        @JsonProperty("_meta") Map<String, String> meta
+        @JsonProperty("_meta") Map<String, String> meta,
+        /** Бюджет ожидания результата воркером, секунды; {@code null} — дефолт воркера. */
+        Integer timeoutSeconds
 ) {
 }

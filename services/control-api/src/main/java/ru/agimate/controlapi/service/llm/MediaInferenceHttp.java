@@ -25,14 +25,16 @@ import java.util.Optional;
  * HTTP-транспорт медиа-инференса: {@code POST /chat/completions} OpenAI-совместимого провайдера
  * (единственный путь фазы 1 — см. docs/connectors/media.md) + парсинг мультимодального ответа
  * (картинки в {@code message.images[]} как data-URI, OpenRouter-конвенция). По образцу
- * {@link LlmDiscoveryHttp}, но с длинным read-таймаутом: генерация занимает десятки секунд.
+ * {@link LlmDiscoveryHttp}, но с длинным read-таймаутом: генерация может идти минуты.
  */
 @Component
 @Slf4j
 public class MediaInferenceHttp {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
-    private static final Duration READ_TIMEOUT = Duration.ofSeconds(120);
+    // Ниже воркерного бюджета generation-тулов (30 мин): провайдерное зависание превращается
+    // в чистую ошибку control-api до того, как воркер бросит ждать.
+    private static final Duration READ_TIMEOUT = Duration.ofMinutes(25);
     private static final String OPENAI_BASE_URL = "https://api.openai.com/v1";
     private static final String PRODUCT_URL = "https://agimate.io";
     private static final int ERROR_BODY_PREVIEW = 300;

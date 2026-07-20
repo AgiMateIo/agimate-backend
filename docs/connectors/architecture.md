@@ -126,7 +126,9 @@ PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
   `annotations`/`_meta`); параметры описываются `@ToolParam`. `getTools()` отдаёт `ConnectorToolSpec`
   (MCP): `inputSchema`/`outputSchema` строятся рефлексией (`ToolSchemaReflector`, без сторонних библиотек),
   `annotations` — поведенческие хинты (`readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`,
-  пессимистичные дефолты). Методы с `@Job` — **декларативные** фоновые задачи: аннотация несёт расписание
+  пессимистичные дефолты). Долгие тулы декларируют `@Tool(timeoutSeconds=…)` — бюджет ожидания
+  результата воркером (кламп 30 мин; `0`/не задан → дефолт воркера `agent.tool.poll-timeout`, 60s);
+  бюджет ограничивает только ожидание, выполнение на бэке не отменяется. Методы с `@Job` — **декларативные** фоновые задачи: аннотация несёт расписание
   (`type`, `intervalSeconds`/`cron`/`zone`, `timeoutSeconds`), на материализации экземпляра reconcile-синк
   заводит на каждую строку `connector_jobs` (`kind=SYSTEM`, по одной на connection_id). `@Job` всегда скрыт от
   LLM (нет в `getTools()`, недоступен через `executeTool`) — это фоновый процесс, а не тула.

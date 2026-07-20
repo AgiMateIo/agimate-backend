@@ -85,7 +85,8 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
                 ToolSchemaReflector.inputSchema(method),
                 ToolSchemaReflector.outputSchema(method),
                 toAnnotationsSpec(tool.annotations()),
-                toMeta(tool.meta()));
+                toMeta(tool.meta()),
+                tool.timeoutSeconds() > 0 ? tool.timeoutSeconds() : null);
     }
 
     private static ToolAnnotationsSpec toAnnotationsSpec(ToolAnnotations a) {

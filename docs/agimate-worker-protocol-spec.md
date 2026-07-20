@@ -169,6 +169,7 @@ Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_id` 
 
 - Любое внешнее действие — через `ToolGateway`. Воркер не делает прямых HTTP/SDK-вызовов в сторону внешних систем.
 - Паттерн один (см. §2.4): `ExecuteToolAsync` (в запросе `trigger_id` — сессию/канал резолвит бэк) + поллинг `GetToolResult` в child-workflow; параллелизм — очередь `tool_calls` (enqueue-before-await, детерминированный порядок).
+- Бюджет ожидания per-tool: `ConnectorToolSpec.timeout_seconds` (из `@Tool(timeoutSeconds=…)`; воркер клампит 30 минутами), `0` → дефолт `agent.tool.poll-timeout`. Таймаут не отменяет джобу на бэке — модель получает явное «could still complete».
 - При получении `PERMISSION_DENIED` от Tool Gateway — это валидный ответ, не сетевая ошибка. Воркер передаёт его в LLM как tool result, чтобы агент мог скорректировать поведение.
 
 ### 3.7 Telemetry
@@ -202,7 +203,7 @@ Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_id` 
 | **Usage-статистика** | Токены/модель per-turn перестали персиститься с уходом `message_json`; вернуть в `SaveMessage(ANSWER)` или отдельным reporting'ом | Аддитивные поля |
 | **historyDetail per-channel** | Сейчас — пресеты `ContextSpec` в коде (FULL); настройка на канале/агенте | Аддитивно |
 | **Лимит размера PromptBlock** | O(1)-инвариант блоков пока конвенция; ввести жёсткий лимит на бэке | Серверная валидация |
-| **Per-tool timeout** | Сейчас — глобальный `agent.tool.poll-timeout` на воркере (таймаут не отменяет джобу). Триггер: тул, которому нужно сильно больше остальных, когда поднять глобальный бюджет нельзя (зависшие тулы будут пинить слоты `tool_calls`). Тогда — поле в `ConnectorToolSpec` (декларация на `@Tool`) + отмена джобы по дедлайну на бэке; аргументы `tool_call`-workflow меняют форму → drain-деплой | Аддитивное поле proto; смена формы чекпоинта воркера |
+| **Per-tool timeout: отмена на бэке** | Ожидание уже per-tool: `ConnectorToolSpec.timeout_seconds` (декларация `@Tool(timeoutSeconds=…)`, кламп воркером 30 мин, `0` → `agent.tool.poll-timeout`). Не реализована отмена джобы на бэке по дедлайну — таймаут по-прежнему только перестаёт ждать | Отмена — аддитивный RPC |
 | **WorkflowReporting** | Structured logs / трейсы / статусы шагов | Новый сервис, аддитивно |
 | **Phase 1–3 (security)** | Per-workflow JWT (`x-workflow-token`), per-agent RBAC scope в RPC; LLM Gateway (вариант B); mTLS + Worker Registration | Аддитивно |
 

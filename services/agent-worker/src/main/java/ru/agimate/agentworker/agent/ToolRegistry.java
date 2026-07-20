@@ -32,9 +32,11 @@ public final class ToolRegistry {
     /**
      * Resolved backend routing for a sanitized tool name. {@code openWorld} — MCP
      * {@code openWorldHint}: the tool's output is external-world content and gets the
-     * untrusted wrapper before entering the dialogue.
+     * untrusted wrapper before entering the dialogue. {@code timeoutSeconds} — the spec's
+     * wait budget for the tool result; {@code 0} means the worker default.
      */
-    public record BackendTool(String connectorCode, String name, String connectionId, boolean openWorld) {}
+    public record BackendTool(String connectorCode, String name, String connectionId, boolean openWorld,
+                              int timeoutSeconds) {}
 
     private final List<ToolDef> toolDefs;
     private final Map<String, BackendTool> sanitizedToBackend;
@@ -62,7 +64,7 @@ public final class ToolRegistry {
             String namespace = spec.getNamespace().isBlank() ? spec.getConnectorCode() : spec.getNamespace();
             String sanitized = uniqueName(map, sanitizeToolName(namespace + "." + spec.getName()));
             map.put(sanitized, new BackendTool(spec.getConnectorCode(), spec.getName(), spec.getConnectionId(),
-                    spec.getAnnotations().getOpenWorldHint()));
+                    spec.getAnnotations().getOpenWorldHint(), spec.getTimeoutSeconds()));
             defs.add(new ToolDef(sanitized, spec.getDescription(), parseToolSchema(spec)));
         }
         return new ToolRegistry(defs, map);

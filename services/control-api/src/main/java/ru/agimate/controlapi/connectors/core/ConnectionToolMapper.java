@@ -27,6 +27,7 @@ public class ConnectionToolMapper {
                 parseSchema(tool.getInputSchema()),
                 parseSchema(tool.getOutputSchema()),
                 parseAnnotations(tool.getAnnotations()),
+                null,
                 null);
     }
 
@@ -43,6 +44,7 @@ public class ConnectionToolMapper {
                 parseSchemaNode(tool.get("inputSchema")),
                 parseSchemaNode(tool.get("outputSchema")),
                 parseAnnotationsNode(tool.get("annotations")),
+                null,
                 null);
     }
 

@@ -64,7 +64,7 @@ class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
                 continue;
             }
             WorkflowHandle<ToolCallWorkflow.Outcome, ? extends Exception> handle = dbos.startWorkflow(
-                    () -> tool.toolCall(bt.connectorCode(), bt.name(), tc.argumentsJson(), toolCallId, agentId, triggerId, bt.connectionId()),
+                    () -> tool.toolCall(bt.connectorCode(), bt.name(), tc.argumentsJson(), toolCallId, agentId, triggerId, bt.connectionId(), bt.timeoutSeconds()),
                     new StartWorkflowOptions(toolQueue));
             pending.add(new Pending(tc, toolCallId, handle, null, bt.openWorld()));
         }
