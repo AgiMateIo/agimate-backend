@@ -3,6 +3,7 @@ package ru.agimate.controlapi.controller.manage.dto.llm;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 
 import java.util.UUID;
 
@@ -14,6 +15,9 @@ public record UpdateAgentLlmRequest(
 
         @NotBlank
         @Schema(description = "Model name")
-        String model
+        String model,
+
+        @Schema(description = "Binding role; null — keep the current one")
+        LlmPurpose purpose
 ) {
 }

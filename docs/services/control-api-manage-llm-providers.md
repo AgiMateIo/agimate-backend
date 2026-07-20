@@ -139,6 +139,7 @@ Set or clear per-model `extraBody`. The model id goes in the body (it may contai
 |---|---|---|
 | `name` | string | Binding label (unique per agent) |
 | `model` | string | Model name |
+| `purpose` | enum | Binding role: `CHAT` (agent-loop model) / `IMAGE` / `VISION` / `AUDIO_IN` / `AUDIO_OUT` (media model-as-tool); `CHAT` for the platform fallback entry |
 | `llmProviderId` | UUID? | Bound provider; `null` for the platform fallback entry |
 | `llmProviderName` | string | Provider's display name |
 | `providerType` | enum | Provider type |
@@ -146,7 +147,9 @@ Set or clear per-model `extraBody`. The model id goes in the body (it may contai
 
 When an agent has no bindings and the platform provider is usable (enabled + `default_model` set), listing endpoints return a single synthetic entry with `source=PLATFORM` showing the effective model. It is not a DB row: it cannot be updated or deleted, and `llmProviderId` is `null`.
 
-Each binding also carries a `purpose` column (enum `LlmPurpose`, default `CHAT`, not exposed via the API yet): `CHAT` is the agent-loop model issued by `GetLlmCredentials`; `IMAGE`/`VISION`/`AUDIO_IN`/`AUDIO_OUT` are reserved for media-connector model-as-tool bindings. The chat-model selection filters on `purpose=CHAT` (first by `name`), so a tool binding can never shadow the agent's main model. Resolution pipeline (binding → platform fallback → enabled check → quota → key decryption → `extra_body` merge) lives in `LlmCredentialsResolver` (`service/llm`); the gRPC surface is a thin mapper over it.
+Each binding also carries a `purpose` (enum `LlmPurpose`, optional in `POST` — default `CHAT`; optional in `PUT` — `null` keeps the current value): `CHAT` is the agent-loop model issued by `GetLlmCredentials`; `IMAGE`/`VISION`/`AUDIO_IN`/`AUDIO_OUT` are media-connector model-as-tool bindings. The chat-model selection filters on `purpose=CHAT` (first by `name`), so a tool binding can never shadow the agent's main model. Resolution pipeline (binding → platform fallback → enabled check → quota → key decryption → `extra_body` merge) lives in `LlmCredentialsResolver` (`service/llm`); the gRPC surface is a thin mapper over it.
+
+Model-as-tool resolution (`LlmCredentialsResolver.resolveForCapability`) cascades: explicit `purpose` binding (always wins, registry not consulted — advisory like `validateModel`; disabled provider fails loudly, no fallback) → capability match over the user's enabled providers by `input/output_modalities` (`IMAGE`→output image, `VISION`→input image, `AUDIO_IN`/`AUDIO_OUT`→audio; the chat-bound provider is checked first, within a provider — first `AVAILABLE` model by name) → same match over the platform provider's registry. No match anywhere → domain `NoCapableModelException`. The quota/key/`extra_body` tail of the pipeline is shared with the chat path.
 
 ### `GET /control/manage/agents/{agentPubId}/llms/`
 
@@ -158,7 +161,8 @@ Body:
 {
   "name": "main_model",
   "llmProviderPubId": "018f...",
-  "model": "gpt-4o"
+  "model": "gpt-4o",
+  "purpose": "CHAT"
 }
 ```
 

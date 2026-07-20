@@ -16,6 +16,7 @@ import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.entities.LlmProviderModel;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
@@ -96,11 +97,12 @@ public class AgentLlmService {
                 .llmProviderId(provider.getId())
                 .name(request.name())
                 .model(request.model())
+                .purpose(request.purpose() != null ? request.purpose() : LlmPurpose.CHAT)
                 .build();
         binding = agentLlmRepository.save(binding);
 
-        log.info("Created agent_llm: agent={} name={} provider={} model={}",
-                agent.getId(), binding.getName(), provider.getId(), binding.getModel());
+        log.info("Created agent_llm: agent={} name={} provider={} model={} purpose={}",
+                agent.getId(), binding.getName(), provider.getId(), binding.getModel(), binding.getPurpose());
         return AgentLlmResponse.from(binding, provider);
     }
 
@@ -114,10 +116,13 @@ public class AgentLlmService {
 
         binding.setLlmProviderId(provider.getId());
         binding.setModel(request.model());
+        if (request.purpose() != null) {
+            binding.setPurpose(request.purpose());
+        }
         binding = agentLlmRepository.save(binding);
 
-        log.info("Replaced agent_llm: agent={} name={} provider={} model={}",
-                agent.getId(), name, provider.getId(), binding.getModel());
+        log.info("Replaced agent_llm: agent={} name={} provider={} model={} purpose={}",
+                agent.getId(), name, provider.getId(), binding.getModel(), binding.getPurpose());
         return AgentLlmResponse.from(binding, provider);
     }
 

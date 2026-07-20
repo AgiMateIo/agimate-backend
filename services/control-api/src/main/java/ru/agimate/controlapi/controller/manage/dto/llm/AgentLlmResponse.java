@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 
 import java.util.UUID;
 
@@ -14,6 +15,10 @@ public record AgentLlmResponse(
 
         @Schema(description = "Model name")
         String model,
+
+        @Schema(description = "Binding role: CHAT — agent-loop model, IMAGE/VISION/AUDIO_IN/AUDIO_OUT — "
+                + "media model-as-tool bindings")
+        LlmPurpose purpose,
 
         @Schema(description = "LLM provider public ID (null for the platform fallback)")
         UUID llmProviderId,
@@ -34,6 +39,7 @@ public record AgentLlmResponse(
         return new AgentLlmResponse(
                 binding.getName(),
                 binding.getModel(),
+                binding.getPurpose(),
                 binding.getLlmProviderId(),
                 provider != null ? provider.getName() : null,
                 provider != null ? provider.getProviderType() : null,
@@ -46,6 +52,7 @@ public record AgentLlmResponse(
         return new AgentLlmResponse(
                 platformProvider.getName(),
                 platformProvider.getDefaultModel(),
+                LlmPurpose.CHAT,
                 null,
                 platformProvider.getName(),
                 platformProvider.getProviderType(),
