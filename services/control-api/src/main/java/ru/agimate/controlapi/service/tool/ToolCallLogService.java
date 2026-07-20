@@ -4,13 +4,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.ToolCallLogResponse;
+import ru.agimate.controlapi.controller.manage.dto.ToolCallStatus;
 import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.App;
@@ -127,9 +127,21 @@ public class ToolCallLogService {
         return toolCallLog;
     }
 
-    public Page<ToolCallLogResponse> getToolCallLogs(UUID userId, UUID agentId, int page, int size) {
-        return toolCallLogRepository.findWithFilters(userId, agentId, PageRequest.of(page, size, Sort.by("createdAt").descending()))
+    public Page<ToolCallLogResponse> getToolCallLogs(UUID userId, UUID agentId, String connectorCode,
+                                                     String connectionId, AccessEffect accessEffect,
+                                                     String name, ToolCallStatus status, int page, int size) {
+        var pageable = PageRequest.of(page, size);
+        return toolCallLogRepository.findWithFilters(
+                        userId, agentId,
+                        blankToNull(connectorCode), blankToNull(connectionId),
+                        accessEffect, blankToNull(name),
+                        status != null ? status.name() : null,
+                        pageable)
                 .map(ToolCallLogResponse::from);
+    }
+
+    private static String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 
     private ToolCallLog getByExternalId(String externalId) {

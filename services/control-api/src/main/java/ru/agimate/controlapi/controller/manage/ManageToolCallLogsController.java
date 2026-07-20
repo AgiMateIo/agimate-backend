@@ -8,7 +8,9 @@ import org.springframework.web.bind.annotation.*;
 import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
+import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.controller.manage.dto.ToolCallLogResponse;
+import ru.agimate.controlapi.controller.manage.dto.ToolCallStatus;
 import ru.agimate.controlapi.service.tool.ToolCallLogService;
 
 import java.util.UUID;
@@ -25,16 +27,23 @@ public class ManageToolCallLogsController {
 
     @Operation(
             summary = "List tool use logs",
-            description = "Returns the current user's tool use logs, optionally filtered by agent id"
+            description = "Returns the current user's tool use logs, optionally filtered by agent id, "
+                    + "connector code, connection id, tool name (substring), access effect and execution status"
     )
     @GetMapping("/")
     public SuccessResponse<PageResponse<ToolCallLogResponse>> getToolCallLogs(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) UUID agentId,
+            @RequestParam(required = false) String connectorCode,
+            @RequestParam(required = false) String connectionId,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) AccessEffect accessEffect,
+            @RequestParam(required = false) ToolCallStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(PageResponse.from(toolCallLogService.getToolCallLogs(userId, agentId, page, size)));
+        return SuccessResponse.ok(PageResponse.from(toolCallLogService.getToolCallLogs(
+                userId, agentId, connectorCode, connectionId, accessEffect, name, status, page, size)));
     }
 }

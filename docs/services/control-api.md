@@ -194,7 +194,7 @@ same pattern as system skills), idempotently by `code`. Presets can also be crea
 
 | Method | Path                            | Description                        |
 |--------|---------------------------------|------------------------------------|
-| GET    | `/control/manage/tool-call-logs/` | List tool call logs (filter by apiKeyPubId) |
+| GET    | `/control/manage/tool-call-logs/` | List tool call logs (filters: `agentId`, `connectorCode`, `connectionId`, `name`, `accessEffect`, `status`; `page`/`size`) |
 
 ### Connections Management (JWT)
 
