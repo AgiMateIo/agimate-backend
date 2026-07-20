@@ -83,7 +83,18 @@ binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example
 не отменяет джобу на бэке, модель получает явное «could still complete»; max-output-chars — потолок
 вывода одного тула: гигантский вывод раздувает контекст всех последующих turns и DBOS-чекпоинты,
 поэтому обрезается с явной пометкой ещё внутри durable-шага), `dbos` (system database —
-must match control-api's).
+must match control-api's; `retention` — сколько хранить завершённые воркфлоу с чекпоинтами,
+0 отключает).
+
+### DBOS retention
+`DbosRetentionJob` периодически (раз в 6 часов, батчами по 5000) удаляет завершённые воркфлоу
+старше `agent.dbos.retention` (дефолт 7d) через public admin API библиотеки
+(`listWorkflows` с фильтром терминальных статусов + `deleteWorkflows`); чекпоинты и прочие
+дочерние таблицы чистятся каскадом. Семантика совпадает со встроенным bulk-GC
+(`WorkflowDAO.garbageCollect`), который наружу выведен только через неаутентифицированный
+deprecated admin-server и поэтому не используется. PENDING/ENQUEUED/DELAYED не трогаются.
+Чекпоинты — операционный дубль: бизнес-данные рана уходят в control-api синхронно, ретеншн
+ограничивает только окно расследований и ручного recovery.
 
 The worker owns the DBOS system-schema migrations (`withMigrate(true)` in `DbosRuntime`): on a
 `dev.dbos:transact` upgrade start the worker before control-api, whose `DBOSClient` does not

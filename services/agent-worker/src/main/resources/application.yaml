@@ -48,4 +48,7 @@ agent:
     password: "password"
     schema: "dbos"
     application-version:
+    # Сколько хранить завершённые воркфлоу (с чекпоинтами) в системной базе DBOS;
+    # 0 отключает очистку. Бизнес-данные рана и так уходят в control-api синхронно.
+    retention: 7d
 

@@ -87,6 +87,11 @@ public class DbosRuntime implements SmartLifecycle {
                 new AgentRunWorkflowImpl(core), Queues.INSTANCE);
     }
 
+    /** The launched DBOS instance — for infra jobs using its public admin API (retention). */
+    public DBOS dbos() {
+        return dbos;
+    }
+
     @Override
     public void start() {
         dbos.launch();

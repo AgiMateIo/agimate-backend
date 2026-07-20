@@ -2,6 +2,7 @@ package ru.agimate.agentworker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Entry point for the agent-worker.
@@ -13,6 +14,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * is fixed by control-api.
  */
 @SpringBootApplication
+@EnableScheduling
 public class AgentWorkerApplication {
 
     public static void main(String[] args) {

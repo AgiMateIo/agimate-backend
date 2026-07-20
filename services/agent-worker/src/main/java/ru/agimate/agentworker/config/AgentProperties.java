@@ -105,5 +105,11 @@ public class AgentProperties {
         private String schema = "dbos";
         /** Explicit DBOS application version; null → DBOS auto-hashes the code. */
         private String applicationVersion;
+        /**
+         * How long finished workflows (checkpoints included) are kept in the system database;
+         * zero or negative disables the purge. Business data is persisted in control-api
+         * synchronously with the run, so this bounds only the operational/recovery window.
+         */
+        private Duration retention = Duration.ofDays(7);
     }
 }
