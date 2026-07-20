@@ -40,12 +40,13 @@ public class SystemSkillBootstrap {
     /** Скилы сидятся раньше пресетов ({@link SystemPresetBootstrap}) — те ссылаются на них по имени. */
     static final int BOOTSTRAP_ORDER = 0;
 
-    private static final List<String> SYSTEM_SKILL_RESOURCES = List.of(
+    static final List<String> SYSTEM_SKILL_RESOURCES = List.of(
             "skills/board/SKILL.md",
             "skills/time/SKILL.md",
             "skills/persist-memory/SKILL.md",
             "skills/astro/SKILL.md",
-            "skills/divination/SKILL.md");
+            "skills/divination/SKILL.md",
+            "skills/media/SKILL.md");
 
     private final SkillRepository skillRepository;
 

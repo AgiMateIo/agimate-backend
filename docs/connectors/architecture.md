@@ -173,7 +173,9 @@ BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — 
 `internal/webchat/` (чат с агентом из фронта; scope `USER` — одна connection на пользователя, без
 тулов/джоб, см. `docs/connectors/webchat.md`), `internal/astro/` + `internal/divination/`
 (астрология по эфемеридам и Матрица/нумерология/Таро для пресета «Астролог», см.
-`docs/connectors/astro-divination.md`).
+`docs/connectors/astro-divination.md`), `internal/media/` (MediaConnectorService + MediaToolService —
+«модель как инструмент»: `gen_image`/`edit_image`/`read_image` чужой моделью, выбор модели и ключи —
+в `service/llm/MediaInferenceService`, см. `docs/connectors/media.md`).
 
 ### MCP-коннектор
 
