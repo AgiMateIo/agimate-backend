@@ -2,7 +2,10 @@ package ru.agimate.controlapi.connectors.integrations.mcp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -41,18 +44,49 @@ public class McpClient {
     private static final String HEADER_PROTOCOL_VERSION = "MCP-Protocol-Version";
     private static final Duration TIMEOUT = Duration.ofSeconds(30);
 
+    /** Идентификация AgiMate: {@code name} — машинный id, {@code title} — отображаемое имя (spec 2025-06-18). */
+    private static final String CLIENT_NAME = "agimate";
+    private static final String CLIENT_TITLE = "AgiMate";
+    private static final String PRODUCT_URL = "https://agimate.io";
+    /** Фолбэк-версия, когда build-info недоступен (запуск из IDE / тесты без Gradle-сборки). */
+    private static final String FALLBACK_VERSION = "dev";
+
     private final RestClient restClient;
     private final AtomicLong requestId = new AtomicLong(1);
 
     /** SSRF: разрешать ли цели на приватных/loopback-адресах (true — только для локальной разработки). */
     private final boolean allowPrivateTargets;
 
-    public McpClient(@Value("${app.connectors.mcp.allow-private-targets:false}") boolean allowPrivateTargets) {
+    /** Версия продукта для {@code clientInfo.version} и {@code User-Agent} (из build-info). */
+    private final String clientVersion;
+    /** Готовая строка {@code User-Agent}: {@code AgiMate/<version> (+url)}. */
+    private final String userAgent;
+
+    @Autowired
+    public McpClient(
+            @Value("${app.connectors.mcp.allow-private-targets:false}") boolean allowPrivateTargets,
+            ObjectProvider<BuildProperties> buildProperties) {
+        this(allowPrivateTargets, resolveVersion(buildProperties));
+    }
+
+    /** Конструктор для тестов: без Spring-контекста, версия — фолбэк. */
+    McpClient(boolean allowPrivateTargets) {
+        this(allowPrivateTargets, FALLBACK_VERSION);
+    }
+
+    private McpClient(boolean allowPrivateTargets, String clientVersion) {
         this.allowPrivateTargets = allowPrivateTargets;
+        this.clientVersion = clientVersion;
+        this.userAgent = "AgiMate/" + clientVersion + " (+" + PRODUCT_URL + ")";
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(TIMEOUT);
         factory.setReadTimeout(TIMEOUT);
         this.restClient = RestClient.builder().requestFactory(factory).build();
+    }
+
+    private static String resolveVersion(ObjectProvider<BuildProperties> buildProperties) {
+        BuildProperties props = buildProperties.getIfAvailable();
+        return props != null ? props.getVersion() : FALLBACK_VERSION;
     }
 
     /** Конфиг подключения к MCP-серверу из credentials. */
@@ -97,7 +131,10 @@ public class McpClient {
         Map<String, Object> params = Map.of(
                 "protocolVersion", PROTOCOL_VERSION,
                 "capabilities", Map.of(),
-                "clientInfo", Map.of("name", "agimate-control-api", "version", "1.0"));
+                "clientInfo", Map.of(
+                        "name", CLIENT_NAME,
+                        "title", CLIENT_TITLE,
+                        "version", clientVersion));
 
         long id = requestId.getAndIncrement();
         ResponseEntity<String> response;
@@ -160,6 +197,9 @@ public class McpClient {
         headers.setAccept(List.of(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM));
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set(HEADER_PROTOCOL_VERSION, PROTOCOL_VERSION);
+        // Бренд AgiMate вместо дефолтного JDK-«User-Agent: Java/xx» (антибрендинг + утечка версии JVM).
+        // Ставим до пользовательских headers — power-user может переопределить своим значением.
+        headers.set(HttpHeaders.USER_AGENT, userAgent);
         if (config.authToken() != null && !config.authToken().isBlank()) {
             headers.setBearerAuth(config.authToken());
         }
