@@ -22,6 +22,7 @@ import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
@@ -30,6 +31,7 @@ import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.LlmUsageService;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
+import ru.agimate.controlapi.service.llm.LlmCredentialsResolver;
 import ru.agimate.controlapi.service.llm.LlmQuotaService;
 import ru.agimate.controlapi.service.llm.QuotaExceededException;
 import ru.agimate.controlapi.service.runcontext.InboundPart;
@@ -75,16 +77,19 @@ class AgentContextGrpcServiceTest {
     private final LlmQuotaService llmQuotaService = mock(LlmQuotaService.class);
     private final ru.agimate.controlapi.storage.FileStorageService fileStorageService =
             mock(ru.agimate.controlapi.storage.FileStorageService.class);
-    private final AgentContextGrpcService service = new AgentContextGrpcService(
-            runContextService,
-            mock(ru.agimate.controlapi.service.trigger.RunActivityService.class),
+    // Резолвер — настоящий, поверх тех же моков: тесты остаются контрактными, через gRPC-поверхность.
+    private final LlmCredentialsResolver llmCredentialsResolver = new LlmCredentialsResolver(
             agentLlmRepository,
             llmProviderRepository,
             llmProviderModelRepository,
             llmProviderService,
+            llmQuotaService);
+    private final AgentContextGrpcService service = new AgentContextGrpcService(
+            runContextService,
+            mock(ru.agimate.controlapi.service.trigger.RunActivityService.class),
+            llmCredentialsResolver,
             agentRepository,
             llmUsageService,
-            llmQuotaService,
             fileStorageService);
 
     @Test
@@ -170,7 +175,8 @@ class AgentContextGrpcServiceTest {
                     .defaultModel("gpt-5-mini")
                     .enabled(true)
                     .build();
-            when(agentLlmRepository.findAllByAgentIdOrderByName(agentId)).thenReturn(List.of());
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.CHAT))
+                    .thenReturn(List.of());
             when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
             when(llmProviderService.decryptApiKey(platform)).thenReturn("sk-platform-key");
 
@@ -186,7 +192,8 @@ class AgentContextGrpcServiceTest {
         @Test
         @DisplayName("нет привязки и платформенный недоступен → NOT_FOUND")
         void notFoundWithoutBindingAndPlatform() {
-            when(agentLlmRepository.findAllByAgentIdOrderByName(agentId)).thenReturn(List.of());
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.CHAT))
+                    .thenReturn(List.of());
             when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.empty());
 
             StatusRuntimeException error = assertThrows(StatusRuntimeException.class,
@@ -209,7 +216,8 @@ class AgentContextGrpcServiceTest {
                     .providerType(LlmProviderType.OPENAI)
                     .enabled(true)
                     .build();
-            when(agentLlmRepository.findAllByAgentIdOrderByName(agentId)).thenReturn(List.of(binding));
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.CHAT))
+                    .thenReturn(List.of(binding));
             when(llmProviderRepository.findById(providerId)).thenReturn(Optional.of(provider));
             when(llmProviderService.decryptApiKey(provider)).thenReturn("sk-user-key");
 
@@ -232,7 +240,8 @@ class AgentContextGrpcServiceTest {
                     .defaultModel("gpt-5-mini")
                     .enabled(true)
                     .build();
-            when(agentLlmRepository.findAllByAgentIdOrderByName(agentId)).thenReturn(List.of());
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.CHAT))
+                    .thenReturn(List.of());
             when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
             org.mockito.Mockito.doThrow(new QuotaExceededException("Дневной лимит исчерпан"))
                     .when(llmQuotaService).check(platform, userId, agentId);

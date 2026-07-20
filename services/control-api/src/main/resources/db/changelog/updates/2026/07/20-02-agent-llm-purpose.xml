@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Назначение биндинга (enum LlmPurpose): CHAT — основная модель агентного цикла,
+         IMAGE/VISION/AUDIO_IN/AUDIO_OUT — модели-инструменты медиа-коннектора.
+         Выбор chat-модели фильтруется по purpose: биндинг-инструмент не может подменить
+         основную модель агенту (раньше брался «первый по имени» без разбора). -->
+    <changeSet id="2026-07-20-02-agent-llm-purpose" author="agimate">
+        <addColumn tableName="agent_llms">
+            <column name="purpose" type="TEXT" defaultValue="CHAT">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

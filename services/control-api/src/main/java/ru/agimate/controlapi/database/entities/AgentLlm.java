@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 
 import java.util.UUID;
 
@@ -40,4 +41,9 @@ public class AgentLlm extends BaseEntity {
 
     @Column(name = "model", nullable = false, columnDefinition = "TEXT")
     private String model;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "purpose", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private LlmPurpose purpose = LlmPurpose.CHAT;
 }

@@ -12,6 +12,7 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.ValidationErrorStatusException;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.service.llm.LlmProviderDisabledException;
 import ru.agimate.controlapi.service.llm.QuotaExceededException;
 
 import java.nio.charset.StandardCharsets;
@@ -115,6 +116,9 @@ public class GrpcSupport {
         }
         if (e instanceof QuotaExceededException) {
             return Status.RESOURCE_EXHAUSTED;
+        }
+        if (e instanceof LlmProviderDisabledException) {
+            return Status.FAILED_PRECONDITION;
         }
         return null;
     }

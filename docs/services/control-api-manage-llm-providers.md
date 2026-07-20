@@ -146,6 +146,8 @@ Set or clear per-model `extraBody`. The model id goes in the body (it may contai
 
 When an agent has no bindings and the platform provider is usable (enabled + `default_model` set), listing endpoints return a single synthetic entry with `source=PLATFORM` showing the effective model. It is not a DB row: it cannot be updated or deleted, and `llmProviderId` is `null`.
 
+Each binding also carries a `purpose` column (enum `LlmPurpose`, default `CHAT`, not exposed via the API yet): `CHAT` is the agent-loop model issued by `GetLlmCredentials`; `IMAGE`/`VISION`/`AUDIO_IN`/`AUDIO_OUT` are reserved for media-connector model-as-tool bindings. The chat-model selection filters on `purpose=CHAT` (first by `name`), so a tool binding can never shadow the agent's main model. Resolution pipeline (binding → platform fallback → enabled check → quota → key decryption → `extra_body` merge) lives in `LlmCredentialsResolver` (`service/llm`); the gRPC surface is a thin mapper over it.
+
 ### `GET /control/manage/agents/{agentPubId}/llms/`
 
 ### `POST /control/manage/agents/{agentPubId}/llms/`

@@ -9,19 +9,12 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.Agent;
-import ru.agimate.controlapi.database.entities.AgentLlm;
-import ru.agimate.controlapi.database.entities.LlmProvider;
-import ru.agimate.controlapi.database.entities.LlmProviderModel;
-import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
-import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
-import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.grpc.mapper.RunContextMapper;
-import ru.agimate.controlapi.service.LlmProviderService;
 import ru.agimate.controlapi.service.LlmUsageService;
-import ru.agimate.controlapi.service.llm.ExtraBodyMerge;
-import ru.agimate.controlapi.service.llm.LlmQuotaService;
+import ru.agimate.controlapi.service.llm.LlmCredentialsResolver;
+import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
 import ru.agimate.controlapi.service.runcontext.RunContextService;
 import ru.agimate.controlapi.service.runcontext.RunContextView;
 import ru.agimate.controlapi.service.trigger.RunActivityService;
@@ -67,13 +60,9 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
 
     private final RunContextService runContextService;
     private final RunActivityService runActivityService;
-    private final AgentLlmRepository agentLlmRepository;
-    private final LlmProviderRepository llmProviderRepository;
-    private final LlmProviderModelRepository llmProviderModelRepository;
-    private final LlmProviderService llmProviderService;
+    private final LlmCredentialsResolver llmCredentialsResolver;
     private final AgentRepository agentRepository;
     private final LlmUsageService llmUsageService;
-    private final LlmQuotaService llmQuotaService;
     private final FileStorageService fileStorageService;
 
     /** Размер чанка содержимого файла: << дефолтный 4 MB предел gRPC-сообщения. */
@@ -183,45 +172,19 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
             Agent agent = agentRepository.findById(agentId)
                     .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
-            LlmProvider provider;
-            String model;
-            AgentLlm llmBinding = agentLlmRepository.findAllByAgentIdOrderByName(agentId).stream()
-                    .findFirst()
-                    .orElse(null);
-            if (llmBinding != null) {
-                provider = llmProviderRepository.findById(llmBinding.getLlmProviderId())
-                        .orElseThrow(() -> new NotFoundStatusException(
-                                "LLM provider not found: " + llmBinding.getLlmProviderId()));
-                if (!provider.isEnabled()) {
-                    responseObserver.onError(Status.FAILED_PRECONDITION
-                            .withDescription("LLM provider disabled").asRuntimeException());
-                    return;
-                }
-                model = llmBinding.getModel();
-            } else {
-                // Fallback: платформенный провайдер (личная привязка всегда побеждает).
-                provider = llmProviderService.findUsablePlatformProvider()
-                        .orElseThrow(() -> new NotFoundStatusException(
-                                "No LLM binding for agent: " + agentId));
-                model = provider.getDefaultModel();
-            }
-
-            // Перед каждым LLM-вызовом (креды запрашиваются inline на каждый llm_call).
-            llmQuotaService.check(provider, agent.getUserId(), agentId);
-
-            String apiKey = llmProviderService.decryptApiKey(provider);
+            ResolvedLlm resolved = llmCredentialsResolver.resolveChat(agentId, agent.getUserId());
 
             LlmCredentials response = LlmCredentials.newBuilder()
-                    .setProviderType(provider.getProviderType().name())
-                    .setBaseUrl(nullToEmpty(provider.getBaseUrl()))
-                    .setApiKey(apiKey)
-                    .setModel(nullToEmpty(model))
-                    .setProviderId(provider.getId().toString())
-                    .setExtraBodyJson(resolveExtraBody(provider, model))
+                    .setProviderType(resolved.provider().getProviderType().name())
+                    .setBaseUrl(nullToEmpty(resolved.provider().getBaseUrl()))
+                    .setApiKey(resolved.apiKey())
+                    .setModel(nullToEmpty(resolved.model()))
+                    .setProviderId(resolved.provider().getId().toString())
+                    .setExtraBodyJson(toExtraBodyJson(resolved))
                     .build();
             log.info("issued LLM credentials pool={} agent={} providerType={} platform={}",
-                    WorkerPoolContextHolder.current().poolId(), agentId, provider.getProviderType(),
-                    llmBinding == null);
+                    WorkerPoolContextHolder.current().poolId(), agentId,
+                    resolved.provider().getProviderType(), resolved.platformFallback());
             responseObserver.onNext(response);
             responseObserver.onCompleted();
         } catch (Exception e) {
@@ -260,22 +223,16 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     }
 
     /**
-     * Финальный extra_body для воркера: deep-merge провайдер-уровневого и пер-модельного
-     * (модель побеждает, см. {@link ExtraBodyMerge}). Пустой результат → пустая строка
+     * Итоговый extra_body резолвера в проводной формат. Пустая map → пустая строка
      * («нет доп. полей» — то же видит воркер от старого control-api при rolling deploy).
      */
-    private String resolveExtraBody(LlmProvider provider, String model) {
-        Map<String, Object> perModel = model == null ? null : llmProviderModelRepository
-                .findByProviderIdAndModel(provider.getId(), model)
-                .map(LlmProviderModel::getExtraBody)
-                .orElse(null);
-        Map<String, Object> merged = ExtraBodyMerge.merge(provider.getExtraBody(), perModel);
-        if (merged.isEmpty()) {
+    private String toExtraBodyJson(ResolvedLlm resolved) {
+        if (resolved.extraBody().isEmpty()) {
             return "";
         }
-        return JsonUtils.toJson(merged).orElseGet(() -> {
+        return JsonUtils.toJson(resolved.extraBody()).orElseGet(() -> {
             log.error("extra_body for provider {} model {} is not serializable — sending none",
-                    provider.getId(), model);
+                    resolved.provider().getId(), resolved.model());
             return "";
         });
     }
