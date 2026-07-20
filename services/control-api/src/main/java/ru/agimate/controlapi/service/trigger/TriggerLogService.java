@@ -7,8 +7,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.controlapi.controller.manage.dto.TriggerLogAgentRunResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerLogResponse;
 import ru.agimate.controlapi.database.entities.TriggerLog;
+import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.TriggerLogRepository;
 
 import java.time.LocalDateTime;
@@ -26,6 +28,20 @@ public class TriggerLogService {
     public Page<TriggerLogResponse> getTriggerLogs(UUID userId, String connectorCode, int page, int size) {
         return triggerLogRepository.findByUserIdWithFilters(userId, connectorCode, PageRequest.of(page, size, Sort.by("createdAt").descending()))
                 .map(TriggerLogResponse::from);
+    }
+
+    public Page<TriggerLogAgentRunResponse> getAgentRuns(UUID userId, UUID agentId, String connectorCode,
+                                                         String connectionId, String name, RunStatus status,
+                                                         int page, int size) {
+        return triggerLogRepository.findAgentRunsWithFilters(
+                        userId, agentId,
+                        blankToNull(connectorCode), blankToNull(connectionId), blankToNull(name), status,
+                        PageRequest.of(page, size))
+                .map(TriggerLogAgentRunResponse::from);
+    }
+
+    private static String blankToNull(String value) {
+        return (value == null || value.isBlank()) ? null : value.trim();
     }
 
     @Transactional

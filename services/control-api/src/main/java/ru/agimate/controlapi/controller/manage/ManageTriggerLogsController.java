@@ -12,7 +12,9 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.IssueProbeRequest;
 import ru.agimate.controlapi.controller.manage.dto.IssueProbeResponse;
+import ru.agimate.controlapi.controller.manage.dto.TriggerLogAgentRunResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerLogResponse;
+import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.service.trigger.TriggerLogProbeService;
 import ru.agimate.controlapi.service.trigger.TriggerLogService;
 
@@ -43,6 +45,28 @@ public class ManageTriggerLogsController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(PageResponse.from(triggerLogService.getTriggerLogs(userId, connectorCode, page, size)));
+    }
+
+    @Operation(
+            summary = "List trigger runs for an agent",
+            description = "Returns triggers delivered to the given agent and that agent's run of each "
+                    + "(trigger_log_agents joined to trigger_logs), scoped to the current user. "
+                    + "Optional filters: connectorCode, connectionId, name (substring), status."
+    )
+    @GetMapping("/agent-runs/")
+    public SuccessResponse<PageResponse<TriggerLogAgentRunResponse>> getAgentRuns(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @RequestParam UUID agentId,
+            @RequestParam(required = false) String connectorCode,
+            @RequestParam(required = false) String connectionId,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) RunStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(PageResponse.from(triggerLogService.getAgentRuns(
+                userId, agentId, connectorCode, connectionId, name, status, page, size)));
     }
 
     @Operation(

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Per-agent trigger-листинг фильтрует по agent_id и сортирует по created_at DESC.
+      Существующий unique (trigger_log_id, agent_id) не покрывает фильтр по одному agent_id
+      (agent_id — не ведущая колонка). Добавляем композитный индекс (agent_id, created_at DESC).
+    -->
+    <changeSet id="index-trigger-log-agents-agent-id-created-at" author="agimate">
+        <createIndex tableName="trigger_log_agents" indexName="idx_trigger_log_agents_agent_id_created_at">
+            <column name="agent_id"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

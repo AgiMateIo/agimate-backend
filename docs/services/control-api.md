@@ -134,7 +134,8 @@ Trigger and tool-result ingestion from external sources is rate-limited per conn
 
 | Method | Path                              | Description                                     |
 |--------|-----------------------------------|-------------------------------------------------|
-| GET    | `/control/manage/trigger-logs/`    | List trigger logs (filter by deviceId, connectorPubId) |
+| GET    | `/control/manage/trigger-logs/`    | List trigger logs (filter: `connectorCode`; `page`/`size`) |
+| GET    | `/control/manage/trigger-logs/agent-runs/` | Per-agent trigger runs (req `agentId`; filters: `connectorCode`, `connectionId`, `name`, `status`; `page`/`size`) |
 
 ### Webhook Delivery Logs (JWT)
 
