@@ -112,8 +112,33 @@ class LlmCredentialsResolverTest {
             assertEquals("google/gemini-2.5-flash-image", resolved.model());
             assertEquals("sk-key", resolved.apiKey());
             assertFalse(resolved.platformFallback());
+            assertTrue(resolved.inputModalities().isEmpty(), "нет строки реестра → модальности неизвестны");
             verify(llmQuotaService).check(bound, userId, agentId);
             verify(llmProviderRepository, never()).findAllByUserIdOrderByCreatedAtDesc(any());
+        }
+
+        @Test
+        @DisplayName("input_modalities берутся из строки реестра резолвнутой модели")
+        void inputModalitiesComeFromRegistryRow() {
+            LlmProvider bound = provider("my-openrouter");
+            AgentLlm binding = AgentLlm.builder()
+                    .agentId(agentId)
+                    .llmProviderId(bound.getId())
+                    .name("chat")
+                    .model("deepseek/deepseek-v4-flash")
+                    .purpose(LlmPurpose.CHAT)
+                    .build();
+            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.CHAT))
+                    .thenReturn(List.of(binding));
+            when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
+            when(llmProviderService.decryptApiKey(bound)).thenReturn("sk-key");
+            when(llmProviderModelRepository.findByProviderIdAndModel(bound.getId(), "deepseek/deepseek-v4-flash"))
+                    .thenReturn(Optional.of(model("deepseek/deepseek-v4-flash",
+                            List.of("text"), List.of("text"), LlmProviderModelStatus.AVAILABLE)));
+
+            ResolvedLlm resolved = resolver.resolveChat(agentId, userId);
+
+            assertEquals(List.of("text"), resolved.inputModalities());
         }
 
         @Test

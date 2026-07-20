@@ -32,21 +32,43 @@ import java.util.Map;
 @Component
 public class LlmMessageMapper {
 
+    /**
+     * Рамка «зрения» для текущего вызова: стабы вложений ({@code MediaStubs} на бэке) нейтральны,
+     * поэтому семантику «видишь / не видишь» объясняет воркер — по аналогии с
+     * {@code ContextBuilder.TOOL_OUTPUT_GUIDANCE}. Добавляется только когда в запросе есть
+     * image-вложения.
+     */
+    static final String IMAGE_VISIBLE_GUIDANCE =
+            "Изображения, приложенные к сообщениям, поданы тебе напрямую — ты видишь их сам. "
+            + "id (agf_…) из описания файла нужен только чтобы сослаться на файл в инструментах "
+            + "или ответе; скачивать или читать по id уже видимую картинку не нужно.";
+
+    static final String IMAGE_NOT_VISIBLE_GUIDANCE =
+            "Твоя модель не принимает изображения на вход: приложенные картинки тебе НЕ видны, "
+            + "ты видишь только их текстовые описания с id (agf_…). Чтобы узнать содержимое "
+            + "картинки, вызови инструмент чтения изображений (например media.read_image) с этим "
+            + "id; для редактирования или пересылки передавай id соответствующему инструменту.";
+
     public List<Message> toSpringMessages(List<AgentChatMessage> messages) {
-        return toSpringMessages(messages, Map.of());
+        return toSpringMessages(messages, Map.of(), true);
     }
 
     /**
      * Как {@link #toSpringMessages(List)}, но у user-сообщений с image-вложениями подмешивает
      * {@link Media} из {@code mediaBytes} (fileId → байты, подтянутые GetFile'ом при LLM-вызове).
      * Нет байтов для ссылки (недоступна/не image) → вложение опускается: текст уже несёт стаб.
+     *
+     * <p>{@code imageInputSupported=false} (chat-модель без image в {@code input_modalities}) —
+     * media не подмешивается вовсе, а при наличии image-вложений добавляется system-подсказка
+     * {@link #IMAGE_NOT_VISIBLE_GUIDANCE}; иначе — {@link #IMAGE_VISIBLE_GUIDANCE}.
      */
-    public List<Message> toSpringMessages(List<AgentChatMessage> messages, Map<String, byte[]> mediaBytes) {
+    public List<Message> toSpringMessages(List<AgentChatMessage> messages, Map<String, byte[]> mediaBytes,
+                                          boolean imageInputSupported) {
         List<Message> out = new ArrayList<>(messages.size());
         for (AgentChatMessage m : messages) {
             switch (m.role()) {
                 case SYSTEM -> out.add(new SystemMessage(nullToEmpty(m.text())));
-                case USER -> out.add(userMessage(m, mediaBytes));
+                case USER -> out.add(userMessage(m, mediaBytes, imageInputSupported));
                 case ASSISTANT -> out.add(AssistantMessage.builder()
                         .content(nullToEmpty(m.text()))
                         .toolCalls(m.toolCalls().stream()
@@ -60,10 +82,32 @@ public class LlmMessageMapper {
                         .build());
             }
         }
+        if (hasImageParts(messages)) {
+            // После ведущих system-сообщений, до диалога — рамка видимости для этого вызова.
+            out.add(leadingSystemCount(out),
+                    new SystemMessage(imageInputSupported ? IMAGE_VISIBLE_GUIDANCE : IMAGE_NOT_VISIBLE_GUIDANCE));
+        }
         return out;
     }
 
-    private static Message userMessage(AgentChatMessage m, Map<String, byte[]> mediaBytes) {
+    private static boolean hasImageParts(List<AgentChatMessage> messages) {
+        return messages.stream().anyMatch(m -> m.parts().stream().anyMatch(FilePartRef::isImage));
+    }
+
+    private static int leadingSystemCount(List<Message> out) {
+        int i = 0;
+        while (i < out.size() && out.get(i) instanceof SystemMessage) {
+            i++;
+        }
+        return i;
+    }
+
+    private static Message userMessage(AgentChatMessage m, Map<String, byte[]> mediaBytes,
+                                       boolean imageInputSupported) {
+        if (!imageInputSupported) {
+            // Модель слепая: media не подмешиваем, текст уже несёт стаб с id.
+            return new UserMessage(nullToEmpty(m.text()));
+        }
         List<Media> media = new ArrayList<>();
         for (FilePartRef part : m.parts()) {
             if (!part.isImage()) {

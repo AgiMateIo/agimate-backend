@@ -181,6 +181,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                     .setModel(nullToEmpty(resolved.model()))
                     .setProviderId(resolved.provider().getId().toString())
                     .setExtraBodyJson(toExtraBodyJson(resolved))
+                    .addAllInputModalities(resolved.inputModalities())
                     .build();
             log.info("issued LLM credentials pool={} agent={} providerType={} platform={}",
                     WorkerPoolContextHolder.current().poolId(), agentId,

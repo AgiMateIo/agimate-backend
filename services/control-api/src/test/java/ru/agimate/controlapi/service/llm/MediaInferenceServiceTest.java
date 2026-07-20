@@ -69,7 +69,7 @@ class MediaInferenceServiceTest {
             .build();
 
     private ResolvedLlm resolved(String model, Map<String, Object> extraBody) {
-        return new ResolvedLlm(provider, model, "sk-key", extraBody, false);
+        return new ResolvedLlm(provider, model, "sk-key", extraBody, java.util.List.of(), false);
     }
 
     private static Map<String, Object> imageResponse(String text) {

@@ -45,6 +45,8 @@ public class LlmCredentialsResolver {
     /**
      * Результат резолва. {@code extraBody} — итоговый deep-merge провайдер-уровневого и
      * пер-модельного (модель побеждает, см. {@link ExtraBodyMerge}); пустая map — нет доп. полей.
+     * {@code inputModalities} — из строки реестра модели ({@code llm_provider_models}, фолбэк
+     * {@code llm_model_defaults} влит write-time); пустой список — модель реестру неизвестна.
      *
      * @param platformFallback {@code true} — выдан платформенный провайдер (у агента нет привязки)
      */
@@ -53,6 +55,7 @@ public class LlmCredentialsResolver {
             String model,
             String apiKey,
             Map<String, Object> extraBody,
+            List<String> inputModalities,
             boolean platformFallback) {
     }
 
@@ -94,8 +97,7 @@ public class LlmCredentialsResolver {
         // Перед каждым LLM-вызовом (креды запрашиваются inline на каждый llm_call).
         llmQuotaService.check(provider, userId, agentId);
 
-        String apiKey = llmProviderService.decryptApiKey(provider);
-        return new ResolvedLlm(provider, model, apiKey, resolveExtraBody(provider, model), platformFallback);
+        return resolved(provider, model, platformFallback);
     }
 
     /**
@@ -142,8 +144,20 @@ public class LlmCredentialsResolver {
 
         llmQuotaService.check(provider, userId, agentId);
 
+        return resolved(provider, model, platformFallback);
+    }
+
+    /** Финализация: расшифровка ключа + одна выборка строки реестра (extra_body и модальности). */
+    private ResolvedLlm resolved(LlmProvider provider, String model, boolean platformFallback) {
         String apiKey = llmProviderService.decryptApiKey(provider);
-        return new ResolvedLlm(provider, model, apiKey, resolveExtraBody(provider, model), platformFallback);
+        LlmProviderModel registryRow = model == null ? null : llmProviderModelRepository
+                .findByProviderIdAndModel(provider.getId(), model)
+                .orElse(null);
+        Map<String, Object> extraBody = ExtraBodyMerge.merge(provider.getExtraBody(),
+                registryRow != null ? registryRow.getExtraBody() : null);
+        List<String> inputModalities = registryRow != null && registryRow.getInputModalities() != null
+                ? List.copyOf(registryRow.getInputModalities()) : List.of();
+        return new ResolvedLlm(provider, model, apiKey, extraBody, inputModalities, platformFallback);
     }
 
     private record Candidate(LlmProvider provider, String model, boolean platform) {
@@ -208,11 +222,4 @@ public class LlmCredentialsResolver {
                 .findFirst();
     }
 
-    private Map<String, Object> resolveExtraBody(LlmProvider provider, String model) {
-        Map<String, Object> perModel = model == null ? null : llmProviderModelRepository
-                .findByProviderIdAndModel(provider.getId(), model)
-                .map(LlmProviderModel::getExtraBody)
-                .orElse(null);
-        return ExtraBodyMerge.merge(provider.getExtraBody(), perModel);
-    }
 }

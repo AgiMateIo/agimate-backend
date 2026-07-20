@@ -99,6 +99,10 @@ message LlmCredentials {
   // extra_body уже выполнен бэком; напр. OpenRouter provider-роутинг). Пусто = нет доп. полей
   // (в т.ч. у старого control-api при rolling deploy). НЕ секрет, но целиком в логи не писать.
   string extra_body_json = 6;
+  // input_modalities модели из реестра бэка (llm_provider_models, с write-time фолбэком
+  // llm_model_defaults): "text", "image", "audio", … Пусто = неизвестно (модели нет в реестре /
+  // старый control-api) — воркер ведёт себя оптимистично (прикладывает image-вложения инлайном).
+  repeated string input_modalities = 7 [json_name = "inputModalities"];
 }
 
 message ReportLlmUsageRequest {

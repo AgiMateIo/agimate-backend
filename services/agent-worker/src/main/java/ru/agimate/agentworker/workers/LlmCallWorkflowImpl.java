@@ -77,9 +77,17 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
                     .model(creds.getModel())
                     .toolCallbacks(mapper.toolCallbacks(toolDefs))
                     .build();
+            // Подаём ли картинки инлайном — решается на каждый вызов по input_modalities модели
+            // из кредов; пустой список = реестр модель не знает → оптимистично прикладываем.
+            boolean imageInput = creds.getInputModalitiesList().isEmpty()
+                    || creds.getInputModalitiesList().contains("image");
+            if (!imageInput && hasImageParts(messages)) {
+                log.info("chat model {} lacks image input — inbound images stay text stubs",
+                        creds.getModel());
+            }
             // Байты вложений тянем inline (как креды) — в DBOS-чекпоинт входа воркфлоу не попадают.
-            Map<String, byte[]> mediaBytes = fetchImageBytes(messages, agentId);
-            Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes), options);
+            Map<String, byte[]> mediaBytes = imageInput ? fetchImageBytes(messages, agentId) : Map.of();
+            Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes, imageInput), options);
             ChatResponse response = callWithRetry(model, prompt);
             reportUsage(response, creds, agentId);
             return Result.ok(mapper.fromResponse(response));
@@ -130,6 +138,10 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
      * текст сообщения уже содержит стаб, «зрение» деградирует, ран не падает. На практике parts
      * есть только у последнего user-сообщения — цикл дешёвый.
      */
+    private static boolean hasImageParts(List<AgentChatMessage> messages) {
+        return messages.stream().anyMatch(m -> m.parts().stream().anyMatch(FilePartRef::isImage));
+    }
+
     private Map<String, byte[]> fetchImageBytes(List<AgentChatMessage> messages, String agentId) {
         Map<String, byte[]> bytes = new LinkedHashMap<>();
         for (AgentChatMessage m : messages) {

@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
@@ -117,10 +118,11 @@ class WebchatChannelHandlerTest {
             assertEquals("agf_1", inbound.parts().get(0).storageRef());
             assertEquals("image", inbound.parts().get(0).type());
             assertTrue(inbound.text().startsWith("что тут?"));
-            // Описание файла: id присутствует, но в рамке «уже приложено / скачивать не нужно».
+            // Описание файла: тип + id, без утверждений о видимости (рамку даёт воркер per-call).
             assertTrue(inbound.text().contains("Описание загруженного файла"));
+            assertTrue(inbound.text().contains("изображение"));
             assertTrue(inbound.text().contains("agf_1"));
-            assertTrue(inbound.text().contains("скачивать по id не нужно"));
+            assertFalse(inbound.text().contains("видишь"));
         }
 
         @Test

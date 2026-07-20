@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -75,7 +76,7 @@ class LlmCallWorkflowImplTest {
         private void stubSuccessfulCall(String providerId) {
             when(client.getLlmCredentials("agent-1")).thenReturn(creds(providerId));
             when(modelFactory.build(any())).thenReturn(model);
-            when(mapper.toSpringMessages(any(), any())).thenReturn(List.of());
+            when(mapper.toSpringMessages(any(), any(), anyBoolean())).thenReturn(List.of());
             when(mapper.toolCallbacks(any())).thenReturn(List.of());
             ChatResponse response = new ChatResponse(List.of(),
                     ChatResponseMetadata.builder().usage(new DefaultUsage(100, 20)).build());
