@@ -264,10 +264,14 @@ USER/AGENT; см. `docs/services/control-api-manage-connector-jobs.md`). Lifecyc
 `internal/time` даёт агенту тулы поверх этого механизма:
 
 - `time.schedule(prompt, delaySeconds|intervalSeconds|cron[,zone])` — вставляет динамическую строку
-  (`ONETIME`/`PERIODIC`/`CRON`), `name = time.fire`, `args = {prompt}`. Возвращает `id`.
+  (`ONETIME`/`PERIODIC`/`CRON`), `name = time.fire`, `args = {prompt}`; в строку снимаются `channel_id`
+  и `session_id` prompt-канала вызова. Возвращает `id`.
 - `time.scheduled_tasks` / `time.cancel_scheduled(id)` — список/отмена своих задач.
 - `time.fire` — скрытая (`@Tool(internal = true)`) цель диспатча: на срок порождает триггер
-  `due` (agent-facing `time.due`, data `{prompt}`), адресованный агенту-инициатору через `TriggerAudience`.
+  `due` (agent-facing `time.due`, data `{prompt}`), адресованный агенту-инициатору через `TriggerAudience`;
+  снимки канала/сессии уезжают проактивными `progress`/`answer`-ссылками. Сессию перерезолвливает
+  `ChannelRouteResolver`: снапшот, пока открыт, иначе активная сессия канала (симметрично фолбэку
+  outbound-доставки) — ран напоминания получает историю, партицию и персист этой сессии.
 
 Доставка: `TriggerRouterService.routeTrigger(userId, trigger)` (единая точка входа; `routeWhTrigger`/
 `routeAppTrigger` — тонкие обёртки) сужает кандидатов до audience (агент-инициатор), затем применяет

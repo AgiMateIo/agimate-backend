@@ -75,6 +75,15 @@ public class ConnectorJob extends BaseEntity {
     @Column(name = "channel_id")
     private UUID channelId;
 
+    /**
+     * Prompt-сессия агента-инициатора (снимок на момент планирования, симметрично {@link #channelId}):
+     * при срабатывании реконструируется в {@code ConnectorEnv.sessionId}, а продюсер триггера кладёт её
+     * в проактивные {@code ChannelInfo} — ран получает историю и партицию исходного разговора, пока
+     * сессия жива. {@code null}, если таска запланирована вне канального контекста.
+     */
+    @Column(name = "session_id")
+    private UUID sessionId;
+
     /** Категория строки — см. {@link ConnectorJobKind}; определяет, действует ли бизнес-ключ. */
     @Enumerated(EnumType.STRING)
     @Column(name = "kind", nullable = false, columnDefinition = "TEXT")

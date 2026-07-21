@@ -126,6 +126,82 @@ class ChannelRouteResolverTest {
     }
 
     @Nested
+    @DisplayName("проактивные каналы (progress/answer без prompt)")
+    class ProactiveChannels {
+
+        private final UUID snapshotSessionId = UUID.randomUUID();
+
+        private Trigger proactiveTrigger(UUID sessionId) {
+            ChannelInfo ref = new ChannelInfo(CHANNEL_ID, sessionId, null);
+            return Trigger.createDirected("time", IDENTITY, "due", Map.of("prompt", "п"),
+                    new TriggerContext(null, new Channels(null, ref, ref)));
+        }
+
+        @Test
+        @DisplayName("открытая снапшот-сессия используется как есть")
+        void openSnapshotSessionKept() {
+            when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            when(channelSessionService.findOpen(snapshotSessionId, CHANNEL_ID))
+                    .thenReturn(Optional.of(session(snapshotSessionId, CHANNEL_ID)));
+
+            ChannelResolution resolution = resolver.resolve(agent, proactiveTrigger(snapshotSessionId));
+
+            assertEquals(ChannelResolution.Kind.CHANNEL, resolution.kind());
+            assertNull(resolution.message());
+            assertNull(resolution.channels().prompt());
+            assertEquals(snapshotSessionId, resolution.channels().progress().sessionId());
+            assertEquals(snapshotSessionId, resolution.channels().answer().sessionId());
+            verify(channelSessionService, never()).findOrCreateActive(any(), any());
+        }
+
+        @Test
+        @DisplayName("закрытая снапшот-сессия — фолбэк на активную сессию канала")
+        void closedSnapshotFallsBackToActive() {
+            UUID activeSessionId = UUID.randomUUID();
+            when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            when(channelSessionService.findOpen(snapshotSessionId, CHANNEL_ID))
+                    .thenReturn(Optional.empty());
+            when(channelSessionService.findOrCreateActive(channel, null))
+                    .thenReturn(session(activeSessionId, CHANNEL_ID));
+
+            ChannelResolution resolution = resolver.resolve(agent, proactiveTrigger(snapshotSessionId));
+
+            assertEquals(activeSessionId, resolution.channels().progress().sessionId());
+            assertEquals(activeSessionId, resolution.channels().answer().sessionId());
+        }
+
+        @Test
+        @DisplayName("снапшота сессии нет — активная сессия канала")
+        void noSnapshotResolvesActive() {
+            UUID activeSessionId = UUID.randomUUID();
+            when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            when(channelSessionService.findOrCreateActive(channel, null))
+                    .thenReturn(session(activeSessionId, CHANNEL_ID));
+
+            ChannelResolution resolution = resolver.resolve(agent, proactiveTrigger(null));
+
+            assertEquals(activeSessionId, resolution.channels().answer().sessionId());
+        }
+
+        @Test
+        @DisplayName("канал принадлежит другому агенту — прямая доставка")
+        void foreignChannelFallsBackToDirect() {
+            Channel foreign = Channel.builder()
+                    .id(CHANNEL_ID)
+                    .agentId(UUID.randomUUID())
+                    .channelHandler("webchat")
+                    .connectorCode("webchat")
+                    .connectionId(CONNECTION_ID)
+                    .build();
+            when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(foreign));
+
+            ChannelResolution resolution = resolver.resolve(agent, proactiveTrigger(snapshotSessionId));
+
+            assertEquals(ChannelResolution.Kind.DIRECT, resolution.kind());
+        }
+    }
+
+    @Nested
     @DisplayName("progress-роль по ChannelHandler.deliverProgress")
     class ProgressRole {
 

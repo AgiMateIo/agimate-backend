@@ -44,8 +44,11 @@ public class ChannelRouteResolver {
 
     /**
      * Проактивный канал без входящего: продюсер задал в {@link TriggerContext} channels с
-     * {@code progress}/{@code answer}, но без {@code prompt}. Отдаём объявленные channels как есть,
-     * проверив, что канал существует и принадлежит агенту; иначе {@code null} → прямая доставка.
+     * {@code progress}/{@code answer}, но без {@code prompt}. Канал должен существовать и
+     * принадлежать агенту (иначе {@code null} → прямая доставка), а сессия перерезолвливается:
+     * объявленный снапшот, если ещё открыт, иначе активная сессия канала — симметрично фолбэку
+     * outbound-доставки ({@code ChannelMessageOutboundService.resolveSession}), чтобы история,
+     * партиция и персист рана указывали туда же, куда уйдёт сообщение.
      */
     private Channels resolveProactiveChannels(Agent agent, Trigger trigger) {
         if (trigger.context() == null || trigger.context().channels() == null) {
@@ -67,7 +70,23 @@ public class ChannelRouteResolver {
                     ref.channelId(), agent.getId());
             return null;
         }
-        return channels;
+        ChannelInfo resolved = new ChannelInfo(
+                channel.getId(), resolveProactiveSessionId(channel, ref.sessionId()), ref.messageId());
+        return new Channels(null,
+                channels.progress() != null ? resolved : null,
+                channels.answer() != null ? resolved : null);
+    }
+
+    /** Снапшот-сессия продюсера, пока открыта; иначе активная/новая сессия канала по TTL-эвристике. */
+    private UUID resolveProactiveSessionId(Channel channel, UUID declaredSessionId) {
+        if (declaredSessionId != null) {
+            if (channelSessionService.findOpen(declaredSessionId, channel.getId()).isPresent()) {
+                return declaredSessionId;
+            }
+            log.debug("Declared proactive session {} not open for channel {} - using active session",
+                    declaredSessionId, channel.getId());
+        }
+        return channelSessionService.findOrCreateActive(channel, null).getId();
     }
 
     /**

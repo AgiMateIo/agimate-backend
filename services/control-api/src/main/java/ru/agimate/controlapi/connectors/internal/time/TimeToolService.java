@@ -115,11 +115,12 @@ public class TimeToolService {
 
         JobSpec spec = new JobSpec(
                 FIRE_TASK, type, config, Map.of("prompt", prompt), FIRE_TIMEOUT_SECONDS);
-        // Снимок исходного канала вызова (ctx.channelId) на строку job: напоминание уйдёт агенту
-        // с этим каналом как progress/answer (prompt у напоминания нет).
+        // Снимок исходного канала и prompt-сессии вызова на строку job: напоминание уйдёт агенту
+        // с этим каналом как progress/answer (prompt у напоминания нет), а пока сессия жива —
+        // с историей и партицией исходного разговора.
         ConnectorJob row = jobService.schedule(
                 TimeConnectorService.CONNECTOR_CODE, ctx.connectionId(), ctx.userId(),
-                ctx.agentId(), ctx.channelId(), spec, firstRunAt);
+                ctx.agentId(), ctx.channelId(), ctx.sessionId(), spec, firstRunAt);
 
         return Map.of(
                 "id", row.getId().toString(),
@@ -189,20 +190,21 @@ public class TimeToolService {
                 ctx.connectionId(),
                 DUE_TRIGGER,
                 Map.of("prompt", prompt == null ? "" : prompt),
-                fireContext(audience, ctx.channelId()));
+                fireContext(audience, ctx.channelId(), ctx.sessionId()));
         triggerRouterService.routeTrigger(ctx.userId(), trigger);
     }
 
     /**
-     * Контекст триггера напоминания: к audience добавляет проактивный канал ответа (снимок из строки
-     * job'а). {@code prompt} остаётся {@code null} (входящего сообщения нет), а исходный канал агента
-     * кладётся в {@code progress}/{@code answer}.
+     * Контекст триггера напоминания: к audience добавляет проактивный канал ответа (снимки канала и
+     * prompt-сессии из строки job'а). {@code prompt} остаётся {@code null} (входящего сообщения нет),
+     * исходный канал кладётся в {@code progress}/{@code answer}; закрытую к сроку сессию
+     * {@code ChannelRouteResolver} заменит на активную сессию канала.
      */
-    private TriggerContext fireContext(TriggerAudience audience, UUID channelId) {
+    private TriggerContext fireContext(TriggerAudience audience, UUID channelId, UUID sessionId) {
         if (channelId == null) {
             return TriggerContext.audience(audience);
         }
-        ChannelInfo ref = new ChannelInfo(channelId, null, null);
+        ChannelInfo ref = new ChannelInfo(channelId, sessionId, null);
         return new TriggerContext(audience, new Channels(null, ref, ref));
     }
 

@@ -150,7 +150,7 @@ public class ConnectorJobService {
      */
     @Transactional
     public ConnectorJob schedule(String connectorCode, String connectionId, UUID userId, UUID agentId,
-                                 UUID channelId, JobSpec spec, LocalDateTime firstRunAt) {
+                                 UUID channelId, UUID sessionId, JobSpec spec, LocalDateTime firstRunAt) {
         if (agentId == null) {
             throw new ConnectorException("Dynamic task requires an initiating agent");
         }
@@ -160,6 +160,7 @@ public class ConnectorJobService {
                 .userId(userId)
                 .agentId(agentId)
                 .channelId(channelId)
+                .sessionId(sessionId)
                 .kind(ConnectorJobKind.AGENT)
                 .name(spec.name())
                 .type(spec.type())

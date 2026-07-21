@@ -54,10 +54,11 @@ public class JobExecutionService {
                             "Connection missing or disabled: " + row.getConnectionId()));
             return envFactory.forConnection(connection, null, null);
         }
-        // Полный контекст инициатора (userId/agentId/channelId сохранены в строке при планировании) —
-        // динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.
+        // Полный контекст инициатора (userId/agentId/channelId/sessionId сохранены в строке при
+        // планировании) — динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.
         return envFactory.internal(
-                row.getConnectionId(), row.getUserId(), row.getAgentId(), row.getChannelId(), null);
+                row.getConnectionId(), row.getUserId(), row.getAgentId(), row.getChannelId(),
+                row.getSessionId());
     }
 
     private static UUID parseIdentity(ConnectorJob row) {
