@@ -21,10 +21,16 @@ import ru.agimate.controlapi.service.board.BoardService;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangeCommand;
+import ru.agimate.controlapi.storage.FileIds;
+import ru.agimate.controlapi.storage.FileStorageService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Тулы board-коннектора — тонкий адаптер поверх core-{@link BoardService}. Контекст (agentId, userId)
@@ -37,10 +43,17 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class BoardToolService {
 
+    /** Корректная agf-ссылка: префикс + uuid. */
+    private static final Pattern FILE_REF = Pattern.compile(
+            FileIds.PREFIX + "[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}");
+    /** Всё, что похоже на agf-ссылку, включая выдуманные вроде {@code agf_hermit.png}. */
+    private static final Pattern FILE_REF_LIKE = Pattern.compile(FileIds.PREFIX + "[\\w.\\-]+");
+
     private final BoardService boardService;
     private final AgentRepository agentRepository;
     private final AgenticTeamRepository agenticTeamRepository;
     private final BoardRepository boardRepository;
+    private final FileStorageService fileStorageService;
 
     @Tool(name = "get_tasks", description = "Get all tasks from the board grouped by status",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
@@ -129,9 +142,37 @@ public class BoardToolService {
         Agent agent = resolveAgent();
 
         UUID taskUuid = parseUuid(taskId, "taskId");
+        requireResolvableFileRefs(content);
         var command = new BoardTaskCommentCreateCommand(agent.getId(), content);
         var result = domain(() -> boardService.createComment(null, taskUuid, userId(), command));
         return Map.of("comment", result);
+    }
+
+    /**
+     * Комментарий — канал передачи результатов между агентами: несуществующая agf-ссылка
+     * (галлюцинированный id) уехала бы по цепочке вплоть до attach в ответе пользователю.
+     * Отклоняем комментарий сразу — агент узнаёт об ошибке до «приёмки» задачи, а не после.
+     */
+    private void requireResolvableFileRefs(String content) {
+        if (content == null || !content.contains(FileIds.PREFIX)) {
+            return;
+        }
+        List<String> broken = new ArrayList<>();
+        Matcher ref = FILE_REF_LIKE.matcher(content);
+        while (ref.find()) {
+            Matcher strict = FILE_REF.matcher(ref.group());
+            if (!strict.lookingAt()) {
+                broken.add(ref.group());
+            } else if (fileStorageService.findReadable(userId(), strict.group()).isEmpty()) {
+                broken.add(strict.group());
+            }
+        }
+        if (!broken.isEmpty()) {
+            throw new ConnectorException("Comment references non-existent file(s): "
+                    + String.join(", ", broken)
+                    + ". Reference only real file ids returned by tools; if there is no real file, "
+                    + "report a blocker instead of a result");
+        }
     }
 
     /**
