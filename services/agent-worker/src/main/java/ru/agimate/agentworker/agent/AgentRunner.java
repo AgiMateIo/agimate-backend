@@ -1,6 +1,7 @@
 package ru.agimate.agentworker.agent;
 
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
+import ru.agimate.agentworker.agent.error.ImitationLoopExhausted;
 import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
@@ -24,6 +25,8 @@ public class AgentRunner {
             "Извини, произошла ошибка при обращении к модели — попробуй ещё раз.";
     static final String AUTH_ERROR_NOTICE =
             "Извини, не удаётся подключиться к модели — проверь настройки API-ключа.";
+    static final String IMITATION_ERROR_NOTICE =
+            "Извини, не получилось выполнить действие — модель не смогла корректно вызвать инструмент.";
 
     private final SimpleAgent.LlmCaller llmCaller;
     private final SimpleAgent.ToolDispatcher toolDispatcher;
@@ -61,6 +64,9 @@ public class AgentRunner {
         } catch (MaxTurnsExceeded e) {
             throw new AgentRunAborted(MAX_TURNS_NOTICE,
                     "agent loop hit max_turns " + context + ": " + e.getMessage());
+        } catch (ImitationLoopExhausted e) {
+            throw new AgentRunAborted(IMITATION_ERROR_NOTICE,
+                    "agent stuck imitating tool calls " + context + ": " + e.getMessage());
         } catch (LlmCallError e) {
             // Сервер прислал готовый пользовательский нотис (например, текст квоты) — дословно.
             if (e.userFacing()) {

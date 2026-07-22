@@ -1,6 +1,7 @@
 package ru.agimate.agentworker.agent;
 
 import lombok.extern.slf4j.Slf4j;
+import ru.agimate.agentworker.agent.error.ImitationLoopExhausted;
 import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
@@ -25,7 +26,9 @@ import java.util.regex.Pattern;
  * структурного tool call — без guard'а такой «финальный ответ» тихо завершает ран, а тул не
  * исполняется. Ответ без tool calls, но с паттерном имитации не принимается: в диалог
  * добавляется корректирующий user-ход (до {@value #MAX_IMITATION_CORRECTIONS} раз за ран),
- * и цикл продолжается.
+ * и цикл продолжается. Если после исчерпания коррекций модель всё ещё имитирует вызов —
+ * ран прерывается {@link ru.agimate.agentworker.agent.error.ImitationLoopExhausted}, чтобы сырая
+ * «🔧 …»-строка не ушла юзеру как финальный ответ (корректирующие ходы эфемерны и не проецируются).
  */
 @Slf4j
 public class SimpleAgent {
@@ -86,12 +89,20 @@ public class SimpleAgent {
 
             if (!assistant.hasToolCalls()) {
                 String text = assistant.text() != null ? assistant.text() : "";
-                if (corrections < MAX_IMITATION_CORRECTIONS && TOOL_TEXT_IMITATION.matcher(text).find()) {
-                    corrections++;
-                    log.warn("turn {}: tool call imitated as text, correcting ({}/{})",
-                            turn, corrections, MAX_IMITATION_CORRECTIONS);
-                    messages.add(AgentChatMessage.user(IMITATION_CORRECTION));
-                    continue;
+                if (TOOL_TEXT_IMITATION.matcher(text).find()) {
+                    if (corrections < MAX_IMITATION_CORRECTIONS) {
+                        corrections++;
+                        log.warn("turn {}: tool call imitated as text, correcting ({}/{})",
+                                turn, corrections, MAX_IMITATION_CORRECTIONS);
+                        messages.add(AgentChatMessage.user(IMITATION_CORRECTION));
+                        continue;
+                    }
+                    // Коррекции исчерпаны, модель всё ещё имитирует вызов текстом — это не финал.
+                    // Не отдаём сырую «🔧 …»-строку юзеру: soft-abort с вежливым нотисом.
+                    log.warn("turn {}: still imitating tool call after {} corrections, aborting",
+                            turn, MAX_IMITATION_CORRECTIONS);
+                    throw new ImitationLoopExhausted("agent kept imitating tool calls as text after "
+                            + MAX_IMITATION_CORRECTIONS + " corrections");
                 }
                 notify(newInTurn);
                 log.info("turn {}: final answer ({} chars)", turn, text.length());

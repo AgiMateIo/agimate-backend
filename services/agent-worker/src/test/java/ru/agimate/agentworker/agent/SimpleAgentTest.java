@@ -1,5 +1,6 @@
 package ru.agimate.agentworker.agent;
 
+import ru.agimate.agentworker.agent.error.ImitationLoopExhausted;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 
@@ -91,15 +92,15 @@ class SimpleAgentTest {
     }
 
     @Test
-    @DisplayName("guard: после исчерпания коррекций имитация принимается как финал (без зацикливания)")
-    void imitationAcceptedAfterMaxCorrections() {
+    @DisplayName("guard: после исчерпания коррекций имитация не принимается — ImitationLoopExhausted")
+    void imitationAbortsAfterMaxCorrections() {
         String imitation = "🔧 t";
         SimpleAgent.LlmCaller llm = (msgs, defs) -> AgentChatMessage.assistant(imitation, false, List.of());
         SimpleAgent agent = agent(llm, calls -> List.of(), null, 10);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
-        assertEquals(imitation, agent.run(conv));
-        // Коррекций ровно MAX_IMITATION_CORRECTIONS, затем финал.
+        assertThrows(ImitationLoopExhausted.class, () -> agent.run(conv));
+        // Ровно MAX_IMITATION_CORRECTIONS корректирующих ходов, затем abort (без сырой имитации в финале).
         long corrections = conv.stream()
                 .filter(m -> SimpleAgent.IMITATION_CORRECTION.equals(m.text()))
                 .count();
