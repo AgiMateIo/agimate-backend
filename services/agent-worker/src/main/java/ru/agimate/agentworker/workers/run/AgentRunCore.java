@@ -122,11 +122,14 @@ public class AgentRunCore {
      * {@code WorkerControl.SendMessage}.
      */
     public void reportFailure(MessageLog messages, AgentRunAborted exc) {
+        // Best-effort: канал может быть недоступен, но системный репорт ниже уйти обязан.
         if (exc.userNotice() != null && !exc.userNotice().isEmpty()) {
-            messages.error(exc.userNotice());
+            try {
+                messages.error(exc.userNotice());
+            } catch (Exception e) {
+                log.warn("failed to send abort notice to the channel: {}", e.getMessage());
+            }
         }
-        // Ожидаемый терминальный исход (квота/лимит шагов/ошибка модели) — не инфра-сбой:
-        // на бэк уходит информационным сообщением (INFO там), а не ERROR.
         sendSystemReport(WorkerMessageType.WORKER_MESSAGE_TYPE_MESSAGE, exc.systemDetail());
     }
 
