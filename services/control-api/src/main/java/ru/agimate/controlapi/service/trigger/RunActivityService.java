@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -29,12 +29,12 @@ public class RunActivityService {
     static final Duration STALE_AFTER = Duration.ofMinutes(15);
     static final String STALE_ERROR = "run went silent (no worker activity); swept as stale";
 
-    private final TriggerLogAgentRepository triggerLogAgentRepository;
+    private final AgentRunRepository agentRunRepository;
 
     /** Признак жизни рана — best-effort: сбой метки не должен валить сам RPC. */
     public void touch(UUID runId) {
         try {
-            triggerLogAgentRepository.touchActivity(runId, LocalDateTime.now());
+            agentRunRepository.touchActivity(runId, LocalDateTime.now());
         } catch (Exception e) {
             log.warn("touchActivity failed for run {}: {}", runId, e.getMessage());
         }
@@ -43,7 +43,7 @@ public class RunActivityService {
     @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void sweepStaleRunning() {
-        int swept = triggerLogAgentRepository.failStaleRunning(
+        int swept = agentRunRepository.failStaleRunning(
                 LocalDateTime.now().minus(STALE_AFTER), STALE_ERROR);
         if (swept > 0) {
             log.warn("swept {} stale RUNNING run(s) older than {}", swept, STALE_AFTER);

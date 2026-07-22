@@ -45,7 +45,7 @@ blocks and never branches on input kind:
 | User turn | inbound text as a trusted block | event as an **untrusted** block (renderer wraps it) |
 
 The preset is chosen by the route snapshot persisted at dispatch
-(`trigger_log_agents.channels`: prompt channel present → `DIALOGUE`). New input kinds
+(`agent_runs.channels`: prompt channel present → `DIALOGUE`). New input kinds
 (e.g. inter-agent requests) become new enum constants with their own policy row — not new
 conditionals inside the assembly.
 
@@ -65,9 +65,9 @@ conditionals inside the assembly.
 ## Roadmap (priority order)
 
 1. **Past-runs digest in the SYSTEM_TRIGGER core** — an O(1) aggregate over
-   `trigger_log_agents` (how many runs before, failed, active + the last error) plus
+   `agent_runs` (how many runs before, failed, active + the last error) plus
    introspection tools (`get_past_runs`, `get_tool_call_result`) for details. Cures the
-   autonomous loop's amnesia: today `TriggerLogAgent` and `tool_call_logs` are invisible to
+   autonomous loop's amnesia: today `AgentRun` and `tool_call_logs` are invisible to
    the agent entirely.
 2. **Environment manifest** — an O(1) table of contents of the agent's world (channels,
    activity, memory size, current time) in every profile.

@@ -6,12 +6,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.entities.AgentRun;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent, UUID> {
+public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
 
     // REQUIRES_NEW: вызовы идут и с голых gRPC-потоков (@Modifying без TX Hibernate отклоняет),
     // и из readOnly-транзакций фасадов (AgentContextGrpcService) — своя короткая пишущая TX
@@ -20,7 +20,7 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Modifying
     @Query("""
-            UPDATE TriggerLogAgent t
+            UPDATE AgentRun t
             SET t.lastActivityAt = :now
             WHERE t.id = :runId
               AND t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
@@ -33,7 +33,7 @@ public interface TriggerLogAgentRepository extends JpaRepository<TriggerLogAgent
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
-            UPDATE TriggerLogAgent t
+            UPDATE AgentRun t
             SET t.status = ru.agimate.controlapi.database.enums.RunStatus.FAILED,
                 t.error = :error
             WHERE t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING

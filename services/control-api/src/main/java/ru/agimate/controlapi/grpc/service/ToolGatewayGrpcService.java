@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
-import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.grpc.mapper.ToolGatewayMapper;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
@@ -32,7 +32,7 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase {
 
     private final AgentToolCallService agentToolCallService;
-    private final TriggerLogAgentRepository triggerLogAgentRepository;
+    private final AgentRunRepository agentRunRepository;
     private final RunActivityService runActivityService;
 
     @Override
@@ -75,7 +75,7 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
             return null;
         }
         try {
-            return triggerLogAgentRepository.findById(UUID.fromString(request.getRunId()))
+            return agentRunRepository.findById(UUID.fromString(request.getRunId()))
                     .map(run -> run.getSessionId() != null ? run.getSessionId().toString() : null)
                     .orElse(null);
         } catch (IllegalArgumentException e) {

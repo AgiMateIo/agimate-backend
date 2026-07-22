@@ -7,11 +7,11 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
-import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
@@ -39,7 +39,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class MessageLogPersistence {
 
-    private final TriggerLogAgentRepository triggerLogAgentRepository;
+    private final AgentRunRepository agentRunRepository;
     private final ChannelSessionMessageRepository messageRepository;
     private final InboundTextResolver inboundTextResolver;
 
@@ -51,7 +51,7 @@ public class MessageLogPersistence {
     @Transactional
     public Persisted persist(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,
                              String progressType, String text, ToolTurnRecord toolTurn) {
-        TriggerLogAgent run = triggerLogAgentRepository.findById(triggerId)
+        AgentRun run = agentRunRepository.findById(triggerId)
                 .orElseThrow(() -> new NotFoundStatusException("Run not found: " + triggerId));
         if (!run.getAgent().getId().equals(agentId)) {
             throw new BadRequestStatusException("Run " + triggerId + " does not belong to agent " + agentId);
@@ -87,7 +87,7 @@ public class MessageLogPersistence {
             } else {
                 run.setError(text);
             }
-            triggerLogAgentRepository.save(run);
+            agentRunRepository.save(run);
         }
 
         if (duplicate) {
@@ -102,7 +102,7 @@ public class MessageLogPersistence {
      * откатывается (реплей INBOUND после финиша), любое событие — признак жизни
      * ({@code last_activity_at} для сборщика залипших).
      */
-    private static void projectStatus(TriggerLogAgent run, ChannelSessionMessageKind kind) {
+    private static void projectStatus(AgentRun run, ChannelSessionMessageKind kind) {
         RunStatus status = run.getStatus();
         boolean terminal = status == RunStatus.DONE || status == RunStatus.FAILED
                 || status == RunStatus.CANCELLED;
@@ -119,7 +119,7 @@ public class MessageLogPersistence {
     }
 
     /** Каноника inbound: текст канала (тот же handleInput, что при dispatch) или компактный JSON события. */
-    private String canonicalInbound(TriggerLogAgent run, Channels channels) {
+    private String canonicalInbound(AgentRun run, Channels channels) {
         Trigger trigger = Trigger.fromLog(run.getTriggerLog());
         if (channels != null && channels.prompt() != null) {
             return inboundTextResolver.resolveText(channels.prompt().channelId(), trigger)

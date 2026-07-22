@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 @DisplayName("RunActivityService")
 class RunActivityServiceTest {
 
-    @Mock private TriggerLogAgentRepository repository;
+    @Mock private AgentRunRepository repository;
 
     @Test
     @DisplayName("touch — best-effort: сбой метки не пробрасывается в RPC рана")

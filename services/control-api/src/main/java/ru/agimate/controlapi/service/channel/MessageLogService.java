@@ -15,7 +15,7 @@ import java.util.UUID;
 /**
  * Единая запись событий диалога (SaveMessage, протокол v2): воркер — единственный писатель
  * истории, доставка в каналы — проекция записи (роутинг по kind и снапшоту
- * {@code trigger_log_agents.channels}, порт цепочек бывшего worker-side OutboundPublisher).
+ * {@code agent_runs.channels}, порт цепочек бывшего worker-side OutboundPublisher).
  *
  * <p>Намеренно НЕ {@code @Transactional}: сначала {@link MessageLogPersistence} коммитит историю,
  * затем — обычным кодом, вне транзакции — идёт best-effort доставка. Сбой доставки (удалённый

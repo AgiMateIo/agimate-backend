@@ -8,10 +8,10 @@ import java.util.UUID;
 
 /**
  * Строка per-agent trigger-листинга: событие триггера (из {@code trigger_logs}) + прогон этого
- * события у конкретного агента (из {@code trigger_log_agents}). {@code id} — id прогона
- * ({@code trigger_log_agents.id}, он же run_id).
+ * события у конкретного агента (из {@code agent_runs}). {@code id} — id прогона
+ * ({@code agent_runs.id}, он же run_id).
  */
-public interface TriggerLogAgentRunProjection {
+public interface AgentRunProjection {
     UUID getId();
     UUID getTriggerLogId();
     String getConnectorCode();

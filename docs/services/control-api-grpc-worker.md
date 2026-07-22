@@ -122,8 +122,8 @@ Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → 
 ## Run context (`AgentContext.GetRunContext`)
 
 `GetRunContext(agent_id, run_id)` → `RunContext` — весь контекст рана одним вызовом
-(`run_id` = `trigger_log_agents.id` = DBOS workflow id). Сборка — `RunContextService`;
-политика (`ContextSpec`: `DIALOGUE` при prompt-канале в снапшоте `trigger_log_agents.channels`,
+(`run_id` = `agent_runs.id` = DBOS workflow id). Сборка — `RunContextService`;
+политика (`ContextSpec`: `DIALOGUE` при prompt-канале в снапшоте `agent_runs.channels`,
 иначе `SYSTEM_TRIGGER`) целиком на бэке, воркер только рендерит блоки в присланном порядке.
 
 `RunContext`:
@@ -163,8 +163,8 @@ DBOS-чекпоинт не попадают (`RunContext.inbound_parts` несё
   `channel_session_messages.message_json` (JSON-поля капаются до 32 KB) и отдаёт истории следующих
   ранов как нативные tool_use/tool_result; `text` остаётся канальной 🔧-проекцией.
 - `ANSWER` → answer-канал (fallback prompt); в той же транзакции все сообщения рана помечаются
-  `completed=true` — ран становится видимым истории. Direct-ран → `trigger_log_agents.result`.
-- `ERROR` → progress/answer/prompt-фолбэк; direct-ран → `trigger_log_agents.error`. ERROR не
+  `completed=true` — ран становится видимым истории. Direct-ран → `agent_runs.result`.
+- `ERROR` → progress/answer/prompt-фолбэк; direct-ран → `agent_runs.error`. ERROR не
   завершает ран — его сообщения в историю не попадут.
 
 `PromptBlock{name, source, content, attrs, trusted, ephemeral}` — `name`/`attrs` становятся XML-тегом
@@ -214,7 +214,7 @@ presentation-only, wire routing unchanged.
 
 ## Run lifecycle (протокол v2, без registry)
 
-Backed by the `trigger_log_agents` table — each row is an agent run, and its id is the canonical
+Backed by the `agent_runs` table — each row is an agent run, and its id is the canonical
 **`run_id` == DBOS `workflow_id`**. Регистрационного хэндшейка нет:
 single-writer-per-session держит партиционированная очередь `agent_exec` (партицию задаёт
 control-api при enqueue — `DbosTransport`, ключ = `session_id` рана; direct-ран — свой `run_id`).

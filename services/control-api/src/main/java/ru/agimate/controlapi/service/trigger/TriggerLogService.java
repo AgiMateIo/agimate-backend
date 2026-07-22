@@ -7,7 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.controlapi.controller.manage.dto.TriggerLogAgentRunResponse;
+import ru.agimate.controlapi.controller.manage.dto.AgentRunResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerLogResponse;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.enums.RunStatus;
@@ -30,14 +30,14 @@ public class TriggerLogService {
                 .map(TriggerLogResponse::from);
     }
 
-    public Page<TriggerLogAgentRunResponse> getAgentRuns(UUID userId, UUID agentId, String connectorCode,
+    public Page<AgentRunResponse> getAgentRuns(UUID userId, UUID agentId, String connectorCode,
                                                          String connectionId, String name, RunStatus status,
                                                          int page, int size) {
         return triggerLogRepository.findAgentRunsWithFilters(
                         userId, agentId,
                         blankToNull(connectorCode), blankToNull(connectionId), blankToNull(name), status,
                         PageRequest.of(page, size))
-                .map(TriggerLogAgentRunResponse::from);
+                .map(AgentRunResponse::from);
     }
 
     private static String blankToNull(String value) {

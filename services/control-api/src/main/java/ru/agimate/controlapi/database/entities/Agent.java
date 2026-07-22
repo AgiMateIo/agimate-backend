@@ -13,7 +13,7 @@ import java.util.UUID;
 
 /**
  * Агенты удаляются мягко: {@code deleted_at} проставляется вместо физического DELETE, строка
- * остаётся ради целостности всех ссылающихся таблиц (channels, trigger_log_agents, board_*,
+ * остаётся ради целостности всех ссылающихся таблиц (channels, agent_runs, board_*,
  * channel_session_messages, agent_llms/skills, secrets). {@link SQLRestriction} скрывает
  * удалённых из всех выборок и join'ов (включая auth {@code findByKeyId} и роутинг триггеров) —
  * ни одного ручного {@code deletedAt IS NULL} по месту не требуется.

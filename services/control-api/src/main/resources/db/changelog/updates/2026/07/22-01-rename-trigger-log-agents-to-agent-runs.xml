@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      trigger_log_agents по сути — прогон агента (одна строка = один ран, id = run_id = DBOS
+      workflow id). Имя досталось от фан-аута trigger_logs → per-agent; сущность переименована
+      в AgentRun, таблица — в agent_runs. RENAME — metadata-only (без перезаписи данных); FK и
+      unique следуют автоматически, явный индекс переименовываем ради согласованного имени.
+      trigger_log_id (FK на родительский trigger_logs) не трогаем — происхождение рана сохраняем.
+    -->
+    <changeSet id="rename-trigger-log-agents-to-agent-runs" author="agimate">
+        <renameTable oldTableName="trigger_log_agents" newTableName="agent_runs"/>
+        <sql>ALTER INDEX idx_trigger_log_agents_agent_id_created_at RENAME TO idx_agent_runs_agent_id_created_at;</sql>
+    </changeSet>
+
+</databaseChangeLog>

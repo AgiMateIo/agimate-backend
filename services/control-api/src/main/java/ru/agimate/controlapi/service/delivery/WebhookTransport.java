@@ -14,7 +14,7 @@ import ru.agimate.controlapi.controller.manage.dto.WebhookDeliveryLogResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.Secret;
-import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.database.repositories.WebhookDeliveryLogRepository;
@@ -55,19 +55,19 @@ public class WebhookTransport implements AgentTransport {
 
     @Override
     @Async
-    public void deliverTrigger(TriggerLogAgent triggerLogAgent, Trigger trigger, Channels channels, InboundMessage inbound) {
-        Agent agent = triggerLogAgent.getAgent();
+    public void deliverTrigger(AgentRun agentRun, Trigger trigger, Channels channels, InboundMessage inbound) {
+        Agent agent = agentRun.getAgent();
         String type = channels != null ? "channel_message" : "trigger";
         AgentMessage<Trigger> message = new AgentMessage<>(
                 agent.getId().toString(),
-                triggerLogAgent.getId().toString(),
+                agentRun.getId().toString(),
                 type,
-                triggerLogAgent.getSessionId() != null ? triggerLogAgent.getSessionId().toString() : null,
+                agentRun.getSessionId() != null ? agentRun.getSessionId().toString() : null,
                 channels,
                 inbound,
                 trigger);
         WebhookDeliveryLog.WebhookDeliveryLogBuilder logBuilder = WebhookDeliveryLog.builder()
-                .triggerLogAgent(triggerLogAgent)
+                .agentRun(agentRun)
                 .requestUrl(agent.getWebhookUrl())
                 .requestPayload(JsonUtils.objectToMap(message))
                 .deliveredAt(LocalDateTime.now());

@@ -55,7 +55,7 @@ public record TriggerLogResponse(
     }
 
     public static TriggerLogResponse from(TriggerLog entity) {
-        long agentsCount = entity.getTriggerLogAgents() == null ? 0 : entity.getTriggerLogAgents().size();
+        long agentsCount = entity.getAgentRuns() == null ? 0 : entity.getAgentRuns().size();
         return new TriggerLogResponse(
                 entity.getId(),
                 entity.getConnectorCode(),

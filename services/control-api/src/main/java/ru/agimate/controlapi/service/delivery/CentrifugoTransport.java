@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
-import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.dto.AgentMessage;
@@ -26,16 +26,16 @@ public class CentrifugoTransport implements AgentTransport {
     }
 
     @Override
-    public void deliverTrigger(TriggerLogAgent triggerLogAgent, Trigger trigger, Channels channels, InboundMessage inbound) {
-        Agent agent = triggerLogAgent.getAgent();
+    public void deliverTrigger(AgentRun agentRun, Trigger trigger, Channels channels, InboundMessage inbound) {
+        Agent agent = agentRun.getAgent();
         String agentId = agent.getId().toString();
         String type = channels != null ? "channel_message" : "trigger";
-        String sessionId = triggerLogAgent.getSessionId() != null ? triggerLogAgent.getSessionId().toString() : null;
+        String sessionId = agentRun.getSessionId() != null ? agentRun.getSessionId().toString() : null;
         AgentMessage<Trigger> message = new AgentMessage<>(
-                agentId, triggerLogAgent.getId().toString(), type, sessionId, channels, inbound, trigger);
+                agentId, agentRun.getId().toString(), type, sessionId, channels, inbound, trigger);
         centrifugoService.publish(agentChannel(agent), message);
         log.debug("Trigger '{}' sent to agent '{}' via centrifugo",
-                triggerLogAgent.getTriggerLog().getName(), agent.getId());
+                agentRun.getTriggerLog().getName(), agent.getId());
     }
 
     @Override

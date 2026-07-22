@@ -54,5 +54,5 @@ public class TriggerLog extends BaseEntity {
 
     @OneToMany(mappedBy = "triggerLog", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private List<TriggerLogAgent> triggerLogAgents = new ArrayList<>();
+    private List<AgentRun> agentRuns = new ArrayList<>();
 }

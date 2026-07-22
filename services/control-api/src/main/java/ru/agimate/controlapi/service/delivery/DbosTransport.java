@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import ru.agimate.agentworker.WorkerProtocol;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
-import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.dto.IToolResult;
 import ru.agimate.controlapi.service.trigger.Channels;
@@ -28,14 +28,14 @@ public class DbosTransport implements AgentTransport {
     }
 
     @Override
-    public void deliverTrigger(TriggerLogAgent triggerLogAgent, Trigger trigger, Channels channels, InboundMessage inbound) {
+    public void deliverTrigger(AgentRun agentRun, Trigger trigger, Channels channels, InboundMessage inbound) {
         DBOSClient client = clientProvider.getIfAvailable();
         if (client == null) {
             throw new IllegalStateException("GENERIC delivery is not configured (dbos.enabled=false)");
         }
-        Agent agent = triggerLogAgent.getAgent();
+        Agent agent = agentRun.getAgent();
         String agentId = agent.getId().toString();
-        String runId = triggerLogAgent.getId().toString();
+        String runId = agentRun.getId().toString();
 
         // Протокол v2: payload минимален — всё остальное (блоки, тулы, история, каналы)
         // воркер забирает одним GetRunContext(agent_id, trigger_id) по этому runId.
@@ -44,8 +44,8 @@ public class DbosTransport implements AgentTransport {
         // Run-stage энкьюится сразу (роутера нет): workflow_id == runId, партиция — сессия
         // (single-writer-per-session — контрактное свойство очереди; direct-ран без сессии
         // получает собственную партицию по runId). Дедуп доставки — по workflow_id.
-        String partitionKey = triggerLogAgent.getSessionId() != null
-                ? triggerLogAgent.getSessionId().toString()
+        String partitionKey = agentRun.getSessionId() != null
+                ? agentRun.getSessionId().toString()
                 : runId;
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 WorkerProtocol.RUN_WORKFLOW,
@@ -59,7 +59,7 @@ public class DbosTransport implements AgentTransport {
         client.enqueueWorkflow(options, new Object[]{message});
 
         log.debug("run '{}' enqueued to DBOS queue '{}' for agent '{}' (partition={})",
-                triggerLogAgent.getTriggerLog().getName(),
+                agentRun.getTriggerLog().getName(),
                 WorkerProtocol.RUN_QUEUE,
                 agentId,
                 partitionKey);

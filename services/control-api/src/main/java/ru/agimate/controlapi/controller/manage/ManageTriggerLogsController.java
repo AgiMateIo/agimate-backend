@@ -12,7 +12,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.IssueProbeRequest;
 import ru.agimate.controlapi.controller.manage.dto.IssueProbeResponse;
-import ru.agimate.controlapi.controller.manage.dto.TriggerLogAgentRunResponse;
+import ru.agimate.controlapi.controller.manage.dto.AgentRunResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerLogResponse;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.service.trigger.TriggerLogProbeService;
@@ -50,11 +50,11 @@ public class ManageTriggerLogsController {
     @Operation(
             summary = "List trigger runs for an agent",
             description = "Returns triggers delivered to the given agent and that agent's run of each "
-                    + "(trigger_log_agents joined to trigger_logs), scoped to the current user. "
+                    + "(agent_runs joined to trigger_logs), scoped to the current user. "
                     + "Optional filters: connectorCode, connectionId, name (substring), status."
     )
     @GetMapping("/agent-runs/")
-    public SuccessResponse<PageResponse<TriggerLogAgentRunResponse>> getAgentRuns(
+    public SuccessResponse<PageResponse<AgentRunResponse>> getAgentRuns(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam UUID agentId,
             @RequestParam(required = false) String connectorCode,

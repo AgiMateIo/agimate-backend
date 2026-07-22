@@ -11,7 +11,7 @@ import ru.agimate.controlapi.controller.app.dto.TriggerRequest;
 import ru.agimate.controlapi.database.entities.*;
 import ru.agimate.controlapi.database.enums.PolicyKind;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
-import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
@@ -32,7 +32,7 @@ public class TriggerRouterService {
     private final AgentDeliveryService agentDeliveryService;
     private final ChannelRouteResolver channelRouteResolver;
 
-    private final TriggerLogAgentRepository triggerLogAgentRepository;
+    private final AgentRunRepository agentRunRepository;
 
     @Async
     public void routeAppTrigger(App app, TriggerRequest triggerRequest) {
@@ -124,7 +124,7 @@ public class TriggerRouterService {
     }
 
     /**
-     * Персистентность и доставка. Работает с {@link TriggerLog}/{@link TriggerLogAgent};
+     * Персистентность и доставка. Работает с {@link TriggerLog}/{@link AgentRun};
      * {@code sessionId} запуска резолвится здесь один раз (prompt-канал, иначе answer) и
      * уезжает воркеру явным полем {@code AgentMessage.sessionId} — правило определено только
      * на этой стороне. Сбой доставки одного получателя не должен ронять остальных —
@@ -138,7 +138,7 @@ public class TriggerRouterService {
 
         for (TriggerRoute route : routes) {
             try {
-                TriggerLogAgent triggerLogAgent = TriggerLogAgent.builder()
+                AgentRun agentRun = AgentRun.builder()
                         .triggerLog(triggerLog)
                         .agent(route.agent())
                         .destination(route.agent().getType().name())
@@ -149,9 +149,9 @@ public class TriggerRouterService {
                         .build();
                 // Persist before delivery so the DB-generated id (the canonical run_id == DBOS
                 // workflow id) is populated; delivery and the run registry rely on this id.
-                triggerLogAgent = triggerLogAgentRepository.save(triggerLogAgent);
+                agentRun = agentRunRepository.save(agentRun);
 
-                agentDeliveryService.deliverTrigger(triggerLogAgent, trigger, route.channels(), route.message());
+                agentDeliveryService.deliverTrigger(agentRun, trigger, route.channels(), route.message());
             } catch (Exception e) {
                 log.error("Failed to dispatch trigger '{}' to agent {}: {}",
                         trigger.name(), route.agent().getId(), e.getMessage(), e);

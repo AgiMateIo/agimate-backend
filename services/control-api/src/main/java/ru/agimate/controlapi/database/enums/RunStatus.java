@@ -1,9 +1,9 @@
 package ru.agimate.controlapi.database.enums;
 
-import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.entities.AgentRun;
 
 /**
- * Lifecycle of an agent run (a {@link TriggerLogAgent} row) — a projection of the run's
+ * Lifecycle of an agent run (a {@link AgentRun} row) — a projection of the run's
  * {@code SaveMessage} stream (INBOUND → RUNNING, ANSWER → DONE, ERROR → FAILED), observability
  * only. Single-writer-per-session is enforced by the partitioned {@code agent_exec} queue,
  * not by this status.

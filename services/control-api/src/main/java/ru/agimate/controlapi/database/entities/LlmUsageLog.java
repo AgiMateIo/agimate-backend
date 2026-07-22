@@ -42,7 +42,7 @@ public class LlmUsageLog extends BaseEntity {
     @Column(name = "call_id", nullable = false, columnDefinition = "TEXT")
     private String callId;
 
-    /** trigger_log_agents.id (parent workflow LLM-вызова); null, если воркер его не знает. */
+    /** agent_runs.id (parent workflow LLM-вызова); null, если воркер его не знает. */
     @Column(name = "run_id")
     private UUID runId;
 

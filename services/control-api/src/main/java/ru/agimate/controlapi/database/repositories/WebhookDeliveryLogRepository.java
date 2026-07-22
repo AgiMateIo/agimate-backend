@@ -12,7 +12,7 @@ public interface WebhookDeliveryLogRepository extends JpaRepository<WebhookDeliv
 
     @Query("""
             SELECT w FROM WebhookDeliveryLog w
-            JOIN w.triggerLogAgent tla
+            JOIN w.agentRun tla
             JOIN tla.triggerLog tl
             WHERE tl.userId = :userId
             ORDER BY w.deliveredAt DESC
@@ -21,7 +21,7 @@ public interface WebhookDeliveryLogRepository extends JpaRepository<WebhookDeliv
 
     @Query("""
             SELECT w FROM WebhookDeliveryLog w
-            JOIN w.triggerLogAgent tla
+            JOIN w.agentRun tla
             JOIN tla.triggerLog tl
             WHERE tl.userId = :userId AND tla.agent.id = :agentId
             ORDER BY w.deliveredAt DESC

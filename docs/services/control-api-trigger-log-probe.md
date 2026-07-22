@@ -17,7 +17,7 @@ Stateless-механизм полуавтоматического создани
 `agm-probe-<mode>-<10 alnum chars>`, где `<mode>` — `block` или `pass`.
 
 - `block` (по умолчанию): триггеры с этим кодом сохраняются в `trigger_logs`, но **не** доставляются агентам (`findAllowedAgents`/`sendTrigger` пропускается в `TriggerRouterService`). Чисто настройка без побочных эффектов.
-- `pass`: триггеры идут обычным путём — агенты получают, `trigger_log_agents` заполняются. Полезно для «проверь, доходит ли мой триггер до агентов».
+- `pass`: триггеры идут обычным путём — агенты получают, `agent_runs` заполняются. Полезно для «проверь, доходит ли мой триггер до агентов».
 
 Распознавание происходит в `TriggerRouterService` через `JsonUtils.toJson(trigger.data()).contains("agm-probe-block-")`.
 

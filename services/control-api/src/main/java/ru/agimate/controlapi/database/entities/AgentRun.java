@@ -14,14 +14,14 @@ import java.util.Map;
 import java.util.UUID;
 
 @Entity
-@Table(name = "trigger_log_agents", uniqueConstraints =
+@Table(name = "agent_runs", uniqueConstraints =
         @UniqueConstraint(columnNames = {"trigger_log_id", "agent_id"}))
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class TriggerLogAgent extends BaseEntity {
+public class AgentRun extends BaseEntity {
 
     @Id
     @Generated

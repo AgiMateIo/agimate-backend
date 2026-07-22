@@ -10,11 +10,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.TriggerLog;
-import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
-import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
@@ -54,7 +54,7 @@ class MessageLogServiceTest {
     private static final UUID PROMPT_CHANNEL = UUID.randomUUID();
     private static final UUID PROGRESS_CHANNEL = UUID.randomUUID();
 
-    @Mock private TriggerLogAgentRepository triggerLogAgentRepository;
+    @Mock private AgentRunRepository agentRunRepository;
     @Mock private ChannelSessionMessageRepository messageRepository;
     @Mock private ChannelMessageOutboundService outboundService;
     @Mock private InboundTextResolver inboundTextResolver;
@@ -64,12 +64,12 @@ class MessageLogServiceTest {
     @BeforeEach
     void setUp() {
         service = new MessageLogService(
-                new MessageLogPersistence(triggerLogAgentRepository, messageRepository, inboundTextResolver),
+                new MessageLogPersistence(agentRunRepository, messageRepository, inboundTextResolver),
                 outboundService);
     }
 
-    private TriggerLogAgent run(UUID sessionId, Channels channels) {
-        TriggerLogAgent run = TriggerLogAgent.builder()
+    private AgentRun run(UUID sessionId, Channels channels) {
+        AgentRun run = AgentRun.builder()
                 .agent(Agent.builder().id(AGENT_ID).build())
                 .triggerLog(TriggerLog.builder()
                         .connectorCode("webchat")
@@ -83,7 +83,7 @@ class MessageLogServiceTest {
                 .channels(ChannelsCodec.toMap(channels))
                 .build();
         run.setId(TRIGGER_ID);
-        when(triggerLogAgentRepository.findById(TRIGGER_ID)).thenReturn(Optional.of(run));
+        when(agentRunRepository.findById(TRIGGER_ID)).thenReturn(Optional.of(run));
         return run;
     }
 
@@ -184,7 +184,7 @@ class MessageLogServiceTest {
         @Test
         @DisplayName("direct-ран: ANSWER → result, ERROR → error, истории и доставки нет")
         void directRun() {
-            TriggerLogAgent run = run(null, null);
+            AgentRun run = run(null, null);
 
             service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.ANSWER, null, "done", null);
             assertEquals("done", run.getResult());
@@ -273,7 +273,7 @@ class MessageLogServiceTest {
         @Test
         @DisplayName("INBOUND → RUNNING (+ last_activity_at), ANSWER → DONE, ERROR → FAILED")
         void transitions() {
-            TriggerLogAgent run = run(SESSION_ID, dialogueChannels());
+            AgentRun run = run(SESSION_ID, dialogueChannels());
             when(inboundTextResolver.resolveText(any(), any())).thenReturn(Optional.of("hi"));
 
             service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "", null);
@@ -287,7 +287,7 @@ class MessageLogServiceTest {
         @Test
         @DisplayName("ERROR терминален; терминальный статус реплеем не откатывается")
         void terminalIsSticky() {
-            TriggerLogAgent run = run(SESSION_ID, dialogueChannels());
+            AgentRun run = run(SESSION_ID, dialogueChannels());
 
             service.save(AGENT_ID, TRIGGER_ID, 2, ChannelSessionMessageKind.ERROR, null, "boom", null);
             assertEquals(RunStatus.FAILED, run.getStatus());
@@ -301,7 +301,7 @@ class MessageLogServiceTest {
         @Test
         @DisplayName("PROGRESS статус не меняет, но продлевает активность")
         void progressTouchesOnly() {
-            TriggerLogAgent run = run(SESSION_ID, dialogueChannels());
+            AgentRun run = run(SESSION_ID, dialogueChannels());
 
             service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.PROGRESS, "TEXT", "step", null);
 

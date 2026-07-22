@@ -30,7 +30,7 @@ import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Skill;
-import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
@@ -42,7 +42,7 @@ import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
-import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.channel.InboundTextResolver;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
@@ -67,7 +67,7 @@ import java.util.stream.Collectors;
 
 /**
  * Сборка контекста рана для {@code GetRunContext}: политика ({@link ContextSpec}) выбирается по
- * снапшоту каналов маршрута ({@code trigger_log_agents.channels}), блоки собираются из
+ * снапшоту каналов маршрута ({@code agent_runs.channels}), блоки собираются из
  * agent-спеки, {@link PromptBlockProvider}-коннекторов, команды и скиллов; тулы скоупятся
  * скиллами. Воркер получает готовые упорядоченные блоки и только рендерит их.
  *
@@ -123,7 +123,7 @@ public class RunContextService {
             .enable(SerializationFeature.INDENT_OUTPUT)
             .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 
-    private final TriggerLogAgentRepository triggerLogAgentRepository;
+    private final AgentRunRepository agentRunRepository;
     private final AgentRepository agentRepository;
     private final AgenticTeamRepository agenticTeamRepository;
     private final AgentSkillRepository agentSkillRepository;
@@ -140,7 +140,7 @@ public class RunContextService {
     private final ChannelSessionMessageRepository messageRepository;
 
     public RunContextView build(UUID agentId, UUID triggerId) {
-        TriggerLogAgent run = triggerLogAgentRepository.findById(triggerId)
+        AgentRun run = agentRunRepository.findById(triggerId)
                 .orElseThrow(() -> new NotFoundStatusException("Run not found: " + triggerId));
         Agent agent = run.getAgent();
         if (!agent.getId().equals(agentId)) {

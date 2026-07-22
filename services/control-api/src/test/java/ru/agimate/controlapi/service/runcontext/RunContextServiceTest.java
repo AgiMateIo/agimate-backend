@@ -27,7 +27,7 @@ import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.TriggerLog;
-import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
@@ -38,7 +38,7 @@ import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
-import ru.agimate.controlapi.database.repositories.TriggerLogAgentRepository;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.channel.InboundTextResolver;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
@@ -73,7 +73,7 @@ class RunContextServiceTest {
     private static final UUID CHANNEL_ID = UUID.randomUUID();
     private static final UUID SESSION_ID = UUID.randomUUID();
 
-    @Mock private TriggerLogAgentRepository triggerLogAgentRepository;
+    @Mock private AgentRunRepository agentRunRepository;
     @Mock private AgentRepository agentRepository;
     @Mock private AgenticTeamRepository agenticTeamRepository;
     @Mock private AgentSkillRepository agentSkillRepository;
@@ -106,7 +106,7 @@ class RunContextServiceTest {
         timeHandler = mock(TimeLikeHandler.class);
         lenient().when(timeHandler.connectorCode()).thenReturn("time");
         ConnectorRegistry registry = new ConnectorRegistry(List.of(memoryHandler, timeHandler));
-        service = new RunContextService(triggerLogAgentRepository, agentRepository,
+        service = new RunContextService(agentRunRepository, agentRepository,
                 agenticTeamRepository, agentSkillRepository, agentSkillService, skillRepository,
                 connectionRepository, connectorRepository, connectionToolRepository,
                 registry, new ConnectorEnvFactory(null, null), channelRepository, channelHandlerRegistry,
@@ -132,8 +132,8 @@ class RunContextServiceTest {
                 .build();
     }
 
-    private TriggerLogAgent run(Agent agent, TriggerLog log, Channels channels) {
-        return TriggerLogAgent.builder()
+    private AgentRun run(Agent agent, TriggerLog log, Channels channels) {
+        return AgentRun.builder()
                 .agent(agent)
                 .triggerLog(log)
                 .destination("GENERIC")
@@ -141,8 +141,8 @@ class RunContextServiceTest {
                 .build();
     }
 
-    private void stubRun(TriggerLogAgent run) {
-        when(triggerLogAgentRepository.findById(TRIGGER_ID)).thenReturn(Optional.of(run));
+    private void stubRun(AgentRun run) {
+        when(agentRunRepository.findById(TRIGGER_ID)).thenReturn(Optional.of(run));
     }
 
     private void stubSkills(List<AgentSkillWithConnectorsResponse> skills) {
@@ -334,7 +334,7 @@ class RunContextServiceTest {
         @Test
         @DisplayName("historyLimit=0 — история не загружается даже при живой сессии")
         void historyLimitZero() {
-            TriggerLogAgent run = run(agent(), triggerLog("time", "due", Map.of("prompt", "п")), null);
+            AgentRun run = run(agent(), triggerLog("time", "due", Map.of("prompt", "п")), null);
             run.setSessionId(SESSION_ID);
             stubRun(run);
             stubSkills(List.of());
@@ -459,7 +459,7 @@ class RunContextServiceTest {
         @DisplayName("хвост разворачивается, старые kinds маппятся на v2, thinking-строки отфильтрованы (NO_REASONING)")
         void mapsHistory() {
             Agent agent = agent();
-            TriggerLogAgent run = run(agent, triggerLog("time", "due"), null);
+            AgentRun run = run(agent, triggerLog("time", "due"), null);
             run.setSessionId(SESSION_ID);
             stubRun(run);
             stubSkills(List.of());
@@ -488,7 +488,7 @@ class RunContextServiceTest {
         @DisplayName("tool_turn из message_json уходит структурно; TEXT-преамбула того же рана скипается")
         void structuredToolTurn() {
             Agent agent = agent();
-            TriggerLogAgent run = run(agent, triggerLog("time", "due"), null);
+            AgentRun run = run(agent, triggerLog("time", "due"), null);
             run.setSessionId(SESSION_ID);
             stubRun(run);
             stubSkills(List.of());
@@ -524,7 +524,7 @@ class RunContextServiceTest {
         @DisplayName("гигантский output tool_turn режется до контекстного бюджета")
         void toolTurnOutputCapped() {
             Agent agent = agent();
-            TriggerLogAgent run = run(agent, triggerLog("time", "due"), null);
+            AgentRun run = run(agent, triggerLog("time", "due"), null);
             run.setSessionId(SESSION_ID);
             stubRun(run);
             stubSkills(List.of());
@@ -563,7 +563,7 @@ class RunContextServiceTest {
         @Test
         @DisplayName("неизвестный trigger_id → NotFound")
         void unknownRun() {
-            when(triggerLogAgentRepository.findById(TRIGGER_ID)).thenReturn(Optional.empty());
+            when(agentRunRepository.findById(TRIGGER_ID)).thenReturn(Optional.empty());
             assertThrows(NotFoundStatusException.class, () -> service.build(AGENT_ID, TRIGGER_ID));
         }
 

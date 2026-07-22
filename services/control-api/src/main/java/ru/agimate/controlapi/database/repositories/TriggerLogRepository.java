@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.enums.RunStatus;
-import ru.agimate.controlapi.database.projections.TriggerLogAgentRunProjection;
+import ru.agimate.controlapi.database.projections.AgentRunProjection;
 import ru.agimate.controlapi.database.projections.TriggerLogWithAgentsCountProjection;
 
 import java.time.LocalDateTime;
@@ -20,7 +20,7 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
             SELECT t.id AS id, t.connectorCode AS connectorCode, t.connectionId AS connectionId,
                    t.externalId AS externalId, t.name AS name,
                    t.occurredAt AS occurredAt, t.input AS input, t.createdAt AS createdAt,
-                   SIZE(t.triggerLogAgents) AS agentsCount
+                   SIZE(t.agentRuns) AS agentsCount
             FROM TriggerLog t
             WHERE t.userId = :userId
             AND (:connectorCode IS NULL OR t.connectorCode = :connectorCode)
@@ -28,7 +28,7 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
     Page<TriggerLogWithAgentsCountProjection> findByUserIdWithFilters(UUID userId, String connectorCode, Pageable pageable);
 
     /**
-     * Per-agent листинг: прогоны триггеров у конкретного агента ({@code trigger_log_agents}
+     * Per-agent листинг: прогоны триггеров у конкретного агента ({@code agent_runs}
      * ⋈ {@code trigger_logs}). {@code status} — {@link RunStatus} прогона (реальная колонка).
      * {@code name} — регистронезависимый подстрочный поиск по имени триггера.
      */
@@ -38,7 +38,7 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
                    tl.occurredAt AS occurredAt, tl.input AS input,
                    a.status AS status, a.result AS result, a.error AS error,
                    a.sessionId AS sessionId, a.lastActivityAt AS lastActivityAt, a.createdAt AS createdAt
-            FROM TriggerLogAgent a
+            FROM AgentRun a
             JOIN a.triggerLog tl
             WHERE tl.userId = :userId
             AND a.agent.id = :agentId
@@ -48,7 +48,7 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
             AND (:status IS NULL OR a.status = :status)
             ORDER BY a.createdAt DESC
             """)
-    Page<TriggerLogAgentRunProjection> findAgentRunsWithFilters(UUID userId, UUID agentId,
+    Page<AgentRunProjection> findAgentRunsWithFilters(UUID userId, UUID agentId,
                                                                 String connectorCode, String connectionId,
                                                                 String name, RunStatus status, Pageable pageable);
 

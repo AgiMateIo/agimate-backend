@@ -273,7 +273,7 @@ control-api integrates with Centrifugo for real-time messaging:
 
 - `connectors` — Connector authentication keys, linked device info (deviceId, deviceFeatures JSONB), triggers/tools capabilities (JSONB)
 - `trigger_logs` — Logged trigger events
-- `trigger_log_agents` — Trigger routing log per agent
+- `agent_runs` — Agent runs (one row per agent per trigger event; `id` = `run_id` = DBOS workflow id)
 - `tool_call_logs` — Tool invocation logs (request + result)
 - `agents` — Agent configuration (instructions, triggers_allow_all, triggers_to, webhook_url, webhook_auth_secret_id → `secrets`)
 - `agent_presets` — Role presets for the creation wizard (code, instructions prefill, skill_names)

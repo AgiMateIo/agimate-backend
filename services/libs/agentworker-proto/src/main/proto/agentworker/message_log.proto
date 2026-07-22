@@ -31,7 +31,7 @@ enum ProgressType {
 
 message SaveMessageRequest {
   string agent_id = 1;
-  string run_id = 2;        // trigger_log_agents.id (= DBOS workflow id)
+  string run_id = 2;        // agent_runs.id (= DBOS workflow id)
   int32 seq = 3;                // монотонный счётчик рана (0 = inbound); ключ идемпотентности
   MessageKind kind = 4;
   ProgressType progress_type = 5;  // только для PROGRESS

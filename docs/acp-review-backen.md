@@ -42,7 +42,7 @@ discovery). Брать стоит не «протокол», а отдельны
 | ACP | У нас | Комментарий |
 |---|---|---|
 | Sync/Async/Streaming как REST-паттерны на `/runs` (poll или SSE) | DBOS durable workflow (async = дефолт) + 4 паттерна на уровне *тулы* (sync/stream/batch/async) поверх gRPC | ACP-async = poll/SSE; наш = DBOS-signal, **polling сознательно запрещён**. Наш путь durable, переживает краш. |
-| Sessions: история на сервере по `session_id` поверх stateless REST | `TriggerLogAgent.sessionId` (single-writer-per-session из prompt-канала) | Ключ у нас чище — не клиентский, а enforced single-writer. Где живёт сама история — открытый §6; ACP отвечает «server-side store». |
+| Sessions: история на сервере по `session_id` поверх stateless REST | `AgentRun.sessionId` (single-writer-per-session из prompt-канала) | Ключ у нас чище — не клиентский, а enforced single-writer. Где живёт сама история — открытый §6; ACP отвечает «server-side store». |
 | Discovery: адресация по имени, manifest-роутинг, offline-discovery через OCI | Воркер получает `agent_id` в DBOS-payload и тянет `AgentSpec` по id (versioned) | Платформа и так знает всех агентов. OCI/offline — нерелевантно, мы не пакуем агентов в артефакты. |
 | Transport: REST/HTTP, no-SDK, curl-friendly | gRPC/TLS/HTTP2 на worker-плоскости | Разные приоритеты. При этом user-facing surface у нас **тоже REST** (user-api/control-api app) — просто разнесли плоскости. |
 

@@ -68,7 +68,7 @@
 Регистрационного хэндшейка нет: **single-writer-per-session — контрактное требование к
 транспорту исполнения** (партиционированная очередь `agent_exec`, concurrency=1 на партицию;
 при смене транспорта требование входит в чек-лист эквивалента). Жизненный цикл рана
-(`trigger_log_agents.status`) — серверная проекция потока `SaveMessage`
+(`agent_runs.status`) — серверная проекция потока `SaveMessage`
 (INBOUND → RUNNING, ANSWER → DONE, ERROR → FAILED); каждый RPC рана (SaveMessage,
 ExecuteToolAsync/GetToolResult, GetRunContext) продлевает `last_activity_at`, молча умерший
 ран добирает фоновый сборщик (RUNNING без активности дольше порога → FAILED).
@@ -153,7 +153,7 @@ poll-бюджет). Параллелизм fan-out'а даёт очередь `t
 
 ### 3.4 Жизненный цикл workflow
 
-Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_log_agents.id`). Дальше:
+Payload workflow — только `{agent_id, run_id}` (`run_id` = `agent_runs.id`). Дальше:
 
 1. **Enqueue** (control-api): run-стадия энкьюится сразу на партиционированную очередь `agent_exec` — `workflow_id == run_id`, партиция = `session_id` рана (direct-ран — собственная партиция по `run_id`); дедуп доставки — по `workflow_id`. Роутер-workflow и claim-хэндшейк удалены.
 2. **Run-стадия** (`run_agent`): `SaveMessage(seq=0, INBOUND)` — ack «агент получил», до сборки контекста; на бэке он же переводит статус рана в RUNNING.
@@ -259,9 +259,9 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
 ### 5.4 AgentContext — `GetRunContext` (протокол v2, этап 2)
 
 Read-поверхность схлопнута в один вызов: `GetRunContext(agent_id, run_id)` → `RunContext`
-(`run_id` = `trigger_log_agents.id` = DBOS workflow id рана). Сборка — `RunContextService`
+(`run_id` = `agent_runs.id` = DBOS workflow id рана). Сборка — `RunContextService`
 (`service/runcontext/`): политика `ContextSpec` (DIALOGUE при prompt-канале в снапшоте
-`trigger_log_agents.channels`, иначе SYSTEM_TRIGGER), упорядоченные `PromptBlock`-и
+`agent_runs.channels`, иначе SYSTEM_TRIGGER), упорядоченные `PromptBlock`-и
 (agent → инструкции → блоки `PromptBlockProvider`-коннекторов → team → skills → тела подошедших
 скиллов → trigger guidance; основной промпт — последний user-блок, событие триггера — untrusted),
 тулы после binding-гейта и скоупа скиллов, история сессии «как видел пользователь»

@@ -19,7 +19,7 @@ message ExecuteToolRequest {
   bytes input = 5;
   string agent_id = 6;
   string workflow_id = 7;
-  // Ран-источник вызова (trigger_log_agents.id); сессию/канал для доменного контекста
+  // Ран-источник вызова (agent_runs.id); сессию/канал для доменного контекста
   // тулов бэк резолвит сам из снапшота рана.
   string run_id = 8;
 }

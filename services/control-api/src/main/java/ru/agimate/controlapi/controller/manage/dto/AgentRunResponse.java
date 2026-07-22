@@ -3,15 +3,15 @@ package ru.agimate.controlapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.enums.RunStatus;
-import ru.agimate.controlapi.database.projections.TriggerLogAgentRunProjection;
+import ru.agimate.controlapi.database.projections.AgentRunProjection;
 
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
 @Schema(description = "Trigger delivered to an agent + that agent's run")
-public record TriggerLogAgentRunResponse(
-        @Schema(description = "Run ID (trigger_log_agents.id)")
+public record AgentRunResponse(
+        @Schema(description = "Run ID (agent_runs.id)")
         UUID id,
 
         @Schema(description = "Trigger log ID (the shared inbound event)")
@@ -56,8 +56,8 @@ public record TriggerLogAgentRunResponse(
         @Schema(description = "When the agent received the trigger")
         LocalDateTime createdAt
 ) {
-    public static TriggerLogAgentRunResponse from(TriggerLogAgentRunProjection p) {
-        return new TriggerLogAgentRunResponse(
+    public static AgentRunResponse from(AgentRunProjection p) {
+        return new AgentRunResponse(
                 p.getId(),
                 p.getTriggerLogId(),
                 p.getConnectorCode(),

@@ -5,7 +5,7 @@ import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.enums.AgentType;
-import ru.agimate.controlapi.database.entities.TriggerLogAgent;
+import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.delivery.AgentTransport;
@@ -35,14 +35,14 @@ public class AgentDeliveryService {
         this.agentRepository = agentRepository;
     }
 
-    public void deliverTrigger(TriggerLogAgent triggerLogAgent, Trigger trigger, Channels channels, InboundMessage inbound) {
-        Agent agent = triggerLogAgent.getAgent();
+    public void deliverTrigger(AgentRun agentRun, Trigger trigger, Channels channels, InboundMessage inbound) {
+        Agent agent = agentRun.getAgent();
         try {
-            transports.get(agent.getType()).deliverTrigger(triggerLogAgent, trigger, channels, inbound);
+            transports.get(agent.getType()).deliverTrigger(agentRun, trigger, channels, inbound);
         } catch (Exception e) {
-            triggerLogAgent.setError(e.getMessage());
+            agentRun.setError(e.getMessage());
             log.warn("Failed to send trigger '{}' to agent '{}' via {}: {}",
-                    triggerLogAgent.getTriggerLog().getName(),
+                    agentRun.getTriggerLog().getName(),
                     agent.getId(), agent.getType(), e.getMessage());
         }
     }
