@@ -16,7 +16,7 @@ credentials from the backend and execute tools through the Tool Gateway.
 |-------------------------|---------------------------------------------------------------------------------------------------|----------|
 | `WorkerControl`         | `HealthCheck`                                                                                     | done     |
 | `AgentContext`          | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials`, `GetFile` (содержимое вложения чанками), `ReportLlmUsage` | done     |
-| `MessageLog`            | `SaveMessage` — единая запись событий диалога, доставка как её проекция                            | done     |
+| `MessageLog`            | `SaveMessage` — единая запись событий диалога, доставка как её проекция; `SaveTurn` — канонический журнал ходов (`agent_run_turns`) | done     |
 | `ToolGateway`           | `ExecuteToolAsync`, `GetToolResult` (несёт `run_id` — liveness рана)                          | done     |
 | `WorkflowReporting`     | —                                                                                                 | post-PoC |
 
@@ -174,6 +174,24 @@ DBOS-чекпоинт не попадают (`RunContext.inbound_parts` несё
 у рендерера (пустой `name` — сырой текст). LLM-креды в `RunContext` **не входят**: его результат
 чекпоинтится воркером (`prepare_context`), api_key запрашивается отдельным `GetLlmCredentials`
 inline на каждый `llm_call`.
+
+## SaveTurn (`MessageLog.SaveTurn`) — канонический журнал ходов
+
+`SaveTurn(agent_id, run_id, turn_index, role, text, thinking, tool_calls[], tool_results[],
+finish_reason, model, call_id)` — full-fidelity журнал шагов рана в таблице `agent_run_turns`
+(`AgentRunTurnService`). По одной строке на `AgentChatMessage` воркера: `ASSISTANT` несёт
+`text`/`thinking`/`tool_calls`, `TOOL` — только `tool_results`. **Без капов** — в отличие от
+капнутой канальной проекции `channel_session_messages` (SaveMessage), и пишется для **всех** ранов,
+включая direct (`session_id` NULL, денорм из `agent_runs.session_id`).
+
+- Идемпотентность — UNIQUE `(run_id, turn_index)` (ON CONFLICT DO NOTHING).
+- В отличие от `SaveMessage`, у воркера это **не durable-шаг**: ход — идемпотентная проекция уже
+  durable данных (результатов дочерних `llm_call`/`tool_call`), поэтому DBOS-replay переотправляет ту
+  же пару и бэк дедуплицирует. Чекпоинт не добавляется → **drain перед деплоем не нужен**.
+- Пишется рядом с каналом, не вместо: доставки нет, статус рана не проецирует.
+- `finish_reason`/`model`/`call_id` (связь с `llm_usage_log.call_id`) — nullable, заполняются на
+  этапе 1b (сейчас пусты).
+- `session_id` денормализован без логики непрерывности — `AgentSession` отложен.
 
 ## Tool execution
 

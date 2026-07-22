@@ -25,8 +25,13 @@ import ru.agimate.agentworker.ReportLlmUsageRequest;
 import ru.agimate.agentworker.ReportLlmUsageResponse;
 import ru.agimate.agentworker.SaveMessageRequest;
 import ru.agimate.agentworker.SaveMessageResponse;
+import ru.agimate.agentworker.SaveTurnRequest;
+import ru.agimate.agentworker.SaveTurnResponse;
 import ru.agimate.agentworker.SendMessageRequest;
 import ru.agimate.agentworker.SendMessageResponse;
+import ru.agimate.agentworker.ToolCallRec;
+import ru.agimate.agentworker.ToolResultRec;
+import ru.agimate.agentworker.TurnRole;
 import ru.agimate.agentworker.ToolGatewayGrpc;
 import ru.agimate.agentworker.WorkerControlGrpc;
 import ru.agimate.agentworker.WorkerMessageType;
@@ -208,6 +213,33 @@ public class AgentWorkerClient {
             }
             return messageLog.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                     .saveMessage(request.build());
+        });
+    }
+
+    /**
+     * Канонический ход рана ({@code agent_run_turns}); идемпотентна по (run_id, turn_index).
+     * Не durable-шаг у вызывающего — ход это проекция уже-durable данных, реплей дедуплицируется
+     * бэком. {@code finishReason}/{@code model}/{@code callId} nullable (этап 1b).
+     */
+    public SaveTurnResponse saveTurn(String agentId, String runId, int turnIndex, TurnRole role,
+                                     String text, boolean thinking, List<ToolCallRec> toolCalls,
+                                     List<ToolResultRec> toolResults, String finishReason,
+                                     String model, String callId) {
+        return call("SaveTurn", () -> {
+            SaveTurnRequest.Builder request = SaveTurnRequest.newBuilder()
+                    .setAgentId(agentId)
+                    .setRunId(runId)
+                    .setTurnIndex(turnIndex)
+                    .setRole(role)
+                    .setText(text == null ? "" : text)
+                    .setThinking(thinking)
+                    .addAllToolCalls(toolCalls)
+                    .addAllToolResults(toolResults)
+                    .setFinishReason(finishReason == null ? "" : finishReason)
+                    .setModel(model == null ? "" : model)
+                    .setCallId(callId == null ? "" : callId);
+            return messageLog.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+                    .saveTurn(request.build());
         });
     }
 

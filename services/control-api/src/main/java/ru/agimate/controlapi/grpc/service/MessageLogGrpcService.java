@@ -5,15 +5,20 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.controlapi.database.enums.AgentTurnRole;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.grpc.mapper.MessageKindMapper;
+import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.channel.MessageLogService;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.agentworker.MessageLogGrpc;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.SaveMessageRequest;
 import ru.agimate.agentworker.SaveMessageResponse;
+import ru.agimate.agentworker.SaveTurnRequest;
+import ru.agimate.agentworker.SaveTurnResponse;
 import ru.agimate.agentworker.ToolTurn;
+import ru.agimate.agentworker.TurnRole;
 
 import java.util.UUID;
 
@@ -30,6 +35,7 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
 
     private final MessageLogService messageLogService;
+    private final AgentRunTurnService agentRunTurnService;
 
     @Override
     public void saveMessage(SaveMessageRequest request, StreamObserver<SaveMessageResponse> responseObserver) {
@@ -56,6 +62,48 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
             handleError(e, responseObserver, "SaveMessage agent=" + request.getAgentId()
                     + " run=" + request.getRunId());
         }
+    }
+
+    @Override
+    public void saveTurn(SaveTurnRequest request, StreamObserver<SaveTurnResponse> responseObserver) {
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            UUID runId = parseUuid(request.getRunId(), "run_id");
+            if (request.getTurnIndex() < 0) {
+                throw new BadRequestStatusException("turn_index must be >= 0");
+            }
+
+            AgentRunTurnService.SaveResult result = agentRunTurnService.save(
+                    agentId, runId, request.getTurnIndex(), toDomain(request.getRole()),
+                    request.getText(), request.getThinking(),
+                    request.getToolCallsList().stream()
+                            .map(c -> new ToolTurnRecord.Call(c.getId(), c.getName(), c.getArgumentsJson()))
+                            .toList(),
+                    request.getToolResultsList().stream()
+                            .map(r -> new ToolTurnRecord.Result(r.getId(), r.getName(), r.getOutputJson(),
+                                    r.getFailed()))
+                            .toList(),
+                    request.getFinishReason(), request.getModel(), request.getCallId());
+
+            responseObserver.onNext(SaveTurnResponse.newBuilder()
+                    .setDuplicate(result.duplicate())
+                    .build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            handleError(e, responseObserver, "SaveTurn agent=" + request.getAgentId()
+                    + " run=" + request.getRunId());
+        }
+    }
+
+    private static AgentTurnRole toDomain(TurnRole role) {
+        return switch (role) {
+            case TURN_ROLE_SYSTEM -> AgentTurnRole.SYSTEM;
+            case TURN_ROLE_USER -> AgentTurnRole.USER;
+            case TURN_ROLE_ASSISTANT -> AgentTurnRole.ASSISTANT;
+            case TURN_ROLE_TOOL -> AgentTurnRole.TOOL;
+            case TURN_ROLE_UNSPECIFIED, UNRECOGNIZED ->
+                    throw new BadRequestStatusException("role is required");
+        };
     }
 
     private static ToolTurnRecord toDomain(ToolTurn turn) {

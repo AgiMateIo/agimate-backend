@@ -63,7 +63,7 @@
 | Сервис | Назначение |
 |---|---|
 | `AgentContext` | `GetRunContext(agent_id, run_id)` — весь контекст рана одним вызовом (блоки промпта, тулы, история, `inbound_parts`); `GetLlmCredentials` и `GetFile` (байты вложения) — отдельно (inline, не в чекпоинт) |
-| `MessageLog` | `SaveMessage(agent_id, run_id, seq, kind, …)` — единая запись событий диалога; персист и доставка в каналы — на бэке; идемпотентность `(run_id, seq)` |
+| `MessageLog` | `SaveMessage(agent_id, run_id, seq, kind, …)` — единая запись событий диалога; персист и доставка в каналы — на бэке; идемпотентность `(run_id, seq)`. `SaveTurn(agent_id, run_id, turn_index, role, …)` — канонический full-fidelity журнал ходов (`agent_run_turns`), без капов, для всех ранов; **не** durable-шаг у воркера (проекция уже-durable данных), идемпотентность `(run_id, turn_index)` |
 | `ToolGateway` | `ExecuteToolAsync` + поллинг `GetToolResult` — единственная точка вызова tools (ABAC + audit) |
 | `WorkerControl` | `HealthCheck`; `SendMessage` — системные ошибки воркера |
 

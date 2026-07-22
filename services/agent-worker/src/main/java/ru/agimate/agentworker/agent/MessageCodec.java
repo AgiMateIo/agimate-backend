@@ -75,28 +75,45 @@ public final class MessageCodec {
      * the tools ran, so it lands as a separate record right after the TOOL_CALL line.
      */
     public static ProgressLine toolResultLine(AgentChatMessage toolResults) {
-        ToolTurn.Builder turn = ToolTurn.newBuilder().setText("");
-        for (AgentChatMessage.ToolResult result : toolResults.toolResults()) {
-            turn.addResults(ToolResultRec.newBuilder()
+        ToolTurn turn = ToolTurn.newBuilder().setText("")
+                .addAllResults(toolResultRecs(toolResults.toolResults()))
+                .build();
+        return new ProgressLine(ProgressType.PROGRESS_TYPE_TOOL_RESULT, "", turn);
+    }
+
+    /** Вызовы ассистента как proto-записи (общий конвертер для канальной проекции и журнала ходов). */
+    public static List<ToolCallRec> toolCallRecs(List<AgentChatMessage.ToolCall> calls) {
+        List<ToolCallRec> recs = new ArrayList<>(calls.size());
+        for (AgentChatMessage.ToolCall call : calls) {
+            recs.add(ToolCallRec.newBuilder()
+                    .setId(nullToEmpty(call.id()))
+                    .setName(nullToEmpty(call.name()))
+                    .setArgumentsJson(nullToEmpty(call.argumentsJson()))
+                    .build());
+        }
+        return recs;
+    }
+
+    /** Результаты тулов как proto-записи (общий конвертер для канальной проекции и журнала ходов). */
+    public static List<ToolResultRec> toolResultRecs(List<AgentChatMessage.ToolResult> results) {
+        List<ToolResultRec> recs = new ArrayList<>(results.size());
+        for (AgentChatMessage.ToolResult result : results) {
+            recs.add(ToolResultRec.newBuilder()
                     .setId(nullToEmpty(result.id()))
                     .setName(nullToEmpty(result.name()))
                     .setOutputJson(nullToEmpty(result.contentJson()))
-                    .setFailed(result.failed()));
+                    .setFailed(result.failed())
+                    .build());
         }
-        return new ProgressLine(ProgressType.PROGRESS_TYPE_TOOL_RESULT, "", turn.build());
+        return recs;
     }
 
     /** {@code tool_use}-половина хода: преамбула + вызовы ассистента (без результатов). */
     private static ToolTurn callsTurn(AgentChatMessage assistant) {
-        ToolTurn.Builder turn = ToolTurn.newBuilder()
-                .setText(assistant.text() != null ? assistant.text() : "");
-        for (AgentChatMessage.ToolCall call : assistant.toolCalls()) {
-            turn.addCalls(ToolCallRec.newBuilder()
-                    .setId(nullToEmpty(call.id()))
-                    .setName(nullToEmpty(call.name()))
-                    .setArgumentsJson(nullToEmpty(call.argumentsJson())));
-        }
-        return turn.build();
+        return ToolTurn.newBuilder()
+                .setText(assistant.text() != null ? assistant.text() : "")
+                .addAllCalls(toolCallRecs(assistant.toolCalls()))
+                .build();
     }
 
     private static String nullToEmpty(String value) {

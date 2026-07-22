@@ -79,11 +79,17 @@ public class AgentRunCore {
                       String context) {
         ToolRegistry registry = prepared.registry();
 
+        // Канонический журнал ходов (agent_run_turns): по записи на каждое сообщение, без капов и
+        // для всех ранов. Обычный (не durable) вызов — проекция уже-durable данных, дедуп по
+        // (run_id, turn_index) на бэке. Пишется рядом с канальной проекцией, не вместо неё.
+        TurnLog turns = new TurnLog(client, agentId, runId);
+
         // Каждый ход приходит отдельным notify (v2.1a): assistant с вызовами до dispatch → TOOL_CALL
         // (+преамбула/thinking), затем tool-результаты → отдельная TOOL_RESULT-запись. Историю
         // следующих ранов бэк соберёт из этой пары в нативные tool_use/tool_result.
         Consumer<List<AgentChatMessage>> onNewMessages = newMsgs -> {
             for (AgentChatMessage m : newMsgs) {
+                turns.record(m);
                 if (m.role() == AgentChatMessage.Role.ASSISTANT) {
                     for (MessageCodec.ProgressLine line
                             : MessageCodec.progressLines(m, registry.displayNames(m))) {

@@ -1,0 +1,152 @@
+package ru.agimate.controlapi.service;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.controlapi.database.entities.Agent;
+import ru.agimate.controlapi.database.entities.AgentRun;
+import ru.agimate.controlapi.database.enums.AgentTurnRole;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
+import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
+import ru.agimate.controlapi.service.dto.ToolTurnRecord;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+@DisplayName("AgentRunTurnService")
+class AgentRunTurnServiceTest {
+
+    private static final UUID RUN_ID = UUID.randomUUID();
+    private static final UUID AGENT_ID = UUID.randomUUID();
+    private static final UUID SESSION_ID = UUID.randomUUID();
+
+    @Mock
+    private AgentRunRepository agentRunRepository;
+    @Mock
+    private AgentRunTurnRepository turnRepository;
+
+    @InjectMocks
+    private AgentRunTurnService service;
+
+    private AgentRun run(UUID ownerAgentId, UUID sessionId) {
+        AgentRun run = mock(AgentRun.class);
+        Agent agent = mock(Agent.class);
+        when(run.getAgent()).thenReturn(agent);
+        when(agent.getId()).thenReturn(ownerAgentId);
+        // sessionId читается только на успешном пути (после проверки владельца) — lenient.
+        lenient().when(run.getSessionId()).thenReturn(sessionId);
+        return run;
+    }
+
+    @Nested
+    @DisplayName("assistant-ход")
+    class AssistantTurn {
+
+        @Test
+        @DisplayName("пишет role/text/thinking + tool_calls (json), результаты — null; session_id из рана")
+        void writesAssistantWithToolCalls() {
+            AgentRun run = run(AGENT_ID, SESSION_ID);
+            when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));
+            when(turnRepository.insertIgnoreConflict(eq(RUN_ID), eq(SESSION_ID), eq(AGENT_ID), eq(0),
+                    eq("ASSISTANT"), eq("preamble"), eq(true), argThat(j -> j != null && j.contains("weather")),
+                    isNull(), isNull(), isNull(), isNull())).thenReturn(1);
+
+            AgentRunTurnService.SaveResult result = service.save(AGENT_ID, RUN_ID, 0, AgentTurnRole.ASSISTANT,
+                    "preamble", true,
+                    List.of(new ToolTurnRecord.Call("c1", "weather", "{\"city\":\"Berlin\"}")),
+                    List.of(), null, null, null);
+
+            assertFalse(result.duplicate());
+        }
+
+        @Test
+        @DisplayName("пустой текст → null; пустой список вызовов → null json")
+        void emptyTextAndCallsBecomeNull() {
+            AgentRun run = run(AGENT_ID, null);
+            when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));
+            when(turnRepository.insertIgnoreConflict(eq(RUN_ID), isNull(), eq(AGENT_ID), eq(0),
+                    eq("ASSISTANT"), isNull(), eq(false), isNull(), isNull(), isNull(), isNull(), isNull()))
+                    .thenReturn(1);
+
+            service.save(AGENT_ID, RUN_ID, 0, AgentTurnRole.ASSISTANT, "", false,
+                    List.of(), List.of(), null, null, null);
+
+            verify(turnRepository).insertIgnoreConflict(eq(RUN_ID), isNull(), eq(AGENT_ID), eq(0),
+                    eq("ASSISTANT"), isNull(), eq(false), isNull(), isNull(), isNull(), isNull(), isNull());
+        }
+    }
+
+    @Test
+    @DisplayName("tool-ход: role TOOL + tool_results (json), вызовы — null")
+    void writesToolResults() {
+        AgentRun run = run(AGENT_ID, SESSION_ID);
+        when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));
+        when(turnRepository.insertIgnoreConflict(eq(RUN_ID), eq(SESSION_ID), eq(AGENT_ID), eq(1),
+                eq("TOOL"), isNull(), eq(false), isNull(),
+                argThat(j -> j != null && j.contains("sunny")), isNull(), isNull(), isNull())).thenReturn(1);
+
+        service.save(AGENT_ID, RUN_ID, 1, AgentTurnRole.TOOL, null, false, List.of(),
+                List.of(new ToolTurnRecord.Result("c1", "weather", "{\"sky\":\"sunny\"}", false)),
+                null, null, null);
+
+        verify(turnRepository).insertIgnoreConflict(eq(RUN_ID), eq(SESSION_ID), eq(AGENT_ID), eq(1),
+                eq("TOOL"), isNull(), eq(false), isNull(),
+                argThat(j -> j != null && j.contains("sunny")), isNull(), isNull(), isNull());
+    }
+
+    @Test
+    @DisplayName("insert вернул 0 (конфликт) → duplicate=true")
+    void duplicateOnConflict() {
+        AgentRun run = run(AGENT_ID, SESSION_ID);
+        when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));
+        when(turnRepository.insertIgnoreConflict(eq(RUN_ID), eq(SESSION_ID), eq(AGENT_ID), eq(0),
+                eq("ASSISTANT"), eq("hi"), eq(false), isNull(), isNull(), isNull(), isNull(), isNull()))
+                .thenReturn(0);
+
+        AgentRunTurnService.SaveResult result = service.save(AGENT_ID, RUN_ID, 0, AgentTurnRole.ASSISTANT,
+                "hi", false, List.of(), List.of(), null, null, null);
+
+        assertTrue(result.duplicate());
+    }
+
+    @Test
+    @DisplayName("ран не найден → NotFoundStatusException, запись не трогается")
+    void runNotFound() {
+        when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundStatusException.class, () -> service.save(AGENT_ID, RUN_ID, 0,
+                AgentTurnRole.ASSISTANT, "hi", false, List.of(), List.of(), null, null, null));
+        verifyNoInteractions(turnRepository);
+    }
+
+    @Test
+    @DisplayName("ран принадлежит другому агенту → BadRequestStatusException")
+    void agentMismatch() {
+        AgentRun run = run(UUID.randomUUID(), SESSION_ID);
+        when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));
+
+        assertThrows(BadRequestStatusException.class, () -> service.save(AGENT_ID, RUN_ID, 0,
+                AgentTurnRole.ASSISTANT, "hi", false, List.of(), List.of(), null, null, null));
+        verifyNoInteractions(turnRepository);
+    }
+}

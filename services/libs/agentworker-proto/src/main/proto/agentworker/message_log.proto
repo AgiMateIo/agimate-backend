@@ -12,6 +12,11 @@ option java_outer_classname = "MessageLogProto";
 // истории, ни повторной доставки (дедуп downstream по детерминированному message_id).
 service MessageLog {
   rpc SaveMessage(SaveMessageRequest) returns (SaveMessageResponse);
+  // Канонический full-fidelity ход рана (agent_run_turns): по одной записи на AgentChatMessage
+  // воркера (assistant/tool), без капов. В отличие от SaveMessage — не durable-шаг: ход это
+  // идемпотентная проекция уже-durable данных (результатов дочерних LLM/tool-воркфлоу), поэтому
+  // реплей переотправляет ту же пару (run_id, turn_index), а бэк дедуплицирует. Доставки нет.
+  rpc SaveTurn(SaveTurnRequest) returns (SaveTurnResponse);
 }
 
 enum MessageKind {
@@ -47,6 +52,35 @@ message SaveMessageRequest {
 
 message SaveMessageResponse {
   bool duplicate = 1;           // (run_id, seq) уже записан — ретрай
+}
+
+enum TurnRole {
+  TURN_ROLE_UNSPECIFIED = 0;
+  TURN_ROLE_SYSTEM = 1;
+  TURN_ROLE_USER = 2;
+  TURN_ROLE_ASSISTANT = 3;
+  TURN_ROLE_TOOL = 4;
+}
+
+// Один ход канонического журнала. Схема повторяет AgentChatMessage воркера: assistant несёт
+// text/thinking/tool_calls, tool — только tool_results. finish_reason/model/call_id — телеметрия
+// LLM-вызова (заполняется на этапе 1b; пусты — писать nullable).
+message SaveTurnRequest {
+  string agent_id = 1;
+  string run_id = 2;                   // agent_runs.id (= DBOS workflow id)
+  int32 turn_index = 3;                // монотонный per-run счётчик; ключ идемпотентности (run_id, turn_index)
+  TurnRole role = 4;
+  string text = 5;
+  bool thinking = 6;
+  repeated ToolCallRec tool_calls = 7;      // у assistant-хода
+  repeated ToolResultRec tool_results = 8;  // у tool-хода
+  string finish_reason = 9;            // 1b; пусто = null
+  string model = 10;                   // 1b; пусто = null
+  string call_id = 11;                 // 1b; связь с llm_usage_log; пусто = null
+}
+
+message SaveTurnResponse {
+  bool duplicate = 1;                  // (run_id, turn_index) уже записан — реплей/ретрай
 }
 
 // Один ход ассистента с тулами: преамбула + вызовы + результаты. Схема полей повторяет

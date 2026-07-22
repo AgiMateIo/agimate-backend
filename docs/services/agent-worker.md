@@ -21,7 +21,8 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 |---|---|
 | `model/AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
-| `MessageCodec` | Typed channel-facing progress lines (`ProgressLine{type, text}`) for `SaveMessage`; history persistence is text-only since v2 (raw transcript lives in DBOS checkpoints). |
+| `MessageCodec` | Typed channel-facing progress lines (`ProgressLine{type, text}`) for `SaveMessage`; history persistence is text-only since v2 (raw transcript lives in DBOS checkpoints). Also exposes shared `AgentChatMessage`→proto `tool_calls`/`tool_results` converters reused by the turn ledger. |
+| `workers/run/TurnLog` | Canonical full-fidelity turn ledger writer (`SaveTurn` → `agent_run_turns`): one record per assistant/tool `AgentChatMessage`, uncapped, all runs. Plain idempotent call (not a durable step) — a turn is a projection of already-durable child-workflow results; replay dedupes on `(run_id, turn_index)`. Best-effort. |
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id, openWorld)`; `{namespace}.{name}` naming; schema parsing. |
 | `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). When the run has open-world tools it appends a system paragraph pinning tool output as data. |
 | `context/ContextMaterials` | The `GetRunContext` payload as fetched (ordered blocks + tools), consumed by `ContextBuilder`. |
