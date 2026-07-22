@@ -521,6 +521,47 @@ class RunContextServiceTest {
         }
 
         @Test
+        @DisplayName("v2.1a: раздельные TOOL_CALL (calls) и TOOL_RESULT (results, пустой текст) отдаются двумя записями")
+        void splitToolRows() {
+            Agent agent = agent();
+            AgentRun run = run(agent, triggerLog("time", "due"), null);
+            run.setSessionId(SESSION_ID);
+            stubRun(run);
+            stubSkills(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+
+            UUID toolRunId = UUID.randomUUID();
+            ChannelSessionMessage callsMsg = msg(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks", "TOOL_CALL");
+            callsMsg.setRunId(toolRunId);
+            callsMsg.setMessageJson(Map.of(
+                    "text", "смотрю доску",
+                    "calls", List.of(Map.of("id", "c1", "name", "board.get_tasks",
+                            "argumentsJson", "{\"boardId\":1}")),
+                    "results", List.of()));
+            // results-строка: пустой текст, results в message_json — не должна быть скипнута blank-гардом.
+            ChannelSessionMessage resultsMsg = msg(ChannelSessionMessageKind.PROGRESS, "", "TOOL_RESULT");
+            resultsMsg.setRunId(toolRunId);
+            resultsMsg.setMessageJson(Map.of(
+                    "calls", List.of(),
+                    "results", List.of(Map.of("id", "c1", "name", "board.get_tasks",
+                            "outputJson", "{\"tasks\":[]}", "failed", false))));
+            when(messageRepository.findBySessionIdAndCompletedTrueOrderByIdDesc(eq(SESSION_ID), any()))
+                    .thenReturn(List.of(resultsMsg, callsMsg)); // новые первыми → развернётся calls, затем results
+
+            List<RunHistoryMessage> history = service.build(AGENT_ID, TRIGGER_ID).history();
+
+            assertEquals(2, history.size());
+            RunHistoryMessage calls = history.get(0);
+            assertEquals("смотрю доску", calls.toolTurn().text());
+            assertEquals("board.get_tasks", calls.toolTurn().calls().get(0).name());
+            assertTrue(calls.toolTurn().results().isEmpty());
+            RunHistoryMessage results = history.get(1);
+            assertEquals("", results.text());
+            assertTrue(results.toolTurn().calls().isEmpty());
+            assertEquals("{\"tasks\":[]}", results.toolTurn().results().get(0).outputJson());
+        }
+
+        @Test
         @DisplayName("гигантский output tool_turn режется до контекстного бюджета")
         void toolTurnOutputCapped() {
             Agent agent = agent();

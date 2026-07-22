@@ -133,7 +133,7 @@ Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → 
 | `system_blocks` | Упорядоченные `PromptBlock` (stable-первые — prompt-cache): agent → инструкции → блоки `PromptBlockProvider`-коннекторов (memory) → team → skills-листинг → тела подошедших скиллов (SYSTEM_TRIGGER) → trigger guidance |
 | `user_blocks`   | User-ход: user-блоки коннекторов (memory notes, `ephemeral=true` — не персистятся в историю) + основной промпт последним (диалоговый текст `trusted`, событие триггера `trusted=false` → воркер оборачивает как untrusted data) |
 | `tools`         | `ConnectorToolSpec` уже отскоупленные (binding-гейт + скоуп скиллов): коннекторы **всех** скиллов агента в обоих `ContextSpec` — содержание делегированной триггером задачи не связано с коннектором события; по триггеру скоупятся только тела скиллов |
-| `history`       | Сессионная история «как видел пользователь»: только завершённые раны (`completed=true` — сообщения текущего рана и упавших ранов не видны), окно 50, фильтр `historyDetail` (FULL/NO_REASONING/DIALOGUE_ONLY) из пресета `ContextSpec`; дореформенные REQUEST/RESPONSE маппятся на INBOUND/ANSWER. Tool-ходы (v2.1): у PROGRESS/TOOL_CALL с сохранённым `message_json` наружу идёт структурный `tool_turn` (JSON-поля капаются до 4 KB с маркером `…[truncated]`), TEXT-преамбулы таких ранов скипаются (текст уже внутри `tool_turn`), легаси `🔧 name`-строки санитизируются в `[вызван инструмент name]` — текстовый паттерн вызова модель имитирует вместо реального tool call |
+| `history`       | Сессионная история «как видел пользователь»: только завершённые раны (`completed=true` — сообщения текущего рана и упавших ранов не видны), окно 50, фильтр `historyDetail` (FULL/NO_REASONING/DIALOGUE_ONLY) из пресета `ContextSpec`; дореформенные REQUEST/RESPONSE маппятся на INBOUND/ANSWER. Tool-ходы (v2.1a): у PROGRESS/TOOL_CALL с `message_json` наружу идёт структурный `tool_turn` с вызовами, у следующей PROGRESS/TOOL_RESULT — с результатами (обе с капом JSON-полей до 4 KB, маркер `…[truncated]`); воркер сшивает пару. TEXT-преамбулы таких ранов скипаются (текст уже внутри `tool_turn`), легаси `🔧 name`-строки санитизируются в `[вызван инструмент name]` — текстовый паттерн вызова модель имитирует вместо реального tool call |
 | `inbound_parts` | Вложения диалогового inbound текущего рана (`repeated FilePart{file_id, type, mime, size, name}`) — только `agf_`-ссылки, без байтов (безопасно для чекпоинта `prepare_context`). Пусто вне DIALOGUE и у старого control-api. Байты изображений воркер тянет `GetFile`'ом inline при `llm_call` и подаёт модели как `Media`; в историю не попадают (плейсхолдер — в тексте user-блока). См. docs/connectors/files.md, «Входящие вложения» |
 
 ## GetFile (`AgentContext.GetFile`)
@@ -157,11 +157,14 @@ DBOS-чекпоинт не попадают (`RunContext.inbound_parts` несё
 - `INBOUND` (seq=0, до prepare_context) — ack «агент получил»: текст пуст, канонику бэк берёт сам
   (`ChannelHandler.handleInput` от персистентного триггера / компактный JSON события), `trigger_input`
   заполняется из `trigger_log.input` (reply-context).
-- `PROGRESS` (+`progress_type` THINKING/TOOL_CALL/TEXT) → progress-канал (если есть). У TOOL_CALL
-  воркер дополнительно шлёт `tool_turn{text, calls[{id, name, arguments_json}], results[{id, name,
-  output_json, failed}]}` (v2.1) — структурную запись tool-хода: бэк кладёт её в
+- `PROGRESS` (+`progress_type` THINKING/TOOL_CALL/TEXT/TOOL_RESULT) → progress-канал (если есть).
+  Tool-ход дробится на две записи (v2.1a): у **TOOL_CALL** воркер шлёт `tool_turn{text, calls[{id,
+  name, arguments_json}]}` **до** исполнения (`text` — канальная 🔧-проекция, доставляется сразу),
+  у **TOOL_RESULT** — `tool_turn{results[{id, name, output_json, failed}]}` **после**, с пустым
+  `text` (в канал не доставляется, история-only). Бэк кладёт обе в
   `channel_session_messages.message_json` (JSON-поля капаются до 32 KB) и отдаёт истории следующих
-  ранов как нативные tool_use/tool_result; `text` остаётся канальной 🔧-проекцией.
+  ранов двумя соседними записями — воркер сшивает их в нативную пару tool_use/tool_result. Легаси
+  TOOL_CALL с `calls+results` в одной записи по-прежнему читается.
 - `ANSWER` → answer-канал (fallback prompt); в той же транзакции все сообщения рана помечаются
   `completed=true` — ран становится видимым истории. Direct-ран → `agent_runs.result`.
 - `ERROR` → progress/answer/prompt-фолбэк; direct-ран → `agent_runs.error`. ERROR не

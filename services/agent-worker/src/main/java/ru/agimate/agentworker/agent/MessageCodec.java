@@ -15,7 +15,9 @@ import java.util.List;
  * transcript lives in DBOS checkpoints, not in the session store. Exception (v2.1): the tool
  * turn additionally carries a structured {@link ToolTurn} — the backend feeds it to the next
  * runs' history as native tool_use/tool_result, because the {@code 🔧}-text projection teaches
- * the model to imitate tool calls as text instead of calling them.
+ * the model to imitate tool calls as text instead of calling them. The turn is split across two
+ * lines (v2.1a): the TOOL_CALL line ({@link #progressLines}) carries the calls and is emitted
+ * before dispatch; the TOOL_RESULT line ({@link #toolResultLine}) carries the results afterwards.
  */
 public final class MessageCodec {
 
@@ -40,12 +42,11 @@ public final class MessageCodec {
      * Channel-facing progress lines for one assistant message: a thinking marker (if it reasoned),
      * the preamble text written alongside tool calls, and one {@code 🔧 <name>} line per tool. Text
      * is emitted only when tools are present, so the final tool-less answer is not echoed here — it
-     * is sent once as the ANSWER after the loop. {@code toolResults} (nullable) is the same turn's
-     * tool-result message — together with the assistant's calls it forms the structured
-     * {@link ToolTurn} attached to the TOOL_CALL line.
+     * is sent once as the ANSWER after the loop. The TOOL_CALL line carries a calls-only
+     * {@link ToolTurn} (the {@code tool_use} half) — it is emitted before dispatch, so results are
+     * not available yet; they arrive separately via {@link #toolResultLine}.
      */
-    public static List<ProgressLine> progressLines(AgentChatMessage assistant, List<String> toolDisplayNames,
-                                                   AgentChatMessage toolResults) {
+    public static List<ProgressLine> progressLines(AgentChatMessage assistant, List<String> toolDisplayNames) {
         List<ProgressLine> lines = new ArrayList<>();
         if (assistant.thinking()) {
             lines.add(new ProgressLine(ProgressType.PROGRESS_TYPE_THINKING, THINKING_EMOJI + " thinking..."));
@@ -64,12 +65,29 @@ public final class MessageCodec {
             toolLines.append(TOOL_EMOJI).append(" ").append(toolDisplayNames.get(i));
         }
         lines.add(new ProgressLine(ProgressType.PROGRESS_TYPE_TOOL_CALL, toolLines.toString(),
-                toolTurn(assistant, toolResults)));
+                callsTurn(assistant)));
         return lines;
     }
 
-    /** Структурная запись tool-хода: преамбула + вызовы ассистента + результаты (если уже есть). */
-    private static ToolTurn toolTurn(AgentChatMessage assistant, AgentChatMessage toolResults) {
+    /**
+     * The {@code tool_result} half of a tool turn: a results-only {@link ToolTurn} on a
+     * TOOL_RESULT line with empty text (history-only, not delivered to the channel). Emitted after
+     * the tools ran, so it lands as a separate record right after the TOOL_CALL line.
+     */
+    public static ProgressLine toolResultLine(AgentChatMessage toolResults) {
+        ToolTurn.Builder turn = ToolTurn.newBuilder().setText("");
+        for (AgentChatMessage.ToolResult result : toolResults.toolResults()) {
+            turn.addResults(ToolResultRec.newBuilder()
+                    .setId(nullToEmpty(result.id()))
+                    .setName(nullToEmpty(result.name()))
+                    .setOutputJson(nullToEmpty(result.contentJson()))
+                    .setFailed(result.failed()));
+        }
+        return new ProgressLine(ProgressType.PROGRESS_TYPE_TOOL_RESULT, "", turn.build());
+    }
+
+    /** {@code tool_use}-половина хода: преамбула + вызовы ассистента (без результатов). */
+    private static ToolTurn callsTurn(AgentChatMessage assistant) {
         ToolTurn.Builder turn = ToolTurn.newBuilder()
                 .setText(assistant.text() != null ? assistant.text() : "");
         for (AgentChatMessage.ToolCall call : assistant.toolCalls()) {
@@ -77,15 +95,6 @@ public final class MessageCodec {
                     .setId(nullToEmpty(call.id()))
                     .setName(nullToEmpty(call.name()))
                     .setArgumentsJson(nullToEmpty(call.argumentsJson())));
-        }
-        if (toolResults != null) {
-            for (AgentChatMessage.ToolResult result : toolResults.toolResults()) {
-                turn.addResults(ToolResultRec.newBuilder()
-                        .setId(nullToEmpty(result.id()))
-                        .setName(nullToEmpty(result.name()))
-                        .setOutputJson(nullToEmpty(result.contentJson()))
-                        .setFailed(result.failed()));
-            }
         }
         return turn.build();
     }

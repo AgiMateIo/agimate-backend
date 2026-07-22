@@ -25,8 +25,9 @@ enum MessageKind {
 enum ProgressType {
   PROGRESS_TYPE_UNSPECIFIED = 0;
   PROGRESS_TYPE_THINKING = 1;
-  PROGRESS_TYPE_TOOL_CALL = 2;
+  PROGRESS_TYPE_TOOL_CALL = 2;    // ход с вызовами: tool_turn несёт только calls (результатов ещё нет)
   PROGRESS_TYPE_TEXT = 3;
+  PROGRESS_TYPE_TOOL_RESULT = 4;  // результаты того же хода (пишутся после исполнения): tool_turn несёт только results, text пуст → в канал не доставляется
 }
 
 message SaveMessageRequest {
@@ -36,9 +37,11 @@ message SaveMessageRequest {
   MessageKind kind = 4;
   ProgressType progress_type = 5;  // только для PROGRESS
   string text = 6;              // для INBOUND пуст
-  // Структурная запись tool-хода (протокол v2.1) — только для PROGRESS/TOOL_CALL. text при этом
-  // остаётся канальной 🔧-проекцией; в историю следующих ранов бэк отдаёт tool_turn (нативные
-  // tool_use/tool_result вместо имитируемого текста). Старый бэк поле игнорирует.
+  // Структурная запись tool-хода (протокол v2.1), дробится на две строки (v2.1a): у
+  // PROGRESS/TOOL_CALL — только calls (text = канальная 🔧-проекция, доставляется сразу до
+  // исполнения), у PROGRESS/TOOL_RESULT — только results (text пуст, история-only). В историю
+  // следующих ранов бэк отдаёт обе как нативную пару tool_use/tool_result. Старый бэк поле
+  // игнорирует; легаси-строки с calls+results в одной записи воркер по-прежнему понимает.
   ToolTurn tool_turn = 7;
 }
 
@@ -73,5 +76,8 @@ message ToolResultRec {
 message HistoryMessage {
   MessageKind kind = 1;
   string text = 2;
-  ToolTurn tool_turn = 3;       // только у PROGRESS/TOOL_CALL с сохранённой структурной записью
+  // Структурная запись tool-хода. У новых ранов приходит двумя соседними записями: сначала с
+  // calls (tool_use), затем с results (tool_result) — воcker сшивает их в пару по порядку.
+  // Легаси-раны шлют одну запись с calls+results. Пустая — обычная текстовая строка.
+  ToolTurn tool_turn = 3;
 }

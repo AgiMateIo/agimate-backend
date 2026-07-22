@@ -251,6 +251,55 @@ class ContextBuilderTest {
         }
 
         @Test
+        @DisplayName("v2.1a: раздельные calls- и results-записи сшиваются в нативную пару")
+        void splitRowsMapToNativePair() {
+            HistoryMessage calls = HistoryMessage.newBuilder()
+                    .setKind(MessageKind.MESSAGE_KIND_PROGRESS)
+                    .setText("🔧 get_tasks")
+                    .setToolTurn(ToolTurn.newBuilder()
+                            .setText("смотрю доску")
+                            .addCalls(ToolCallRec.newBuilder()
+                                    .setId("c1").setName("board.get_tasks")
+                                    .setArgumentsJson("{\"boardId\":1}")))
+                    .build();
+            HistoryMessage results = HistoryMessage.newBuilder()
+                    .setKind(MessageKind.MESSAGE_KIND_PROGRESS)
+                    .setToolTurn(ToolTurn.newBuilder()
+                            .addResults(ToolResultRec.newBuilder()
+                                    .setId("c1").setName("board.get_tasks")
+                                    .setOutputJson("{\"tasks\":[]}")))
+                    .build();
+
+            List<AgentChatMessage> mapped = ContextBuilder.mapHistory(List.of(calls, results));
+
+            assertEquals(2, mapped.size());
+            assertEquals(AgentChatMessage.Role.ASSISTANT, mapped.get(0).role());
+            assertEquals("смотрю доску", mapped.get(0).text());
+            assertEquals("board.get_tasks", mapped.get(0).toolCalls().get(0).name());
+            assertEquals(AgentChatMessage.Role.TOOL, mapped.get(1).role());
+            assertEquals("{\"tasks\":[]}", mapped.get(1).toolResults().get(0).contentJson());
+        }
+
+        @Test
+        @DisplayName("v2.1a: осиротевшая results-запись (calls-половину срезало окном) отбрасывается")
+        void orphanResultsRowDropped() {
+            HistoryMessage orphanResults = HistoryMessage.newBuilder()
+                    .setKind(MessageKind.MESSAGE_KIND_PROGRESS)
+                    .setToolTurn(ToolTurn.newBuilder()
+                            .addResults(ToolResultRec.newBuilder()
+                                    .setId("c1").setName("t").setOutputJson("{}")))
+                    .build();
+            HistoryMessage answer = HistoryMessage.newBuilder()
+                    .setKind(MessageKind.MESSAGE_KIND_ANSWER).setText("готово").build();
+
+            List<AgentChatMessage> mapped = ContextBuilder.mapHistory(List.of(orphanResults, answer));
+
+            assertEquals(1, mapped.size());
+            assertEquals(AgentChatMessage.Role.ASSISTANT, mapped.get(0).role());
+            assertEquals("готово", mapped.get(0).text());
+        }
+
+        @Test
         @DisplayName("без tool_turn — прежнее поведение: INBOUND → user, остальное → assistant-текст")
         void plainTextMapping() {
             List<AgentChatMessage> mapped = ContextBuilder.mapHistory(List.of(

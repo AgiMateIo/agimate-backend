@@ -5,6 +5,7 @@ import ru.agimate.agentworker.FilePart;
 import ru.agimate.agentworker.HistoryMessage;
 import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.PromptBlock;
+import ru.agimate.agentworker.ToolCallRec;
 import ru.agimate.agentworker.ToolResultRec;
 import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.agent.ToolRegistry;
@@ -101,13 +102,34 @@ public final class ContextBuilder {
      * Tool-ход с {@code tool_turn} (v2.1) разворачивается в нативную пару
      * {@code assistant(tool_calls)} + {@code tool(results)} — прошлые вызовы модель видит в том
      * же канале, которым обязана вызывать сама, а не как имитируемый текст.
+     *
+     * <p>Со v2.1a ход приходит двумя соседними записями: сперва calls (tool_use), затем results
+     * (tool_result). Calls-запись забирает следующую results-запись look-ahead'ом; легаси-раны
+     * шлют calls+results в одной записи — она обрабатывается тем же кодом без look-ahead.
+     * Осиротевшая results-запись (её calls-половину срезало окном истории) отбрасывается —
+     * {@code tool} без предшествующего {@code tool_use} провайдеры отклоняют.
      */
     static List<AgentChatMessage> mapHistory(List<HistoryMessage> history) {
         List<AgentChatMessage> mapped = new ArrayList<>(history.size());
-        for (HistoryMessage m : history) {
-            if (m.hasToolTurn() && m.getToolTurn().getCallsCount() > 0) {
-                mapToolTurn(m.getToolTurn(), mapped);
+        for (int i = 0; i < history.size(); i++) {
+            HistoryMessage m = history.get(i);
+            ToolTurn turn = m.hasToolTurn() ? m.getToolTurn() : null;
+            if (turn != null && turn.getCallsCount() > 0) {
+                List<ToolResultRec> results = turn.getResultsList();
+                // Раздельная запись (v2.1a): результаты — в следующей records-only записи.
+                if (results.isEmpty() && i + 1 < history.size()) {
+                    HistoryMessage next = history.get(i + 1);
+                    if (next.hasToolTurn() && next.getToolTurn().getCallsCount() == 0
+                            && next.getToolTurn().getResultsCount() > 0) {
+                        results = next.getToolTurn().getResultsList();
+                        i++;
+                    }
+                }
+                mapToolTurn(turn.getText(), turn.getCallsList(), results, mapped);
                 continue;
+            }
+            if (turn != null && turn.getResultsCount() > 0) {
+                continue; // осиротевшая results-запись без calls-половины
             }
             if (m.getText().isBlank()) {
                 continue;
@@ -123,12 +145,13 @@ public final class ContextBuilder {
      * Нативная пара tool-хода. Результат обязателен для каждого вызова (провайдеры отклоняют
      * tool_use без ответа) — при отсутствии записи ставится заглушка {@code {"error": ...}}.
      */
-    private static void mapToolTurn(ToolTurn turn, List<AgentChatMessage> mapped) {
-        List<AgentChatMessage.ToolCall> calls = turn.getCallsList().stream()
+    private static void mapToolTurn(String text, List<ToolCallRec> callRecs,
+                                    List<ToolResultRec> resultRecs, List<AgentChatMessage> mapped) {
+        List<AgentChatMessage.ToolCall> calls = callRecs.stream()
                 .map(c -> new AgentChatMessage.ToolCall(c.getId(), c.getName(), c.getArgumentsJson()))
                 .toList();
         Map<String, AgentChatMessage.ToolResult> byId = new java.util.HashMap<>();
-        for (ToolResultRec r : turn.getResultsList()) {
+        for (ToolResultRec r : resultRecs) {
             byId.put(r.getId(), new AgentChatMessage.ToolResult(
                     r.getId(), r.getName(), r.getOutputJson(), r.getFailed()));
         }
@@ -136,8 +159,7 @@ public final class ContextBuilder {
                 .map(c -> byId.getOrDefault(c.id(), new AgentChatMessage.ToolResult(
                         c.id(), c.name(), "{\"error\": \"result not recorded\"}", true)))
                 .toList();
-        mapped.add(AgentChatMessage.assistant(
-                turn.getText().isBlank() ? null : turn.getText(), false, calls));
+        mapped.add(AgentChatMessage.assistant(text.isBlank() ? null : text, false, calls));
         mapped.add(AgentChatMessage.toolResults(results));
     }
 

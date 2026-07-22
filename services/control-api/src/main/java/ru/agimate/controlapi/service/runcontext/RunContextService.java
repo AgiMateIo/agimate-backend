@@ -242,6 +242,7 @@ public class RunContextService {
     static final int TOOL_JSON_CONTEXT_CAP = 4 * 1024;
 
     private static final String PROGRESS_TOOL_CALL = "TOOL_CALL";
+    private static final String PROGRESS_TOOL_RESULT = "TOOL_RESULT";
     private static final String PROGRESS_TEXT = "TEXT";
 
     /**
@@ -269,7 +270,8 @@ public class RunContextService {
         List<RunHistoryMessage> history = new ArrayList<>(tail.size());
         for (int i = tail.size() - 1; i >= 0; i--) {
             ChannelSessionMessage m = tail.get(i);
-            if (m.getMessage() == null || m.getMessage().isBlank()) {
+            // TOOL_RESULT-строка (v2.1a) несёт results в message_json при пустом тексте — не скипать.
+            if ((m.getMessage() == null || m.getMessage().isBlank()) && !hasStructuredResults(m)) {
                 continue;
             }
             ChannelSessionMessageKind kind = switch (m.getKind()) {
@@ -318,10 +320,26 @@ public class RunContextService {
             // Легаси-строка «🔧 name»: имитируемое действие → констатация прошлой работы.
             return new RunHistoryMessage(kind, sanitizeToolLines(m.getMessage()));
         }
+        if (PROGRESS_TOOL_RESULT.equals(m.getProgressType())) {
+            // results-половина хода (v2.1a): отдаём воркеру structured, он сошьёт с предыдущей calls-строкой.
+            Optional<ToolTurnRecord> turn = JsonUtils.fromMap(m.getMessageJson(), ToolTurnRecord.class);
+            if (turn.isPresent()) {
+                return new RunHistoryMessage(kind, "", capToolTurn(turn.get()));
+            }
+            log.warn("unreadable tool result message_json run={} seq={} — dropping", m.getRunId(), m.getSeq());
+            return null;
+        }
         if (PROGRESS_TEXT.equals(m.getProgressType()) && structuredRuns.contains(m.getRunId())) {
             return null; // преамбула уже в toolTurn.text
         }
         return new RunHistoryMessage(kind, m.getMessage());
+    }
+
+    /** TOOL_RESULT-строка (v2.1a) с сохранённым message_json — results-половина хода, текст пуст. */
+    private static boolean hasStructuredResults(ChannelSessionMessage m) {
+        return m.getKind() == ChannelSessionMessageKind.PROGRESS
+                && PROGRESS_TOOL_RESULT.equals(m.getProgressType())
+                && m.getMessageJson() != null;
     }
 
     private static boolean excludedProgress(ChannelSessionMessage m, ContextSpec.HistoryDetail detail) {

@@ -7,7 +7,6 @@ import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.ToolDef;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -19,8 +18,10 @@ import java.util.regex.Pattern;
  * injected, and the initial message list is built by the caller.
  *
  * <p>Loop: request the LLM; append the assistant reply; if it has no tool calls, notify and return
- * its text; otherwise dispatch all tool calls, append one tool-result message, notify, and continue
- * — up to {@code maxTurns}.
+ * its text; otherwise notify the assistant's calls, dispatch them all, append one tool-result
+ * message, notify it separately, and continue — up to {@code maxTurns}. The two notifies per tool
+ * turn (calls before dispatch, results after) are what let the backend record and deliver the tool
+ * call the moment it is made, ahead of the — possibly slow — execution.
  *
  * <p>Guard: слабые модели (DeepSeek и др.) иногда пишут вызов тула текстом («🔧 name») вместо
  * структурного tool call — без guard'а такой «финальный ответ» тихо завершает ран, а тул не
@@ -84,8 +85,6 @@ public class SimpleAgent {
             log.info("turn {}/{}: requesting LLM", turn, maxTurns);
             AgentChatMessage assistant = llmCaller.call(messages, toolDefs);
             messages.add(assistant);
-            List<AgentChatMessage> newInTurn = new ArrayList<>();
-            newInTurn.add(assistant);
 
             if (!assistant.hasToolCalls()) {
                 String text = assistant.text() != null ? assistant.text() : "";
@@ -104,18 +103,20 @@ public class SimpleAgent {
                     throw new ImitationLoopExhausted("agent kept imitating tool calls as text after "
                             + MAX_IMITATION_CORRECTIONS + " corrections");
                 }
-                notify(newInTurn);
+                notify(List.of(assistant));
                 log.info("turn {}: final answer ({} chars)", turn, text.length());
                 return text;
             }
 
+            // Два хода-события: сначала вызовы (доставляются в канал до исполнения), затем — после
+            // dispatch — результаты. Их фиксация раздельными записями и есть цель v2.1a.
+            notify(List.of(assistant));
             log.info("turn {}: dispatching {} tool call(s): {}", turn, assistant.toolCalls().size(),
                     assistant.toolCalls().stream().map(AgentChatMessage.ToolCall::name).toList());
             List<AgentChatMessage.ToolResult> results = toolDispatcher.dispatchAll(assistant.toolCalls());
             AgentChatMessage toolMsg = AgentChatMessage.toolResults(results);
             messages.add(toolMsg);
-            newInTurn.add(toolMsg);
-            notify(newInTurn);
+            notify(List.of(toolMsg));
         }
         throw new MaxTurnsExceeded("agent loop exceeded " + maxTurns + " turns without a final reply");
     }
