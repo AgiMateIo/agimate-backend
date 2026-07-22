@@ -83,9 +83,19 @@ binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example
 спек тула может заявить свой `timeout_seconds` (кламп 30 мин) — тогда он побеждает; таймаут
 не отменяет джобу на бэке, модель получает явное «could still complete»; max-output-chars — потолок
 вывода одного тула: гигантский вывод раздувает контекст всех последующих turns и DBOS-чекпоинты,
-поэтому обрезается с явной пометкой ещё внутри durable-шага), `dbos` (system database —
-must match control-api's; `retention` — сколько хранить завершённые воркфлоу с чекпоинтами,
-0 отключает).
+поэтому обрезается с явной пометкой ещё внутри durable-шага), `response` (`language` —
+язык пользовательских нотисов), `dbos` (system database — must match control-api's;
+`retention` — сколько хранить завершённые воркфлоу с чекпоинтами, 0 отключает).
+
+### User-facing notices (i18n)
+Пользовательские нотисы (max-turns, ошибка/квота модели, обрезка/фильтр ответа, инфра-сбой) —
+`resources/messages_<lang>.properties`, резолвятся через Spring `MessageSource`. Язык выбирается
+`agent.response.language` (BCP-47, дефолт `en`; в комплекте `en` и `ru`). Неизвестный язык падает
+в базовый бандл (`messages.properties`, английский) — `spring.messages.fallback-to-system-locale:
+false`, поэтому JVM-локаль не влияет. Per-deploy: один язык на воркер; `ResponseTemplates`
+резолвит локаль один раз и отдаёт нотисы `AgentRunner`/`AgentRunCore`. Model-facing тексты
+(коррекция имитации, guidance в системном промпте) здесь **не** локализуются — их ось иная (язык
+диалога). Per-agent локаль (из рана) — на будущее.
 
 ### DBOS retention
 `DbosRetentionJob` периодически (раз в 6 часов, батчами по 5000) удаляет завершённые воркфлоу

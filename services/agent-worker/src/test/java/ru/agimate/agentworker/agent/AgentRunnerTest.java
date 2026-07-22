@@ -4,9 +4,11 @@ import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.config.AgentProperties;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.ResourceBundleMessageSource;
 
 import java.util.List;
 
@@ -15,8 +17,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class AgentRunnerTest {
 
+    private static final ResponseTemplates TEMPLATES = templates("en");
+
+    private static ResponseTemplates templates(String lang) {
+        ResourceBundleMessageSource ms = new ResourceBundleMessageSource();
+        ms.setBasename("messages");
+        ms.setDefaultEncoding("UTF-8");
+        ms.setFallbackToSystemLocale(false);
+        AgentProperties props = new AgentProperties();
+        props.getResponse().setLanguage(lang);
+        return new ResponseTemplates(ms, props);
+    }
+
     private static AgentRunner runner(SimpleAgent.LlmCaller llm, int maxTurns) {
-        return new AgentRunner(llm, calls -> List.of(), List.of(), maxTurns, "for test", null);
+        return new AgentRunner(llm, calls -> List.of(), List.of(), maxTurns, "for test", null, TEMPLATES);
     }
 
     private static String runOnce(AgentRunner runner) {
@@ -29,7 +43,7 @@ class AgentRunnerTest {
         SimpleAgent.LlmCaller loops = (msgs, defs) -> AgentChatMessage.assistant(null, false,
                 List.of(new AgentChatMessage.ToolCall("id", "t", "{}")));
         AgentRunAborted ex = assertThrows(AgentRunAborted.class, () -> runOnce(runner(loops, 2)));
-        assertEquals(AgentRunner.MAX_TURNS_NOTICE, ex.userNotice());
+        assertEquals(TEMPLATES.maxTurns(), ex.userNotice());
     }
 
     @Test
@@ -37,15 +51,15 @@ class AgentRunnerTest {
     void llmErrors() {
         AgentRunAborted auth = assertThrows(AgentRunAborted.class,
                 () -> runOnce(runner((m, d) -> { throw new LlmCallError(401, "unauthorized"); }, 5)));
-        assertEquals(AgentRunner.AUTH_ERROR_NOTICE, auth.userNotice());
+        assertEquals(TEMPLATES.authError(), auth.userNotice());
 
         AgentRunAborted http = assertThrows(AgentRunAborted.class,
                 () -> runOnce(runner((m, d) -> { throw new LlmCallError(500, "boom"); }, 5)));
-        assertEquals(AgentRunner.MODEL_ERROR_NOTICE, http.userNotice());
+        assertEquals(TEMPLATES.modelError(), http.userNotice());
 
         AgentRunAborted api = assertThrows(AgentRunAborted.class,
                 () -> runOnce(runner((m, d) -> { throw new LlmCallError(null, "timeout"); }, 5)));
-        assertEquals(AgentRunner.MODEL_ERROR_NOTICE, api.userNotice());
+        assertEquals(TEMPLATES.modelError(), api.userNotice());
     }
 
     @Test
@@ -62,11 +76,11 @@ class AgentRunnerTest {
     void incompleteResponse() {
         AgentRunAborted len = assertThrows(AgentRunAborted.class, () -> runOnce(runner(
                 (m, d) -> { throw new LlmResponseIncomplete(LlmResponseIncomplete.Reason.LENGTH); }, 5)));
-        assertEquals(AgentRunner.TRUNCATED_NOTICE, len.userNotice());
+        assertEquals(TEMPLATES.truncated(), len.userNotice());
 
         AgentRunAborted filtered = assertThrows(AgentRunAborted.class, () -> runOnce(runner(
                 (m, d) -> { throw new LlmResponseIncomplete(LlmResponseIncomplete.Reason.CONTENT_FILTER); }, 5)));
-        assertEquals(AgentRunner.FILTERED_NOTICE, filtered.userNotice());
+        assertEquals(TEMPLATES.filtered(), filtered.userNotice());
     }
 
     @Test

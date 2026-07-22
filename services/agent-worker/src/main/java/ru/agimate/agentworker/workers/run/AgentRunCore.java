@@ -8,6 +8,7 @@ import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.agent.AgentRunner;
 import ru.agimate.agentworker.agent.MessageCodec;
+import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.agent.SimpleAgent;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
@@ -39,9 +40,10 @@ public class AgentRunCore {
     private final ToolCallWorkflow tool;
     private final Queue llmQueue;
     private final Queue toolQueue;
+    private final ResponseTemplates templates;
 
     public AgentRunCore(DBOS dbos, AgentWorkerClient client, LlmCallWorkflow llm, ToolCallWorkflow tool,
-                        Queue llmQueue, Queue toolQueue) {
+                        Queue llmQueue, Queue toolQueue, ResponseTemplates templates) {
         this.dbos = dbos;
         this.client = client;
         this.fetcher = new ContextMaterialsFetcher(client);
@@ -49,6 +51,7 @@ public class AgentRunCore {
         this.tool = tool;
         this.llmQueue = llmQueue;
         this.toolQueue = toolQueue;
+        this.templates = templates;
     }
 
     /** The run's dialogue-event writer; created here so the workflow shares one seq counter. */
@@ -100,7 +103,7 @@ public class AgentRunCore {
                 runId, registry);
 
         AgentRunner runner = new AgentRunner(llmDispatcher, toolDispatcher, registry.toolDefs(), MAX_AGENT_TURNS,
-                context, onNewMessages);
+                context, onNewMessages, templates);
         String answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
         messages.answer(answer);
         return answer;
@@ -137,10 +140,6 @@ public class AgentRunCore {
         sendSystemReport(WorkerMessageType.WORKER_MESSAGE_TYPE_MESSAGE, exc.systemDetail());
     }
 
-    /** Пользовательский notice при неожиданной инфра-ошибке рана. */
-    static final String INFRA_ERROR_NOTICE =
-            "Извини, произошла внутренняя ошибка при обработке сообщения — попробуй ещё раз чуть позже.";
-
     /**
      * Best-effort report of an unexpected infra failure before the workflow goes to ERROR. The
      * likely cause is control-api being unreachable, so either send may fail as well — both are
@@ -148,7 +147,7 @@ public class AgentRunCore {
      */
     public void reportInfraFailure(MessageLog messages, String systemDetail) {
         try {
-            messages.error(INFRA_ERROR_NOTICE);
+            messages.error(templates.infraError());
         } catch (Exception e) {
             log.warn("failed to send infra-error notice to the channel: {}", e.getMessage());
         }

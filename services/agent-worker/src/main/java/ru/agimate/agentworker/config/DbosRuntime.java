@@ -6,6 +6,7 @@ import dev.dbos.transact.workflow.Queue;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
+import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.llm.LlmMessageMapper;
 import ru.agimate.agentworker.llm.ModelFactory;
@@ -33,7 +34,7 @@ public class DbosRuntime implements SmartLifecycle {
     private volatile boolean running = false;
 
     public DbosRuntime(AgentProperties props, AgentWorkerClient client, ModelFactory modelFactory,
-                       LlmMessageMapper mapper) {
+                       LlmMessageMapper mapper, ResponseTemplates templates) {
         AgentProperties.Dbos d = props.getDbos();
         if (d.getDatabaseUrl() == null || d.getDatabaseUrl().isBlank()) {
             throw new IllegalStateException(
@@ -82,7 +83,7 @@ public class DbosRuntime implements SmartLifecycle {
                 new LlmCallWorkflowImpl(client, modelFactory, mapper), Queues.INSTANCE);
         ToolCallWorkflow tool = dbos.registerProxy(ToolCallWorkflow.class,
                 new ToolCallWorkflowImpl(client, dbos, props.getTool()), Queues.INSTANCE);
-        AgentRunCore core = new AgentRunCore(dbos, client, llm, tool, llmQueue, toolQueue);
+        AgentRunCore core = new AgentRunCore(dbos, client, llm, tool, llmQueue, toolQueue, templates);
         dbos.registerProxy(AgentRunWorkflow.class,
                 new AgentRunWorkflowImpl(core), Queues.INSTANCE);
     }

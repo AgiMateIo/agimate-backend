@@ -25,6 +25,7 @@ public class AgentProperties {
     private App app = new App();
     private Tool tool = new Tool();
     private Dbos dbos = new Dbos();
+    private Response response = new Response();
 
     /** gRPC channel to control-api's worker protocol (:9091, TLS). */
     @Getter
@@ -89,6 +90,17 @@ public class AgentProperties {
          * the DBOS checkpoints (tool outcome + each {@code llm_call} child input).
          */
         private int maxOutputChars = 64_000;
+    }
+
+    /**
+     * User-facing response notices. {@code language} is a BCP-47 tag selecting the
+     * {@code messages_<lang>.properties} bundle; unknown tags fall back to the base bundle
+     * (English). Per-deployment for now — a per-agent locale from the run is the eventual axis.
+     */
+    @Getter
+    @Setter
+    public static class Response {
+        private String language = "en";
     }
 
     /**

@@ -20,35 +20,24 @@ import java.util.function.Consumer;
  */
 public class AgentRunner {
 
-    static final String MAX_TURNS_NOTICE =
-            "Извини, не получилось завершить ответ — агент превысил лимит шагов.";
-    static final String MODEL_ERROR_NOTICE =
-            "Извини, произошла ошибка при обращении к модели — попробуй ещё раз.";
-    static final String AUTH_ERROR_NOTICE =
-            "Извини, не удаётся подключиться к модели — проверь настройки API-ключа.";
-    static final String IMITATION_ERROR_NOTICE =
-            "Извини, не получилось выполнить действие — модель не смогла корректно вызвать инструмент.";
-    static final String TRUNCATED_NOTICE =
-            "Извини, ответ не поместился в лимит — переформулируй запрос покороче или разбей на части.";
-    static final String FILTERED_NOTICE =
-            "Извини, не могу ответить на это сообщение.";
-
     private final SimpleAgent.LlmCaller llmCaller;
     private final SimpleAgent.ToolDispatcher toolDispatcher;
     private final List<ToolDef> toolDefs;
     private final int maxTurns;
     private final String context;
     private final Consumer<List<AgentChatMessage>> onNewMessages;
+    private final ResponseTemplates templates;
 
     public AgentRunner(SimpleAgent.LlmCaller llmCaller, SimpleAgent.ToolDispatcher toolDispatcher,
                        List<ToolDef> toolDefs, int maxTurns, String context,
-                       Consumer<List<AgentChatMessage>> onNewMessages) {
+                       Consumer<List<AgentChatMessage>> onNewMessages, ResponseTemplates templates) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;
         this.maxTurns = maxTurns;
         this.context = context;
         this.onNewMessages = onNewMessages;
+        this.templates = templates;
     }
 
     /**
@@ -67,15 +56,15 @@ public class AgentRunner {
         try {
             return agent.run(messages);
         } catch (MaxTurnsExceeded e) {
-            throw new AgentRunAborted(MAX_TURNS_NOTICE,
+            throw new AgentRunAborted(templates.maxTurns(),
                     "agent loop hit max_turns " + context + ": " + e.getMessage());
         } catch (ImitationLoopExhausted e) {
-            throw new AgentRunAborted(IMITATION_ERROR_NOTICE,
+            throw new AgentRunAborted(templates.imitationError(),
                     "agent stuck imitating tool calls " + context + ": " + e.getMessage());
         } catch (LlmResponseIncomplete e) {
             String userNotice = switch (e.reason()) {
-                case LENGTH -> TRUNCATED_NOTICE;
-                case CONTENT_FILTER -> FILTERED_NOTICE;
+                case LENGTH -> templates.truncated();
+                case CONTENT_FILTER -> templates.filtered();
             };
             throw new AgentRunAborted(userNotice,
                     "llm response incomplete (" + e.reason() + ") " + context + ": " + e.getMessage());
@@ -89,13 +78,13 @@ public class AgentRunner {
             String userNotice;
             String prefix;
             if (status != null && (status == 401 || status == 403)) {
-                userNotice = AUTH_ERROR_NOTICE;
+                userNotice = templates.authError();
                 prefix = "LLM auth error (HTTP " + status + ")";
             } else if (status != null) {
-                userNotice = MODEL_ERROR_NOTICE;
+                userNotice = templates.modelError();
                 prefix = "LLM HTTP error (HTTP " + status + ")";
             } else {
-                userNotice = MODEL_ERROR_NOTICE;
+                userNotice = templates.modelError();
                 prefix = "LLM API error";
             }
             throw new AgentRunAborted(userNotice, prefix + " " + context + ": " + e.getMessage());

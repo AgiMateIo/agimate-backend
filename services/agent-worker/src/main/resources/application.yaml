@@ -7,6 +7,9 @@ spring:
     banner-mode: off
   profiles:
     active: "local"
+  messages:
+    # Unknown agent.response.language falls back to the base bundle (English), not the JVM locale.
+    fallback-to-system-locale: false
 
 logging:
   level:
@@ -41,6 +44,9 @@ agent:
     poll-timeout: 60s
     # Потолок вывода одного тула (в символах); длиннее — обрезается с явной пометкой.
     max-output-chars: 64000
+  response:
+    # Language of user-facing notices; BCP-47 tag. Bundled: en (default), ru.
+    language: "en"
   dbos:
     app-name: "agent-worker"
     database-url: "jdbc:postgresql://localhost:5432/dbos_db"
