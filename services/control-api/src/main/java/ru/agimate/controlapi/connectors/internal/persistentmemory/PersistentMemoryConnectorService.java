@@ -10,27 +10,20 @@ import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
-import ru.agimate.controlapi.database.enums.ExecutionLocus;
-import ru.agimate.controlapi.database.enums.IdentityScope;
-import ru.agimate.controlapi.database.enums.DefinitionBinding;
-import ru.agimate.controlapi.database.enums.TransportDirection;
-import ru.agimate.controlapi.database.model.ConnectorTraits;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
  * Фасад коннектора persistent memory: hot/cold память на scope. Тулы (get/update/note) и скрытые
  * дневная/часовая задачи живут в {@link PersistentMemoryToolService}.
  *
- * <p>Память хранится по {@code connections.scope_id}: при {@code identity_scope = AGENT} — личная
- * (scope_id = agentId), при {@code TEAM} — общая для команды (scope_id = teamId). Привязка к агенту
- * ({@code agent_connections}) материализует экземпляр под выбранный scope и регистрирует
- * декларативные {@code @Job} (daily/consolidation) на {@code connectionId = connections.id}
- * ({@code ConnectorCreatedEvent} из {@code ConnectionBindingService}).
+ * <p>Память личная: пространство агента, контент ключуется {@code agentId} (резолв из
+ * {@code ConnectorEnv} в момент вызова). Connection — строка-режим, одна на пользователя; на ней
+ * зарегистрированы декларативные {@code @Job} (daily/consolidation), обходящие пространства всех
+ * привязанных агентов ({@code ConnectorCreatedEvent} при материализации строки).
  *
  * <p>Триггеры адресуются привязанным агентам (audience): {@code notes-by-session} — собрать заметки по
  * сессии, {@code consolidate} — свернуть накопленные заметки в cold.
@@ -65,14 +58,6 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
         return "Persistent Memory";
     }
 
-    /** Память может быть личной (AGENT) или командной (TEAM) — выбирается при привязке. */
-    @Override
-    public ConnectorTraits traits() {
-        return new ConnectorTraits(
-                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, DefinitionBinding.STATIC,
-                List.of(IdentityScope.AGENT, IdentityScope.TEAM));
-    }
-
     @Override
     public Map<String, TriggerSpec> getTriggers() {
         return Map.of(
@@ -86,9 +71,8 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
 
     @Override
     public List<PromptBlock> promptBlocks(ConnectorEnv env) {
-        UUID scopeId = parseConnectionId(env)
-                .flatMap(memoryService::scopeIdForConnection)
-                .orElse(null);
+        // Память личная: пространство = вызывающий агент.
+        UUID scopeId = env.agentId();
         if (scopeId == null) {
             return List.of();
         }
@@ -103,14 +87,6 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
             blocks.add(PromptBlock.user(NOTES_BLOCK, notes));
         }
         return blocks;
-    }
-
-    private static Optional<UUID> parseConnectionId(ConnectorEnv env) {
-        try {
-            return Optional.of(UUID.fromString(env.connectionId()));
-        } catch (Exception e) {
-            return Optional.empty();
-        }
     }
 
     private static String renderNotes(List<PersistentMemoryHot> notes) {

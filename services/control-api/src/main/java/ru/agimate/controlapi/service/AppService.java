@@ -16,7 +16,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.enums.IdentityScope;
+import ru.agimate.controlapi.database.enums.ExecutionKind;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
@@ -65,7 +65,7 @@ public class AppService {
 
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new BadRequestStatusException("Unknown connector: " + connectorCode));
-        if (!connector.supportsScope(IdentityScope.INSTANCE)) {
+        if (connector.getExecutionKind() != ExecutionKind.DEVICE) {
             throw new BadRequestStatusException(
                     "Connector '" + connectorCode + "' does not support device app instances");
         }
@@ -87,7 +87,6 @@ public class AppService {
         // Регистрируем экземпляр в едином реестре connections (id = app.id → connectionId не меняется).
         connectionRepository.save(Connection.builder()
                 .id(saved.getId())
-                .identityScope(ru.agimate.controlapi.database.enums.IdentityScope.INSTANCE)
                 .connectorCode(saved.getConnectorCode())
                 .subCode(FullCodes.slug(saved.getConnectorCode(), saved.getName()))
                 .fullCode(FullCodes.fullCode(saved.getConnectorCode(), saved.getName()))

@@ -32,6 +32,21 @@ public interface AgentConnectionRepository extends JpaRepository<AgentConnection
     @Query("SELECT ac FROM AgentConnection ac WHERE ac.connectionId = :connectionId AND ac.deletedAt IS NULL")
     List<AgentConnection> findActiveByConnectionId(@Param("connectionId") UUID connectionId);
 
+    /**
+     * Идемпотентная привязка: INSERT, молча проигрывающий гонку по partial-индексу
+     * {@code uq_agent_connections_active} (см. обоснование у
+     * {@code ConnectionRepository.insertModeConnectionIfAbsent}). {@code id} и таймстемпы —
+     * DB-дефолты ({@code uuidv7()}, {@code CURRENT_TIMESTAMP}).
+     */
+    @Modifying
+    @Query(value = """
+            INSERT INTO agent_connections (agent_id, connection_id)
+            VALUES (:agentId, :connectionId)
+            ON CONFLICT (agent_id, connection_id) WHERE deleted_at IS NULL DO NOTHING
+            """, nativeQuery = true)
+    int insertBindingIfAbsent(@Param("agentId") UUID agentId,
+                              @Param("connectionId") UUID connectionId);
+
     @Modifying
     @Query("UPDATE AgentConnection ac SET ac.deletedAt = :now WHERE ac.id = :id")
     void softDelete(@Param("id") UUID id, @Param("now") LocalDateTime now);

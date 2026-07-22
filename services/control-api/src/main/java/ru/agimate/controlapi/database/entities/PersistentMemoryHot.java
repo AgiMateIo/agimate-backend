@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * «Hot» заметка памяти — строка журнала на scope ({@code scope_id}: agentId/teamId). Добавление =
+ * «Hot» заметка памяти — строка журнала на пространство ({@code scope_id} = agentId). Добавление =
  * INSERT (append-only), поэтому конкурентные записи не конфликтуют. Консолидация клеймит партию заметок
  * ({@code consolidationId} + {@code claimedAt} как лиз), сворачивает их в cold и удаляет.
  */

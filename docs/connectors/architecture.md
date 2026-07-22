@@ -22,27 +22,63 @@ AAD = `entity + owner_id` (нельзя расшифровать, перенес
 коннектора лежат в `secrets`, адресуются `connections.secret_id`; inbound-verifier устройства
 (`apps.key_*`) — невозвратный, в `secrets` не кладётся.
 
-**Traits** — type-level дескриптор на `connectors` (характеристики коннектора, в отличие от à la carte
-capability-интерфейсов), **разложен по колонкам** (рантайм ветвится
-на них напрямую, без отдельного `ConnectorType` — он удалён): `transport_direction` (OUTBOUND/INBOUND —
-кто инициирует соединение, семантика секрета), `execution_locus` (кто выполняет работу тула, граница
-доверия: BACKEND — наша инфра / DELEGATED — внешняя система: telegram, mcp, app / AGENT — вызывающий
-агент, loopback; `ConnectorService.pushToConnector` роутит по паре locus × direction: BACKEND и
-DELEGATED×OUTBOUND — in-proc, DELEGATED×INBOUND — push в app-канал, AGENT — отказ, цикл `/tool/check`
-+ `/tool/result`),
-`definition_binding` (откуда определения тулов/триггеров: STATIC рефлексией/SPI / DYNAMIC из
-`connection_tools`/`connection_triggers` — единое место листинга `ToolDefinitionService` + gRPC),
-`supported_scopes` (JSONB-массив `IdentityScope`, какие scope коннектор поддерживает; список
-упорядочен — первый элемент является scope по умолчанию). Источник истины — SPI `ConnectorHandler.traits()`
-(агрегат `ConnectorTraits`), заполняется бутстрапом (`Connector.applyTraits`). «Интеграция»
-(подключаемый юзером коннектор с кредами) = `credentialFields != null` (`Connector.isIntegration()`).
+**Traits** — type-level дескриптор на `connectors`: **только функциональные оси** — те, на которых
+ветвится механика; у каждой ровно один механизм-читатель. Источник истины — SPI
+`ConnectorHandler.traits()` (агрегат `ConnectorTraits`), заполняется бутстрапом
+(`Connector.applyTraits`):
 
-**Identity scope** — `connections.identity_scope` (∈ `connector.supported_scopes`) + `scope_id` задают,
-под каким ключом живёт экземпляр: `INSTANCE` (явный, созданный юзером telegram/mcp/app; `scope_id=null`,
-носитель — сам `id`), `AGENT` (`scope_id=agentId`), `TEAM` (`scope_id=teamId`), `USER` (`scope_id=userId`),
-`GLOBAL`. Один scope в `supported_scopes` → выбора нет; несколько → выбирается при привязке (память:
-AGENT vs TEAM — личная vs командная). Контекстные коннекторы материализуются по scope (find-or-create),
-поэтому одну connection (общий `scope_id`) разделяют несколько агентов.
+- `execution_kind` (BACKEND — in-proc `@Tool`-метод хендлера, включая коннекторы с внешними
+  HTTP-вызовами внутри тул-сервиса: telegram/mcp/media; DEVICE — push в канал устройства;
+  LOOPBACK — исполняет вызывающий агент, цикл `/tool/check` + `/tool/result`). Читатель —
+  `ConnectorService.pushToConnector`. Бывшая пара `execution_locus × transport_direction`
+  кодировала эти же три случая; различие «наша инфра vs внешняя платформа» — информационное,
+  живёт здесь, а не в данных.
+- `definition_binding` (STATIC рефлексией/SPI / DYNAMIC из `connection_tools`/`connection_triggers`).
+  Читатель — листинг (`ToolDefinitionService` + gRPC).
+
+**Выводимые оси не декларируются.** Экземплярность — «пользователь приносит идентичность
+экземпляра» — выводится в одной точке, `Connector.isInstanceBearing()` =
+`credentialFields != null || execution_kind = DEVICE`. В коде ось первично зафиксирована
+дизъюнктными типами хендлеров (`InternalConnectorHandler` / `IntegrationConnectorHandler`);
+согласованность двух фиксаций гарантирует fail-fast инвариант в `ConnectorBootstrap` (integration-
+хендлер без credential-полей роняет старт — это ошибка моделирования, а не конфигурации).
+Граница применимости деривации: появись backend-исполняемый коннектор с пользовательскими
+экземплярами — экземплярность становится явной осью traits (миграция локальна). LOOPBACK считается
+неэкземплярным по договорённости.
+
+**Две роли connection** (по оси экземплярности):
+
+- **Строка-режим** (внутренние: board/persist-memory/time/media/webchat/acp, гипотетически wikipedia) —
+  **одна на пользователя** (`ConnectionBindingService.ensureModeConnection`, find-or-create по
+  `(connector_code, user_id)`, `full_code = code_userId`, `sub_code = null`, без секретов).
+  «Внешний по сети» ≠ «внешний по модели»: media/wikipedia ходят во внешние API, но экземпляра,
+  который приносит пользователь, у них нет.
+- **Экземпляр** (telegram/mcp/app) — конкретный внешний объект: `sub_code` = его идентичность
+  (username бота, URL сервера), секреты обязательны, строк сколько экземпляров.
+
+**Владелец данных (identity scope)** — ось-знание, в данных не хранится (колонок
+`identity_scope`/`scope_id` нет): правило воплощено в коде каждого коннектора и задокументировано
+в его class-javadoc. Формулировка: *правило вывода владельца ресурса из личности вызывающего,
+применяемое когда вызов не несёт явного адреса*. AGENT — вывести из агента (память: пространство =
+`env.agentId`; time: задачи фильтруются по `env.agentId`), TEAM — из команды агента (board:
+`env.agentId → team → board`), «правила нет» — ресурс либо явно адресован в вызове (сессия у
+webchat/acp, экземпляр у telegram/mcp), либо отсутствует (media).
+
+**Чек-лист нового коннектора** — два вопроса вместо заполнения полей:
+
+1. *Оставь в env только userId и явные адреса вызова — что сломается?* Сломается → есть правило
+   вывода владельца (AGENT/TEAM), зафиксируй его в коде и class-javadoc. Не сломается → правила нет.
+2. *Пользователь приносит идентичность экземпляра (креды/устройство)?* Да → integration/device:
+   экземпляры, явный bind. Нет → internal: строка-режим, доступ выдают скиллы.
+
+| | владелец: агент | владелец: команда | правила нет |
+|---|---|---|---|
+| **Режим** (1/пользователя, скиллы) | persist-memory, time | board | media, webchat, acp |
+| **Экземпляры** (N, явный bind) | — | — | telegram, mcp, app |
+
+Чувствительность к агенту бывает трёх видов, ось — только первый: вывод владельца из caller'а
+(память); явный адрес в вызове — это канальный слой (webchat/acp: session → channel → agent);
+использование `env.agentId` per-call (логи, снапшот инициатора) — есть у всех и осью не является.
 
 **Динамические тулы/триггеры** экземпляра (MCP-серверы, device-apps) — `connection_tools` /
 `connection_triggers` (обобщают прежний `mcp_tool` + `apps.tools/triggers` JSONB; схемы сырым
@@ -54,10 +90,13 @@ JSON-текстом для фиделити). Статические конне�
 Два уровня (заменяют прежние `agent_tool_policies` / `agent_trigger_policies`):
 
 - **Binding** (`agent_connections`, M:N agent↔connection) — гейт доступности. Нет активной строки →
-  коннектор агенту недоступен (даже если `connections`-запись есть). Создаётся `ConnectionBindingService`
-  (INSTANCE — линк на существующий экземпляр; контекстный — материализует connection по scope и при
-  первой материализации издаёт `ConnectorCreatedEvent` для джоб, при отвязке последнего агента —
-  `ConnectorDeletedEvent`). Каналы и скиллы тоже гарантируют binding'и.
+  коннектор агенту недоступен (даже если `connections`-запись есть). Жизненный цикл по типу коннектора:
+  внутренние — **скиллы источник истины** (`AgentSkillPolicyService.applyDiff` — полная реконсиляция:
+  добавляет недостающие привязки, снимает не требуемые ни одним скиллом; привязки, удерживаемые
+  активным каналом — webchat/acp, — не трогает; ручной bind/unbind внутренних через manage-API
+  запрещён), внешние — явный bind на существующий экземпляр (`ensureBindingToExisting`). Строка-режим
+  внутреннего коннектора материализуется при первом использовании (`ConnectorCreatedEvent` для
+  регистрации джоб) и живёт дальше независимо от привязок — collapse нет.
 - **Политики** (`agent_connection_policies`) — уточнение поверх binding. Модель **дефолт-allow**: при
   наличии binding тул/триггер разрешён, если нет правила. Прецеденс при разрешении `(kind, name)`:
   точное имя > binding-wide (`name IS NULL`) > дефолт-allow (числового priority нет — одно активное

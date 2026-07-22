@@ -23,7 +23,6 @@ import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Secret;
-import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
@@ -86,7 +85,6 @@ public class ConnectionService {
         // id нужен до шифрования секретов (AAD-привязка) и до webhook URL — сохраняем строку первой.
         Connection connection = connectionRepository.save(Connection.builder()
                 .id(UUIDUtils.generateUUIDv8())
-                .identityScope(IdentityScope.INSTANCE)
                 .connectorCode(connectorCode)
                 .subCode(subCode)
                 .fullCode(FullCodes.fullCode(connectorCode, subCode))
@@ -118,9 +116,9 @@ public class ConnectionService {
     }
 
     /** Connection пользователя с фильтрами по реальным полям (все параметры опциональны). */
-    public List<Connection> list(UUID userId, String connectorCode, IdentityScope scope, Boolean enabled) {
+    public List<Connection> list(UUID userId, String connectorCode, Boolean enabled) {
         String code = (connectorCode == null || connectorCode.isBlank()) ? null : connectorCode;
-        return connectionRepository.findByUserIdFiltered(userId, code, scope, enabled);
+        return connectionRepository.findByUserIdFiltered(userId, code, enabled);
     }
 
     public Connection getOwnedConnection(UUID connectionId, UUID userId) {

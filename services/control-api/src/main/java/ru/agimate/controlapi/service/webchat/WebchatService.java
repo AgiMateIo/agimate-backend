@@ -91,8 +91,8 @@ public class WebchatService {
     @Transactional
     public WebchatSessionResponse startSession(UUID userId, UUID agentId) {
         Agent agent = requireOwnedAgent(userId, agentId);
-        AgentConnection binding = connectionBindingService.bind(
-                userId, agentId, WebchatChannelHandler.CONNECTOR_CODE, null, null);
+        AgentConnection binding = connectionBindingService.bindInternal(
+                userId, agentId, WebchatChannelHandler.CONNECTOR_CODE);
         UUID connectionId = binding.getConnectionId();
 
         Channel channel = channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(

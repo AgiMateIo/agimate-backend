@@ -20,9 +20,10 @@ public interface ConnectorHandler {
     }
 
     /**
-     * Type-level дескриптор коннектора (4 оси, см. {@link ConnectorTraits}). Источник истины —
-     * код; бутстрап персистит в каталог {@code connectors}. Дефолт — internal (backend-исполнение,
-     * статические тулы, приватный скоуп); коннекторы с иными осями переопределяют.
+     * Type-level дескриптор коннектора — только функциональные оси (см. {@link ConnectorTraits}).
+     * Источник истины — код; бутстрап персистит в каталог {@code connectors}. Дефолт — internal
+     * (backend-исполнение, статические тулы) — подходит и интеграциям вроде telegram;
+     * переопределяют только коннекторы с иным видом исполнения или динамическими определениями.
      */
     default ConnectorTraits traits() {
         return ConnectorTraits.internal();

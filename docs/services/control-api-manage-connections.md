@@ -35,21 +35,14 @@ All endpoints that return a connection use the following shape:
 | `connectorCode` | `string` | no | Connector code (e.g., `telegram`, `mcp`) |
 | `subCode` | `string` | no | Platform instance discriminator — the identity within the connector (e.g., Telegram bot username, MCP server URL) |
 | `fullCode` | `string` | no | Stable client handle composed of `connectorCode` and `subCode` (e.g., `mcp_context7`) |
-| `scope` | `string (IdentityScope enum)` | no | Identity scope of this connection instance — see values below |
 | `name` | `string` | yes | Optional user-provided display name |
 | `enabled` | `boolean` | no | Whether the connection is currently enabled |
 | `lastUsedAt` | `datetime` | yes | ISO timestamp of the last usage (`yyyy-MM-dd'T'HH:mm:ss`) |
 | `createdAt` | `datetime` | no | Creation timestamp (`yyyy-MM-dd'T'HH:mm:ss`) |
 
-**`scope` enum values (`IdentityScope`):**
-
-| Value | Meaning |
-|-------|---------|
-| `INSTANCE` | Explicit instance created by the user (Telegram bot, MCP server). The connection itself is the identity carrier. |
-| `AGENT` | Scoped to an agent (`scope_id = agentId`); default for per-agent internals (e.g., agent memory). |
-| `TEAM` | Shared across a team (`scope_id = teamId`); used for board and team-level shared connectors. |
-| `USER` | Shared across all agents of the user (`scope_id = userId`). |
-| `GLOBAL` | Single global instance (`scope_id = null`). |
+> Ownership semantics (who owns the connector's data — agent / team / none) are **not part of the
+> data model**: the rule is embodied in each connector's code and documented in
+> `docs/connectors/architecture.md`. Connections carry no `scope` field.
 
 ---
 
@@ -64,7 +57,6 @@ List connections owned by the current user. All filter parameters are optional; 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
 | `connectorCode` | `string` | no | Filter by connector code (e.g., `telegram`). Blank values are ignored. |
-| `scope` | `IdentityScope` | no | Filter by identity scope. Must be one of `INSTANCE`, `AGENT`, `TEAM`, `USER`, `GLOBAL`. |
 | `enabled` | `boolean` | no | Filter by enabled state (`true` or `false`). |
 
 Results are returned unsorted (repository default).
@@ -78,7 +70,6 @@ Results are returned unsorted (repository default).
       "connectorCode": "telegram",
       "subCode": "my_bot",
       "fullCode": "telegram_my_bot",
-      "scope": "INSTANCE",
       "name": "My Telegram Bot",
       "enabled": true,
       "lastUsedAt": "2026-04-20T13:45:00",
@@ -143,7 +134,6 @@ Get a single connection by its public ID. The caller must own the connection.
     "connectorCode": "telegram",
     "subCode": "my_bot",
     "fullCode": "telegram_my_bot",
-    "scope": "INSTANCE",
     "name": "My Telegram Bot",
     "enabled": true,
     "lastUsedAt": "2026-04-20T13:45:00",

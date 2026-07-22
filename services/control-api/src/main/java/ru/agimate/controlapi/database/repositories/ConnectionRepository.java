@@ -7,7 +7,6 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.enums.IdentityScope;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -47,14 +46,12 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
             WHERE c.userId = :userId
               AND c.deletedAt IS NULL
               AND (:connectorCode IS NULL OR c.connectorCode = :connectorCode)
-              AND (:scope IS NULL OR c.identityScope = :scope)
               AND (:enabled IS NULL OR c.enabled = :enabled)
             ORDER BY c.connectorCode, c.createdAt DESC
             """)
     List<Connection> findByUserIdFiltered(
             @Param("userId") UUID userId,
             @Param("connectorCode") String connectorCode,
-            @Param("scope") IdentityScope scope,
             @Param("enabled") Boolean enabled);
 
     @Query("""
@@ -80,17 +77,24 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
     List<Connection> findActiveBoundToAgent(@Param("agentId") UUID agentId);
 
     /**
-     * Существующая контекстная connection данного scope (для find-or-create при binding'е:
-     * командная/пользовательская/агентская). {@code (connector_code, scope_id)} среди активных.
+     * Атомарная материализация строки-режима: INSERT, молча проигрывающий гонку по partial-индексу
+     * {@code uq_connections_full_code_user}. Возвращает 1, если строку создал этот вызов (сигнал
+     * издать {@code ConnectorCreatedEvent}), 0 — параллельный победитель успел раньше (его строка
+     * станет видна следующим SELECT'ом после его коммита). Нативно и через ON CONFLICT сознательно:
+     * Hibernate откладывает INSERT до flush — нарушение уникальности всплывало бы вне обработчика,
+     * а после него PostgreSQL-транзакция отравлена и re-read в ней невозможен.
      */
-    @Query("""
-            SELECT c FROM Connection c
-            WHERE c.connectorCode = :connectorCode
-              AND c.scopeId = :scopeId
-              AND c.deletedAt IS NULL
-            """)
-    Optional<Connection> findActiveByConnectorCodeAndScopeId(@Param("connectorCode") String connectorCode,
-                                                             @Param("scopeId") UUID scopeId);
+    @Modifying
+    @Query(value = """
+            INSERT INTO connections (id, connector_code, full_code, user_id, name, enabled)
+            VALUES (:id, :connectorCode, :fullCode, :userId, :name, true)
+            ON CONFLICT (full_code, user_id) WHERE deleted_at IS NULL DO NOTHING
+            """, nativeQuery = true)
+    int insertModeConnectionIfAbsent(@Param("id") UUID id,
+                                     @Param("connectorCode") String connectorCode,
+                                     @Param("fullCode") String fullCode,
+                                     @Param("userId") UUID userId,
+                                     @Param("name") String name);
 
     boolean existsByConnectorCodeAndUserIdAndSubCodeAndDeletedAtIsNull(
             String connectorCode, UUID userId, String subCode);

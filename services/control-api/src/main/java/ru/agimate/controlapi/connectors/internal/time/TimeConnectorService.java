@@ -13,6 +13,9 @@ import java.util.Map;
  * Фасад time-коннектора: текущее время + планирование отложенных задач агента. Тулы и скрытая
  * таска-диспетчер живут в {@link TimeToolService}; единственный триггер — {@code due} (agent-facing {@code time.due})
  * (срок запланированной задачи), адресуемый агенту-инициатору.
+ *
+ * <p><b>Владелец данных — вызывающий агент</b>: задачи фильтруются/отменяются по {@code env.agentId},
+ * строка задачи несёт снапшот инициатора (см. чек-лист осей в docs/connectors/architecture.md).
  */
 @Component
 public class TimeConnectorService extends BaseConnectorHandler

@@ -12,7 +12,6 @@ import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
-import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerAudience;
@@ -55,7 +54,6 @@ public class PersistentMemoryToolService {
     private final PersistentMemoryService memoryService;
     private final TriggerRouterService triggerRouterService;
     private final ChannelSessionMessageRepository messageRepository;
-    private final AgentRepository agentRepository;
 
     // ===== Тулы =====
 
@@ -125,8 +123,8 @@ public class PersistentMemoryToolService {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID connectionId = requireConnectionId(ctx);
         LocalDateTime since = LocalDateTime.now().minusHours(NOTES_LOOKBACK_HOURS);
-        // Сессии собираем по каждому привязанному агенту; для TEAM-памяти это все агенты команды,
-        // их заметки сольются в общий scope (save_memory_note резолвит scope_id из connection).
+        // Сессии собираем по каждому привязанному агенту; заметки каждой сессии адресуются её
+        // агенту и лягут в его личное пространство (save_memory_note резолвит scope из env).
         for (UUID agentId : memoryService.boundAgents(connectionId)) {
             for (UUID sessionId : messageRepository.findSessionIdsByAgentSince(agentId, since)) {
                 List<Map<String, Object>> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).stream()
@@ -151,29 +149,28 @@ public class PersistentMemoryToolService {
     public void consolidation() {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID connectionId = requireConnectionId(ctx);
-        UUID scopeId = resolveScopeId(ctx);
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime leaseThreshold = now.minusSeconds(CONSOLIDATION_LEASE_SECONDS);
-        // Single-flight по scope: не плодим вторую консолидацию, пока идёт предыдущая (cold — CAS).
-        if (memoryService.hasInFlightConsolidation(scopeId, leaseThreshold)) {
-            return;
+        // Пространство памяти = агент; одна джоба на connection-строку обходит пространства всех
+        // привязанных агентов. Консолидацию пространства выполняет его владелец — LLM-свод не
+        // дублируется. Single-flight по пространству: не плодим вторую консолидацию, пока идёт
+        // предыдущая (cold — CAS); брошенная партия реклеймится по протухшему лизу.
+        for (UUID agentId : memoryService.boundAgents(connectionId)) {
+            if (memoryService.hasInFlightConsolidation(agentId, leaseThreshold)) {
+                continue;
+            }
+            UUID consolidationId = UUID.randomUUID();
+            List<PersistentMemoryHot> claimed =
+                    memoryService.claimNotesForConsolidation(agentId, consolidationId, now, leaseThreshold);
+            if (claimed.isEmpty()) {
+                continue;
+            }
+            List<Map<String, Object>> notes = claimed.stream()
+                    .map(PersistentMemoryToolService::noteView)
+                    .toList();
+            routeToAgents(ctx, List.of(agentId), CONSOLIDATE_TRIGGER,
+                    Map.of("consolidationId", consolidationId.toString(), "notes", notes));
         }
-        UUID consolidationId = UUID.randomUUID();
-        List<PersistentMemoryHot> claimed =
-                memoryService.claimNotesForConsolidation(scopeId, consolidationId, now, leaseThreshold);
-        if (claimed.isEmpty()) {
-            return;
-        }
-        List<Map<String, Object>> notes = claimed.stream()
-                .map(PersistentMemoryToolService::noteView)
-                .toList();
-        // Консолидация — одна единица работы на scope: шлём ОДНОМУ привязанному агенту (первому
-        // enabled, детерминированно), а не всем — иначе N агентов гоняют один и тот же LLM-свод
-        // (выиграл бы один по CAS, остальные впустую). Если enabled-агентов нет — скип; заметки
-        // остаются заклеймлены, лиз протухнет и следующий запуск повторит.
-        Map<String, Object> data = Map.of("consolidationId", consolidationId.toString(), "notes", notes);
-        agentRepository.findBoundToConnection(ctx.userId(), connectionId).stream().findFirst()
-                .ifPresent(agent -> routeToAgents(ctx, List.of(agent.getId()), CONSOLIDATE_TRIGGER, data));
     }
 
     // ===== helpers =====
@@ -193,9 +190,12 @@ public class PersistentMemoryToolService {
         triggerRouterService.routeTrigger(ctx.userId(), trigger);
     }
 
-    private UUID resolveScopeId(ConnectorEnv ctx) {
-        return memoryService.scopeIdForConnection(requireConnectionId(ctx))
-                .orElseThrow(() -> new ConnectorException("persist-memory: connection has no scope"));
+    /** Пространство памяти личное: владелец — вызывающий агент. */
+    private static UUID resolveScopeId(ConnectorEnv ctx) {
+        if (ctx.agentId() == null) {
+            throw new ConnectorException("persist-memory tools require an agent context");
+        }
+        return ctx.agentId();
     }
 
     private static UUID requireConnectionId(ConnectorEnv ctx) {

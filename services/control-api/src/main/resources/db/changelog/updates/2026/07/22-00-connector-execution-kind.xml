@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Traits v2: в каталоге остаются только функциональные оси. Пара execution_locus ×
+      transport_direction кодировала три реальных вида исполнения (BACKEND и DELEGATED×OUTBOUND
+      диспатчились одинаково) — сворачивается в execution_kind (BACKEND | DEVICE | LOOPBACK).
+      identity_scope (добавлен changeset'ом connectors-identity-scope днём ранее) удаляется:
+      правило владельца данных воплощено в коде коннекторов и не читается рантаймом;
+      экземплярность выводится из credential_fields/DEVICE (Connector.isInstanceBearing).
+    -->
+    <changeSet id="connectors-execution-kind" author="agimate">
+        <addColumn tableName="connectors">
+            <column name="execution_kind" type="TEXT"/>
+        </addColumn>
+        <sql>
+            UPDATE connectors SET execution_kind = CASE
+                WHEN execution_locus = 'AGENT' THEN 'LOOPBACK'
+                WHEN execution_locus = 'DELEGATED' AND transport_direction = 'INBOUND' THEN 'DEVICE'
+                ELSE 'BACKEND' END;
+        </sql>
+        <dropColumn tableName="connectors" columnName="transport_direction"/>
+        <dropColumn tableName="connectors" columnName="execution_locus"/>
+        <dropColumn tableName="connectors" columnName="identity_scope"/>
+    </changeSet>
+
+    <!-- connections.identity_scope не читается рантаймом (правило владельца — знание кода коннектора). -->
+    <changeSet id="connections-drop-identity-scope" author="agimate">
+        <dropColumn tableName="connections" columnName="identity_scope"/>
+    </changeSet>
+
+</databaseChangeLog>

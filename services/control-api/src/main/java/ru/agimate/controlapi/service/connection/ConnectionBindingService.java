@@ -3,25 +3,23 @@ package ru.agimate.controlapi.service.connection;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
+import ru.agimate.controlapi.connectors.core.ConnectorHandler;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
-import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.repositories.AgentConnectionPolicyRepository;
 import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
-import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -31,15 +29,21 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Управление binding'ом «коннектор доступен агенту» ({@code agent_connections}) — гейт доступности.
- * Для INSTANCE-коннекторов связывает агента с уже созданным экземпляром; для контекстных
- * (память/board/time) материализует {@code connections}-запись под выбранный scope
- * (AGENT→{@code scopeId=agentId}, TEAM→{@code teamId}, USER→{@code userId}) по принципу
- * find-or-create — так несколько агентов команды разделяют одну connection (командная память).
+ * Управление доступностью коннекторов агентам ({@code agent_connections}).
  *
- * <p>Обобщает бывший {@code MemoryEnablementListener}: при первой материализации контекстного
- * экземпляра издаёт {@link ConnectorCreatedEvent} (регистрация джоб), при отвязке последнего агента —
- * {@link ConnectorDeletedEvent} (снятие джоб).
+ * <p>Внутренние коннекторы (board/memory/time/media/webchat/acp): connection — строка-режим,
+ * <b>одна на пользователя</b> ({@link #ensureModeConnection}, find-or-create по
+ * {@code (connector_code, user_id)}). Владельца данных код коннектора резолвит в момент вызова из
+ * {@code ConnectorEnv} (правило — знание коннектора, см. docs/connectors/architecture.md). Доступ агентам
+ * выдаёт скилл-синк ({@code AgentSkillPolicyService}) или канальные сервисы (webchat/acp) через
+ * {@link #bindInternal}; ручное управление привязками внутренних коннекторов через manage-API
+ * запрещено.
+ *
+ * <p>Внешние коннекторы (telegram/mcp/app): connection = конкретный экземпляр с кредами, привязка —
+ * только к существующему id ({@link #ensureBindingToExisting}).
+ *
+ * <p>При первой материализации строки-режима издаёт {@link ConnectorCreatedEvent} (регистрация
+ * декларативных {@code @Job}); строка живёт дальше независимо от привязок — collapse нет.
  */
 @Slf4j
 @Service
@@ -47,58 +51,66 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class ConnectionBindingService {
 
-    private final ConnectorRepository connectorRepository;
     private final ConnectionRepository connectionRepository;
     private final AgentConnectionRepository agentConnectionRepository;
     private final AgentConnectionPolicyRepository policyRepository;
     private final AgentRepository agentRepository;
     private final ConnectionAccessEvaluator accessEvaluator;
     private final ApplicationEventPublisher eventPublisher;
+    private final ConnectorRegistry connectorRegistry;
 
-    /**
-     * Привязать коннектор к агенту. {@code requestedScope} — выбранный scope (null = дефолт коннектора);
-     * {@code explicitConnectionId} обязателен для INSTANCE-коннекторов (какой именно экземпляр).
-     */
+    /** Открыть агенту внутренний коннектор: строка-режим пользователя + {@code agent_connection}. */
     @Transactional
-    public AgentConnection bind(UUID userId, UUID agentId, String connectorCode,
-                                IdentityScope requestedScope, UUID explicitConnectionId) {
-        Connector connector = connectorRepository.findById(connectorCode)
-                .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
-
-        IdentityScope scope = requestedScope != null ? requestedScope : connector.resolveDefaultScope();
-        if (scope == null || !connector.supportsScope(scope)) {
-            throw new BadRequestStatusException(
-                    "Connector " + connectorCode + " does not support scope " + scope);
-        }
-
-        Connection connection = resolveConnection(userId, agentId, connector, scope, explicitConnectionId);
-        if (scope != IdentityScope.INSTANCE) {
-            // Контекстный (scoped) коннектор — у агента он один: нельзя иметь и личную, и командную
-            // память одновременно (иначе gRPC GetMemory неоднозначен). INSTANCE (telegram/mcp) — можно много.
-            requireNoOtherContextBinding(agentId, connector.getCode(), connection.getId());
-        }
+    public AgentConnection bindInternal(UUID userId, UUID agentId, String connectorCode) {
+        Connection connection = ensureModeConnection(userId, connectorCode);
         return ensureBinding(agentId, connection.getId());
     }
 
-    /** Бросает, если у агента уже есть binding на этот connector_code через ДРУГУЮ connection. */
-    private void requireNoOtherContextBinding(UUID agentId, String connectorCode, UUID targetConnectionId) {
-        for (AgentConnection b : agentConnectionRepository.findActiveByAgentId(agentId)) {
-            if (b.getConnectionId().equals(targetConnectionId)) {
-                continue; // та же connection — идемпотентная повторная привязка
-            }
-            connectionRepository.findByIdNotDeleted(b.getConnectionId())
-                    .filter(c -> connectorCode.equals(c.getConnectorCode()))
-                    .ifPresent(c -> {
-                        throw new BadRequestStatusException("Agent is already bound to " + connectorCode
-                                + " with a different scope — unbind it first");
-                    });
+    /** Строка-режим внутреннего коннектора (одна на пользователя): find-or-create. */
+    @Transactional
+    public Connection ensureModeConnection(UUID userId, String connectorCode) {
+        ConnectorHandler handler = requireInternalHandler(connectorCode);
+        return connectionRepository.findByUserIdAndConnectorCodeNotDeleted(userId, connectorCode).stream()
+                .findFirst()
+                .orElseGet(() -> createModeConnection(userId, handler));
+    }
+
+    private ConnectorHandler requireInternalHandler(String connectorCode) {
+        ConnectorHandler handler = connectorRegistry.findHandler(connectorCode)
+                .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
+        if (!(handler instanceof InternalConnectorHandler)) {
+            throw new BadRequestStatusException(
+                    "Connector " + connectorCode + " is external — bind an explicit connection instance");
         }
+        return handler;
+    }
+
+    /**
+     * Материализация строки-режима. Гонку параллельного создания решает БД
+     * ({@code INSERT … ON CONFLICT DO NOTHING} по {@code uq_connections_full_code_user}):
+     * проигравший дождётся коммита победителя и перечитает его строку — без исключений и
+     * без отравления текущей транзакции.
+     */
+    private Connection createModeConnection(UUID userId, ConnectorHandler handler) {
+        String connectorCode = handler.connectorCode();
+        UUID id = UUIDUtils.generateUUIDv8();
+        int inserted = connectionRepository.insertModeConnectionIfAbsent(
+                id, connectorCode, connectorCode + "_" + userId, userId, handler.connectorName());
+        if (inserted > 0) {
+            // Событие только от фактического создателя строки (регистрация джоб — AFTER_COMMIT).
+            eventPublisher.publishEvent(new ConnectorCreatedEvent(connectorCode, id.toString(), userId));
+            log.info("Materialized {} mode connection {} for user {}", connectorCode, id, userId);
+        }
+        return connectionRepository.findByUserIdAndConnectorCodeNotDeleted(userId, connectorCode).stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Mode connection missing right after materialization: " + connectorCode));
     }
 
     /** Binding вместе с его connection — для manage-API (список/ответ на привязку). */
     public record AgentConnectionView(AgentConnection binding, Connection connection) {}
 
-    /** Активные binding'и агента с их connection (для manage-листинга). */
+    /** Активные привязки агента с их connection (для manage-листинга). */
     public List<AgentConnectionView> listForAgent(UUID userId, UUID agentId) {
         requireOwnedAgent(userId, agentId);
         List<AgentConnection> bindings = agentConnectionRepository.findActiveByAgentId(agentId);
@@ -116,14 +128,12 @@ public class ConnectionBindingService {
         return views;
     }
 
-    /** Привязать и вернуть view (binding + connection) — для ответа manage-API. */
+    /** Привязать внешний экземпляр и вернуть view (binding + connection) — для ответа manage-API. */
     @Transactional
-    public AgentConnectionView bindAndView(UUID userId, UUID agentId, String connectorCode,
-                                           IdentityScope requestedScope, UUID explicitConnectionId) {
+    public AgentConnectionView bindAndView(UUID userId, UUID agentId, UUID connectionId) {
         requireOwnedAgent(userId, agentId);
-        AgentConnection binding = bind(userId, agentId, connectorCode, requestedScope, explicitConnectionId);
-        Connection connection = connectionRepository.findByIdNotDeleted(binding.getConnectionId())
-                .orElseThrow(() -> new NotFoundStatusException("Connection not found"));
+        Connection connection = requireExternalConnection(userId, connectionId);
+        AgentConnection binding = ensureBinding(agentId, connection.getId());
         return new AgentConnectionView(binding, connection);
     }
 
@@ -137,7 +147,7 @@ public class ConnectionBindingService {
 
     /**
      * Привязать агента к уже существующему экземпляру (по его id). Для случаев, где connection
-     * уже выбрана (канал на конкретный telegram/mcp/app) — scope-материализация не нужна.
+     * уже выбрана (канал на конкретный telegram/mcp/app).
      */
     @Transactional
     public AgentConnection ensureBindingToExisting(UUID userId, UUID agentId, UUID connectionId) {
@@ -146,30 +156,41 @@ public class ConnectionBindingService {
         return ensureBinding(agentId, connectionId);
     }
 
-    /** Отвязать; контекстный экземпляр без оставшихся binding'ов сворачивается (снятие джоб). */
+    /**
+     * Отвязать внешний экземпляр от агента. Привязки внутренних коннекторов управляются
+     * скилл-синком/каналами — ручная отвязка запрещена (иначе следующий синк её воскресит).
+     */
     @Transactional
     public void unbind(UUID userId, UUID agentId, UUID connectionId) {
         requireOwnedAgent(userId, agentId);
+        requireExternalConnection(userId, connectionId);
         AgentConnection binding = agentConnectionRepository.findActiveBinding(agentId, connectionId)
                 .orElseThrow(() -> new NotFoundStatusException("Binding not found"));
+        removeBinding(binding);
+    }
+
+    /** Снять привязку + её политики + кэш решений. Общий низ для unbind и скилл-реконсиляции. */
+    @Transactional
+    public void removeBinding(AgentConnection binding) {
         LocalDateTime now = LocalDateTime.now();
         agentConnectionRepository.softDelete(binding.getId(), now);
         // Снимаем правила этого binding'а — иначе при ре-привязке (новый binding id) они осиротеют.
         policyRepository.softDeleteByAgentConnectionId(binding.getId(), now);
         // Сбрасываем кэш решений, чтобы отзыв применился сразу (а не через TTL).
-        invalidate(agentId, connectionId);
+        invalidate(binding.getAgentId(), binding.getConnectionId());
+    }
 
-        Connection connection = connectionRepository.findByIdNotDeleted(connectionId).orElse(null);
-        if (connection == null || connection.getIdentityScope() == IdentityScope.INSTANCE) {
-            return; // INSTANCE живёт независимо от binding'ов (управляется как экземпляр)
+    private Connection requireExternalConnection(UUID userId, UUID connectionId) {
+        Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
+        boolean internal = connectorRegistry.findHandler(connection.getConnectorCode())
+                .map(InternalConnectorHandler.class::isInstance)
+                .orElse(false);
+        if (internal) {
+            throw new BadRequestStatusException(
+                    "Connector " + connection.getConnectorCode() + " is managed by skills");
         }
-        if (agentConnectionRepository.findActiveByConnectionId(connectionId).isEmpty()) {
-            connectionRepository.softDelete(connectionId, now);
-            eventPublisher.publishEvent(new ConnectorDeletedEvent(
-                    connection.getConnectorCode(), connectionId.toString()));
-            log.info("Context connection {} ({}) collapsed — no bindings left",
-                    connectionId, connection.getConnectorCode());
-        }
+        return connection;
     }
 
     /**
@@ -179,113 +200,20 @@ public class ConnectionBindingService {
      */
     @Transactional
     public void detachConnection(UUID connectionId) {
-        LocalDateTime now = LocalDateTime.now();
         for (AgentConnection binding : agentConnectionRepository.findActiveByConnectionId(connectionId)) {
-            agentConnectionRepository.softDelete(binding.getId(), now);
-            policyRepository.softDeleteByAgentConnectionId(binding.getId(), now);
-            invalidate(binding.getAgentId(), connectionId);
+            removeBinding(binding);
         }
     }
 
-    private Connection resolveConnection(UUID userId, UUID agentId, Connector connector,
-                                         IdentityScope scope, UUID explicitConnectionId) {
-        if (scope == IdentityScope.INSTANCE) {
-            if (explicitConnectionId == null) {
-                throw new BadRequestStatusException(
-                        "INSTANCE connector requires an explicit connectionId to bind");
-            }
-            return connectionRepository.findByIdAndUserIdNotDeleted(explicitConnectionId, userId)
-                    .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + explicitConnectionId));
-        }
-
-        UUID scopeId = scopeIdFor(scope, userId, agentId);
-        return connectionRepository.findActiveByConnectorCodeAndScopeId(connector.getCode(), scopeId)
-                .map(c -> requireOwner(c, userId))
-                .orElseGet(() -> materializeOrReread(userId, connector, scope, scopeId));
-    }
-
-    /**
-     * Defense-in-depth: найденная по {@code (connector_code, scope_id)} connection обязана принадлежать
-     * вызывающему. Сейчас недостижимо (scope_id выводится из owned-сущностей), но страхует от регрессий,
-     * если когда-нибудь появится смена команды агента.
-     */
-    private Connection requireOwner(Connection connection, UUID userId) {
-        if (!connection.getUserId().equals(userId)) {
-            throw new NotFoundStatusException("Connection not found");
-        }
-        return connection;
-    }
-
-    /** Материализация с обработкой гонки: параллельный bind того же scope → перечитываем существующую. */
-    private Connection materializeOrReread(UUID userId, Connector connector, IdentityScope scope, UUID scopeId) {
-        try {
-            return materializeContextConnection(userId, connector, scope, scopeId);
-        } catch (DataIntegrityViolationException e) {
-            return connectionRepository.findActiveByConnectorCodeAndScopeId(connector.getCode(), scopeId)
-                    .map(c -> requireOwner(c, userId))
-                    .orElseThrow(() -> e);
-        }
-    }
-
-    private UUID scopeIdFor(IdentityScope scope, UUID userId, UUID agentId) {
-        return switch (scope) {
-            case AGENT -> agentId;
-            case USER -> userId;
-            case TEAM -> {
-                Agent agent = agentRepository.findById(agentId)
-                        .orElseThrow(() -> new NotFoundStatusException("Agent not found: " + agentId));
-                if (agent.getAgenticTeamId() == null) {
-                    throw new BadRequestStatusException("Agent has no team — TEAM scope unavailable");
-                }
-                yield agent.getAgenticTeamId();
-            }
-            case GLOBAL, INSTANCE -> throw new BadRequestStatusException(
-                    "Scope " + scope + " is not materializable by binding");
-        };
-    }
-
-    private Connection materializeContextConnection(UUID userId, Connector connector,
-                                                    IdentityScope scope, UUID scopeId) {
-        // full_code уникален per (user, scope): для контекстных синглтонов добавляем scopeId,
-        // иначе несколько AGENT-экземпляров одного пользователя нарушат uq_connections_full_code_user.
-        String fullCode = connector.getCode() + "_" + scopeId;
-        Connection connection = connectionRepository.save(Connection.builder()
-                .id(UUIDUtils.generateUUIDv8())
-                .connectorCode(connector.getCode())
-                .subCode(null)
-                .fullCode(fullCode)
-                .userId(userId)
-                .identityScope(scope)
-                .scopeId(scopeId)
-                .name(connector.getName())
-                .enabled(true)
-                .build());
-
-        eventPublisher.publishEvent(new ConnectorCreatedEvent(
-                connector.getCode(), connection.getId().toString(), userId));
-        log.info("Materialized {} connection {} (scope={}, scopeId={})",
-                connector.getCode(), connection.getId(), scope, scopeId);
-        return connection;
-    }
-
+    /** Идемпотентно: гонку параллельной привязки решает БД (ON CONFLICT), затем перечитываем строку. */
     private AgentConnection ensureBinding(UUID agentId, UUID connectionId) {
+        agentConnectionRepository.insertBindingIfAbsent(agentId, connectionId);
         AgentConnection binding = agentConnectionRepository.findActiveBinding(agentId, connectionId)
-                .orElseGet(() -> saveBinding(agentId, connectionId));
+                .orElseThrow(() -> new IllegalStateException(
+                        "Binding missing right after insert: agent=" + agentId + ", connection=" + connectionId));
         // Свежий binding мог иметь закэшированный deny — сбрасываем, чтобы доступ применился сразу.
         invalidate(agentId, connectionId);
         return binding;
-    }
-
-    private AgentConnection saveBinding(UUID agentId, UUID connectionId) {
-        try {
-            return agentConnectionRepository.save(AgentConnection.builder()
-                    .agentId(agentId)
-                    .connectionId(connectionId)
-                    .build());
-        } catch (DataIntegrityViolationException e) {
-            // Гонка против uq_agent_connections_active — перечитываем созданный параллельно binding.
-            return agentConnectionRepository.findActiveBinding(agentId, connectionId).orElseThrow(() -> e);
-        }
     }
 
     private void invalidate(UUID agentId, UUID connectionId) {

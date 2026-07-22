@@ -10,10 +10,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Binding «экземпляр коннектора доступен агенту» — M:N между {@code agents} и {@code connections}.
+ * Привязка «connection доступна агенту» — M:N между {@code agents} и {@code connections}.
  * Это <b>гейт доступности</b>: нет активной строки → коннектор агенту недоступен (даже если
- * {@code connections}-запись существует). Несколько агентов одной команды могут ссылаться на одну
- * connection (общий {@code scope_id}) — так выражается командная память/board.
+ * {@code connections}-запись существует). У внутренних коннекторов connection — строка-режим, одна
+ * на пользователя: все его агенты с этим коннектором ссылаются на неё; владелец данных резолвится
+ * кодом коннектора из {@code ConnectorEnv}. Привязки внутренних управляет скилл-синк
+ * ({@code AgentSkillPolicyService}) и канальные сервисы; внешние (telegram/mcp/app) — явные.
  *
  * <p>Тулы по умолчанию разрешены при наличии binding; {@link AgentConnectionPolicy} лишь уточняет
  * (DENY конкретных, allow-list через wildcard, {@code params_filter}).

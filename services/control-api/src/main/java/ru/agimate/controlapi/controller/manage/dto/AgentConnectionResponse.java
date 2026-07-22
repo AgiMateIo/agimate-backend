@@ -2,7 +2,6 @@ package ru.agimate.controlapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService.AgentConnectionView;
 
 import java.time.LocalDateTime;
@@ -25,12 +24,6 @@ public record AgentConnectionResponse(
         @Schema(description = "Human-readable name")
         String name,
 
-        @Schema(description = "Identity scope of the connection (INSTANCE/AGENT/TEAM/USER/GLOBAL)")
-        IdentityScope identityScope,
-
-        @Schema(description = "Scope owner id (agentId/teamId/userId); null for INSTANCE/GLOBAL")
-        UUID scopeId,
-
         @Schema(description = "Whether the connection is enabled")
         boolean enabled,
 
@@ -44,8 +37,6 @@ public record AgentConnectionResponse(
                 c.getConnectorCode(),
                 c.getFullCode(),
                 c.getName(),
-                c.getIdentityScope(),
-                c.getScopeId(),
                 Boolean.TRUE.equals(c.getEnabled()),
                 view.binding().getCreatedAt());
     }

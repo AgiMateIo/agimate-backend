@@ -5,13 +5,10 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
-import ru.agimate.controlapi.database.enums.ExecutionLocus;
-import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.DefinitionBinding;
-import ru.agimate.controlapi.database.enums.TransportDirection;
+import ru.agimate.controlapi.database.enums.ExecutionKind;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 
-import java.util.List;
 import java.util.Map;
 
 @Entity
@@ -38,32 +35,17 @@ public class Connector extends BaseEntity {
     @Column(name = "credential_fields", columnDefinition = "JSONB")
     private Map<String, String> credentialFields;
 
-    // --- Traits (4 оси), разложены по колонкам — рантайм ориентируется на них напрямую. ---
+    // --- Traits (функциональные оси), разложены по колонкам — рантайм читает их напрямую. ---
 
-    /** Кто инициирует соединение: OUTBOUND (мы→платформа, secret) / INBOUND (устройство→мы, app). */
+    /** Кто исполняет вызов тула: BACKEND (in-proc) / DEVICE (push устройству) / LOOPBACK (агент). */
     @Enumerated(EnumType.STRING)
-    @Column(name = "transport_direction", columnDefinition = "TEXT")
-    private TransportDirection transportDirection;
-
-    /** Кто выполняет работу тула: BACKEND (наша инфра) / DELEGATED (внешняя система) / AGENT (вызывающий). */
-    @Enumerated(EnumType.STRING)
-    @Column(name = "execution_locus", columnDefinition = "TEXT")
-    private ExecutionLocus executionLocus;
+    @Column(name = "execution_kind", columnDefinition = "TEXT")
+    private ExecutionKind executionKind;
 
     /** Откуда тулы/триггеры: STATIC (рефлексия handler'а) / DYNAMIC ({@code connection_tools}). */
     @Enumerated(EnumType.STRING)
     @Column(name = "definition_binding", columnDefinition = "TEXT")
     private DefinitionBinding definitionBinding;
-
-    /**
-     * Какие {@link IdentityScope} коннектор поддерживает (type-level). Подключение выбирает один из
-     * них в {@code connections.identity_scope}. Один элемент → выбора нет (telegram/mcp → INSTANCE,
-     * board → TEAM); несколько → выбор при создании (память → AGENT/TEAM). Список упорядочен:
-     * первый элемент — scope по умолчанию.
-     */
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "supported_scopes", columnDefinition = "JSONB")
-    private List<IdentityScope> supportedScopes;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "features", columnDefinition = "JSONB")
@@ -71,28 +53,27 @@ public class Connector extends BaseEntity {
 
     /** Агрегат traits (для API/бутстрапа); рантайм читает отдельные поля. */
     public ConnectorTraits traits() {
-        return new ConnectorTraits(transportDirection, executionLocus, definitionBinding,
-                supportedScopes);
+        return new ConnectorTraits(executionKind, definitionBinding);
     }
 
     public void applyTraits(ConnectorTraits c) {
-        this.transportDirection = c.transportDirection();
-        this.executionLocus = c.executionLocus();
+        this.executionKind = c.executionKind();
         this.definitionBinding = c.definitionBinding();
-        this.supportedScopes = c.supportedScopes();
-    }
-
-    /** Scope по умолчанию для нового подключения — первый из {@link #supportedScopes}. */
-    public IdentityScope resolveDefaultScope() {
-        return supportedScopes != null && !supportedScopes.isEmpty() ? supportedScopes.get(0) : null;
-    }
-
-    public boolean supportsScope(IdentityScope scope) {
-        return supportedScopes != null && supportedScopes.contains(scope);
     }
 
     /** Integration-коннектор = есть поля credentials (заменяет проверку по бывшему ConnectorType). */
     public boolean isIntegration() {
         return credentialFields != null && !credentialFields.isEmpty();
+    }
+
+    /**
+     * Экземплярность — выводимая ось (единственная точка деривации): пользователь приносит
+     * идентичность экземпляра — credentials (интеграции) или регистрацию устройства (DEVICE).
+     * {@code true} → connections создаются явно, по одной на экземпляр (sub_code, секреты);
+     * {@code false} → одна строка-режим на пользователя, доступ выдают скиллы.
+     * Согласованность с типом хендлера гарантирует fail-fast инвариант в {@code ConnectorBootstrap}.
+     */
+    public boolean isInstanceBearing() {
+        return isIntegration() || executionKind == ExecutionKind.DEVICE;
     }
 }

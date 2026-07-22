@@ -69,8 +69,26 @@ public class ConnectorBootstrap {
                 ? integration.getCredentialFields()
                 : null);
         connector.applyTraits(handler.traits());
+        requireConsistentInstanceBearing(handler, connector);
 
         connectorRepository.save(connector);
+    }
+
+    /**
+     * Fail-fast инвариант выводимой оси «экземплярность»: у неё две фиксации — тип хендлера
+     * (ветвления кода) и деривация {@link Connector#isInstanceBearing()} из credentials/DEVICE
+     * (проверки при создании connection). Расхождение (например, integration-хендлер без
+     * credential-полей) означает ошибку моделирования нового коннектора — роняем старт, а не
+     * даём фиксациям молча разъехаться.
+     */
+    private static void requireConsistentInstanceBearing(ConnectorHandler handler, Connector connector) {
+        boolean byHandlerType = handler instanceof IntegrationConnectorHandler;
+        if (byHandlerType != connector.isInstanceBearing()) {
+            throw new IllegalStateException("Connector '" + handler.connectorCode()
+                    + "': handler type (integration=" + byHandlerType
+                    + ") contradicts derived instance-bearing=" + connector.isInstanceBearing()
+                    + " (credentialFields/executionKind) — fix the connector declaration");
+        }
     }
 
     private static Connector buildStatic(String code, String name, ConnectorTraits traits) {

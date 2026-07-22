@@ -29,7 +29,7 @@ import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
-import ru.agimate.controlapi.database.enums.IdentityScope;
+import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
@@ -604,13 +604,15 @@ public class RunContextService {
     }
 
     /**
-     * Неймспейс экземпляра для LLM-имени тула ({@code {namespace}.{name}}): INSTANCE-коннекторы →
-     * {@code full_code}; контекстные синглтоны → {@code connector_code}.
+     * Неймспейс экземпляра для LLM-имени тула ({@code {namespace}.{name}}): внешние экземпляры →
+     * {@code full_code}; внутренние строки-режимы → {@code connector_code}. «Внутренний/внешний» —
+     * знание реестра (тип хендлера), не поля connection.
      */
-    private static String namespaceOf(Connection connection) {
-        String ns = connection.getIdentityScope() == IdentityScope.INSTANCE
-                ? connection.getFullCode()
-                : connection.getConnectorCode();
+    private String namespaceOf(Connection connection) {
+        boolean internal = connectorRegistry.findHandler(connection.getConnectorCode())
+                .map(InternalConnectorHandler.class::isInstance)
+                .orElse(false);
+        String ns = internal ? connection.getConnectorCode() : connection.getFullCode();
         return ns == null ? "" : ns;
     }
 }

@@ -5,11 +5,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.database.entities.AgentConnection;
-import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
 import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
-import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.PersistentMemoryColdRepository;
 import ru.agimate.controlapi.database.repositories.PersistentMemoryHotRepository;
 
@@ -35,26 +33,9 @@ public class PersistentMemoryService {
 
     private final PersistentMemoryColdRepository coldRepository;
     private final PersistentMemoryHotRepository hotRepository;
-    private final ConnectionRepository connectionRepository;
     private final AgentConnectionRepository agentConnectionRepository;
 
-    /** scope-носитель экземпляра по его {@code connections.id} (connectionId тулы/таски). */
-    public Optional<UUID> scopeIdForConnection(UUID connectionId) {
-        return connectionRepository.findByIdNotDeleted(connectionId).map(Connection::getScopeId);
-    }
-
-    /** scope-носитель памяти агента: scope_id его активной memory-привязки (AGENT→agentId, TEAM→teamId). */
-    public Optional<UUID> scopeIdForAgent(UUID agentId) {
-        for (AgentConnection b : agentConnectionRepository.findActiveByAgentId(agentId)) {
-            Connection c = connectionRepository.findByIdNotDeleted(b.getConnectionId()).orElse(null);
-            if (c != null && PersistentMemoryConnectorService.CONNECTOR_CODE.equals(c.getConnectorCode())) {
-                return Optional.ofNullable(c.getScopeId());
-            }
-        }
-        return Optional.empty();
-    }
-
-    /** Все агенты, привязанные к данному memory-экземпляру (для роутинга фоновых триггеров по scope). */
+    /** Все агенты, привязанные к memory-строке (их личные пространства обходят фоновые джобы). */
     public List<UUID> boundAgents(UUID connectionId) {
         return agentConnectionRepository.findActiveByConnectionId(connectionId).stream()
                 .map(AgentConnection::getAgentId)

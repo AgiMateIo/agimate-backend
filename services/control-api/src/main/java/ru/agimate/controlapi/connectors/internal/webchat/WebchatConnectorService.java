@@ -4,11 +4,6 @@ import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
-import ru.agimate.controlapi.database.enums.ExecutionLocus;
-import ru.agimate.controlapi.database.enums.IdentityScope;
-import ru.agimate.controlapi.database.enums.DefinitionBinding;
-import ru.agimate.controlapi.database.enums.TransportDirection;
-import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
 
 import java.util.List;
@@ -17,8 +12,9 @@ import java.util.Map;
 /**
  * Фасад webchat-коннектора: чат пользователя с агентом из собственного фронта.
  *
- * <p>Одна connection на пользователя ({@code scope = USER}, материализуется
- * {@code ConnectionBindingService} при первом чате); агенты подключаются к ней
+ * <p>Одна connection на пользователя (строка-режим, материализуется
+ * {@code ConnectionBindingService} при первом чате); владельца данных коннектор не выводит —
+ * каждое взаимодействие приходит с явным адресом (sessionId → канал → агент). Агенты подключаются к ней
  * {@code agent_connections}-binding'ами, каналы — per-agent. Входящие сообщения фронт шлёт через
  * {@code /manage/webchat/...} (триггер {@code message_received} с явными sessionId/audience),
  * доставка ответов — {@code WebchatChannelHandler} (webchat_messages + Centrifugo). Тулов и джоб
@@ -35,14 +31,6 @@ public class WebchatConnectorService implements InternalConnectorHandler, Trigge
     @Override
     public String connectorName() {
         return "Webchat";
-    }
-
-    /** Одна connection на пользователя: все его агенты делят её через binding'и. */
-    @Override
-    public ConnectorTraits traits() {
-        return new ConnectorTraits(
-                TransportDirection.OUTBOUND, ExecutionLocus.BACKEND, DefinitionBinding.STATIC,
-                List.of(IdentityScope.USER));
     }
 
     @Override

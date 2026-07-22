@@ -3,7 +3,6 @@ package ru.agimate.controlapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.enums.IdentityScope;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -21,9 +20,6 @@ public record ConnectionResponse(
 
         @Schema(description = "Full code — stable client handle (e.g. mcp_context7)")
         String fullCode,
-
-        @Schema(description = "Identity scope of the instance")
-        IdentityScope scope,
 
         @Schema(description = "Connection name")
         String name,
@@ -45,7 +41,6 @@ public record ConnectionResponse(
                 c.getConnectorCode(),
                 c.getSubCode(),
                 c.getFullCode(),
-                c.getIdentityScope(),
                 c.getName(),
                 c.getEnabled(),
                 c.getLastUsedAt(),

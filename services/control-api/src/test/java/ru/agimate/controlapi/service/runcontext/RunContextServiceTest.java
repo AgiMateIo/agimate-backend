@@ -13,6 +13,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
@@ -26,7 +27,6 @@ import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 import ru.agimate.controlapi.database.entities.TriggerLogAgent;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
-import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
@@ -85,8 +85,8 @@ class RunContextServiceTest {
     @Mock private ru.agimate.controlapi.database.repositories.ChannelRepository channelRepository;
     @Mock private ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry channelHandlerRegistry;
 
-    /** persist-memory-подобный коннектор: identity + блоки + статические тулы. */
-    interface MemoryLikeHandler extends ConnectorHandler, PromptBlockProvider, ToolProvider {
+    /** persist-memory-подобный коннектор: internal identity + блоки + статические тулы. */
+    interface MemoryLikeHandler extends InternalConnectorHandler, PromptBlockProvider, ToolProvider {
     }
 
     private MemoryLikeHandler memoryHandler;
@@ -151,7 +151,6 @@ class RunContextServiceTest {
                 .id(CONNECTION_ID)
                 .userId(USER_ID)
                 .connectorCode("persist-memory")
-                .identityScope(IdentityScope.AGENT)
                 .build();
     }
 

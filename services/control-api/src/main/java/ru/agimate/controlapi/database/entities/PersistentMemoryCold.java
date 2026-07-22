@@ -9,8 +9,8 @@ import ru.agimate.common.persistence.BaseEntity;
 import java.util.UUID;
 
 /**
- * Свёрнутая («cold») память — единственный MD-файл на scope ({@code scope_id}: agentId для AGENT,
- * teamId для TEAM — командная память). Один ряд на scope ({@code scope_id} уникален). Пишется только
+ * Свёрнутая («cold») память — единственный MD-файл на пространство ({@code scope_id} = agentId:
+ * память личная). Один ряд на пространство ({@code scope_id} уникален). Пишется только
  * консолидацией; конкурентные записи отсекаются оптимистической блокировкой по {@code version}.
  */
 @Entity

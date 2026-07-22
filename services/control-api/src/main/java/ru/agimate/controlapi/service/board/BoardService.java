@@ -53,6 +53,7 @@ public class BoardService {
     private final BoardTaskCommentRepository boardTaskCommentRepository;
     private final AgenticTeamRepository agenticTeamRepository;
     private final AgentRepository agentRepository;
+    private final ConnectionRepository connectionRepository;
     private final TriggerRouterService triggerRouterService;
     private final CentrifugoService centrifugoService;
 
@@ -167,7 +168,6 @@ public class BoardService {
         log.info("Created board task '{}' on board={}", command.title(), boardId);
 
         Map<String, Object> triggerData = new LinkedHashMap<>();
-        triggerData.put("boardId", board.getId().toString());
         triggerData.put("taskId", task.getId().toString());
         triggerData.put("createdByAgentId", createdBy.getId().toString());
         if (assignee != null) {
@@ -180,20 +180,13 @@ public class BoardService {
             triggerData.put("parentTaskId", parentTaskId.toString());
         }
 
-        TriggerAudience audience = new TriggerAudience(
-                createdBy.getId(),
-                assignee != null ? List.of(assignee.getId()) : List.of()
-        );
-
-        Trigger trigger = Trigger.createDirected(
-                CONNECTOR_CODE,
-                board.getId().toString(),
-                "task_created",
-                triggerData,
-                TriggerContext.audience(audience)
-        );
-
-        triggerRouterService.routeTrigger(userId, trigger);
+        // Без assignee адресат — ростер команды доски: сужение получателей до команды
+        // делает только audience (см. routeBoardTrigger).
+        List<UUID> targets = assignee != null
+                ? List.of(assignee.getId())
+                : teamRosterIds(userId, board);
+        routeBoardTrigger(userId, board, "task_created", triggerData,
+                new TriggerAudience(createdBy.getId(), targets));
 
         publishBoardEvent(userId, board.getId(), BoardEventType.TASK_CREATED,
                 new BoardTaskCreatedEvent(
@@ -248,20 +241,8 @@ public class BoardService {
         triggerData.put("newStatus", command.status().name());
 
         Map<UUID, Agent> agentsById = resolveAgentsForTasks(List.of(task));
-        TriggerAudience audience = new TriggerAudience(
-                command.agentId(),
-                resolveTaskParticipantIds(task, agentsById)
-        );
-
-        Trigger trigger = Trigger.createDirected(
-                CONNECTOR_CODE,
-                board.getId().toString(),
-                "task_status_changed",
-                triggerData,
-                TriggerContext.audience(audience)
-        );
-
-        triggerRouterService.routeTrigger(userId, trigger);
+        routeBoardTrigger(userId, board, "task_status_changed", triggerData,
+                new TriggerAudience(command.agentId(), resolveTaskParticipantIds(task, agentsById)));
 
         publishBoardEvent(userId, board.getId(), BoardEventType.TASK_STATUS_CHANGED,
                 new BoardTaskStatusChangedEvent(
@@ -327,20 +308,8 @@ public class BoardService {
         triggerData.put("content", comment.getContent());
 
         Map<UUID, Agent> agentsById = resolveAgentsForTasks(List.of(task));
-        TriggerAudience audience = new TriggerAudience(
-                agent.getId(),
-                resolveTaskParticipantIds(task, agentsById)
-        );
-
-        Trigger trigger = Trigger.createDirected(
-                CONNECTOR_CODE,
-                board.getId().toString(),
-                "task_comment_created",
-                triggerData,
-                TriggerContext.audience(audience)
-        );
-
-        triggerRouterService.routeTrigger(userId, trigger);
+        routeBoardTrigger(userId, board, "task_comment_created", triggerData,
+                new TriggerAudience(agent.getId(), resolveTaskParticipantIds(task, agentsById)));
 
         publishBoardEvent(userId, board.getId(), BoardEventType.COMMENT_CREATED,
                 new BoardTaskCommentCreatedEvent(
@@ -355,6 +324,39 @@ public class BoardService {
     }
 
     // ---- Helpers ----
+
+    /**
+     * Эмиссия board-триггера. Connection-строка коннектора общая на пользователя (одна на все его
+     * доски), поэтому сужение получателей до команды/участников — обязанность audience:
+     * {@code targetAgentIds} обязаны быть заполнены каждым вызывающим. Нет connection — к доскам
+     * не привязан ни один агент, доставлять некому.
+     */
+    private void routeBoardTrigger(UUID userId, Board board, String name,
+                                   Map<String, Object> data, TriggerAudience audience) {
+        Optional<Connection> connection = connectionRepository
+                .findByUserIdAndConnectorCodeNotDeleted(userId, CONNECTOR_CODE).stream()
+                .findFirst();
+        if (connection.isEmpty()) {
+            log.debug("No board connection for user {} — trigger '{}' not routed", userId, name);
+            return;
+        }
+        data.put("boardId", board.getId().toString());
+        Trigger trigger = Trigger.createDirected(
+                CONNECTOR_CODE,
+                connection.get().getId().toString(),
+                name,
+                data,
+                TriggerContext.audience(audience)
+        );
+        triggerRouterService.routeTrigger(userId, trigger);
+    }
+
+    /** Ростер команды доски — широковещательный адресат (binding'и/ABAC сузят его в роутере). */
+    private List<UUID> teamRosterIds(UUID userId, Board board) {
+        return agentRepository.findByUserIdAndAgenticTeamId(userId, board.getAgenticTeam().getId()).stream()
+                .map(Agent::getId)
+                .toList();
+    }
 
     private void publishBoardEvent(UUID userId, UUID boardId, String eventType, Object eventData) {
         String channel = "user:" + userId;

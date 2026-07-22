@@ -16,9 +16,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Binding'и «коннектор доступен агенту» ({@code agent_connections}) — гейт доступности.
- * Привязка контекстных коннекторов материализует {@code connections} по scope; INSTANCE —
- * требует {@code connectionId}. Тулы/триггеры binding'а уточняются через
+ * Привязки «connection доступна агенту» ({@code agent_connections}) — гейт доступности
+ * <b>внешних</b> экземпляров (telegram/mcp/app). Внутренние коннекторы (board/memory/time/media)
+ * управляются скиллами ({@code AgentSkillPolicyService}), webchat/acp — своими сервисами; их
+ * привязки здесь не создаются и не снимаются. Тулы/триггеры привязки уточняются через
  * {@link ManageAgentConnectionPolicyController}.
  */
 @RestController
@@ -42,7 +43,7 @@ public class ManageAgentConnectionController {
                 .toList());
     }
 
-    @Operation(summary = "Bind a connector to an agent (materializes context connection by scope)")
+    @Operation(summary = "Bind an external connection instance to an agent")
     @PostMapping("/")
     public SuccessResponse<AgentConnectionResponse> bind(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -50,10 +51,10 @@ public class ManageAgentConnectionController {
             @Valid @RequestBody BindConnectionRequest request) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(AgentConnectionResponse.from(bindingService.bindAndView(
-                userId, agentId, request.connectorCode(), request.scope(), request.connectionId())));
+                userId, agentId, request.connectionId())));
     }
 
-    @Operation(summary = "Unbind a connector from an agent")
+    @Operation(summary = "Unbind an external connection instance from an agent")
     @DeleteMapping("/{connectionId}")
     public SuccessResponse<Void> unbind(
             @AuthenticationPrincipal AgimateUserPrincipal principal,

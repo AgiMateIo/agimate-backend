@@ -120,7 +120,7 @@ class WebchatServiceTest {
         @DisplayName("существующий канал переиспользуется")
         void reusesChannel() {
             when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(agent));
-            when(connectionBindingService.bind(USER_ID, AGENT_ID, "webchat", null, null))
+            when(connectionBindingService.bindInternal(USER_ID, AGENT_ID, "webchat"))
                     .thenReturn(binding());
             when(channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
                     AGENT_ID, "webchat", CONNECTION_ID)).thenReturn(Optional.of(channel));
@@ -137,7 +137,7 @@ class WebchatServiceTest {
         @DisplayName("без канала — создаётся через ChannelService с handler'ом webchat")
         void createsChannel() {
             when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(agent));
-            when(connectionBindingService.bind(USER_ID, AGENT_ID, "webchat", null, null))
+            when(connectionBindingService.bindInternal(USER_ID, AGENT_ID, "webchat"))
                     .thenReturn(binding());
             when(channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
                     AGENT_ID, "webchat", CONNECTION_ID)).thenReturn(Optional.empty());

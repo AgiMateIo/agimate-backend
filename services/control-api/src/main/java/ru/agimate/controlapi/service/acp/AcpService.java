@@ -60,8 +60,8 @@ public class AcpService {
     @Transactional
     public ChannelSession startSession(UUID userId, UUID agentId) {
         Agent agent = requireOwnedAgent(userId, agentId);
-        AgentConnection binding = connectionBindingService.bind(
-                userId, agentId, AcpChannelHandler.CONNECTOR_CODE, null, null);
+        AgentConnection binding = connectionBindingService.bindInternal(
+                userId, agentId, AcpChannelHandler.CONNECTOR_CODE);
         UUID connectionId = binding.getConnectionId();
 
         Channel channel = channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(

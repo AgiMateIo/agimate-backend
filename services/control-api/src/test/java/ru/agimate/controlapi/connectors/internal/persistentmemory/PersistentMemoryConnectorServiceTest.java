@@ -25,8 +25,8 @@ import static org.mockito.Mockito.when;
 @DisplayName("PersistentMemoryConnectorService")
 class PersistentMemoryConnectorServiceTest {
 
-    private static final UUID CONNECTION_ID = UUID.randomUUID();
-    private static final UUID SCOPE_ID = UUID.randomUUID();
+    /** Пространство памяти = агент: scope id и agent id совпадают. */
+    private static final UUID AGENT_ID = UUID.randomUUID();
 
     @Mock
     private PersistentMemoryService memoryService;
@@ -37,16 +37,16 @@ class PersistentMemoryConnectorServiceTest {
     void setUp() {
         // toolService нужен BaseConnectorHandler только для скана @Tool-методов — зависимости не дёргаются.
         handler = new PersistentMemoryConnectorService(
-                new PersistentMemoryToolService(null, null, null, null), memoryService);
+                new PersistentMemoryToolService(null, null, null), memoryService);
     }
 
-    private static ConnectorEnv env(String connectionId) {
-        return new ConnectorEnv(connectionId, null, null, null, null, Map.of(), null);
+    private static ConnectorEnv env(UUID agentId) {
+        return new ConnectorEnv(null, null, agentId, null, null, Map.of(), null);
     }
 
     private static PersistentMemoryCold cold(String content, int version) {
         PersistentMemoryCold cold = new PersistentMemoryCold();
-        cold.setScopeId(SCOPE_ID);
+        cold.setScopeId(AGENT_ID);
         cold.setContent(content);
         cold.setVersion(version);
         return cold;
@@ -54,7 +54,7 @@ class PersistentMemoryConnectorServiceTest {
 
     private static PersistentMemoryHot note(String content) {
         PersistentMemoryHot note = new PersistentMemoryHot();
-        note.setScopeId(SCOPE_ID);
+        note.setScopeId(AGENT_ID);
         note.setContent(content);
         return note;
     }
@@ -66,11 +66,10 @@ class PersistentMemoryConnectorServiceTest {
         @Test
         @DisplayName("cold → SYSTEM-блок memory с версией; заметки → USER-блок memory_notes")
         void coldAndNotes() {
-            when(memoryService.scopeIdForConnection(CONNECTION_ID)).thenReturn(Optional.of(SCOPE_ID));
-            when(memoryService.getCold(SCOPE_ID)).thenReturn(Optional.of(cold("  known facts  ", 7)));
-            when(memoryService.getNotes(SCOPE_ID)).thenReturn(List.of(note("fact one"), note(" fact two ")));
+            when(memoryService.getCold(AGENT_ID)).thenReturn(Optional.of(cold("  known facts  ", 7)));
+            when(memoryService.getNotes(AGENT_ID)).thenReturn(List.of(note("fact one"), note(" fact two ")));
 
-            List<PromptBlock> blocks = handler.promptBlocks(env(CONNECTION_ID.toString()));
+            List<PromptBlock> blocks = handler.promptBlocks(env(AGENT_ID));
 
             assertEquals(2, blocks.size());
 
@@ -90,25 +89,15 @@ class PersistentMemoryConnectorServiceTest {
         @Test
         @DisplayName("пустая cold-память и пустые заметки не порождают блоков")
         void emptyMemory() {
-            when(memoryService.scopeIdForConnection(CONNECTION_ID)).thenReturn(Optional.of(SCOPE_ID));
-            when(memoryService.getCold(SCOPE_ID)).thenReturn(Optional.of(cold("   ", 0)));
-            when(memoryService.getNotes(SCOPE_ID)).thenReturn(List.of(note("  ")));
+            when(memoryService.getCold(AGENT_ID)).thenReturn(Optional.of(cold("   ", 0)));
+            when(memoryService.getNotes(AGENT_ID)).thenReturn(List.of(note("  ")));
 
-            assertTrue(handler.promptBlocks(env(CONNECTION_ID.toString())).isEmpty());
+            assertTrue(handler.promptBlocks(env(AGENT_ID)).isEmpty());
         }
 
         @Test
-        @DisplayName("нет scope у connection → пусто")
-        void noScope() {
-            when(memoryService.scopeIdForConnection(CONNECTION_ID)).thenReturn(Optional.empty());
-
-            assertTrue(handler.promptBlocks(env(CONNECTION_ID.toString())).isEmpty());
-        }
-
-        @Test
-        @DisplayName("некорректный connectionId → пусто, без обращения к хранилищу")
-        void invalidConnectionId() {
-            assertTrue(handler.promptBlocks(env("not-a-uuid")).isEmpty());
+        @DisplayName("нет агента в env (не agent-контекст) → пусто, без обращения к хранилищу")
+        void noAgent() {
             assertTrue(handler.promptBlocks(env(null)).isEmpty());
         }
     }

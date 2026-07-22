@@ -22,7 +22,6 @@ import ru.agimate.controlapi.controller.manage.dto.UpdateConnectionRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateConnectionSecretRequest;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
-import ru.agimate.controlapi.database.enums.IdentityScope;
 import ru.agimate.controlapi.service.ConnectorJobManageService;
 import ru.agimate.controlapi.service.connection.ConnectionService;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
@@ -45,16 +44,15 @@ public class ManageConnectionController {
     private final ConnectorJobManageService connectorJobManageService;
     private final McpToolDiscoveryService mcpToolDiscoveryService;
 
-    @Operation(summary = "List the user's connections, filtered by connector code / scope / enabled")
+    @Operation(summary = "List the user's connections, filtered by connector code / enabled")
     @GetMapping("/")
     public SuccessResponse<List<ConnectionResponse>> list(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) String connectorCode,
-            @RequestParam(required = false) IdentityScope scope,
             @RequestParam(required = false) Boolean enabled
     ) {
         UUID userId = UUID.fromString(principal.id());
-        var connections = connectionService.list(userId, connectorCode, scope, enabled).stream()
+        var connections = connectionService.list(userId, connectorCode, enabled).stream()
                 .map(ConnectionResponse::from)
                 .toList();
         return SuccessResponse.ok(connections);

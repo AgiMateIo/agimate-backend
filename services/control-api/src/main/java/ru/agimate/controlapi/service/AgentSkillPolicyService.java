@@ -6,6 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffEntry;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffResponse;
 import ru.agimate.controlapi.database.entities.AgentConnection;
@@ -14,26 +16,31 @@ import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
+import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Привязка скиллов к доступу агента в модели binding'ов. Скилл = набор коннекторов; «иметь скилл» =
- * агент привязан ({@code agent_connections}) к этим коннекторам, дальше дефолт-allow открывает их
- * тулы/триггеры. Контекстные коннекторы (board/memory/time) материализуются при привязке по своему
- * scope; INSTANCE-коннекторы скилл привязать не может (нужен конкретный экземпляр) — пропускаются.
+ * Привязка скиллов к доступу агента. Скилл = набор коннекторов; «иметь скилл» = агент привязан
+ * ({@code agent_connections}) к строкам-режимам этих коннекторов, дальше дефолт-allow открывает их
+ * тулы/триггеры.
  *
- * <p><b>Add-only (на ревью):</b> применение скилла гарантирует binding'и, но снятие скилла binding
- * <b>не</b> отзывает — иначе пришлось бы вести подсчёт ссылок (тот же коннектор могли включить канал
- * или вручную). Отвязка — явная. Name-гранулярность скилла (конкретный тул/триггер) пока не
- * переносится — скилл открывает коннектор целиком.
+ * <p><b>Реконсиляция:</b> скиллы — источник истины для привязок внутренних коннекторов. Синк
+ * добавляет недостающие привязки и снимает лишние — внутренние, не требуемые ни одним текущим
+ * скиллом. Привязки, удерживаемые активным каналом (webchat/acp — их создают канальные сервисы),
+ * и внешние экземпляры (telegram/mcp/app, управляются явно) синк не трогает. Внешний коннектор,
+ * объявленный скиллом, привязать нельзя (нужен конкретный экземпляр) — пропускается с warn.
  */
 @Slf4j
 @Service
@@ -45,7 +52,9 @@ public class AgentSkillPolicyService {
     private final SkillRepository skillRepository;
     private final AgentConnectionRepository agentConnectionRepository;
     private final ConnectionRepository connectionRepository;
+    private final ChannelRepository channelRepository;
     private final ConnectionBindingService connectionBindingService;
+    private final ConnectorRegistry connectorRegistry;
 
     public PolicyDiffResponse previewAdd(UUID agentId, UUID skillId) {
         Set<UUID> desired = getCurrentSkillIds(agentId);
@@ -65,42 +74,80 @@ public class AgentSkillPolicyService {
 
     @Transactional
     public void applyDiff(UUID agentId, UUID userId) {
-        Set<String> desiredConnectors = desiredConnectorCodes(getCurrentSkillIds(agentId));
-        Set<String> bound = boundConnectorCodes(agentId);
+        Set<String> desired = desiredConnectorCodes(getCurrentSkillIds(agentId));
+        Map<String, AgentConnection> bound = boundByConnectorCode(agentId);
 
         int added = 0;
-        for (String connectorCode : desiredConnectors) {
-            if (bound.contains(connectorCode)) {
+        for (String connectorCode : desired) {
+            if (bound.containsKey(connectorCode)) {
                 continue;
             }
             try {
-                connectionBindingService.bind(userId, agentId, connectorCode, null, null);
+                connectionBindingService.bindInternal(userId, agentId, connectorCode);
                 added++;
             } catch (BadRequestStatusException | NotFoundStatusException e) {
-                // INSTANCE-коннектор (нужен явный экземпляр), несовместимый scope или неизвестный
-                // connector_code (скилл объявил коннектор, которого нет в каталоге) — пропускаем:
-                // способность просто «не обеспечена», привязка скилла из-за этого падать не должна.
+                // Внешний коннектор (нужен явный экземпляр) или неизвестный connector_code (скилл
+                // объявил коннектор, которого нет) — способность просто «не обеспечена», привязка
+                // скилла из-за этого падать не должна.
                 log.warn("Skill cannot bind connector {} for agent {}: {}",
                         connectorCode, agentId, e.getMessage());
             }
         }
-        if (added > 0) {
-            log.info("Applied skill bindings for agent {}: +{} connector(s)", agentId, added);
+
+        int removed = 0;
+        for (Map.Entry<String, AgentConnection> e : bound.entrySet()) {
+            if (isRevokable(agentId, e.getKey(), e.getValue(), desired)) {
+                connectionBindingService.removeBinding(e.getValue());
+                removed++;
+            }
+        }
+
+        if (added > 0 || removed > 0) {
+            log.info("Reconciled skill bindings for agent {}: +{} / -{} connector(s)",
+                    agentId, added, removed);
         }
     }
 
-    /** Diff в терминах коннекторов: что добавится. Снятие не отзывает binding (add-only), поэтому toRemove пуст. */
-    private PolicyDiffResponse computeDiff(UUID agentId, Set<UUID> desiredSkillIds) {
-        Set<String> desiredConnectors = desiredConnectorCodes(desiredSkillIds);
-        Set<String> bound = boundConnectorCodes(agentId);
+    /**
+     * Снимается ли привязка при реконсиляции: внутренний коннектор, не требуемый текущими скиллами
+     * и не удерживаемый активным каналом (webchat/acp создают привязку вместе с каналом — канал и
+     * есть признак «привязка не от скилла»).
+     */
+    private boolean isRevokable(UUID agentId, String connectorCode, AgentConnection binding,
+                                Set<String> desired) {
+        if (desired.contains(connectorCode) || !isInternal(connectorCode)) {
+            return false;
+        }
+        return channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
+                agentId, connectorCode, binding.getConnectionId()).isEmpty();
+    }
 
-        List<PolicyDiffEntry> toAdd = desiredConnectors.stream()
-                .filter(c -> !bound.contains(c))
+    private boolean isInternal(String connectorCode) {
+        return connectorRegistry.findHandler(connectorCode)
+                .map(InternalConnectorHandler.class::isInstance)
+                .orElse(false);
+    }
+
+    /** Diff в терминах коннекторов: что привяжется и что будет снято реконсиляцией. */
+    private PolicyDiffResponse computeDiff(UUID agentId, Set<UUID> desiredSkillIds) {
+        Set<String> desired = desiredConnectorCodes(desiredSkillIds);
+        Map<String, AgentConnection> bound = boundByConnectorCode(agentId);
+
+        List<PolicyDiffEntry> toAdd = desired.stream()
+                .filter(c -> !bound.containsKey(c))
                 .sorted()
                 .map(c -> new PolicyDiffEntry("CONNECTOR", c, null))
                 .toList();
 
-        return new PolicyDiffResponse(toAdd, List.of());
+        List<PolicyDiffEntry> toRemove = new ArrayList<>();
+        for (Map.Entry<String, AgentConnection> e : bound.entrySet()) {
+            if (isRevokable(agentId, e.getKey(), e.getValue(), desired)) {
+                toRemove.add(new PolicyDiffEntry("CONNECTOR", e.getKey(), null));
+            }
+        }
+        toRemove.sort(Comparator.comparing(PolicyDiffEntry::connectorCode));
+
+        return new PolicyDiffResponse(toAdd, toRemove);
     }
 
     private Set<String> desiredConnectorCodes(Set<UUID> skillIds) {
@@ -113,16 +160,21 @@ public class AgentSkillPolicyService {
                 .collect(Collectors.toCollection(HashSet::new));
     }
 
-    private Set<String> boundConnectorCodes(UUID agentId) {
-        List<UUID> connectionIds = agentConnectionRepository.findActiveByAgentId(agentId).stream()
-                .map(AgentConnection::getConnectionId)
-                .toList();
-        if (connectionIds.isEmpty()) {
-            return Set.of();
+    /** Активные привязки агента по коду коннектора их connection. */
+    private Map<String, AgentConnection> boundByConnectorCode(UUID agentId) {
+        List<AgentConnection> bindings = agentConnectionRepository.findActiveByAgentId(agentId);
+        if (bindings.isEmpty()) {
+            return Map.of();
         }
-        return connectionRepository.findByIdInNotDeleted(connectionIds).stream()
-                .map(Connection::getConnectorCode)
-                .collect(Collectors.toCollection(HashSet::new));
+        Map<UUID, Connection> connections = connectionRepository.findByIdInNotDeleted(
+                        bindings.stream().map(AgentConnection::getConnectionId).toList()).stream()
+                .collect(Collectors.toMap(Connection::getId, Function.identity()));
+        return bindings.stream()
+                .filter(b -> connections.containsKey(b.getConnectionId()))
+                .collect(Collectors.toMap(
+                        b -> connections.get(b.getConnectionId()).getConnectorCode(),
+                        Function.identity(),
+                        (a, b) -> a));
     }
 
     private Set<UUID> getCurrentSkillIds(UUID agentId) {

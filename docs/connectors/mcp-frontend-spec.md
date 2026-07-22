@@ -183,11 +183,12 @@ UX-трактовка:
 > **удалены**. Модель теперь — «коннектор доступен агенту = binding», с дефолт-allow и
 > уточняющими политиками. Полный контракт — `docs/tmpspec/2026-06-26-frontend-agent-bindings-and-policies.md`.
 
-Чтобы выдать MCP-сервер агенту — **привязать** его экземпляр (INSTANCE-коннектор → нужен `connectionId`):
+Чтобы выдать MCP-сервер агенту — **привязать** его экземпляр (внешний коннектор → нужен `connectionId`;
+внутренние коннекторы этим endpoint'ом не управляются — их привязки создаёт скилл-синк):
 
 `POST /manage/agents/{agentId}/connections/`
 ```json
-{ "connectorCode": "mcp", "connectionId": "0193f0c2-...-connectionId" }
+{ "connectionId": "0193f0c2-...-connectionId" }
 ```
 После binding все тулы сервера доступны по умолчанию (default-allow). Чтобы ограничить — правила на
 binding (`AgentConnection.id` из ответа выше):

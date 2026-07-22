@@ -47,25 +47,17 @@ public class ConnectorService {
         Connector connector = connectorRepository.findById(toolCallLog.getConnectorCode())
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + toolCallLog.getConnectorCode()));
 
-        // Роутинг по паре locus × direction: BACKEND — исполняем in-proc; DELEGATED×OUTBOUND — мы
-        // клиент внешней системы, прокси-вызов тоже in-proc; DELEGATED×INBOUND — исполнитель сам
-        // подключается к нам, вызов доставляется push'ем; AGENT — исполняет вызывающий (/check + /result),
-        // диспатч сюда — ошибка вызывающего.
-        switch (connector.getExecutionLocus()) {
+        switch (connector.getExecutionKind()) {
+            // In-proc: @Tool-метод хендлера; внешние вызовы (telegram/mcp API) — внутри тул-сервиса.
             case BACKEND -> toolExecutionService.executeTool(toolCallLog);
-            case DELEGATED -> {
-                switch (connector.getTransportDirection()) {
-                    case OUTBOUND -> toolExecutionService.executeTool(toolCallLog);
-                    case INBOUND -> pushToApp(toolCallLog);
-                    case null -> throw new NotFoundStatusException(
-                            "Connector has no transport direction: " + toolCallLog.getConnectorCode());
-                }
-            }
-            case AGENT -> throw new BadRequestStatusException(
+            // Исполнитель сам подключается к нам — вызов доставляется push'ем в канал устройства.
+            case DEVICE -> pushToApp(toolCallLog);
+            // Исполняет вызывающий агент (/tool/check + /tool/result) — диспатч сюда ошибка вызывающего.
+            case LOOPBACK -> throw new BadRequestStatusException(
                     "Tools of connector '" + toolCallLog.getConnectorCode()
                             + "' execute on the caller side; use /tool/check and report via /tool/result");
             case null -> throw new NotFoundStatusException(
-                    "Connector has no execution locus: " + toolCallLog.getConnectorCode());
+                    "Connector has no execution kind: " + toolCallLog.getConnectorCode());
         }
     }
 
