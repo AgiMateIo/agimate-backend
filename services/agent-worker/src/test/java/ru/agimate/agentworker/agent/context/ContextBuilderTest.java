@@ -122,18 +122,18 @@ class ContextBuilderTest {
                     List.of(), List.of(), List.of()));
 
             assertEquals("hello", prepared.userPrompt());
-            assertEquals("<memory_notes>\n- fact\n</memory_notes>", prepared.ephemeralUserSuffix());
+            assertEquals("<memory_notes>\n- fact\n</memory_notes>", prepared.ephemeralUserPrefix());
         }
 
         @Test
-        @DisplayName("без ephemeral-блоков суффикс null")
+        @DisplayName("без ephemeral-блоков префикс null")
         void noEphemeral() {
             PreparedContext prepared = ContextBuilder.build(new ContextMaterials(
                     List.of(trusted("agent", "- id: a-1")),
                     List.of(trusted("", "hello")),
                     List.of(), List.of(), List.of()));
 
-            assertNull(prepared.ephemeralUserSuffix());
+            assertNull(prepared.ephemeralUserPrefix());
         }
     }
 
