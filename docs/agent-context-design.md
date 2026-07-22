@@ -85,7 +85,8 @@ flags, connector blocks via `PromptBlockProvider`) and the scoped toolset;
 `workers/run/ContextMaterialsFetcher` stays as the wire→`ContextMaterials` seam and
 `agent/context/ContextBuilder` is a **pure renderer**: tags blocks (`<name attrs>`), wraps
 untrusted ones with the data-not-instructions preamble (neutralizing closing tags inside the
-payload), splits ephemeral user blocks (memory notes) into a non-persisted suffix. LLM
+payload), splits ephemeral user blocks (memory notes) into a non-persisted prefix prepended
+ahead of the user's message. LLM
 credentials deliberately stay a separate inline RPC — the `GetRunContext` result is
 checkpointed and must not carry the api_key.
 

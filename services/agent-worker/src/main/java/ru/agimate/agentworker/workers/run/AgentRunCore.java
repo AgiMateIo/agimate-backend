@@ -69,8 +69,8 @@ public class AgentRunCore {
     /**
      * Run the agent loop body: history and the user prompt come from {@code prepared}, per-turn
      * progress and the final answer are recorded via {@code messages} (the backend persists and
-     * delivers). Only the rendered user prompt is durable — ephemeral blocks (memory notes) ride
-     * alongside the model turn and are never part of the persisted dialogue.
+     * delivers). Only the rendered user prompt is durable — ephemeral blocks (memory notes) are
+     * prepended to the model turn and are never part of the persisted dialogue.
      */
     public String run(String agentId, String runId, PreparedContext prepared, MessageLog messages,
                       String context) {
@@ -93,7 +93,7 @@ public class AgentRunCore {
         };
 
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
-        AgentChatMessage modelRequest = withEphemeralSuffix(initialRequest, prepared.ephemeralUserSuffix());
+        AgentChatMessage modelRequest = withEphemeralPrefix(initialRequest, prepared.ephemeralUserPrefix());
 
         LlmCallDispatcher llmDispatcher = new LlmCallDispatcher(dbos, llm, llmQueue, agentId);
         ToolCallDispatcher toolDispatcher = new ToolCallDispatcher(dbos, tool, toolQueue, agentId,
@@ -106,14 +106,18 @@ public class AgentRunCore {
         return answer;
     }
 
-    /** Model-facing user turn: the initial request with the ephemeral suffix appended, if any. */
-    private static AgentChatMessage withEphemeralSuffix(AgentChatMessage initialRequest, String suffix) {
-        if (suffix == null || suffix.isBlank()) {
+    /**
+     * Model-facing user turn: the ephemeral block (memory notes etc.) prepended before the user's
+     * message, if any — reference data goes ahead of the request the model must act on. The
+     * ephemeral text is never persisted; only {@code initialRequest} rides into history.
+     */
+    private static AgentChatMessage withEphemeralPrefix(AgentChatMessage initialRequest, String prefix) {
+        if (prefix == null || prefix.isBlank()) {
             return initialRequest;
         }
         String base = initialRequest.text() != null ? initialRequest.text() : "";
-        // Вложения переносим на суффиксированный ход — иначе «зрение» терялось бы при memory-notes.
-        return AgentChatMessage.user(base + "\n\n" + suffix, initialRequest.parts());
+        // Вложения переносим на префиксированный ход — иначе «зрение» терялось бы при memory-notes.
+        return AgentChatMessage.user(prefix + "\n\n" + base, initialRequest.parts());
     }
 
     /**

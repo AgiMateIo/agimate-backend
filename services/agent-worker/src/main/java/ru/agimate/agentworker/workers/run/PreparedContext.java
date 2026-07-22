@@ -18,8 +18,11 @@ import java.util.Map;
  *
  * @param systemPrompt        rendered system prompt (ordered blocks with tags)
  * @param userPrompt          rendered persistent part of the user turn (what history keeps)
- * @param ephemeralUserSuffix rendered ephemeral user blocks (memory notes etc.), appended to the
- *                            model-facing turn but never persisted; {@code null} when none
+ * @param ephemeralUserPrefix rendered ephemeral user blocks (memory notes etc.), prepended to the
+ *                            model-facing turn but never persisted; {@code null} when none. This
+ *                            component name is the {@code prepare_context} checkpoint's JSON key —
+ *                            deploy after draining in-flight runs, as with any PreparedContext form
+ *                            change.
  * @param history             session history «as the user saw it» (completed runs only, mapped
  *                            to user/assistant turns by the backend's kinds)
  * @param inboundParts        inbound attachment refs of this run's user turn (bytes via GetFile)
@@ -27,7 +30,7 @@ import java.util.Map;
 public record PreparedContext(
         String systemPrompt,
         String userPrompt,
-        String ephemeralUserSuffix,
+        String ephemeralUserPrefix,
         List<AgentChatMessage> history,
         List<ToolDef> toolDefs,
         Map<String, ToolRegistry.BackendTool> toolMap,

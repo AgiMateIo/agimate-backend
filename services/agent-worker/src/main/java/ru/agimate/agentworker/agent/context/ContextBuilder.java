@@ -73,7 +73,7 @@ public final class ContextBuilder {
                 .filter(b -> !b.getEphemeral()).toList());
         List<PromptBlock> ephemeral = materials.userBlocks().stream()
                 .filter(PromptBlock::getEphemeral).toList();
-        String ephemeralSuffix = ephemeral.isEmpty() ? null : render(ephemeral);
+        String ephemeralPrefix = ephemeral.isEmpty() ? null : render(ephemeral);
 
         ToolRegistry registry = ToolRegistry.build(materials.tools());
         List<AgentChatMessage> history = mapHistory(materials.history());
@@ -83,7 +83,7 @@ public final class ContextBuilder {
                 registry.toolDefs().size(), history.size(), inboundParts.size());
         log.debug("tools: {}", registry.names());
 
-        return new PreparedContext(systemPrompt, userPrompt, ephemeralSuffix, history,
+        return new PreparedContext(systemPrompt, userPrompt, ephemeralPrefix, history,
                 registry.toolDefs(), registry.backendMap(), inboundParts);
     }
 
