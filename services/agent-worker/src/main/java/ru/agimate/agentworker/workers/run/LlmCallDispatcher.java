@@ -6,6 +6,7 @@ import dev.dbos.transact.workflow.Queue;
 import dev.dbos.transact.workflow.WorkflowHandle;
 import ru.agimate.agentworker.agent.SimpleAgent;
 import ru.agimate.agentworker.agent.error.LlmCallError;
+import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.workers.LlmCallWorkflow;
@@ -38,6 +39,26 @@ class LlmCallDispatcher implements SimpleAgent.LlmCaller {
         if (result.failed()) {
             throw new LlmCallError(result.statusCode(), result.message(), result.userFacing());
         }
+        LlmResponseIncomplete.Reason incomplete = incompleteReason(result.finishReason());
+        if (incomplete != null) {
+            throw new LlmResponseIncomplete(incomplete);
+        }
         return result.assistant();
+    }
+
+    /**
+     * Provider {@code finish_reason} → terminal incomplete reason, or {@code null} for a normal
+     * finish. Only {@code length}/{@code content_filter} (and the {@code max_tokens} alias) are
+     * terminal; {@code stop}, {@code tool_calls}, unknown values and absence all continue the loop.
+     */
+    static LlmResponseIncomplete.Reason incompleteReason(String finishReason) {
+        if (finishReason == null) {
+            return null;
+        }
+        return switch (finishReason.trim().toLowerCase()) {
+            case "length", "max_tokens" -> LlmResponseIncomplete.Reason.LENGTH;
+            case "content_filter" -> LlmResponseIncomplete.Reason.CONTENT_FILTER;
+            default -> null;
+        };
     }
 }

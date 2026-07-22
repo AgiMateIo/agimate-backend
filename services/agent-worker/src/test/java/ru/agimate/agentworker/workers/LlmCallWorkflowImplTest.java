@@ -98,6 +98,18 @@ class LlmCallWorkflowImplTest {
         }
 
         @Test
+        @DisplayName("finish_reason из ответа прокидывается в Result (терминальность решает диспатчер)")
+        void carriesFinishReason() {
+            stubSuccessfulCall("prov-1");
+            when(mapper.finishReason(any())).thenReturn("length");
+
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+
+            assertFalse(result.failed());
+            assertEquals("length", result.finishReason());
+        }
+
+        @Test
         @DisplayName("сбой репорта не валит вызов (best-effort)")
         void reportFailureDoesNotFailCall() {
             stubSuccessfulCall("prov-1");

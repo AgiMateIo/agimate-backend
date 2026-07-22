@@ -2,6 +2,7 @@ package ru.agimate.agentworker.agent;
 
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.agent.error.LlmCallError;
+import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +55,18 @@ class AgentRunnerTest {
         AgentRunAborted aborted = assertThrows(AgentRunAborted.class,
                 () -> runOnce(runner((m, d) -> { throw new LlmCallError(null, quota, true); }, 5)));
         assertEquals(quota, aborted.userNotice());
+    }
+
+    @Test
+    @DisplayName("incomplete response → per-reason notice (length → truncated, content_filter → filtered)")
+    void incompleteResponse() {
+        AgentRunAborted len = assertThrows(AgentRunAborted.class, () -> runOnce(runner(
+                (m, d) -> { throw new LlmResponseIncomplete(LlmResponseIncomplete.Reason.LENGTH); }, 5)));
+        assertEquals(AgentRunner.TRUNCATED_NOTICE, len.userNotice());
+
+        AgentRunAborted filtered = assertThrows(AgentRunAborted.class, () -> runOnce(runner(
+                (m, d) -> { throw new LlmResponseIncomplete(LlmResponseIncomplete.Reason.CONTENT_FILTER); }, 5)));
+        assertEquals(AgentRunner.FILTERED_NOTICE, filtered.userNotice());
     }
 
     @Test

@@ -69,17 +69,23 @@ public class LlmMessageMapper {
             switch (m.role()) {
                 case SYSTEM -> out.add(new SystemMessage(nullToEmpty(m.text())));
                 case USER -> out.add(userMessage(m, mediaBytes, imageInputSupported));
-                case ASSISTANT -> out.add(AssistantMessage.builder()
-                        .content(nullToEmpty(m.text()))
-                        .toolCalls(m.toolCalls().stream()
-                                .map(tc -> new AssistantMessage.ToolCall(tc.id(), "function", tc.name(), tc.argumentsJson()))
-                                .toList())
-                        .build());
-                case TOOL -> out.add(ToolResponseMessage.builder()
-                        .responses(m.toolResults().stream()
-                                .map(tr -> new ToolResponseMessage.ToolResponse(tr.id(), tr.name(), tr.contentJson()))
-                                .toList())
-                        .build());
+                case ASSISTANT -> out.add(
+                        AssistantMessage.builder()
+                                .content(nullToEmpty(m.text()))
+                                .toolCalls(m.toolCalls().stream()
+                                        .map(tc -> new AssistantMessage.ToolCall(tc.id(), "function", tc.name(), tc.argumentsJson()))
+                                        .toList()
+                                )
+                                .build()
+                );
+                case TOOL -> out.add(
+                        ToolResponseMessage.builder()
+                                .responses(m.toolResults().stream()
+                                        .map(tr -> new ToolResponseMessage.ToolResponse(tr.id(), tr.name(), tr.contentJson()))
+                                        .toList()
+                                )
+                                .build()
+                );
             }
         }
         if (hasImageParts(messages)) {
@@ -145,6 +151,18 @@ public class LlmMessageMapper {
 
     /** Metadata key Spring AI's OpenAI module stores the provider's reasoning content under. */
     private static final String REASONING_CONTENT_KEY = "reasoningContent";
+
+    /**
+     * The provider's {@code finish_reason} for this generation (OpenAI: {@code stop}, {@code length},
+     * {@code tool_calls}, {@code content_filter}), or {@code null} when absent. Raw string — the
+     * run layer decides which reasons are terminal.
+     */
+    public String finishReason(ChatResponse response) {
+        if (response.getResult() == null || response.getResult().getMetadata() == null) {
+            return null;
+        }
+        return response.getResult().getMetadata().getFinishReason();
+    }
 
     /** Convert a non-streaming chat response to an assistant message (text + tool calls + thinking). */
     public AgentChatMessage fromResponse(ChatResponse response) {

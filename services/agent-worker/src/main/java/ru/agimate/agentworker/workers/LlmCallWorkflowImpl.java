@@ -90,7 +90,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes, imageInput), options);
             ChatResponse response = callWithRetry(model, prompt);
             reportUsage(response, creds, agentId);
-            return Result.ok(mapper.fromResponse(response));
+            return Result.ok(mapper.fromResponse(response), mapper.finishReason(response));
         } catch (Exception e) {
             OpenAIServiceException svc = findServiceException(e);
             if (svc != null) {

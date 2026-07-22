@@ -1,0 +1,33 @@
+package ru.agimate.agentworker.workers.run;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+
+class LlmCallDispatcherTest {
+
+    @Test
+    @DisplayName("finish_reason: length/max_tokens → LENGTH, content_filter → CONTENT_FILTER (case-insensitive)")
+    void mapsTerminalReasons() {
+        assertEquals(LlmResponseIncomplete.Reason.LENGTH,
+                LlmCallDispatcher.incompleteReason("length"));
+        assertEquals(LlmResponseIncomplete.Reason.LENGTH,
+                LlmCallDispatcher.incompleteReason("max_tokens"));
+        assertEquals(LlmResponseIncomplete.Reason.LENGTH,
+                LlmCallDispatcher.incompleteReason("  LENGTH "));
+        assertEquals(LlmResponseIncomplete.Reason.CONTENT_FILTER,
+                LlmCallDispatcher.incompleteReason("content_filter"));
+    }
+
+    @Test
+    @DisplayName("finish_reason: stop/tool_calls/неизвестное/null → не терминально (цикл продолжается)")
+    void normalReasonsAreNotTerminal() {
+        assertNull(LlmCallDispatcher.incompleteReason("stop"));
+        assertNull(LlmCallDispatcher.incompleteReason("tool_calls"));
+        assertNull(LlmCallDispatcher.incompleteReason("bogus"));
+        assertNull(LlmCallDispatcher.incompleteReason(null));
+    }
+}
