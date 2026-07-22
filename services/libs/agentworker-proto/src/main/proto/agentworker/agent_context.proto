@@ -11,7 +11,7 @@ import "agentworker/message_log.proto";
 service AgentContext {
   // Весь контекст рана одним вызовом: упорядоченные блоки промпта + отскоупленные тулы.
   // Политика сборки (ContextSpec: скоуп скиллов/тулов, guidance) — целиком на бэке; воркер
-  // только рендерит блоки в присланном порядке. trigger_id = trigger_log_agents.id = runId.
+  // только рендерит блоки в присланном порядке. run_id = trigger_log_agents.id.
   rpc GetRunContext(GetRunContextRequest) returns (RunContext);
   // Намеренно отдельно от GetRunContext: его результат воркер чекпоинтит (durable step
   // prepare_context), api_key в чекпоинт попадать не должен — креды запрашиваются inline
@@ -28,7 +28,7 @@ service AgentContext {
 
 message GetRunContextRequest {
   string agent_id = 1;
-  string trigger_id = 2;  // trigger_log_agents.id (= DBOS workflow id рана)
+  string run_id = 2;  // trigger_log_agents.id (= DBOS workflow id рана)
 }
 
 // Блок промпта: content без тегов/обёртки — XML-тег {name attrs} ставит рендерер воркера.

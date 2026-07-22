@@ -19,8 +19,8 @@ public class ContextMaterialsFetcher {
         this.client = client;
     }
 
-    public ContextMaterials fetch(String agentId, String triggerId) {
-        RunContext context = client.getRunContext(agentId, triggerId);
+    public ContextMaterials fetch(String agentId, String runId) {
+        RunContext context = client.getRunContext(agentId, runId);
         log.debug("run context fetched: {} system / {} user block(s), {} tool(s)",
                 context.getSystemBlocksCount(), context.getUserBlocksCount(), context.getToolsCount());
         return new ContextMaterials(

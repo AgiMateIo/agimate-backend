@@ -17,7 +17,7 @@ credentials from the backend and execute tools through the Tool Gateway.
 | `WorkerControl`         | `HealthCheck`                                                                                     | done     |
 | `AgentContext`          | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials`, `GetFile` (содержимое вложения чанками), `ReportLlmUsage` | done     |
 | `MessageLog`            | `SaveMessage` — единая запись событий диалога, доставка как её проекция                            | done     |
-| `ToolGateway`           | `ExecuteToolAsync`, `GetToolResult` (несёт `trigger_id` — liveness рана)                          | done     |
+| `ToolGateway`           | `ExecuteToolAsync`, `GetToolResult` (несёт `run_id` — liveness рана)                          | done     |
 | `WorkflowReporting`     | —                                                                                                 | post-PoC |
 
 `AgentRunRegistry` удалён: single-writer держит партиционированная очередь, жизненный цикл
@@ -121,8 +121,8 @@ Without `authorization` header → `UNAUTHENTICATED`. With a tampered token → 
 
 ## Run context (`AgentContext.GetRunContext`)
 
-`GetRunContext(agent_id, trigger_id)` → `RunContext` — весь контекст рана одним вызовом
-(`trigger_id` = `trigger_log_agents.id` = `run_id` = DBOS workflow id). Сборка — `RunContextService`;
+`GetRunContext(agent_id, run_id)` → `RunContext` — весь контекст рана одним вызовом
+(`run_id` = `trigger_log_agents.id` = DBOS workflow id). Сборка — `RunContextService`;
 политика (`ContextSpec`: `DIALOGUE` при prompt-канале в снапшоте `trigger_log_agents.channels`,
 иначе `SYSTEM_TRIGGER`) целиком на бэке, воркер только рендерит блоки в присланном порядке.
 
@@ -149,7 +149,7 @@ DBOS-чекпоинт не попадают (`RunContext.inbound_parts` несё
 
 ## SaveMessage (`MessageLog.SaveMessage`)
 
-`SaveMessage(agent_id, trigger_id, seq, kind, progress_type, text)` — воркер единственный писатель
+`SaveMessage(agent_id, run_id, seq, kind, progress_type, text)` — воркер единственный писатель
 истории; бэк (`MessageLogService`) персистит строку `channel_session_messages` и доставляет её
 проекцию в канал. Идемпотентность — UNIQUE `(run_id, seq)` (ON CONFLICT DO NOTHING); доставка
 дедупится downstream детерминированным `message_id` от `(run_id, seq)`.
@@ -215,7 +215,7 @@ presentation-only, wire routing unchanged.
 ## Run lifecycle (протокол v2, без registry)
 
 Backed by the `trigger_log_agents` table — each row is an agent run, and its id is the canonical
-**`run_id` == `trigger_id` == DBOS `workflow_id`**. Регистрационного хэндшейка нет:
+**`run_id` == DBOS `workflow_id`**. Регистрационного хэндшейка нет:
 single-writer-per-session держит партиционированная очередь `agent_exec` (партицию задаёт
 control-api при enqueue — `DbosTransport`, ключ = `session_id` рана; direct-ран — свой `run_id`).
 Это контрактное требование к транспорту исполнения.
@@ -227,7 +227,7 @@ swept as stale). Terminal statuses are sticky — a replayed INBOUND never resur
 
 **Liveness** (`last_activity_at` + `RunActivityService`): каждый RPC рана — `SaveMessage`
 (проекция обновляет метку в той же транзакции), `GetRunContext`, `ExecuteToolAsync`,
-`GetToolResult` (несёт `trigger_id`) — продлевает `last_activity_at` (gRPC-фасады зовут
+`GetToolResult` (несёт `run_id`) — продлевает `last_activity_at` (gRPC-фасады зовут
 `RunActivityService.touch`, best-effort). Самый длинный легальный тихий участок — один LLM-вызов
 с ретраями; ран, молчащий дольше `STALE_AFTER` (15 мин), добирает `@Scheduled`-сборщик:
 `RUNNING` → `FAILED` с маркером в `error`. Никого не блокирует — следующий ран сессии стартует

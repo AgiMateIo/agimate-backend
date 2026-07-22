@@ -51,12 +51,12 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
     @Override
     @Workflow(name = Queues.TOOL_WORKFLOW)
     public Outcome toolCall(String connectorCode, String backendName, String argsJson,
-                                    String toolCallId, String agentId, String triggerId, String connectionId,
+                                    String toolCallId, String agentId, String runId, String connectionId,
                                     int timeoutSeconds) {
         try {
             String outputJson = dbos.runStep(
                     () -> callConnectorTool(connectorCode, backendName, argsJson, toolCallId, connectionId,
-                            agentId, triggerId, effectiveTimeoutMs(timeoutSeconds, pollTimeoutMs)),
+                            agentId, runId, effectiveTimeoutMs(timeoutSeconds, pollTimeoutMs)),
                     "call_connector_tool");
             return Outcome.ok(outputJson);
         } catch (Exception e) {
@@ -75,14 +75,14 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
     }
 
     private String callConnectorTool(String connectorCode, String toolName, String argsJson,
-                                     String toolCallId, String connectionId, String agentId, String triggerId,
+                                     String toolCallId, String connectionId, String agentId, String runId,
                                      long budgetMs) {
         client.executeToolAsync(toolCallId, connectorCode, connectionId, toolName,
-                argsJson.getBytes(StandardCharsets.UTF_8), agentId, triggerId);
+                argsJson.getBytes(StandardCharsets.UTF_8), agentId, runId);
         long start = System.currentTimeMillis();
         long deadline = start + budgetMs;
         while (true) {
-            GetToolResultResponse result = client.getToolResult(agentId, toolCallId, triggerId);
+            GetToolResultResponse result = client.getToolResult(agentId, toolCallId, runId);
             if (result.getStatus() == ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS) {
                 ByteString out = result.getOutputJson();
                 return out.isEmpty() ? "" : truncateOutput(out.toStringUtf8(), maxOutputChars);

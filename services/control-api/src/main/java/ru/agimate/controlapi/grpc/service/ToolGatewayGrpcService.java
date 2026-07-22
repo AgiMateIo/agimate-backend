@@ -40,7 +40,7 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            touchRun(request.getTriggerId());
+            touchRun(request.getRunId());
             ToolCallRequest toolCall = ToolGatewayMapper.toToolCallRequest(request, resolveSessionId(request));
             String toolCallId = agentToolCallService.processToolCall(agentId, toolCall);
             log.info("ToolGateway.ExecuteToolAsync ok pool={} agent={} workflow={} tool={} toolCallId={}",
@@ -56,26 +56,26 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
     }
 
     /** RPC рана = признак его жизни; протокольная семантика — на протокольном слое. */
-    private void touchRun(String triggerId) {
-        if (!triggerId.isEmpty()) {
+    private void touchRun(String runId) {
+        if (!runId.isEmpty()) {
             try {
-                runActivityService.touch(UUID.fromString(triggerId));
+                runActivityService.touch(UUID.fromString(runId));
             } catch (IllegalArgumentException ignored) {
-                // не-UUID trigger_id отбраковывается дальше обычной валидацией
+                // не-UUID run_id отбраковывается дальше обычной валидацией
             }
         }
     }
 
     /**
-     * Протокол v2: воркер шлёт trigger_id рана; сессию (доменный контекст тулов — канал prompt'а)
-     * резолвит эта сторона из строки рана. Пустой/неизвестный trigger_id → null (тул вне канала).
+     * Протокол v2: воркер шлёт run_id рана; сессию (доменный контекст тулов — канал prompt'а)
+     * резолвит эта сторона из строки рана. Пустой/неизвестный run_id → null (тул вне канала).
      */
     private String resolveSessionId(ExecuteToolRequest request) {
-        if (request.getTriggerId().isEmpty()) {
+        if (request.getRunId().isEmpty()) {
             return null;
         }
         try {
-            return triggerLogAgentRepository.findById(UUID.fromString(request.getTriggerId()))
+            return triggerLogAgentRepository.findById(UUID.fromString(request.getRunId()))
                     .map(run -> run.getSessionId() != null ? run.getSessionId().toString() : null)
                     .orElse(null);
         } catch (IllegalArgumentException e) {
@@ -88,7 +88,7 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            touchRun(request.getTriggerId());
+            touchRun(request.getRunId());
             if (request.getToolCallId().isEmpty()) {
                 throw Status.INVALID_ARGUMENT.withDescription("tool_call_id is required").asRuntimeException();
             }

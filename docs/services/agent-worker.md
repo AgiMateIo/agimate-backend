@@ -43,7 +43,7 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 
 The package root is what DBOS sees: the three workflow pairs and `Queues`. The run-body machinery lives in `workers/run`:
 `AgentRunCore` holds the invariant run body — a `prepare_context` step
-(`ContextMaterialsFetcher`: one `GetRunContext(agent_id, trigger_id)` call → pure
+(`ContextMaterialsFetcher`: one `GetRunContext(agent_id, run_id)` call → pure
 `ContextBuilder.build` render → `PreparedContext`), the loop, and failure reporting — delegating the
 distinct concerns to collaborators: `MessageLog` (the run's single writer of dialogue events —
 inbound ack, progress, answer, error — one `save_message` durable step per event with a

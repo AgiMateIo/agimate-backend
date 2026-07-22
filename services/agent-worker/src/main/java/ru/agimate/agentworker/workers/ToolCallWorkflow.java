@@ -9,7 +9,7 @@ public interface ToolCallWorkflow {
             String argsJson,
             String toolCallId,
             String agentId,
-            String triggerId,
+            String runId,
             String connectionId,
             int timeoutSeconds);
 

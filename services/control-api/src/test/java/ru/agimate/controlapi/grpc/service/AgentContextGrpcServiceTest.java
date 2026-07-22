@@ -499,7 +499,7 @@ class AgentContextGrpcServiceTest {
     private RunContext callGetRunContext() throws Exception {
         GetRunContextRequest request = GetRunContextRequest.newBuilder()
                 .setAgentId(UUID.randomUUID().toString())
-                .setTriggerId(UUID.randomUUID().toString())
+                .setRunId(UUID.randomUUID().toString())
                 .build();
         AtomicReference<RunContext> response = new AtomicReference<>();
         AtomicReference<Throwable> error = new AtomicReference<>();

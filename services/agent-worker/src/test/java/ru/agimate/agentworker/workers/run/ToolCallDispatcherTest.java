@@ -11,8 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ToolCallDispatcherTest {
 
-    private static ToolCallDispatcher dispatcher(String triggerId) {
-        return new ToolCallDispatcher(null, null, null, "agent-1", triggerId, null);
+    private static ToolCallDispatcher dispatcher(String runId) {
+        return new ToolCallDispatcher(null, null, null, "agent-1", runId, null);
     }
 
     @Test

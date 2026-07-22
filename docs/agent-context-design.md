@@ -79,7 +79,7 @@ conditionals inside the assembly.
 
 ## Protocol (stage 2 — implemented)
 
-Materials arrive in one atomic `GetRunContext(agent_id, trigger_id)` RPC: the backend
+Materials arrive in one atomic `GetRunContext(agent_id, run_id)` RPC: the backend
 (`RunContextService`) assembles ordered `PromptBlock`s (system/user, trust and ephemerality
 flags, connector blocks via `PromptBlockProvider`) and the scoped toolset;
 `workers/run/ContextMaterialsFetcher` stays as the wire→`ContextMaterials` seam and

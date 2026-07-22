@@ -1,7 +1,7 @@
 # AgiMate — Спецификация взаимодействия Backend ↔ Generic Worker
 
 > **Документ описывает протокол взаимодействия между бэкендом AgiMate (Spring Boot) и пулом Generic-воркеров, исполняющих агентов внутри DBOS-workflow.**
-> Версия: **v2.1** (v2 реализована; этапы: GetRunContext → SaveMessage → тонкий payload; v2.1 — структурные tool-ходы в истории). Принципы v2: бэкенд собирает контекст и владеет политикой, воркер рендерит и крутит цикл; воркер — единственный писатель истории, доставка — проекция записи; воркер знает только `{agent_id, trigger_id}`.
+> Версия: **v2.1** (v2 реализована; этапы: GetRunContext → SaveMessage → тонкий payload; v2.1 — структурные tool-ходы в истории). Принципы v2: бэкенд собирает контекст и владеет политикой, воркер рендерит и крутит цикл; воркер — единственный писатель истории, доставка — проекция записи; воркер знает только `{agent_id, run_id}`.
 >
 > **v2.1 (структурные tool-ходы).** Текстовая история учила модель имитировать вызов тула текстом («🔧 name» как «финальный ответ» — тул не исполняется; слабые модели, например DeepSeek, делают это регулярно). Теперь у PROGRESS/TOOL_CALL воркер шлёт в `SaveMessage` структурный `tool_turn{text, calls[], results[]}` (бэк хранит его в `channel_session_messages.message_json`, кап 32 KB/поле), а `GetRunContext.history` отдаёт его назад — воркер разворачивает в нативные `tool_use`/`tool_result` (кап 4 KB/поле на чтении). Легаси 🔧-строки санитизируются в «[вызван инструмент …]». Плюс guard в цикле воркера: «финал» с паттерном имитации не принимается — корректирующий user-ход (до 2 раз за ран).
 
@@ -60,8 +60,8 @@
 
 | Сервис | Назначение |
 |---|---|
-| `AgentContext` | `GetRunContext(agent_id, trigger_id)` — весь контекст рана одним вызовом (блоки промпта, тулы, история, `inbound_parts`); `GetLlmCredentials` и `GetFile` (байты вложения) — отдельно (inline, не в чекпоинт) |
-| `MessageLog` | `SaveMessage(agent_id, trigger_id, seq, kind, …)` — единая запись событий диалога; персист и доставка в каналы — на бэке; идемпотентность `(trigger_id, seq)` |
+| `AgentContext` | `GetRunContext(agent_id, run_id)` — весь контекст рана одним вызовом (блоки промпта, тулы, история, `inbound_parts`); `GetLlmCredentials` и `GetFile` (байты вложения) — отдельно (inline, не в чекпоинт) |
+| `MessageLog` | `SaveMessage(agent_id, run_id, seq, kind, …)` — единая запись событий диалога; персист и доставка в каналы — на бэке; идемпотентность `(run_id, seq)` |
 | `ToolGateway` | `ExecuteToolAsync` + поллинг `GetToolResult` — единственная точка вызова tools (ABAC + audit) |
 | `WorkerControl` | `HealthCheck`; `SendMessage` — системные ошибки воркера |
 
@@ -153,7 +153,7 @@ poll-бюджет). Параллелизм fan-out'а даёт очередь `t
 
 ### 3.4 Жизненный цикл workflow
 
-Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_id` = `trigger_log_agents.id`). Дальше:
+Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_log_agents.id`). Дальше:
 
 1. **Enqueue** (control-api): run-стадия энкьюится сразу на партиционированную очередь `agent_exec` — `workflow_id == run_id`, партиция = `session_id` рана (direct-ран — собственная партиция по `run_id`); дедуп доставки — по `workflow_id`. Роутер-workflow и claim-хэндшейк удалены.
 2. **Run-стадия** (`run_agent`): `SaveMessage(seq=0, INBOUND)` — ack «агент получил», до сборки контекста; на бэке он же переводит статус рана в RUNNING.
@@ -168,7 +168,7 @@ Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_id` 
 ### 3.6 Вызовы tools
 
 - Любое внешнее действие — через `ToolGateway`. Воркер не делает прямых HTTP/SDK-вызовов в сторону внешних систем.
-- Паттерн один (см. §2.4): `ExecuteToolAsync` (в запросе `trigger_id` — сессию/канал резолвит бэк) + поллинг `GetToolResult` в child-workflow; параллелизм — очередь `tool_calls` (enqueue-before-await, детерминированный порядок).
+- Паттерн один (см. §2.4): `ExecuteToolAsync` (в запросе `run_id` — сессию/канал резолвит бэк) + поллинг `GetToolResult` в child-workflow; параллелизм — очередь `tool_calls` (enqueue-before-await, детерминированный порядок).
 - Бюджет ожидания per-tool: `ConnectorToolSpec.timeout_seconds` (из `@Tool(timeoutSeconds=…)`; воркер клампит 30 минутами), `0` → дефолт `agent.tool.poll-timeout`. Таймаут не отменяет джобу на бэке — модель получает явное «could still complete».
 - При получении `PERMISSION_DENIED` от Tool Gateway — это валидный ответ, не сетевая ошибка. Воркер передаёт его в LLM как tool result, чтобы агент мог скорректировать поведение.
 
@@ -191,7 +191,7 @@ Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_id` 
 - Не делает прямых вызовов внешних сервисов кроме LLM (PoC) и DBOS.
 - Не доставляет результаты пользователю — только `SaveMessage`; доставка — проекция записи на бэке.
 - Не принимает решения по RBAC/скоупингу — тулы приходят уже отскоупленными, вызовы перепроверяет Tool Gateway.
-- Не знает `sessionId` и каналов — только `{agent_id, trigger_id}`; сессию резолвит бэк.
+- Не знает `sessionId` и каналов — только `{agent_id, run_id}`; сессию резолвит бэк.
 
 ---
 
@@ -199,7 +199,7 @@ Payload workflow — только `{agent_id, run_id}` (`run_id` = `trigger_id` 
 
 | Направление | Что добавляется | Совместимость |
 |---|---|---|
-| **Steering (redesign)** | Вклинивание сообщения в живой ран удалено на этапе 4 v2; вернётся отдельным дизайном (ключи по `trigger_id`, без sessionId на воркере) | Новый RPC/сигнал, аддитивно |
+| **Steering (redesign)** | Вклинивание сообщения в живой ран удалено на этапе 4 v2; вернётся отдельным дизайном (ключи по `run_id`, без sessionId на воркере) | Новый RPC/сигнал, аддитивно |
 | **Usage-статистика** | Токены/модель per-turn перестали персиститься с уходом `message_json`; вернуть в `SaveMessage(ANSWER)` или отдельным reporting'ом | Аддитивные поля |
 | **historyDetail per-channel** | Сейчас — пресеты `ContextSpec` в коде (FULL); настройка на канале/агенте | Аддитивно |
 | **Лимит размера PromptBlock** | O(1)-инвариант блоков пока конвенция; ввести жёсткий лимит на бэке | Серверная валидация |
@@ -229,7 +229,7 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
 | `worker_control.proto` | `WorkerControl` | `HealthCheck`, `SendMessage` |
 | `agent_context.proto` | `AgentContext` | `GetRunContext` (весь контекст рана одним вызовом, включая историю и `inbound_parts`), `GetLlmCredentials`, `GetFile` (содержимое вложения чанками — inline при `llm_call`, не в чекпоинт), `ReportLlmUsage` (best-effort учёт токенов, идемпотентен по `call_id`) |
 | `message_log.proto` | `MessageLog` | `SaveMessage` (v2 этап 3: воркер — единственный писатель истории; доставка — проекция записи) |
-| `tool_gateway.proto` | `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` (несёт `trigger_id` — признак жизни рана) |
+| `tool_gateway.proto` | `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` (несёт `run_id` — признак жизни рана) |
 
 `agent_run_registry.proto` удалён: single-writer держит партиционированная очередь,
 жизненный цикл рана — проекция `SaveMessage` + метка активности (§2.2).
@@ -258,8 +258,8 @@ Proto-файлы лежат в `services/libs/agentworker-proto/src/main/proto/a
 
 ### 5.4 AgentContext — `GetRunContext` (протокол v2, этап 2)
 
-Read-поверхность схлопнута в один вызов: `GetRunContext(agent_id, trigger_id)` → `RunContext`
-(`trigger_id` = `trigger_log_agents.id` = DBOS workflow id рана). Сборка — `RunContextService`
+Read-поверхность схлопнута в один вызов: `GetRunContext(agent_id, run_id)` → `RunContext`
+(`run_id` = `trigger_log_agents.id` = DBOS workflow id рана). Сборка — `RunContextService`
 (`service/runcontext/`): политика `ContextSpec` (DIALOGUE при prompt-канале в снапшоте
 `trigger_log_agents.channels`, иначе SYSTEM_TRIGGER), упорядоченные `PromptBlock`-и
 (agent → инструкции → блоки `PromptBlockProvider`-коннекторов → team → skills → тела подошедших

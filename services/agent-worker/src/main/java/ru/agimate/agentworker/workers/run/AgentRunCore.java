@@ -52,8 +52,8 @@ public class AgentRunCore {
     }
 
     /** The run's dialogue-event writer; created here so the workflow shares one seq counter. */
-    public MessageLog messageLog(String agentId, String triggerId) {
-        return new MessageLog(dbos, client, agentId, triggerId);
+    public MessageLog messageLog(String agentId, String runId) {
+        return new MessageLog(dbos, client, agentId, runId);
     }
 
     /**
@@ -61,8 +61,8 @@ public class AgentRunCore {
      * prompt + tool registry in one durable step. The assembly policy lives server-side
      * (ContextSpec); the worker only renders the blocks.
      */
-    public PreparedContext prepareContext(String agentId, String triggerId) {
-        return dbos.runStep(() -> ContextBuilder.build(fetcher.fetch(agentId, triggerId)),
+    public PreparedContext prepareContext(String agentId, String runId) {
+        return dbos.runStep(() -> ContextBuilder.build(fetcher.fetch(agentId, runId)),
                 "prepare_context");
     }
 
@@ -72,7 +72,7 @@ public class AgentRunCore {
      * delivers). Only the rendered user prompt is durable — ephemeral blocks (memory notes) ride
      * alongside the model turn and are never part of the persisted dialogue.
      */
-    public String run(String agentId, String triggerId, PreparedContext prepared, MessageLog messages,
+    public String run(String agentId, String runId, PreparedContext prepared, MessageLog messages,
                       String context) {
         ToolRegistry registry = prepared.registry();
 
@@ -97,7 +97,7 @@ public class AgentRunCore {
 
         LlmCallDispatcher llmDispatcher = new LlmCallDispatcher(dbos, llm, llmQueue, agentId);
         ToolCallDispatcher toolDispatcher = new ToolCallDispatcher(dbos, tool, toolQueue, agentId,
-                triggerId, registry);
+                runId, registry);
 
         AgentRunner runner = new AgentRunner(llmDispatcher, toolDispatcher, registry.toolDefs(), MAX_AGENT_TURNS,
                 context, onNewMessages);

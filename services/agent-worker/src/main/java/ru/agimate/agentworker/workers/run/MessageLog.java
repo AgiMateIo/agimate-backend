@@ -16,7 +16,7 @@ import ru.agimate.agentworker.grpc.ControlApiCallException;
  * the worker only records what happened, in order.
  *
  * <p>Each call is a durable step; the per-run {@code seq} counter increments deterministically
- * around the checkpoints, so a DBOS replay re-sends the same {@code (trigger_id, seq)} pairs and
+ * around the checkpoints, so a DBOS replay re-sends the same {@code (run_id, seq)} pairs and
  * the backend dedupes instead of double-posting. Created per run (not a Spring bean).
  */
 @Slf4j
@@ -25,14 +25,14 @@ public class MessageLog {
     private final DBOS dbos;
     private final AgentWorkerClient client;
     private final String agentId;
-    private final String triggerId;
+    private final String runId;
     private int seq = 0;
 
-    public MessageLog(DBOS dbos, AgentWorkerClient client, String agentId, String triggerId) {
+    public MessageLog(DBOS dbos, AgentWorkerClient client, String agentId, String runId) {
         this.dbos = dbos;
         this.client = client;
         this.agentId = agentId;
-        this.triggerId = triggerId;
+        this.runId = runId;
     }
 
     /** Ack «агент получил» (seq 0, до prepare_context): текст не шлём, канонику бэк берёт сам. */
@@ -56,7 +56,7 @@ public class MessageLog {
     private void send(MessageKind kind, ProgressType progressType, String text, ToolTurn toolTurn) {
         int n = seq++;
         boolean duplicate = dbos.runStep(
-                () -> client.saveMessage(agentId, triggerId, n, kind, progressType, text, toolTurn)
+                () -> client.saveMessage(agentId, runId, n, kind, progressType, text, toolTurn)
                         .getDuplicate(),
                 new StepOptions("save_message").withMaxAttempts(3)
                         .withShouldRetry(ControlApiCallException::retriableInStep));

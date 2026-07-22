@@ -22,7 +22,7 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 
 /**
  * SaveMessage (протокол v2): тонкий фасад над {@link MessageLogService} — запись события диалога
- * + доставка как её проекция. Идемпотентен по {@code (trigger_id, seq)}.
+ * + доставка как её проекция. Идемпотентен по {@code (run_id, seq)}.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,7 +35,7 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
     public void saveMessage(SaveMessageRequest request, StreamObserver<SaveMessageResponse> responseObserver) {
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            UUID triggerId = parseUuid(request.getTriggerId(), "trigger_id");
+            UUID runId = parseUuid(request.getRunId(), "run_id");
             if (request.getSeq() < 0) {
                 throw new BadRequestStatusException("seq must be >= 0");
             }
@@ -45,7 +45,7 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
                     : request.getProgressType().name().replace("PROGRESS_TYPE_", "");
 
             MessageLogService.SaveResult result = messageLogService.save(
-                    agentId, triggerId, request.getSeq(), kind, progressType, request.getText(),
+                    agentId, runId, request.getSeq(), kind, progressType, request.getText(),
                     request.hasToolTurn() ? toDomain(request.getToolTurn()) : null);
 
             responseObserver.onNext(SaveMessageResponse.newBuilder()
@@ -54,7 +54,7 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
             responseObserver.onCompleted();
         } catch (Exception e) {
             handleError(e, responseObserver, "SaveMessage agent=" + request.getAgentId()
-                    + " trigger=" + request.getTriggerId());
+                    + " run=" + request.getRunId());
         }
     }
 

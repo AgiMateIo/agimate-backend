@@ -129,9 +129,9 @@ public class AgentWorkerClient {
     // ---- AgentContext ----------------------------------------------------------------
 
     /** Весь контекст рана одним вызовом: упорядоченные блоки промпта + отскоупленные тулы. */
-    public RunContext getRunContext(String agentId, String triggerId) {
+    public RunContext getRunContext(String agentId, String runId) {
         return call("GetRunContext", () -> ctx().getRunContext(GetRunContextRequest.newBuilder()
-                .setAgentId(agentId).setTriggerId(triggerId).build()));
+                .setAgentId(agentId).setRunId(runId).build()));
     }
 
     public LlmCredentials getLlmCredentials(String agentId) {
@@ -189,16 +189,16 @@ public class AgentWorkerClient {
     // ---- MessageLog --------------------------------------------------------------
 
     /**
-     * Запись события диалога; идемпотентна по (trigger_id, seq) — персист и доставка на бэке.
+     * Запись события диалога; идемпотентна по (run_id, seq) — персист и доставка на бэке.
      * {@code toolTurn} (nullable) — структурная запись tool-хода при PROGRESS/TOOL_CALL (v2.1).
      */
-    public SaveMessageResponse saveMessage(String agentId, String triggerId, int seq,
+    public SaveMessageResponse saveMessage(String agentId, String runId, int seq,
                                            MessageKind kind, ProgressType progressType, String text,
                                            ToolTurn toolTurn) {
         return call("SaveMessage", () -> {
             SaveMessageRequest.Builder request = SaveMessageRequest.newBuilder()
                     .setAgentId(agentId)
-                    .setTriggerId(triggerId)
+                    .setRunId(runId)
                     .setSeq(seq)
                     .setKind(kind)
                     .setProgressType(progressType)
@@ -215,7 +215,7 @@ public class AgentWorkerClient {
 
     public ExecuteToolAsyncAck executeToolAsync(
             String toolCallId, String connectorCode, String connectionId, String toolName,
-            byte[] input, String agentId, String triggerId) {
+            byte[] input, String agentId, String runId) {
         return call("ExecuteToolAsync", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .executeToolAsync(ExecuteToolRequest.newBuilder()
                         .setToolCallId(toolCallId)
@@ -225,18 +225,18 @@ public class AgentWorkerClient {
                         .setInput(ByteString.copyFrom(input))
                         .setAgentId(agentId)
                         .setWorkflowId(workflowId())
-                        .setTriggerId(triggerId)
+                        .setRunId(runId)
                         .build()));
     }
 
     /**
      * Single poll of the tool result; deadline applied so a hung backend does not block forever.
-     * {@code triggerId} — признак жизни рана для бэка (продлевает {@code last_activity_at}).
+     * {@code runId} — признак жизни рана для бэка (продлевает {@code last_activity_at}).
      */
-    public GetToolResultResponse getToolResult(String agentId, String toolCallId, String triggerId) {
+    public GetToolResultResponse getToolResult(String agentId, String toolCallId, String runId) {
         return call("GetToolResult", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .getToolResult(GetToolResultRequest.newBuilder()
-                        .setAgentId(agentId).setToolCallId(toolCallId).setTriggerId(triggerId).build()));
+                        .setAgentId(agentId).setToolCallId(toolCallId).setRunId(runId).build()));
     }
 
     // ---- WorkerControl ---------------------------------------------------------------

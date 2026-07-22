@@ -74,10 +74,10 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
         String poolId = WorkerPoolContextHolder.current().poolId();
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
-            UUID triggerId = parseUuid(request.getTriggerId(), "trigger_id");
-            runActivityService.touch(triggerId);
+            UUID runId = parseUuid(request.getRunId(), "run_id");
+            runActivityService.touch(runId);
 
-            RunContextView view = runContextService.build(agentId, triggerId);
+            RunContextView view = runContextService.build(agentId, runId);
 
             RunContext.Builder builder = RunContext.newBuilder();
             view.systemBlocks().forEach(b -> builder.addSystemBlocks(RunContextMapper.toProto(b)));
@@ -86,12 +86,12 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             view.history().forEach(h -> builder.addHistory(RunContextMapper.toProto(h)));
             view.inboundParts().forEach(p -> builder.addInboundParts(RunContextMapper.toProto(p)));
 
-            log.debug("issued RunContext pool={} agent={} trigger={}", poolId, agentId, triggerId);
+            log.debug("issued RunContext pool={} agent={} run={}", poolId, agentId, runId);
             responseObserver.onNext(builder.build());
             responseObserver.onCompleted();
         } catch (Exception e) {
             handleError(e, responseObserver, "GetRunContext pool=" + poolId
-                    + " agent=" + request.getAgentId() + " trigger=" + request.getTriggerId());
+                    + " agent=" + request.getAgentId() + " run=" + request.getRunId());
         }
     }
 

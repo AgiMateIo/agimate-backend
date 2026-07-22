@@ -8,7 +8,7 @@ option java_outer_classname = "MessageLogProto";
 
 // Единая запись событий диалога (протокол v2, этап 3): воркер — единственный писатель истории,
 // доставка в каналы — проекция записи на бэке (роутинг по kind и снапшоту каналов маршрута).
-// Идемпотентность — (trigger_id, seq): DBOS-шаги at-least-once, ретрай не даёт ни дубля в
+// Идемпотентность — (run_id, seq): DBOS-шаги at-least-once, ретрай не даёт ни дубля в
 // истории, ни повторной доставки (дедуп downstream по детерминированному message_id).
 service MessageLog {
   rpc SaveMessage(SaveMessageRequest) returns (SaveMessageResponse);
@@ -31,7 +31,7 @@ enum ProgressType {
 
 message SaveMessageRequest {
   string agent_id = 1;
-  string trigger_id = 2;        // trigger_log_agents.id (= runId = DBOS workflow id)
+  string run_id = 2;        // trigger_log_agents.id (= DBOS workflow id)
   int32 seq = 3;                // монотонный счётчик рана (0 = inbound); ключ идемпотентности
   MessageKind kind = 4;
   ProgressType progress_type = 5;  // только для PROGRESS
@@ -43,7 +43,7 @@ message SaveMessageRequest {
 }
 
 message SaveMessageResponse {
-  bool duplicate = 1;           // (trigger_id, seq) уже записан — ретрай
+  bool duplicate = 1;           // (run_id, seq) уже записан — ретрай
 }
 
 // Один ход ассистента с тулами: преамбула + вызовы + результаты. Схема полей повторяет

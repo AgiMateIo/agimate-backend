@@ -34,16 +34,16 @@ class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
     private final ToolCallWorkflow tool;
     private final Queue toolQueue;
     private final String agentId;
-    private final String triggerId;
+    private final String runId;
     private final ToolRegistry registry;
 
-    ToolCallDispatcher(DBOS dbos, ToolCallWorkflow tool, Queue toolQueue, String agentId, String triggerId,
+    ToolCallDispatcher(DBOS dbos, ToolCallWorkflow tool, Queue toolQueue, String agentId, String runId,
                        ToolRegistry registry) {
         this.dbos = dbos;
         this.tool = tool;
         this.toolQueue = toolQueue;
         this.agentId = agentId;
-        this.triggerId = triggerId;
+        this.runId = runId;
         this.registry = registry;
     }
 
@@ -64,7 +64,7 @@ class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
                 continue;
             }
             WorkflowHandle<ToolCallWorkflow.Outcome, ? extends Exception> handle = dbos.startWorkflow(
-                    () -> tool.toolCall(bt.connectorCode(), bt.name(), tc.argumentsJson(), toolCallId, agentId, triggerId, bt.connectionId(), bt.timeoutSeconds()),
+                    () -> tool.toolCall(bt.connectorCode(), bt.name(), tc.argumentsJson(), toolCallId, agentId, runId, bt.connectionId(), bt.timeoutSeconds()),
                     new StartWorkflowOptions(toolQueue));
             pending.add(new Pending(tc, toolCallId, handle, null, bt.openWorld()));
         }
@@ -115,7 +115,7 @@ class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
         if (id != null && !id.isBlank()) {
             return id;
         }
-        return UUID.nameUUIDFromBytes(("agimate-toolcall:" + triggerId + ":" + generatedIdSeq++)
+        return UUID.nameUUIDFromBytes(("agimate-toolcall:" + runId + ":" + generatedIdSeq++)
                 .getBytes(StandardCharsets.UTF_8)).toString();
     }
 
