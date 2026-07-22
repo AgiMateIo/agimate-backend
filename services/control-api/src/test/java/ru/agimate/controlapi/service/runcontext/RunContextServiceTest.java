@@ -16,7 +16,9 @@ import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
+import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -89,14 +91,21 @@ class RunContextServiceTest {
     interface MemoryLikeHandler extends InternalConnectorHandler, PromptBlockProvider, ToolProvider {
     }
 
+    /** time-подобный коннектор: internal identity + триггеры с директивами + статические тулы. */
+    interface TimeLikeHandler extends InternalConnectorHandler, TriggerProvider, ToolProvider {
+    }
+
     private MemoryLikeHandler memoryHandler;
+    private TimeLikeHandler timeHandler;
     private RunContextService service;
 
     @BeforeEach
     void setUp() {
         memoryHandler = mock(MemoryLikeHandler.class);
         lenient().when(memoryHandler.connectorCode()).thenReturn("persist-memory");
-        ConnectorRegistry registry = new ConnectorRegistry(List.of(memoryHandler));
+        timeHandler = mock(TimeLikeHandler.class);
+        lenient().when(timeHandler.connectorCode()).thenReturn("time");
+        ConnectorRegistry registry = new ConnectorRegistry(List.of(memoryHandler, timeHandler));
         service = new RunContextService(triggerLogAgentRepository, agentRepository,
                 agenticTeamRepository, agentSkillRepository, agentSkillService, skillRepository,
                 connectionRepository, connectorRepository, connectionToolRepository,
@@ -110,12 +119,16 @@ class RunContextServiceTest {
     }
 
     private TriggerLog triggerLog(String connectorCode, String name) {
+        return triggerLog(connectorCode, name, Map.of("text", "hello agent"));
+    }
+
+    private TriggerLog triggerLog(String connectorCode, String name, Map<String, Object> input) {
         return TriggerLog.builder()
                 .connectorCode(connectorCode)
                 .connectionId(CONNECTION_ID.toString())
                 .externalId("evt-1")
                 .name(name)
-                .input(Map.of("text", "hello agent"))
+                .input(input)
                 .build();
     }
 
@@ -159,7 +172,7 @@ class RunContextServiceTest {
     class SystemTrigger {
 
         @Test
-        @DisplayName("guidance + untrusted event-блок; тулы и тела только подошедших скиллов")
+        @DisplayName("guidance + untrusted event-блок; тела — только подошедших скиллов")
         void buildsTriggerContext() {
             Agent agent = agent();
             stubRun(run(agent, triggerLog("time", "due"), null));
@@ -187,8 +200,152 @@ class RunContextServiceTest {
             assertTrue(event.content().contains("hello agent"));
             assertEquals("time", event.attrs().get("connector"));
 
-            // Тулы: связей нет — пусто; но скоуп считался от matched-скилла (time), не от board.
+            // Тулы: связей нет — пусто.
             assertTrue(view.tools().isEmpty());
+        }
+
+        @Test
+        @DisplayName("тулы собираются от всех скиллов агента, не только подошедших триггеру")
+        void toolsFromAllListedSkills() {
+            Agent agent = agent();
+            // Триггер от board; единственный скилл агента требует persist-memory — не матчится.
+            stubRun(run(agent, triggerLog("board", "task_comment_created"), null));
+            stubSkills(List.of(new AgentSkillWithConnectorsResponse(
+                    UUID.randomUUID(), "Memory", "d", List.of("persist-memory"))));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
+                    .thenReturn(List.of(memoryConnection()));
+            lenient().when(memoryHandler.promptBlocks(any(ConnectorEnv.class))).thenReturn(List.of());
+            Connector connector = new Connector();
+            connector.setCode("persist-memory");
+            connector.setDefinitionBinding(DefinitionBinding.STATIC);
+            when(connectorRepository.findById("persist-memory")).thenReturn(Optional.of(connector));
+            when(memoryHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
+                    "get_memory", new ConnectorToolSpec("get_memory", null, "d", null, null, null, null, null)));
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            // Тул непрофильного скилла доступен (задача с доски может требовать любой скилл)...
+            assertEquals(1, view.tools().size());
+            assertEquals("persist-memory", view.tools().get(0).connectorCode());
+            // ...а его тело в промпт не попало — по триггеру скоупятся только тела.
+            List<String> names = view.systemBlocks().stream().map(RunBlock::name).toList();
+            assertFalse(names.contains("skill"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Директивы контекста (ContextDirectives)")
+    class Directives {
+
+        private void declareDue(ContextDirectives directives) {
+            when(timeHandler.getTriggers()).thenReturn(Map.of("due", new ru.agimate.controlapi
+                    .connectors.core.dto.TriggerSpec("desc", List.of("prompt"), directives)));
+        }
+
+        private void stubTimeConnection() {
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(
+                    Connection.builder().id(CONNECTION_ID).userId(USER_ID).connectorCode("time").build()));
+            Connector connector = new Connector();
+            connector.setCode("time");
+            connector.setDefinitionBinding(DefinitionBinding.STATIC);
+            when(connectorRepository.findById("time")).thenReturn(Optional.of(connector));
+        }
+
+        @Test
+        @DisplayName("PROMPT — trusted trigger_prompt из data + event_guidance перед ним, event-блока нет")
+        void promptPresentation() {
+            stubRun(run(agent(), triggerLog("time", "due", Map.of("prompt", "Проверь заказ №42")), null));
+            stubSkills(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+            declareDue(ContextDirectives.builder()
+                    .presentation(ContextDirectives.Presentation.PROMPT)
+                    .promptParam("prompt")
+                    .guidance("Это твоя отложенная задача.")
+                    .build());
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            List<RunBlock> user = view.userBlocks();
+            RunBlock main = user.get(user.size() - 1);
+            assertEquals("trigger_prompt", main.name());
+            assertTrue(main.trusted());
+            assertEquals("Проверь заказ №42", main.content());
+            assertEquals("time", main.attrs().get("connector"));
+            RunBlock guidance = user.get(user.size() - 2);
+            assertEquals("event_guidance", guidance.name());
+            assertTrue(guidance.trusted());
+            assertTrue(view.userBlocks().stream().noneMatch(b -> b.name().equals("event")));
+            // Автономный режим не меняется: trigger_guidance в system остаётся.
+            assertTrue(view.systemBlocks().stream().anyMatch(b -> b.name().equals("trigger_guidance")));
+        }
+
+        @Test
+        @DisplayName("PROMPT без пригодного параметра — фолбэк на untrusted event")
+        void promptFallsBackToEvent() {
+            stubRun(run(agent(), triggerLog("time", "due", Map.of("other", "x")), null));
+            stubSkills(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+            declareDue(ContextDirectives.builder()
+                    .presentation(ContextDirectives.Presentation.PROMPT)
+                    .promptParam("prompt")
+                    .build());
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            RunBlock main = view.userBlocks().get(view.userBlocks().size() - 1);
+            assertEquals("event", main.name());
+            assertFalse(main.trusted());
+        }
+
+        @Test
+        @DisplayName("ownConnectionTools подтягивает тулы connection события без скиллов")
+        void ownConnectionTools() {
+            stubRun(run(agent(), triggerLog("time", "due", Map.of("prompt", "п")), null));
+            stubSkills(List.of());
+            stubTimeConnection();
+            when(timeHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
+                    "cancel_scheduled",
+                    new ConnectorToolSpec("cancel_scheduled", null, "d", null, null, null, null, null)));
+            declareDue(ContextDirectives.builder().ownConnectionTools(true).build());
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            assertEquals(1, view.tools().size());
+            assertEquals("time", view.tools().get(0).connectorCode());
+            assertEquals(CONNECTION_ID.toString(), view.tools().get(0).connectionId());
+        }
+
+        @Test
+        @DisplayName("skillTools=false отключает тулы скиллов агента")
+        void skillToolsOff() {
+            stubRun(run(agent(), triggerLog("time", "due", Map.of("prompt", "п")), null));
+            stubSkills(List.of(new AgentSkillWithConnectorsResponse(
+                    UUID.randomUUID(), "Memory", "d", List.of("persist-memory"))));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
+                    .thenReturn(List.of(memoryConnection()));
+            lenient().when(memoryHandler.promptBlocks(any(ConnectorEnv.class))).thenReturn(List.of());
+            declareDue(ContextDirectives.builder().skillTools(false).build());
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            assertTrue(view.tools().isEmpty());
+        }
+
+        @Test
+        @DisplayName("historyLimit=0 — история не загружается даже при живой сессии")
+        void historyLimitZero() {
+            TriggerLogAgent run = run(agent(), triggerLog("time", "due", Map.of("prompt", "п")), null);
+            run.setSessionId(SESSION_ID);
+            stubRun(run);
+            stubSkills(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+            declareDue(ContextDirectives.builder().historyLimit(0).build());
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            assertTrue(view.history().isEmpty());
+            org.mockito.Mockito.verify(messageRepository, org.mockito.Mockito.never())
+                    .findBySessionIdAndCompletedTrueOrderByIdDesc(any(), any());
         }
     }
 

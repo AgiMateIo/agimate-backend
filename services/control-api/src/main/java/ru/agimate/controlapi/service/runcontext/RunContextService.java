@@ -16,8 +16,11 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
+import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
+import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.connectors.core.ConnectionToolMapper;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -86,7 +89,11 @@ public class RunContextService {
             + "требуются».\n"
             + "- Каждый вызов инструмента должен быть обоснован: вызывай инструмент "
             + "только когда событие действительно требует действия, и коротко поясняй "
-            + "причину вызова.";
+            + "причину вызова.\n"
+            + "- Результат работы — только проверяемый артефакт: id файла или задачи из "
+            + "результата инструмента, реально выполненный вызов. Если нужного инструмента "
+            + "нет или вызов завершился ошибкой — зафиксируй блокер и остановись. Никогда "
+            + "не сообщай о выполнении, которого не было, и не выдумывай id файлов.";
 
     /**
      * Правило вызова инструментов — добавляется при наличии тулов в ране. Слабые модели имитируют
@@ -148,14 +155,21 @@ public class RunContextService {
                 ? ContextSpec.DIALOGUE
                 : ContextSpec.SYSTEM_TRIGGER;
         Trigger trigger = Trigger.fromLog(run.getTriggerLog());
+        // Директивы — только из статической декларации кода коннектора (registry); динамические
+        // триггеры (connection_triggers) и payload сюда не попадают — незнакомое имя = базовый пресет.
+        EffectiveContext effective = EffectiveContext.of(spec, declaredDirectives(trigger));
 
-        // Скиллы: listed — всегда; scoped определяет тела (SYSTEM_TRIGGER) и скоуп тулов.
+        // Скиллы: тулы — от ВСЕХ скиллов агента: содержание делегированной через триггер задачи
+        // не связано с коннектором события (задача с доски может требовать media). По триггеру
+        // скоупятся только тела скиллов, попадающие в промпт (SYSTEM_TRIGGER).
         List<AgentSkillWithConnectorsResponse> listed = listedSkills(agentId);
         List<AgentSkillWithConnectorsResponse> scoped = spec.loadsSkillBodies()
                 ? matchedSkills(listed, trigger)
                 : listed;
         Set<String> requiredConnectors = new LinkedHashSet<>();
-        scoped.forEach(s -> requiredConnectors.addAll(s.connectorCodes()));
+        if (effective.skillTools()) {
+            listed.forEach(s -> requiredConnectors.addAll(s.connectorCodes()));
+        }
 
         List<Connection> connections = connectionRepository.findActiveBoundToAgent(agentId);
         UUID promptChannelId = channels != null && channels.prompt() != null
@@ -166,8 +180,13 @@ public class RunContextService {
         // скилл-гейта — «канал приносит тулы», пока разговор идёт из этого канала. Возвращает
         // connection этого канала, чтобы его тулы листались session-aware (session-scoped MCP из IDE).
         UUID sessionAwareConnectionId = addPromptChannelTools(promptChannelId, requiredConnectors);
+        // ownConnectionTools: connection события (именно она, не все connections её кода — INSTANCE)
+        // попадает в выборку мимо скилл-гейта.
+        UUID ownConnectionId = effective.ownConnectionTools()
+                ? tryParseUuid(trigger.connectionId()) : null;
 
-        List<RunTool> tools = collectTools(connections, requiredConnectors, sessionAwareConnectionId, promptSessionId);
+        List<RunTool> tools = collectTools(connections, requiredConnectors, ownConnectionId,
+                sessionAwareConnectionId, promptSessionId);
 
         List<RunBlock> systemBlocks = new ArrayList<>();
         List<RunBlock> userBlocks = new ArrayList<>();
@@ -187,7 +206,7 @@ public class RunContextService {
         if (!tools.isEmpty()) {
             systemBlocks.add(RunBlock.trusted("tool_guidance", "guidance", TOOL_CALL_GUIDANCE, Map.of()));
         }
-        if (spec.appendsTriggerGuidance()) {
+        if (effective.triggerGuidance()) {
             systemBlocks.add(RunBlock.trusted("trigger_guidance", "guidance", TRIGGER_GUIDANCE, Map.of()));
         }
         if (spec == ContextSpec.DIALOGUE && promptChannelSupportsAttachments(channels)) {
@@ -202,10 +221,14 @@ public class RunContextService {
             userBlocks.add(dialoguePromptBlock(inbound, trigger));
             inboundParts = inboundParts(inbound);
         } else {
-            userBlocks.add(eventBlock(trigger));
+            if (effective.guidance() != null) {
+                userBlocks.add(RunBlock.trusted("event_guidance",
+                        "connector:" + trigger.connectorCode(), effective.guidance(), Map.of()));
+            }
+            userBlocks.add(triggerMainBlock(effective, trigger));
         }
 
-        List<RunHistoryMessage> history = history(run.getSessionId(), spec.historyDetail());
+        List<RunHistoryMessage> history = history(run.getSessionId(), effective);
         log.debug("run context agent={} trigger={} spec={} blocks={}/{} tools={} history={} parts={}",
                 agentId, triggerId, spec, systemBlocks.size(), userBlocks.size(), tools.size(),
                 history.size(), inboundParts.size());
@@ -214,8 +237,6 @@ public class RunContextService {
     }
 
     // ===== История =====
-
-    private static final int HISTORY_WINDOW = 50;
 
     /** Кап на один JSON tool-хода (аргументы/результат) в контексте — бюджет важнее полноты. */
     static final int TOOL_JSON_CONTEXT_CAP = 4 * 1024;
@@ -226,8 +247,9 @@ public class RunContextService {
     /**
      * История сессии «как видел пользователь»: только завершённые раны ({@code completed=true} —
      * поэтому сообщения текущего рана, включая его inbound-ack, сюда не попадают), хвост окном
-     * {@value #HISTORY_WINDOW}, фильтр по {@link ContextSpec.HistoryDetail}. Дореформенные строки
-     * маппятся на v2-виды (REQUEST → INBOUND, RESPONSE → ANSWER) по текстовой проекции.
+     * {@link EffectiveContext#historyLimit()} ({@code 0} — истории нет), фильтр по
+     * {@link ContextSpec.HistoryDetail}. Дореформенные строки маппятся на v2-виды
+     * (REQUEST → INBOUND, RESPONSE → ANSWER) по текстовой проекции.
      *
      * <p>Tool-ходы (v2.1): у PROGRESS/TOOL_CALL с {@code message_json} наружу идёт структурный
      * {@code toolTurn} — воркер восстановит нативные tool_use/tool_result; текстовая 🔧-проекция
@@ -235,12 +257,14 @@ public class RunContextService {
      * такого рана скипается — преамбула уже внутри toolTurn. Легаси 🔧-строки без message_json
      * санитизируются в констатацию «[вызван инструмент …]».
      */
-    private List<RunHistoryMessage> history(UUID sessionId, ContextSpec.HistoryDetail detail) {
-        if (sessionId == null) {
+    private List<RunHistoryMessage> history(UUID sessionId, EffectiveContext effective) {
+        if (sessionId == null || effective.historyLimit() <= 0) {
             return List.of();
         }
+        ContextSpec.HistoryDetail detail = effective.historyDetail();
         List<ChannelSessionMessage> tail = messageRepository
-                .findBySessionIdAndCompletedTrueOrderByIdDesc(sessionId, PageRequest.of(0, HISTORY_WINDOW));
+                .findBySessionIdAndCompletedTrueOrderByIdDesc(
+                        sessionId, PageRequest.of(0, effective.historyLimit()));
         Set<UUID> structuredRuns = structuredToolRuns(tail);
         List<RunHistoryMessage> history = new ArrayList<>(tail.size());
         for (int i = tail.size() - 1; i >= 0; i--) {
@@ -518,6 +542,49 @@ public class RunContextService {
         return name != null ? name.toString() : "";
     }
 
+    /**
+     * Основной блок события по {@link EffectiveContext#presentation()}: {@code PROMPT} — trusted-текст
+     * из {@code data[promptParam]} (декларация только internal-коннекторов, guard на бутстрапе;
+     * авторство текста — агент/платформа), пусто/не строка → фолбэк на untrusted событие.
+     */
+    private static RunBlock triggerMainBlock(EffectiveContext effective, Trigger trigger) {
+        if (effective.presentation() != ContextDirectives.Presentation.PROMPT) {
+            return eventBlock(trigger);
+        }
+        Object raw = trigger.data() != null && effective.promptParam() != null
+                ? trigger.data().get(effective.promptParam()) : null;
+        if (raw instanceof String text && !text.isBlank()) {
+            Map<String, String> attrs = new LinkedHashMap<>();
+            attrs.put("connector", trigger.connectorCode());
+            attrs.put("name", trigger.name());
+            return RunBlock.trusted("trigger_prompt", "connector:" + trigger.connectorCode(),
+                    text.strip(), attrs);
+        }
+        log.warn("PROMPT trigger {}.{} has no usable '{}' in data — falling back to event block",
+                trigger.connectorCode(), trigger.name(), effective.promptParam());
+        return eventBlock(trigger);
+    }
+
+    /** Статические директивы триггера из registry ({@code null} — не объявлены/динамический триггер). */
+    private ContextDirectives declaredDirectives(Trigger trigger) {
+        return connectorRegistry.findCapability(trigger.connectorCode(), TriggerProvider.class)
+                .map(TriggerProvider::getTriggers)
+                .map(triggers -> triggers.get(trigger.name()))
+                .map(TriggerSpec::context)
+                .orElse(null);
+    }
+
+    private static UUID tryParseUuid(String value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     /** Событие как данные: untrusted-блок, обёртку/преамбулу ставит рендерер воркера. */
     private static RunBlock eventBlock(Trigger trigger) {
         Map<String, Object> event = new LinkedHashMap<>();
@@ -564,15 +631,18 @@ public class RunContextService {
     }
 
     /**
-     * Тулы connections, чей коннектор требуется скоупленными скиллами (порт логики воркера + GetConnectionTools).
-     * Для {@code sessionAwareConnectionId} (connection prompt-канала, приносящего тулы) STATIC-листинг
+     * Тулы connections, чей коннектор требуется скоупленными скиллами, плюс {@code ownConnectionId}
+     * (connection события при {@code ownConnectionTools} — адресно, мимо скилл-гейта). Для
+     * {@code sessionAwareConnectionId} (connection prompt-канала, приносящего тулы) STATIC-листинг
      * получает env с {@code promptSessionId}, чтобы коннектор мог отдать session-scoped тулы (MCP из IDE).
      */
     private List<RunTool> collectTools(List<Connection> connections, Set<String> requiredConnectors,
-                                       UUID sessionAwareConnectionId, UUID promptSessionId) {
+                                       UUID ownConnectionId, UUID sessionAwareConnectionId,
+                                       UUID promptSessionId) {
         List<RunTool> tools = new ArrayList<>();
         for (Connection connection : connections) {
-            if (!requiredConnectors.contains(connection.getConnectorCode())) {
+            if (!requiredConnectors.contains(connection.getConnectorCode())
+                    && !connection.getId().equals(ownConnectionId)) {
                 continue;
             }
             Connector connector = connectorRepository.findById(connection.getConnectorCode()).orElse(null);

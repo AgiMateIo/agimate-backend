@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.database.entities.Connector;
@@ -70,8 +71,37 @@ public class ConnectorBootstrap {
                 : null);
         connector.applyTraits(handler.traits());
         requireConsistentInstanceBearing(handler, connector);
+        requireValidContextDirectives(handler);
 
         connectorRepository.save(connector);
+    }
+
+    /**
+     * Fail-fast валидация trust-полей {@link ContextDirectives}: {@code presentation=PROMPT}
+     * отмывает текст события в trusted-блок, поэтому разрешён только internal-коннекторам
+     * (их payload собирает наш код, авторство — агент/платформа); у интеграции {@code data}
+     * приходит из внешнего мира — такая декларация роняет старт. PROMPT без {@code promptParam}
+     * бессмыслен — тоже ошибка декларации.
+     */
+    private static void requireValidContextDirectives(ConnectorHandler handler) {
+        if (!(handler instanceof TriggerProvider triggerProvider)) {
+            return;
+        }
+        triggerProvider.getTriggers().forEach((name, spec) -> {
+            ContextDirectives directives = spec.context();
+            if (directives == null || directives.presentation() != ContextDirectives.Presentation.PROMPT) {
+                return;
+            }
+            if (!(handler instanceof InternalConnectorHandler)) {
+                throw new IllegalStateException("Connector '" + handler.connectorCode() + "', trigger '"
+                        + name + "': presentation=PROMPT is allowed for internal connectors only — "
+                        + "external trigger data must stay untrusted");
+            }
+            if (directives.promptParam() == null || directives.promptParam().isBlank()) {
+                throw new IllegalStateException("Connector '" + handler.connectorCode() + "', trigger '"
+                        + name + "': presentation=PROMPT requires promptParam");
+            }
+        });
     }
 
     /**

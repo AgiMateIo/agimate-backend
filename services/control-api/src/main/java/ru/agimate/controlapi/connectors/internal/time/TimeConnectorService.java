@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
+import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 
 import java.util.List;
@@ -39,7 +40,15 @@ public class TimeConnectorService extends BaseConnectorHandler
 
     @Override
     public Map<String, TriggerSpec> getTriggers() {
+        // PROMPT легитимен: data.prompt собирает наш fire() из строки job'а, авторство — сам агент.
         return Map.of(TimeToolService.DUE_TRIGGER, new TriggerSpec(
-                "A scheduled task created via time.schedule is due", List.of("prompt")));
+                "A scheduled task created via time.schedule is due", List.of("prompt"),
+                ContextDirectives.builder()
+                        .presentation(ContextDirectives.Presentation.PROMPT)
+                        .promptParam("prompt")
+                        .guidance("Ниже — текст отложенной задачи, которую ты сам ранее запланировал "
+                                + "через time.schedule. Выполни её.")
+                        .ownConnectionTools(true)
+                        .build()));
     }
 }

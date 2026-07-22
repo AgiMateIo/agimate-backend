@@ -6,6 +6,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
+import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
@@ -58,15 +59,26 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
         return "Persistent Memory";
     }
 
+    /**
+     * Минимальный контекст memory-тасок: материал уже в {@code data} (messages/notes) — история
+     * не нужна; из тулов достаточно памяти ({@code ownConnectionTools}, скилл-тулы выключены).
+     * Тела подошедших скиллов остаются (route-база) — memory-скилл и есть инструкция обработки.
+     */
+    private static final ContextDirectives MEMORY_TASK_CONTEXT = ContextDirectives.builder()
+            .skillTools(false)
+            .ownConnectionTools(true)
+            .historyLimit(0)
+            .build();
+
     @Override
     public Map<String, TriggerSpec> getTriggers() {
         return Map.of(
                 PersistentMemoryToolService.NOTES_TRIGGER, new TriggerSpec(
                         "Build memory notes from the messages of a session active in the last 24h",
-                        List.of("sessionId", "messages")),
+                        List.of("sessionId", "messages"), MEMORY_TASK_CONTEXT),
                 PersistentMemoryToolService.CONSOLIDATE_TRIGGER, new TriggerSpec(
                         "Consolidate accumulated hot notes into cold memory",
-                        List.of("consolidationId", "notes")));
+                        List.of("consolidationId", "notes"), MEMORY_TASK_CONTEXT));
     }
 
     @Override

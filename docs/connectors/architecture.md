@@ -156,6 +156,28 @@ PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
 Пример — persist-memory: cold-память → SYSTEM-блок `memory` (attr `version` для CAS в
 `update_memory`), hot-заметки → USER-блок `memory_notes`.
 
+**Директивы контекста триггера (`ContextDirectives` в `TriggerSpec`).** Триггер статически
+декларирует, какой контекст нужен его рану, — overlay поверх route-пресета `ContextSpec`
+(DIALOGUE/SYSTEM_TRIGGER выбирает маршрут, коннектор его не знает; `null`-поле = «как в базе»),
+накладывается один раз в `EffectiveContext.of` при сборке (`RunContextService`). Поля двух классов
+риска:
+
+- **trust** — `presentation=PROMPT` + `promptParam` (событие рендерится trusted-текстом из
+  `data[promptParam]` вместо untrusted-JSON; легитимно только когда payload собирает наш код —
+  `time.due`) и `guidance` (trusted user-блок перед блоком события; статическая константа кода,
+  без интерполяции данных). PROMPT разрешён только internal-коннекторам — fail-fast guard в
+  `ConnectorBootstrap`.
+- **scope** — `skillTools` (собирать ли тулы скиллов), `ownConnectionTools` (тулы connection
+  события — именно этой connection, не всех экземпляров кода), `historyLimit` (окно истории,
+  `0` — без неё). Меняют объём контекста, не доверие.
+
+Источник директив — **только код** (`TriggerProvider.getTriggers()` через registry): динамические
+декларации (`connection_triggers` устройств/MCP) и payload события в резолве не участвуют —
+незнакомый триггер получает базовый пресет (default-safe). Потребители: `time.due`
+(PROMPT+guidance+ownConnectionTools), memory-триггеры (`skillTools=false`, `ownConnectionTools=true`,
+`historyLimit=0` — материал уже в `data`, тела подошедших скиллов остаются: memory-скилл и есть
+инструкция обработки).
+
 Коннектор состоит из двух классов:
 
 - **`<Name>ConnectorService`** — фасад: implements `IntegrationConnectorHandler`/`InternalConnectorHandler`
@@ -311,6 +333,8 @@ USER/AGENT; см. `docs/services/control-api-manage-connector-jobs.md`). Lifecyc
   снимки канала/сессии уезжают проактивными `progress`/`answer`-ссылками. Сессию перерезолвливает
   `ChannelRouteResolver`: снапшот, пока открыт, иначе активная сессия канала (симметрично фолбэку
   outbound-доставки) — ран напоминания получает историю, партицию и персист этой сессии.
+  По `ContextDirectives` триггера промпт рендерится **trusted**-блоком `trigger_prompt` (авторство —
+  сам агент) с guidance-преамбулой, а тулы time-connection доступны без скилла (`ownConnectionTools`).
 
 Доставка: `TriggerRouterService.routeTrigger(userId, trigger)` (единая точка входа; `routeWhTrigger`/
 `routeAppTrigger` — тонкие обёртки) сужает кандидатов до audience (агент-инициатор), затем применяет
