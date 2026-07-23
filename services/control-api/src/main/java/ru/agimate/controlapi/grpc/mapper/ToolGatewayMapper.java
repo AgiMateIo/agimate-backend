@@ -38,6 +38,7 @@ public class ToolGatewayMapper {
                 .name(request.getToolName())
                 .input(input)
                 .agentSessionId(agentSessionId)
+                .runId(emptyToNull(request.getRunId()))
                 .build();
     }
 }

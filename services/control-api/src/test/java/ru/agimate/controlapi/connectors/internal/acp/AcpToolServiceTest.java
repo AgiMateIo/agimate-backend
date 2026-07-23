@@ -48,7 +48,7 @@ class AcpToolServiceTest {
 
     /** Env с sessionId — как его собирает ToolExecutionService для ACP-рана. */
     private static ConnectorEnv env() {
-        return new ConnectorEnv("conn", UUID.randomUUID(), UUID.randomUUID(), null, SESSION_ID, Map.of(), null);
+        return new ConnectorEnv("conn", UUID.randomUUID(), UUID.randomUUID(), null, null, SESSION_ID, Map.of(), null);
     }
 
     private static CompletableFuture<JsonNode> reply(String json) {
@@ -113,7 +113,7 @@ class AcpToolServiceTest {
         @DisplayName("нет sessionId в env (не-ACP ран) → ConnectorException")
         void noSession() {
             ConnectorEnv noSession = new ConnectorEnv("conn", UUID.randomUUID(), UUID.randomUUID(),
-                    null, null, Map.of(), null);
+                    null, null, null, Map.of(), null);
             assertThrows(ConnectorException.class, () -> handler.executeTool(noSession, "read_file",
                     Map.of("path", "/a")));
         }

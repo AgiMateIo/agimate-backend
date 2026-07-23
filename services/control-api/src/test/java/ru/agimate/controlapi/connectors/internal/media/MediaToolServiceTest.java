@@ -35,8 +35,9 @@ class MediaToolServiceTest {
 
     private final UUID userId = UUID.randomUUID();
     private final UUID agentId = UUID.randomUUID();
+    private final UUID runId = UUID.randomUUID();
     private final ConnectorEnv env = new ConnectorEnv(
-            null, userId, agentId, null, null, Map.of(), null);
+            null, userId, agentId, runId, null, null, Map.of(), null);
 
     @Mock
     private MediaInferenceService mediaInferenceService;
@@ -69,6 +70,7 @@ class MediaToolServiceTest {
         verify(mediaInferenceService).generateImage(callCaptor.capture(), eq("кот в сапогах"), isNull());
         assertEquals(userId, callCaptor.getValue().userId());
         assertEquals(agentId, callCaptor.getValue().agentId());
+        assertEquals(runId, callCaptor.getValue().runId());
         assertNotNull(callCaptor.getValue().callId());
     }
 
@@ -126,7 +128,7 @@ class MediaToolServiceTest {
     @Test
     @DisplayName("env без agent identity (глобальная таска) → внятный отказ")
     void missingIdentityRejected() {
-        ConnectorEnv noAgent = new ConnectorEnv(null, userId, null, null, null, Map.of(), null);
+        ConnectorEnv noAgent = new ConnectorEnv(null, userId, null, null, null, null, Map.of(), null);
 
         assertThrows(ConnectorException.class,
                 () -> handler.executeTool(noAgent, "gen_image", Map.of("prompt", "x")));

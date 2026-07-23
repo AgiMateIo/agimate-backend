@@ -86,10 +86,11 @@ public class ToolExecutionService {
                     .filter(Connection::isActive)
                     .orElseThrow(() -> new ConnectorException(
                             "Connection missing or disabled: " + toolCallLog.getConnectionId()));
-            return envFactory.forConnection(connection, toolCallLog.getAgentId(), channelId);
+            return envFactory.forConnection(connection, toolCallLog.getAgentId(),
+                    toolCallLog.getRunId(), channelId);
         }
         return envFactory.internal(toolCallLog.getConnectionId(), toolCallLog.getUserId(),
-                toolCallLog.getAgentId(), channelId, sessionId);
+                toolCallLog.getAgentId(), toolCallLog.getRunId(), channelId, sessionId);
     }
 
     private static UUID parseSessionId(String agentSessionId) {

@@ -12,6 +12,9 @@ import java.util.UUID;
  * @param userId        владелец; {@code null} для глобальных internal-тасок
  * @param agentId       агент-инициатор; {@code null} вне tool-use потока (декларативные таски,
  *                      webhooks); у динамической таски восстанавливается из строки при срабатывании
+ * @param runId         ран-инициатор вызова ({@code agent_runs.id}); {@code null} вне tool-use
+ *                      потока рана (webhooks, listing, джобы, lifecycle). Нужен учёту расхода
+ *                      «модель как инструмент» (media) для привязки usage к рану
  * @param channelId     исходный канал вызова: для tool-вызова — канал prompt-сессии (резолвится на
  *                      границе по {@code agentSessionId}); для динамической таски — снимок из строки
  *                      {@code connector_jobs}. {@code null} вне канального контекста. Нужен тулам,
@@ -27,6 +30,7 @@ public record ConnectorEnv(
         String connectionId,
         UUID userId,
         UUID agentId,
+        UUID runId,
         UUID channelId,
         UUID sessionId,
         Map<String, String> credentials,

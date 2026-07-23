@@ -23,23 +23,24 @@ public class ConnectorEnvFactory {
     private final SecretService secretService;
 
     /** Полная env коннектора-экземпляра: с расшифровкой credentials (тулы, таски). */
-    public ConnectorEnv forConnection(Connection connection, UUID agentId, UUID channelId) {
+    public ConnectorEnv forConnection(Connection connection, UUID agentId, UUID runId, UUID channelId) {
         // Webhook-секрет тулам не нужен — не расшифровываем на каждый dispatch.
-        return build(connection, decryptCredentials(connection), agentId, channelId, null);
+        return build(connection, decryptCredentials(connection), agentId, runId, channelId, null);
     }
 
     /** Env с уже известной мапой credentials — lifecycle-вызовы (setup/remove webhook). */
     public ConnectorEnv withCredentials(Connection connection, Map<String, String> decrypted, UUID agentId) {
-        return build(connection, decrypted, agentId, null, revealWebhookSecret(connection));
+        return build(connection, decrypted, agentId, null, null, revealWebhookSecret(connection));
     }
 
     /** Webhook hot path: валидация/нормализация не требует расшифрованных credentials. */
     public ConnectorEnv forWebhook(Connection connection) {
-        return build(connection, Map.of(), null, null, revealWebhookSecret(connection));
+        return build(connection, Map.of(), null, null, null, revealWebhookSecret(connection));
     }
 
-    public ConnectorEnv internal(String connectionId, UUID userId, UUID agentId, UUID channelId, UUID sessionId) {
-        return new ConnectorEnv(connectionId, userId, agentId, channelId, sessionId, Map.of(), null);
+    public ConnectorEnv internal(String connectionId, UUID userId, UUID agentId, UUID runId,
+                                 UUID channelId, UUID sessionId) {
+        return new ConnectorEnv(connectionId, userId, agentId, runId, channelId, sessionId, Map.of(), null);
     }
 
     /**
@@ -49,7 +50,7 @@ public class ConnectorEnvFactory {
      */
     public static ConnectorEnv listing(UUID connectionId) {
         return new ConnectorEnv(connectionId == null ? null : connectionId.toString(),
-                null, null, null, null, Map.of(), null);
+                null, null, null, null, null, Map.of(), null);
     }
 
     private Map<String, String> decryptCredentials(Connection connection) {
@@ -73,11 +74,12 @@ public class ConnectorEnvFactory {
     }
 
     private ConnectorEnv build(Connection connection, Map<String, String> decrypted,
-                                   UUID agentId, UUID channelId, String webhookSecret) {
+                                   UUID agentId, UUID runId, UUID channelId, String webhookSecret) {
         return new ConnectorEnv(
                 connection.getId().toString(),
                 connection.getUserId(),
                 agentId,
+                runId,
                 channelId,
                 null,
                 decrypted,

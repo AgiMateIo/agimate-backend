@@ -96,7 +96,8 @@ public class MediaToolService {
         if (env.userId() == null || env.agentId() == null) {
             throw new ConnectorException("media tools require agent identity");
         }
-        return new MediaCall(env.userId(), env.agentId(), UUIDUtils.generateUUIDv8().toString());
+        return new MediaCall(env.userId(), env.agentId(), env.runId(),
+                UUIDUtils.generateUUIDv8().toString());
     }
 
     /** Результат по конвенции files.md; отказ модели (без файла) — текст как результат. */

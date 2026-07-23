@@ -48,7 +48,8 @@ class MediaInferenceServiceTest {
 
     private final UUID userId = UUID.randomUUID();
     private final UUID agentId = UUID.randomUUID();
-    private final MediaCall call = new MediaCall(userId, agentId, "tc-42");
+    private final UUID runId = UUID.randomUUID();
+    private final MediaCall call = new MediaCall(userId, agentId, runId, "tc-42");
 
     @Mock
     private LlmCredentialsResolver credentialsResolver;
@@ -115,6 +116,7 @@ class MediaInferenceServiceTest {
                     ArgumentCaptor.forClass(LlmUsageService.UsageReport.class);
             verify(llmUsageService).record(usage.capture());
             assertEquals("media:tc-42", usage.getValue().callId());
+            assertEquals(runId, usage.getValue().runId());
             assertEquals(1290, usage.getValue().outputTokens());
             assertEquals(provider.getId(), usage.getValue().providerId());
         }

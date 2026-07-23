@@ -54,7 +54,7 @@ public class AgentToolCallService {
 
         try {
             ToolCallLog log = toolCallLogService.createLog(agent, request,
-                    request.getAgentSessionId(), decision.accessEffect(), decision.reason());
+                    request.getAgentSessionId(), request.getRunId(), decision.accessEffect(), decision.reason());
             return new EvaluationResult.Created(log, decision);
         } catch (DataIntegrityViolationException e) {
             // Concurrent insert with the same (agent_id, tool_call_id) — race lost.

@@ -49,10 +49,10 @@ public class MediaInferenceService {
     private final LlmUsageService llmUsageService;
 
     /**
-     * Идентичность вызова: владелец файлов/квот + агент-инициатор + идемпотентный id
-     * (у коннектора — external id строки tool_call_logs).
+     * Идентичность вызова: владелец файлов/квот + агент-инициатор + ран-инициатор (для привязки
+     * usage к рану; {@code null} вне рана) + идемпотентный id вызова.
      */
-    public record MediaCall(UUID userId, UUID agentId, String callId) {
+    public record MediaCall(UUID userId, UUID agentId, UUID runId, String callId) {
     }
 
     /**
@@ -148,7 +148,7 @@ public class MediaInferenceService {
             usage = new Usage(0, 0, null);
         }
         llmUsageService.record(new LlmUsageService.UsageReport(
-                USAGE_CALL_PREFIX + call.callId(), null, call.agentId(), call.userId(),
+                USAGE_CALL_PREFIX + call.callId(), call.runId(), call.agentId(), call.userId(),
                 resolved.provider().getId(), resolved.model(),
                 usage.inputTokens(), usage.outputTokens(), usage.cacheReadTokens(), null));
     }

@@ -162,7 +162,7 @@ public class TelegramConnectorService extends BaseConnectorHandler
             if (connection == null) {
                 return null;
             }
-            return envFactory.forConnection(connection, null, null).credentials().get("token");
+            return envFactory.forConnection(connection, null, null, null).credentials().get("token");
         } catch (Exception e) {
             log.warn("Failed to resolve Telegram token for media on connection {}: {}",
                     env.connectionId(), e.getClass().getSimpleName());

@@ -219,8 +219,10 @@ gRPC-листинг (`GetConnectionTools(connection_id)`) единообразн
 тулы по расписанию» (строка `connector_jobs` c `name` = имя тулы и `args` = её аргументы).
 
 `ConnectorEnv`: `connection_id` (= `connections.id` строкой; internal — `null`), `userId`, `agentId`,
-расшифрованные `credentials` (из `secrets` по `secret_id`), `webhookSecret`. Собирается только в
-`ConnectorEnvFactory`.
+`runId` (ран-инициатор `agent_runs.id`; `null` вне tool-use потока рана — джобы/webhooks/listing;
+приходит из `tool_call_logs.run_id`, нужен учёту media-usage для привязки к рану), `channelId`,
+`sessionId`, расшифрованные `credentials` (из `secrets` по `secret_id`), `webhookSecret`. Собирается
+только в `ConnectorEnvFactory`.
 
 Исключения: внутри коннекторного слоя — только `ConnectorException` (его сообщение безопасно отдаётся
 агенту в error tool-result). `*StatusException` — строго на HTTP-границе

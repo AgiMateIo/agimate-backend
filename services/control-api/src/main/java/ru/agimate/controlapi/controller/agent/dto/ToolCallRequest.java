@@ -42,4 +42,7 @@ public class ToolCallRequest implements IToolCall {
     @Schema(description = "Agent session identifier")
     private String agentSessionId;
 
+    @Schema(description = "Initiating agent run id (agent_runs.id); null for device/app-originated calls")
+    private String runId;
+
 }

@@ -39,7 +39,7 @@ class TimeToolServiceTest {
             new TimeConnectorService(new TimeToolService(jobService, triggerRouterService));
 
     private static ConnectorEnv env() {
-        return new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, Map.of(), null);
+        return new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, null, Map.of(), null);
     }
 
     @Test
@@ -75,7 +75,7 @@ class TimeToolServiceTest {
         UUID sessionId = UUID.randomUUID();
         when(jobService.schedule(any(), any(), any(), any(), any(), any(), any(), any()))
                 .thenReturn(ConnectorJob.builder().id(UUID.randomUUID()).build());
-        ConnectorEnv env = new ConnectorEnv(null, USER_ID, AGENT_ID, channelId, sessionId, Map.of(), null);
+        ConnectorEnv env = new ConnectorEnv(null, USER_ID, AGENT_ID, null, channelId, sessionId, Map.of(), null);
 
         handler.executeTool(env, "schedule", Map.of("prompt", "п", "delaySeconds", 60));
 
@@ -88,7 +88,7 @@ class TimeToolServiceTest {
     void fireCarriesChannelAndSession() {
         UUID channelId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
-        ConnectorEnv env = new ConnectorEnv(null, USER_ID, AGENT_ID, channelId, sessionId, Map.of(), null);
+        ConnectorEnv env = new ConnectorEnv(null, USER_ID, AGENT_ID, null, channelId, sessionId, Map.of(), null);
 
         handler.executeJob(env, "fire", Map.of("prompt", "Выпей воды."));
 

@@ -52,12 +52,13 @@ public class JobExecutionService {
                     .filter(Connection::isActive)
                     .orElseThrow(() -> new ConnectorException(
                             "Connection missing or disabled: " + row.getConnectionId()));
-            return envFactory.forConnection(connection, null, null);
+            return envFactory.forConnection(connection, null, null, null);
         }
         // Полный контекст инициатора (userId/agentId/channelId/sessionId сохранены в строке при
         // планировании) — динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.
+        // runId у джобы нет: это отложенное исполнение вне рана-инициатора.
         return envFactory.internal(
-                row.getConnectionId(), row.getUserId(), row.getAgentId(), row.getChannelId(),
+                row.getConnectionId(), row.getUserId(), row.getAgentId(), null, row.getChannelId(),
                 row.getSessionId());
     }
 

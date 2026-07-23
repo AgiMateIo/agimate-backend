@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BaseConnectorHandlerTest {
 
     private static final ConnectorEnv CONTEXT = new ConnectorEnv(
-            "connectionId-1", UUID.randomUUID(), UUID.randomUUID(), null, null, Map.of("token", "secret"), null);
+            "connectionId-1", UUID.randomUUID(), UUID.randomUUID(), null, null, null, Map.of("token", "secret"), null);
 
     private TestToolService toolService;
     private TestConnectorService handler;

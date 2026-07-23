@@ -39,7 +39,7 @@ public class ToolCallLogService {
 
     @Transactional
     public ToolCallLog createLog(Agent agent, IToolCall toolCall, String agentSessionId,
-                                AccessEffect effect, String error) {
+                                String runId, AccessEffect effect, String error) {
         var toolCallLog = ToolCallLog.builder()
                 .agentId(agent.getId())
                 .userId(agent.getUserId())
@@ -49,11 +49,24 @@ public class ToolCallLogService {
                 .name(toolCall.getName())
                 .input(toolCall.getInput())
                 .agentSessionId(agentSessionId)
+                .runId(parseUuidOrNull(runId))
                 .accessEffect(effect)
                 .error(error)
                 .build();
 
         return toolCallLogRepository.save(toolCallLog);
+    }
+
+    /** Ран-инициатор из строкового run_id воркера; не-UUID/пусто → null (тул вне рана). */
+    private static UUID parseUuidOrNull(String runId) {
+        if (runId == null || runId.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(runId);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**

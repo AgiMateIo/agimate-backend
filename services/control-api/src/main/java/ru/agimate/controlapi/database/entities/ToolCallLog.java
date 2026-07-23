@@ -57,6 +57,9 @@ public class ToolCallLog extends BaseEntity {
     @Column(name = "agent_session_id", columnDefinition = "TEXT")
     private String agentSessionId;
 
+    @Column(name = "run_id")
+    private UUID runId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "access_effect", columnDefinition = "TEXT")
     private AccessEffect accessEffect;

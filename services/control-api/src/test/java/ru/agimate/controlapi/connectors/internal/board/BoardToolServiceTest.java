@@ -45,7 +45,7 @@ class BoardToolServiceTest {
             mock(BoardRepository.class), fileStorageService));
 
     private static ConnectorEnv env() {
-        return new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, Map.of(), null);
+        return new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, null, Map.of(), null);
     }
 
     private void stubAgent() {

@@ -27,7 +27,7 @@ class DivinationToolServiceTest {
     @BeforeEach
     void setUp() {
         handler = new DivinationConnectorService(new DivinationToolService());
-        env = new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, Map.of(), null);
+        env = new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, null, Map.of(), null);
     }
 
     @Test
@@ -69,7 +69,7 @@ class DivinationToolServiceTest {
         assertEquals(true, first.get("sameForWholeDay"));
         assertNotNull(((Map<?, ?>) first.get("card")).get("keywords"));
 
-        ConnectorEnv noUser = new ConnectorEnv(null, null, AGENT_ID, null, null, Map.of(), null);
+        ConnectorEnv noUser = new ConnectorEnv(null, null, AGENT_ID, null, null, null, Map.of(), null);
         assertThrows(ConnectorException.class,
                 () -> handler.executeTool(noUser, "tarot_card_of_day", args));
     }

@@ -31,7 +31,7 @@ class AstroToolServiceTest {
     @BeforeEach
     void setUp() {
         handler = new AstroConnectorService(new AstroToolService());
-        env = new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, Map.of(), null);
+        env = new ConnectorEnv(null, USER_ID, AGENT_ID, null, null, null, Map.of(), null);
     }
 
     private Map<String, Object> call(String tool, Map<String, Object> args) {

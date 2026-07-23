@@ -497,7 +497,7 @@ public class RunContextService {
                 continue;
             }
             ConnectorEnv env = envFactory.internal(
-                    connection.getId().toString(), agent.getUserId(), agent.getId(), promptChannelId, null);
+                    connection.getId().toString(), agent.getUserId(), agent.getId(), null, promptChannelId, null);
             List<PromptBlock> blocks;
             try {
                 blocks = provider.promptBlocks(env);
@@ -668,7 +668,7 @@ public class RunContextService {
                 continue;
             }
             ConnectorEnv listingEnv = connection.getId().equals(sessionAwareConnectionId)
-                    ? envFactory.internal(connection.getId().toString(), null, null, null, promptSessionId)
+                    ? envFactory.internal(connection.getId().toString(), null, null, null, null, promptSessionId)
                     : ConnectorEnvFactory.listing(connection.getId());
             Map<String, ConnectorToolSpec> specs = switch (connector.getDefinitionBinding()) {
                 case STATIC -> connectorRegistry
