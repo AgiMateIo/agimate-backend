@@ -20,11 +20,13 @@ import ru.agimate.controlapi.database.repositories.BoardRepository;
 import ru.agimate.controlapi.service.board.BoardService;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCreateCommand;
-import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangeCommand;
+import ru.agimate.controlapi.service.dto.board.BoardTaskEditCommand;
+import ru.agimate.controlapi.service.dto.board.BoardTaskResponse;
 import ru.agimate.controlapi.storage.FileIds;
 import ru.agimate.controlapi.storage.FileStorageService;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -55,12 +57,37 @@ public class BoardToolService {
     private final BoardRepository boardRepository;
     private final FileStorageService fileStorageService;
 
-    @Tool(name = "get_tasks", description = "Get all tasks from the board grouped by status",
+    @Tool(name = "get_tasks",
+            description = "List board tasks grouped by status — compact (no descriptions, use get_task "
+                    + "for details). Optional filters: status, assignee",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
-    public Map<String, Object> getTasks() {
-        Board board = resolveBoard(resolveAgent());
-        var result = domain(() -> boardService.getTasksByStatus(board.getId(), userId()));
-        return Map.of("tasks", result);
+    public Map<String, Object> getTasks(
+            @ToolParam(value = "Filter by status (BACKLOG, IN_PROGRESS, REVIEW, DONE)", required = false)
+            String status,
+            @ToolParam(value = "Filter by assignee: agent public ID or 'me'", required = false)
+            String assigneeAgentId) {
+        Agent agent = resolveAgent();
+        Board board = resolveBoard(agent);
+        BoardTaskStatus statusFilter = parseStatus(status);
+        UUID assigneeFilter = resolveAgentRef(assigneeAgentId, agent);
+        var result = domain(() ->
+                boardService.getTasksByStatus(board.getId(), userId(), statusFilter, assigneeFilter));
+        // Компактный листинг: description/таймстемпы за get_task — обзор доски не раздувает контекст.
+        Map<String, Object> grouped = new LinkedHashMap<>();
+        result.tasks().forEach((s, list) ->
+                grouped.put(s.name(), list.stream().map(BoardToolService::compactTask).toList()));
+        return Map.of("tasks", grouped);
+    }
+
+    @Tool(name = "get_task",
+            description = "Get a task card: full task with description, closest epic, parent task, "
+                    + "subtasks and recent comments",
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
+    public Map<String, Object> getTask(
+            @ToolParam("Task public ID") String taskId) {
+        UUID taskUuid = parseUuid(taskId, "taskId");
+        var result = domain(() -> boardService.getTaskCard(null, taskUuid, userId()));
+        return Map.of("task", result);
     }
 
     @Tool(name = "create_task", description = "Create a new task on the board",
@@ -98,30 +125,33 @@ public class BoardToolService {
         return Map.of("task", result);
     }
 
-    @Tool(name = "change_task_status", description = "Change the status of a task",
+    @Tool(name = "edit_task",
+            description = "Edit a task: title, description, assignee and/or status. Omitted fields "
+                    + "stay unchanged; at least one is required",
             annotations = @ToolAnnotations(openWorldHint = false))
-    public Map<String, Object> changeTaskStatus(
+    public Map<String, Object> editTask(
             @ToolParam("Task public ID") String taskId,
-            @ToolParam("New status") String status) {
-        if (taskId == null || taskId.isBlank()) {
-            throw new ConnectorException("Parameter 'taskId' is required");
-        }
-        if (status == null || status.isBlank()) {
-            throw new ConnectorException("Parameter 'status' is required");
-        }
-
+            @ToolParam(value = "New title", required = false) String title,
+            @ToolParam(value = "New description", required = false) String description,
+            @ToolParam(value = "Assignee: agent public ID or 'me' to take the task. Allowed only if "
+                    + "the task is unassigned or assigned to you", required = false)
+            String assigneeAgentId,
+            @ToolParam(value = "New status (BACKLOG, IN_PROGRESS, REVIEW, DONE)", required = false)
+            String status) {
         Agent agent = resolveAgent();
-
         UUID taskUuid = parseUuid(taskId, "taskId");
-        BoardTaskStatus taskStatus;
-        try {
-            taskStatus = BoardTaskStatus.valueOf(status.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new ConnectorException("Invalid status: '" + status + "'");
+
+        String newTitle = blankToNull(title);
+        String newDescription = blankToNull(description);
+        UUID assignee = resolveAgentRef(assigneeAgentId, agent);
+        BoardTaskStatus newStatus = parseStatus(status);
+        if (newTitle == null && newDescription == null && assignee == null && newStatus == null) {
+            throw new ConnectorException(
+                    "At least one of title, description, assigneeAgentId, status is required");
         }
 
-        var command = new BoardTaskStatusChangeCommand(taskStatus, agent.getId());
-        var result = domain(() -> boardService.changeTaskStatus(null, taskUuid, userId(), command));
+        var command = new BoardTaskEditCommand(agent.getId(), newTitle, newDescription, assignee, newStatus);
+        var result = domain(() -> boardService.editTask(null, taskUuid, userId(), command));
         return Map.of("task", result);
     }
 
@@ -186,6 +216,49 @@ public class BoardToolService {
         } catch (BaseHttpStatusException e) {
             throw new ConnectorException(e.getMessage());
         }
+    }
+
+    /** Компактная строка листинга: id/type/title + адресация (assignee/parent), без description. */
+    private static Map<String, Object> compactTask(BoardTaskResponse task) {
+        Map<String, Object> compact = new LinkedHashMap<>();
+        compact.put("id", task.id());
+        compact.put("type", task.type().name());
+        compact.put("title", task.title());
+        if (task.assigneeAgentId() != null) {
+            compact.put("assigneeAgentId", task.assigneeAgentId());
+        }
+        if (task.parentTaskId() != null) {
+            compact.put("parentTaskId", task.parentTaskId());
+        }
+        return compact;
+    }
+
+    /** {@code null}-tolerant разбор статуса; blank → {@code null} (фильтр/поле не заданы). */
+    private static BoardTaskStatus parseStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        try {
+            return BoardTaskStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ConnectorException("Invalid status: '" + status + "'. "
+                    + "Allowed: BACKLOG, IN_PROGRESS, REVIEW, DONE");
+        }
+    }
+
+    /** Ссылка на агента из аргумента: {@code "me"} → вызывающий агент, иначе UUID; blank → {@code null}. */
+    private UUID resolveAgentRef(String value, Agent self) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        if ("me".equalsIgnoreCase(value)) {
+            return self.getId();
+        }
+        return parseUuid(value, "assigneeAgentId");
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     /** Разобрать UUID из аргумента агента, сообщив ему внятную ошибку вместо «Tool execution failed». */

@@ -58,10 +58,12 @@ public class BoardConnectorService extends BaseConnectorHandler
                                 "createdByAgentId", "assigneeAgentId", "parentTaskId", "parentTaskTitle"),
                         BOARD_EVENT_CONTEXT),
                 BoardService.TASK_CHANGED_TRIGGER, new TriggerSpec(
-                        "A board task changed: change=status (status moved, see previousStatus) "
-                                + "or change=comment (a comment was added)",
+                        "A board task changed: change=status (status moved, see previousStatus), "
+                                + "change=comment (a comment was added) or change=edited "
+                                + "(fields edited, see changedFields)",
                         List.of("boardId", "taskId", "type", "title", "status", "change",
-                                "previousStatus", "commentId", "comment", "actorAgentId",
+                                "previousStatus", "commentId", "comment", "changedFields",
+                                "previousAssigneeAgentId", "actorAgentId",
                                 "assigneeAgentId", "parentTaskId"),
                         BOARD_EVENT_CONTEXT));
     }

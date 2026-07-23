@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface BoardTaskCommentRepository extends JpaRepository<BoardTaskComment, UUID> {
 
     List<BoardTaskComment> findByBoardTaskIdOrderByCreatedAtAsc(UUID boardTaskId);
+
+    List<BoardTaskComment> findTop10ByBoardTaskIdOrderByCreatedAtDesc(UUID boardTaskId);
 }

@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgenticTeam;
 import ru.agimate.controlapi.database.entities.Board;
@@ -21,6 +22,7 @@ import ru.agimate.controlapi.database.repositories.*;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCreateCommand;
+import ru.agimate.controlapi.service.dto.board.BoardTaskEditCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangeCommand;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
@@ -30,6 +32,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -186,6 +189,94 @@ class BoardServiceTriggerTest {
             assertEquals(WORKER_ID, trigger.context().audience().actorAgentId());
             // Участники: createdBy + assignee; актор (worker) отфильтруется в TriggerAudience.filter.
             assertTrue(trigger.context().audience().targetAgentIds().containsAll(List.of(LEAD_ID, WORKER_ID)));
+        }
+    }
+
+    @Nested
+    @DisplayName("editTask")
+    class EditTask {
+
+        private BoardTask task(UUID assigneeId) {
+            BoardTask task = BoardTask.builder()
+                    .id(UUID.randomUUID())
+                    .boardId(BOARD_ID)
+                    .userId(USER_ID)
+                    .type(BoardTaskType.TASK)
+                    .title("t")
+                    .description("d")
+                    .createdByAgentId(LEAD_ID)
+                    .assigneeAgentId(assigneeId)
+                    .build();
+            when(boardTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
+            return task;
+        }
+
+        @Test
+        @DisplayName("правка полей без статуса: change=edited + changedFields")
+        void contentEditEmitsEdited() {
+            modeConnectionExists();
+            BoardTask task = task(WORKER_ID);
+
+            service.editTask(null, task.getId(), USER_ID, new BoardTaskEditCommand(
+                    WORKER_ID, "new title", "new description", null, null));
+
+            Trigger trigger = routedTrigger();
+            assertEquals("task_changed", trigger.name());
+            assertEquals("edited", trigger.data().get("change"));
+            assertEquals(List.of("title", "description"), trigger.data().get("changedFields"));
+            assertEquals("new title", trigger.data().get("title"));
+            assertEquals(WORKER_ID.toString(), trigger.data().get("actorAgentId"));
+        }
+
+        @Test
+        @DisplayName("статус в правке приоритетен: change=status + previousStatus + changedFields")
+        void statusWinsDiscriminator() {
+            modeConnectionExists();
+            BoardTask task = task(WORKER_ID);
+
+            service.editTask(null, task.getId(), USER_ID, new BoardTaskEditCommand(
+                    WORKER_ID, "new title", null, null, BoardTaskStatus.IN_PROGRESS));
+
+            Trigger trigger = routedTrigger();
+            assertEquals("status", trigger.data().get("change"));
+            assertEquals("BACKLOG", trigger.data().get("previousStatus"));
+            assertEquals(List.of("title", "status"), trigger.data().get("changedFields"));
+        }
+
+        @Test
+        @DisplayName("claim: свободную задачу можно взять на себя (change=edited, assignee)")
+        void claimUnassigned() {
+            modeConnectionExists();
+            BoardTask task = task(null);
+
+            service.editTask(null, task.getId(), USER_ID, new BoardTaskEditCommand(
+                    WORKER_ID, null, null, WORKER_ID, null));
+
+            Trigger trigger = routedTrigger();
+            assertEquals("edited", trigger.data().get("change"));
+            assertEquals(List.of("assignee"), trigger.data().get("changedFields"));
+            assertEquals(WORKER_ID.toString(), trigger.data().get("assigneeAgentId"));
+        }
+
+        @Test
+        @DisplayName("claim: перехват чужой задачи запрещён")
+        void claimAssignedToOtherRejected() {
+            BoardTask task = task(LEAD_ID);
+
+            assertThrows(BadRequestStatusException.class, () ->
+                    service.editTask(null, task.getId(), USER_ID, new BoardTaskEditCommand(
+                            WORKER_ID, null, null, WORKER_ID, null)));
+        }
+
+        @Test
+        @DisplayName("no-op (значения совпали) — триггер не эмитится")
+        void noopEmitsNothing() {
+            BoardTask task = task(WORKER_ID);
+
+            service.editTask(null, task.getId(), USER_ID, new BoardTaskEditCommand(
+                    WORKER_ID, "t", "d", WORKER_ID, BoardTaskStatus.BACKLOG));
+
+            verify(triggerRouterService, never()).routeTrigger(any(), any());
         }
     }
 

@@ -6,5 +6,6 @@ import lombok.experimental.UtilityClass;
 public class BoardEventType {
     public static final String TASK_CREATED = "board.task.created";
     public static final String TASK_STATUS_CHANGED = "board.task.statusChanged";
+    public static final String TASK_UPDATED = "board.task.updated";
     public static final String COMMENT_CREATED = "board.task.commentAdded";
 }

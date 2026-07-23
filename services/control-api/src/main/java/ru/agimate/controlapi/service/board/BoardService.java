@@ -15,6 +15,9 @@ import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.dto.board.BoardCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardEventType;
 import ru.agimate.controlapi.service.dto.board.BoardResponse;
+import ru.agimate.controlapi.service.dto.board.BoardTaskCardResponse;
+import ru.agimate.controlapi.service.dto.board.BoardTaskEditCommand;
+import ru.agimate.controlapi.service.dto.board.BoardTaskUpdatedEvent;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreatedEvent;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCommentResponse;
@@ -102,17 +105,28 @@ public class BoardService {
     // ---- Tasks ----
 
     public BoardTasksByStatusResponse getTasksByStatus(UUID boardId, UUID userId) {
+        return getTasksByStatus(boardId, userId, null, null);
+    }
+
+    /** Листинг с опциональными фильтрами; {@code null}-фильтр = без сужения. */
+    public BoardTasksByStatusResponse getTasksByStatus(UUID boardId, UUID userId,
+                                                       BoardTaskStatus statusFilter, UUID assigneeFilter) {
         Board board = findBoardById(boardId);
         validateBoardOwnership(board, userId);
 
-        List<BoardTask> tasks = boardTaskRepository.findByBoardIdOrderByCreatedAtDesc(board.getId());
+        List<BoardTask> tasks = boardTaskRepository.findByBoardIdOrderByCreatedAtDesc(board.getId()).stream()
+                .filter(t -> statusFilter == null || t.getStatus() == statusFilter)
+                .filter(t -> assigneeFilter == null || assigneeFilter.equals(t.getAssigneeAgentId()))
+                .toList();
         Map<UUID, Agent> agentsById = resolveAgentsForTasks(tasks);
         Map<UUID, BoardTask> tasksById = tasks.stream()
                 .collect(Collectors.toMap(BoardTask::getId, Function.identity()));
 
         Map<BoardTaskStatus, List<BoardTaskResponse>> grouped = new LinkedHashMap<>();
         for (BoardTaskStatus status : BoardTaskStatus.values()) {
-            grouped.put(status, new ArrayList<>());
+            if (statusFilter == null || status == statusFilter) {
+                grouped.put(status, new ArrayList<>());
+            }
         }
 
         for (BoardTask task : tasks) {
@@ -121,6 +135,52 @@ public class BoardService {
         }
 
         return new BoardTasksByStatusResponse(grouped);
+    }
+
+    /**
+     * Карточка задачи: сама задача + вертикаль иерархии (ближайший EPIC, родитель, сабтаски)
+     * + хвост комментариев (последние {@code 10}, хронологически). Точечная альтернатива
+     * полной выгрузке доски.
+     */
+    public BoardTaskCardResponse getTaskCard(UUID boardId, UUID taskId, UUID userId) {
+        BoardTask task = requireTaskInBoard(boardId, taskId);
+        Board board = boardRepository.findById(task.getBoardId())
+                .orElseThrow(() -> new NotFoundStatusException("Board not found"));
+        validateBoardOwnership(board, userId);
+
+        BoardTask parent = task.getParentTaskId() != null
+                ? boardTaskRepository.findById(task.getParentTaskId()).orElse(null)
+                : null;
+        // Ближайший EPIC вверх: для TASK — родитель, для SUBTASK — родитель родителя (TASK → EPIC).
+        BoardTask epic = null;
+        if (parent != null) {
+            epic = parent.getType() == BoardTaskType.EPIC ? parent
+                    : parent.getParentTaskId() != null
+                        ? boardTaskRepository.findById(parent.getParentTaskId()).orElse(null)
+                        : null;
+        }
+
+        List<BoardTaskCardResponse.TaskRef> subtasks = boardTaskRepository.findByParentTaskId(task.getId())
+                .stream()
+                .sorted(Comparator.comparing(BoardTask::getCreatedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(BoardTaskCardResponse.TaskRef::from)
+                .toList();
+
+        List<BoardTaskCommentResponse> comments = new ArrayList<>(boardTaskCommentRepository
+                .findTop10ByBoardTaskIdOrderByCreatedAtDesc(task.getId()).stream()
+                .map(c -> BoardTaskCommentResponse.from(c, c.getAgentId()))
+                .toList());
+        Collections.reverse(comments);
+
+        return new BoardTaskCardResponse(
+                BoardTaskResponse.from(task, task.getCreatedByAgentId(),
+                        task.getAssigneeAgentId(), task.getParentTaskId()),
+                epic != null && epic.getType() == BoardTaskType.EPIC
+                        ? BoardTaskCardResponse.TaskRef.from(epic) : null,
+                parent != null ? BoardTaskCardResponse.TaskRef.from(parent) : null,
+                subtasks,
+                comments);
     }
 
     @Transactional
@@ -228,42 +288,98 @@ public class BoardService {
 
     @Transactional
     public BoardTaskResponse changeTaskStatus(UUID boardId, UUID taskId, UUID userId, BoardTaskStatusChangeCommand command) {
+        return editTask(boardId, taskId, userId,
+                new BoardTaskEditCommand(command.agentId(), null, null, null, command.status()));
+    }
+
+    /**
+     * Частичная правка задачи ({@code null}-поле = «не менять»); поле, совпавшее с текущим
+     * значением, изменением не считается — без изменений нет ни триггера, ни событий.
+     *
+     * <p>Assignee — claim-семантика: назначить можно только неназначенную задачу или переназначить
+     * с себя; перехват чужой запрещён — при гонке «кто возьмёт» побеждает первый. Дискриминатор
+     * триггера приоритетом: менялся статус → {@code change=status} (workflow-значимое событие,
+     * фильтры по нему работают), иначе {@code change=edited}; полный список — {@code changedFields}.
+     */
+    @Transactional
+    public BoardTaskResponse editTask(UUID boardId, UUID taskId, UUID userId, BoardTaskEditCommand command) {
         BoardTask task = requireTaskInBoard(boardId, taskId);
         Board board = boardRepository.findById(task.getBoardId())
                 .orElseThrow(() -> new NotFoundStatusException("Board not found"));
         validateBoardOwnership(board, userId);
+        Agent actor = resolveTeamAgent(board, command.actorAgentId());
 
-        resolveTeamAgent(board, command.agentId());
-
-        BoardTaskStatus oldStatus = task.getStatus();
-        task.setStatus(command.status());
-        task = boardTaskRepository.save(task);
-
-        log.info("Changed task {} status from {} to {}", taskId, oldStatus, command.status());
-
-        Map<String, Object> triggerData = taskSnapshot(task);
-        triggerData.put("change", "status");
-        triggerData.put("previousStatus", oldStatus.name());
-        triggerData.put("actorAgentId", command.agentId().toString());
+        List<String> changedFields = new ArrayList<>();
+        if (command.title() != null && !command.title().isBlank()
+                && !command.title().equals(task.getTitle())) {
+            task.setTitle(command.title());
+            changedFields.add("title");
+        }
+        if (command.description() != null && !command.description().equals(task.getDescription())) {
+            task.setDescription(command.description());
+            changedFields.add("description");
+        }
+        UUID previousAssigneeId = task.getAssigneeAgentId();
+        boolean assigneeChanged = false;
+        if (command.assigneeAgentId() != null && !command.assigneeAgentId().equals(previousAssigneeId)) {
+            if (previousAssigneeId != null && !previousAssigneeId.equals(actor.getId())) {
+                throw new BadRequestStatusException("Task is already assigned to another agent");
+            }
+            resolveTeamAgent(board, command.assigneeAgentId());
+            task.setAssigneeAgentId(command.assigneeAgentId());
+            changedFields.add("assignee");
+            assigneeChanged = true;
+        }
+        BoardTaskStatus previousStatus = task.getStatus();
+        boolean statusChanged = command.status() != null && command.status() != previousStatus;
+        if (statusChanged) {
+            task.setStatus(command.status());
+            changedFields.add("status");
+        }
 
         Map<UUID, Agent> agentsById = resolveAgentsForTasks(List.of(task));
+        if (changedFields.isEmpty()) {
+            return toBoardTaskResponse(task, agentsById, parentById(task));
+        }
+        task = boardTaskRepository.save(task);
+        log.info("Edited task {}: {}", taskId, changedFields);
+
+        Map<String, Object> triggerData = taskSnapshot(task);
+        triggerData.put("change", statusChanged ? "status" : "edited");
+        if (statusChanged) {
+            triggerData.put("previousStatus", previousStatus.name());
+        }
+        triggerData.put("changedFields", List.copyOf(changedFields));
+        if (assigneeChanged && previousAssigneeId != null) {
+            triggerData.put("previousAssigneeAgentId", previousAssigneeId.toString());
+        }
+        triggerData.put("actorAgentId", actor.getId().toString());
+
         routeBoardTrigger(userId, board, TASK_CHANGED_TRIGGER, triggerData,
-                new TriggerAudience(command.agentId(), resolveTaskParticipantIds(task, agentsById)));
+                new TriggerAudience(actor.getId(), resolveTaskParticipantIds(task, agentsById)));
 
-        publishBoardEvent(userId, board.getId(), BoardEventType.TASK_STATUS_CHANGED,
-                new BoardTaskStatusChangedEvent(
-                        board.getId(),
-                        task.getId(),
-                        oldStatus,
-                        command.status()
-                ));
+        if (statusChanged) {
+            publishBoardEvent(userId, board.getId(), BoardEventType.TASK_STATUS_CHANGED,
+                    new BoardTaskStatusChangedEvent(
+                            board.getId(),
+                            task.getId(),
+                            previousStatus,
+                            task.getStatus()
+                    ));
+        }
+        if (changedFields.size() > (statusChanged ? 1 : 0)) {
+            publishBoardEvent(userId, board.getId(), BoardEventType.TASK_UPDATED,
+                    new BoardTaskUpdatedEvent(board.getId(), task.getId(), List.copyOf(changedFields)));
+        }
 
-        Map<UUID, BoardTask> tasksById = task.getParentTaskId() != null
+        return toBoardTaskResponse(task, agentsById, parentById(task));
+    }
+
+    private Map<UUID, BoardTask> parentById(BoardTask task) {
+        return task.getParentTaskId() != null
                 ? boardTaskRepository.findById(task.getParentTaskId())
-                    .map(p -> Map.of(p.getId(), p)).orElse(Map.of())
+                    .map(p -> Map.of(p.getId(), p)).orElse(Map.<UUID, BoardTask>of())
                 : Map.of();
-
-        return toBoardTaskResponse(task, agentsById, tasksById);
     }
 
     // ---- Comments ----

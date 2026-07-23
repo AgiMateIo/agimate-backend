@@ -178,7 +178,8 @@ PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
 `historyLimit=0` — материал уже в `data`, тела подошедших скиллов остаются: memory-скилл и есть
 инструкция обработки), board-триггеры `task_created`/`task_changed` (guidance+`ownConnectionTools=true` —
 событие доски действуемо её тулами без скилла; `task_changed` несёт снапшот задачи и дискриминатор
-`change: status|comment` — плоский, чтобы фильтроваться ABAC `params_filter`).
+`change: status|comment|edited` — плоский, чтобы фильтроваться ABAC `params_filter`; при правке
+со сменой статуса приоритет у `status`, полный список — `changedFields`).
 
 Коннектор состоит из двух классов:
 
