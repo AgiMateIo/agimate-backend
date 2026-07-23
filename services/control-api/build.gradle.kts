@@ -54,7 +54,7 @@ dependencies {
     implementation("io.github.cosinekitty:astronomy")
 
     // S3-совместимое хранилище файлового слоя коннекторов (docs/connectors/files.md)
-    implementation(platform("software.amazon.awssdk:bom:2.46.7"))
+    implementation(platform("software.amazon.awssdk:bom:2.49.1"))
     implementation("software.amazon.awssdk:s3")
 
     implementation("dev.dbos:transact:1.0.0")
