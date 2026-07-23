@@ -48,6 +48,9 @@ spring:
   liquibase:
     enabled: true
     change-log: classpath:db/changelog/db.changelog-master.yaml
+    # Liquibase Analytics стучится на config.liquibase.com в main-потоке при старте
+    # (+2–5 c к старту, внешний beacon с телеметрией). Выключаем.
+    analytics-enabled: false
   servlet:
     multipart:
       # Аплоад файлов device-apps (/app/files); содержательный лимит — app.files.max-file-size-bytes
