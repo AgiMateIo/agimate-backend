@@ -39,7 +39,7 @@ blocks and never branches on input kind:
 
 | Policy | `DIALOGUE` | `SYSTEM_TRIGGER` |
 |---|---|---|
-| Skills | all listed, **no bodies** | all listed, bodies of **matched** skills injected |
+| Skills | all listed, **all bodies** injected (skills define dialogue behavior too) | all listed, bodies of **matched** skills injected |
 | Toolset | connectors of **all** skills | connectors of **matched** skills only |
 | System prompt | base | base + trigger guidance («часто правильный исход — ничего не делать») |
 | User turn | inbound text as a trusted block | event as an **untrusted** block (renderer wraps it) |

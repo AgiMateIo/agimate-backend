@@ -9,8 +9,9 @@ import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
  * по источнику. {@code directives == null} (триггер без декларации, в т.ч. любой динамический)
  * даёт ровно базовый пресет.
  *
- * @param loadSkillBodies    инжектить тела подошедших триггеру скиллов (route-пресет; директивами
- *                           не переопределяется — тела и есть инструкции обработки триггера)
+ * @param skillBodies        какие тела скиллов инжектить (route-пресет; директивами не
+ *                           переопределяется — в диалоге тела задают поведение, в trigger-ране
+ *                           они и есть инструкции обработки)
  * @param triggerGuidance    добавлять system-блок trigger guidance (route-пресет)
  * @param historyDetail      детализация истории (route-пресет)
  * @param historyLimit       окно истории; {@code 0} — история не загружается
@@ -21,7 +22,7 @@ import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
  * @param guidance           trusted user-блок перед блоком события; {@code null} — нет
  */
 record EffectiveContext(
-        boolean loadSkillBodies,
+        ContextSpec.SkillBodies skillBodies,
         boolean triggerGuidance,
         ContextSpec.HistoryDetail historyDetail,
         int historyLimit,
@@ -37,12 +38,12 @@ record EffectiveContext(
 
     static EffectiveContext of(ContextSpec base, ContextDirectives d) {
         if (d == null) {
-            return new EffectiveContext(base.loadsSkillBodies(), base.appendsTriggerGuidance(),
+            return new EffectiveContext(base.skillBodies(), base.appendsTriggerGuidance(),
                     base.historyDetail(), DEFAULT_HISTORY_LIMIT, true, false,
                     ContextDirectives.Presentation.EVENT, null, null);
         }
         return new EffectiveContext(
-                base.loadsSkillBodies(),
+                base.skillBodies(),
                 base.appendsTriggerGuidance(),
                 base.historyDetail(),
                 d.historyLimit() != null ? d.historyLimit() : DEFAULT_HISTORY_LIMIT,

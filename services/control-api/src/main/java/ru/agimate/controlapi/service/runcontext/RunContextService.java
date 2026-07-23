@@ -72,7 +72,8 @@ import java.util.stream.Collectors;
  * скиллами. Воркер получает готовые упорядоченные блоки и только рендерит их.
  *
  * <p>Порядок system-блоков — контракт (стабильные первыми, дружелюбно к prompt-cache):
- * agent → инструкции агента → блоки коннекторов → team → skills → тела подошедших скиллов →
+ * agent → инструкции агента → блоки коннекторов → team → skills → тела скиллов (в диалоге — все,
+ * в trigger-ране — подошедшие коннектору события) →
  * trigger guidance. Основной промпт рана — последний user-блок.
  */
 @Slf4j
@@ -160,12 +161,13 @@ public class RunContextService {
         EffectiveContext effective = EffectiveContext.of(spec, declaredDirectives(trigger));
 
         // Скиллы: тулы — от ВСЕХ скиллов агента: содержание делегированной через триггер задачи
-        // не связано с коннектором события (задача с доски может требовать media). По триггеру
-        // скоупятся только тела скиллов, попадающие в промпт (SYSTEM_TRIGGER).
+        // не связано с коннектором события (задача с доски может требовать media). Тела: в диалоге —
+        // все (скиллы задают поведение и там), в trigger-ране скоупятся по коннектору события.
         List<AgentSkillWithConnectorsResponse> listed = listedSkills(agentId);
-        List<AgentSkillWithConnectorsResponse> scoped = spec.loadsSkillBodies()
-                ? matchedSkills(listed, trigger)
-                : listed;
+        List<AgentSkillWithConnectorsResponse> scoped = switch (spec.skillBodies()) {
+            case ALL -> listed;
+            case MATCHED -> matchedSkills(listed, trigger);
+        };
         Set<String> requiredConnectors = new LinkedHashSet<>();
         if (effective.skillTools()) {
             listed.forEach(s -> requiredConnectors.addAll(s.connectorCodes()));
@@ -200,9 +202,7 @@ public class RunContextService {
         if (!listed.isEmpty()) {
             systemBlocks.add(skillsBlock(listed));
         }
-        if (spec.loadsSkillBodies()) {
-            systemBlocks.addAll(skillBodyBlocks(scoped));
-        }
+        systemBlocks.addAll(skillBodyBlocks(scoped));
         if (!tools.isEmpty()) {
             systemBlocks.add(RunBlock.trusted("tool_guidance", "guidance", TOOL_CALL_GUIDANCE, Map.of()));
         }

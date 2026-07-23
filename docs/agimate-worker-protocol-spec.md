@@ -264,8 +264,8 @@ Read-поверхность схлопнута в один вызов: `GetRunCo
 (`run_id` = `agent_runs.id` = DBOS workflow id рана). Сборка — `RunContextService`
 (`service/runcontext/`): политика `ContextSpec` (DIALOGUE при prompt-канале в снапшоте
 `agent_runs.channels`, иначе SYSTEM_TRIGGER), упорядоченные `PromptBlock`-и
-(agent → инструкции → блоки `PromptBlockProvider`-коннекторов → team → skills → тела подошедших
-скиллов → trigger guidance; основной промпт — последний user-блок, событие триггера — untrusted),
+(agent → инструкции → блоки `PromptBlockProvider`-коннекторов → team → skills → тела скиллов (DIALOGUE — все,
+SYSTEM_TRIGGER — подошедшие коннектору события) → trigger guidance; основной промпт — последний user-блок, событие триггера — untrusted),
 тулы после binding-гейта и скоупа скиллов, история сессии «как видел пользователь»
 (только завершённые раны: completed=true; окно и фильтр historyDetail — на бэке). Воркер только
 рендерит блоки — см.

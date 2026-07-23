@@ -401,6 +401,29 @@ class RunContextServiceTest {
         }
 
         @Test
+        @DisplayName("тела ВСЕХ скиллов агента инжектятся в диалог (SkillBodies.ALL)")
+        void allSkillBodiesLoaded() {
+            Agent agent = agent();
+            Channels channels = Channels.ofPrompt(new ChannelInfo(CHANNEL_ID, SESSION_ID, null));
+            stubRun(run(agent, triggerLog("webchat", "message_received"), channels));
+            UUID mediaSkill = UUID.randomUUID();
+            // Скилл media никак не связан с коннектором диалога (webchat) — тело всё равно грузится.
+            stubSkills(List.of(new AgentSkillWithConnectorsResponse(
+                    mediaSkill, "Media", "d", List.of("media"))));
+            when(skillRepository.findByIdNotDeleted(mediaSkill)).thenReturn(Optional.of(
+                    ru.agimate.controlapi.database.entities.Skill.builder()
+                            .id(mediaSkill).name("Media").mdContent("Iteration discipline").version(1).build()));
+            when(inboundTextResolver.resolve(any(), any()))
+                    .thenReturn(Optional.of(InboundMessage.text("hello")));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            assertTrue(view.systemBlocks().stream().anyMatch(b ->
+                    "skill".equals(b.name()) && b.content().contains("Iteration discipline")));
+        }
+
+        @Test
         @DisplayName("prompt-канал с contributesPromptTools подмешивает тулы своего коннектора без скилла")
         void promptChannelContributesTools() {
             Agent agent = agent();

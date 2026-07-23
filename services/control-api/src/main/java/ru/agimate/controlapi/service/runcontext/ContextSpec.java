@@ -9,19 +9,29 @@ package ru.agimate.controlapi.service.runcontext;
 public enum ContextSpec {
 
     /**
-     * Диалог с пользователем: все скиллы перечислены (без тел), тулы всех скиллов.
+     * Диалог с пользователем: тела и тулы всех скиллов агента — скиллы задают поведение
+     * и в диалоге (дисциплина итераций media, правила заметок памяти), а не только в
+     * trigger-ранах; тела стабильны и дружат с prompt-кэшем.
      * История без reasoning-строк: «💭 thinking...» бессодержательна, а в истории читается
      * как реплика агента; tool-ходы остаются как контекст прошлой работы — структурно
      * (tool_turn → нативные tool_use/tool_result у воркера), не текстом: текстовый паттерн
      * «🔧 name» модель имитирует вместо реального вызова (легаси-строки санитизируются).
      */
-    DIALOGUE(false, false, HistoryDetail.NO_REASONING),
+    DIALOGUE(SkillBodies.ALL, false, HistoryDetail.NO_REASONING),
 
     /**
-     * Автономная обработка события: тела подошедших скиллов инжектятся, тулы — только
-     * подошедших скиллов, плюс trigger-guidance блок.
+     * Автономная обработка события: тела — только подошедших триггеру скиллов (они и есть
+     * инструкция обработки события), тулы — всех скиллов, плюс trigger-guidance блок.
      */
-    SYSTEM_TRIGGER(true, true, HistoryDetail.NO_REASONING);
+    SYSTEM_TRIGGER(SkillBodies.MATCHED, true, HistoryDetail.NO_REASONING);
+
+    /** Какие тела скиллов инжектятся в системный промпт. */
+    public enum SkillBodies {
+        /** Все скиллы агента. */
+        ALL,
+        /** Только скиллы, чьи connector_codes содержат коннектор триггера. */
+        MATCHED
+    }
 
     /** Детализация истории, которую видит следующий ран (фильтр по kind/progress_type). */
     public enum HistoryDetail {
@@ -33,18 +43,18 @@ public enum ContextSpec {
         DIALOGUE_ONLY
     }
 
-    private final boolean loadSkillBodies;
+    private final SkillBodies skillBodies;
     private final boolean triggerGuidance;
     private final HistoryDetail historyDetail;
 
-    ContextSpec(boolean loadSkillBodies, boolean triggerGuidance, HistoryDetail historyDetail) {
-        this.loadSkillBodies = loadSkillBodies;
+    ContextSpec(SkillBodies skillBodies, boolean triggerGuidance, HistoryDetail historyDetail) {
+        this.skillBodies = skillBodies;
         this.triggerGuidance = triggerGuidance;
         this.historyDetail = historyDetail;
     }
 
-    public boolean loadsSkillBodies() {
-        return loadSkillBodies;
+    public SkillBodies skillBodies() {
+        return skillBodies;
     }
 
     public boolean appendsTriggerGuidance() {

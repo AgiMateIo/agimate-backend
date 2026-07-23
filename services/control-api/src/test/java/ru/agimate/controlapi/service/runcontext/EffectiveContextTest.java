@@ -17,7 +17,7 @@ class EffectiveContextTest {
     void systemTriggerDefaults() {
         EffectiveContext e = EffectiveContext.of(ContextSpec.SYSTEM_TRIGGER, null);
 
-        assertTrue(e.loadSkillBodies());
+        assertEquals(ContextSpec.SkillBodies.MATCHED, e.skillBodies());
         assertTrue(e.triggerGuidance());
         assertEquals(ContextSpec.HistoryDetail.NO_REASONING, e.historyDetail());
         assertEquals(EffectiveContext.DEFAULT_HISTORY_LIMIT, e.historyLimit());
@@ -32,7 +32,7 @@ class EffectiveContextTest {
     void dialogueDefaults() {
         EffectiveContext e = EffectiveContext.of(ContextSpec.DIALOGUE, null);
 
-        assertFalse(e.loadSkillBodies());
+        assertEquals(ContextSpec.SkillBodies.ALL, e.skillBodies());
         assertFalse(e.triggerGuidance());
         assertTrue(e.skillTools());
     }
@@ -50,7 +50,7 @@ class EffectiveContextTest {
         assertFalse(e.skillTools());
         assertEquals(0, e.historyLimit());
         // Незаданное — из базы.
-        assertTrue(e.loadSkillBodies());
+        assertEquals(ContextSpec.SkillBodies.MATCHED, e.skillBodies());
         assertTrue(e.triggerGuidance());
         assertFalse(e.ownConnectionTools());
         assertEquals(ContextDirectives.Presentation.EVENT, e.presentation());
