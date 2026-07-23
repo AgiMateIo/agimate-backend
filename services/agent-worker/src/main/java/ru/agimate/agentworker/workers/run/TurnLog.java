@@ -6,6 +6,7 @@ import ru.agimate.agentworker.ToolResultRec;
 import ru.agimate.agentworker.TurnRole;
 import ru.agimate.agentworker.agent.MessageCodec;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
 import java.util.List;
@@ -35,23 +36,29 @@ public class TurnLog {
         this.runId = runId;
     }
 
-    /** Records an assistant or tool message; user/system messages are not projected in this phase. */
-    public void record(AgentChatMessage m) {
+    /**
+     * Records an assistant or tool message; user/system messages are not projected in this phase.
+     * {@code meta} carries the LLM provenance for the assistant turn ({@code null} for tool turns).
+     */
+    public void record(AgentChatMessage m, LlmMeta meta) {
         switch (m.role()) {
             case ASSISTANT -> send(TurnRole.TURN_ROLE_ASSISTANT, m.text(), m.thinking(),
-                    MessageCodec.toolCallRecs(m.toolCalls()), List.of());
+                    MessageCodec.toolCallRecs(m.toolCalls()), List.of(), meta);
             case TOOL -> send(TurnRole.TURN_ROLE_TOOL, null, false,
-                    List.of(), MessageCodec.toolResultRecs(m.toolResults()));
+                    List.of(), MessageCodec.toolResultRecs(m.toolResults()), null);
             case USER, SYSTEM -> { /* prompt/inbound фиксируется отдельно; здесь не проецируем */ }
         }
     }
 
     private void send(TurnRole role, String text, boolean thinking,
-                      List<ToolCallRec> calls, List<ToolResultRec> results) {
+                      List<ToolCallRec> calls, List<ToolResultRec> results, LlmMeta meta) {
         int n = turnIndex++;
+        String finishReason = meta != null ? meta.finishReason() : null;
+        String model = meta != null ? meta.model() : null;
+        String callId = meta != null ? meta.callId() : null;
         try {
             boolean duplicate = client.saveTurn(agentId, runId, n, role, text, thinking,
-                    calls, results, null, null, null).getDuplicate();
+                    calls, results, finishReason, model, callId).getDuplicate();
             if (duplicate) {
                 log.debug("saveTurn duplicate idx={} role={}", n, role);
             }

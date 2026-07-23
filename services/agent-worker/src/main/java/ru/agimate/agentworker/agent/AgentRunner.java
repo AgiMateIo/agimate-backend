@@ -10,7 +10,6 @@ import ru.agimate.agentworker.agent.model.ToolDef;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Assembles the message list and drives {@link SimpleAgent} to a final answer, mapping the loop's
@@ -25,12 +24,12 @@ public class AgentRunner {
     private final List<ToolDef> toolDefs;
     private final int maxTurns;
     private final String context;
-    private final Consumer<List<AgentChatMessage>> onNewMessages;
+    private final SimpleAgent.TurnSink onNewMessages;
     private final ResponseTemplates templates;
 
     public AgentRunner(SimpleAgent.LlmCaller llmCaller, SimpleAgent.ToolDispatcher toolDispatcher,
                        List<ToolDef> toolDefs, int maxTurns, String context,
-                       Consumer<List<AgentChatMessage>> onNewMessages, ResponseTemplates templates) {
+                       SimpleAgent.TurnSink onNewMessages, ResponseTemplates templates) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;

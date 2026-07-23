@@ -8,6 +8,7 @@ import ru.agimate.agentworker.agent.SimpleAgent;
 import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.workers.LlmCallWorkflow;
 
@@ -32,7 +33,7 @@ class LlmCallDispatcher implements SimpleAgent.LlmCaller {
     }
 
     @Override
-    public AgentChatMessage call(List<AgentChatMessage> messages, List<ToolDef> toolDefs) {
+    public SimpleAgent.LlmReply call(List<AgentChatMessage> messages, List<ToolDef> toolDefs) {
         WorkflowHandle<LlmCallWorkflow.Result, ? extends Exception> handle =
                 dbos.startWorkflow(() -> llm.llmCall(messages, toolDefs, agentId), new StartWorkflowOptions(llmQueue));
         LlmCallWorkflow.Result result = WorkflowHandles.await(handle);
@@ -43,7 +44,8 @@ class LlmCallDispatcher implements SimpleAgent.LlmCaller {
         if (incomplete != null) {
             throw new LlmResponseIncomplete(incomplete);
         }
-        return result.assistant();
+        LlmMeta meta = new LlmMeta(result.finishReason(), result.model(), result.callId());
+        return new SimpleAgent.LlmReply(result.assistant(), meta);
     }
 
     /**

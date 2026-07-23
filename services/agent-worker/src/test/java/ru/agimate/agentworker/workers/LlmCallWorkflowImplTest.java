@@ -93,6 +93,9 @@ class LlmCallWorkflowImplTest {
             LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
 
             assertFalse(result.failed());
+            // Provenance для журнала ходов: модель из кредов, callId = собственный workflow id вызова.
+            assertEquals("gpt-5-mini", result.model());
+            assertEquals("wf-llm-77", result.callId());
             verify(client).reportLlmUsage("wf-llm-77", "agent-1", "run-42",
                     "prov-1", "gpt-5-mini", 100, 20, 0, 0);
         }

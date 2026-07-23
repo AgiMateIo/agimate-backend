@@ -40,8 +40,9 @@ class AgentRunnerTest {
     @Test
     @DisplayName("max turns → AgentRunAborted with the max-turns notice")
     void maxTurns() {
-        SimpleAgent.LlmCaller loops = (msgs, defs) -> AgentChatMessage.assistant(null, false,
-                List.of(new AgentChatMessage.ToolCall("id", "t", "{}")));
+        SimpleAgent.LlmCaller loops = (msgs, defs) -> SimpleAgent.LlmReply.of(
+                AgentChatMessage.assistant(null, false,
+                        List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
         AgentRunAborted ex = assertThrows(AgentRunAborted.class, () -> runOnce(runner(loops, 2)));
         assertEquals(TEMPLATES.maxTurns(), ex.userNotice());
     }
@@ -86,6 +87,7 @@ class AgentRunnerTest {
     @Test
     @DisplayName("happy path returns the final answer")
     void happy() {
-        assertEquals("ok", runOnce(runner((m, d) -> AgentChatMessage.assistant("ok", false, List.of()), 5)));
+        assertEquals("ok", runOnce(runner(
+                (m, d) -> SimpleAgent.LlmReply.of(AgentChatMessage.assistant("ok", false, List.of())), 5)));
     }
 }

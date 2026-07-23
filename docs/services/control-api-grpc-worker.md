@@ -189,8 +189,11 @@ finish_reason, model, call_id)` — full-fidelity журнал шагов ран
   durable данных (результатов дочерних `llm_call`/`tool_call`), поэтому DBOS-replay переотправляет ту
   же пару и бэк дедуплицирует. Чекпоинт не добавляется → **drain перед деплоем не нужен**.
 - Пишется рядом с каналом, не вместо: доставки нет, статус рана не проецирует.
-- `finish_reason`/`model`/`call_id` (связь с `llm_usage_log.call_id`) — nullable, заполняются на
-  этапе 1b (сейчас пусты).
+- `finish_reason`/`model`/`call_id` — provenance LLM-хода (nullable): заполняются на `ASSISTANT`-ходах
+  (для `TOOL` — NULL, LLM-вызова нет). `call_id` = id дочернего `llm_call`-воркфлоу = join-ключ к
+  `llm_usage_log.call_id` (per-turn токены/стоимость без дублирования). `model` — из кредов вызова.
+  Воркер везёт их на `LlmCallWorkflow.Result` (чекпоинтится однократно) → `LlmMeta` → `SaveTurn`;
+  расширение `Result` — смена чекпоинта дочернего воркфлоу, деплой за drain.
 - `session_id` денормализован без логики непрерывности — `AgentSession` отложен.
 
 ## Tool execution

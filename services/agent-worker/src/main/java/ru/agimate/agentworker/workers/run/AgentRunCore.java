@@ -17,7 +17,6 @@ import ru.agimate.agentworker.workers.LlmCallWorkflow;
 import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * Shared agent-run core: one implementation of the invariant run body (prepare context, drive
@@ -87,9 +86,9 @@ public class AgentRunCore {
         // Каждый ход приходит отдельным notify (v2.1a): assistant с вызовами до dispatch → TOOL_CALL
         // (+преамбула/thinking), затем tool-результаты → отдельная TOOL_RESULT-запись. Историю
         // следующих ранов бэк соберёт из этой пары в нативные tool_use/tool_result.
-        Consumer<List<AgentChatMessage>> onNewMessages = newMsgs -> {
+        SimpleAgent.TurnSink onNewMessages = (newMsgs, meta) -> {
             for (AgentChatMessage m : newMsgs) {
-                turns.record(m);
+                turns.record(m, meta);
                 if (m.role() == AgentChatMessage.Role.ASSISTANT) {
                     for (MessageCodec.ProgressLine line
                             : MessageCodec.progressLines(m, registry.displayNames(m))) {

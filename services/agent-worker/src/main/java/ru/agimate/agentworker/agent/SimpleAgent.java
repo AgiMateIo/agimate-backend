@@ -5,10 +5,10 @@ import ru.agimate.agentworker.agent.error.ImitationLoopExhausted;
 import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.ToolDef;
 
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 /**
@@ -48,7 +48,24 @@ public class SimpleAgent {
     /** Injected single-model-request call; throws {@link LlmCallError} on HTTP/API failure. */
     @FunctionalInterface
     public interface LlmCaller {
-        AgentChatMessage call(List<AgentChatMessage> messages, List<ToolDef> toolDefs);
+        LlmReply call(List<AgentChatMessage> messages, List<ToolDef> toolDefs);
+    }
+
+    /** An LLM reply: the assistant message plus its provenance ({@code meta}) for the turn ledger. */
+    public record LlmReply(AgentChatMessage message, LlmMeta meta) {
+        public static LlmReply of(AgentChatMessage message) {
+            return new LlmReply(message, null);
+        }
+    }
+
+    /**
+     * Per-turn sink: new dialogue messages plus the LLM {@code meta} of the turn that produced them
+     * ({@code null} for tool-result turns — no LLM call). Backend persistence and channel delivery
+     * are the caller's projections of this stream.
+     */
+    @FunctionalInterface
+    public interface TurnSink {
+        void accept(List<AgentChatMessage> messages, LlmMeta meta);
     }
 
     /**
@@ -64,10 +81,10 @@ public class SimpleAgent {
     private final ToolDispatcher toolDispatcher;
     private final List<ToolDef> toolDefs;
     private final int maxTurns;
-    private final Consumer<List<AgentChatMessage>> onNewMessages;
+    private final TurnSink onNewMessages;
 
     public SimpleAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, List<ToolDef> toolDefs,
-                       int maxTurns, Consumer<List<AgentChatMessage>> onNewMessages) {
+                       int maxTurns, TurnSink onNewMessages) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;
@@ -83,7 +100,8 @@ public class SimpleAgent {
         int corrections = 0;
         for (int turn = 1; turn <= maxTurns; turn++) {
             log.info("turn {}/{}: requesting LLM", turn, maxTurns);
-            AgentChatMessage assistant = llmCaller.call(messages, toolDefs);
+            LlmReply reply = llmCaller.call(messages, toolDefs);
+            AgentChatMessage assistant = reply.message();
             messages.add(assistant);
 
             if (!assistant.hasToolCalls()) {
@@ -103,27 +121,27 @@ public class SimpleAgent {
                     throw new ImitationLoopExhausted("agent kept imitating tool calls as text after "
                             + MAX_IMITATION_CORRECTIONS + " corrections");
                 }
-                notify(List.of(assistant));
+                notify(List.of(assistant), reply.meta());
                 log.info("turn {}: final answer ({} chars)", turn, text.length());
                 return text;
             }
 
             // Два хода-события: сначала вызовы (доставляются в канал до исполнения), затем — после
             // dispatch — результаты. Их фиксация раздельными записями и есть цель v2.1a.
-            notify(List.of(assistant));
+            notify(List.of(assistant), reply.meta());
             log.info("turn {}: dispatching {} tool call(s): {}", turn, assistant.toolCalls().size(),
                     assistant.toolCalls().stream().map(AgentChatMessage.ToolCall::name).toList());
             List<AgentChatMessage.ToolResult> results = toolDispatcher.dispatchAll(assistant.toolCalls());
             AgentChatMessage toolMsg = AgentChatMessage.toolResults(results);
             messages.add(toolMsg);
-            notify(List.of(toolMsg));
+            notify(List.of(toolMsg), null);
         }
         throw new MaxTurnsExceeded("agent loop exceeded " + maxTurns + " turns without a final reply");
     }
 
-    private void notify(List<AgentChatMessage> newMessages) {
+    private void notify(List<AgentChatMessage> newMessages, LlmMeta meta) {
         if (onNewMessages != null) {
-            onNewMessages.accept(newMessages);
+            onNewMessages.accept(newMessages, meta);
         }
     }
 }
