@@ -32,6 +32,13 @@ import java.util.regex.Pattern;
  * и цикл продолжается. Если после исчерпания коррекций модель всё ещё имитирует вызов —
  * ран прерывается {@link ru.agimate.agentworker.agent.error.ImitationLoopExhausted}, чтобы сырая
  * «🔧 …»-строка не ушла юзеру как финальный ответ (корректирующие ходы эфемерны и не проецируются).
+ *
+ * <p>Мягкая посадка у лимита: за {@value #WRAP_UP_TURNS} хода до капа в диалог инжектится
+ * эфемерный wrap-up-нотис («заверши с тем, что есть»), а последний ход выполняется <b>без тулов</b> —
+ * модель вынуждена дать финальный текст. Итеративный перфекционизм (генерация → проверка → «не то» →
+ * снова) заканчивается деградированным, но полезным ответом с готовыми артефактами, а не
+ * {@link MaxTurnsExceeded} с потерей всей работы. {@code MaxTurnsExceeded} остаётся возможным,
+ * только если модель и на безтуловом ходе не отвечает.
  */
 @Slf4j
 public class SimpleAgent {
@@ -46,6 +53,15 @@ public class SimpleAgent {
             "Вызов инструмента, написанный текстом, не исполняется. Если нужно вызвать инструмент — "
             + "сделай настоящий структурный tool call через API. Если вызов не нужен — ответь без "
             + "строк вида «🔧 …».";
+
+    /** За столько ходов до капа инжектится wrap-up-нотис; последний ход идёт без тулов. */
+    static final int WRAP_UP_TURNS = 2;
+
+    static final String WRAP_UP_NOTICE =
+            "Бюджет шагов рана почти исчерпан: осталось не более двух ходов. Заверши работу сейчас — "
+            + "дай пользователю финальный ответ из того, что уже готово (приложи готовые файлы и "
+            + "результаты), и явно отметь, что сделать не успел. Новый вызов инструмента — только "
+            + "если без него ответ невозможен.";
 
     /** Injected single-model-request call; throws {@link LlmCallError} on HTTP/API failure. */
     @FunctionalInterface
@@ -125,9 +141,17 @@ public class SimpleAgent {
     public String run(List<AgentChatMessage> messages) {
         notifyStart(messages);
         int corrections = 0;
+        // Мягкая посадка только при осмысленном капе — крошечные maxTurns (тесты/дебаг) не трогаем.
+        boolean softLanding = maxTurns > WRAP_UP_TURNS;
         for (int turn = 1; turn <= maxTurns; turn++) {
-            log.info("turn {}/{}: requesting LLM", turn, maxTurns);
-            LlmReply reply = llmCaller.call(messages, toolDefs);
+            if (softLanding && turn == maxTurns - WRAP_UP_TURNS + 1) {
+                // Эфемерный ход (без notify): в историю/канал не проецируется, как и имитационная коррекция.
+                log.info("turn {}/{}: injecting wrap-up notice", turn, maxTurns);
+                messages.add(AgentChatMessage.user(WRAP_UP_NOTICE));
+            }
+            boolean toolless = softLanding && turn == maxTurns;
+            log.info("turn {}/{}: requesting LLM{}", turn, maxTurns, toolless ? " (tool-less final)" : "");
+            LlmReply reply = llmCaller.call(messages, toolless ? List.of() : toolDefs);
             // Учёт расхода — до любых решений: у truncation-вызова токены потрачены, а сам ход
             // сейчас прервётся. Сурфейсим в sink, репортит ран-обвязка (single-writer side-записей).
             notifyUsage(reply.usage());

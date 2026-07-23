@@ -31,6 +31,9 @@ agent:
   agent:
     id: "agent-default"
     workflow-id: "wf-default"
+    # Кап ходов агентного цикла на ран (1 ход = 1 LLM-вызов); у капа — мягкая посадка
+    # (wrap-up-нотис + финальный ход без тулов), а не жёсткий обрыв.
+    max-turns: 30
   concurrency:
     llm: 3
     tool: 8

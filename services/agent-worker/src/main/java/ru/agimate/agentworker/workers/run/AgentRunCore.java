@@ -33,7 +33,6 @@ import java.util.List;
 @Slf4j
 public class AgentRunCore {
 
-    private static final int MAX_AGENT_TURNS = 30;
     private static final ObjectMapper PROMPT_MAPPER = new ObjectMapper();
 
     private final DBOS dbos;
@@ -44,9 +43,10 @@ public class AgentRunCore {
     private final Queue llmQueue;
     private final Queue toolQueue;
     private final ResponseTemplates templates;
+    private final int maxTurns;
 
     public AgentRunCore(DBOS dbos, AgentWorkerClient client, LlmCallWorkflow llm, ToolCallWorkflow tool,
-                        Queue llmQueue, Queue toolQueue, ResponseTemplates templates) {
+                        Queue llmQueue, Queue toolQueue, ResponseTemplates templates, int maxTurns) {
         this.dbos = dbos;
         this.client = client;
         this.fetcher = new ContextMaterialsFetcher(client);
@@ -55,6 +55,7 @@ public class AgentRunCore {
         this.llmQueue = llmQueue;
         this.toolQueue = toolQueue;
         this.templates = templates;
+        this.maxTurns = maxTurns;
     }
 
     /** The run's dialogue-event writer; created here so the workflow shares one seq counter. */
@@ -128,7 +129,7 @@ public class AgentRunCore {
         ToolCallDispatcher toolDispatcher = new ToolCallDispatcher(dbos, tool, toolQueue, agentId,
                 runId, registry);
 
-        AgentRunner runner = new AgentRunner(llmDispatcher, toolDispatcher, registry.toolDefs(), MAX_AGENT_TURNS,
+        AgentRunner runner = new AgentRunner(llmDispatcher, toolDispatcher, registry.toolDefs(), maxTurns,
                 context, observer, templates);
         String answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
         messages.answer(answer);

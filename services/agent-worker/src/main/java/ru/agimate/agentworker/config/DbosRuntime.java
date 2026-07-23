@@ -83,7 +83,8 @@ public class DbosRuntime implements SmartLifecycle {
                 new LlmCallWorkflowImpl(client, modelFactory, mapper), Queues.INSTANCE);
         ToolCallWorkflow tool = dbos.registerProxy(ToolCallWorkflow.class,
                 new ToolCallWorkflowImpl(client, dbos, props.getTool()), Queues.INSTANCE);
-        AgentRunCore core = new AgentRunCore(dbos, client, llm, tool, llmQueue, toolQueue, templates);
+        AgentRunCore core = new AgentRunCore(dbos, client, llm, tool, llmQueue, toolQueue, templates,
+                props.getAgent().getMaxTurns());
         dbos.registerProxy(AgentRunWorkflow.class,
                 new AgentRunWorkflowImpl(core), Queues.INSTANCE);
     }

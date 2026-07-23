@@ -6,6 +6,7 @@ import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
+import ru.agimate.agentworker.agent.model.ToolDef;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -178,6 +179,57 @@ class SimpleAgentTest {
                 new AgentChatMessage.ToolResult("id", "t", "{}", false));
         SimpleAgent agent = agent(llm, dispatcher, null, 3);
         assertThrows(MaxTurnsExceeded.class, () -> agent.run(new ArrayList<>()));
+    }
+
+    @Test
+    @DisplayName("мягкая посадка: wrap-up-нотис за WRAP_UP_TURNS до капа, последний ход без тулов")
+    void softLandingWrapUp() {
+        // «Перфекционист»: пока тулы доступны — вызывает; на безтуловом ходе вынужден ответить.
+        List<List<ToolDef>> defsPerTurn = new ArrayList<>();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> {
+            defsPerTurn.add(defs);
+            return defs.isEmpty()
+                    ? reply(AgentChatMessage.assistant("вот что успел", false, List.of()))
+                    : reply(AgentChatMessage.assistant(null, false,
+                            List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
+        };
+        SimpleAgent.ToolDispatcher dispatcher = calls -> List.of(
+                new AgentChatMessage.ToolResult("id", "t", "{}", false));
+        SimpleAgent agent = new SimpleAgent(llm, dispatcher,
+                List.of(new ToolDef("t", "tool", "{}")), 4, null);
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        assertEquals("вот что успел", agent.run(conv));
+        // Ход 4 (кап) — без тулов, предыдущие — с тулами.
+        assertEquals(4, defsPerTurn.size());
+        assertTrue(defsPerTurn.get(2).size() > 0);
+        assertTrue(defsPerTurn.get(3).isEmpty());
+        // Нотис инжектится перед ходом maxTurns - WRAP_UP_TURNS + 1 и не дублируется.
+        long notices = conv.stream()
+                .filter(m -> SimpleAgent.WRAP_UP_NOTICE.equals(m.text()))
+                .count();
+        assertEquals(1, notices);
+    }
+
+    @Test
+    @DisplayName("мягкая посадка не активируется при крошечном maxTurns (<= WRAP_UP_TURNS)")
+    void softLandingSkippedForTinyCap() {
+        List<List<ToolDef>> defsPerTurn = new ArrayList<>();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> {
+            defsPerTurn.add(defs);
+            return reply(AgentChatMessage.assistant(null, false,
+                    List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
+        };
+        SimpleAgent.ToolDispatcher dispatcher = calls -> List.of(
+                new AgentChatMessage.ToolResult("id", "t", "{}", false));
+        List<ToolDef> defs = List.of(new ToolDef("t", "tool", "{}"));
+        SimpleAgent agent = new SimpleAgent(llm, dispatcher, defs, 2, null);
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        assertThrows(MaxTurnsExceeded.class, () -> agent.run(conv));
+        // Оба хода с тулами, нотис не инжектился.
+        assertTrue(defsPerTurn.stream().allMatch(d -> !d.isEmpty()));
+        assertTrue(conv.stream().noneMatch(m -> SimpleAgent.WRAP_UP_NOTICE.equals(m.text())));
     }
 
     @Test
