@@ -21,10 +21,13 @@ public class SkillSpecs {
         return (root, query, cb) -> cb.isTrue(root.get("isPublic"));
     }
 
-    /** Скилл требует коннектор {@code connectorCode}: проверка членства в массиве connector_codes. */
+    /**
+     * Скилл требует коннектор {@code connectorCode}: containment {@code connector_codes @> ARRAY[code]}.
+     * Через {@code @>} (а не {@code array_position}), чтобы задействовать GIN-индекс idx_skills_connector_codes.
+     */
     public static Specification<Skill> hasConnector(String connectorCode) {
-        return (root, query, cb) -> cb.isNotNull(
-                cb.function("array_position", Integer.class, root.get("connectorCodes"), cb.literal(connectorCode)));
+        return (root, query, cb) -> cb.isTrue(
+                cb.function("array_contains", Boolean.class, root.get("connectorCodes"), cb.literal(connectorCode)));
     }
 
     public static Specification<Skill> searchByNameOrDescription(String search) {

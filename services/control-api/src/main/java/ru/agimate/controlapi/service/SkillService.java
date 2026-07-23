@@ -16,6 +16,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.AgentSummaryResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateSkillRequest;
 import ru.agimate.controlapi.controller.manage.dto.SkillDetailResponse;
+import ru.agimate.controlapi.controller.manage.dto.SkillListScope;
 import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillConnectorsRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
@@ -47,12 +48,12 @@ public class SkillService {
     private final AgentPresetRepository agentPresetRepository;
     private final ConnectorRepository connectorRepository;
 
-    public Page<SkillResponse> getMySkills(UUID userId, String search, String connectorCode, int page, int size) {
-        return findSkills(SkillSpecs.ownedBy(userId), search, connectorCode, page, size);
-    }
-
-    public Page<SkillResponse> getPublicSkills(String search, String connectorCode, int page, int size) {
-        return findSkills(SkillSpecs.isPublic(), search, connectorCode, page, size);
+    public Page<SkillResponse> getSkills(UUID userId, SkillListScope scope, String search, String connectorCode,
+                                         int page, int size) {
+        Specification<Skill> base = scope == SkillListScope.PUBLIC
+                ? SkillSpecs.isPublic()
+                : SkillSpecs.ownedBy(userId);
+        return findSkills(base, search, connectorCode, page, size);
     }
 
     public SkillDetailResponse getSkillDetail(UUID id, UUID userId) {

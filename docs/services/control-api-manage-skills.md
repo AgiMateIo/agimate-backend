@@ -77,8 +77,7 @@ System skills (time, board, persist-memory) are owned by the synthetic system us
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/control/manage/skills/` | List my own skills (paginated, search, filter by connector) |
-| GET | `/control/manage/skills/public/` | List ALL public skills |
+| GET | `/control/manage/skills/` | List skills (paginated, search, filter by connector; `scope=MINE\|PUBLIC`) |
 | GET | `/control/manage/skills/{id}` | Get skill details + SKILL.md body |
 | GET | `/control/manage/skills/{id}/agents/` | List my agents that use this skill (paginated, search) |
 | POST | `/control/manage/skills/` | Create skill from JSON payload |
@@ -188,28 +187,17 @@ The frontend relies on `totalElements`, `totalPages`, and `number` (current page
 
 ### GET `/control/manage/skills/`
 
-List the **current user's own** skills.
+List skills. `scope=MINE` (default) returns the current user's own skills of any visibility; `scope=PUBLIC` returns all public skills (any user's, `isPublic = true`).
 
 **Query parameters:**
 
 | Name | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
+| `scope` | `enum` | no | `MINE` | `MINE` — own skills; `PUBLIC` — all public skills. |
 | `search` | `string` | no | — | Case-insensitive substring match against `name` or `description`. |
 | `connectorCode` | `string` | no | — | Show only skills that require the given connector code. |
 | `page` | `int` | no | `0` | Zero-based page index. |
 | `size` | `int` | no | `20` | Page size (max `100`). |
-
-Sorted by `createdAt` descending.
-
-**Response `200`:** `Page<SkillResponse>`.
-
----
-
-### GET `/control/manage/skills/public/`
-
-List **all public** skills (any user's, `isPublic = true`).
-
-Query parameters: same as above (`search`, `connectorCode`, `page`, `size`).
 
 Sorted by `createdAt` descending.
 

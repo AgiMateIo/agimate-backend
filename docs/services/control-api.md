@@ -121,8 +121,7 @@ Trigger and tool-result ingestion from external sources is rate-limited per conn
 
 | Method | Path                                            | Description                                                |
 |--------|-------------------------------------------------|------------------------------------------------------------|
-| GET    | `/control/manage/skills/`                        | List own skills (search, connector filter, pagination)     |
-| GET    | `/control/manage/skills/public/`                 | List ALL public skills                                      |
+| GET    | `/control/manage/skills/`                        | List skills (`scope=MINE\|PUBLIC`, search, connector filter, pagination) |
 | GET    | `/control/manage/skills/{id}`                    | Get skill detail with SKILL.md body (`mdContent`)           |
 | GET    | `/control/manage/skills/{id}/agents/`            | List my agents that use this skill (paginated, search)      |
 | POST   | `/control/manage/skills/`                        | Create skill from JSON                                      |

@@ -16,6 +16,7 @@ import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.AgentSummaryResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateSkillRequest;
 import ru.agimate.controlapi.controller.manage.dto.SkillDetailResponse;
+import ru.agimate.controlapi.controller.manage.dto.SkillListScope;
 import ru.agimate.controlapi.controller.manage.dto.SkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillConnectorsRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateSkillRequest;
@@ -35,28 +36,20 @@ public class ManageSkillController {
 
     private final SkillService skillService;
 
-    @Operation(summary = "List own skills with optional search and connector filter")
+    @Operation(summary = "List skills with optional search and connector filter. "
+            + "scope=MINE (default) — own skills of any visibility; scope=PUBLIC — all public skills")
     @GetMapping("/")
-    public SuccessResponse<PageResponse<SkillResponse>> getMySkills(
+    public SuccessResponse<PageResponse<SkillResponse>> getSkills(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @RequestParam(defaultValue = "MINE") SkillListScope scope,
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String connectorCode,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(PageResponse.from(skillService.getMySkills(userId, search, connectorCode, page, size)));
-    }
-
-    @Operation(summary = "List public skills with optional search and connector filter")
-    @GetMapping("/public/")
-    public SuccessResponse<PageResponse<SkillResponse>> getPublicSkills(
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) String connectorCode,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
-    ) {
-        return SuccessResponse.ok(PageResponse.from(skillService.getPublicSkills(search, connectorCode, page, size)));
+        return SuccessResponse.ok(PageResponse.from(
+                skillService.getSkills(userId, scope, search, connectorCode, page, size)));
     }
 
     @Operation(summary = "Get skill details with SKILL.md body")
