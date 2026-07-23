@@ -48,7 +48,11 @@ public class MediaToolService {
             description = "Generate an image from a text prompt using an image-capable model. "
                     + "Returns {\"file\": {\"id\": \"agf_…\"}} — attach the image to your reply "
                     + "with [[attach:agf_…]] or pass the id to another tool. If the model declines, "
-                    + "you get its textual reply instead of a file.",
+                    + "you get its textual reply instead of a file. This is a diffusion model: it "
+                    + "cannot reliably render exact text, symbols, counts, or precise positions and "
+                    + "geometry. Don't expect pixel-accuracy — verify the result at most once; if it "
+                    + "isn't perfectly exact, deliver the best result you have and note the limitation "
+                    + "instead of regenerating repeatedly.",
             annotations = @ToolAnnotations(destructiveHint = false),
             timeoutSeconds = GENERATION_TIMEOUT_SECONDS)
     public Map<String, Object> genImage(
@@ -60,7 +64,9 @@ public class MediaToolService {
     @Tool(name = "edit_image",
             description = "Create a modified version of an existing image (agf_… file id) following "
                     + "the prompt: change background, style, add or remove objects, etc. Returns a new "
-                    + "file — the original is left untouched.",
+                    + "file — the original is left untouched. Same diffusion-model limits as gen_image: "
+                    + "exact text, symbols, and precise positions aren't guaranteed — don't re-edit "
+                    + "repeatedly chasing precision the model can't deliver.",
             annotations = @ToolAnnotations(destructiveHint = false),
             timeoutSeconds = GENERATION_TIMEOUT_SECONDS)
     public Map<String, Object> editImage(
