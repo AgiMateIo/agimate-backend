@@ -2,10 +2,8 @@ package ru.agimate.controlapi.connectors.integrations.mcp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.info.BuildProperties;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +11,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.connectors.core.AttributionHeaders;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 
 import java.net.Inet6Address;
@@ -47,9 +46,6 @@ public class McpClient {
     /** Идентификация AgiMate: {@code name} — машинный id, {@code title} — отображаемое имя (spec 2025-06-18). */
     private static final String CLIENT_NAME = "agimate";
     private static final String CLIENT_TITLE = "AgiMate";
-    private static final String PRODUCT_URL = "https://agimate.io";
-    /** Фолбэк-версия, когда build-info недоступен (запуск из IDE / тесты без Gradle-сборки). */
-    private static final String FALLBACK_VERSION = "dev";
 
     private final RestClient restClient;
     private final AtomicLong requestId = new AtomicLong(1);
@@ -57,36 +53,24 @@ public class McpClient {
     /** SSRF: разрешать ли цели на приватных/loopback-адресах (true — только для локальной разработки). */
     private final boolean allowPrivateTargets;
 
-    /** Версия продукта для {@code clientInfo.version} и {@code User-Agent} (из build-info). */
-    private final String clientVersion;
-    /** Готовая строка {@code User-Agent}: {@code AgiMate/<version> (+url)}. */
-    private final String userAgent;
+    /** Брендовая атрибуция AgiMate: {@code User-Agent} + версия продукта для {@code clientInfo.version}. */
+    private final AttributionHeaders attribution;
 
     @Autowired
     public McpClient(
             @Value("${app.connectors.mcp.allow-private-targets:false}") boolean allowPrivateTargets,
-            ObjectProvider<BuildProperties> buildProperties) {
-        this(allowPrivateTargets, resolveVersion(buildProperties));
-    }
-
-    /** Конструктор для тестов: без Spring-контекста, версия — фолбэк. */
-    McpClient(boolean allowPrivateTargets) {
-        this(allowPrivateTargets, FALLBACK_VERSION);
-    }
-
-    private McpClient(boolean allowPrivateTargets, String clientVersion) {
+            AttributionHeaders attribution) {
         this.allowPrivateTargets = allowPrivateTargets;
-        this.clientVersion = clientVersion;
-        this.userAgent = "AgiMate/" + clientVersion + " (+" + PRODUCT_URL + ")";
+        this.attribution = attribution;
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(TIMEOUT);
         factory.setReadTimeout(TIMEOUT);
         this.restClient = RestClient.builder().requestFactory(factory).build();
     }
 
-    private static String resolveVersion(ObjectProvider<BuildProperties> buildProperties) {
-        BuildProperties props = buildProperties.getIfAvailable();
-        return props != null ? props.getVersion() : FALLBACK_VERSION;
+    /** Конструктор для тестов: без Spring-контекста, брендовая версия — фолбэк. */
+    McpClient(boolean allowPrivateTargets) {
+        this(allowPrivateTargets, new AttributionHeaders("dev"));
     }
 
     /** Конфиг подключения к MCP-серверу из credentials. */
@@ -134,7 +118,7 @@ public class McpClient {
                 "clientInfo", Map.of(
                         "name", CLIENT_NAME,
                         "title", CLIENT_TITLE,
-                        "version", clientVersion));
+                        "version", attribution.version()));
 
         long id = requestId.getAndIncrement();
         ResponseEntity<String> response;
@@ -199,7 +183,7 @@ public class McpClient {
         headers.set(HEADER_PROTOCOL_VERSION, PROTOCOL_VERSION);
         // Бренд AgiMate вместо дефолтного JDK-«User-Agent: Java/xx» (антибрендинг + утечка версии JVM).
         // Ставим до пользовательских headers — power-user может переопределить своим значением.
-        headers.set(HttpHeaders.USER_AGENT, userAgent);
+        headers.set(HttpHeaders.USER_AGENT, attribution.userAgent());
         if (config.authToken() != null && !config.authToken().isBlank()) {
             headers.setBearerAuth(config.authToken());
         }

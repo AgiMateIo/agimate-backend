@@ -1,8 +1,7 @@
 package ru.agimate.controlapi.service.llm;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.info.BuildProperties;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
@@ -11,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.connectors.core.AttributionHeaders;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 
 import java.io.IOException;
@@ -29,6 +29,7 @@ import java.util.Optional;
  */
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class MediaInferenceHttp {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
@@ -36,17 +37,9 @@ public class MediaInferenceHttp {
     // в чистую ошибку control-api до того, как воркер бросит ждать.
     private static final Duration READ_TIMEOUT = Duration.ofMinutes(25);
     private static final String OPENAI_BASE_URL = "https://api.openai.com/v1";
-    private static final String PRODUCT_URL = "https://agimate.io";
     private static final int ERROR_BODY_PREVIEW = 300;
 
-    /** Бренд вместо дефолтного JDK-«Java/xx» — как у {@code McpClient}/{@code ModelFactory}. */
-    private final String userAgent;
-
-    public MediaInferenceHttp(ObjectProvider<BuildProperties> buildProperties) {
-        BuildProperties props = buildProperties.getIfAvailable();
-        this.userAgent = "AgiMate/" + (props != null ? props.getVersion() : "dev")
-                + " (+" + PRODUCT_URL + ")";
-    }
+    private final AttributionHeaders attribution;
 
     /**
      * Один chat/completions-вызов; тело уже собрано вызывающим (model/messages/extra_body).
@@ -63,7 +56,7 @@ public class MediaInferenceHttp {
                     .uri("/chat/completions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                    .header(HttpHeaders.USER_AGENT, userAgent)
+                    .headers(h -> attribution.llmHeaders(baseUrl).forEach(h::set))
                     .body(json)
                     .exchange((request, response) -> readResponse(response));
         } catch (ResourceAccessException e) {

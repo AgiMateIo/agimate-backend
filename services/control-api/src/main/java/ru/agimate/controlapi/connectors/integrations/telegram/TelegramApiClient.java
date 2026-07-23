@@ -2,6 +2,7 @@ package ru.agimate.controlapi.connectors.integrations.telegram;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.http.client.MultipartBodyBuilder;
@@ -9,6 +10,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.connectors.core.AttributionHeaders;
 
 import java.io.InputStream;
 import java.time.Duration;
@@ -26,19 +28,25 @@ public class TelegramApiClient {
     private final RestClient restClient;
     private final RestClient longPollClient;
 
-    public TelegramApiClient() {
+    public TelegramApiClient(AttributionHeaders attribution) {
+        String userAgent = attribution.userAgent();
         // Явная стриминговая фабрика (JDK HttpClient): multipart-тело (до 50 MB) не буферизуется
         // в heap. Дефолтный билдер выбирает фабрику детектом classpath (сейчас HttpComponents
         // приезжает транзитивно с AWS SDK) — полагаться на это нельзя.
         JdkClientHttpRequestFactory sendFactory = new JdkClientHttpRequestFactory();
         sendFactory.setReadTimeout(SEND_READ_TIMEOUT);
-        this.restClient = RestClient.builder().baseUrl(BASE_URL).requestFactory(sendFactory).build();
+        this.restClient = RestClient.builder()
+                .baseUrl(BASE_URL)
+                .requestFactory(sendFactory)
+                .defaultHeader(HttpHeaders.USER_AGENT, userAgent)
+                .build();
 
         SimpleClientHttpRequestFactory longPollFactory = new SimpleClientHttpRequestFactory();
         longPollFactory.setReadTimeout(LONG_POLL_READ_TIMEOUT);
         this.longPollClient = RestClient.builder()
                 .baseUrl(BASE_URL)
                 .requestFactory(longPollFactory)
+                .defaultHeader(HttpHeaders.USER_AGENT, userAgent)
                 .build();
     }
 
