@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Снимок стартового промпта рана: список сообщений ровно как он ушёл в первый LLM-вызов
+      (system + history + триггер с ephemeral-префиксом). Пишет воркер один раз перед циклом
+      (SavePrompt), first-write-wins; дальнейшие ходы идут в agent_run_turns. Nullable — ран мог
+      не дойти до цикла, а старые раны снимка не имеют.
+    -->
+    <changeSet id="agent-runs-prompt" author="agimate">
+        <addColumn tableName="agent_runs">
+            <column name="prompt" type="JSONB"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

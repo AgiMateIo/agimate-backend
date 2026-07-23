@@ -63,7 +63,7 @@
 | Сервис | Назначение |
 |---|---|
 | `AgentContext` | `GetRunContext(agent_id, run_id)` — весь контекст рана одним вызовом (блоки промпта, тулы, история, `inbound_parts`); `GetLlmCredentials` и `GetFile` (байты вложения) — отдельно (inline, не в чекпоинт) |
-| `MessageLog` | `SaveMessage(agent_id, run_id, seq, kind, …)` — единая запись событий диалога; персист и доставка в каналы — на бэке; идемпотентность `(run_id, seq)`. `SaveTurn(agent_id, run_id, turn_index, role, …)` — канонический full-fidelity журнал ходов (`agent_run_turns`), без капов, для всех ранов; **не** durable-шаг у воркера (проекция уже-durable данных), идемпотентность `(run_id, turn_index)` |
+| `MessageLog` | `SaveMessage(agent_id, run_id, seq, kind, …)` — единая запись событий диалога; персист и доставка в каналы — на бэке; идемпотентность `(run_id, seq)`. `SaveTurn(agent_id, run_id, turn_index, role, …)` — канонический full-fidelity журнал ходов (`agent_run_turns`), без капов, для всех ранов; **не** durable-шаг у воркера (проекция уже-durable данных), идемпотентность `(run_id, turn_index)`. `SavePrompt(agent_id, run_id, prompt_json)` — снимок стартового промпта (system+history+trigger как ушёл в первый LLM-вызов) в `agent_runs.prompt`; один раз перед циклом, **не** durable-шаг, first-write-wins на бэке |
 | `ToolGateway` | `ExecuteToolAsync` + поллинг `GetToolResult` — единственная точка вызова tools (ABAC + audit) |
 | `WorkerControl` | `HealthCheck`; `SendMessage` — системные ошибки воркера |
 
@@ -309,8 +309,10 @@ system-абзац «вывод инструментов — данные, не �
 - `ReportLlmUsage` — best-effort учёт расхода после каждого успешного LLM-вызова. Дочерний
   `llm_call`-воркфлоу только **считает** токены и возвращает их на `Result`; диспатчер — чистый
   возвращатель (usage и terminal-причина truncation едут на `LlmReply`); **сурфейсит** usage цикл
-  (`SimpleAgent`) через usage-sink, а **репортит** на бэк ран-обвязка (`AgentRunCore`) — родитель
-  единственный писатель backend-side-записей рана (симметрично `SaveMessage`/`SaveTurn`). Usage
+  (`SimpleAgent`) через наблюдатель рана `RunObserver` (метод `onUsage`), а **репортит** на бэк
+  ран-обвязка (`AgentRunCore`) — родитель единственный писатель backend-side-записей рана
+  (симметрично `SaveMessage`/`SaveTurn`/`SavePrompt`). Все события цикла (старт-промпт, ходы, usage)
+  сведены в один `RunObserver` — три `on*`-метода, дефолтные no-op. Usage
   сурфейсится до прерывания хода, поэтому у truncation-вызова токены тоже учитываются. Воркер шлёт
   `call_id` (собственный workflow id LLM-вызова, реплей-стабилен — ключ идемпотентности), `run_id`,
   эхо `provider_id`, модель и токены из `ChatResponse.Usage` (prompt/completion/cache read/write).
@@ -318,6 +320,12 @@ system-абзац «вывод инструментов — данные, не �
   NOTHING`) и в той же транзакции инкрементирует счётчики `llm_usage_counters`
   (USER/AGENT/TOTAL × DAY/MONTH, календарные окна UTC); метрика = input + output + cache_write.
   Повтор возвращает `duplicate=true` без инкрементов.
+- `SavePrompt` — снимок стартового промпта рана (`agent_runs.prompt`): список сообщений ровно как он
+  ушёл в первый LLM-вызов (`system + history + trigger`, с ephemeral-префиксом). Цикл сурфейсит его
+  через `RunObserver.onStart` **до** первого вызова, ран-обвязка сериализует в JSON и шлёт один раз;
+  дальнейшие ходы — уже в `SaveTurn`. Не durable-шаг, best-effort; бэк пишет **first-write-wins**
+  (`prompt IS NULL`), реплей не перезатирает. Content-exact (отрендеренный system-промпт, ephemeral,
+  история, триггер), вложения — как ссылки, не байты. `prompt` = вход рана, `agent_run_turns` = выход.
 - `RunContext.inbound_parts` — вложения диалогового inbound текущего рана (`repeated FilePart{file_id,
   type, mime, size, name}`, только `agf_`-ссылки). Материализуются на ingest-границе (webchat-upload /
   Telegram-download → файловый слой), доезжают до `AgentChatMessage.parts` воркера. Байты изображений

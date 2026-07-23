@@ -30,7 +30,7 @@ class AgentRunnerTest {
     }
 
     private static AgentRunner runner(SimpleAgent.LlmCaller llm, int maxTurns) {
-        return new AgentRunner(llm, calls -> List.of(), List.of(), maxTurns, "for test", null, null, TEMPLATES);
+        return new AgentRunner(llm, calls -> List.of(), List.of(), maxTurns, "for test", null, TEMPLATES);
     }
 
     private static String runOnce(AgentRunner runner) {

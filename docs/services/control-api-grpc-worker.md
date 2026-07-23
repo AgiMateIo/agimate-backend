@@ -16,7 +16,7 @@ credentials from the backend and execute tools through the Tool Gateway.
 |-------------------------|---------------------------------------------------------------------------------------------------|----------|
 | `WorkerControl`         | `HealthCheck`                                                                                     | done     |
 | `AgentContext`          | `GetRunContext` (весь контекст рана одним вызовом, включая историю), `GetLlmCredentials`, `GetFile` (содержимое вложения чанками), `ReportLlmUsage` | done     |
-| `MessageLog`            | `SaveMessage` — единая запись событий диалога, доставка как её проекция; `SaveTurn` — канонический журнал ходов (`agent_run_turns`) | done     |
+| `MessageLog`            | `SaveMessage` — единая запись событий диалога, доставка как её проекция; `SaveTurn` — канонический журнал ходов (`agent_run_turns`); `SavePrompt` — снимок стартового промпта (`agent_runs.prompt`) | done     |
 | `ToolGateway`           | `ExecuteToolAsync`, `GetToolResult` (несёт `run_id` — liveness рана)                          | done     |
 | `WorkflowReporting`     | —                                                                                                 | post-PoC |
 
@@ -203,6 +203,27 @@ finish_reason, model, call_id)` — full-fidelity журнал шагов ран
   join `llm_usage_log.call_id → agent_run_turns.call_id` может дать usage-строки **без** парного
   турна — это ожидаемо: учёт покрывает весь расход, журнал — только транскрипт. Не воспринимать
   `agent_run_turns` как полный перечень всех LLM-вызовов.
+
+## SavePrompt (`MessageLog.SavePrompt`) — снимок стартового промпта
+
+`SavePrompt(agent_id, run_id, prompt_json)` — снимок промпта рана **ровно как он ушёл в первый
+LLM-вызов**: список сообщений `system + history + триггер` (с ephemeral-префиксом), сериализованный
+воркером в JSON. Пишется в `agent_runs.prompt` (JSONB) сервисом `AgentRunPromptService`.
+
+- Воркер снимает список **до входа в цикл** (sink `RunObserver.onStart` в `SimpleAgent`), один раз;
+  дальнейшие ходы рана идут в `SaveTurn` → `agent_run_turns`. Вместе: `prompt` = **вход** рана,
+  `agent_run_turns` = его **тайминг-лента** (выход). Это две половины журнала.
+- **First-write-wins**: пишется только если `prompt IS NULL`. `SavePrompt` — не durable-шаг, DBOS-replay
+  переотправляет снимок, но повторная запись **не перезатирает** первую (окно `history` могло
+  сдвинуться — нужен снимок на старт рана). Гонок нет: очередь партиционирована по сессии
+  (concurrency=1), реплей последователен. Чекпоинт не добавляется → **drain не нужен**.
+- **Точность**: content-exact — отрендеренный системный промпт (с tool-pinning), ephemeral-префикс,
+  история и триггер ровно как в цикле. Вложения — как **ссылки** (`FilePartRef`/`agf_`), не байты
+  (байты резолвятся позже в `LlmMessageMapper`; base64 в снимок не кладём). Не wire-exact — обёртки
+  Spring AI / провайдерский JSON здесь не отражаются.
+- Хранится **opaque** JSON-деревом (наблюдаемость, не проекция; бэк не интерпретирует).
+- **Sensitive content**: `prompt` — пользовательский контент (как `agent_run_turns`) → до прода
+  подпадает под per-user DEK + retention.
 
 ## Tool execution
 

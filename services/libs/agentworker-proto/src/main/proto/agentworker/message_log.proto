@@ -17,6 +17,11 @@ service MessageLog {
   // идемпотентная проекция уже-durable данных (результатов дочерних LLM/tool-воркфлоу), поэтому
   // реплей переотправляет ту же пару (run_id, turn_index), а бэк дедуплицирует. Доставки нет.
   rpc SaveTurn(SaveTurnRequest) returns (SaveTurnResponse);
+  // Снимок стартового промпта рана (agent_runs.prompt): список сообщений ровно как он ушёл в
+  // первый LLM-вызов — system + history + триггер-сообщение (с ephemeral-префиксом). Шлётся один
+  // раз перед циклом; дальнейшие ходы идут отдельно в SaveTurn. Не durable-шаг, best-effort; бэк
+  // пишет first-write-wins (реплей/ретрай не перезатирает).
+  rpc SavePrompt(SavePromptRequest) returns (SavePromptResponse);
 }
 
 enum MessageKind {
@@ -81,6 +86,18 @@ message SaveTurnRequest {
 
 message SaveTurnResponse {
   bool duplicate = 1;                  // (run_id, turn_index) уже записан — реплей/ретрай
+}
+
+message SavePromptRequest {
+  string agent_id = 1;
+  string run_id = 2;                   // agent_runs.id (= DBOS workflow id)
+  // JSON-массив AgentChatMessage воркера ровно как он ушёл в цикл (system+history+trigger).
+  // Хранится бэком opaque в JSONB — наблюдаемость, не проекция; вложения — как ссылки, не байты.
+  string prompt_json = 3;
+}
+
+message SavePromptResponse {
+  bool stored = 1;                     // false = снимок уже был (first-write-wins)
 }
 
 // Один ход ассистента с тулами: преамбула + вызовы + результаты. Схема полей повторяет

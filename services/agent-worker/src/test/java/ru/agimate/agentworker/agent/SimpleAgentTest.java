@@ -22,14 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SimpleAgentTest {
 
     private static SimpleAgent agent(SimpleAgent.LlmCaller llm, SimpleAgent.ToolDispatcher dispatcher,
-                                     SimpleAgent.TurnSink onNewMessages, int maxTurns) {
-        return agent(llm, dispatcher, onNewMessages, null, maxTurns);
-    }
-
-    private static SimpleAgent agent(SimpleAgent.LlmCaller llm, SimpleAgent.ToolDispatcher dispatcher,
-                                     SimpleAgent.TurnSink onNewMessages, SimpleAgent.UsageSink onUsage,
-                                     int maxTurns) {
-        return new SimpleAgent(llm, dispatcher, List.of(), maxTurns, onNewMessages, onUsage);
+                                     SimpleAgent.RunObserver observer, int maxTurns) {
+        return new SimpleAgent(llm, dispatcher, List.of(), maxTurns, observer);
     }
 
     private static SimpleAgent.LlmReply reply(AgentChatMessage message) {
@@ -56,7 +50,13 @@ class SimpleAgentTest {
                 new AgentChatMessage.ToolResult("id1", "t", "{\"ok\":true}", false));
 
         List<AgentChatMessage> newMsgs = new ArrayList<>();
-        SimpleAgent agent = agent(llm, dispatcher, (msgs, meta) -> newMsgs.addAll(msgs), 10);
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public void onMessages(List<AgentChatMessage> msgs, LlmMeta meta) {
+                newMsgs.addAll(msgs);
+            }
+        };
+        SimpleAgent agent = agent(llm, dispatcher, observer, 10);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertEquals("final", agent.run(conv));
@@ -67,8 +67,8 @@ class SimpleAgentTest {
     }
 
     @Test
-    @DisplayName("meta вызова прокидывается в sink на assistant-ход; на tool-ход meta null")
-    void metaReachesSinkForAssistantOnly() {
+    @DisplayName("meta вызова прокидывается в observer на assistant-ход; на tool-ход meta null")
+    void metaReachesObserverForAssistantOnly() {
         LlmMeta meta = new LlmMeta("tool_calls", "gpt-5-mini", "wf-llm-1");
         AtomicInteger turn = new AtomicInteger();
         SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
@@ -81,11 +81,16 @@ class SimpleAgentTest {
 
         List<LlmMeta> metas = new ArrayList<>();
         List<AgentChatMessage.Role> roles = new ArrayList<>();
-        SimpleAgent.TurnSink sink = (msgs, m) -> msgs.forEach(x -> {
-            roles.add(x.role());
-            metas.add(m);
-        });
-        agent(llm, dispatcher, sink, 10).run(new ArrayList<>(List.of(AgentChatMessage.user("hi"))));
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public void onMessages(List<AgentChatMessage> msgs, LlmMeta m) {
+                msgs.forEach(x -> {
+                    roles.add(x.role());
+                    metas.add(m);
+                });
+            }
+        };
+        agent(llm, dispatcher, observer, 10).run(new ArrayList<>(List.of(AgentChatMessage.user("hi"))));
 
         // assistant(tool) → meta вызова; tool-результаты → null; assistant(final) → своя meta.
         assertEquals(List.of(AgentChatMessage.Role.ASSISTANT, AgentChatMessage.Role.TOOL,
@@ -96,14 +101,20 @@ class SimpleAgentTest {
     }
 
     @Test
-    @DisplayName("usage вызова сурфейсится в usage-sink (happy path)")
-    void usageSurfacedToSink() {
+    @DisplayName("usage вызова сурфейсится в observer.onUsage (happy path)")
+    void usageSurfacedToObserver() {
         LlmUsage usage = new LlmUsage("wf-1", "prov", "gpt-5-mini", 100, 20, 0, 0);
         SimpleAgent.LlmCaller llm = (msgs, defs) -> new SimpleAgent.LlmReply(
                 AgentChatMessage.assistant("done", false, List.of()), null, usage, null);
         List<LlmUsage> got = new ArrayList<>();
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public void onUsage(LlmUsage u) {
+                got.add(u);
+            }
+        };
 
-        agent(llm, calls -> List.of(), null, got::add, 10)
+        agent(llm, calls -> List.of(), observer, 10)
                 .run(new ArrayList<>(List.of(AgentChatMessage.user("hi"))));
 
         assertEquals(List.of(usage), got);
@@ -117,10 +128,45 @@ class SimpleAgentTest {
                 AgentChatMessage.assistant("обрезано", false, List.of()), null, usage,
                 LlmResponseIncomplete.Reason.LENGTH);
         List<LlmUsage> got = new ArrayList<>();
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public void onUsage(LlmUsage u) {
+                got.add(u);
+            }
+        };
 
-        assertThrows(LlmResponseIncomplete.class, () -> agent(llm, calls -> List.of(), null, got::add, 10)
+        assertThrows(LlmResponseIncomplete.class, () -> agent(llm, calls -> List.of(), observer, 10)
                 .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
         assertEquals(List.of(usage), got);
+    }
+
+    @Test
+    @DisplayName("onStart сурфейсит стартовый список (system+history+trigger) ДО первого вызова, один раз")
+    void startPromptSurfacedBeforeLoop() {
+        AtomicInteger calls = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> {
+            calls.incrementAndGet();
+            return reply(AgentChatMessage.assistant("done", false, List.of()));
+        };
+        List<List<AgentChatMessage>> snapshots = new ArrayList<>();
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public void onStart(List<AgentChatMessage> messages) {
+                snapshots.add(messages);
+            }
+        };
+        SimpleAgent agent = agent(llm, c -> List.of(), observer, 10);
+
+        List<AgentChatMessage> start = List.of(
+                AgentChatMessage.system("sys"),
+                AgentChatMessage.user("prev"),
+                AgentChatMessage.user("hi"));
+        agent.run(new ArrayList<>(start));
+
+        // Ровно один снимок, снятый до какого-либо LLM-вызова, равный исходному списку.
+        assertEquals(1, snapshots.size());
+        assertEquals(start, snapshots.get(0));
+        assertEquals(1, calls.get());
     }
 
     @Test

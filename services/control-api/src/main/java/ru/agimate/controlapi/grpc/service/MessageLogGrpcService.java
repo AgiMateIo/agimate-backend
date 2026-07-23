@@ -8,6 +8,7 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.enums.AgentTurnRole;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.grpc.mapper.MessageKindMapper;
+import ru.agimate.controlapi.service.AgentRunPromptService;
 import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.channel.MessageLogService;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
@@ -15,6 +16,8 @@ import ru.agimate.agentworker.MessageLogGrpc;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.SaveMessageRequest;
 import ru.agimate.agentworker.SaveMessageResponse;
+import ru.agimate.agentworker.SavePromptRequest;
+import ru.agimate.agentworker.SavePromptResponse;
 import ru.agimate.agentworker.SaveTurnRequest;
 import ru.agimate.agentworker.SaveTurnResponse;
 import ru.agimate.agentworker.ToolTurn;
@@ -36,6 +39,7 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
 
     private final MessageLogService messageLogService;
     private final AgentRunTurnService agentRunTurnService;
+    private final AgentRunPromptService agentRunPromptService;
 
     @Override
     public void saveMessage(SaveMessageRequest request, StreamObserver<SaveMessageResponse> responseObserver) {
@@ -91,6 +95,25 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
             responseObserver.onCompleted();
         } catch (Exception e) {
             handleError(e, responseObserver, "SaveTurn agent=" + request.getAgentId()
+                    + " run=" + request.getRunId());
+        }
+    }
+
+    @Override
+    public void savePrompt(SavePromptRequest request, StreamObserver<SavePromptResponse> responseObserver) {
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            UUID runId = parseUuid(request.getRunId(), "run_id");
+
+            AgentRunPromptService.SaveResult result =
+                    agentRunPromptService.save(agentId, runId, request.getPromptJson());
+
+            responseObserver.onNext(SavePromptResponse.newBuilder()
+                    .setStored(result.stored())
+                    .build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            handleError(e, responseObserver, "SavePrompt agent=" + request.getAgentId()
                     + " run=" + request.getRunId());
         }
     }

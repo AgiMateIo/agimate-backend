@@ -1,10 +1,12 @@
 package ru.agimate.agentworker.workers.run;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.dbos.transact.DBOS;
 import dev.dbos.transact.workflow.Queue;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.WorkerMessageType;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.agent.AgentRunner;
@@ -32,6 +34,7 @@ import java.util.List;
 public class AgentRunCore {
 
     private static final int MAX_AGENT_TURNS = 30;
+    private static final ObjectMapper PROMPT_MAPPER = new ObjectMapper();
 
     private final DBOS dbos;
     private final AgentWorkerClient client;
@@ -84,26 +87,39 @@ public class AgentRunCore {
         // (run_id, turn_index) на бэке. Пишется рядом с канальной проекцией, не вместо неё.
         TurnLog turns = new TurnLog(client, agentId, runId);
 
-        // Каждый ход приходит отдельным notify (v2.1a): assistant с вызовами до dispatch → TOOL_CALL
-        // (+преамбула/thinking), затем tool-результаты → отдельная TOOL_RESULT-запись. Историю
-        // следующих ранов бэк соберёт из этой пары в нативные tool_use/tool_result.
-        SimpleAgent.TurnSink onNewMessages = (newMsgs, meta) -> {
-            for (AgentChatMessage m : newMsgs) {
-                turns.record(m, meta);
-                if (m.role() == AgentChatMessage.Role.ASSISTANT) {
-                    for (MessageCodec.ProgressLine line
-                            : MessageCodec.progressLines(m, registry.displayNames(m))) {
-                        messages.progress(line);
+        // Один наблюдатель событий рана — ран-обвязка единственный писатель backend-side-записей:
+        //  • onStart — снимок стартового промпта (то, что ушло в первый LLM-вызов) в agent_runs.prompt,
+        //    один раз перед циклом; дальнейшие ходы уже пишет TurnLog. First-write-wins на бэке.
+        //  • onMessages — каждый ход отдельным вызовом (v2.1a): assistant с вызовами до dispatch →
+        //    TOOL_CALL (+преамбула/thinking), затем tool-результаты → отдельная TOOL_RESULT-запись;
+        //    историю следующих ранов бэк соберёт из этой пары в нативные tool_use/tool_result.
+        //  • onUsage — учёт расхода токенов, best-effort, идемпотентно по call_id (реплей дедупит).
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public void onStart(List<AgentChatMessage> startMessages) {
+                reportPrompt(agentId, runId, startMessages);
+            }
+
+            @Override
+            public void onMessages(List<AgentChatMessage> newMsgs, LlmMeta meta) {
+                for (AgentChatMessage m : newMsgs) {
+                    turns.record(m, meta);
+                    if (m.role() == AgentChatMessage.Role.ASSISTANT) {
+                        for (MessageCodec.ProgressLine line
+                                : MessageCodec.progressLines(m, registry.displayNames(m))) {
+                            messages.progress(line);
+                        }
+                    } else if (m.role() == AgentChatMessage.Role.TOOL) {
+                        messages.progress(MessageCodec.toolResultLine(m));
                     }
-                } else if (m.role() == AgentChatMessage.Role.TOOL) {
-                    messages.progress(MessageCodec.toolResultLine(m));
                 }
             }
-        };
 
-        // Учёт расхода токенов — тут, рядом с журналом ходов: ран-обвязка единственный писатель
-        // backend-side-записей. Best-effort, идемпотентно по call_id (реплей дедупит на бэке).
-        SimpleAgent.UsageSink onUsage = usage -> reportUsage(agentId, runId, usage);
+            @Override
+            public void onUsage(LlmUsage usage) {
+                reportUsage(agentId, runId, usage);
+            }
+        };
 
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
         AgentChatMessage modelRequest = withEphemeralPrefix(initialRequest, prepared.ephemeralUserPrefix());
@@ -113,7 +129,7 @@ public class AgentRunCore {
                 runId, registry);
 
         AgentRunner runner = new AgentRunner(llmDispatcher, toolDispatcher, registry.toolDefs(), MAX_AGENT_TURNS,
-                context, onNewMessages, onUsage, templates);
+                context, observer, templates);
         String answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
         messages.answer(answer);
         return answer;
@@ -134,6 +150,20 @@ public class AgentRunCore {
                     usage.cacheReadTokens(), usage.cacheWriteTokens());
         } catch (Exception e) {
             log.warn("LLM usage report failed (best-effort): {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Снимок стартового промпта рана ({@code savePrompt} → {@code agent_runs.prompt}): список
+     * сообщений ровно как он ушёл в первый LLM-вызов (system + history + триггер с ephemeral).
+     * Сериализуется как есть (вложения — ссылки, не байты). Best-effort: сбой логируется и не
+     * валит ран — снимок это наблюдаемость. Бэк пишет first-write-wins, реплей не перезатирает.
+     */
+    private void reportPrompt(String agentId, String runId, List<AgentChatMessage> messages) {
+        try {
+            client.savePrompt(agentId, runId, PROMPT_MAPPER.writeValueAsString(messages));
+        } catch (Exception e) {
+            log.warn("prompt snapshot report failed (best-effort): {}", e.getMessage());
         }
     }
 

@@ -25,6 +25,8 @@ import ru.agimate.agentworker.ReportLlmUsageRequest;
 import ru.agimate.agentworker.ReportLlmUsageResponse;
 import ru.agimate.agentworker.SaveMessageRequest;
 import ru.agimate.agentworker.SaveMessageResponse;
+import ru.agimate.agentworker.SavePromptRequest;
+import ru.agimate.agentworker.SavePromptResponse;
 import ru.agimate.agentworker.SaveTurnRequest;
 import ru.agimate.agentworker.SaveTurnResponse;
 import ru.agimate.agentworker.SendMessageRequest;
@@ -241,6 +243,19 @@ public class AgentWorkerClient {
             return messageLog.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                     .saveTurn(request.build());
         });
+    }
+
+    /**
+     * Снимок стартового промпта рана ({@code agent_runs.prompt}): {@code promptJson} — JSON-массив
+     * сообщений как он ушёл в первый LLM-вызов. Один раз перед циклом, first-write-wins на бэке.
+     */
+    public SavePromptResponse savePrompt(String agentId, String runId, String promptJson) {
+        return call("SavePrompt", () -> messageLog.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+                .savePrompt(SavePromptRequest.newBuilder()
+                        .setAgentId(agentId)
+                        .setRunId(runId)
+                        .setPromptJson(promptJson == null ? "" : promptJson)
+                        .build()));
     }
 
     // ---- ToolGateway -----------------------------------------------------------------

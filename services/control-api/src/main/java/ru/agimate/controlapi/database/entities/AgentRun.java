@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.database.entities;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
@@ -81,4 +82,16 @@ public class AgentRun extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "channels", columnDefinition = "JSONB")
     private Map<String, Object> channels;
+
+    /**
+     * Снимок стартового промпта рана: список сообщений ровно как он ушёл в первый LLM-вызов
+     * (system + history + триггер с ephemeral-префиксом). Пишет воркер один раз перед циклом
+     * ({@code SavePrompt}), first-write-wins. Хранится opaque JSON-деревом — наблюдаемость, не
+     * проекция; дальнейшие ходы рана идут в {@code agent_run_turns}. {@code null} — снимок ещё не
+     * снят (ран не дошёл до цикла) либо ран до этой фичи. Пользовательский контент → до прода
+     * подпадает под per-user DEK + retention, как {@code agent_run_turns}.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "prompt", columnDefinition = "JSONB")
+    private JsonNode prompt;
 }

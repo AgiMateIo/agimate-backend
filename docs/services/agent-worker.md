@@ -26,7 +26,7 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id, openWorld)`; `{namespace}.{name}` naming; schema parsing. |
 | `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). When the run has open-world tools it appends a system paragraph pinning tool output as data. |
 | `context/ContextMaterials` | The `GetRunContext` payload as fetched (ordered blocks + tools), consumed by `ContextBuilder`. |
-| `SimpleAgent` | The manual turn-loop (LLM call + tool dispatch injected; optional steering checkpoint). |
+| `SimpleAgent` | The manual turn-loop (LLM call + tool dispatch injected). Loop events go out through one injected `RunObserver` — `onStart` (turn-1 prompt snapshot), `onMessages` (each turn), `onUsage` (per-call tokens); default no-ops, wired by `AgentRunCore`. |
 | `AgentRunner` | Assemble the message list, map terminal failures to `AgentRunAborted`. |
 
 ### `llm/` — Spring AI (OpenAI)
@@ -51,10 +51,13 @@ inbound ack, progress, answer, error — one `save_message` durable step per eve
 deterministic per-run `seq`, so replays dedupe backend-side) and
 `LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared
 `WorkflowHandles` await). `LlmCallDispatcher` is a pure data-returner: token usage and the
-truncation `incompleteReason` ride up on the `LlmReply`; `SimpleAgent` surfaces usage via a
-usage-sink (before aborting a truncated turn, so its tokens still count) and `AgentRunCore` reports
-it with `ReportLlmUsage` — the parent is the sole writer of backend side-records, symmetric with
-`SaveMessage`/`SaveTurn`. Output of tools with MCP `openWorldHint=true` (external-world
+truncation `incompleteReason` ride up on the `LlmReply`. `SimpleAgent` surfaces all loop events
+through one injected `RunObserver` — `onStart` (the turn-1 message list, before the first call),
+`onMessages` (each turn), `onUsage` (per-call tokens, before aborting a truncated turn so they still
+count); `AgentRunCore` implements it and projects each into a backend side-record — `SavePrompt` →
+`agent_runs.prompt` (start snapshot, first-write-wins), `SaveTurn` → `agent_run_turns`, and
+`ReportLlmUsage`. The parent is the sole writer of backend side-records, symmetric with
+`SaveMessage`. Output of tools with MCP `openWorldHint=true` (external-world
 content — mail, tickets, web; a prompt-injection channel) is wrapped by the dispatcher in
 `<untrusted_tool_output>` with the closing tag neutralized inside the payload; the wrapper's
 semantics are pinned by the `ContextBuilder` system paragraph. History arrives pre-assembled in `PreparedContext.history`

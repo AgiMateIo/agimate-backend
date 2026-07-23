@@ -68,26 +68,6 @@ public class SimpleAgent {
     }
 
     /**
-     * Per-turn sink: new dialogue messages plus the LLM {@code meta} of the turn that produced them
-     * ({@code null} for tool-result turns — no LLM call). Backend persistence and channel delivery
-     * are the caller's projections of this stream.
-     */
-    @FunctionalInterface
-    public interface TurnSink {
-        void accept(List<AgentChatMessage> messages, LlmMeta meta);
-    }
-
-    /**
-     * Per-call usage sink: fires once for every model call that reached the provider (happy,
-     * imitation, and truncated), before the loop acts on the reply. The run wiring reports it to
-     * the backend — the loop stays pure and the parent stays the sole writer of side-records.
-     */
-    @FunctionalInterface
-    public interface UsageSink {
-        void accept(LlmUsage usage);
-    }
-
-    /**
      * Injected tool dispatch: enqueue every call (deterministic order) and return results in order.
      * Never throws for tool failures — a failed call comes back as a failed {@link AgentChatMessage.ToolResult}.
      */
@@ -96,21 +76,46 @@ public class SimpleAgent {
         List<AgentChatMessage.ToolResult> dispatchAll(List<AgentChatMessage.ToolCall> calls);
     }
 
+    /**
+     * Observer of the run's loop events — the run wiring projects each into a backend side-record,
+     * so the loop stays pure and the parent stays the sole writer. Default no-ops let a caller (or
+     * test) handle only the events it cares about; {@link #NOOP} ignores all.
+     */
+    public interface RunObserver {
+        /**
+         * Fires once with the initial message list <b>before</b> the first model call — exactly what
+         * the LLM sees on turn 1 (system + history + trigger). Snapshotted into {@code agent_runs.prompt}.
+         */
+        default void onStart(List<AgentChatMessage> messages) {}
+
+        /**
+         * New dialogue messages plus the LLM {@code meta} of the turn that produced them ({@code null}
+         * for tool-result turns — no LLM call). Persistence and channel delivery are its projections.
+         */
+        default void onMessages(List<AgentChatMessage> messages, LlmMeta meta) {}
+
+        /**
+         * Per-call token usage for every model call that reached the provider (happy, imitation, and
+         * truncated), before the loop acts on the reply.
+         */
+        default void onUsage(LlmUsage usage) {}
+
+        RunObserver NOOP = new RunObserver() {};
+    }
+
     private final LlmCaller llmCaller;
     private final ToolDispatcher toolDispatcher;
     private final List<ToolDef> toolDefs;
     private final int maxTurns;
-    private final TurnSink onNewMessages;
-    private final UsageSink onUsage;
+    private final RunObserver observer;
 
     public SimpleAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, List<ToolDef> toolDefs,
-                       int maxTurns, TurnSink onNewMessages, UsageSink onUsage) {
+                       int maxTurns, RunObserver observer) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;
         this.maxTurns = maxTurns;
-        this.onNewMessages = onNewMessages;
-        this.onUsage = onUsage;
+        this.observer = observer != null ? observer : RunObserver.NOOP;
     }
 
     /**
@@ -118,6 +123,7 @@ public class SimpleAgent {
      * Throws {@link MaxTurnsExceeded} if no final reply is produced.
      */
     public String run(List<AgentChatMessage> messages) {
+        notifyStart(messages);
         int corrections = 0;
         for (int turn = 1; turn <= maxTurns; turn++) {
             log.info("turn {}/{}: requesting LLM", turn, maxTurns);
@@ -167,14 +173,17 @@ public class SimpleAgent {
     }
 
     private void notify(List<AgentChatMessage> newMessages, LlmMeta meta) {
-        if (onNewMessages != null) {
-            onNewMessages.accept(newMessages, meta);
-        }
+        observer.onMessages(newMessages, meta);
     }
 
     private void notifyUsage(LlmUsage usage) {
-        if (usage != null && onUsage != null) {
-            onUsage.accept(usage);
+        if (usage != null) {
+            observer.onUsage(usage);
         }
+    }
+
+    /** Immutable copy — the loop mutates {@code messages}, the snapshot must be turn-1 state. */
+    private void notifyStart(List<AgentChatMessage> messages) {
+        observer.onStart(List.copyOf(messages));
     }
 }
