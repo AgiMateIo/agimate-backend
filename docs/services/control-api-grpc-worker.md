@@ -166,9 +166,12 @@ DBOS-чекпоинт не попадают (`RunContext.inbound_parts` несё
   ранов двумя соседними записями — воркер сшивает их в нативную пару tool_use/tool_result. Легаси
   TOOL_CALL с `calls+results` в одной записи по-прежнему читается.
 - `ANSWER` → answer-канал (fallback prompt); в той же транзакции все сообщения рана помечаются
-  `completed=true` — ран становится видимым истории. Direct-ран → `agent_runs.result`.
-- `ERROR` → progress/answer/prompt-фолбэк; direct-ран → `agent_runs.error`. ERROR не
-  завершает ран — его сообщения в историю не попадут.
+  `completed=true` — ран становится видимым истории. Текст пишется в `agent_runs.result` для
+  **любого** рана (самодостаточная строка рана — исход виден без join к истории), не только direct.
+- `ERROR` → progress/answer/prompt-фолбэк; текст пишется в `agent_runs.error` для **любого** рана.
+  ERROR не завершает ран — его сообщения в историю не попадут.
+- У канального рана `result`/`error` дублируют канальную проекцию (`channel_session_messages`) —
+  осознанно, ради самодостаточности строки рана; попадают под тот же per-user DEK + retention.
 
 `PromptBlock{name, source, content, attrs, trusted, ephemeral}` — `name`/`attrs` становятся XML-тегом
 у рендерера (пустой `name` — сырой текст). LLM-креды в `RunContext` **не входят**: его результат

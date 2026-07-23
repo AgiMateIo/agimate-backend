@@ -128,15 +128,28 @@ class MessageLogServiceTest {
         }
 
         @Test
-        @DisplayName("ANSWER помечает весь ран completed")
+        @DisplayName("канальный ANSWER: помечает ран completed И пишет result на ран (самодостаточная строка)")
         void answerCompletesRun() {
-            run(SESSION_ID, dialogueChannels());
+            AgentRun run = run(SESSION_ID, dialogueChannels());
             when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
                     anyString(), isNull(), anyString(), isNull(), isNull())).thenReturn(1);
 
             service.save(AGENT_ID, TRIGGER_ID, 5, ChannelSessionMessageKind.ANSWER, null, "done", null);
 
             verify(messageRepository).markRunCompleted(TRIGGER_ID);
+            assertEquals("done", run.getResult());
+        }
+
+        @Test
+        @DisplayName("канальный ERROR: error пишется на ран (не только в историю)")
+        void channelErrorRecordsOnRun() {
+            AgentRun run = run(SESSION_ID, dialogueChannels());
+            when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
+                    anyString(), isNull(), anyString(), isNull(), isNull())).thenReturn(1);
+
+            service.save(AGENT_ID, TRIGGER_ID, 6, ChannelSessionMessageKind.ERROR, null, "boom", null);
+
+            assertEquals("boom", run.getError());
         }
 
         @Test

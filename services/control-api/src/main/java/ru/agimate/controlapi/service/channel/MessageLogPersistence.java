@@ -59,10 +59,21 @@ public class MessageLogPersistence {
 
         projectStatus(run, kind);
 
+        // Исход рана — в строку agent_runs для ЛЮБОГО рана (самодостаточная строка рана: финальный
+        // ответ и ошибка видны без join к channel_session_messages), независимо от доставки в канал.
+        // run управляемый (findById в этой TX) → dirty checking сбрасывает на коммите.
+        if (kind == ChannelSessionMessageKind.ANSWER) {
+            run.setResult(text);
+        } else if (kind == ChannelSessionMessageKind.ERROR) {
+            run.setError(text);
+        }
+
         Channels channels = ChannelsCodec.fromMap(run.getChannels());
         UUID sessionId = run.getSessionId();
         boolean duplicate = false;
 
+        // Канальный ран: те же ANSWER/ERROR дополнительно проецируются в channel_session_messages
+        // (доставка). Direct-ран без канала: строки истории нет, исход уже записан на run выше.
         if (sessionId != null) {
             String message = kind == ChannelSessionMessageKind.INBOUND
                     ? canonicalInbound(run, channels)
@@ -80,14 +91,6 @@ public class MessageLogPersistence {
             if (kind == ChannelSessionMessageKind.ANSWER) {
                 messageRepository.markRunCompleted(triggerId);
             }
-        } else if (kind == ChannelSessionMessageKind.ANSWER || kind == ChannelSessionMessageKind.ERROR) {
-            // Direct-ран без каналов: результат/ошибка — в строку рана, доставки нет.
-            if (kind == ChannelSessionMessageKind.ANSWER) {
-                run.setResult(text);
-            } else {
-                run.setError(text);
-            }
-            agentRunRepository.save(run);
         }
 
         if (duplicate) {
