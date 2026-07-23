@@ -50,16 +50,11 @@ class LlmCallWorkflowImplTest {
         private final LlmMessageMapper mapper = mock(LlmMessageMapper.class);
         private final OpenAiChatModel model = mock(OpenAiChatModel.class);
 
-        /** Реальный DBOS-контекст в юнит-тесте недоступен — подменяем швы call/run id. */
+        /** Реальный DBOS-контекст в юнит-тесте недоступен — подменяем шов call id; runId — параметр. */
         private final LlmCallWorkflowImpl workflow = new LlmCallWorkflowImpl(client, modelFactory, mapper) {
             @Override
             String currentCallId() {
                 return "wf-llm-77";
-            }
-
-            @Override
-            String currentRunId() {
-                return "run-42";
             }
         };
 
@@ -90,7 +85,7 @@ class LlmCallWorkflowImplTest {
         void reportsUsageAfterSuccessfulCall() {
             stubSuccessfulCall("prov-1");
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
 
             assertFalse(result.failed());
             // Provenance для журнала ходов: модель из кредов, callId = собственный workflow id вызова.
@@ -106,7 +101,7 @@ class LlmCallWorkflowImplTest {
             stubSuccessfulCall("prov-1");
             when(mapper.finishReason(any())).thenReturn("length");
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
 
             assertFalse(result.failed());
             assertEquals("length", result.finishReason());
@@ -120,7 +115,7 @@ class LlmCallWorkflowImplTest {
                     anyInt(), anyInt(), anyInt(), anyInt()))
                     .thenThrow(new ControlApiCallException("ReportLlmUsage", Status.UNAVAILABLE));
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
 
             assertFalse(result.failed());
         }
@@ -130,7 +125,7 @@ class LlmCallWorkflowImplTest {
         void skipsReportWithoutProviderId() {
             stubSuccessfulCall("");
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
 
             assertFalse(result.failed());
             verify(client, never()).reportLlmUsage(anyString(), anyString(), anyString(), anyString(),
@@ -144,7 +139,7 @@ class LlmCallWorkflowImplTest {
             when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
                     "GetLlmCredentials", Status.RESOURCE_EXHAUSTED.withDescription(quota)));
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
 
             assertTrue(result.failed());
             assertTrue(result.userFacing());
@@ -158,7 +153,7 @@ class LlmCallWorkflowImplTest {
             when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
                     "GetLlmCredentials", Status.NOT_FOUND.withDescription("No LLM binding")));
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
 
             assertTrue(result.failed());
             assertFalse(result.userFacing());

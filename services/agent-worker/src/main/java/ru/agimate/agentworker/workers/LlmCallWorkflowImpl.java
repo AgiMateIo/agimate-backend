@@ -4,8 +4,6 @@ import com.openai.errors.OpenAIIoException;
 import com.openai.errors.OpenAIRetryableException;
 import com.openai.errors.OpenAIServiceException;
 import dev.dbos.transact.context.DBOSContext;
-import dev.dbos.transact.context.DBOSContextHolder;
-import dev.dbos.transact.context.WorkflowInfo;
 import io.grpc.Status;
 import dev.dbos.transact.workflow.Workflow;
 import dev.dbos.transact.workflow.WorkflowClassName;
@@ -49,7 +47,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
 
     @Override
     @Workflow(name = Queues.LLM_WORKFLOW)
-    public Result llmCall(List<AgentChatMessage> messages, List<ToolDef> toolDefs, String agentId) {
+    public Result llmCall(List<AgentChatMessage> messages, List<ToolDef> toolDefs, String agentId, String runId) {
         LlmCredentials creds;
         try {
             creds = client.getLlmCredentials(agentId);
@@ -89,7 +87,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             Map<String, byte[]> mediaBytes = imageInput ? fetchImageBytes(messages, agentId) : Map.of();
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes, imageInput), options);
             ChatResponse response = callWithRetry(model, prompt);
-            reportUsage(response, creds, agentId);
+            reportUsage(response, creds, agentId, runId);
             return Result.ok(mapper.fromResponse(response), mapper.finishReason(response),
                     creds.getModel(), currentCallId());
         } catch (Exception e) {
@@ -107,9 +105,11 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
      * Best-effort учёт расхода токенов: сбой репорта логируется и не влияет на результат вызова
      * (иначе инфраструктура учёта стала бы источником отказов ранов). Идемпотентность — на бэке
      * по call_id (собственный workflow id этого LLM-вызова, реплей-стабилен). Пустой provider_id
-     * (старый control-api при rolling deploy) → репорт пропускается.
+     * (старый control-api при rolling deploy) → репорт пропускается. {@code runId} прокидывается
+     * явно параметром воркфлоу (как в tool-пути): у enqueued child-воркфлоу родитель из
+     * DBOS-контекста в рантайме недоступен, поэтому вывод runId из контекста давал бы NULL.
      */
-    private void reportUsage(ChatResponse response, LlmCredentials creds, String agentId) {
+    private void reportUsage(ChatResponse response, LlmCredentials creds, String agentId, String runId) {
         try {
             if (creds.getProviderId().isBlank()) {
                 return;
@@ -124,7 +124,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
                 log.warn("No workflow id in context — skipping usage report");
                 return;
             }
-            client.reportLlmUsage(callId, agentId, currentRunId(),
+            client.reportLlmUsage(callId, agentId, runId,
                     creds.getProviderId(), creds.getModel(),
                     intOrZero(usage.getPromptTokens()), intOrZero(usage.getCompletionTokens()),
                     intOrZero(usage.getCacheReadInputTokens()), intOrZero(usage.getCacheWriteInputTokens()));
@@ -167,12 +167,6 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
     /** Собственный workflow id LLM-вызова; шов для тестов. */
     String currentCallId() {
         return DBOSContext.workflowId();
-    }
-
-    /** Родительский ран-воркфлоу (= runId), если контекст его знает; шов для тестов. */
-    String currentRunId() {
-        WorkflowInfo parent = DBOSContextHolder.get().getParent();
-        return parent != null ? parent.workflowId() : null;
     }
 
     private static int intOrZero(Number value) {

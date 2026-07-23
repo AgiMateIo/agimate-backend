@@ -24,18 +24,20 @@ class LlmCallDispatcher implements SimpleAgent.LlmCaller {
     private final LlmCallWorkflow llm;
     private final Queue llmQueue;
     private final String agentId;
+    private final String runId;
 
-    LlmCallDispatcher(DBOS dbos, LlmCallWorkflow llm, Queue llmQueue, String agentId) {
+    LlmCallDispatcher(DBOS dbos, LlmCallWorkflow llm, Queue llmQueue, String agentId, String runId) {
         this.dbos = dbos;
         this.llm = llm;
         this.llmQueue = llmQueue;
         this.agentId = agentId;
+        this.runId = runId;
     }
 
     @Override
     public SimpleAgent.LlmReply call(List<AgentChatMessage> messages, List<ToolDef> toolDefs) {
         WorkflowHandle<LlmCallWorkflow.Result, ? extends Exception> handle =
-                dbos.startWorkflow(() -> llm.llmCall(messages, toolDefs, agentId), new StartWorkflowOptions(llmQueue));
+                dbos.startWorkflow(() -> llm.llmCall(messages, toolDefs, agentId, runId), new StartWorkflowOptions(llmQueue));
         LlmCallWorkflow.Result result = WorkflowHandles.await(handle);
         if (result.failed()) {
             throw new LlmCallError(result.statusCode(), result.message(), result.userFacing());

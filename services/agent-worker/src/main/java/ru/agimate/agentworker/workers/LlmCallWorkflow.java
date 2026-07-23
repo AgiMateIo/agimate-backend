@@ -8,7 +8,7 @@ import java.util.List;
 /** One model request per {@code llm_calls} queue item, so model traffic gets its own concurrency. */
 public interface LlmCallWorkflow {
 
-    Result llmCall(List<AgentChatMessage> messages, List<ToolDef> toolDefs, String agentId);
+    Result llmCall(List<AgentChatMessage> messages, List<ToolDef> toolDefs, String agentId, String runId);
 
     /**
      * A failure is returned (not thrown) so DBOS never logs the HTTP/API error at ERROR with a
