@@ -39,7 +39,7 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 | Workflow | Queue | Role |
 |---|---|---|
 | `AgentRunWorkflow.runAgent` | `agent_exec` | **Entry point + run stage**: enqueued directly by control-api (`workflow_id == runId`, partitioned by session, concurrency=1 → one writer per session); drives `AgentRunCore` (the run body is uniform — dialogue vs trigger is server-side policy). |
-| `LlmCallWorkflow.llmCall` | `llm_calls` | One model request; credentials fetched inline (never checkpointed). |
+| `LlmCallWorkflow.llmCall` | `llm_calls` | One model request; credentials fetched inline (never checkpointed). Returns token usage on its `Result` — the child only counts; the loop surfaces it and the run wiring emits `ReportLlmUsage`. |
 | `ToolCallWorkflow.toolCall` | `tool_calls` | One backend tool call (`ExecuteToolAsync` + poll `GetToolResult`); never raises. |
 
 The package root is what DBOS sees: the three workflow pairs and `Queues`. The run-body machinery lives in `workers/run`:
@@ -50,7 +50,11 @@ distinct concerns to collaborators: `MessageLog` (the run's single writer of dia
 inbound ack, progress, answer, error — one `save_message` durable step per event with a
 deterministic per-run `seq`, so replays dedupe backend-side) and
 `LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared
-`WorkflowHandles` await). Output of tools with MCP `openWorldHint=true` (external-world
+`WorkflowHandles` await). `LlmCallDispatcher` is a pure data-returner: token usage and the
+truncation `incompleteReason` ride up on the `LlmReply`; `SimpleAgent` surfaces usage via a
+usage-sink (before aborting a truncated turn, so its tokens still count) and `AgentRunCore` reports
+it with `ReportLlmUsage` — the parent is the sole writer of backend side-records, symmetric with
+`SaveMessage`/`SaveTurn`. Output of tools with MCP `openWorldHint=true` (external-world
 content — mail, tickets, web; a prompt-injection channel) is wrapped by the dispatcher in
 `<untrusted_tool_output>` with the closing tag neutralized inside the payload; the wrapper's
 semantics are pinned by the `ContextBuilder` system paragraph. History arrives pre-assembled in `PreparedContext.history`

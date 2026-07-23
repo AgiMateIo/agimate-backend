@@ -16,7 +16,9 @@ import java.util.List;
 
 /**
  * Per-run {@link SimpleAgent.LlmCaller}: enqueues each model request as a child workflow on the
- * llm queue and awaits it. Holds no persistence/output state.
+ * llm queue and awaits it. Pure data-returner — holds no persistence/output state and writes no
+ * backend records: token usage and the terminal incomplete-reason ride up on the {@link
+ * SimpleAgent.LlmReply}; the loop surfaces usage and the run wiring reports it.
  */
 class LlmCallDispatcher implements SimpleAgent.LlmCaller {
 
@@ -24,30 +26,28 @@ class LlmCallDispatcher implements SimpleAgent.LlmCaller {
     private final LlmCallWorkflow llm;
     private final Queue llmQueue;
     private final String agentId;
-    private final String runId;
 
-    LlmCallDispatcher(DBOS dbos, LlmCallWorkflow llm, Queue llmQueue, String agentId, String runId) {
+    LlmCallDispatcher(DBOS dbos, LlmCallWorkflow llm, Queue llmQueue, String agentId) {
         this.dbos = dbos;
         this.llm = llm;
         this.llmQueue = llmQueue;
         this.agentId = agentId;
-        this.runId = runId;
     }
 
     @Override
     public SimpleAgent.LlmReply call(List<AgentChatMessage> messages, List<ToolDef> toolDefs) {
         WorkflowHandle<LlmCallWorkflow.Result, ? extends Exception> handle =
-                dbos.startWorkflow(() -> llm.llmCall(messages, toolDefs, agentId, runId), new StartWorkflowOptions(llmQueue));
+                dbos.startWorkflow(() -> llm.llmCall(messages, toolDefs, agentId), new StartWorkflowOptions(llmQueue));
         LlmCallWorkflow.Result result = WorkflowHandles.await(handle);
+        // Сбой (HTTP/API) — терминален и без usage, бросаем сразу. Incomplete (truncation) НЕ бросаем
+        // здесь: у него токены потрачены — отдаём usage + причину на reply, чтобы цикл сперва
+        // учёл расход, а потом прервался (единый принцип: side-записи пишет ран-обвязка, не диспатчер).
         if (result.failed()) {
             throw new LlmCallError(result.statusCode(), result.message(), result.userFacing());
         }
-        LlmResponseIncomplete.Reason incomplete = incompleteReason(result.finishReason());
-        if (incomplete != null) {
-            throw new LlmResponseIncomplete(incomplete);
-        }
         LlmMeta meta = new LlmMeta(result.finishReason(), result.model(), result.callId());
-        return new SimpleAgent.LlmReply(result.assistant(), meta);
+        return new SimpleAgent.LlmReply(result.assistant(), meta, result.usage(),
+                incompleteReason(result.finishReason()));
     }
 
     /**

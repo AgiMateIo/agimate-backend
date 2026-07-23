@@ -25,17 +25,20 @@ public class AgentRunner {
     private final int maxTurns;
     private final String context;
     private final SimpleAgent.TurnSink onNewMessages;
+    private final SimpleAgent.UsageSink onUsage;
     private final ResponseTemplates templates;
 
     public AgentRunner(SimpleAgent.LlmCaller llmCaller, SimpleAgent.ToolDispatcher toolDispatcher,
                        List<ToolDef> toolDefs, int maxTurns, String context,
-                       SimpleAgent.TurnSink onNewMessages, ResponseTemplates templates) {
+                       SimpleAgent.TurnSink onNewMessages, SimpleAgent.UsageSink onUsage,
+                       ResponseTemplates templates) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;
         this.maxTurns = maxTurns;
         this.context = context;
         this.onNewMessages = onNewMessages;
+        this.onUsage = onUsage;
         this.templates = templates;
     }
 
@@ -51,7 +54,8 @@ public class AgentRunner {
         messages.addAll(history);
         messages.add(initialRequest);
 
-        SimpleAgent agent = new SimpleAgent(llmCaller, toolDispatcher, toolDefs, maxTurns, onNewMessages);
+        SimpleAgent agent = new SimpleAgent(llmCaller, toolDispatcher, toolDefs, maxTurns,
+                onNewMessages, onUsage);
         try {
             return agent.run(messages);
         } catch (MaxTurnsExceeded e) {

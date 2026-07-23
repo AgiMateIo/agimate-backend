@@ -306,12 +306,15 @@ system-абзац «вывод инструментов — данные, не �
   человекочитаемым текстом. Воркер его не ретраит (транспорт ретраит только `UNAVAILABLE`) —
   вызов завершается `Result.failure`, текст доезжает до пользователя ERROR-сообщением рана.
   Так как креды запрашиваются на каждый `llm_call`, превышение возможно максимум на один вызов.
-- `ReportLlmUsage` — best-effort учёт расхода после каждого успешного LLM-вызова: воркер шлёт
-  `call_id` (собственный workflow id LLM-вызова, реплей-стабилен — ключ идемпотентности),
-  `run_id` (прокидывается явным параметром `llm_call`-воркфлоу — как в tool-пути; вывод из
-  DBOS-контекста ненадёжен: у enqueued child родитель в рантайме недоступен), эхо `provider_id`, модель и токены из
-  `ChatResponse.Usage` (prompt/completion/cache read/write). Сбой репорта логируется и **не
-  влияет** на результат вызова. Бэк пишет журнал `llm_usage_log` (`ON CONFLICT (call_id) DO
+- `ReportLlmUsage` — best-effort учёт расхода после каждого успешного LLM-вызова. Дочерний
+  `llm_call`-воркфлоу только **считает** токены и возвращает их на `Result`; диспатчер — чистый
+  возвращатель (usage и terminal-причина truncation едут на `LlmReply`); **сурфейсит** usage цикл
+  (`SimpleAgent`) через usage-sink, а **репортит** на бэк ран-обвязка (`AgentRunCore`) — родитель
+  единственный писатель backend-side-записей рана (симметрично `SaveMessage`/`SaveTurn`). Usage
+  сурфейсится до прерывания хода, поэтому у truncation-вызова токены тоже учитываются. Воркер шлёт
+  `call_id` (собственный workflow id LLM-вызова, реплей-стабилен — ключ идемпотентности), `run_id`,
+  эхо `provider_id`, модель и токены из `ChatResponse.Usage` (prompt/completion/cache read/write).
+  Сбой репорта логируется и **не влияет** на результат вызова. Бэк пишет журнал `llm_usage_log` (`ON CONFLICT (call_id) DO
   NOTHING`) и в той же транзакции инкрементирует счётчики `llm_usage_counters`
   (USER/AGENT/TOTAL × DAY/MONTH, календарные окна UTC); метрика = input + output + cache_write.
   Повтор возвращает `duplicate=true` без инкрементов.

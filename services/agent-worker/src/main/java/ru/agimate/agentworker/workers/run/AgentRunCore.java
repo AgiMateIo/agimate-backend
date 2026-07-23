@@ -5,6 +5,7 @@ import dev.dbos.transact.workflow.Queue;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.WorkerMessageType;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.agent.AgentRunner;
 import ru.agimate.agentworker.agent.MessageCodec;
@@ -100,18 +101,40 @@ public class AgentRunCore {
             }
         };
 
+        // Учёт расхода токенов — тут, рядом с журналом ходов: ран-обвязка единственный писатель
+        // backend-side-записей. Best-effort, идемпотентно по call_id (реплей дедупит на бэке).
+        SimpleAgent.UsageSink onUsage = usage -> reportUsage(agentId, runId, usage);
+
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
         AgentChatMessage modelRequest = withEphemeralPrefix(initialRequest, prepared.ephemeralUserPrefix());
 
-        LlmCallDispatcher llmDispatcher = new LlmCallDispatcher(dbos, llm, llmQueue, agentId, runId);
+        LlmCallDispatcher llmDispatcher = new LlmCallDispatcher(dbos, llm, llmQueue, agentId);
         ToolCallDispatcher toolDispatcher = new ToolCallDispatcher(dbos, tool, toolQueue, agentId,
                 runId, registry);
 
         AgentRunner runner = new AgentRunner(llmDispatcher, toolDispatcher, registry.toolDefs(), MAX_AGENT_TURNS,
-                context, onNewMessages, templates);
+                context, onNewMessages, onUsage, templates);
         String answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
         messages.answer(answer);
         return answer;
+    }
+
+    /**
+     * Репорт токенов вызова на бэк ({@code reportLlmUsage}). Пропускается без call_id (ключ
+     * идемпотентности). Best-effort: сбой логируется и не валит ран — учёт это наблюдаемость.
+     */
+    private void reportUsage(String agentId, String runId, LlmUsage usage) {
+        if (usage.callId() == null || usage.callId().isBlank()) {
+            log.warn("no call id — skipping usage report");
+            return;
+        }
+        try {
+            client.reportLlmUsage(usage.callId(), agentId, runId, usage.providerId(), usage.model(),
+                    usage.promptTokens(), usage.completionTokens(),
+                    usage.cacheReadTokens(), usage.cacheWriteTokens());
+        } catch (Exception e) {
+            log.warn("LLM usage report failed (best-effort): {}", e.getMessage());
+        }
     }
 
     /**

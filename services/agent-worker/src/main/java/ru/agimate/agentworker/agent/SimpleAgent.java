@@ -3,9 +3,11 @@ package ru.agimate.agentworker.agent;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.agent.error.ImitationLoopExhausted;
 import ru.agimate.agentworker.agent.error.LlmCallError;
+import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
+import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.model.ToolDef;
 
 import java.util.List;
@@ -51,10 +53,17 @@ public class SimpleAgent {
         LlmReply call(List<AgentChatMessage> messages, List<ToolDef> toolDefs);
     }
 
-    /** An LLM reply: the assistant message plus its provenance ({@code meta}) for the turn ledger. */
-    public record LlmReply(AgentChatMessage message, LlmMeta meta) {
+    /**
+     * An LLM reply: the assistant message plus its provenance ({@code meta}) for the turn ledger,
+     * the call's token {@code usage} ({@code null} when nothing to account), and — for a truncated
+     * call — the terminal {@code incompleteReason} ({@code null} on a normal finish). The loop
+     * surfaces {@code usage} <b>before</b> acting on {@code incompleteReason}, so a truncated call's
+     * tokens are still accounted although the turn aborts.
+     */
+    public record LlmReply(AgentChatMessage message, LlmMeta meta, LlmUsage usage,
+                           LlmResponseIncomplete.Reason incompleteReason) {
         public static LlmReply of(AgentChatMessage message) {
-            return new LlmReply(message, null);
+            return new LlmReply(message, null, null, null);
         }
     }
 
@@ -66,6 +75,16 @@ public class SimpleAgent {
     @FunctionalInterface
     public interface TurnSink {
         void accept(List<AgentChatMessage> messages, LlmMeta meta);
+    }
+
+    /**
+     * Per-call usage sink: fires once for every model call that reached the provider (happy,
+     * imitation, and truncated), before the loop acts on the reply. The run wiring reports it to
+     * the backend — the loop stays pure and the parent stays the sole writer of side-records.
+     */
+    @FunctionalInterface
+    public interface UsageSink {
+        void accept(LlmUsage usage);
     }
 
     /**
@@ -82,14 +101,16 @@ public class SimpleAgent {
     private final List<ToolDef> toolDefs;
     private final int maxTurns;
     private final TurnSink onNewMessages;
+    private final UsageSink onUsage;
 
     public SimpleAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, List<ToolDef> toolDefs,
-                       int maxTurns, TurnSink onNewMessages) {
+                       int maxTurns, TurnSink onNewMessages, UsageSink onUsage) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;
         this.maxTurns = maxTurns;
         this.onNewMessages = onNewMessages;
+        this.onUsage = onUsage;
     }
 
     /**
@@ -101,6 +122,12 @@ public class SimpleAgent {
         for (int turn = 1; turn <= maxTurns; turn++) {
             log.info("turn {}/{}: requesting LLM", turn, maxTurns);
             LlmReply reply = llmCaller.call(messages, toolDefs);
+            // Учёт расхода — до любых решений: у truncation-вызова токены потрачены, а сам ход
+            // сейчас прервётся. Сурфейсим в sink, репортит ран-обвязка (single-writer side-записей).
+            notifyUsage(reply.usage());
+            if (reply.incompleteReason() != null) {
+                throw new LlmResponseIncomplete(reply.incompleteReason());
+            }
             AgentChatMessage assistant = reply.message();
             messages.add(assistant);
 
@@ -142,6 +169,12 @@ public class SimpleAgent {
     private void notify(List<AgentChatMessage> newMessages, LlmMeta meta) {
         if (onNewMessages != null) {
             onNewMessages.accept(newMessages, meta);
+        }
+    }
+
+    private void notifyUsage(LlmUsage usage) {
+        if (usage != null && onUsage != null) {
+            onUsage.accept(usage);
         }
     }
 }

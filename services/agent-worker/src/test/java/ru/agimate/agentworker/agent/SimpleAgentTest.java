@@ -1,9 +1,11 @@
 package ru.agimate.agentworker.agent;
 
 import ru.agimate.agentworker.agent.error.ImitationLoopExhausted;
+import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
+import ru.agimate.agentworker.agent.model.LlmUsage;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,7 +23,13 @@ class SimpleAgentTest {
 
     private static SimpleAgent agent(SimpleAgent.LlmCaller llm, SimpleAgent.ToolDispatcher dispatcher,
                                      SimpleAgent.TurnSink onNewMessages, int maxTurns) {
-        return new SimpleAgent(llm, dispatcher, List.of(), maxTurns, onNewMessages);
+        return agent(llm, dispatcher, onNewMessages, null, maxTurns);
+    }
+
+    private static SimpleAgent agent(SimpleAgent.LlmCaller llm, SimpleAgent.ToolDispatcher dispatcher,
+                                     SimpleAgent.TurnSink onNewMessages, SimpleAgent.UsageSink onUsage,
+                                     int maxTurns) {
+        return new SimpleAgent(llm, dispatcher, List.of(), maxTurns, onNewMessages, onUsage);
     }
 
     private static SimpleAgent.LlmReply reply(AgentChatMessage message) {
@@ -65,9 +73,9 @@ class SimpleAgentTest {
         AtomicInteger turn = new AtomicInteger();
         SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
                 ? new SimpleAgent.LlmReply(AgentChatMessage.assistant(null, false,
-                        List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))), meta)
+                        List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))), meta, null, null)
                 : new SimpleAgent.LlmReply(AgentChatMessage.assistant("final", false, List.of()),
-                        new LlmMeta("stop", "gpt-5-mini", "wf-llm-2"));
+                        new LlmMeta("stop", "gpt-5-mini", "wf-llm-2"), null, null);
         SimpleAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id1", "t", "{}", false));
 
@@ -85,6 +93,34 @@ class SimpleAgentTest {
         assertEquals("tool_calls", metas.get(0).finishReason());
         assertNull(metas.get(1));
         assertEquals("wf-llm-2", metas.get(2).callId());
+    }
+
+    @Test
+    @DisplayName("usage вызова сурфейсится в usage-sink (happy path)")
+    void usageSurfacedToSink() {
+        LlmUsage usage = new LlmUsage("wf-1", "prov", "gpt-5-mini", 100, 20, 0, 0);
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> new SimpleAgent.LlmReply(
+                AgentChatMessage.assistant("done", false, List.of()), null, usage, null);
+        List<LlmUsage> got = new ArrayList<>();
+
+        agent(llm, calls -> List.of(), null, got::add, 10)
+                .run(new ArrayList<>(List.of(AgentChatMessage.user("hi"))));
+
+        assertEquals(List.of(usage), got);
+    }
+
+    @Test
+    @DisplayName("incomplete (truncation): usage учтён ДО прерывания, затем LlmResponseIncomplete")
+    void incompleteSurfacesUsageThenThrows() {
+        LlmUsage usage = new LlmUsage("wf-1", "prov", "gpt-5-mini", 100, 20, 0, 0);
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> new SimpleAgent.LlmReply(
+                AgentChatMessage.assistant("обрезано", false, List.of()), null, usage,
+                LlmResponseIncomplete.Reason.LENGTH);
+        List<LlmUsage> got = new ArrayList<>();
+
+        assertThrows(LlmResponseIncomplete.class, () -> agent(llm, calls -> List.of(), null, got::add, 10)
+                .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        assertEquals(List.of(usage), got);
     }
 
     @Test

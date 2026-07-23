@@ -16,6 +16,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.grpc.ControlApiCallException;
 import ru.agimate.agentworker.llm.LlmMessageMapper;
@@ -25,6 +26,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -42,7 +44,7 @@ class LlmCallWorkflowImplTest {
     }
 
     @Nested
-    @DisplayName("учёт usage — best-effort репорт после успешного вызова")
+    @DisplayName("учёт usage — токены на Result (репорт делает диспатчер, не воркфлоу)")
     class UsageReporting {
 
         private final AgentWorkerClient client = mock(AgentWorkerClient.class);
@@ -81,18 +83,27 @@ class LlmCallWorkflowImplTest {
         }
 
         @Test
-        @DisplayName("успешный вызов: репорт с call/run id, provider_id и токенами из Usage")
-        void reportsUsageAfterSuccessfulCall() {
+        @DisplayName("успешный вызов: usage на Result (provider_id + токены); воркфлоу сам не репортит")
+        void carriesUsageOnResult() {
             stubSuccessfulCall("prov-1");
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
 
             assertFalse(result.failed());
             // Provenance для журнала ходов: модель из кредов, callId = собственный workflow id вызова.
             assertEquals("gpt-5-mini", result.model());
             assertEquals("wf-llm-77", result.callId());
-            verify(client).reportLlmUsage("wf-llm-77", "agent-1", "run-42",
-                    "prov-1", "gpt-5-mini", 100, 20, 0, 0);
+            LlmUsage usage = result.usage();
+            assertEquals("wf-llm-77", usage.callId());
+            assertEquals("prov-1", usage.providerId());
+            assertEquals("gpt-5-mini", usage.model());
+            assertEquals(100, usage.promptTokens());
+            assertEquals(20, usage.completionTokens());
+            assertEquals(0, usage.cacheReadTokens());
+            assertEquals(0, usage.cacheWriteTokens());
+            // Репортит родитель (ран-обвязка из sink'а) — сам воркфлоу на бэк usage не шлёт.
+            verify(client, never()).reportLlmUsage(anyString(), anyString(), anyString(), anyString(),
+                    anyString(), anyInt(), anyInt(), anyInt(), anyInt());
         }
 
         @Test
@@ -101,35 +112,21 @@ class LlmCallWorkflowImplTest {
             stubSuccessfulCall("prov-1");
             when(mapper.finishReason(any())).thenReturn("length");
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
 
             assertFalse(result.failed());
             assertEquals("length", result.finishReason());
         }
 
         @Test
-        @DisplayName("сбой репорта не валит вызов (best-effort)")
-        void reportFailureDoesNotFailCall() {
-            stubSuccessfulCall("prov-1");
-            when(client.reportLlmUsage(anyString(), anyString(), anyString(), anyString(), anyString(),
-                    anyInt(), anyInt(), anyInt(), anyInt()))
-                    .thenThrow(new ControlApiCallException("ReportLlmUsage", Status.UNAVAILABLE));
-
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
-
-            assertFalse(result.failed());
-        }
-
-        @Test
-        @DisplayName("пустой provider_id (старый control-api) → репорт пропускается")
-        void skipsReportWithoutProviderId() {
+        @DisplayName("пустой provider_id (старый control-api) → usage не считается (null на Result)")
+        void skipsUsageWithoutProviderId() {
             stubSuccessfulCall("");
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
 
             assertFalse(result.failed());
-            verify(client, never()).reportLlmUsage(anyString(), anyString(), anyString(), anyString(),
-                    anyString(), anyInt(), anyInt(), anyInt(), anyInt());
+            assertNull(result.usage());
         }
 
         @Test
@@ -139,7 +136,7 @@ class LlmCallWorkflowImplTest {
             when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
                     "GetLlmCredentials", Status.RESOURCE_EXHAUSTED.withDescription(quota)));
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
 
             assertTrue(result.failed());
             assertTrue(result.userFacing());
@@ -153,7 +150,7 @@ class LlmCallWorkflowImplTest {
             when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
                     "GetLlmCredentials", Status.NOT_FOUND.withDescription("No LLM binding")));
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1", "run-42");
+            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
 
             assertTrue(result.failed());
             assertFalse(result.userFacing());

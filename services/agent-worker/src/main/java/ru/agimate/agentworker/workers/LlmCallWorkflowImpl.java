@@ -16,6 +16,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.FilePartRef;
+import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.grpc.ControlApiCallException;
@@ -47,7 +48,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
 
     @Override
     @Workflow(name = Queues.LLM_WORKFLOW)
-    public Result llmCall(List<AgentChatMessage> messages, List<ToolDef> toolDefs, String agentId, String runId) {
+    public Result llmCall(List<AgentChatMessage> messages, List<ToolDef> toolDefs, String agentId) {
         LlmCredentials creds;
         try {
             creds = client.getLlmCredentials(agentId);
@@ -87,9 +88,9 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             Map<String, byte[]> mediaBytes = imageInput ? fetchImageBytes(messages, agentId) : Map.of();
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes, imageInput), options);
             ChatResponse response = callWithRetry(model, prompt);
-            reportUsage(response, creds, agentId, runId);
+            String callId = currentCallId();
             return Result.ok(mapper.fromResponse(response), mapper.finishReason(response),
-                    creds.getModel(), currentCallId());
+                    creds.getModel(), callId, buildUsage(response, creds, callId));
         } catch (Exception e) {
             OpenAIServiceException svc = findServiceException(e);
             if (svc != null) {
@@ -102,35 +103,24 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
     }
 
     /**
-     * Best-effort учёт расхода токенов: сбой репорта логируется и не влияет на результат вызова
-     * (иначе инфраструктура учёта стала бы источником отказов ранов). Идемпотентность — на бэке
-     * по call_id (собственный workflow id этого LLM-вызова, реплей-стабилен). Пустой provider_id
-     * (старый control-api при rolling deploy) → репорт пропускается. {@code runId} прокидывается
-     * явно параметром воркфлоу (как в tool-пути): у enqueued child-воркфлоу родитель из
-     * DBOS-контекста в рантайме недоступен, поэтому вывод runId из контекста давал бы NULL.
+     * Токены вызова для учёта расхода — дочерний воркфлоу только их <b>возвращает</b> на
+     * {@link Result}; сурфейсит их цикл, а репортит на бэк ран-обвязка (единственный писатель
+     * backend-side-записей рана). Самодостаточен для отчёта: несёт {@code callId}/{@code model}/
+     * {@code providerId}. {@code null}, если учитывать нечего: нет usage-метаданных или пустой
+     * {@code provider_id} (старый control-api при rolling deploy).
      */
-    private void reportUsage(ChatResponse response, LlmCredentials creds, String agentId, String runId) {
-        try {
-            if (creds.getProviderId().isBlank()) {
-                return;
-            }
-            Usage usage = response.getMetadata() != null ? response.getMetadata().getUsage() : null;
-            if (usage == null) {
-                log.warn("LLM response has no usage metadata — skipping usage report");
-                return;
-            }
-            String callId = currentCallId();
-            if (callId == null || callId.isBlank()) {
-                log.warn("No workflow id in context — skipping usage report");
-                return;
-            }
-            client.reportLlmUsage(callId, agentId, runId,
-                    creds.getProviderId(), creds.getModel(),
-                    intOrZero(usage.getPromptTokens()), intOrZero(usage.getCompletionTokens()),
-                    intOrZero(usage.getCacheReadInputTokens()), intOrZero(usage.getCacheWriteInputTokens()));
-        } catch (Exception e) {
-            log.warn("LLM usage report failed (best-effort): {}", e.getMessage());
+    private static LlmUsage buildUsage(ChatResponse response, LlmCredentials creds, String callId) {
+        if (creds.getProviderId().isBlank()) {
+            return null;
         }
+        Usage usage = response.getMetadata() != null ? response.getMetadata().getUsage() : null;
+        if (usage == null) {
+            log.warn("LLM response has no usage metadata — skipping usage report");
+            return null;
+        }
+        return new LlmUsage(callId, creds.getProviderId(), creds.getModel(),
+                intOrZero(usage.getPromptTokens()), intOrZero(usage.getCompletionTokens()),
+                intOrZero(usage.getCacheReadInputTokens()), intOrZero(usage.getCacheWriteInputTokens()));
     }
 
     /**
