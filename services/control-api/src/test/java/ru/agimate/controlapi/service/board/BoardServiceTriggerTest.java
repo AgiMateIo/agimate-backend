@@ -15,11 +15,13 @@ import ru.agimate.controlapi.database.entities.Board;
 import ru.agimate.controlapi.database.entities.BoardTask;
 import ru.agimate.controlapi.database.entities.BoardTaskComment;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.enums.BoardTaskStatus;
 import ru.agimate.controlapi.database.enums.BoardTaskType;
 import ru.agimate.controlapi.database.repositories.*;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCommentCreateCommand;
 import ru.agimate.controlapi.service.dto.board.BoardTaskCreateCommand;
+import ru.agimate.controlapi.service.dto.board.BoardTaskStatusChangeCommand;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 
@@ -80,7 +82,9 @@ class BoardServiceTriggerTest {
         lenient().when(agentRepository.findAllById(any())).thenReturn(List.of(lead, worker));
         lenient().when(boardTaskRepository.save(any())).thenAnswer(inv -> {
             BoardTask t = inv.getArgument(0);
-            t.setId(UUID.randomUUID());
+            if (t.getId() == null) {
+                t.setId(UUID.randomUUID());
+            }
             return t;
         });
         lenient().when(boardTaskCommentRepository.save(any())).thenAnswer(inv -> {
@@ -154,7 +158,7 @@ class BoardServiceTriggerTest {
     class CreateComment {
 
         @Test
-        @DisplayName("actor = автор коммента, targets = участники задачи, boardId в data")
+        @DisplayName("task_changed(change=comment): снапшот задачи + комментарий, targets = участники")
         void commentTargetsParticipants() {
             modeConnectionExists();
             BoardTask task = BoardTask.builder()
@@ -173,11 +177,48 @@ class BoardServiceTriggerTest {
 
             Trigger trigger = routedTrigger();
             assertEquals(CONNECTION_ID.toString(), trigger.connectionId());
-            assertEquals("task_comment_created", trigger.name());
+            assertEquals("task_changed", trigger.name());
+            assertEquals("comment", trigger.data().get("change"));
+            assertEquals("t", trigger.data().get("title"));
+            assertEquals("done", trigger.data().get("comment"));
+            assertEquals(WORKER_ID.toString(), trigger.data().get("actorAgentId"));
             assertEquals(BOARD_ID.toString(), trigger.data().get("boardId"));
             assertEquals(WORKER_ID, trigger.context().audience().actorAgentId());
             // Участники: createdBy + assignee; актор (worker) отфильтруется в TriggerAudience.filter.
             assertTrue(trigger.context().audience().targetAgentIds().containsAll(List.of(LEAD_ID, WORKER_ID)));
+        }
+    }
+
+    @Nested
+    @DisplayName("changeTaskStatus")
+    class ChangeTaskStatus {
+
+        @Test
+        @DisplayName("task_changed(change=status): снапшот задачи, previousStatus, актор")
+        void statusChangeEmitsTaskChanged() {
+            modeConnectionExists();
+            BoardTask task = BoardTask.builder()
+                    .id(UUID.randomUUID())
+                    .boardId(BOARD_ID)
+                    .userId(USER_ID)
+                    .type(BoardTaskType.TASK)
+                    .title("t")
+                    .createdByAgentId(LEAD_ID)
+                    .assigneeAgentId(WORKER_ID)
+                    .build();
+            when(boardTaskRepository.findById(task.getId())).thenReturn(Optional.of(task));
+
+            service.changeTaskStatus(null, task.getId(), USER_ID,
+                    new BoardTaskStatusChangeCommand(BoardTaskStatus.IN_PROGRESS, WORKER_ID));
+
+            Trigger trigger = routedTrigger();
+            assertEquals("task_changed", trigger.name());
+            assertEquals("status", trigger.data().get("change"));
+            assertEquals("t", trigger.data().get("title"));
+            assertEquals("IN_PROGRESS", trigger.data().get("status"));
+            assertEquals("BACKLOG", trigger.data().get("previousStatus"));
+            assertEquals(WORKER_ID.toString(), trigger.data().get("actorAgentId"));
+            assertEquals(WORKER_ID, trigger.context().audience().actorAgentId());
         }
     }
 }

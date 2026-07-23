@@ -29,8 +29,8 @@ connectors: [board]
 | `type` | string | `EPIC`, `TASK` или `SUBTASK` |
 | `title` | string | Краткий заголовок задачи |
 | `description` | string | Подробное описание: что нужно сделать, критерии готовности, контекст |
-| `parentTaskPubId` | string \| null | PubId родительской задачи. `null` для EPIC и задач верхнего уровня |
-| `assigneeAgentPubId` | string | PubId агента-исполнителя |
+| `parentTaskId` | string \| null | ID родительской задачи. `null` для EPIC и задач верхнего уровня |
+| `assigneeAgentId` | string | ID агента-исполнителя |
 
 ### board.change_task_status
 
@@ -38,7 +38,7 @@ connectors: [board]
 
 | Параметр | Тип | Описание |
 |----------|-----|----------|
-| `taskPubId` | string | PubId задачи |
+| `taskId` | string | ID задачи |
 | `status` | string | Новый статус: `BACKLOG`, `IN_PROGRESS`, `REVIEW`, `DONE` |
 
 ### board.get_comments
@@ -47,7 +47,7 @@ connectors: [board]
 
 | Параметр | Тип | Описание |
 |----------|-----|----------|
-| `taskPubId` | string | PubId задачи |
+| `taskId` | string | ID задачи |
 
 ### board.create_comment
 
@@ -55,7 +55,7 @@ connectors: [board]
 
 | Параметр | Тип | Описание |
 |----------|-----|----------|
-| `taskPubId` | string | PubId задачи |
+| `taskId` | string | ID задачи |
 | `content` | string | Текст комментария |
 
 ---
@@ -69,9 +69,9 @@ EPIC — крупная цель или направление работы
 ```
 
 **Правила:**
-- `EPIC` → `parentTaskPubId: null`. Эпик не имеет родителя.
-- `TASK` → `parentTaskPubId: null` (самостоятельная задача) или PubId эпика.
-- `SUBTASK` → `parentTaskPubId` обязателен, указывает на TASK.
+- `EPIC` → `parentTaskId: null`. Эпик не имеет родителя.
+- `TASK` → `parentTaskId: null` (самостоятельная задача) или ID эпика.
+- `SUBTASK` → `parentTaskId` обязателен, указывает на TASK.
 
 ---
 
@@ -103,11 +103,11 @@ BACKLOG → IN_PROGRESS → REVIEW → DONE
 
 ```
 1. board.get_tasks                          → найти задачу в BACKLOG
-2. board.change_task_status(taskPubId, "IN_PROGRESS")
-3. board.create_comment(taskPubId, "Беру в работу. План: ...")
+2. board.change_task_status(taskId, "IN_PROGRESS")
+3. board.create_comment(taskId, "Беру в работу. План: ...")
 4. ... выполнить работу ...
-5. board.create_comment(taskPubId, "Результат: ...")
-6. board.change_task_status(taskPubId, "REVIEW")
+5. board.create_comment(taskId, "Результат: ...")
+6. board.change_task_status(taskId, "REVIEW")
 ```
 
 ### Декомпозировать задачу
@@ -116,9 +116,9 @@ BACKLOG → IN_PROGRESS → REVIEW → DONE
 
 ```
 1. board.get_tasks                          → найти задачу
-2. board.create_task(type: "SUBTASK", parentTaskPubId: taskPubId, ...)
-3. board.create_task(type: "SUBTASK", parentTaskPubId: taskPubId, ...)
-4. board.create_comment(taskPubId, "Декомпозировал на N подзадач")
+2. board.create_task(type: "SUBTASK", parentTaskId: taskId, ...)
+3. board.create_task(type: "SUBTASK", parentTaskId: taskId, ...)
+4. board.create_comment(taskId, "Декомпозировал на N подзадач")
 ```
 
 ### Создать новую задачу по результатам работы
@@ -126,8 +126,8 @@ BACKLOG → IN_PROGRESS → REVIEW → DONE
 Если в процессе выполнения обнаружил новую проблему:
 
 ```
-1. board.create_task(type: "TASK", parentTaskPubId: null, ...)   → создать в BACKLOG
-2. board.create_comment(исходный taskPubId, "Обнаружена проблема, создал задачу: ...")
+1. board.create_task(type: "TASK", parentTaskId: null, ...)   → создать в BACKLOG
+2. board.create_comment(исходный taskId, "Обнаружена проблема, создал задачу: ...")
 ```
 
 ### Проверить состояние доски перед действием
@@ -159,7 +159,7 @@ BACKLOG → IN_PROGRESS → REVIEW → DONE
 Список агентов команды и их зоны ответственности передаются тебе отдельно. При создании задачи:
 
 1. Определи, какой агент лучше подходит по компетенции.
-2. Укажи его `pubId` в `assigneeAgentPubId`.
+2. Укажи его `id` в `assigneeAgentId`.
 3. Если подходящего агента нет — назначь на себя.
 
 ---
@@ -187,35 +187,32 @@ BACKLOG → IN_PROGRESS → REVIEW → DONE
 
 | Поле в `data` | Тип | Описание |
 |----------------|-----|----------|
-| `boardPubId` | string | PubId доски |
-| `taskPubId` | string | PubId созданной задачи |
-| `createdByAgentPubId` | string | PubId агента-создателя |
-| `assigneeAgentPubId` | string? | PubId назначенного агента (если указан) |
+| `boardId` | string | ID доски |
+| `taskId` | string | ID созданной задачи |
+| `createdByAgentId` | string | ID агента-создателя |
+| `assigneeAgentId` | string? | ID назначенного агента (если указан) |
 | `type` | string | `EPIC`, `TASK` или `SUBTASK` |
 | `title` | string | Заголовок задачи |
 | `description` | string | Описание задачи |
-| `parentTaskPubId` | string? | PubId родительской задачи (если есть) |
+| `parentTaskId` | string? | ID родительской задачи (если есть) |
+| `parentTaskTitle` | string? | Заголовок родительской задачи (если есть) |
 
-### board.task_status_changed
+### board.task_changed
 
-Срабатывает при изменении статуса задачи.
+Срабатывает при изменении задачи: смена статуса или новый комментарий. Всегда несёт снапшот задачи (`taskId`, `type`, `title`, `status` — текущий, `assigneeAgentId?`, `parentTaskId?`) и `actorAgentId` — кто совершил действие. Поле `change` говорит, что именно произошло:
 
-| Поле в `data` | Тип | Описание |
-|----------------|-----|----------|
-| `taskPubId` | string | PubId задачи |
-| `oldStatus` | string | Предыдущий статус |
-| `newStatus` | string | Новый статус |
-
-### board.task_comment_created
-
-Срабатывает при добавлении комментария к задаче.
+**`change: "status"`** — статус изменился:
 
 | Поле в `data` | Тип | Описание |
 |----------------|-----|----------|
-| `taskPubId` | string | PubId задачи |
-| `commentPubId` | string | PubId комментария |
-| `agentPubId` | string | PubId агента-автора комментария |
-| `content` | string | Текст комментария |
+| `previousStatus` | string | Предыдущий статус (`status` — новый, текущий) |
+
+**`change: "comment"`** — добавлен комментарий:
+
+| Поле в `data` | Тип | Описание |
+|----------------|-----|----------|
+| `commentId` | string | ID комментария |
+| `comment` | string | Текст комментария |
 
 ---
 
@@ -225,7 +222,7 @@ BACKLOG → IN_PROGRESS → REVIEW → DONE
 
 **Реагируй**, если:
 - Триггер напрямую связан с твоей задачей или зоной ответственности.
-- Ты назначен исполнителем (`assigneeAgentPubId` = твой pubId).
+- Ты назначен исполнителем (`assigneeAgentId` = твой id).
 - Комментарий содержит вопрос или запрос, адресованный тебе.
 - Изменение статуса задачи требует от тебя следующего шага (например, задача перешла в `REVIEW` и ты — ревьюер).
 

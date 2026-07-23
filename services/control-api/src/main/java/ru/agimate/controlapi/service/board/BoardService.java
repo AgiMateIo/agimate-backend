@@ -48,6 +48,10 @@ public class BoardService {
     /** Код board-коннектора; единый источник истины, {@code BoardConnectorService} ссылается сюда. */
     public static final String CONNECTOR_CODE = "board";
 
+    /** Имена триггеров; декларации ({@code TriggerSpec}) — в {@code BoardConnectorService}. */
+    public static final String TASK_CREATED_TRIGGER = "task_created";
+    public static final String TASK_CHANGED_TRIGGER = "task_changed";
+
     private final BoardRepository boardRepository;
     private final BoardTaskRepository boardTaskRepository;
     private final BoardTaskCommentRepository boardTaskCommentRepository;
@@ -138,8 +142,9 @@ public class BoardService {
         }
 
         UUID parentTaskId = null;
+        BoardTask parentTask = null;
         if (command.parentTaskId() != null) {
-            BoardTask parentTask = boardTaskRepository.findById(command.parentTaskId())
+            parentTask = boardTaskRepository.findById(command.parentTaskId())
                     .orElseThrow(() -> new NotFoundStatusException("Parent task not found"));
             if (!parentTask.getBoardId().equals(board.getId())) {
                 throw new BadRequestStatusException("Parent task does not belong to this board");
@@ -176,8 +181,9 @@ public class BoardService {
         triggerData.put("type", task.getType().name());
         triggerData.put("title", task.getTitle());
         triggerData.put("description", task.getDescription());
-        if (parentTaskId != null) {
+        if (parentTask != null) {
             triggerData.put("parentTaskId", parentTaskId.toString());
+            triggerData.put("parentTaskTitle", parentTask.getTitle());
         }
 
         // Без assignee адресат — ростер команды доски: сужение получателей до команды
@@ -185,7 +191,7 @@ public class BoardService {
         List<UUID> targets = assignee != null
                 ? List.of(assignee.getId())
                 : teamRosterIds(userId, board);
-        routeBoardTrigger(userId, board, "task_created", triggerData,
+        routeBoardTrigger(userId, board, TASK_CREATED_TRIGGER, triggerData,
                 new TriggerAudience(createdBy.getId(), targets));
 
         publishBoardEvent(userId, board.getId(), BoardEventType.TASK_CREATED,
@@ -235,13 +241,13 @@ public class BoardService {
 
         log.info("Changed task {} status from {} to {}", taskId, oldStatus, command.status());
 
-        Map<String, Object> triggerData = new LinkedHashMap<>();
-        triggerData.put("taskId", task.getId().toString());
-        triggerData.put("oldStatus", oldStatus.name());
-        triggerData.put("newStatus", command.status().name());
+        Map<String, Object> triggerData = taskSnapshot(task);
+        triggerData.put("change", "status");
+        triggerData.put("previousStatus", oldStatus.name());
+        triggerData.put("actorAgentId", command.agentId().toString());
 
         Map<UUID, Agent> agentsById = resolveAgentsForTasks(List.of(task));
-        routeBoardTrigger(userId, board, "task_status_changed", triggerData,
+        routeBoardTrigger(userId, board, TASK_CHANGED_TRIGGER, triggerData,
                 new TriggerAudience(command.agentId(), resolveTaskParticipantIds(task, agentsById)));
 
         publishBoardEvent(userId, board.getId(), BoardEventType.TASK_STATUS_CHANGED,
@@ -301,14 +307,14 @@ public class BoardService {
 
         log.info("Created comment on task {} by agent {}", taskId, command.agentId());
 
-        Map<String, Object> triggerData = new LinkedHashMap<>();
-        triggerData.put("taskId", task.getId().toString());
+        Map<String, Object> triggerData = taskSnapshot(task);
+        triggerData.put("change", "comment");
         triggerData.put("commentId", comment.getId().toString());
-        triggerData.put("agentId", agent.getId().toString());
-        triggerData.put("content", comment.getContent());
+        triggerData.put("comment", comment.getContent());
+        triggerData.put("actorAgentId", agent.getId().toString());
 
         Map<UUID, Agent> agentsById = resolveAgentsForTasks(List.of(task));
-        routeBoardTrigger(userId, board, "task_comment_created", triggerData,
+        routeBoardTrigger(userId, board, TASK_CHANGED_TRIGGER, triggerData,
                 new TriggerAudience(agent.getId(), resolveTaskParticipantIds(task, agentsById)));
 
         publishBoardEvent(userId, board.getId(), BoardEventType.COMMENT_CREATED,
@@ -324,6 +330,26 @@ public class BoardService {
     }
 
     // ---- Helpers ----
+
+    /**
+     * Общий снапшот задачи в {@code data} триггера {@value #TASK_CHANGED_TRIGGER}: агент понимает,
+     * о какой задаче речь, без {@code get_tasks}. Description намеренно не входит — объёмный текст
+     * доступен тулами, событие остаётся компактным.
+     */
+    private static Map<String, Object> taskSnapshot(BoardTask task) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("taskId", task.getId().toString());
+        data.put("type", task.getType().name());
+        data.put("title", task.getTitle());
+        data.put("status", task.getStatus().name());
+        if (task.getAssigneeAgentId() != null) {
+            data.put("assigneeAgentId", task.getAssigneeAgentId().toString());
+        }
+        if (task.getParentTaskId() != null) {
+            data.put("parentTaskId", task.getParentTaskId().toString());
+        }
+        return data;
+    }
 
     /**
      * Эмиссия board-триггера. Connection-строка коннектора общая на пользователя (одна на все его
