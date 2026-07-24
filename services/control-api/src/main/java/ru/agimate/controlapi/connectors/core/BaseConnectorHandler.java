@@ -165,6 +165,11 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
             if (result instanceof Map<?, ?> map) {
                 return (Map<String, Object>) map;
             }
+            // record-возврат разворачиваем в плоскую Map (camelCase-ключи = имена компонентов), чтобы
+            // рантайм-вывод совпал с outputSchema из ToolSchemaReflector; иначе — legacy-обёртка {result}.
+            if (result.getClass().isRecord()) {
+                return JsonUtils.objectToMap(result);
+            }
             return Map.of("result", result);
         } catch (InvocationTargetException e) {
             if (e.getCause() instanceof RuntimeException re) {

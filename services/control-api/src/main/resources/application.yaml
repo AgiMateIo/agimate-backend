@@ -100,6 +100,10 @@ jwt:
   refreshExpiration: 604800
 
 app:
+  frontend:
+    # База для deep-link'ов, которые платформенные тулы возвращают агенту (напр. экран подключения
+    # интеграции, куда пользователь вводит секрет вне LLM). В проде — env APP_FRONTEND_BASE_URL.
+    base-url: "http://localhost:3000"
   integration:
     webhook-base-url: "http://localhost:8080/control"
   secrets:

@@ -31,6 +31,8 @@ import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.service.dto.agent.AgentCreateCommand;
+import ru.agimate.controlapi.service.dto.agent.AgentUpdateCommand;
 import ru.agimate.controlapi.database.enums.PolicyKind;
 import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
@@ -284,20 +286,28 @@ public class AgentService {
 
     @Transactional
     public AgentCreateResult create(UUID userId, CreateAgentRequest request) {
-        AgentType type = request.type() != null
-                ? request.type() : AgentType.CENTRIFUGO;
-        validateWebhookFields(type, request.webhookUrl());
+        return create(userId, new AgentCreateCommand(
+                request.name(), request.description(), request.instructions(), request.type(),
+                request.webhookUrl(), request.webhookAuthHeader(), request.agenticTeamId(),
+                request.skillIds(), request.presetCode()));
+    }
+
+    @Transactional
+    public AgentCreateResult create(UUID userId, AgentCreateCommand command) {
+        AgentType type = command.type() != null
+                ? command.type() : AgentType.CENTRIFUGO;
+        validateWebhookFields(type, command.webhookUrl());
 
         AgenticTeam team = null;
-        if (request.agenticTeamId() != null) {
-            team = agenticTeamRepository.findById(request.agenticTeamId())
+        if (command.agenticTeamId() != null) {
+            team = agenticTeamRepository.findById(command.agenticTeamId())
                     .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
             if (!team.getUserId().equals(userId)) {
                 throw new ForbiddenStatusException("Access denied to the specified team");
             }
         }
 
-        String presetCode = validatedPresetCode(request.presetCode());
+        String presetCode = validatedPresetCode(command.presetCode());
 
         GeneratedAppKey generatedKey = AppKeyUtils.generate(AGENT_KEY_PREFIX);
 
@@ -305,21 +315,21 @@ public class AgentService {
                 .keyHash(generatedKey.secretHash())
                 .keyId(generatedKey.keyId())
                 .userId(userId)
-                .name(request.name())
-                .description(request.description())
-                .instructions(request.instructions())
+                .name(command.name())
+                .description(command.description())
+                .instructions(command.instructions())
                 .type(type)
-                .webhookUrl(request.webhookUrl())
+                .webhookUrl(command.webhookUrl())
                 .agenticTeamId(team != null ? team.getId() : null)
                 .presetCode(presetCode)
                 .build();
         // id генерится БД — секрет auth-заголовка (AAD-привязка к agent.id) кладём после save.
         agent = agentRepository.save(agent);
-        applyWebhookAuthHeader(agent, request.webhookAuthHeader());
+        applyWebhookAuthHeader(agent, command.webhookAuthHeader());
 
         // Скилы мастера — в той же транзакции: агент создаётся сразу с финальным набором.
-        if (request.skillIds() != null) {
-            for (UUID skillId : new LinkedHashSet<>(request.skillIds())) {
+        if (command.skillIds() != null) {
+            for (UUID skillId : new LinkedHashSet<>(command.skillIds())) {
                 agentSkillService.create(agent.getId(), skillId, userId);
             }
         }
@@ -361,6 +371,13 @@ public class AgentService {
 
     @Transactional
     public AgentResponse update(UUID id, UUID userId, UpdateAgentRequest request) {
+        return update(id, userId, new AgentUpdateCommand(
+                request.name(), request.description(), request.instructions(), request.type(),
+                request.webhookUrl(), request.webhookAuthHeader(), request.enabled()));
+    }
+
+    @Transactional
+    public AgentResponse update(UUID id, UUID userId, AgentUpdateCommand command) {
         Agent agent = agentRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
 
@@ -368,20 +385,20 @@ public class AgentService {
             throw new ForbiddenStatusException("Access denied");
         }
 
-        AgentType type = request.type() != null
-                ? request.type() : agent.getType();
-        validateWebhookFields(type, request.webhookUrl());
+        AgentType type = command.type() != null
+                ? command.type() : agent.getType();
+        validateWebhookFields(type, command.webhookUrl());
 
-        if (request.name() != null) {
-            agent.setName(request.name());
+        if (command.name() != null) {
+            agent.setName(command.name());
         }
-        agent.setDescription(request.description());
-        agent.setInstructions(request.instructions());
+        agent.setDescription(command.description());
+        agent.setInstructions(command.instructions());
         agent.setType(type);
-        agent.setWebhookUrl(request.webhookUrl());
-        applyWebhookAuthHeader(agent, request.webhookAuthHeader());
-        if (request.enabled() != null) {
-            agent.setEnabled(request.enabled());
+        agent.setWebhookUrl(command.webhookUrl());
+        applyWebhookAuthHeader(agent, command.webhookAuthHeader());
+        if (command.enabled() != null) {
+            agent.setEnabled(command.enabled());
         }
         agent = agentRepository.save(agent);
 

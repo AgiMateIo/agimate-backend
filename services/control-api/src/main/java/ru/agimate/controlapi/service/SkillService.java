@@ -71,7 +71,14 @@ public class SkillService {
 
     @Transactional
     public SkillResponse create(UUID userId, CreateSkillRequest request) {
-        return doCreate(userId, request.resolveIsPublic(), request);
+        return SkillResponse.from(doCreate(userId, request.resolveIsPublic(), request.skillMd()));
+    }
+
+    /** Service-layer перегрузка (коннекторный слой): скилл из готового SKILL.md, возврат — сущность
+     * (без controller-DTO в коннекторе). */
+    @Transactional
+    public Skill create(UUID userId, String skillMd, boolean isPublic) {
+        return doCreate(userId, isPublic, skillMd);
     }
 
     /**
@@ -80,11 +87,11 @@ public class SkillService {
      */
     @Transactional
     public SkillResponse createSystem(CreateSkillRequest request) {
-        return doCreate(SystemSkillBootstrap.SYSTEM_USER_ID, true, request);
+        return SkillResponse.from(doCreate(SystemSkillBootstrap.SYSTEM_USER_ID, true, request.skillMd()));
     }
 
-    private SkillResponse doCreate(UUID ownerId, boolean isPublic, CreateSkillRequest request) {
-        SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(request.skillMd());
+    private Skill doCreate(UUID ownerId, boolean isPublic, String skillMd) {
+        SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(skillMd);
         validateConnectorCodes(parsed.connectors());
 
         if (skillRepository.existsByUserIdAndNameNotDeleted(ownerId, parsed.name())) {
@@ -107,15 +114,21 @@ public class SkillService {
         }
 
         log.info("Created skill '{}' id={} for owner={}", skill.getName(), skill.getId(), ownerId);
-        return SkillResponse.from(skill);
+        return skill;
     }
 
     @Transactional
     public SkillResponse update(UUID id, UUID userId, boolean admin, UpdateSkillRequest request) {
+        return SkillResponse.from(update(id, userId, admin, request.skillMd(), request.resolveIsPublic()));
+    }
+
+    /** Service-layer перегрузка (коннекторный слой): правка SKILL.md, возврат — сущность (без controller-DTO). */
+    @Transactional
+    public Skill update(UUID id, UUID userId, boolean admin, String skillMd, boolean isPublic) {
         Skill skill = findOwnedOrSystemAdmin(id, userId, admin);
         boolean system = isSystem(skill);
 
-        SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(request.skillMd());
+        SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(skillMd);
         validateConnectorCodes(parsed.connectors());
 
         if (!skill.getName().equals(parsed.name())) {
@@ -133,7 +146,7 @@ public class SkillService {
         skill.setDescription(parsed.description());
         skill.setMdContent(parsed.body());
         skill.setConnectorCodes(new ArrayList<>(parsed.connectors()));
-        skill.setIsPublic(request.resolveIsPublic());
+        skill.setIsPublic(isPublic);
         skill.setVersion(skill.getVersion() + 1);
 
         try {
@@ -143,7 +156,7 @@ public class SkillService {
         }
 
         log.info("Updated skill '{}' id={} version={}", skill.getName(), id, skill.getVersion());
-        return SkillResponse.from(skill);
+        return skill;
     }
 
     /**

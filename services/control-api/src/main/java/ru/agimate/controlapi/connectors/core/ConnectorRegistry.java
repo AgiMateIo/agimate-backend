@@ -1,9 +1,10 @@
 package ru.agimate.controlapi.connectors.core;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -22,15 +23,45 @@ import java.util.stream.Collectors;
 @Component
 public class ConnectorRegistry {
 
-    private final Map<String, ConnectorHandler> handlers;
+    /**
+     * Хендлеры резолвятся лениво, а не инжектятся списком в конструктор: иначе конструирование реестра
+     * тянет за собой конструирование всех {@link ConnectorHandler}, и любой хендлер, чей tool-сервис
+     * переиспользует registry-зависимый сервис (например {@code platform} → {@code AgentService} →
+     * {@code ConnectorRegistry}), замыкает цикл бинов. Разрыв графа — здесь, в агрегаторе, а не {@code @Lazy}
+     * у потребителей. Карта строится однажды при первом обращении (контекст к тому моменту готов).
+     */
+    private final ObjectProvider<ConnectorHandler> handlerProvider;
+    private volatile Map<String, ConnectorHandler> handlers;
 
-    public ConnectorRegistry(List<ConnectorHandler> handlerList) {
-        this.handlers = handlerList.stream()
+    @Autowired
+    public ConnectorRegistry(ObjectProvider<ConnectorHandler> handlerProvider) {
+        this.handlerProvider = handlerProvider;
+    }
+
+    /** Явный набор хендлеров (eager) — для тестов; в приложении Spring использует ObjectProvider-конструктор. */
+    public ConnectorRegistry(Collection<ConnectorHandler> handlers) {
+        this.handlerProvider = null;
+        this.handlers = handlers.stream()
                 .collect(Collectors.toMap(ConnectorHandler::connectorCode, Function.identity()));
     }
 
+    private Map<String, ConnectorHandler> handlers() {
+        Map<String, ConnectorHandler> local = handlers;
+        if (local == null) {
+            synchronized (this) {
+                local = handlers;
+                if (local == null) {
+                    local = handlerProvider.stream()
+                            .collect(Collectors.toMap(ConnectorHandler::connectorCode, Function.identity()));
+                    handlers = local;
+                }
+            }
+        }
+        return local;
+    }
+
     public ConnectorHandler getHandler(String connectorCode) {
-        ConnectorHandler handler = handlers.get(connectorCode);
+        ConnectorHandler handler = handlers().get(connectorCode);
         if (handler == null) {
             throw new ConnectorException("Unknown connector: " + connectorCode);
         }
@@ -38,7 +69,7 @@ public class ConnectorRegistry {
     }
 
     public Optional<ConnectorHandler> findHandler(String connectorCode) {
-        return Optional.ofNullable(handlers.get(connectorCode));
+        return Optional.ofNullable(handlers().get(connectorCode));
     }
 
     public Optional<IntegrationConnectorHandler> findIntegrationHandler(String connectorCode) {
@@ -67,6 +98,6 @@ public class ConnectorRegistry {
     }
 
     public Collection<ConnectorHandler> getHandlers() {
-        return handlers.values();
+        return handlers().values();
     }
 }
