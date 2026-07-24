@@ -42,8 +42,8 @@ public class SystemPresetBootstrap {
 
     static final List<String> SYSTEM_PRESET_RESOURCES = List.of(
             "presets/personal-assistant/PRESET.md",
-            "presets/designer/PRESET.md",
-            "presets/content-manager/PRESET.md",
+            "presets/visual/PRESET.md",
+            "presets/creative/PRESET.md",
             "presets/team-lead/PRESET.md",
             "presets/astrologer/PRESET.md",
             "presets/platform-admin/PRESET.md",

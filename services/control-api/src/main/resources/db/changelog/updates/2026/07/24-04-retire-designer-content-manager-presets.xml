@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Пресеты designer и content-manager слиты в visual («Визуальщик», вся работа с картинками) и
+      creative («Креативщик», тексты и контент-план). Прежняя пара пересекалась: оба на media +
+      persist-memory, а инструкции про работу с картинкой у них дословно дублировались.
+
+      Почему новые коды, а не правка старых строк: сидинг системных пресетов — seed-only-if-missing,
+      после первого сидинга classpath перестаёт быть источником истины. Переписанный PRESET.md
+      доехал бы только до свежих окружений. Новое имя сидится везде, старое гасим здесь.
+
+      Строки не удаляем: agents.preset_name ссылается на них аналитикой воронки, а у созданных
+      агентов инструкции скопированы при создании и от гашения пресета не меняются.
+    -->
+    <changeSet id="retire-designer-content-manager-presets" author="agimate">
+        <sql>
+            UPDATE agent_presets SET enabled = false, updated_at = CURRENT_TIMESTAMP
+            WHERE name IN ('designer', 'content-manager');
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
