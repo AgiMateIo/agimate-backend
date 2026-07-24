@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Connector file layer (docs/connectors/files.md): metadata only, bytes live in S3 under
+         user_id/agf_&lt;id&gt;. id is assigned by the application (exposed as agf_&lt;uuid&gt;), hence no
+         DB default. An UPLOADING row older than an hour is treated as abandoned and swept. -->
+    <changeSet id="create-files-table" author="agimate">
+        <createTable tableName="files">
+            <column name="id" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- UPLOADING | READY -->
+            <column name="status" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="mime" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="size" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- hex SHA-256; filled once the upload completes (status=READY) -->
+            <column name="sha256" type="TEXT"/>
+            <!-- provenance: connector_code/tool/connection that produced the file -->
+            <column name="origin" type="TEXT"/>
+            <column name="expires_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- daily quota: sum(size) per owner over the window -->
+        <createIndex tableName="files" indexName="idx_files_user_created">
+            <column name="user_id"/>
+            <column name="created_at"/>
+        </createIndex>
+        <!-- expiry sweep -->
+        <createIndex tableName="files" indexName="idx_files_expires_at">
+            <column name="expires_at"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

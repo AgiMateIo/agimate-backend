@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-llm-providers-table" author="agimate">
+        <createTable tableName="llm_providers">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="provider_type" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="base_url" type="TEXT"/>
+            <!-- API key lives in secrets (entity=llm_provider, owner=llm_providers.id). Nullable —
+                 set right after insert, since the AAD binding needs the provider id. No FK: the
+                 lifecycle is managed by the service. -->
+            <column name="secret_id" type="UUID"/>
+            <column name="api_key_mask" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Required for the platform provider (fallback for agents without an agent_llms
+                 binding), optional for user-owned ones. -->
+            <column name="default_model" type="TEXT"/>
+            <!-- Extra chat/completions body params (OpenRouter routing, transforms), merged with the
+                 per-model extra_body (model wins). Not a secret. -->
+            <column name="extra_body" type="JSONB"/>
+            <column name="models_refreshed_at" type="TIMESTAMP"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="llm_providers"
+                             columnNames="user_id, name"
+                             constraintName="uq_llm_providers_user_name"/>
+
+        <createIndex tableName="llm_providers" indexName="idx_llm_providers_user_id">
+            <column name="user_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

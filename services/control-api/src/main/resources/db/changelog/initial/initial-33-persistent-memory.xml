@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- persist-memory connector, two layers per scope (scope_id = agentId): cold is the folded
+         memory (single writer = consolidation, CAS on version), hot is an append-only note log, so
+         concurrent writes never conflict. Consolidation claims hot rows, folds them into cold and
+         deletes them in one transaction; claimed_at is the lease for crash recovery. -->
+    <changeSet id="create-persistent-memory-cold" author="agimate">
+        <createTable tableName="persistent_memory_cold">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- One cold file per scope — the business key. -->
+            <column name="scope_id" type="UUID">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_persistent_memory_cold_scope"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="content" type="TEXT" defaultValue="">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Optimistic lock: update_memory writes WHERE version = expected. -->
+            <column name="version" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="create-persistent-memory-hot" author="agimate">
+        <createTable tableName="persistent_memory_hot">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="scope_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Note origin (tracing); NULL for inline notes outside a session. -->
+            <column name="session_id" type="UUID"/>
+            <column name="content" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Consolidation claim: batch id + claim time (lease). NULL = not consolidated. -->
+            <column name="consolidation_id" type="UUID"/>
+            <column name="claimed_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Both note reads and the consolidation claim filter by scope_id. -->
+        <createIndex tableName="persistent_memory_hot" indexName="idx_persistent_memory_hot_scope">
+            <column name="scope_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

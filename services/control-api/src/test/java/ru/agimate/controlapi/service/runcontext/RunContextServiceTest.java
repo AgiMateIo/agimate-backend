@@ -479,7 +479,7 @@ class RunContextServiceTest {
         }
 
         @Test
-        @DisplayName("хвост разворачивается, старые kinds маппятся на v2, thinking-строки отфильтрованы (NO_REASONING)")
+        @DisplayName("хвост разворачивается в хронологию, thinking-строки отфильтрованы (NO_REASONING)")
         void mapsHistory() {
             Agent agent = agent();
             AgentRun run = run(agent, triggerLog("time", "due"), null);
@@ -493,8 +493,8 @@ class RunContextServiceTest {
                             msg(ChannelSessionMessageKind.ANSWER, "ok, done", null),
                             msg(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks", "TOOL_CALL"),
                             msg(ChannelSessionMessageKind.PROGRESS, "💭 thinking...", "THINKING"),
-                            msg(ChannelSessionMessageKind.RESPONSE, "old answer", null),
-                            msg(ChannelSessionMessageKind.REQUEST, "old question", null)));
+                            msg(ChannelSessionMessageKind.ANSWER, "old answer", null),
+                            msg(ChannelSessionMessageKind.INBOUND, "old question", null)));
 
             RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
 

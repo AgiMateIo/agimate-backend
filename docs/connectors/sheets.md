@@ -168,5 +168,5 @@ connectors/internal/sheets/
 
 database/entities/Sheet.java, SheetRow.java
 resources/skills/sheets/SKILL.md   (регистрируется в SystemSkillBootstrap)
-db/changelog/updates/2026/07/24-03-sheets.xml
+db/changelog/initial/initial-34-sheets.xml
 ```

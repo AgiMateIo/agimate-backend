@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Background connector jobs claimed by ConnectorJobScheduler (FOR UPDATE SKIP LOCKED).
+         kind: SYSTEM (declarative, reconciled from getJobs()), AGENT (scheduled by an agent),
+         USER (reserved). paused_at holds the row back from pickup while set. -->
+    <changeSet id="create-connector-jobs-table" author="agimate">
+        <createTable tableName="connector_jobs">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="connector_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connection_id" type="TEXT"/>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID"/>
+            <column name="kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="type" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="config" type="JSONB" defaultValueComputed="'{}'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+            <column name="args" type="JSONB" defaultValueComputed="'{}'::jsonb">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="TEXT" defaultValue="PENDING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="next_run_at" type="TIMESTAMP"/>
+            <column name="timeout_seconds" type="INTEGER" defaultValueNumeric="300">
+                <constraints nullable="false"/>
+            </column>
+            <column name="lease_until" type="TIMESTAMP"/>
+            <column name="last_started_at" type="TIMESTAMP"/>
+            <column name="last_error" type="TEXT"/>
+            <column name="paused_at" type="TIMESTAMP"/>
+            <!-- Originating channel and session snapshotted at scheduling time: where a dynamic job
+                 (time.schedule) sends its answer and whose history its run gets. -->
+            <column name="channel_id" type="UUID"/>
+            <column name="session_id" type="UUID"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- The business key holds only for declarative jobs: AGENT jobs share one name (time.fire)
+             and must not collide, hence the kind = 'SYSTEM' predicate. -->
+        <sql>
+            CREATE UNIQUE INDEX uq_connector_jobs_connection
+                ON connector_jobs (connector_code, connection_id, name)
+                WHERE kind = 'SYSTEM';
+        </sql>
+
+        <!-- Pickup filters on (status, next_run_at, lease_until) and orders by next_run_at;
+             COMPLETED and paused rows never take part. -->
+        <sql>
+            CREATE INDEX idx_connector_jobs_ready
+                ON connector_jobs (next_run_at NULLS FIRST, lease_until)
+                WHERE status &lt;&gt; 'COMPLETED' AND paused_at IS NULL;
+        </sql>
+
+        <!-- For list/cancel of a single agent's jobs. -->
+        <createIndex tableName="connector_jobs" indexName="idx_connector_jobs_agent">
+            <column name="agent_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

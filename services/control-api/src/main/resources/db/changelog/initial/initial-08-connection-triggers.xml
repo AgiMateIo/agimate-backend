@@ -5,19 +5,26 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <changeSet id="create-connectors-table" author="agimate">
-        <createTable tableName="connectors">
-            <column name="code" type="TEXT">
+    <!-- Triggers of a dynamic connector instance (device apps); informational, params_schema is
+         raw JSON text. -->
+    <changeSet id="create-connection-triggers" author="agimate">
+        <createTable tableName="connection_triggers">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="connection_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_connection_triggers_connection"
+                             references="connections(id)"
+                             deleteCascade="true"/>
             </column>
             <column name="name" type="TEXT">
                 <constraints nullable="false"/>
             </column>
+            <column name="title" type="TEXT"/>
             <column name="description" type="TEXT"/>
-            <column name="credential_fields" type="JSONB"/>
-            <!-- BACKEND | DEVICE | LOOPBACK; synced from SPI capabilities() on bootstrap. -->
-            <column name="execution_kind" type="TEXT"/>
-            <column name="definition_binding" type="TEXT"/>
+            <column name="params_schema" type="TEXT"/>
+            <column name="deleted_at" type="TIMESTAMP"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
@@ -27,8 +34,9 @@
         </createTable>
 
         <sql>
-            ALTER TABLE connectors
-                ADD CONSTRAINT chk_connectors_code CHECK (code ~ '^[a-z0-9:\-]{3,128}$');
+            CREATE UNIQUE INDEX uq_connection_triggers_connection_name
+                ON connection_triggers (connection_id, name)
+                WHERE deleted_at IS NULL;
         </sql>
     </changeSet>
 

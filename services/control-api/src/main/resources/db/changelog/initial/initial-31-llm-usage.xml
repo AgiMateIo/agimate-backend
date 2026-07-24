@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- llm_usage_log is the per-call source of truth, idempotent by call_id (the LLM call's DBOS
+         workflow id); llm_usage_counters holds the aggregates used for quota enforcement, bumped by
+         an atomic upsert in the same transaction. Run cost = aggregate of the log by run_id. -->
+    <changeSet id="create-llm-usage-tables" author="agimate">
+        <createTable tableName="llm_usage_log">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="call_id" type="TEXT">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_llm_usage_log_call_id"/>
+            </column>
+            <column name="run_id" type="UUID"/>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="llm_provider_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="model" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="input_tokens" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="output_tokens" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="cache_read_tokens" type="INTEGER"/>
+            <column name="cache_write_tokens" type="INTEGER"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createTable tableName="llm_usage_counters">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="llm_provider_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- USER | AGENT | TOTAL; subject_id = userId | agentId | zero UUID -->
+            <column name="subject_kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="subject_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- DAY | MONTH; calendar windows in UTC, window_start = day / first of month -->
+            <column name="win" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="window_start" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tokens" type="BIGINT" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="requests" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="llm_usage_counters"
+                             columnNames="llm_provider_id, subject_kind, subject_id, win, window_start"
+                             constraintName="uq_llm_usage_counters_key"/>
+    </changeSet>
+
+</databaseChangeLog>

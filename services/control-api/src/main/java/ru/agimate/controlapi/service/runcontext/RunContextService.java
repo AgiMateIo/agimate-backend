@@ -249,8 +249,7 @@ public class RunContextService {
      * История сессии «как видел пользователь»: только завершённые раны ({@code completed=true} —
      * поэтому сообщения текущего рана, включая его inbound-ack, сюда не попадают), хвост окном
      * {@link EffectiveContext#historyLimit()} ({@code 0} — истории нет), фильтр по
-     * {@link ContextSpec.HistoryDetail}. Дореформенные строки маппятся на v2-виды
-     * (REQUEST → INBOUND, RESPONSE → ANSWER) по текстовой проекции.
+     * {@link ContextSpec.HistoryDetail}.
      *
      * <p>Tool-ходы (v2.1): у PROGRESS/TOOL_CALL с {@code message_json} наружу идёт структурный
      * {@code toolTurn} — воркер восстановит нативные tool_use/tool_result; текстовая 🔧-проекция
@@ -274,11 +273,7 @@ public class RunContextService {
             if ((m.getMessage() == null || m.getMessage().isBlank()) && !hasStructuredResults(m)) {
                 continue;
             }
-            ChannelSessionMessageKind kind = switch (m.getKind()) {
-                case REQUEST -> ChannelSessionMessageKind.INBOUND;
-                case RESPONSE -> ChannelSessionMessageKind.ANSWER;
-                default -> m.getKind();
-            };
+            ChannelSessionMessageKind kind = m.getKind();
             if (kind == ChannelSessionMessageKind.PROGRESS && excludedProgress(m, detail)) {
                 continue;
             }

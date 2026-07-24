@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Provider model registry, one row per (provider, model): discovery metadata, lifecycle
+         (status, first/last_seen_at) and config overrides. Rows are never deleted when a model
+         disappears from the listing — config and agent bindings point at them — only marked
+         UNAVAILABLE. raw_metadata keeps the /models entry so new fields can be backfilled. -->
+    <changeSet id="create-llm-provider-models-table" author="agimate">
+        <createTable tableName="llm_provider_models">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="provider_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="model" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="display_name" type="TEXT"/>
+            <column name="context_window" type="INTEGER"/>
+            <column name="max_output_tokens" type="INTEGER"/>
+            <column name="input_modalities" type="JSONB"/>
+            <column name="output_modalities" type="JSONB"/>
+            <column name="supported_parameters" type="JSONB"/>
+            <column name="raw_metadata" type="JSONB"/>
+            <column name="extra_body" type="JSONB"/>
+            <column name="status" type="TEXT" defaultValue="AVAILABLE">
+                <constraints nullable="false"/>
+            </column>
+            <!-- null = never seen in the provider listing (row created by hand). -->
+            <column name="first_seen_at" type="TIMESTAMP"/>
+            <column name="last_seen_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="llm_provider_models"
+                             columnNames="provider_id, model"
+                             constraintName="uq_llm_provider_models_provider_model"/>
+
+        <addForeignKeyConstraint baseTableName="llm_provider_models"
+                                 baseColumnNames="provider_id"
+                                 constraintName="fk_llm_provider_models_provider"
+                                 referencedTableName="llm_providers"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Access refinement on top of a binding, default-allow. Precedence for (kind, name):
+         exact name > binding-wide (name IS NULL) > default-allow; no numeric priority. -->
+    <changeSet id="create-agent-connection-policies-table" author="agimate">
+        <createTable tableName="agent_connection_policies">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="agent_connection_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_agent_connection_policies_binding"
+                             references="agent_connections(id)" deleteCascade="true"/>
+            </column>
+            <column name="kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- null = binding-wide rule (applies to the whole connector). -->
+            <column name="name" type="TEXT"/>
+            <column name="effect" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="params_filter" type="JSONB"/>
+            <column name="description" type="TEXT"/>
+            <column name="source" type="TEXT"/>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE agent_connection_policies
+                ADD CONSTRAINT chk_agent_connection_policies_kind CHECK (kind IN ('TOOL', 'TRIGGER'));
+            ALTER TABLE agent_connection_policies
+                ADD CONSTRAINT chk_agent_connection_policies_effect CHECK (effect IN ('ALLOW', 'DENY'));
+        </sql>
+
+        <!-- One active rule per (binding, kind, name); COALESCE because NULLs are distinct. -->
+        <sql>
+            CREATE UNIQUE INDEX uq_agent_connection_policies_active
+                ON agent_connection_policies (agent_connection_id, kind, COALESCE(name, ''))
+                WHERE deleted_at IS NULL;
+        </sql>
+
+        <createIndex tableName="agent_connection_policies" indexName="idx_agent_connection_policies_binding">
+            <column name="agent_connection_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

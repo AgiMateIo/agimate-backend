@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Channel projection of the conversation as the user saw it (full turn log is agent_run_turns).
+         Ordering comes from the uuidv7 PK, idempotency from (run_id, seq). completed=true is set for
+         the whole run on the final ANSWER, so unfinished runs drop out of later runs' history. -->
+    <changeSet id="create-channel-session-messages-table" author="agimate">
+        <createTable tableName="channel_session_messages">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="session_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="run_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="seq" type="INTEGER"/>
+            <column name="kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="progress_type" type="TEXT"/>
+            <column name="message" type="TEXT"/>
+            <!-- Structured tool turn (ToolTurnRecord) for PROGRESS rows, capped; null otherwise. -->
+            <column name="message_json" type="JSONB"/>
+            <column name="trigger_input" type="JSONB"/>
+            <column name="completed" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE channel_session_messages
+                ADD CONSTRAINT chk_channel_session_messages_kind
+                    CHECK (kind IN ('INBOUND', 'PROGRESS', 'ANSWER', 'ERROR'));
+        </sql>
+
+        <addForeignKeyConstraint baseTableName="channel_session_messages"
+                                 baseColumnNames="session_id"
+                                 constraintName="fk_channel_session_messages_session"
+                                 referencedTableName="channel_sessions"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="channel_session_messages"
+                                 baseColumnNames="agent_id"
+                                 constraintName="fk_channel_session_messages_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addUniqueConstraint tableName="channel_session_messages"
+                             columnNames="run_id, seq"
+                             constraintName="uq_channel_session_messages_run_seq"/>
+
+        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_session_id">
+            <column name="session_id"/>
+            <column name="created_at"/>
+        </createIndex>
+        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_agent_created_at">
+            <column name="agent_id"/>
+            <column name="created_at"/>
+        </createIndex>
+        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_session_run">
+            <column name="session_id"/>
+            <column name="run_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

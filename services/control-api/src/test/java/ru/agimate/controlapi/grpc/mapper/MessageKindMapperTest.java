@@ -29,13 +29,11 @@ class MessageKindMapperTest {
     }
 
     @Test
-    @DisplayName("toProto: v2 и дореформенные kinds → proto (REQUEST→INBOUND, RESPONSE→ANSWER)")
+    @DisplayName("toProto: доменные kinds → proto")
     void toProto() {
         assertEquals(MessageKind.MESSAGE_KIND_INBOUND, MessageKindMapper.toProto(ChannelSessionMessageKind.INBOUND));
-        assertEquals(MessageKind.MESSAGE_KIND_INBOUND, MessageKindMapper.toProto(ChannelSessionMessageKind.REQUEST));
         assertEquals(MessageKind.MESSAGE_KIND_PROGRESS, MessageKindMapper.toProto(ChannelSessionMessageKind.PROGRESS));
         assertEquals(MessageKind.MESSAGE_KIND_ANSWER, MessageKindMapper.toProto(ChannelSessionMessageKind.ANSWER));
-        assertEquals(MessageKind.MESSAGE_KIND_ANSWER, MessageKindMapper.toProto(ChannelSessionMessageKind.RESPONSE));
         assertEquals(MessageKind.MESSAGE_KIND_ERROR, MessageKindMapper.toProto(ChannelSessionMessageKind.ERROR));
     }
 }

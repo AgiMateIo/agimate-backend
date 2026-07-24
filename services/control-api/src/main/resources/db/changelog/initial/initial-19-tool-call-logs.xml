@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-tool-call-logs-table" author="agimate">
+        <createTable tableName="tool_call_logs">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Initiating run; feeds ConnectorEnv.runId. Nullable — device/app calls have no run. -->
+            <column name="run_id" type="UUID"/>
+            <column name="connector_code" type="TEXT"/>
+            <column name="connection_id" type="TEXT"/>
+            <column name="external_id" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="input" type="JSONB"/>
+            <column name="agent_session_id" type="TEXT"/>
+            <column name="access_effect" type="TEXT"/>
+            <column name="finish_at" type="TIMESTAMP"/>
+            <column name="output" type="TEXT"/>
+            <column name="error" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="tool_call_logs"
+                             columnNames="agent_id, external_id"
+                             constraintName="uq_tool_call_logs_agent_id_external_id"/>
+
+        <createIndex tableName="tool_call_logs" indexName="idx_tool_call_logs_user_id">
+            <column name="user_id"/>
+        </createIndex>
+
+        <createIndex tableName="tool_call_logs" indexName="idx_tool_call_logs_agent_id">
+            <column name="agent_id"/>
+        </createIndex>
+
+        <createIndex tableName="tool_call_logs" indexName="idx_tool_call_logs_created_at">
+            <column name="created_at" descending="true"/>
+        </createIndex>
+
+        <createIndex tableName="tool_call_logs" indexName="idx_tool_call_logs_external_id">
+            <column name="external_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

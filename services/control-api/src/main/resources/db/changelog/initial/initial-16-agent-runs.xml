@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- One row = one agent run; id = run_id = DBOS workflow id, trigger_log_id = parent event.
+         status is a projection of the SaveMessage stream (INBOUND→RUNNING, ANSWER→DONE,
+         ERROR→FAILED) — observability, not a lock: single-writer-per-session is held by the
+         partitioned agent_exec queue. Stuck RUNNING rows are swept by last_activity_at. -->
+    <changeSet id="create-agent-runs-table" author="agimate">
+        <createTable tableName="agent_runs">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="trigger_log_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_agent_runs_trigger_log"
+                             references="trigger_logs(id)"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_agent_runs_agent"
+                             references="agents(id)"/>
+            </column>
+            <column name="destination" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="session_id" type="UUID"/>
+            <column name="status" type="TEXT" defaultValue="ENQUEUED">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Route channels (prompt/progress/answer) snapshotted at dispatch; NULL for direct runs. -->
+            <column name="channels" type="JSONB"/>
+            <!-- Start prompt exactly as sent to the first LLM call (SavePrompt, first-write-wins). -->
+            <column name="prompt" type="JSONB"/>
+            <column name="result" type="TEXT"/>
+            <column name="error" type="TEXT"/>
+            <column name="last_activity_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="agent_runs"
+                             columnNames="trigger_log_id, agent_id"
+                             constraintName="uq_agent_runs_log_id_agent_id"/>
+
+        <sql>
+            ALTER TABLE agent_runs
+                ADD CONSTRAINT chk_agent_runs_status
+                CHECK (status IN ('ENQUEUED', 'RUNNING', 'DONE', 'FAILED', 'CANCELLED'));
+        </sql>
+
+        <!-- Per-agent listing; the (trigger_log_id, agent_id) unique does not cover this access. -->
+        <createIndex tableName="agent_runs" indexName="idx_agent_runs_agent_id_created_at">
+            <column name="agent_id"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

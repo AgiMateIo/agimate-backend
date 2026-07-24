@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Soft delete (deleted_at + @SQLRestriction): the row stays, so no FK on agents ever fires.
+         No partial unique index needed — key_id is random per agent. -->
+    <changeSet id="create-agents-table" author="agimate">
+        <createTable tableName="agents">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT" defaultValue="Unnamed Agent">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="instructions" type="TEXT"/>
+            <column name="key_hash" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="key_id" type="TEXT">
+                <constraints nullable="false" unique="true"/>
+            </column>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <column name="type" type="TEXT" defaultValue="CENTRIFUGO">
+                <constraints nullable="false"/>
+            </column>
+            <column name="webhook_url" type="TEXT"/>
+            <column name="webhook_auth_secret_id" type="UUID">
+                <constraints foreignKeyName="fk_agents_webhook_auth_secret" references="secrets(id)"/>
+            </column>
+            <column name="agentic_team_id" type="UUID">
+                <constraints foreignKeyName="fk_agents_agentic_team"
+                             references="agentic_teams(id)"/>
+            </column>
+            <!-- Funnel analytics; no FK — a preset may be disabled or removed. -->
+            <column name="preset_name" type="TEXT"/>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <createIndex tableName="agents" indexName="idx_agents_user_id">
+            <column name="user_id"/>
+        </createIndex>
+
+        <createIndex tableName="agents" indexName="idx_agents_agentic_team_id">
+            <column name="agentic_team_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

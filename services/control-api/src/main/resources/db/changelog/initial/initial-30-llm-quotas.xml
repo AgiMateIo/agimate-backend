@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Token quotas declared per provider: USER (free tier, N per user), TOTAL (wallet cap) or
+         AGENT. Checked in GetLlmCredentials against llm_usage_counters before every LLM call. -->
+    <changeSet id="create-llm-quotas-table" author="agimate">
+        <createTable tableName="llm_quotas">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="llm_provider_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="subject_kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="win" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="limit_tokens" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="llm_quotas"
+                             columnNames="llm_provider_id, subject_kind, win"
+                             constraintName="uq_llm_quotas_key"/>
+
+        <addForeignKeyConstraint baseTableName="llm_quotas"
+                                 baseColumnNames="llm_provider_id"
+                                 constraintName="fk_llm_quotas_provider"
+                                 referencedTableName="llm_providers"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+    </changeSet>
+
+</databaseChangeLog>

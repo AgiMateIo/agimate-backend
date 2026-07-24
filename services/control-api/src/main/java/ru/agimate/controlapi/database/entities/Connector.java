@@ -47,10 +47,6 @@ public class Connector extends BaseEntity {
     @Column(name = "definition_binding", columnDefinition = "TEXT")
     private DefinitionBinding definitionBinding;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "features", columnDefinition = "JSONB")
-    private Map<String, Object> features;
-
     /** Агрегат traits (для API/бутстрапа); рантайм читает отдельные поля. */
     public ConnectorTraits traits() {
         return new ConnectorTraits(executionKind, definitionBinding);

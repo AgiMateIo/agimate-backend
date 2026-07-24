@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-agent-llms-table" author="agimate">
+        <createTable tableName="agent_llms">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="llm_provider_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="model" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- LlmPurpose: CHAT is the agent loop model, IMAGE/VISION/AUDIO_* are media connector
+                 tools. Chat model selection filters on purpose so a tool binding cannot replace it. -->
+            <column name="purpose" type="TEXT" defaultValue="CHAT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addUniqueConstraint tableName="agent_llms"
+                             columnNames="agent_id, name"
+                             constraintName="uq_agent_llms_agent_name"/>
+
+        <addForeignKeyConstraint baseTableName="agent_llms"
+                                 baseColumnNames="agent_id"
+                                 constraintName="fk_agent_llms_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="agent_llms"
+                                 baseColumnNames="llm_provider_id"
+                                 constraintName="fk_agent_llms_llm_provider"
+                                 referencedTableName="llm_providers"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <createIndex tableName="agent_llms" indexName="idx_agent_llms_user_id">
+            <column name="user_id"/>
+        </createIndex>
+        <createIndex tableName="agent_llms" indexName="idx_agent_llms_llm_provider_id">
+            <column name="llm_provider_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

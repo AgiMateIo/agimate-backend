@@ -15,10 +15,9 @@ public class MessageKindMapper {
 
     public static MessageKind toProto(ChannelSessionMessageKind kind) {
         return switch (kind) {
-            // Дореформенные kinds сервис уже маппит на v2; ветки здесь — на случай пропуска.
-            case INBOUND, REQUEST -> MessageKind.MESSAGE_KIND_INBOUND;
+            case INBOUND -> MessageKind.MESSAGE_KIND_INBOUND;
             case PROGRESS -> MessageKind.MESSAGE_KIND_PROGRESS;
-            case ANSWER, RESPONSE -> MessageKind.MESSAGE_KIND_ANSWER;
+            case ANSWER -> MessageKind.MESSAGE_KIND_ANSWER;
             case ERROR -> MessageKind.MESSAGE_KIND_ERROR;
         };
     }

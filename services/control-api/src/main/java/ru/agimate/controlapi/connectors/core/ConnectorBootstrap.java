@@ -20,7 +20,7 @@ import java.util.Map;
  * <ol>
  *   <li>upsert статических строк {@code connectors} без handler'а ({@code app}, {@code claude-code});</li>
  *   <li>upsert строки {@code connectors} для каждого handler'а из registry — код-источник истины
- *       для name/description/credential_fields/capabilities; features не затираются;</li>
+ *       для name/description/credential_fields/capabilities;</li>
  *   <li>пересинк существующих SYSTEM-строк {@code connector_jobs} с {@code getJobs()} — изменения
  *       {@code @Job} (интервал/timeout) доезжают до БД без пересоздания подключений.</li>
  * </ol>

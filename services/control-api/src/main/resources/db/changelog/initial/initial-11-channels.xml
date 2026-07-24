@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="create-channels-table" author="agimate">
+        <createTable tableName="channels">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="channel_handler" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connector_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- connections.id — the route source. -->
+            <column name="connection_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Chat filtering by trigger params (the "how" layer, unlike policies — the "what"). -->
+            <column name="input_filter" type="JSONB"/>
+            <column name="config" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="channels"
+                                 baseColumnNames="agent_id"
+                                 constraintName="fk_channels_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <!-- One active channel per (agent, connector, connection) — the trigger route key. Partial
+             index so a soft-deleted channel does not block re-creation. -->
+        <sql>
+            CREATE UNIQUE INDEX uq_channels_agent_connector_connection_active
+                ON channels (agent_id, connector_code, connection_id)
+                WHERE deleted_at IS NULL;
+        </sql>
+
+        <createIndex tableName="channels" indexName="idx_channels_user_id">
+            <column name="user_id"/>
+        </createIndex>
+        <createIndex tableName="channels" indexName="idx_channels_agent_id">
+            <column name="agent_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

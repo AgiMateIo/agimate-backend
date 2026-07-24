@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- sheets connector: agent tables with a declared schema (not a free cell grid), which is what
+         makes aggregation safe — the column type is known, so the SQL cast is safe and a column name
+         coming from an LLM argument is checked against the schema whitelist. Owned per agent
+         (scope_id = agents.id); user_id carries the access boundary. -->
+    <changeSet id="create-sheets-table" author="agimate">
+        <createTable tableName="sheets">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- Sheet owner: agentId. -->
+            <column name="scope_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Machine code (slug); display name is title. -->
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- [{name,title,type,unit}], type: number|text|date|bool -->
+            <column name="columns" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="sheets"
+                                 baseColumnNames="scope_id"
+                                 constraintName="fk_sheets_scope_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addUniqueConstraint tableName="sheets"
+                             columnNames="scope_id, name"
+                             constraintName="uq_sheets_scope_name"/>
+    </changeSet>
+
+    <changeSet id="create-sheet-rows-table" author="agimate">
+        <createTable tableName="sheet_rows">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="sheet_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Cell values {column: value}. Named data, not values, because VALUES is a reserved
+                 PostgreSQL word; the tool JSON still exposes the key as "values". -->
+            <column name="data" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="sheet_rows"
+                                 baseColumnNames="sheet_id"
+                                 constraintName="fk_sheet_rows_sheet"
+                                 referencedTableName="sheets"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <createIndex tableName="sheet_rows" indexName="idx_sheet_rows_sheet_id">
+            <column name="sheet_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
