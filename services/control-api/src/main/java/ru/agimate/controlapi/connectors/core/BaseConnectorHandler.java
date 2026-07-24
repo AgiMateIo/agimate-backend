@@ -202,7 +202,10 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
      */
     private static Object convertArg(Object value, Type targetType) {
         JavaType javaType = JsonUtils.MAPPER.getTypeFactory().constructType(targetType);
-        if (javaType.getRawClass().isInstance(value)) {
+        // Быстрый путь — только для типов без параметров: у List<ColumnSpec> сырой класс это List,
+        // и пришедший от LLM List<Map> прошёл бы проверку целиком, оставив элементы мапами
+        // (ClassCastException уже внутри тула). Контейнеры всегда отдаём Jackson'у поэлементно.
+        if (!javaType.hasGenericTypes() && javaType.getRawClass().isInstance(value)) {
             return value;
         }
         if (javaType.hasRawClass(String.class)) {

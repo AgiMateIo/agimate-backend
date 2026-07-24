@@ -13,6 +13,7 @@ import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -185,6 +186,17 @@ class BaseConnectorHandlerTest {
         }
 
         @Test
+        @DisplayName("конвертирует элементы коллекции, а не только её саму: List<record> из List<Map>")
+        void bindsCollectionElements() {
+            // Сырой класс List<Item> — это List, и пришедший от LLM список мап прошёл бы проверку
+            // «уже нужного типа» целиком, оставив элементы мапами (ClassCastException внутри тула).
+            Map<String, Object> result = handler.executeTool(CONTEXT, "test.records",
+                    Map.of("items", List.of(Map.of("name", "болт", "weight", 3))));
+
+            assertEquals(List.of(new Item("болт", 3)), result.get("items"));
+        }
+
+        @Test
         @DisplayName("отклоняет @Job-метод")
         void rejectsJobMethod() {
             assertThrows(ConnectorException.class,
@@ -324,5 +336,15 @@ class BaseConnectorHandlerTest {
             result.put("kind", kind);
             return result;
         }
+
+        @Tool(name = "test.records", description = "List of records as a parameter")
+        public Map<String, Object> records(@ToolParam("Items") List<Item> items) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("items", items);
+            return result;
+        }
+    }
+
+    public record Item(String name, int weight) {
     }
 }
