@@ -17,7 +17,8 @@ public class SkillFrontmatterParser {
      * Разобранный SKILL.md: {@code name}/{@code description}/{@code connectors} из frontmatter и
      * {@code body} — тело без заголовков (всё после закрывающего {@code ---}).
      */
-    public record ParsedSkill(String name, String description, List<String> connectors, String body) {}
+    public record ParsedSkill(String name, String title, String description,
+                              List<String> connectors, String body) {}
 
     /** Сырой разбор markdown-документа с YAML-frontmatter: поля + тело после закрывающего {@code ---}. */
     public record RawFrontmatter(Map<String, Object> fields, String body) {}
@@ -32,12 +33,15 @@ public class SkillFrontmatterParser {
         }
 
         String name = nameValue.toString().strip();
+        String title = frontmatter.containsKey("title")
+                ? String.valueOf(frontmatter.get("title")).strip()
+                : null;
         String description = frontmatter.containsKey("description")
                 ? String.valueOf(frontmatter.get("description")).strip()
                 : null;
         List<String> connectors = parseStringList(frontmatter.get("connectors"));
 
-        return new ParsedSkill(name, description, connectors, raw.body());
+        return new ParsedSkill(name, title, description, connectors, raw.body());
     }
 
     /**

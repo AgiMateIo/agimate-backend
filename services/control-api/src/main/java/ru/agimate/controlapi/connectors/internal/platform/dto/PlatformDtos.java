@@ -29,15 +29,16 @@ public final class PlatformDtos {
                                   List<ToolBrief> tools, List<TriggerBrief> triggers) {
     }
 
-    public record SkillBrief(String id, String name, String description, List<String> connectorCodes,
-                             int version, boolean isPublic, boolean system) {
+    public record SkillBrief(String id, String name, String title, String description,
+                             List<String> connectorCodes, int version, boolean isPublic, boolean system) {
     }
 
     public record SkillList(List<SkillBrief> skills) {
     }
 
-    public record SkillDetail(String id, String name, String description, List<String> connectorCodes,
-                              int version, boolean isPublic, boolean system, String mdContent) {
+    public record SkillDetail(String id, String name, String title, String description,
+                              List<String> connectorCodes, int version, boolean isPublic, boolean system,
+                              String mdContent) {
     }
 
     public record BoundSkill(String skillId, String name, List<String> connectorCodes) {

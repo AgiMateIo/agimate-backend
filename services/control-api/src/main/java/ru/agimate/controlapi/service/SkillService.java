@@ -100,6 +100,7 @@ public class SkillService {
 
         Skill skill = Skill.builder()
                 .name(parsed.name())
+                .title(parsed.title())
                 .description(parsed.description())
                 .mdContent(parsed.body())
                 .connectorCodes(new ArrayList<>(parsed.connectors()))
@@ -143,6 +144,7 @@ public class SkillService {
         }
 
         skill.setName(parsed.name());
+        skill.setTitle(parsed.title());
         skill.setDescription(parsed.description());
         skill.setMdContent(parsed.body());
         skill.setConnectorCodes(new ArrayList<>(parsed.connectors()));

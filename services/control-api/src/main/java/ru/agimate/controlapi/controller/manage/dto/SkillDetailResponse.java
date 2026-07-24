@@ -14,8 +14,11 @@ public record SkillDetailResponse(
         @Schema(description = "Skill ID")
         UUID id,
 
-        @Schema(description = "Skill name")
+        @Schema(description = "Skill name — stable code (referenced by presets; unique per owner)")
         String name,
+
+        @Schema(description = "Human-readable display title (falls back to name if unset)")
+        String title,
 
         @Schema(description = "Skill description")
         String description,
@@ -50,6 +53,7 @@ public record SkillDetailResponse(
         return new SkillDetailResponse(
                 skill.getId(),
                 skill.getName(),
+                skill.getTitle() != null ? skill.getTitle() : skill.getName(),
                 skill.getDescription(),
                 skill.getConnectorCodes(),
                 skill.getVersion(),

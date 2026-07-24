@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- title — человекочитаемое отображаемое имя скилла (локализуемое в будущем). name остаётся
+         стабильным кодом: ключ (user_id, name) и ссылки из preset.skill_names. Nullable — при
+         отсутствии title UI/ответы фолбэчат на name (существующие строки не ретро-заполняются). -->
+    <changeSet id="2026-07-24-00-add-skill-title" author="agimate">
+        <addColumn tableName="skills">
+            <column name="title" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

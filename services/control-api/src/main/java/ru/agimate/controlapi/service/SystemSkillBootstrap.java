@@ -77,6 +77,7 @@ public class SystemSkillBootstrap {
         try {
             Skill skill = skillRepository.save(Skill.builder()
                     .name(parsed.name())
+                    .title(parsed.title())
                     .description(parsed.description())
                     .mdContent(parsed.body())
                     .connectorCodes(connectors)

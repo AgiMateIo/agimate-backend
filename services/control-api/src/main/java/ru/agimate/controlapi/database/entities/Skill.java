@@ -28,8 +28,13 @@ public class Skill extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
+    /** Стабильный код скилла: ключ {@code (user_id, name)}, на него ссылаются {@code preset.skill_names}. */
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
+
+    /** Человекочитаемое отображаемое имя (локализуемое в будущем); {@code null} → фолбэк на {@link #name}. */
+    @Column(name = "title", columnDefinition = "TEXT")
+    private String title;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;

@@ -160,9 +160,9 @@ public class PlatformToolService {
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public SkillDetail getSkill(@ToolParam("Skill public ID") String skillId) {
         Skill skill = accessibleSkill(parseUuid(skillId, "skillId"));
-        return new SkillDetail(skill.getId().toString(), skill.getName(), skill.getDescription(),
-                skill.getConnectorCodes(), skill.getVersion(), Boolean.TRUE.equals(skill.getIsPublic()),
-                isSystem(skill), skill.getMdContent());
+        return new SkillDetail(skill.getId().toString(), skill.getName(), displayTitle(skill),
+                skill.getDescription(), skill.getConnectorCodes(), skill.getVersion(),
+                Boolean.TRUE.equals(skill.getIsPublic()), isSystem(skill), skill.getMdContent());
     }
 
     @Tool(name = "list_agents", description = "List the agents you own",
@@ -246,8 +246,9 @@ public class PlatformToolService {
     }
 
     @Tool(name = "create_skill",
-            description = "Create a skill from a full SKILL.md document (YAML frontmatter with name, "
-                    + "description, connectorCodes + markdown body). isPublic defaults to false",
+            description = "Create a skill from a full SKILL.md document (YAML frontmatter with name "
+                    + "(stable code), title (display name), description, connectors + markdown body). "
+                    + "isPublic defaults to false",
             annotations = @ToolAnnotations(openWorldHint = false))
     public SkillDetail createSkill(
             @ToolParam("Full SKILL.md content (frontmatter + body)") String skillMd,
@@ -355,9 +356,13 @@ public class PlatformToolService {
     // ---- helpers ---------------------------------------------------------------------------
 
     private SkillBrief toSkillBrief(Skill skill) {
-        return new SkillBrief(skill.getId().toString(), skill.getName(), skill.getDescription(),
-                skill.getConnectorCodes(), skill.getVersion(), Boolean.TRUE.equals(skill.getIsPublic()),
-                isSystem(skill));
+        return new SkillBrief(skill.getId().toString(), skill.getName(), displayTitle(skill),
+                skill.getDescription(), skill.getConnectorCodes(), skill.getVersion(),
+                Boolean.TRUE.equals(skill.getIsPublic()), isSystem(skill));
+    }
+
+    private static String displayTitle(Skill skill) {
+        return skill.getTitle() != null ? skill.getTitle() : skill.getName();
     }
 
     private AgentBrief toAgentBrief(Agent agent) {
