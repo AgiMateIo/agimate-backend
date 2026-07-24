@@ -45,7 +45,8 @@ public class SystemPresetBootstrap {
             "presets/designer/PRESET.md",
             "presets/content-manager/PRESET.md",
             "presets/team-lead/PRESET.md",
-            "presets/astrologer/PRESET.md");
+            "presets/astrologer/PRESET.md",
+            "presets/platform-admin/PRESET.md");
 
     private final AgentPresetRepository agentPresetRepository;
     private final SkillRepository skillRepository;
