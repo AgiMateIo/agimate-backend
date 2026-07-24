@@ -47,7 +47,8 @@ public class SystemSkillBootstrap {
             "skills/astro/SKILL.md",
             "skills/divination/SKILL.md",
             "skills/media/SKILL.md",
-            "skills/platform/SKILL.md");
+            "skills/platform/SKILL.md",
+            "skills/sheets/SKILL.md");
 
     private final SkillRepository skillRepository;
 

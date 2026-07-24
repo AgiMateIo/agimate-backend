@@ -49,6 +49,14 @@ allprojects {
 
                 // Astronomy Engine (astro-коннектор control-api) — с JitPack
                 implementation("io.github.cosinekitty:astronomy:2.1.19")
+
+                // Рендер PNG-графиков sheets-коннектора: Apache 2.0, поверх Java2D, без транзитивов
+                implementation("org.knowm.xchart:xchart:3.8.8")
+
+                // Импорт/экспорт xlsx в sheets-коннекторе: Apache 2.0, стриминговый, без xmlbeans
+                // (Apache POI тянет десятки мегабайт ради формата, нужного только на краях потока)
+                implementation("org.dhatim:fastexcel:0.19.0")
+                implementation("org.dhatim:fastexcel-reader:0.19.0")
             }
         }
     }

@@ -73,7 +73,7 @@ webchat/acp, экземпляр у telegram/mcp), либо отсутствуе�
 
 | | владелец: агент | владелец: команда | правила нет |
 |---|---|---|---|
-| **Режим** (1/пользователя, скиллы) | persist-memory, time | board | media, webchat, acp |
+| **Режим** (1/пользователя, скиллы) | persist-memory, time, sheets | board | media, webchat, acp |
 | **Экземпляры** (N, явный bind) | — | — | telegram, mcp, app |
 
 Чувствительность к агенту бывает трёх видов, ось — только первый: вывод владельца из caller'а
@@ -241,7 +241,9 @@ BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — 
 (астрология по эфемеридам и Матрица/нумерология/Таро для пресета «Астролог», см.
 `docs/connectors/astro-divination.md`), `internal/media/` (MediaConnectorService + MediaToolService —
 «модель как инструмент»: `gen_image`/`edit_image`/`read_image` чужой моделью, выбор модели и ключи —
-в `service/llm/MediaInferenceService`, см. `docs/connectors/media.md`).
+в `service/llm/MediaInferenceService`, см. `docs/connectors/media.md`),
+`internal/sheets/` (таблицы агента с объявленной схемой: фильтры и сводки по любой колонке,
+PNG-графики, импорт/выгрузка xlsx/csv, см. `docs/connectors/sheets.md`).
 
 ### MCP-коннектор
 

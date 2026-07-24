@@ -53,6 +53,13 @@ dependencies {
     // Астрономические расчёты astro-коннектора: MIT, self-contained, ±1 угл. минута
     implementation("io.github.cosinekitty:astronomy")
 
+    // Графики sheets-коннектора: PNG через Java2D (Spring Boot ставит java.awt.headless=true)
+    implementation("org.knowm.xchart:xchart")
+
+    // Импорт/экспорт xlsx в sheets-коннекторе
+    implementation("org.dhatim:fastexcel")
+    implementation("org.dhatim:fastexcel-reader")
+
     // S3-совместимое хранилище файлового слоя коннекторов (docs/connectors/files.md)
     implementation(platform("software.amazon.awssdk:bom:2.49.1"))
     implementation("software.amazon.awssdk:s3")

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      sheets-коннектор: таблицы агента с объявленной схемой. Объявленная схема (а не свободная
+      сетка ячеек) — то, что делает возможной надёжную агрегацию: тип колонки известен, значит
+      каст в SQL безопасен, а имя колонки из аргумента LLM проверяется по whitelist схемы.
+
+      Владение — AGENT (scope_id = agents.id), как у persistent memory: данные листа принадлежат
+      агенту, а не пользователю целиком. user_id несёт сквозную границу доступа.
+    -->
+    <changeSet id="create-sheets-table" author="agimate">
+        <createTable tableName="sheets">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <!-- Носитель листа: agentId (AGENT scope). -->
+            <column name="scope_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Машинный код листа (slug); дисплейное имя — title. -->
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- [{name,title,type,unit}], type: number|text|date|bool -->
+            <column name="columns" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="sheets"
+                                 baseColumnNames="scope_id"
+                                 constraintName="fk_sheets_scope_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addUniqueConstraint tableName="sheets"
+                             columnNames="scope_id, name"
+                             constraintName="uq_sheets_scope_name"/>
+    </changeSet>
+
+    <changeSet id="create-sheet-rows-table" author="agimate">
+        <createTable tableName="sheet_rows">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="sheet_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!--
+              Значения ячеек {колонка: значение}. Колонка называется data, а не values: VALUES —
+              зарезервированное слово PostgreSQL, иначе пришлось бы квотить её в каждом запросе.
+              В JSON-выдаче тулов ключ остаётся "values".
+            -->
+            <column name="data" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="sheet_rows"
+                                 baseColumnNames="sheet_id"
+                                 constraintName="fk_sheet_rows_sheet"
+                                 referencedTableName="sheets"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <createIndex tableName="sheet_rows" indexName="idx_sheet_rows_sheet_id">
+            <column name="sheet_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>
