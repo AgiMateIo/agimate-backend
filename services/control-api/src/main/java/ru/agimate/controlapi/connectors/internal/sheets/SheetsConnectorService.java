@@ -54,6 +54,12 @@ public class SheetsConnectorService extends BaseConnectorHandler implements Inte
     }
 
     @Override
+    public String connectorDescription() {
+        return "Таблицы агента с объявленной схемой колонок: фильтры и сводки по любой колонке, "
+                + "графики и выгрузка в CSV/XLSX.";
+    }
+
+    @Override
     public List<PromptBlock> promptBlocks(ConnectorEnv env) {
         UUID scopeId = env.agentId();
         if (scopeId == null) {

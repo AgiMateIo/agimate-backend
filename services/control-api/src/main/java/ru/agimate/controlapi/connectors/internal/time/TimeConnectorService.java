@@ -39,6 +39,12 @@ public class TimeConnectorService extends BaseConnectorHandler
     }
 
     @Override
+    public String connectorDescription() {
+        return "Текущее время и отложенные задачи: агент планирует действие на будущее "
+                + "и сам возвращается к нему в срок.";
+    }
+
+    @Override
     public Map<String, TriggerSpec> getTriggers() {
         // PROMPT легитимен: data.prompt собирает наш fire() из строки job'а, авторство — сам агент.
         return Map.of(TimeToolService.DUE_TRIGGER, new TriggerSpec(

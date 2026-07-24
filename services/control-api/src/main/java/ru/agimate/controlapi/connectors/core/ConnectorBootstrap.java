@@ -18,9 +18,9 @@ import java.util.Map;
 /**
  * Бутстрап коннекторов при старте приложения:
  * <ol>
- *   <li>статические строки {@code connectors} ({@code app}, {@code claude-code}) — только если отсутствуют;</li>
+ *   <li>upsert статических строк {@code connectors} без handler'а ({@code app}, {@code claude-code});</li>
  *   <li>upsert строки {@code connectors} для каждого handler'а из registry — код-источник истины
- *       для name/credential_fields/capabilities; description/features не затираются;</li>
+ *       для name/description/credential_fields/capabilities; features не затираются;</li>
  *   <li>пересинк существующих SYSTEM-строк {@code connector_jobs} с {@code getJobs()} — изменения
  *       {@code @Job} (интервал/timeout) доезжают до БД без пересоздания подключений.</li>
  * </ol>
@@ -40,8 +40,11 @@ public class ConnectorBootstrap {
 
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
-        saveIfAbsent(buildStatic("app", "App", ConnectorTraits.device()));
-        saveIfAbsent(buildStatic("claude-code", "Claude Code", ConnectorTraits.loopback()));
+        upsertStatic("app", "App", ConnectorTraits.device(),
+                "Приложение-устройство: агент вызывает тулы на подключённом компьютере или телефоне "
+                        + "— скриншот, файлы, локальные действия.");
+        upsertStatic("claude-code", "Claude Code", ConnectorTraits.loopback(),
+                "Claude Code как исполнитель: агент забирает вызовы себе и выполняет их в вашем окружении.");
 
         for (ConnectorHandler handler : connectorRegistry.getHandlers()) {
             upsertConnector(handler);
@@ -66,6 +69,7 @@ public class ConnectorBootstrap {
                         .build());
 
         connector.setName(handler.connectorName());
+        connector.setDescription(handler.connectorDescription());
         connector.setCredentialFields(handler instanceof IntegrationConnectorHandler integration
                 ? integration.getCredentialFields()
                 : null);
@@ -121,16 +125,13 @@ public class ConnectorBootstrap {
         }
     }
 
-    private static Connector buildStatic(String code, String name, ConnectorTraits traits) {
-        Connector connector = Connector.builder().code(code).name(name).build();
+    /** Строки без handler'а: источник истины тот же (код), поэтому upsert, а не save-if-absent. */
+    private void upsertStatic(String code, String name, ConnectorTraits traits, String description) {
+        Connector connector = connectorRepository.findById(code)
+                .orElseGet(() -> Connector.builder().code(code).build());
+        connector.setName(name);
+        connector.setDescription(description);
         connector.applyTraits(traits);
-        return connector;
-    }
-
-    private void saveIfAbsent(Connector connector) {
-        if (!connectorRepository.existsById(connector.getCode())) {
-            connectorRepository.save(connector);
-            log.info("Created connector: {}", connector.getCode());
-        }
+        connectorRepository.save(connector);
     }
 }

@@ -84,7 +84,7 @@ Results are sorted by `name` ascending.
 | `code` | `string` | no | Unique connector code — primary key; matches pattern `^[a-z0-9:\-]{3,128}$` |
 | `type` | `string (enum)` | no | Connector category — see values below |
 | `name` | `string` | no | Human-readable display name |
-| `description` | `string` | yes | Optional description of the connector |
+| `description` | `string` | yes | One-line catalog description — what the connector gives the user. Declared in code (`ConnectorHandler.connectorDescription()`) and upserted into the `connectors` row by `ConnectorBootstrap` on every startup; `null` only for a connector that declares none |
 | `integrationMeta` | `object` | yes | Populated only when `type=INTEGRATION` and an integration handler is registered; `null` otherwise |
 
 **`integrationMeta` fields:**

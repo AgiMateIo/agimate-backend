@@ -72,6 +72,12 @@ public class TelegramConnectorService extends BaseConnectorHandler
         return "Telegram";
     }
 
+    @Override
+    public String connectorDescription() {
+        return "Бот в Telegram: агент отвечает на сообщения в личных чатах и группах, "
+                + "отправляет фото, документы и видео.";
+    }
+
     public boolean isPollingMode() {
         return MODE_POLLING.equalsIgnoreCase(mode);
     }

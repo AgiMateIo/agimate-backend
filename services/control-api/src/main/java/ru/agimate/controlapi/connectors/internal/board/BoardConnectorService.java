@@ -54,6 +54,12 @@ public class BoardConnectorService extends BaseConnectorHandler
     }
 
     @Override
+    public String connectorDescription() {
+        return "Канбан-доска команды: задачи, статусы, исполнители и комментарии — "
+                + "агент ведёт их сам и реагирует на изменения.";
+    }
+
+    @Override
     public Map<String, TriggerSpec> getTriggers() {
         return Map.of(
                 BoardService.TASK_CREATED_TRIGGER, new TriggerSpec(

@@ -20,6 +20,14 @@ public interface ConnectorHandler {
     }
 
     /**
+     * Описание для каталога подключений — одна фраза о том, что коннектор даёт пользователю
+     * (не как он устроен внутри). Источник истины — код; бутстрап персистит в {@code connectors}.
+     */
+    default String connectorDescription() {
+        return null;
+    }
+
+    /**
      * Type-level дескриптор коннектора — только функциональные оси (см. {@link ConnectorTraits}).
      * Источник истины — код; бутстрап персистит в каталог {@code connectors}. Дефолт — internal
      * (backend-исполнение, статические тулы) — подходит и интеграциям вроде telegram;

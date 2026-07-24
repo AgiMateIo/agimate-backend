@@ -85,6 +85,12 @@ public class AcpConnectorService extends BaseConnectorHandler
     }
 
     @Override
+    public String connectorDescription() {
+        return "Диалог с агентом прямо из IDE по Agent Client Protocol (Zed и другие клиенты): "
+                + "агент читает и пишет файлы, запускает команды в вашем проекте.";
+    }
+
+    @Override
     public Map<String, TriggerSpec> getTriggers() {
         return Map.of(AcpChannelHandler.TRIGGER_MESSAGE_RECEIVED, new TriggerSpec(
                 "Message from the user typed in the IDE (ACP client)",

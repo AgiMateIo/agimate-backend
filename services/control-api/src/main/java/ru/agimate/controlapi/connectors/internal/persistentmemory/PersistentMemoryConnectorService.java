@@ -59,6 +59,12 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
         return "Persistent Memory";
     }
 
+    @Override
+    public String connectorDescription() {
+        return "Долговременная память агента: заметки по ходу диалога и сжатая выжимка из них, "
+                + "которая переживает сессии.";
+    }
+
     /**
      * Минимальный контекст memory-тасок: материал уже в {@code data} (messages/notes) — история
      * не нужна; из тулов достаточно памяти ({@code ownConnectionTools}, скилл-тулы выключены).

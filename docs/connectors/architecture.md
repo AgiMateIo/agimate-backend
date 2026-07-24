@@ -185,7 +185,9 @@ PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
 
 - **`<Name>ConnectorService`** — фасад: implements `IntegrationConnectorHandler`/`InternalConnectorHandler`
   + нужные capability-интерфейсы, extends `BaseConnectorHandler` (даёт `ToolProvider` + `JobProvider`
-  рефлексией). Содержит метаданные, credentials/webhook-логику.
+  рефлексией). Содержит метаданные, credentials/webhook-логику. Identity-часть — `connectorCode()`,
+  `connectorName()`, `connectorDescription()` (фраза для каталога подключений: что коннектор даёт
+  пользователю, а не как устроен внутри), `traits()`; всё это бутстрап персистит в `connectors`.
 - **`<Name>ToolService`** — методы с собственной MCP-совместимой `@Tool` (`name`/`title`/`description`/
   `annotations`/`_meta`); параметры описываются `@ToolParam`. `getTools()` отдаёт `ConnectorToolSpec`
   (MCP): `inputSchema`/`outputSchema` строятся рефлексией (`ToolSchemaReflector`, без сторонних библиотек),
@@ -358,5 +360,6 @@ binding на time-коннектор (его заводит сам time-скил
   из `JobProvider.getJobs()` (коннектор без `JobProvider` тасок не имеет): created → upsert, modified → sync (upsert + удаление stale), deleted →
   delete by connection_id. Касается только интеграций; динамические задачи агента сюда не попадают.
 - `ConnectorBootstrap` (ApplicationReadyEvent) — upsert каталога `connectors` из registry
-  (код — источник истины для name/type/credential_fields). Задачи на старте не регистрируются:
+  (код — источник истины для name/description/traits/credential_fields), плюс upsert строк без
+  handler'а (`app`, `claude-code`). Задачи на старте не регистрируются:
   декларативные заводятся по `ConnectorCreatedEvent`, динамические — агентом через тулы.

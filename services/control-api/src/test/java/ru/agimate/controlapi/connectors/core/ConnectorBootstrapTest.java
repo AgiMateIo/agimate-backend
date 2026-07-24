@@ -2,25 +2,32 @@ package ru.agimate.controlapi.connectors.core;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
+import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@DisplayName("ConnectorBootstrap — валидация trust-полей ContextDirectives")
+@DisplayName("ConnectorBootstrap — upsert каталога и валидация trust-полей ContextDirectives")
 class ConnectorBootstrapTest {
 
     interface InternalTriggerHandler extends InternalConnectorHandler, TriggerProvider {
@@ -55,6 +62,28 @@ class ConnectorBootstrapTest {
         when(handler.getTriggers()).thenReturn(Map.of("due", promptSpec("prompt")));
 
         assertDoesNotThrow(() -> bootstrap(handler).bootstrap());
+    }
+
+    @Test
+    @DisplayName("description коннектора берётся из хендлера, статические строки — из бутстрапа")
+    void descriptionPersisted() {
+        InternalTriggerHandler handler = mock(InternalTriggerHandler.class);
+        when(handler.connectorCode()).thenReturn("time");
+        when(handler.connectorName()).thenReturn("Time");
+        when(handler.connectorDescription()).thenReturn("Текущее время и отложенные задачи");
+        when(handler.traits()).thenReturn(ConnectorTraits.internal());
+        when(handler.getTriggers()).thenReturn(Map.of());
+
+        bootstrap(handler).bootstrap();
+
+        ArgumentCaptor<Connector> saved = ArgumentCaptor.forClass(Connector.class);
+        verify(connectorRepository, atLeastOnce()).save(saved.capture());
+        Map<String, String> descriptions = saved.getAllValues().stream()
+                .collect(Collectors.toMap(Connector::getCode, Connector::getDescription));
+
+        assertEquals("Текущее время и отложенные задачи", descriptions.get("time"));
+        assertNotNull(descriptions.get("app"));
+        assertNotNull(descriptions.get("claude-code"));
     }
 
     @Test

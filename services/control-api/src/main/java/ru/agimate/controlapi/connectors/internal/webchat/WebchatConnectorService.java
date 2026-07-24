@@ -34,6 +34,11 @@ public class WebchatConnectorService implements InternalConnectorHandler, Trigge
     }
 
     @Override
+    public String connectorDescription() {
+        return "Чат с агентом в веб-интерфейсе — канал по умолчанию для диалога с пользователем.";
+    }
+
+    @Override
     public Map<String, TriggerSpec> getTriggers() {
         return Map.of(WebchatChannelHandler.TRIGGER_MESSAGE_RECEIVED, new TriggerSpec(
                 "Message from the user typed in the web chat",

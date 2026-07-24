@@ -28,4 +28,10 @@ public class MediaConnectorService extends BaseConnectorHandler implements Inter
     public String connectorName() {
         return "Media";
     }
+
+    @Override
+    public String connectorDescription() {
+        return "Картинки для агентов, чья модель этого не умеет: генерация, редактирование "
+                + "и распознавание изображений отдельной моделью.";
+    }
 }

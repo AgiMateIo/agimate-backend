@@ -26,4 +26,9 @@ public class DivinationConnectorService extends BaseConnectorHandler implements 
     public String connectorName() {
         return "Divination";
     }
+
+    @Override
+    public String connectorDescription() {
+        return "Детерминированная эзотерика: Матрица судьбы, нумерология и расклады Таро.";
+    }
 }

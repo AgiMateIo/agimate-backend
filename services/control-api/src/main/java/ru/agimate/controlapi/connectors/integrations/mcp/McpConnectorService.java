@@ -52,6 +52,12 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
     }
 
     @Override
+    public String connectorDescription() {
+        return "Подключение к внешнему MCP-серверу: его тулы становятся доступны агенту как свои. "
+                + "Набор тулов свой у каждого подключения — вычитывается с сервера при добавлении.";
+    }
+
+    @Override
     public ru.agimate.controlapi.database.model.ConnectorTraits traits() {
         return ru.agimate.controlapi.database.model.ConnectorTraits.dynamicIntegration();
     }
