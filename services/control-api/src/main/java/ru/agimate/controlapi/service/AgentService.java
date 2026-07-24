@@ -289,7 +289,7 @@ public class AgentService {
         return create(userId, new AgentCreateCommand(
                 request.name(), request.description(), request.instructions(), request.type(),
                 request.webhookUrl(), request.webhookAuthHeader(), request.agenticTeamId(),
-                request.skillIds(), request.presetCode()));
+                request.skillIds(), request.presetName()));
     }
 
     @Transactional
@@ -307,7 +307,7 @@ public class AgentService {
             }
         }
 
-        String presetCode = validatedPresetCode(command.presetCode());
+        String presetName = validatedPresetName(command.presetName());
 
         GeneratedAppKey generatedKey = AppKeyUtils.generate(AGENT_KEY_PREFIX);
 
@@ -321,7 +321,7 @@ public class AgentService {
                 .type(type)
                 .webhookUrl(command.webhookUrl())
                 .agenticTeamId(team != null ? team.getId() : null)
-                .presetCode(presetCode)
+                .presetName(presetName)
                 .build();
         // id генерится БД — секрет auth-заголовка (AAD-привязка к agent.id) кладём после save.
         agent = agentRepository.save(agent);
@@ -334,19 +334,19 @@ public class AgentService {
             }
         }
 
-        log.info("Created agent id={}, user={}, preset={}", agent.getId(), userId, presetCode);
+        log.info("Created agent id={}, user={}, preset={}", agent.getId(), userId, presetName);
         return new AgentCreateResult(agent, team, generatedKey.fullKey());
     }
 
     /** Пресет — только метка воронки, но метка должна существовать: опечатка = BadRequest. */
-    private String validatedPresetCode(String presetCode) {
-        if (presetCode == null || presetCode.isBlank()) {
+    private String validatedPresetName(String presetName) {
+        if (presetName == null || presetName.isBlank()) {
             return null;
         }
-        String code = presetCode.strip();
-        agentPresetRepository.findByCode(code)
-                .orElseThrow(() -> new BadRequestStatusException("Unknown preset code: " + code));
-        return code;
+        String name = presetName.strip();
+        agentPresetRepository.findByName(name)
+                .orElseThrow(() -> new BadRequestStatusException("Unknown preset name: " + name));
+        return name;
     }
 
     @Transactional

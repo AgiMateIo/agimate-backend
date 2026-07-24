@@ -74,9 +74,9 @@ public class Agent extends BaseEntity {
     @Column(name = "agentic_team_id")
     private UUID agenticTeamId;
 
-    /** Код пресета, с которого стартовал мастер создания (аналитика воронки); без FK. */
-    @Column(name = "preset_code", columnDefinition = "TEXT")
-    private String presetCode;
+    /** Имя (машинный код) пресета, с которого стартовал мастер создания (аналитика воронки); без FK. */
+    @Column(name = "preset_name", columnDefinition = "TEXT")
+    private String presetName;
 
     /** Момент мягкого удаления; {@code null} — активен. Скрытие из выборок — через {@link SQLRestriction}. */
     @Column(name = "deleted_at")

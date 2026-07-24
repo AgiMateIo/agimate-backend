@@ -71,7 +71,7 @@ class SkillServiceTest {
         private String skillMd(String connectorsYaml) {
             return """
                     ---
-                    name: Test Skill
+                    name: test-skill
                     description: d
                     connectors:
                     %s
@@ -95,7 +95,7 @@ class SkillServiceTest {
         @DisplayName("все коды известны → скилл создаётся")
         void acceptsKnownConnectorCodes() {
             knownConnectors("board");
-            when(skillRepository.existsByUserIdAndNameNotDeleted(USER_ID, "Test Skill")).thenReturn(false);
+            when(skillRepository.existsByUserIdAndNameNotDeleted(USER_ID, "test-skill")).thenReturn(false);
             when(skillRepository.save(any(Skill.class))).thenAnswer(inv -> {
                 Skill s = inv.getArgument(0);
                 s.setId(UUID.randomUUID());
@@ -105,7 +105,7 @@ class SkillServiceTest {
 
             SkillResponse response = service.create(USER_ID, request);
 
-            assertEquals("Test Skill", response.name());
+            assertEquals("test-skill", response.name());
             assertEquals(List.of("board"), response.connectorCodes());
         }
     }
@@ -118,7 +118,7 @@ class SkillServiceTest {
         @DisplayName("удаляет привязки ко всем агентам вместе со скиллом")
         void cleansAgentSkills() {
             when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(
-                    Skill.builder().id(SKILL_ID).userId(USER_ID).name("Test Skill").build()));
+                    Skill.builder().id(SKILL_ID).userId(USER_ID).name("test-skill").build()));
             when(agentSkillRepository.deleteBySkillId(SKILL_ID)).thenReturn(2);
 
             service.delete(SKILL_ID, USER_ID, false);
@@ -131,7 +131,7 @@ class SkillServiceTest {
         @DisplayName("чужой скилл → Forbidden, привязки не тронуты")
         void foreignSkillForbidden() {
             when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(
-                    Skill.builder().id(SKILL_ID).userId(UUID.randomUUID()).name("Test Skill").build()));
+                    Skill.builder().id(SKILL_ID).userId(UUID.randomUUID()).name("test-skill").build()));
 
             assertThrows(ForbiddenStatusException.class, () -> service.delete(SKILL_ID, USER_ID, false));
 
@@ -155,7 +155,7 @@ class SkillServiceTest {
     class SystemSkills {
 
         private Skill systemSkill() {
-            return Skill.builder().id(SKILL_ID).userId(SYSTEM_USER_ID).name("Board")
+            return Skill.builder().id(SKILL_ID).userId(SYSTEM_USER_ID).name("board")
                     .isPublic(true).version(1).connectorCodes(new java.util.ArrayList<>(List.of("board")))
                     .mdContent("body").description("d").build();
         }
@@ -167,7 +167,7 @@ class SkillServiceTest {
 
             assertThrows(ForbiddenStatusException.class,
                     () -> service.update(SKILL_ID, USER_ID, false,
-                            new UpdateSkillRequest(systemSkillMd("Board"), true)));
+                            new UpdateSkillRequest(systemSkillMd("board"), true)));
         }
 
         @Test
@@ -177,7 +177,7 @@ class SkillServiceTest {
             when(skillRepository.save(any(Skill.class))).thenAnswer(inv -> inv.getArgument(0));
 
             SkillResponse response = service.update(SKILL_ID, USER_ID, true,
-                    new UpdateSkillRequest(systemSkillMd("Board"), true));
+                    new UpdateSkillRequest(systemSkillMd("board"), true));
 
             assertEquals(2, response.version());
             assertTrue(response.system());
@@ -190,7 +190,7 @@ class SkillServiceTest {
 
             assertThrows(BadRequestStatusException.class,
                     () -> service.update(SKILL_ID, USER_ID, true,
-                            new UpdateSkillRequest(systemSkillMd("Renamed"), true)));
+                            new UpdateSkillRequest(systemSkillMd("renamed"), true)));
         }
 
         @Test
@@ -209,7 +209,7 @@ class SkillServiceTest {
         void deletePresetReferencedSystemConflict() {
             when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(systemSkill()));
             when(agentSkillRepository.existsBySkillId(SKILL_ID)).thenReturn(false);
-            when(agentPresetRepository.existsBySkillNameReferenced("Board")).thenReturn(true);
+            when(agentPresetRepository.existsBySkillNameReferenced("board")).thenReturn(true);
 
             assertThrows(ConflictStatusException.class, () -> service.delete(SKILL_ID, USER_ID, true));
 
@@ -219,14 +219,14 @@ class SkillServiceTest {
         @Test
         @DisplayName("createSystem — owner=SYSTEM, всегда public")
         void createSystemForcesOwnerAndPublic() {
-            when(skillRepository.existsByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "New")).thenReturn(false);
+            when(skillRepository.existsByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "new")).thenReturn(false);
             when(skillRepository.save(any(Skill.class))).thenAnswer(inv -> {
                 Skill s = inv.getArgument(0);
                 s.setId(UUID.randomUUID());
                 return s;
             });
 
-            SkillResponse response = service.createSystem(new CreateSkillRequest(systemSkillMd("New"), false));
+            SkillResponse response = service.createSystem(new CreateSkillRequest(systemSkillMd("new"), false));
 
             assertTrue(response.isPublic());
             assertTrue(response.system());

@@ -44,10 +44,10 @@ class AgentPresetServiceTest {
     @InjectMocks
     private AgentPresetService service;
 
-    private static AgentPreset preset(String code, List<String> skillNames) {
+    private static AgentPreset preset(String name, List<String> skillNames) {
         AgentPreset preset = AgentPreset.builder()
-                .code(code)
-                .name("Личный ассистент")
+                .name(name)
+                .title("Личный ассистент")
                 .description("desc")
                 .instructions("Ты — ассистент.")
                 .skillNames(skillNames)
@@ -89,7 +89,7 @@ class AgentPresetServiceTest {
 
             assertEquals(1, presets.size());
             AgentPresetResponse response = presets.get(0);
-            assertEquals("personal-assistant", response.code());
+            assertEquals("personal-assistant", response.name());
             assertEquals("Ты — ассистент.", response.instructions());
             assertEquals(List.of(time.getId(), memory.getId()),
                     response.skills().stream().map(AgentPresetResponse.PresetSkill::id).toList());
@@ -136,7 +136,7 @@ class AgentPresetServiceTest {
         @Test
         @DisplayName("create — валидирует skillNames и сохраняет enabled=true")
         void createsPreset() {
-            when(agentPresetRepository.findByCode("new-role")).thenReturn(Optional.empty());
+            when(agentPresetRepository.findByName("new-role")).thenReturn(Optional.empty());
             when(skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "AgiMate Time"))
                     .thenReturn(Optional.of(skill("AgiMate Time", List.of("time"))));
             when(agentPresetRepository.save(any(AgentPreset.class))).thenAnswer(inv -> {
@@ -148,7 +148,7 @@ class AgentPresetServiceTest {
             AgentPresetResponse response = service.create(adminId, new CreateAgentPresetRequest(
                     "new-role", "Роль", "desc", "Инструкции", List.of("AgiMate Time"), 5));
 
-            assertEquals("new-role", response.code());
+            assertEquals("new-role", response.name());
             assertEquals(5, response.sortOrder());
             assertTrue(response.enabled());
             assertEquals(List.of("AgiMate Time"), response.skillNames());
@@ -157,7 +157,7 @@ class AgentPresetServiceTest {
         @Test
         @DisplayName("create с занятым code → 409")
         void rejectsDuplicateCode() {
-            when(agentPresetRepository.findByCode("personal-assistant"))
+            when(agentPresetRepository.findByName("personal-assistant"))
                     .thenReturn(Optional.of(preset("personal-assistant", List.of())));
 
             assertThrows(ConflictStatusException.class, () -> service.create(adminId,
@@ -168,7 +168,7 @@ class AgentPresetServiceTest {
         @Test
         @DisplayName("create с несуществующим системным скиллом → 400")
         void rejectsUnknownSkill() {
-            when(agentPresetRepository.findByCode("r")).thenReturn(Optional.empty());
+            when(agentPresetRepository.findByName("r")).thenReturn(Optional.empty());
             when(skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "Ghost"))
                     .thenReturn(Optional.empty());
 
@@ -190,7 +190,7 @@ class AgentPresetServiceTest {
                     new UpdateAgentPresetRequest(null, null, null, null, null, false));
 
             assertFalse(response.enabled());
-            assertEquals("personal-assistant", response.code());
+            assertEquals("personal-assistant", response.name());
         }
 
         @Test
@@ -213,10 +213,10 @@ class AgentPresetServiceTest {
         void parsesPresetMd() {
             String content = """
                     ---
-                    code: personal-assistant
-                    name: Личный ассистент
+                    name: personal-assistant
+                    title: Личный ассистент
                     description: Помощник на каждый день
-                    skills: [AgiMate Time, AgiMate Memory]
+                    skills: [time, persist-memory]
                     ---
 
                     Ты — личный ассистент.
@@ -224,32 +224,32 @@ class AgentPresetServiceTest {
 
             var parsed = SystemPresetBootstrap.parsePreset(content);
 
-            assertEquals("personal-assistant", parsed.code());
-            assertEquals("Личный ассистент", parsed.name());
+            assertEquals("personal-assistant", parsed.name());
+            assertEquals("Личный ассистент", parsed.title());
             assertEquals("Помощник на каждый день", parsed.description());
-            assertEquals(List.of("AgiMate Time", "AgiMate Memory"), parsed.skillNames());
+            assertEquals(List.of("time", "persist-memory"), parsed.skillNames());
             assertEquals(0, parsed.sortOrder());
             assertEquals("Ты — личный ассистент.", parsed.instructions());
         }
 
         @Test
-        @DisplayName("без code или с пустым телом — ошибка")
+        @DisplayName("без name или с пустым телом — ошибка")
         void rejectsInvalid() {
-            String noCode = """
+            String noName = """
                     ---
-                    name: Пресет
+                    title: Пресет
                     ---
                     Тело.
                     """;
             String emptyBody = """
                     ---
-                    code: p
-                    name: Пресет
+                    name: p
+                    title: Пресет
                     ---
                     """;
             IllegalStateException e1 = assertThrows(IllegalStateException.class,
-                    () -> SystemPresetBootstrap.parsePreset(noCode));
-            assertTrue(e1.getMessage().contains("'code'"));
+                    () -> SystemPresetBootstrap.parsePreset(noName));
+            assertTrue(e1.getMessage().contains("'name'"));
             assertThrows(IllegalStateException.class, () -> SystemPresetBootstrap.parsePreset(emptyBody));
         }
 

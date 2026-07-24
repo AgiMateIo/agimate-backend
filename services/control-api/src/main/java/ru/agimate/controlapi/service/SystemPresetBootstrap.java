@@ -69,45 +69,45 @@ public class SystemPresetBootstrap {
         ParsedPreset parsed = parsePreset(readResource(resourcePath));
         warnOnUnknownSkills(parsed);
 
-        if (agentPresetRepository.findByCode(parsed.code()).isPresent()) {
+        if (agentPresetRepository.findByName(parsed.name()).isPresent()) {
             return;
         }
 
         try {
             AgentPreset preset = agentPresetRepository.save(AgentPreset.builder()
-                    .code(parsed.code())
                     .name(parsed.name())
+                    .title(parsed.title())
                     .description(parsed.description())
                     .instructions(parsed.instructions())
                     .skillNames(parsed.skillNames())
                     .sortOrder(parsed.sortOrder())
                     .build());
-            log.info("Seeded system preset '{}' id={} skills={}", preset.getCode(), preset.getId(),
+            log.info("Seeded system preset '{}' id={} skills={}", preset.getName(), preset.getId(),
                     parsed.skillNames());
         } catch (DataIntegrityViolationException e) {
-            // Параллельная нода успела вставить тот же code на холодном старте — уже засеяно.
-            log.debug("System preset '{}' already seeded by a concurrent node", parsed.code());
+            // Параллельная нода успела вставить тот же name на холодном старте — уже засеяно.
+            log.debug("System preset '{}' already seeded by a concurrent node", parsed.name());
         }
     }
 
     private void warnOnUnknownSkills(ParsedPreset parsed) {
         for (String skillName : parsed.skillNames()) {
             if (skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, skillName).isEmpty()) {
-                log.warn("System preset '{}' references unknown system skill '{}'", parsed.code(), skillName);
+                log.warn("System preset '{}' references unknown system skill '{}'", parsed.name(), skillName);
             }
         }
     }
 
     /** Разобранный PRESET.md: frontmatter-поля и тело-инструкции. */
-    record ParsedPreset(String code, String name, String description, List<String> skillNames,
+    record ParsedPreset(String name, String title, String description, List<String> skillNames,
                         Integer sortOrder, String instructions) {}
 
     static ParsedPreset parsePreset(String content) {
         SkillFrontmatterParser.RawFrontmatter raw = SkillFrontmatterParser.parseRaw(content, "PRESET.md");
         Map<String, Object> fields = raw.fields();
 
-        String code = requiredField(fields, "code");
         String name = requiredField(fields, "name");
+        String title = requiredField(fields, "title");
         String description = fields.containsKey("description")
                 ? String.valueOf(fields.get("description")).strip()
                 : null;
@@ -117,7 +117,7 @@ public class SystemPresetBootstrap {
         if (raw.body().isBlank()) {
             throw new IllegalStateException("PRESET.md body (agent instructions) is empty");
         }
-        return new ParsedPreset(code, name, description, skillNames, sortOrder, raw.body());
+        return new ParsedPreset(name, title, description, skillNames, sortOrder, raw.body());
     }
 
     private static String requiredField(Map<String, Object> fields, String field) {

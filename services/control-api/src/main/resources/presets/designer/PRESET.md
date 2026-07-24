@@ -1,8 +1,8 @@
 ---
-code: designer
-name: Дизайнер
+name: designer
+title: Дизайнер
 description: Визуальный помощник — рисует логотипы, обложки и иллюстрации, дорабатывает картинки по фидбеку и помнит твой фирменный стиль.
-skills: [AgiMate Media, AgiMate Memory]
+skills: [media, persist-memory]
 sortOrder: 5
 ---
 

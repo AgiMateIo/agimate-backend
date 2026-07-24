@@ -10,11 +10,11 @@ public record AgentPresetResponse(
         @Schema(description = "Preset ID")
         UUID id,
 
-        @Schema(description = "Stable preset slug, e.g. 'personal-assistant'")
-        String code,
-
-        @Schema(description = "Preset display name")
+        @Schema(description = "Stable preset code-slug, e.g. 'personal-assistant'")
         String name,
+
+        @Schema(description = "Preset display title")
+        String title,
 
         @Schema(description = "Preset description for the gallery card")
         String description,
@@ -42,8 +42,11 @@ public record AgentPresetResponse(
             @Schema(description = "Skill ID")
             UUID id,
 
-            @Schema(description = "Skill name")
+            @Schema(description = "Skill name — stable code")
             String name,
+
+            @Schema(description = "Skill display title")
+            String title,
 
             @Schema(description = "Skill description")
             String description

@@ -6,13 +6,13 @@ import java.util.List;
 
 /**
  * Частичное обновление пресета (ADMIN). Все поля опциональны; {@code null} — «не менять».
- * {@code code} отсутствует намеренно: слаг — ключ идемпотентного сидинга и аналитики
- * {@code agents.preset_code}, он неизменяем.
+ * {@code name} (машинный слаг) отсутствует намеренно: это ключ идемпотентного сидинга и аналитики
+ * {@code agents.preset_name}, он неизменяем.
  */
 @Schema(description = "Partial update of an agent role preset (ADMIN); null fields are left unchanged")
 public record UpdateAgentPresetRequest(
-        @Schema(description = "Preset display name")
-        String name,
+        @Schema(description = "Preset display title")
+        String title,
 
         @Schema(description = "Preset description for the gallery card")
         String description,

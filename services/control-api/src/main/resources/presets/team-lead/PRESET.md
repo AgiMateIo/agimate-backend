@@ -1,8 +1,8 @@
 ---
-code: team-lead
-name: Team Lead
+name: team-lead
+title: Team Lead
 description: Руководитель команды агентов — принимает цель, раскладывает её в задачи на доске, распределяет по исполнителям и доводит до результата.
-skills: [AgiMate Kanban Board, AgiMate Time, AgiMate Memory]
+skills: [board, time, persist-memory]
 sortOrder: 7
 ---
 

@@ -57,7 +57,7 @@ public class ManageAgentPresetController {
         return SuccessResponse.ok(agentPresetService.create(actorId, request));
     }
 
-    @Operation(summary = "Update an agent role preset (partial; code is immutable). ADMIN only")
+    @Operation(summary = "Update an agent role preset (partial; name is immutable). ADMIN only")
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}")
     public SuccessResponse<AgentPresetResponse> updatePreset(

@@ -53,15 +53,15 @@ public class AgentPresetService {
 
     @Transactional
     public AgentPresetResponse create(UUID actorId, CreateAgentPresetRequest request) {
-        if (agentPresetRepository.findByCode(request.code()).isPresent()) {
-            throw new ConflictStatusException("Preset with code '" + request.code() + "' already exists");
+        if (agentPresetRepository.findByName(request.name()).isPresent()) {
+            throw new ConflictStatusException("Preset with name '" + request.name() + "' already exists");
         }
         List<String> skillNames = request.resolveSkillNames();
         validateSkillNames(skillNames);
 
         AgentPreset preset = AgentPreset.builder()
-                .code(request.code())
                 .name(request.name())
+                .title(request.title())
                 .description(request.description())
                 .instructions(request.instructions())
                 .skillNames(new ArrayList<>(skillNames))
@@ -71,9 +71,9 @@ public class AgentPresetService {
         try {
             preset = agentPresetRepository.save(preset);
         } catch (DataIntegrityViolationException e) {
-            throw new ConflictStatusException("Preset with code '" + request.code() + "' already exists");
+            throw new ConflictStatusException("Preset with name '" + request.name() + "' already exists");
         }
-        log.info("Created agent preset '{}' id={} by admin={}", preset.getCode(), preset.getId(), actorId);
+        log.info("Created agent preset '{}' id={} by admin={}", preset.getName(), preset.getId(), actorId);
         return toResponse(preset);
     }
 
@@ -82,8 +82,8 @@ public class AgentPresetService {
         AgentPreset preset = agentPresetRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Preset not found"));
 
-        if (request.name() != null) {
-            preset.setName(request.name());
+        if (request.title() != null) {
+            preset.setTitle(request.title());
         }
         if (request.description() != null) {
             preset.setDescription(request.description());
@@ -103,7 +103,7 @@ public class AgentPresetService {
         }
 
         preset = agentPresetRepository.save(preset);
-        log.info("Updated agent preset '{}' id={} by admin={}", preset.getCode(), id, actorId);
+        log.info("Updated agent preset '{}' id={} by admin={}", preset.getName(), id, actorId);
         return toResponse(preset);
     }
 
@@ -131,16 +131,17 @@ public class AgentPresetService {
         for (String skillName : preset.getSkillNames()) {
             Skill skill = skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, skillName).orElse(null);
             if (skill == null) {
-                log.warn("Preset '{}' references missing system skill '{}'", preset.getCode(), skillName);
+                log.warn("Preset '{}' references missing system skill '{}'", preset.getName(), skillName);
                 continue;
             }
-            skills.add(new AgentPresetResponse.PresetSkill(skill.getId(), skill.getName(), skill.getDescription()));
+            skills.add(new AgentPresetResponse.PresetSkill(skill.getId(), skill.getName(),
+                    skill.getTitle() != null ? skill.getTitle() : skill.getName(), skill.getDescription()));
             connectorCodes.addAll(skill.getConnectorCodes());
         }
         return new AgentPresetResponse(
                 preset.getId(),
-                preset.getCode(),
                 preset.getName(),
+                preset.getTitle(),
                 preset.getDescription(),
                 preset.getInstructions(),
                 skills,

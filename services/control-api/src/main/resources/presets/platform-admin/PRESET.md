@@ -1,8 +1,8 @@
 ---
-code: platform-admin
-name: Platform Admin
+name: platform-admin
+title: Platform Admin
 description: Помощник-администратор платформы — по запросу создаёт и настраивает других агентов, пишет для них навыки, привязывает их и подключает интеграции.
-skills: [AgiMate Platform Admin]
+skills: [platform]
 sortOrder: 2
 ---
 

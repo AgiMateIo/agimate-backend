@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- Пресет приводим к тому же виду, что скилл: name = машинный код (был code), title = дисплей
+         (был name). Порядок важен: сначала освобождаем name (name→title), затем code→name. Unique
+         следует за колонкой. Ссылку агента на пресет тоже переименовываем: preset_code → preset_name. -->
+    <changeSet id="2026-07-24-02-align-preset-agent-fields" author="agimate">
+        <renameColumn tableName="agent_presets" oldColumnName="name" newColumnName="title" columnDataType="TEXT"/>
+        <renameColumn tableName="agent_presets" oldColumnName="code" newColumnName="name" columnDataType="TEXT"/>
+        <renameColumn tableName="agents" oldColumnName="preset_code" newColumnName="preset_name" columnDataType="TEXT"/>
+    </changeSet>
+
+</databaseChangeLog>

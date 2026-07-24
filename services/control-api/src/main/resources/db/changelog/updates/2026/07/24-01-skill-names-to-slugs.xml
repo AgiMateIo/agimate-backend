@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- name скилла становится машинным кодом (kebab-case = имя папки сидера), человекочитаемое
+         уезжает в title (добавлен 24-00). Переименовываем системные скиллы in-place (UUID и привязки
+         агентов сохраняются) и синхронно правим preset.skill_names, которые ссылаются на скиллы по name.
+         На свежей БД строк ещё нет (сидинг идёт после миграций) — UPDATE'ы затрагивают 0 строк, а сидеры
+         сразу пишут слаги. SYSTEM_USER_ID = нулевой UUID. -->
+    <changeSet id="2026-07-24-01-skill-names-to-slugs" author="agimate">
+        <sql>
+            UPDATE skills SET name = 'board'          WHERE name = 'AgiMate Kanban Board'  AND user_id = '00000000-0000-0000-0000-000000000000';
+            UPDATE skills SET name = 'time'           WHERE name = 'AgiMate Time'           AND user_id = '00000000-0000-0000-0000-000000000000';
+            UPDATE skills SET name = 'persist-memory' WHERE name = 'AgiMate Memory'         AND user_id = '00000000-0000-0000-0000-000000000000';
+            UPDATE skills SET name = 'astro'          WHERE name = 'AgiMate Astro'          AND user_id = '00000000-0000-0000-0000-000000000000';
+            UPDATE skills SET name = 'divination'     WHERE name = 'AgiMate Divination'     AND user_id = '00000000-0000-0000-0000-000000000000';
+            UPDATE skills SET name = 'media'          WHERE name = 'AgiMate Media'          AND user_id = '00000000-0000-0000-0000-000000000000';
+            UPDATE skills SET name = 'platform'       WHERE name = 'AgiMate Platform Admin' AND user_id = '00000000-0000-0000-0000-000000000000';
+
+            UPDATE agent_presets SET skill_names = array_replace(skill_names, 'AgiMate Kanban Board',  'board');
+            UPDATE agent_presets SET skill_names = array_replace(skill_names, 'AgiMate Time',          'time');
+            UPDATE agent_presets SET skill_names = array_replace(skill_names, 'AgiMate Memory',        'persist-memory');
+            UPDATE agent_presets SET skill_names = array_replace(skill_names, 'AgiMate Astro',         'astro');
+            UPDATE agent_presets SET skill_names = array_replace(skill_names, 'AgiMate Divination',    'divination');
+            UPDATE agent_presets SET skill_names = array_replace(skill_names, 'AgiMate Media',         'media');
+            UPDATE agent_presets SET skill_names = array_replace(skill_names, 'AgiMate Platform Admin','platform');
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

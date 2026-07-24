@@ -42,6 +42,10 @@ public class SkillService {
 
     private static final int MAX_PAGE_SIZE = 100;
 
+    /** {@code name} скилла — машинный код: строчные латиница/цифры через дефис (kebab-case). */
+    private static final java.util.regex.Pattern NAME_SLUG =
+            java.util.regex.Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
+
     private final SkillRepository skillRepository;
     private final AgentRepository agentRepository;
     private final AgentSkillRepository agentSkillRepository;
@@ -92,6 +96,7 @@ public class SkillService {
 
     private Skill doCreate(UUID ownerId, boolean isPublic, String skillMd) {
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(skillMd);
+        validateName(parsed.name());
         validateConnectorCodes(parsed.connectors());
 
         if (skillRepository.existsByUserIdAndNameNotDeleted(ownerId, parsed.name())) {
@@ -130,6 +135,7 @@ public class SkillService {
         boolean system = isSystem(skill);
 
         SkillFrontmatterParser.ParsedSkill parsed = SkillFrontmatterParser.parse(skillMd);
+        validateName(parsed.name());
         validateConnectorCodes(parsed.connectors());
 
         if (!skill.getName().equals(parsed.name())) {
@@ -262,6 +268,13 @@ public class SkillService {
      * ({@code app}, {@code claude-code}) — их скилл тоже может объявлять (INSTANCE-коннектор привязывается
      * позже вручную по connectionId). Пустой список (скилл без коннекторов) допустим.
      */
+    private void validateName(String name) {
+        if (!NAME_SLUG.matcher(name).matches()) {
+            throw new BadRequestStatusException("Skill name must be a kebab-case code "
+                    + "(lowercase letters, digits, hyphens), got: '" + name + "'");
+        }
+    }
+
     private void validateConnectorCodes(List<String> codes) {
         if (codes.isEmpty()) {
             return;

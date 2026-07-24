@@ -34,7 +34,7 @@ public record CreateAgentRequest(
         @Schema(description = "Skills to bind to the agent on creation (own or public skill IDs)")
         List<UUID> skillIds,
 
-        @Schema(description = "Preset code the creation wizard started from (funnel analytics)")
-        String presetCode
+        @Schema(description = "Preset name (code) the creation wizard started from (funnel analytics)")
+        String presetName
 ) {
 }

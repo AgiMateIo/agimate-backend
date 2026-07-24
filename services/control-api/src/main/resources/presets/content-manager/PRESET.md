@@ -1,8 +1,8 @@
 ---
-code: content-manager
-name: Контент-менеджер
+name: content-manager
+title: Контент-менеджер
 description: Ведёт твой контент — придумывает и пишет посты, рисует к ним обложки, держит контент-план и публикует по расписанию.
-skills: [AgiMate Media, AgiMate Memory, AgiMate Time]
+skills: [media, persist-memory, time]
 sortOrder: 6
 ---
 

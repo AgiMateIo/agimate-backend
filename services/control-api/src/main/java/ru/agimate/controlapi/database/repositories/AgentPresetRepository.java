@@ -13,7 +13,7 @@ import java.util.UUID;
 @Repository
 public interface AgentPresetRepository extends JpaRepository<AgentPreset, UUID> {
 
-    Optional<AgentPreset> findByCode(String code);
+    Optional<AgentPreset> findByName(String name);
 
     List<AgentPreset> findAllByEnabledTrueOrderBySortOrderAscNameAsc();
 

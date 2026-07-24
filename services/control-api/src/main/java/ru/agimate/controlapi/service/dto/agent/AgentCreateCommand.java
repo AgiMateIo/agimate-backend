@@ -19,6 +19,6 @@ public record AgentCreateCommand(
         String webhookAuthHeader,
         UUID agenticTeamId,
         List<UUID> skillIds,
-        String presetCode
+        String presetName
 ) {
 }

@@ -10,13 +10,13 @@ import java.util.List;
 public record CreateAgentPresetRequest(
         @NotBlank
         @Pattern(regexp = "[a-z0-9]+(?:-[a-z0-9]+)*",
-                message = "code must be a lowercase kebab-case slug")
-        @Schema(description = "Stable preset slug, e.g. 'personal-assistant' (immutable after creation)")
-        String code,
+                message = "name must be a lowercase kebab-case slug")
+        @Schema(description = "Stable preset code-slug, e.g. 'personal-assistant' (immutable after creation)")
+        String name,
 
         @NotBlank
-        @Schema(description = "Preset display name")
-        String name,
+        @Schema(description = "Preset display title")
+        String title,
 
         @Schema(description = "Preset description for the gallery card")
         String description,

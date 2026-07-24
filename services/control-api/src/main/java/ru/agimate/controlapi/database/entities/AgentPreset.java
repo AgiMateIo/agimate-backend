@@ -27,7 +27,7 @@ import java.util.UUID;
  * {@code code}.
  */
 @Entity
-@Table(name = "agent_presets", uniqueConstraints = @UniqueConstraint(columnNames = "code"))
+@Table(name = "agent_presets", uniqueConstraints = @UniqueConstraint(columnNames = "name"))
 @Getter
 @Setter
 @Builder
@@ -41,12 +41,13 @@ public class AgentPreset extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** Стабильный слаг ('personal-assistant') — ключ идемпотентного сидинга. */
-    @Column(name = "code", nullable = false, unique = true, columnDefinition = "TEXT")
-    private String code;
-
-    @Column(name = "name", nullable = false, columnDefinition = "TEXT")
+    /** Машинный код-слаг ('personal-assistant') — ключ идемпотентного сидинга. */
+    @Column(name = "name", nullable = false, unique = true, columnDefinition = "TEXT")
     private String name;
+
+    /** Человекочитаемое отображаемое имя. */
+    @Column(name = "title", nullable = false, columnDefinition = "TEXT")
+    private String title;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;

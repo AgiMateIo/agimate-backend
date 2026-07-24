@@ -1,5 +1,5 @@
 ---
-name: AgiMate Divination
+name: divination
 title: Гадания и нумерология
 description: Матрица судьбы, нумерология и Таро. Все числа и выпавшие карты считает детерминированный движок — модель только интерпретирует.
 connectors: [divination]

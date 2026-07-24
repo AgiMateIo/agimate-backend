@@ -1,5 +1,5 @@
 ---
-name: AgiMate Memory
+name: persist-memory
 title: Долговременная память
 description: Долговременная память агента — сохранение фактов заметками во время диалога и их консолидация в свёрнутую память по триггерам.
 connectors: [persist-memory]
