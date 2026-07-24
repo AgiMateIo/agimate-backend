@@ -28,11 +28,14 @@ The unified envelopes:
 
 A **skill** is a packaged capability that can be bound to one or more agents. Its content lives in a single `skills` table row: `md_content` holds the SKILL.md body (markdown only, without frontmatter), and `connector_codes` is a Postgres `text[]` of the connector codes the skill requires (parsed from the SKILL.md frontmatter at create/update time).
 
+**`name` vs `title`:** `name` is the **stable machine code** — a kebab-case slug (`^[a-z0-9]+(-[a-z0-9]+)*$`), unique per owner, and it is what agent presets reference in `skillNames`. It is **not** a display name. `title` is the human-readable display name shown in the UI; it is nullable, and every response falls back to `name` when `title` is unset. System skill names (slugs) are: `board`, `time`, `persist-memory`, `astro`, `divination`, `media`, `platform`.
+
 **SKILL.md format** — the `skillMd` field in create/update requests must be a complete SKILL.md with YAML frontmatter:
 
 ```markdown
 ---
-name: My Skill
+name: my-skill
+title: My Skill
 description: Does the thing
 connectors:
   - time
@@ -48,11 +51,12 @@ Supported frontmatter fields:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `name` | yes | Display name (must be unique per user) |
+| `name` | yes | Machine code / slug (kebab-case, must be unique per owner) |
+| `title` | no | Human-readable display name; falls back to `name` if omitted |
 | `description` | no | Short description |
 | `connectors` | no | List of connector codes the skill requires (e.g. `time`, `board`, `mcp`) |
 
-The backend parses the frontmatter, stores `name`, `description`, `connector_codes`, and the body (everything after the closing `---`) separately. The request DTOs only carry `skillMd` (the full file) and `isPublic` — there are no separate fields for name or connectors.
+The backend parses the frontmatter, stores `name`, `title`, `description`, `connector_codes`, and the body (everything after the closing `---`) separately. The request DTOs only carry `skillMd` (the full file) and `isPublic` — there are no separate fields for name, title, or connectors.
 
 **Visibility:**
 
@@ -108,7 +112,8 @@ Returned by list endpoints and on create/update.
 | Field | Type | Nullable | Description |
 |-------|------|----------|-------------|
 | `id` | `uuid` | no | Skill ID — use in all subsequent calls |
-| `name` | `string` | no | Display name from SKILL.md frontmatter |
+| `name` | `string` | no | Stable machine code / slug from SKILL.md frontmatter (referenced by presets; unique per owner) |
+| `title` | `string` | no | Human-readable display name from SKILL.md frontmatter (falls back to `name` if unset) |
 | `description` | `string` | yes | Description from SKILL.md frontmatter |
 | `connectorCodes` | `string[]` | no | Connector codes required by the skill (empty array if none) |
 | `version` | `int` | no | Increments on every `PUT /{id}` |
@@ -137,7 +142,7 @@ Returned by the `/manage/agents/{agentId}/skills/` list and bind endpoints.
 | `id` | `uuid` | no | Binding ID |
 | `agentId` | `uuid` | no | Agent ID |
 | `skillId` | `uuid` | no | Skill ID |
-| `skillName` | `string` | yes | Skill name (`null` if skill was soft-deleted) |
+| `skillName` | `string` | yes | Skill name — stable machine code / slug (`null` if skill was soft-deleted) |
 | `connectors` | `SkillConnectorStatus[]` | no | One entry per connector code required by the skill |
 | `needsReinstall` | `bool` | no | `true` if skill version advanced since binding was created |
 | `createdAt` | `datetime` | no | When the binding was created |
@@ -194,7 +199,7 @@ List skills. `scope=MINE` (default) returns the current user's own skills of any
 | Name | Type | Required | Default | Description |
 |------|------|----------|---------|-------------|
 | `scope` | `enum` | no | `MINE` | `MINE` — own skills; `PUBLIC` — all public skills. |
-| `search` | `string` | no | — | Case-insensitive substring match against `name` or `description`. |
+| `search` | `string` | no | — | Case-insensitive substring match against `name` (slug) or `description`. |
 | `connectorCode` | `string` | no | — | Show only skills that require the given connector code. |
 | `page` | `int` | no | `0` | Zero-based page index. |
 | `size` | `int` | no | `20` | Page size (max `100`). |
@@ -222,7 +227,8 @@ Access rule: the skill must be either owned by the caller **or** marked `isPubli
 {
   "response": {
     "id": "0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77",
-    "name": "Daily Standup",
+    "name": "daily-standup",
+    "title": "Daily Standup",
     "description": "Generates daily standup summaries",
     "connectorCodes": ["board"],
     "version": 3,
@@ -303,17 +309,17 @@ Create a skill from a JSON payload.
 
 ```json
 {
-  "skillMd": "---\nname: My Skill\ndescription: Does the thing\nconnectors:\n  - time\n  - board\n---\n\n# Steps\n1. ...",
+  "skillMd": "---\nname: my-skill\ntitle: My Skill\ndescription: Does the thing\nconnectors:\n  - time\n  - board\n---\n\n# Steps\n1. ...",
   "isPublic": false
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `skillMd` | `string` | yes (`@NotBlank`) | Full SKILL.md content including frontmatter. Must start with `---`-delimited YAML containing at least `name`. `description` and `connectors` are optional. |
+| `skillMd` | `string` | yes (`@NotBlank`) | Full SKILL.md content including frontmatter. Must start with `---`-delimited YAML containing at least `name`. `title`, `description`, and `connectors` are optional. |
 | `isPublic` | `bool` | no (default `false`) | Whether the skill is published publicly. |
 
-The backend parses the frontmatter (`name`, `description`, `connectors`) and stores them as separate columns. The `mdContent` stored in the DB is the body only (after the closing `---`).
+The backend parses the frontmatter (`name`, `title`, `description`, `connectors`) and stores them as separate columns. The `mdContent` stored in the DB is the body only (after the closing `---`).
 
 **Response `200`:** `SkillResponse` of the created skill.
 
@@ -322,6 +328,7 @@ The backend parses the frontmatter (`name`, `description`, `connectors`) and sto
 | Status | Condition |
 |--------|-----------|
 | 400 | `skillMd` is empty, missing frontmatter, missing `name` field, or YAML is invalid |
+| 400 | `name` is not a valid kebab-case slug (`^[a-z0-9]+(-[a-z0-9]+)*$`) |
 | 400 | `Unknown connector code(s): …` — frontmatter `connectors` lists a code not present in the connector catalog (`connectors` table). The catalog includes SPI-backed connectors (`board`, `time`, `telegram`, `mcp`, …) **and** static ones without a handler (`app`, `claude-code`) |
 | 409 | A skill with this `name` already exists for the user |
 
@@ -368,7 +375,7 @@ Same as `POST /` but accepts a `multipart/form-data` upload of a SKILL.md file. 
 
 ### PUT `/control/manage/skills/{id}`
 
-Update an existing skill. Bumps `version` by 1, re-parses `name`, `description`, and `connectors` from the new frontmatter, and replaces the stored `mdContent`.
+Update an existing skill. Bumps `version` by 1, re-parses `name`, `title`, `description`, and `connectors` from the new frontmatter, and replaces the stored `mdContent`.
 
 **Path parameters:**
 
@@ -380,7 +387,7 @@ Update an existing skill. Bumps `version` by 1, re-parses `name`, `description`,
 
 ```json
 {
-  "skillMd": "---\nname: My Skill\ndescription: Updated description\nconnectors:\n  - board\n---\n\n# Steps\n...",
+  "skillMd": "---\nname: my-skill\ntitle: My Skill\ndescription: Updated description\nconnectors:\n  - board\n---\n\n# Steps\n...",
   "isPublic": true
 }
 ```
@@ -396,8 +403,8 @@ Update an existing skill. Bumps `version` by 1, re-parses `name`, `description`,
 
 | Status | Condition |
 |--------|-----------|
-| 400 | Invalid SKILL.md or unknown connector code(s) (see `POST /`) |
-| 400 | Attempt to rename a system skill (its name is the reference key for the seeder and preset `skill_names`) |
+| 400 | Invalid SKILL.md or unknown connector code(s) (see `POST /`), or `name` is not a valid kebab-case slug |
+| 400 | Attempt to rename a system skill (its `name`/slug is the reference key for the seeder and preset `skillNames`) |
 | 403 | Caller is not the owner (and not an ADMIN editing a system skill) |
 | 404 | Skill not found or soft-deleted |
 | 409 | Renaming would collide with an existing skill name in the owner's collection |
@@ -493,7 +500,7 @@ List skills currently bound to the agent. Each entry includes the connector requ
         "id": "0194a111-0001-7c31-a4f0-000000000001",
         "agentId": "0193b900-1111-7c31-a4f0-aaaa00000001",
         "skillId": "0193b8e3-ad77-7c31-a4f0-8e7c9d2f1a77",
-        "skillName": "Daily Standup",
+        "skillName": "daily-standup",
         "connectors": [
           { "connectorCode": "board", "connectionId": "0194a000-bbbb-7c31-a4f0-cccc00000001" },
           { "connectorCode": "time", "connectionId": null }
