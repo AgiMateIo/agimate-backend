@@ -15,6 +15,7 @@ import ru.agimate.controlapi.storage.FileStorageService.FileContent;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +42,10 @@ public class MediaInferenceService {
     static final String USAGE_CALL_PREFIX = "media:";
     /** Потолок входной картинки: data-URI буферизуется в heap целиком. */
     private static final long MAX_INPUT_IMAGE_BYTES = 20L * 1024 * 1024;
+    /** Потолок на вызов: при нескольких входах в heap лежат все картинки сразу, вызовы параллельны. */
+    private static final long MAX_INPUT_TOTAL_BYTES = 25L * 1024 * 1024;
+    /** Больше 4 референсов не тянет ни одна из известных image-моделей — режем до HTTP. */
+    private static final int MAX_INPUT_IMAGES = 4;
     private static final String DEFAULT_DESCRIBE_PROMPT = "Describe this image in detail.";
 
     private final LlmCredentialsResolver credentialsResolver;
@@ -63,15 +68,15 @@ public class MediaInferenceService {
     }
 
     /**
-     * Генерация ({@code sourceFileId == null}) или редактирование картинки по промпту.
-     * Результат — файл в storage с провенансом {@code media:<model>} и дефолтным TTL.
+     * Генерация по промпту: без исходников — с нуля, с одним — редактирование, с несколькими —
+     * композиция (модель получает их в порядке списка). Результат — файл в storage с провенансом
+     * {@code media:<model>} и дефолтным TTL.
      */
-    public ImageResult generateImage(MediaCall call, String prompt, String sourceFileId) {
+    public ImageResult generateImage(MediaCall call, String prompt, List<String> sourceFileIds) {
+        List<String> sources = sourceFileIds == null ? List.of() : sourceFileIds;
         ResolvedLlm resolved = credentialsResolver.resolveForCapability(
                 call.agentId(), call.userId(), LlmPurpose.IMAGE);
-        Object content = sourceFileId == null
-                ? prompt
-                : List.of(textPart(prompt), imagePart(loadImageDataUri(call, sourceFileId)));
+        Object content = sources.isEmpty() ? prompt : contentParts(call, prompt, sources);
         Map<String, Object> body = requestBody(resolved, Map.of(
                 "modalities", List.of("image", "text"),
                 "messages", List.of(Map.of("role", "user", "content", content))));
@@ -98,7 +103,7 @@ public class MediaInferenceService {
         String prompt = question == null || question.isBlank() ? DEFAULT_DESCRIBE_PROMPT : question;
         Map<String, Object> body = requestBody(resolved, Map.of(
                 "messages", List.of(Map.of("role", "user", "content",
-                        List.of(textPart(prompt), imagePart(loadImageDataUri(call, fileId)))))));
+                        List.of(textPart(prompt), imagePart(loadImage(call, fileId).dataUri()))))));
 
         Map<String, Object> response = http.chatCompletions(resolved.provider(), resolved.apiKey(), body);
         recordUsage(call, resolved, response);
@@ -113,10 +118,42 @@ public class MediaInferenceService {
     }
 
     /**
-     * Входная картинка как data-URI: ownership через {@code open(userId, fileId)} (чужой/протухший
-     * файл → {@code StoredFileNotFoundException}), затем проверки mime и размера.
+     * Промпт + картинки частями одного user-сообщения, в порядке списка: их нумерация в промпте
+     * («image 1», «image 2») держится на этом порядке. Бюджет суммарного размера считается по
+     * фактически прочитанным байтам — перебор рвёт вызов до HTTP, а не после буферизации всего.
      */
-    private String loadImageDataUri(MediaCall call, String fileId) {
+    private List<Map<String, Object>> contentParts(MediaCall call, String prompt, List<String> fileIds) {
+        if (fileIds.size() > MAX_INPUT_IMAGES) {
+            throw new MediaInferenceException("too many input images: " + fileIds.size()
+                    + ", limit " + MAX_INPUT_IMAGES);
+        }
+        List<Map<String, Object>> parts = new ArrayList<>();
+        parts.add(textPart(prompt));
+        long total = 0;
+        for (String fileId : fileIds) {
+            LoadedImage image = loadImage(call, fileId);
+            total += image.bytes().length;
+            if (total > MAX_INPUT_TOTAL_BYTES) {
+                throw new MediaInferenceException("input images are too large together ("
+                        + total + " bytes, limit " + MAX_INPUT_TOTAL_BYTES + " per call)");
+            }
+            parts.add(imagePart(image.dataUri()));
+        }
+        return parts;
+    }
+
+    /** Байты входной картинки с её mime; в data-URI разворачивается в момент сборки запроса. */
+    private record LoadedImage(String mime, byte[] bytes) {
+        String dataUri() {
+            return "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(bytes);
+        }
+    }
+
+    /**
+     * Входная картинка: ownership через {@code open(userId, fileId)} (чужой/протухший файл →
+     * {@code StoredFileNotFoundException}), затем проверки mime и размера.
+     */
+    private LoadedImage loadImage(MediaCall call, String fileId) {
         FileContent content = fileStorageService.open(call.userId(), fileId);
         StoredFile file = content.file();
         if (file.getMime() == null || !file.getMime().startsWith("image/")) {
@@ -128,8 +165,7 @@ public class MediaInferenceService {
                     + file.getSizeBytes() + " bytes, limit " + MAX_INPUT_IMAGE_BYTES + ")");
         }
         try (InputStream in = content.content()) {
-            return "data:" + file.getMime() + ";base64,"
-                    + Base64.getEncoder().encodeToString(in.readAllBytes());
+            return new LoadedImage(file.getMime(), in.readAllBytes());
         } catch (IOException e) {
             throw new MediaInferenceException("failed to read file " + fileId);
         }

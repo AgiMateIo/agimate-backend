@@ -23,12 +23,13 @@ import ru.agimate.controlapi.storage.FileRejectedException;
 import ru.agimate.controlapi.storage.StoredFileNotFoundException;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 /**
  * Тулы media-коннектора. Файлы ходят pass-by-reference (`agf_…`, docs/connectors/files.md):
- * результат генерации — {@code {"file": {...}}}, входные картинки — параметром-строкой.
+ * результат генерации — {@code {"file": {...}}}, входные картинки — id-параметрами.
  * Все доменные сбои LLM-слоя переводятся в {@link ConnectorException} — их текст агент видит
  * дословно и может пересказать пользователю.
  */
@@ -58,22 +59,46 @@ public class MediaToolService {
     public Map<String, Object> genImage(
             @ToolParam("Detailed description of the image to generate") String prompt) {
         return guard(() -> imageResult(
-                mediaInferenceService.generateImage(call(), prompt, null)));
+                mediaInferenceService.generateImage(call(), prompt, List.of())));
     }
 
     @Tool(name = "edit_image",
-            description = "Create a modified version of an existing image (agf_… file id) following "
-                    + "the prompt: change background, style, add or remove objects, etc. Returns a new "
-                    + "file — the original is left untouched. Same diffusion-model limits as gen_image: "
-                    + "exact text, symbols, and precise positions aren't guaranteed — don't re-edit "
-                    + "repeatedly chasing precision the model can't deliver.",
+            description = "Create a new image from an existing one (agf_… file id) following the "
+                    + "prompt — both for edits (change background, style, add or remove objects) and "
+                    + "for drawing something new based on the source (same character, same style). "
+                    + "Returns a new file — the original is left untouched. Same diffusion-model "
+                    + "limits as gen_image: exact text, symbols, and precise positions aren't "
+                    + "guaranteed — don't re-edit repeatedly chasing precision the model can't deliver.",
             annotations = @ToolAnnotations(destructiveHint = false),
             timeoutSeconds = GENERATION_TIMEOUT_SECONDS)
     public Map<String, Object> editImage(
             @ToolParam("Source image file id (agf_…)") String fileId,
-            @ToolParam("What to change in the image") String prompt) {
+            @ToolParam("What to change, or what to draw based on this image") String prompt) {
         return guard(() -> imageResult(
-                mediaInferenceService.generateImage(call(), prompt, fileId)));
+                mediaInferenceService.generateImage(call(), prompt, List.of(fileId))));
+    }
+
+    @Tool(name = "combine_images",
+            description = "Build one new image out of several existing ones (2–4 agf_… file ids): "
+                    + "put the person from one photo into the scene of another, place a product on a "
+                    + "background, merge styles. The model sees the images in the order given — refer "
+                    + "to them in the prompt as \"image 1\", \"image 2\", … and say what to take from "
+                    + "each. Returns a new file, sources untouched. Not every image model supports "
+                    + "multiple references: if the result clearly ignores one of them, say so instead "
+                    + "of retrying — one more attempt at most.",
+            annotations = @ToolAnnotations(destructiveHint = false),
+            timeoutSeconds = GENERATION_TIMEOUT_SECONDS)
+    public Map<String, Object> combineImages(
+            @ToolParam("Source image file ids (agf_…), in the order the prompt refers to them")
+            List<String> fileIds,
+            @ToolParam("What the combined image should look like and what to take from each source")
+            String prompt) {
+        if (fileIds == null || fileIds.size() < 2) {
+            throw new ConnectorException("combine_images needs at least two image ids; "
+                    + "for a single source use edit_image");
+        }
+        return guard(() -> imageResult(
+                mediaInferenceService.generateImage(call(), prompt, fileIds)));
     }
 
     @Tool(name = "read_image",

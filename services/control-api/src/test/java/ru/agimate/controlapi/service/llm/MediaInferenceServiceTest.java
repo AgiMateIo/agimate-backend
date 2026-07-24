@@ -98,7 +98,7 @@ class MediaInferenceServiceTest {
             when(fileStorageService.store(eq(userId), eq("media:img-model"), eq("image/png"),
                     eq((long) PNG_BYTES.length), any(), eq(null))).thenReturn(stored);
 
-            ImageResult result = service.generateImage(call, "нарисуй кота", null);
+            ImageResult result = service.generateImage(call, "нарисуй кота", List.of());
 
             assertEquals(stored, result.file());
             assertEquals("готово", result.text());
@@ -129,7 +129,7 @@ class MediaInferenceServiceTest {
             when(http.chatCompletions(any(), anyString(), any())).thenReturn(Map.of(
                     "choices", List.of(Map.of("message", Map.of("content", "не буду рисовать")))));
 
-            ImageResult result = service.generateImage(call, "нарисуй запрещённое", null);
+            ImageResult result = service.generateImage(call, "нарисуй запрещённое", List.of());
 
             assertNull(result.file());
             assertEquals("не буду рисовать", result.text());
@@ -151,17 +151,71 @@ class MediaInferenceServiceTest {
             when(fileStorageService.store(any(), any(), any(), anyLong(), any(), any()))
                     .thenReturn(StoredFile.builder().id(UUID.randomUUID()).build());
 
-            service.generateImage(call, "сделай фон синим", "agf_src");
+            service.generateImage(call, "сделай фон синим", List.of("agf_src"));
 
+            List<?> content = capturedContent();
+            assertEquals(Map.of("type", "text", "text", "сделай фон синим"), content.get(0));
+            assertEquals(imagePart("image/jpeg", new byte[]{1, 2, 3}), content.get(1));
+        }
+
+        @Test
+        @DisplayName("композиция: картинки уезжают частями в порядке списка")
+        void combineSendsAllSourcesInOrder() {
+            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+                    .thenReturn(resolved("img-model", Map.of()));
+            stubOpenImage("agf_a", "image/png", new byte[]{1});
+            stubOpenImage("agf_b", "image/jpeg", new byte[]{2});
+            when(http.chatCompletions(any(), anyString(), any())).thenReturn(imageResponse(""));
+            when(fileStorageService.store(any(), any(), any(), anyLong(), any(), any()))
+                    .thenReturn(StoredFile.builder().id(UUID.randomUUID()).build());
+
+            service.generateImage(call, "человека с image 1 в сцену image 2",
+                    List.of("agf_a", "agf_b"));
+
+            List<?> content = capturedContent();
+            assertEquals(3, content.size());
+            assertEquals(Map.of("type", "text", "text", "человека с image 1 в сцену image 2"),
+                    content.get(0));
+            assertEquals(imagePart("image/png", new byte[]{1}), content.get(1));
+            assertEquals(imagePart("image/jpeg", new byte[]{2}), content.get(2));
+        }
+
+        @Test
+        @DisplayName("больше четырёх входных картинок — отказ до HTTP-вызова")
+        void rejectsTooManySources() {
+            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+                    .thenReturn(resolved("img-model", Map.of()));
+
+            MediaInferenceException e = assertThrows(MediaInferenceException.class,
+                    () -> service.generateImage(call, "склей",
+                            List.of("agf_1", "agf_2", "agf_3", "agf_4", "agf_5")));
+
+            assertTrue(e.getMessage().contains("too many input images"), e.getMessage());
+            verify(http, never()).chatCompletions(any(), anyString(), any());
+        }
+
+        @Test
+        @DisplayName("суммарный бюджет входных картинок — отказ до HTTP-вызова")
+        void rejectsOversizedTotal() {
+            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+                    .thenReturn(resolved("img-model", Map.of()));
+            byte[] big = new byte[13 * 1024 * 1024];
+            stubOpenImage("agf_a", "image/png", big);
+            stubOpenImage("agf_b", "image/png", big);
+
+            MediaInferenceException e = assertThrows(MediaInferenceException.class,
+                    () -> service.generateImage(call, "склей", List.of("agf_a", "agf_b")));
+
+            assertTrue(e.getMessage().contains("too large together"), e.getMessage());
+            verify(http, never()).chatCompletions(any(), anyString(), any());
+        }
+
+        private List<?> capturedContent() {
             @SuppressWarnings("unchecked")
             ArgumentCaptor<Map<String, Object>> body = ArgumentCaptor.forClass(Map.class);
             verify(http).chatCompletions(any(), anyString(), body.capture());
-            List<?> content = (List<?>) ((Map<?, ?>) ((List<?>) body.getValue().get("messages")).get(0))
+            return (List<?>) ((Map<?, ?>) ((List<?>) body.getValue().get("messages")).get(0))
                     .get("content");
-            assertEquals(Map.of("type", "text", "text", "сделай фон синим"), content.get(0));
-            assertEquals(Map.of("type", "image_url", "image_url", Map.of(
-                            "url", "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(new byte[]{1, 2, 3}))),
-                    content.get(1));
         }
     }
 
@@ -210,6 +264,11 @@ class MediaInferenceServiceTest {
                     () -> service.describeImage(call, "agf_big", null));
             verify(http, never()).chatCompletions(any(), anyString(), any());
         }
+    }
+
+    private static Map<String, Object> imagePart(String mime, byte[] bytes) {
+        return Map.of("type", "image_url", "image_url", Map.of(
+                "url", "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(bytes)));
     }
 
     private void stubOpenImage(String fileId, String mime, byte[] bytes) {

@@ -8,6 +8,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.core.dto.JsonSchema;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.service.llm.MediaInferenceService;
 import ru.agimate.controlapi.service.llm.MediaInferenceService.ImageResult;
@@ -15,6 +16,7 @@ import ru.agimate.controlapi.service.llm.MediaInferenceService.MediaCall;
 import ru.agimate.controlapi.service.llm.NoCapableModelException;
 import ru.agimate.controlapi.storage.FileIds;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -25,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,7 +55,7 @@ class MediaToolServiceTest {
         UUID storedId = UUID.randomUUID();
         StoredFile stored = StoredFile.builder()
                 .id(storedId).mime("image/png").sizeBytes(384_211L).build();
-        when(mediaInferenceService.generateImage(any(), eq("кот в сапогах"), isNull()))
+        when(mediaInferenceService.generateImage(any(), eq("кот в сапогах"), eq(List.of())))
                 .thenReturn(new ImageResult(stored, "вот ваш кот"));
 
         Map<String, Object> result = handler.executeTool(env, "gen_image",
@@ -67,7 +68,7 @@ class MediaToolServiceTest {
         assertEquals("вот ваш кот", result.get("text"));
 
         var callCaptor = org.mockito.ArgumentCaptor.forClass(MediaCall.class);
-        verify(mediaInferenceService).generateImage(callCaptor.capture(), eq("кот в сапогах"), isNull());
+        verify(mediaInferenceService).generateImage(callCaptor.capture(), eq("кот в сапогах"), eq(List.of()));
         assertEquals(userId, callCaptor.getValue().userId());
         assertEquals(agentId, callCaptor.getValue().agentId());
         assertEquals(runId, callCaptor.getValue().runId());
@@ -77,7 +78,7 @@ class MediaToolServiceTest {
     @Test
     @DisplayName("gen_image: отказ модели → {\"text\": ...} без file, не ошибка")
     void genImageRefusal() {
-        when(mediaInferenceService.generateImage(any(), any(), isNull()))
+        when(mediaInferenceService.generateImage(any(), any(), eq(List.of())))
                 .thenReturn(new ImageResult(null, "рисовать такое не буду"));
 
         Map<String, Object> result = handler.executeTool(env, "gen_image", Map.of("prompt", "x"));
@@ -89,7 +90,7 @@ class MediaToolServiceTest {
     @Test
     @DisplayName("edit_image: fileId уезжает исходником в generateImage")
     void editImagePassesSource() {
-        when(mediaInferenceService.generateImage(any(), eq("синий фон"), eq("agf_src")))
+        when(mediaInferenceService.generateImage(any(), eq("синий фон"), eq(List.of("agf_src"))))
                 .thenReturn(new ImageResult(
                         StoredFile.builder().id(UUID.randomUUID()).mime("image/png").sizeBytes(1L).build(),
                         null));
@@ -98,7 +99,35 @@ class MediaToolServiceTest {
                 Map.of("fileId", "agf_src", "prompt", "синий фон"));
 
         assertTrue(result.containsKey("file"));
-        verify(mediaInferenceService).generateImage(any(), eq("синий фон"), eq("agf_src"));
+        verify(mediaInferenceService).generateImage(any(), eq("синий фон"), eq(List.of("agf_src")));
+    }
+
+    @Test
+    @DisplayName("combine_images: все id уезжают исходниками в порядке списка")
+    void combineImagesPassesAllSources() {
+        when(mediaInferenceService.generateImage(any(), eq("товар на фон"),
+                eq(List.of("agf_a", "agf_b"))))
+                .thenReturn(new ImageResult(
+                        StoredFile.builder().id(UUID.randomUUID()).mime("image/png").sizeBytes(1L).build(),
+                        null));
+
+        Map<String, Object> result = handler.executeTool(env, "combine_images",
+                Map.of("fileIds", List.of("agf_a", "agf_b"), "prompt", "товар на фон"));
+
+        assertTrue(result.containsKey("file"));
+        verify(mediaInferenceService).generateImage(any(), eq("товар на фон"),
+                eq(List.of("agf_a", "agf_b")));
+    }
+
+    @Test
+    @DisplayName("combine_images с одной картинкой → отказ с отсылкой к edit_image")
+    void combineImagesRejectsSingleSource() {
+        ConnectorException e = assertThrows(ConnectorException.class,
+                () -> handler.executeTool(env, "combine_images",
+                        Map.of("fileIds", List.of("agf_a"), "prompt", "склей")));
+
+        assertTrue(e.getMessage().contains("edit_image"), e.getMessage());
+        org.mockito.Mockito.verifyNoInteractions(mediaInferenceService);
     }
 
     @Test
@@ -116,7 +145,7 @@ class MediaToolServiceTest {
     @Test
     @DisplayName("доменное исключение доезжает ConnectorException'ом с тем же текстом")
     void domainExceptionSurfacesAsConnectorException() {
-        when(mediaInferenceService.generateImage(any(), any(), isNull()))
+        when(mediaInferenceService.generateImage(any(), any(), eq(List.of())))
                 .thenThrow(new NoCapableModelException("No model capable of generating image is available"));
 
         ConnectorException e = assertThrows(ConnectorException.class,
@@ -136,12 +165,17 @@ class MediaToolServiceTest {
     }
 
     @Test
-    @DisplayName("схемы тулов собираются рефлексией: ровно три тула со схемами")
+    @DisplayName("схемы тулов собираются рефлексией; fileIds — массив строк")
     void toolSpecsReflected() {
         var tools = handler.getTools();
 
-        assertEquals(java.util.Set.of("gen_image", "edit_image", "read_image"), tools.keySet());
+        assertEquals(java.util.Set.of("gen_image", "edit_image", "combine_images", "read_image"),
+                tools.keySet());
         assertNotNull(tools.get("read_image").inputSchema());
+
+        JsonSchema fileIds = tools.get("combine_images").inputSchema().properties().get("fileIds");
+        assertEquals("array", fileIds.type());
+        assertEquals("string", fileIds.items().type());
     }
 
     @Test
@@ -151,6 +185,8 @@ class MediaToolServiceTest {
 
         assertEquals(MediaToolService.GENERATION_TIMEOUT_SECONDS, tools.get("gen_image").timeoutSeconds());
         assertEquals(MediaToolService.GENERATION_TIMEOUT_SECONDS, tools.get("edit_image").timeoutSeconds());
+        assertEquals(MediaToolService.GENERATION_TIMEOUT_SECONDS,
+                tools.get("combine_images").timeoutSeconds());
         assertEquals(MediaToolService.VISION_TIMEOUT_SECONDS, tools.get("read_image").timeoutSeconds());
     }
 }
