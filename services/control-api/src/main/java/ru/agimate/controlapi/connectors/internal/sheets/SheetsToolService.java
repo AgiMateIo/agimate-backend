@@ -54,7 +54,7 @@ public class SheetsToolService {
 
     // ===== схема =====
 
-    @Tool(name = "list_sheets", title = "Список таблиц",
+    @Tool(name = "list_sheets",
             description = "List your sheets with their columns (name, title, type, unit) and row counts. "
                     + "Call it when you are unsure what data you already keep — column names from here "
                     + "are the only ones other tools accept.",
@@ -63,7 +63,7 @@ public class SheetsToolService {
         return new SheetList(sheetsService.listSheets(scopeId()));
     }
 
-    @Tool(name = "create_sheet", title = "Создать таблицу",
+    @Tool(name = "create_sheet",
             description = "Create a sheet with a declared schema. Column 'name' is a latin snake_case "
                     + "slug used by every other tool; 'title' is what the user sees; 'type' is one of "
                     + "number, text, date, bool; 'unit' is a measurement unit or an empty string. "
@@ -72,14 +72,14 @@ public class SheetsToolService {
             annotations = @ToolAnnotations(openWorldHint = false))
     public SheetDetail createSheet(
             @ToolParam("Sheet machine name, latin snake_case (e.g. household_budget)") String name,
-            @ToolParam("Human-readable sheet title (e.g. Бюджет семьи)") String title,
-            @ToolParam("Columns: [{\"name\":\"amount\",\"title\":\"Сумма\",\"type\":\"number\",\"unit\":\"₽\"}]")
+            @ToolParam("Human-readable sheet title, in the user's language (e.g. Household budget)") String title,
+            @ToolParam("Columns: [{\"name\":\"amount\",\"title\":\"Amount\",\"type\":\"number\",\"unit\":\"USD\"}]")
             List<ColumnSpec> columns) {
         ConnectorEnv env = env();
         return sheetsService.createSheet(scopeId(), env.userId(), name, title, columns);
     }
 
-    @Tool(name = "add_columns", title = "Добавить колонки",
+    @Tool(name = "add_columns",
             description = "Add columns to an existing sheet. Prefer this over creating a second sheet "
                     + "when new data belongs to the same table — existing rows simply keep those cells empty.",
             annotations = @ToolAnnotations(openWorldHint = false))
@@ -89,7 +89,7 @@ public class SheetsToolService {
         return sheetsService.addColumns(scopeId(), sheet, columns);
     }
 
-    @Tool(name = "delete_sheet", title = "Удалить таблицу",
+    @Tool(name = "delete_sheet",
             description = "Delete a sheet with all its rows. Irreversible — confirm with the user first.",
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public OperationResult deleteSheet(
@@ -99,19 +99,19 @@ public class SheetsToolService {
 
     // ===== строки =====
 
-    @Tool(name = "add_rows", title = "Добавить строки",
+    @Tool(name = "add_rows",
             description = "Append rows to a sheet. Each row is an object keyed by column name; omit a "
                     + "column to leave the cell empty. Send everything the user dictated in ONE call — "
                     + "up to 500 rows — instead of one call per row.",
             annotations = @ToolAnnotations(openWorldHint = false))
     public AddResult addRows(
             @ToolParam("Sheet name") String sheet,
-            @ToolParam("Rows: [{\"date\":\"2026-07-24\",\"amount\":1200,\"category\":\"продукты\"}]")
+            @ToolParam("Rows: [{\"date\":\"2026-07-24\",\"amount\":1200,\"category\":\"groceries\"}]")
             List<Map<String, Object>> rows) {
         return sheetsService.addRows(scopeId(), env().userId(), sheet, rows);
     }
 
-    @Tool(name = "update_rows", title = "Изменить строки",
+    @Tool(name = "update_rows",
             description = "Overwrite cells in the given rows. Row ids come from query. Only the columns "
                     + "you pass change; an empty value clears the cell.",
             annotations = @ToolAnnotations(openWorldHint = false))
@@ -122,7 +122,7 @@ public class SheetsToolService {
         return sheetsService.updateRows(scopeId(), sheet, ids, values);
     }
 
-    @Tool(name = "delete_rows", title = "Удалить строки",
+    @Tool(name = "delete_rows",
             description = "Delete rows by id (ids come from query). Irreversible.",
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public OperationResult deleteRows(
@@ -133,7 +133,7 @@ public class SheetsToolService {
 
     // ===== запросы =====
 
-    @Tool(name = "query", title = "Выбрать строки",
+    @Tool(name = "query",
             description = "Read rows with optional filtering and sorting. Filter conditions are ANDed; "
                     + "op is one of eq, ne, gt, gte, lt, lte, contains, in, between, is_null, not_null "
                     + "('value' for scalar ops, 'values' for in/between). Returns row ids needed by "
@@ -150,7 +150,7 @@ public class SheetsToolService {
         return sheetsService.query(scopeId(), sheet, filter, sortBy, sortDir, limit);
     }
 
-    @Tool(name = "aggregate", title = "Свести данные",
+    @Tool(name = "aggregate",
             description = "Compute metrics over rows, optionally grouped by a column — this is how you "
                     + "get totals, averages and breakdowns. NEVER add up rows yourself: pull the number "
                     + "from here. Group by a text column for a breakdown by category, or by a date "
@@ -170,7 +170,7 @@ public class SheetsToolService {
 
     // ===== вывод =====
 
-    @Tool(name = "render_chart", title = "Построить график",
+    @Tool(name = "render_chart",
             description = "Draw a PNG chart and return it as a file id plus a numeric summary of every "
                     + "plotted series. You cannot see the image, so describe it using the returned "
                     + "summary, never from memory. Attach it to your reply with [[attach:agf_…]]. "
@@ -191,7 +191,7 @@ public class SheetsToolService {
         return chartService.render(scopeId(), env().userId(), sheet, type, x, y, aggregate, bucket, filter, title);
     }
 
-    @Tool(name = "export", title = "Выгрузить файл",
+    @Tool(name = "export",
             description = "Export a sheet as a real file the user can open or forward: csv (opens in "
                     + "Excel) or xlsx. Returns a file id — attach it with [[attach:agf_…]].",
             annotations = @ToolAnnotations(openWorldHint = false))
@@ -215,7 +215,7 @@ public class SheetsToolService {
         return new ExportResult(file, rows.size());
     }
 
-    @Tool(name = "import_file", title = "Импорт таблицы",
+    @Tool(name = "import_file",
             description = "Create a sheet from a spreadsheet the user sent (xlsx or csv file id). The "
                     + "first row is treated as headers: each becomes a column whose title is the original "
                     + "header and whose type is inferred from the data. Use it when the user already "
