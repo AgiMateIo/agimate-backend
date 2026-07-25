@@ -67,6 +67,8 @@ The backend parses the frontmatter, stores `name`, `title`, `description`, `conn
 
 System skills (time, board, persist-memory) are owned by the synthetic system user, seeded as `isPublic = true`, and can be bound directly by any user without copying. They are marked `system: true` in `SkillResponse`.
 
+They are seeded from `resources/seed/<lang>/skills/<code>/SKILL.md`, where `<lang>` comes from `APP_CONTENT_LANGUAGE` (see [control-api.md](control-api.md#system-content-language)). The seeder is seed-only-if-missing keyed by `(user_id, name)`, and `name` is language-independent, so the table holds **one** language: switching the setting on a seeded environment does not retranslate existing rows, and agents keep the skill they were bound to.
+
 **System skills are referenced by ID, not copied** — bound agents resolve the skill body on read, so editing a system skill's `md_content` immediately changes behaviour for **every** agent that has it bound. This is why ADMIN edits bump `version` (surfacing "needs reinstall" downstream) and why rename/hard-delete are restricted (see [System skills — ADMIN](#system-skills--admin)).
 
 **No cloning** — there is no clone endpoint. A user can bind any own or public skill to an agent directly.

@@ -5,17 +5,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.core.annotation.Order;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StreamUtils;
 import ru.agimate.controlapi.database.entities.AgentPreset;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
+import ru.agimate.controlapi.service.seed.SeedContentLocator;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -25,13 +22,17 @@ import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
  * Сидинг системных пресетов ролей агента при старте приложения — по образцу
  * {@link SystemSkillBootstrap}.
  *
- * <p>Пресет лежит как classpath-ресурс ({@code resources/presets/<code>/PRESET.md}): frontmatter —
- * {@code code}/{@code name}/{@code description}/{@code skills} (имена системных скилов), тело —
- * заготовка инструкций агента. Seed-only-if-missing (см. {@link SystemSkillBootstrap}): строка
- * ищется по {@code code} и создаётся, только если её ещё нет — правки через будущий admin UI не
- * затираются следующим деплоем. Запускается после сидинга скилов (см. {@code @Order}), чтобы ссылки
- * {@code skills} проверялись против уже засеянных системных скилов; неизвестное имя — warning,
- * не отказ (резолв всё равно происходит при листинге).
+ * <p>Пресет лежит как classpath-ресурс ({@code resources/seed/<lang>/presets/<code>/PRESET.md}) —
+ * язык подставляет {@link SeedContentLocator}. Frontmatter — {@code name}/{@code title}/
+ * {@code description}/{@code skills} (имена системных скилов), тело — заготовка инструкций агента.
+ * Seed-only-if-missing (см. {@link SystemSkillBootstrap}): строка ищется по {@code name} и
+ * создаётся, только если её ещё нет — правки через будущий admin UI не затираются следующим
+ * деплоем. Запускается после сидинга скилов (см. {@code @Order}), чтобы ссылки {@code skills}
+ * проверялись против уже засеянных системных скилов; неизвестное имя — warning, не отказ (резолв
+ * всё равно происходит при листинге).
+ *
+ * <p>Язык, как и у скилов, фиксируется первым сидингом: {@code instructions} копируются в агента
+ * при создании, поэтому существующие агенты за сменой {@code app.content.language} не идут.
  */
 @Slf4j
 @Component
@@ -40,35 +41,37 @@ public class SystemPresetBootstrap {
 
     static final int BOOTSTRAP_ORDER = SystemSkillBootstrap.BOOTSTRAP_ORDER + 1;
 
-    static final List<String> SYSTEM_PRESET_RESOURCES = List.of(
-            "presets/personal-assistant/PRESET.md",
-            "presets/visual/PRESET.md",
-            "presets/creative/PRESET.md",
-            "presets/team-lead/PRESET.md",
-            "presets/astrologer/PRESET.md",
-            "presets/platform-admin/PRESET.md",
-            "presets/home-accountant/PRESET.md",
-            "presets/health-diary/PRESET.md");
+    /** Коды системных пресетов — папки в {@code seed/<lang>/presets/}. */
+    static final List<String> SYSTEM_PRESET_CODES = List.of(
+            "personal-assistant",
+            "visual",
+            "creative",
+            "team-lead",
+            "astrologer",
+            "platform-admin",
+            "home-accountant",
+            "health-diary");
 
     private final AgentPresetRepository agentPresetRepository;
     private final SkillRepository skillRepository;
+    private final SeedContentLocator seedContentLocator;
 
     @Order(BOOTSTRAP_ORDER)
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
         // Без объемлющей транзакции — как в SystemSkillBootstrap: конфликт уникального индекса
         // на одном пресете (гонка нод на холодном старте) не отравляет остальные.
-        for (String resource : SYSTEM_PRESET_RESOURCES) {
+        for (String code : SYSTEM_PRESET_CODES) {
             try {
-                seedPreset(resource);
+                seedPreset(code);
             } catch (Exception e) {
-                log.error("Failed to seed system preset {}: {}", resource, e.getMessage());
+                log.error("Failed to seed system preset {}: {}", code, e.getMessage());
             }
         }
     }
 
-    private void seedPreset(String resourcePath) {
-        ParsedPreset parsed = parsePreset(readResource(resourcePath));
+    private void seedPreset(String code) {
+        ParsedPreset parsed = parsePreset(seedContentLocator.read(SeedContentLocator.Kind.PRESET, code));
         warnOnUnknownSkills(parsed);
 
         if (agentPresetRepository.findByName(parsed.name()).isPresent()) {
@@ -128,13 +131,5 @@ public class SystemPresetBootstrap {
             throw new IllegalStateException("PRESET.md frontmatter must contain '" + field + "' field");
         }
         return value.toString().strip();
-    }
-
-    private String readResource(String path) {
-        try {
-            return StreamUtils.copyToString(new ClassPathResource(path).getInputStream(), StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read system preset resource: " + path, e);
-        }
     }
 }

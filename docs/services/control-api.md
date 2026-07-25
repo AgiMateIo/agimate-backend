@@ -28,6 +28,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `CENTRIFUGO_APIKEY`     | Centrifugo HTTP API key           |
 | `CENTRIFUGO_PRIVATEKEY` | Centrifugo JWT private key        |
 | `CENTRIFUGO_PUBLICKEY`  | Centrifugo JWT public key         |
+| `APP_CONTENT_LANGUAGE`  | System content language of the installation: `ru` (default) or `en`. See [System content language](#system-content-language) |
 | `APP_SECRETS_ENCRYPTION_KEY` | KEK for the envelope-encrypted `secrets` store (AES-256, Base64, 32 bytes). Required outside `local`/`test` profiles — startup fails without it |
 | `APP_INTEGRATION_WEBHOOK_BASE_URL` | Public URL for webhook callbacks |
 | `INBOUND_RATE_LIMIT_ENABLED` | Inbound rate limiting for device/webhook traffic (default `true`) |
@@ -36,6 +37,35 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `INBOUND_RATE_LIMIT_FILE_UPLOADS_PER_MINUTE` | File uploads per minute per connection — `/app/files` (default `30`, `<=0` disables) |
 | `APP_FILES_BACKEND` | Connector file layer blob store: `local` (disk, default; root — `APP_FILES_LOCAL_DIR`, empty = `~/.agimate/files`) or `s3` (`docs/connectors/files.md`) |
 | `APP_FILES_BUCKET` / `APP_FILES_ENDPOINT` / `APP_FILES_REGION` / `APP_FILES_ACCESS_KEY` / `APP_FILES_SECRET_KEY` | s3 backend only; empty endpoint = AWS, empty keys = AWS credentials chain |
+
+## System content language
+
+`APP_CONTENT_LANGUAGE` (property `app.content.language`, enum `ContentLanguage`: `ru` | `en`) selects
+the language of the content the platform ships: agent presets and system skills. It is **not** the
+language agents reply in — that follows the user and is stated in the instructions themselves. A typo
+in the value fails startup (the property binds to an enum).
+
+Content lives per language in the classpath, and `SeedContentLocator` is the only place that knows
+the layout:
+
+```
+resources/seed/<lang>/presets/<code>/PRESET.md      # seeded by SystemPresetBootstrap
+resources/seed/<lang>/skills/<code>/SKILL.md        # seeded by SystemSkillBootstrap
+```
+
+Adding a language = a new `ContentLanguage` constant plus a copy of the directory. Only `title`,
+`description` and the body are translated: `name`, `skills`, `connectors` and `sortOrder` are machine
+keys and must be byte-identical across languages — a translated slug silently breaks the
+preset→skill and skill→connector links, which is what `SeedContentParityTest` guards. A file missing
+for the selected language falls back to `ru` with a warning rather than failing the seed.
+
+**The language is fixed by the first seeding.** Both bootstraps are seed-only-if-missing, keyed by the
+language-independent `name`, and the database holds one language at a time. Changing
+`APP_CONTENT_LANGUAGE` on an already-seeded environment therefore translates nothing: it is a choice
+for a fresh installation. To switch in development, delete the system rows (`skills` where
+`user_id = '00000000-0000-0000-0000-000000000000'`, and `agent_presets`) and restart. Existing agents
+never follow a switch in any case — preset `instructions` are copied into the agent at creation, and
+skills are bound by ID.
 
 ## Inbound Rate Limiting
 
@@ -156,9 +186,10 @@ Trigger and tool-result ingestion from external sources is rate-limited per conn
 
 Role presets for the agent creation wizard. A preset is a pure prefill: the frontend fills the
 wizard's editable fields from it (instructions, skill set) and the final values arrive via the
-regular create-agent request. System presets are seeded from classpath (`presets/<code>/PRESET.md`,
-same pattern as system skills), idempotently by `code`. Presets can also be created/edited by an
-**ADMIN** through the API (see [control-api-manage-agent-presets.md](control-api-manage-agent-presets.md)).
+regular create-agent request. System presets are seeded from classpath
+(`seed/<lang>/presets/<code>/PRESET.md`, same pattern as system skills), idempotently by `name` and in
+the language from [`APP_CONTENT_LANGUAGE`](#system-content-language). Presets can also be created/edited
+by an **ADMIN** through the API (see [control-api-manage-agent-presets.md](control-api-manage-agent-presets.md)).
 
 | Method | Path                              | Description                                                  |
 |--------|-----------------------------------|--------------------------------------------------------------|

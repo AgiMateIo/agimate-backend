@@ -132,6 +132,10 @@ changed (it is not part of the request — it is the immutable slug / analytics 
 - The seeder (`SystemPresetBootstrap`) is **seed-only-if-missing** by `name`: once a preset exists,
   the classpath `PRESET.md` is no longer the source of truth, so admin edits are not clobbered by the
   next deploy.
+- Presets are read from `resources/seed/<lang>/presets/<code>/PRESET.md`, where `<lang>` comes from
+  `APP_CONTENT_LANGUAGE` (see [control-api.md](control-api.md#system-content-language)). Because the
+  key `name` is language-independent and the seeder never overwrites, the database holds **one**
+  language: switching the setting on a seeded environment does not retranslate the gallery.
 - Skill references use the same semantics as system skills: a preset pointing at a system skill that
   was later deleted simply drops that skill from the resolved `skills` list (a warning is logged),
   while `skillNames` still shows the raw stored value.
