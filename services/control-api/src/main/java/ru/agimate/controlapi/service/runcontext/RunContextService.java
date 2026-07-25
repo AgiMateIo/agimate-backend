@@ -49,6 +49,7 @@ import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
+import ru.agimate.controlapi.service.seed.PromptTexts;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
@@ -81,6 +82,9 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class RunContextService {
+
+    // Константы ниже — русский первоисточник и фолбэк: на инсталляции с другим языком блок берётся
+    // из seed/<lang>/prompt.properties по ключам PromptTexts.RUN_*.
 
     /** Trigger-path guidance (trusted instructions): автономная обработка событий, не диалог. */
     static final String TRIGGER_GUIDANCE =
@@ -139,6 +143,7 @@ public class RunContextService {
     private final ChannelHandlerRegistry channelHandlerRegistry;
     private final InboundTextResolver inboundTextResolver;
     private final ChannelSessionMessageRepository messageRepository;
+    private final PromptTexts promptTexts;
 
     public RunContextView build(UUID agentId, UUID triggerId) {
         AgentRun run = agentRunRepository.findById(triggerId)
@@ -204,13 +209,16 @@ public class RunContextService {
         }
         systemBlocks.addAll(skillBodyBlocks(scoped));
         if (!tools.isEmpty()) {
-            systemBlocks.add(RunBlock.trusted("tool_guidance", "guidance", TOOL_CALL_GUIDANCE, Map.of()));
+            systemBlocks.add(RunBlock.trusted("tool_guidance", "guidance",
+                    promptTexts.get(PromptTexts.RUN_TOOL_CALL_GUIDANCE, TOOL_CALL_GUIDANCE), Map.of()));
         }
         if (effective.triggerGuidance()) {
-            systemBlocks.add(RunBlock.trusted("trigger_guidance", "guidance", TRIGGER_GUIDANCE, Map.of()));
+            systemBlocks.add(RunBlock.trusted("trigger_guidance", "guidance",
+                    promptTexts.get(PromptTexts.RUN_TRIGGER_GUIDANCE, TRIGGER_GUIDANCE), Map.of()));
         }
         if (spec == ContextSpec.DIALOGUE && promptChannelSupportsAttachments(channels)) {
-            systemBlocks.add(RunBlock.trusted("attachment_guidance", "guidance", ATTACHMENT_GUIDANCE, Map.of()));
+            systemBlocks.add(RunBlock.trusted("attachment_guidance", "guidance",
+                    promptTexts.get(PromptTexts.RUN_ATTACHMENT_GUIDANCE, ATTACHMENT_GUIDANCE), Map.of()));
         }
 
         // Основной промпт рана — последним user-блоком; вложения inbound — отдельно (мультимодальность),
@@ -222,8 +230,10 @@ public class RunContextService {
             inboundParts = inboundParts(inbound);
         } else {
             if (effective.guidance() != null) {
+                String guidance = promptTexts.triggerGuidance(
+                        trigger.connectorCode(), trigger.name(), effective.guidance());
                 userBlocks.add(RunBlock.trusted("event_guidance",
-                        "connector:" + trigger.connectorCode(), effective.guidance(), Map.of()));
+                        "connector:" + trigger.connectorCode(), guidance, Map.of()));
             }
             userBlocks.add(triggerMainBlock(effective, trigger));
         }

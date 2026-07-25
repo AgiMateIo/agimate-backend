@@ -1,14 +1,8 @@
 package ru.agimate.controlapi.service.seed;
 
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.config.ContentProperties;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 /**
@@ -22,21 +16,17 @@ import java.util.Properties;
  *
  * <p>Каталог {@code connectors} перезаписывается на каждом старте ({@code ConnectorBootstrap}),
  * поэтому смена {@code app.content.language} переводит его без миграций — в отличие от пресетов и
- * скилов, где язык фиксируется первым сидингом.
+ * скилов, где язык фиксируется первым сидингом. Тексты промпта живут отдельно в {@link PromptTexts}:
+ * у них другой читатель (модель, не пользователь) и другая цена ошибки — правка меняет поведение
+ * агента, а не подпись в интерфейсе.
  */
-@Slf4j
 @Component
 public class ConnectorTexts {
 
-    private static final String RESOURCE = "seed/%s/connectors.properties";
-
-    private final Properties texts = new Properties();
+    private final Properties texts;
 
     public ConnectorTexts(ContentProperties contentProperties) {
-        ContentLanguage language = contentProperties.getLanguage();
-        if (language != ContentLanguage.DEFAULT) {
-            load(language);
-        }
+        this.texts = SeedTextBundle.load(contentProperties.getLanguage(), "connectors.properties");
     }
 
     /** Отображаемое имя коннектора; нет перевода — значение из кода. */
@@ -47,20 +37,5 @@ public class ConnectorTexts {
     /** Описание коннектора для каталога подключений; нет перевода — значение из кода. */
     public String description(String connectorCode, String fallback) {
         return texts.getProperty(connectorCode + ".description", fallback);
-    }
-
-    private void load(ContentLanguage language) {
-        String path = RESOURCE.formatted(language.dir());
-        ClassPathResource resource = new ClassPathResource(path);
-        if (!resource.exists()) {
-            log.warn("No {} — connector catalog stays in {}", path, ContentLanguage.DEFAULT);
-            return;
-        }
-        try (InputStream in = resource.getInputStream()) {
-            texts.load(new InputStreamReader(in, StandardCharsets.UTF_8));
-            log.info("Loaded {} connector catalog texts from {}", texts.size(), path);
-        } catch (IOException e) {
-            throw new IllegalStateException("Failed to read connector texts: " + path, e);
-        }
     }
 }

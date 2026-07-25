@@ -41,9 +41,10 @@ Control API for connector registration, tool delivery, trigger submission, and A
 ## System content language
 
 `APP_CONTENT_LANGUAGE` (property `app.content.language`, enum `ContentLanguage`: `ru` | `en`) selects
-the language of the content the platform ships: agent presets, system skills and the connector
-catalog. It is **not** the language agents reply in — that follows the user and is stated in the
-instructions themselves. A typo in the value fails startup (the property binds to an enum).
+the language of the content the platform ships: agent presets, system skills, the connector catalog
+and the trusted instruction blocks the platform injects into agent prompts. It is **not** the language
+agents reply in — that follows the user and is stated in the instructions themselves. A typo in the
+value fails startup (the property binds to an enum).
 
 Content lives per language in the classpath, and `SeedContentLocator` is the only place that knows
 the layout:
@@ -52,6 +53,7 @@ the layout:
 resources/seed/<lang>/presets/<code>/PRESET.md      # seeded by SystemPresetBootstrap
 resources/seed/<lang>/skills/<code>/SKILL.md        # seeded by SystemSkillBootstrap
 resources/seed/<lang>/connectors.properties         # connector catalog name/description
+resources/seed/<lang>/prompt.properties             # trusted prompt blocks (behaviour, not captions)
 ```
 
 Adding a language = a new `ContentLanguage` constant plus a copy of the directory. Only `title`,
@@ -74,11 +76,23 @@ for the selected language falls back to `ru` with a warning rather than failing 
   Russian stays in the code (`connectorName()`/`connectorDescription()`) as the last-resort fallback,
   which is why there is deliberately no `seed/ru/connectors.properties`; `ConnectorTextsTest`
   enforces that every registered code has a translation in every other language.
+- **Prompt blocks — follow the property.** Resolved per run in `RunContextService`, so a restart is
+  enough. Keys live in `PromptTexts`: `run.trigger.guidance` (autonomous event handling),
+  `run.tool-call.guidance` (never imitate a tool call in text), `run.attachment.guidance`
+  (the `[[attach:]]` convention), and `connector.<code>.<trigger>.guidance` with a fallback to
+  `connector.<code>.guidance` for `ContextDirectives.guidance`. These are **behaviour, not captions** —
+  a bad translation changes what agents do — which is why they sit in a bundle separate from the
+  connector catalog: different reader, different cost of error. `PromptTextsTest` enforces
+  completeness; the Russian source stays in `RunContextService`/`ContextDirectives` as the fallback.
 
-Tool, tool-parameter and trigger descriptions (`@Tool`, `@ToolParam`, `TriggerSpec`,
-`ContextDirectives.guidance`) are **not** localized yet — they stay in Russian regardless of the
-setting. They are read by the LLM rather than shown to the user, and localizing them means threading
-the language through `BaseConnectorHandler`/`ToolSchemaReflector` (see `docs/connectors/architecture.md`).
+Tool and tool-parameter descriptions (`@Tool`, `@ToolParam`) are **not** localized — they stay in
+Russian regardless of the setting. They are read by the LLM as a calling reference rather than shown
+to the user, and localizing them means threading the language through
+`BaseConnectorHandler`/`ToolSchemaReflector` (see `docs/connectors/architecture.md`). Trigger
+descriptions (`TriggerSpec.description`) need no bundle — they are already written in English in the
+code. The one place tool descriptions can reach a user is the platform connector relaying
+`get_connector` output, and the English `platform` skill instructs the agent to retell rather than
+quote them.
 
 ## Inbound Rate Limiting
 

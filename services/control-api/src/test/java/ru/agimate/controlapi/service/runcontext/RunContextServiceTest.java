@@ -21,6 +21,7 @@ import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
+import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
@@ -42,6 +43,7 @@ import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.channel.InboundTextResolver;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
+import ru.agimate.controlapi.service.seed.PromptTexts;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
@@ -110,7 +112,9 @@ class RunContextServiceTest {
                 agenticTeamRepository, agentSkillRepository, agentSkillService, skillRepository,
                 connectionRepository, connectorRepository, connectionToolRepository,
                 registry, new ConnectorEnvFactory(null, null), channelRepository, channelHandlerRegistry,
-                inboundTextResolver, messageRepository);
+                inboundTextResolver, messageRepository,
+                // Язык-первоисточник: переводов нет, блоки промпта совпадают с константами в коде.
+                new PromptTexts(new ContentProperties()));
     }
 
     private Agent agent() {
