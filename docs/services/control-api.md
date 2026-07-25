@@ -85,14 +85,19 @@ for the selected language falls back to `ru` with a warning rather than failing 
   connector catalog: different reader, different cost of error. `PromptTextsTest` enforces
   completeness; the Russian source stays in `RunContextService`/`ContextDirectives` as the fallback.
 
-Tool and tool-parameter descriptions (`@Tool`, `@ToolParam`) are **not** localized — they stay in
-Russian regardless of the setting. They are read by the LLM as a calling reference rather than shown
-to the user, and localizing them means threading the language through
-`BaseConnectorHandler`/`ToolSchemaReflector` (see `docs/connectors/architecture.md`). Trigger
-descriptions (`TriggerSpec.description`) need no bundle — they are already written in English in the
-code. The one place tool descriptions can reach a user is the platform connector relaying
-`get_connector` output, and the English `platform` skill instructs the agent to retell rather than
-quote them.
+**The tool layer needs no bundle** — tool descriptions (`@Tool`), parameter descriptions
+(`@ToolParam`) and trigger descriptions (`TriggerSpec.description`) are already written in English in
+the code. The single exception is `@Tool(title = …)` in `SheetsToolService`: 12 Russian display titles,
+which reach both the UI tool listings and the agent (`ConnectorToolSpec.title` over gRPC). Sheets is
+also the only connector that sets `title` at all — the other 57 tools fall back to `name` — so this is
+a local inconsistency rather than a localization gap, and the fix depends on whether human-readable
+tool titles are wanted as a product feature at all (then for all connectors, localized) or not (then
+dropped from sheets too). Localizing them would mean threading the language through
+`BaseConnectorHandler`/`ToolSchemaReflector` or resolving at the consumers — see
+`docs/connectors/architecture.md`.
+
+The one path by which a Russian tool text could reach a user is the platform connector relaying
+`get_connector` output; the English `platform` skill instructs the agent to retell rather than quote.
 
 ## Inbound Rate Limiting
 
