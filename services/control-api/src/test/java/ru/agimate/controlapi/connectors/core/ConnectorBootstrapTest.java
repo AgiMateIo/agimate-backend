@@ -3,12 +3,14 @@ package ru.agimate.controlapi.connectors.core;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
+import ru.agimate.controlapi.service.seed.ConnectorTexts;
 
 import java.util.List;
 import java.util.Map;
@@ -38,11 +40,14 @@ class ConnectorBootstrapTest {
 
     private final ConnectorRepository connectorRepository = mock(ConnectorRepository.class);
     private final ConnectorJobService jobService = mock(ConnectorJobService.class);
+    /** Язык-первоисточник: переводов нет, name/description берутся из кода хендлера. */
+    private final ConnectorTexts connectorTexts = new ConnectorTexts(new ContentProperties());
 
     private ConnectorBootstrap bootstrap(ConnectorHandler handler) {
         when(connectorRepository.findById(anyString())).thenReturn(Optional.empty());
         lenient().when(connectorRepository.existsById(anyString())).thenReturn(true);
-        return new ConnectorBootstrap(connectorRepository, new ConnectorRegistry(List.of(handler)), jobService);
+        return new ConnectorBootstrap(connectorRepository, new ConnectorRegistry(List.of(handler)), jobService,
+                connectorTexts);
     }
 
     private static TriggerSpec promptSpec(String promptParam) {

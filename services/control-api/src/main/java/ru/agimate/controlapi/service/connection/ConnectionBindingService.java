@@ -20,6 +20,7 @@ import ru.agimate.controlapi.database.repositories.AgentConnectionPolicyReposito
 import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
+import ru.agimate.controlapi.service.seed.ConnectorTexts;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -58,6 +59,7 @@ public class ConnectionBindingService {
     private final ConnectionAccessEvaluator accessEvaluator;
     private final ApplicationEventPublisher eventPublisher;
     private final ConnectorRegistry connectorRegistry;
+    private final ConnectorTexts connectorTexts;
 
     /** Открыть агенту внутренний коннектор: строка-режим пользователя + {@code agent_connection}. */
     @Transactional
@@ -95,7 +97,8 @@ public class ConnectionBindingService {
         String connectorCode = handler.connectorCode();
         UUID id = UUIDUtils.generateUUIDv8();
         int inserted = connectionRepository.insertModeConnectionIfAbsent(
-                id, connectorCode, connectorCode + "_" + userId, userId, handler.connectorName());
+                id, connectorCode, connectorCode + "_" + userId, userId,
+                connectorTexts.name(connectorCode, handler.connectorName()));
         if (inserted > 0) {
             // Событие только от фактического создателя строки (регистрация джоб — AFTER_COMMIT).
             eventPublisher.publishEvent(new ConnectorCreatedEvent(connectorCode, id.toString(), userId));

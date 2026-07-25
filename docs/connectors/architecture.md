@@ -284,6 +284,25 @@ ABAC: доступ к MCP-серверу — binding агента на его co
 скоупятся по `(binding, kind, name)`, имена тулов берутся из `connection_tools`. Периодический refresh по
 расписанию и MCP `resources`/`prompts` — вне scope (YAGNI).
 
+## Тексты коннектора и язык инсталляции
+
+`connectorName()`/`connectorDescription()` — тексты каталога подключений, они на глазах у пользователя,
+поэтому локализуются под `app.content.language` (см.
+[control-api.md](../services/control-api.md#system-content-language)). Механизм — `ConnectorTexts`
+поверх `seed/<lang>/connectors.properties` с ключами `<code>.name`/`<code>.description`; накладывается
+в `ConnectorBootstrap.upsertConnector` и `upsertStatic`. Русский остаётся в коде и служит последним
+фолбэком — файла для языка-первоисточника нет намеренно, иначе один и тот же текст лежал бы в двух
+местах и разъезжался. Каталог перезаписывается на каждом старте, поэтому смена языка доезжает до БД
+без миграции; `ConnectorTextsTest` требует перевод для каждого зарегистрированного кода.
+
+**Описания тулов, параметров и триггеров не локализованы** — `@Tool(description)`, `@ToolParam`,
+`TriggerSpec.description` и `ContextDirectives.guidance` остаются русскими при любом значении
+проперти. Их читает LLM, а не пользователь, и цена другая: `BaseConnectorHandler` строит `toolSpecs`
+в конструкторе через `ToolSchemaReflector` (`@UtilityClass`, статические методы), поэтому язык надо
+протаскивать либо в конструкторы всех коннекторов, либо в резолв на стороне потребителей
+(`ToolDefinitionService`, `RunContextService`, `AcpSessionRegistry`). Это правка ядра SPI —
+делать её нужно отдельным осознанным заходом, а не заодно.
+
 ## Выполнение
 
 - **Тулы**: `AgentToolCallService` → ABAC → `ToolCallLog` → `ConnectorService.pushToConnector` →

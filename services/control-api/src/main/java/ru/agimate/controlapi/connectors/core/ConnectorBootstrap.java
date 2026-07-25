@@ -11,6 +11,7 @@ import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
+import ru.agimate.controlapi.service.seed.ConnectorTexts;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,7 +21,8 @@ import java.util.Map;
  * <ol>
  *   <li>upsert статических строк {@code connectors} без handler'а ({@code app}, {@code claude-code});</li>
  *   <li>upsert строки {@code connectors} для каждого handler'а из registry — код-источник истины
- *       для name/description/credential_fields/capabilities;</li>
+ *       для name/description/credential_fields/capabilities; name/description при этом проходят
+ *       через {@link ConnectorTexts} (перевод каталога под {@code app.content.language});</li>
  *   <li>пересинк существующих SYSTEM-строк {@code connector_jobs} с {@code getJobs()} — изменения
  *       {@code @Job} (интервал/timeout) доезжают до БД без пересоздания подключений.</li>
  * </ol>
@@ -37,6 +39,7 @@ public class ConnectorBootstrap {
     private final ConnectorRepository connectorRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorJobService jobService;
+    private final ConnectorTexts connectorTexts;
 
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
@@ -68,8 +71,9 @@ public class ConnectorBootstrap {
                         .code(handler.connectorCode())
                         .build());
 
-        connector.setName(handler.connectorName());
-        connector.setDescription(handler.connectorDescription());
+        String code = handler.connectorCode();
+        connector.setName(connectorTexts.name(code, handler.connectorName()));
+        connector.setDescription(connectorTexts.description(code, handler.connectorDescription()));
         connector.setCredentialFields(handler instanceof IntegrationConnectorHandler integration
                 ? integration.getCredentialFields()
                 : null);
@@ -129,8 +133,8 @@ public class ConnectorBootstrap {
     private void upsertStatic(String code, String name, ConnectorTraits traits, String description) {
         Connector connector = connectorRepository.findById(code)
                 .orElseGet(() -> Connector.builder().code(code).build());
-        connector.setName(name);
-        connector.setDescription(description);
+        connector.setName(connectorTexts.name(code, name));
+        connector.setDescription(connectorTexts.description(code, description));
         connector.applyTraits(traits);
         connectorRepository.save(connector);
     }
