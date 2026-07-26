@@ -26,13 +26,16 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("ConnectionBindingService.listForConnection (кто использует экземпляр)")
+@DisplayName("ConnectionBindingService")
 class ConnectionBindingServiceTest {
 
     private static final UUID USER_ID = UUID.randomUUID();
@@ -68,10 +71,14 @@ class ConnectionBindingServiceTest {
     }
 
     private static AgentConnection binding(UUID agentId) {
+        return binding(agentId, CONNECTION_ID);
+    }
+
+    private static AgentConnection binding(UUID agentId, UUID connectionId) {
         return AgentConnection.builder()
                 .id(UUID.randomUUID())
                 .agentId(agentId)
-                .connectionId(CONNECTION_ID)
+                .connectionId(connectionId)
                 .build();
     }
 
@@ -81,6 +88,41 @@ class ConnectionBindingServiceTest {
         connection.setUserId(USER_ID);
         when(connectionRepository.findByIdAndUserIdNotDeleted(CONNECTION_ID, USER_ID))
                 .thenReturn(Optional.of(connection));
+    }
+
+    @Nested
+    @DisplayName("detachAgent (удаление агента)")
+    class DetachAgent {
+
+        @Test
+        @DisplayName("Снимает и внутренние привязки: гард «managed by skills» — правило manage-API")
+        void removesInternalBindings() {
+            UUID agentId = UUID.randomUUID();
+            AgentConnection platform = binding(agentId, UUID.randomUUID());
+            AgentConnection telegram = binding(agentId, UUID.randomUUID());
+            when(agentConnectionRepository.findActiveByAgentId(agentId))
+                    .thenReturn(List.of(platform, telegram));
+
+            service.detachAgent(agentId);
+
+            verify(agentConnectionRepository).softDelete(eq(platform.getId()), any());
+            verify(agentConnectionRepository).softDelete(eq(telegram.getId()), any());
+            verify(policyRepository).softDeleteByAgentConnectionId(eq(platform.getId()), any());
+            verify(policyRepository).softDeleteByAgentConnectionId(eq(telegram.getId()), any());
+            // Внутренний/внешний не различаем — иначе удаление агента упрётся в гард manage-API.
+            verifyNoInteractions(connectorRegistry);
+        }
+
+        @Test
+        @DisplayName("Нет привязок — ничего не снимаем")
+        void noBindings() {
+            UUID agentId = UUID.randomUUID();
+            when(agentConnectionRepository.findActiveByAgentId(agentId)).thenReturn(List.of());
+
+            service.detachAgent(agentId);
+
+            verifyNoInteractions(policyRepository);
+        }
     }
 
     @Nested

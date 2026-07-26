@@ -235,6 +235,18 @@ public class ConnectionBindingService {
         }
     }
 
+    /**
+     * Отвязать агента от всех экземпляров (удаление агента). Мимо {@link #unbind} намеренно: запрет на
+     * внутренние коннекторы — правило manage-API («руками не трогать, скилл-синк воскресит»), а не
+     * жизненного цикла, где снимается всё. Владелец проверяется вызывающим (агент уже загружен).
+     */
+    @Transactional
+    public void detachAgent(UUID agentId) {
+        for (AgentConnection binding : agentConnectionRepository.findActiveByAgentId(agentId)) {
+            removeBinding(binding);
+        }
+    }
+
     /** Идемпотентно: гонку параллельной привязки решает БД (ON CONFLICT), затем перечитываем строку. */
     private AgentConnection ensureBinding(UUID agentId, UUID connectionId) {
         agentConnectionRepository.insertBindingIfAbsent(agentId, connectionId);

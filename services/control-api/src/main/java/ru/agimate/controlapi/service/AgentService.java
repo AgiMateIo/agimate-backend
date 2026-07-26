@@ -419,12 +419,9 @@ public class AgentService {
             throw new ForbiddenStatusException("Access denied");
         }
 
-        // Отвязываем все коннекторы: контекстные экземпляры без оставшихся binding'ов сворачиваются
-        // (soft-delete connection + ConnectorDeletedEvent → снятие SYSTEM-джоб). Без этого после
-        // FK-каскада connection и её cron-джобы (не привязаны к agent_id) остались бы висеть.
-        for (AgentConnection binding : agentConnectionRepository.findActiveByAgentId(agent.getId())) {
-            connectionBindingService.unbind(userId, agent.getId(), binding.getConnectionId());
-        }
+        // Снимаем все привязки вместе с их политиками: строки-режимы и внешние экземпляры живут
+        // дальше (они не принадлежат агенту), но правила осиротевшего binding'а остаться не должны.
+        connectionBindingService.detachAgent(agent.getId());
         connectorJobRepository.deleteByAgentId(agent.getId()); // динамические AGENT-джобы
         accessEvaluator.invalidateByAgent(agent.getId());
         // Мягкое удаление: строка остаётся (все FK на agents целы), @SQLRestriction скрывает её
