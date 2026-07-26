@@ -7,12 +7,8 @@ import ru.agimate.controlapi.database.enums.LlmPurpose;
 
 import java.util.UUID;
 
-@Schema(description = "Request to bind an LLM provider+model to an agent under a label")
+@Schema(description = "Request to bind an LLM provider+model to an agent for a given purpose")
 public record CreateAgentLlmRequest(
-        @NotBlank
-        @Schema(description = "Label of the binding (e.g. \"main_model\", \"for_light_task\", \"visual_task\")")
-        String name,
-
         @NotNull
         @Schema(description = "LLM provider public ID")
         UUID llmProviderId,
@@ -22,9 +18,9 @@ public record CreateAgentLlmRequest(
                 + "UNAVAILABLE rows count — the status is advisory)")
         String model,
 
-        @Schema(description = "Binding role (default CHAT). CHAT — the agent-loop model (first by "
-                + "name wins); IMAGE/VISION/AUDIO_IN/AUDIO_OUT — media model-as-tool bindings, "
-                + "override the capability-based auto-match")
+        @Schema(description = "Binding role (default CHAT), unique per agent. CHAT — the agent-loop "
+                + "model; IMAGE/VISION/AUDIO_IN/AUDIO_OUT — media model-as-tool bindings, override "
+                + "the capability-based auto-match")
         LlmPurpose purpose
 ) {
 }

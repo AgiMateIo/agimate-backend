@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.controlapi.controller.agent.dto.AgentLlmRuntimeResponse;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.security.AgentPrincipal;
 import ru.agimate.controlapi.service.AgentLlmService;
 
@@ -37,14 +38,14 @@ public class AgentLlmController {
     }
 
     @Operation(
-            summary = "Get a single LLM binding by name",
-            description = "Returns the LLM binding identified by its label (e.g. main_model)"
+            summary = "Get a single LLM binding by purpose",
+            description = "Returns the LLM binding for the given purpose (e.g. CHAT)"
     )
-    @GetMapping("/{name}")
-    public SuccessResponse<AgentLlmRuntimeResponse> getByName(
+    @GetMapping("/{purpose}")
+    public SuccessResponse<AgentLlmRuntimeResponse> getByPurpose(
             @AuthenticationPrincipal AgentPrincipal principal,
-            @PathVariable String name
+            @PathVariable LlmPurpose purpose
     ) {
-        return SuccessResponse.ok(agentLlmService.runtimeForAgentByName(principal.agentId(), name));
+        return SuccessResponse.ok(agentLlmService.runtimeForAgentByPurpose(principal.agentId(), purpose));
     }
 }

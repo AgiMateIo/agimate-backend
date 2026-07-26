@@ -2,11 +2,12 @@ package ru.agimate.controlapi.controller.agent.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 
 @Schema(description = "LLM credentials returned to the agent at runtime")
 public record AgentLlmRuntimeResponse(
-        @Schema(description = "Binding label (e.g. \"main_model\")")
-        String name,
+        @Schema(description = "Binding role (CHAT — the agent-loop model)")
+        LlmPurpose purpose,
 
         @Schema(description = "Provider type")
         LlmProviderType providerType,

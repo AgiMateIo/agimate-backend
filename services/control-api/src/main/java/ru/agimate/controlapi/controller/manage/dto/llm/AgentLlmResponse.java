@@ -10,14 +10,11 @@ import java.util.UUID;
 
 @Schema(description = "Agent ↔ LLM binding (no api_key)")
 public record AgentLlmResponse(
-        @Schema(description = "Binding label")
-        String name,
-
         @Schema(description = "Model name")
         String model,
 
-        @Schema(description = "Binding role: CHAT — agent-loop model, IMAGE/VISION/AUDIO_IN/AUDIO_OUT — "
-                + "media model-as-tool bindings")
+        @Schema(description = "Binding role, unique per agent: CHAT — agent-loop model, "
+                + "IMAGE/VISION/AUDIO_IN/AUDIO_OUT — media model-as-tool bindings")
         LlmPurpose purpose,
 
         @Schema(description = "LLM provider public ID (null for the platform fallback)")
@@ -37,7 +34,6 @@ public record AgentLlmResponse(
 
     public static AgentLlmResponse from(AgentLlm binding, LlmProvider provider) {
         return new AgentLlmResponse(
-                binding.getName(),
                 binding.getModel(),
                 binding.getPurpose(),
                 binding.getLlmProviderId(),
@@ -50,7 +46,6 @@ public record AgentLlmResponse(
     /** Эффективная модель агента без привязок: платформенный fallback (id не адресуем юзером). */
     public static AgentLlmResponse platformFallback(LlmProvider platformProvider) {
         return new AgentLlmResponse(
-                platformProvider.getName(),
                 platformProvider.getDefaultModel(),
                 LlmPurpose.CHAT,
                 null,

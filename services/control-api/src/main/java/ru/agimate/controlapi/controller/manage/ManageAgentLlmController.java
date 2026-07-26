@@ -11,6 +11,7 @@ import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.llm.AgentLlmResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreateAgentLlmRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateAgentLlmRequest;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.service.AgentLlmService;
 
 import java.util.List;
@@ -47,27 +48,27 @@ public class ManageAgentLlmController {
         return SuccessResponse.ok(agentLlmService.create(agentId, userId, request));
     }
 
-    @Operation(summary = "Replace the LLM binding identified by its name")
-    @PutMapping("/{name}")
+    @Operation(summary = "Replace the LLM binding for the given purpose")
+    @PutMapping("/{purpose}")
     public SuccessResponse<AgentLlmResponse> replace(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId,
-            @PathVariable String name,
+            @PathVariable LlmPurpose purpose,
             @Valid @RequestBody UpdateAgentLlmRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(agentLlmService.replace(agentId, userId, name, request));
+        return SuccessResponse.ok(agentLlmService.replace(agentId, userId, purpose, request));
     }
 
-    @Operation(summary = "Delete the LLM binding identified by its name")
-    @DeleteMapping("/{name}")
+    @Operation(summary = "Delete the LLM binding for the given purpose")
+    @DeleteMapping("/{purpose}")
     public SuccessResponse<Void> delete(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId,
-            @PathVariable String name
+            @PathVariable LlmPurpose purpose
     ) {
         UUID userId = UUID.fromString(principal.id());
-        agentLlmService.delete(agentId, userId, name);
+        agentLlmService.delete(agentId, userId, purpose);
         return SuccessResponse.empty();
     }
 }

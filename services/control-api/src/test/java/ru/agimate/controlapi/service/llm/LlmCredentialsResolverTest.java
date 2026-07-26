@@ -81,8 +81,8 @@ class LlmCredentialsResolverTest {
     }
 
     private void stubNoBinding(LlmPurpose purpose) {
-        when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, purpose))
-                .thenReturn(List.of());
+        when(agentLlmRepository.findByAgentIdAndPurpose(agentId, purpose))
+                .thenReturn(Optional.empty());
     }
 
     @Nested
@@ -96,12 +96,11 @@ class LlmCredentialsResolverTest {
             AgentLlm binding = AgentLlm.builder()
                     .agentId(agentId)
                     .llmProviderId(bound.getId())
-                    .name("img")
                     .model("google/gemini-2.5-flash-image")
                     .purpose(LlmPurpose.IMAGE)
                     .build();
-            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.IMAGE))
-                    .thenReturn(List.of(binding));
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.IMAGE))
+                    .thenReturn(Optional.of(binding));
             when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
             when(llmProviderService.decryptApiKey(bound)).thenReturn("sk-key");
             when(llmProviderModelRepository.findByProviderIdAndModel(bound.getId(),
@@ -124,12 +123,11 @@ class LlmCredentialsResolverTest {
             AgentLlm binding = AgentLlm.builder()
                     .agentId(agentId)
                     .llmProviderId(bound.getId())
-                    .name("chat")
                     .model("deepseek/deepseek-v4-flash")
                     .purpose(LlmPurpose.CHAT)
                     .build();
-            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.CHAT))
-                    .thenReturn(List.of(binding));
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
+                    .thenReturn(Optional.of(binding));
             when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
             when(llmProviderService.decryptApiKey(bound)).thenReturn("sk-key");
             when(llmProviderModelRepository.findByProviderIdAndModel(bound.getId(), "deepseek/deepseek-v4-flash"))
@@ -149,12 +147,11 @@ class LlmCredentialsResolverTest {
             AgentLlm binding = AgentLlm.builder()
                     .agentId(agentId)
                     .llmProviderId(disabled.getId())
-                    .name("img")
                     .model("some-model")
                     .purpose(LlmPurpose.IMAGE)
                     .build();
-            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.IMAGE))
-                    .thenReturn(List.of(binding));
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.IMAGE))
+                    .thenReturn(Optional.of(binding));
             when(llmProviderRepository.findById(disabled.getId())).thenReturn(Optional.of(disabled));
 
             assertThrows(LlmProviderDisabledException.class,
@@ -217,11 +214,10 @@ class LlmCredentialsResolverTest {
             AgentLlm chatBinding = AgentLlm.builder()
                     .agentId(agentId)
                     .llmProviderId(chatBound.getId())
-                    .name("main")
                     .model("chat-model")
                     .build();
-            when(agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.CHAT))
-                    .thenReturn(List.of(chatBinding));
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
+                    .thenReturn(Optional.of(chatBinding));
             when(llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId))
                     .thenReturn(List.of(other, chatBound));
             LlmProviderModel capable =

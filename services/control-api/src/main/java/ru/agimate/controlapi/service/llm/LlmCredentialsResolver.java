@@ -60,9 +60,10 @@ public class LlmCredentialsResolver {
     }
 
     /**
-     * Chat-модель агентного цикла: первый {@code purpose = CHAT} биндинг агента (по имени),
-     * иначе фолбэк на платформенный провайдер с его {@code default_model} (личная привязка
-     * всегда побеждает). Биндинги-инструменты (IMAGE/VISION/…) сюда не попадают.
+     * Chat-модель агентного цикла: {@code purpose = CHAT} биндинг агента (он один — уникальность
+     * по {@code (agent_id, purpose)}), иначе фолбэк на платформенный провайдер с его
+     * {@code default_model} (личная привязка всегда побеждает). Биндинги-инструменты
+     * (IMAGE/VISION/…) сюда не попадают.
      *
      * @throws NotFoundStatusException      провайдер биндинга исчез / нет ни биндинга, ни платформы
      * @throws LlmProviderDisabledException провайдер биндинга выключен
@@ -74,8 +75,7 @@ public class LlmCredentialsResolver {
         boolean platformFallback = false;
 
         AgentLlm binding = agentLlmRepository
-                .findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.CHAT).stream()
-                .findFirst()
+                .findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT)
                 .orElse(null);
         if (binding != null) {
             provider = llmProviderRepository.findById(binding.getLlmProviderId())
@@ -120,8 +120,7 @@ public class LlmCredentialsResolver {
         boolean platformFallback = false;
 
         AgentLlm binding = agentLlmRepository
-                .findAllByAgentIdAndPurposeOrderByName(agentId, purpose).stream()
-                .findFirst()
+                .findByAgentIdAndPurpose(agentId, purpose)
                 .orElse(null);
         if (binding != null) {
             provider = llmProviderRepository.findById(binding.getLlmProviderId())
@@ -188,8 +187,7 @@ public class LlmCredentialsResolver {
                 .toList());
         // Провайдер chat-биндинга — в голову списка: медиа-вызовы по умолчанию идут туда же,
         // куда пользователь уже направил основной биллинг агента.
-        agentLlmRepository.findAllByAgentIdAndPurposeOrderByName(agentId, LlmPurpose.CHAT).stream()
-                .findFirst()
+        agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT)
                 .map(AgentLlm::getLlmProviderId)
                 .ifPresent(chatProviderId -> candidates.stream()
                         .filter(p -> p.getId().equals(chatProviderId))

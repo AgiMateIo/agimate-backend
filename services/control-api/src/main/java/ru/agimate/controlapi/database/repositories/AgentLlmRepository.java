@@ -12,13 +12,11 @@ import java.util.UUID;
 @Repository
 public interface AgentLlmRepository extends JpaRepository<AgentLlm, UUID> {
 
-    List<AgentLlm> findAllByAgentIdOrderByName(UUID agentId);
+    List<AgentLlm> findAllByAgentIdOrderByPurpose(UUID agentId);
 
-    List<AgentLlm> findAllByAgentIdAndPurposeOrderByName(UUID agentId, LlmPurpose purpose);
+    List<AgentLlm> findAllByAgentIdInOrderByAgentIdAscPurposeAsc(List<UUID> agentIds);
 
-    List<AgentLlm> findAllByAgentIdInOrderByAgentIdAscNameAsc(List<UUID> agentIds);
+    Optional<AgentLlm> findByAgentIdAndPurpose(UUID agentId, LlmPurpose purpose);
 
-    Optional<AgentLlm> findByAgentIdAndName(UUID agentId, String name);
-
-    boolean existsByAgentIdAndName(UUID agentId, String name);
+    boolean existsByAgentIdAndPurpose(UUID agentId, LlmPurpose purpose);
 }

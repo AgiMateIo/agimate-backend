@@ -45,26 +45,26 @@ Authorization: Bearer {{jwt}}
 
 ### --- Agent ↔ LLM bindings (management, JWT) --- ###
 
-### Create binding "main_model"
+### Create the CHAT binding (agent-loop model)
 POST http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/
 Authorization: Bearer {{jwt}}
 Content-Type: application/json
 
 {
-  "name": "main_model",
   "llmProviderPubId": "{{llmProviderPubId}}",
-  "model": "gpt-4o"
+  "model": "gpt-4o",
+  "purpose": "CHAT"
 }
 
-### Create binding "for_light_task"
+### Create the VISION binding (media model-as-tool)
 POST http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/
 Authorization: Bearer {{jwt}}
 Content-Type: application/json
 
 {
-  "name": "for_light_task",
   "llmProviderPubId": "{{llmProviderPubId}}",
-  "model": "gpt-4o-mini"
+  "model": "gpt-4o-mini",
+  "purpose": "VISION"
 }
 
 ### List bindings
@@ -72,7 +72,7 @@ GET http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/
 Authorization: Bearer {{jwt}}
 
 ### Replace binding (change model)
-PUT http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/main_model
+PUT http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/CHAT
 Authorization: Bearer {{jwt}}
 Content-Type: application/json
 
@@ -82,7 +82,7 @@ Content-Type: application/json
 }
 
 ### Delete binding
-DELETE http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/for_light_task
+DELETE http://localhost:8180/control/manage/agents/{{agentPubId}}/llms/VISION
 Authorization: Bearer {{jwt}}
 
 
@@ -92,6 +92,6 @@ Authorization: Bearer {{jwt}}
 GET http://localhost:8180/control/agent/llm
 x-api-key: ***REMOVED***
 
-### Get one binding by name
-GET http://localhost:8180/control/agent/llm/main_model
+### Get one binding by purpose
+GET http://localhost:8180/control/agent/llm/CHAT
 x-api-key: ***REMOVED***

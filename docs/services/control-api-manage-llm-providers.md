@@ -2,7 +2,7 @@
 
 API specification for the `/manage/llm-providers/**` and `/manage/agents/{agentPubId}/llms/**` endpoint groups, plus the agent-runtime endpoint `/agent/llm`.
 
-LLM providers are per-user. Agents can bind to multiple providers/models under arbitrary labels (`main_model`, `for_light_task`, `visual_task`, …). API keys are encrypted at rest (envelope AES-256-GCM in the `secrets` store, KEK = `app.secrets.encryption-key`) and only returned, decrypted, to the authenticated agent itself via `GET /agent/llm`.
+LLM providers are per-user. An agent binds one provider+model per **purpose** (`CHAT`, `IMAGE`, `VISION`, `AUDIO_IN`, `AUDIO_OUT`) — the purpose is the binding's identity, unique per agent. API keys are encrypted at rest (envelope AES-256-GCM in the `secrets` store, KEK = `app.secrets.encryption-key`) and only returned, decrypted, to the authenticated agent itself via `GET /agent/llm`.
 
 Besides user providers there is a single **platform provider** — a system-owned `llm_providers` row that serves as an implicit fallback for agents without any binding (see [Platform provider](#platform-provider)).
 
@@ -137,9 +137,8 @@ Set or clear per-model `extraBody`. The model id goes in the body (it may contai
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | string | Binding label (unique per agent) |
 | `model` | string | Model name |
-| `purpose` | enum | Binding role: `CHAT` (agent-loop model) / `IMAGE` / `VISION` / `AUDIO_IN` / `AUDIO_OUT` (media model-as-tool); `CHAT` for the platform fallback entry |
+| `purpose` | enum | Binding role, unique per agent: `CHAT` (agent-loop model) / `IMAGE` / `VISION` / `AUDIO_IN` / `AUDIO_OUT` (media model-as-tool); `CHAT` for the platform fallback entry |
 | `llmProviderId` | UUID? | Bound provider; `null` for the platform fallback entry |
 | `llmProviderName` | string | Provider's display name |
 | `providerType` | enum | Provider type |
@@ -147,7 +146,7 @@ Set or clear per-model `extraBody`. The model id goes in the body (it may contai
 
 When an agent has no bindings and the platform provider is usable (enabled + `default_model` set), listing endpoints return a single synthetic entry with `source=PLATFORM` showing the effective model. It is not a DB row: it cannot be updated or deleted, and `llmProviderId` is `null`.
 
-Each binding also carries a `purpose` (enum `LlmPurpose`, optional in `POST` — default `CHAT`; optional in `PUT` — `null` keeps the current value): `CHAT` is the agent-loop model issued by `GetLlmCredentials`; `IMAGE`/`VISION`/`AUDIO_IN`/`AUDIO_OUT` are media-connector model-as-tool bindings. The chat-model selection filters on `purpose=CHAT` (first by `name`), so a tool binding can never shadow the agent's main model. Resolution pipeline (binding → platform fallback → enabled check → quota → key decryption → `extra_body` merge) lives in `LlmCredentialsResolver` (`service/llm`); the gRPC surface is a thin mapper over it.
+A binding is identified by its `purpose` (enum `LlmPurpose`, optional in `POST` — default `CHAT`; in the path for `PUT`/`DELETE`), unique per agent (`uq_agent_llms_agent_purpose`): `CHAT` is the agent-loop model issued by `GetLlmCredentials`; `IMAGE`/`VISION`/`AUDIO_IN`/`AUDIO_OUT` are media-connector model-as-tool bindings. Chat-model selection looks up `purpose=CHAT`, so a tool binding can never shadow the agent's main model. Resolution pipeline (binding → platform fallback → enabled check → quota → key decryption → `extra_body` merge) lives in `LlmCredentialsResolver` (`service/llm`); the gRPC surface is a thin mapper over it.
 
 Model-as-tool resolution (`LlmCredentialsResolver.resolveForCapability`) cascades: explicit `purpose` binding (always wins, registry not consulted — advisory like `validateModel`; disabled provider fails loudly, no fallback) → capability match over the user's enabled providers by `input/output_modalities` (`IMAGE`→output image, `VISION`→input image, `AUDIO_IN`/`AUDIO_OUT`→audio; the chat-bound provider is checked first, within a provider — first `AVAILABLE` model by name) → same match over the platform provider's registry. No match anywhere → domain `NoCapableModelException`. The quota/key/`extra_body` tail of the pipeline is shared with the chat path.
 
@@ -159,7 +158,6 @@ Body:
 
 ```json
 {
-  "name": "main_model",
   "llmProviderPubId": "018f...",
   "model": "gpt-4o",
   "purpose": "CHAT"
@@ -167,15 +165,15 @@ Body:
 ```
 
 Validation:
-- `name` unique per agent → `409` on conflict.
+- one binding per `purpose` → `409` on conflict (replace it with `PUT` instead).
 - Provider must belong to the same user → `404` otherwise.
 - If the provider's model registry is non-empty, `model` must be a registry row (any status — `UNAVAILABLE` is advisory) → `400` otherwise. If the registry is empty (never refreshed), the model is accepted with a server-side warning.
 
-### `PUT /control/manage/agents/{agentPubId}/llms/{name}`
+### `PUT /control/manage/agents/{agentPubId}/llms/{purpose}`
 
-Replaces an existing binding's `llmProviderPubId` and `model`. Body uses the same shape as `POST` minus `name`.
+Replaces the binding's `llmProviderPubId` and `model` (`{purpose}` is one of `CHAT`/`IMAGE`/`VISION`/`AUDIO_IN`/`AUDIO_OUT`). Body: `{ llmProviderPubId, model }` — the purpose comes from the path. `404` if the agent has no binding for that purpose.
 
-### `DELETE /control/manage/agents/{agentPubId}/llms/{name}`
+### `DELETE /control/manage/agents/{agentPubId}/llms/{purpose}`
 
 ---
 
@@ -185,7 +183,7 @@ Replaces an existing binding's `llmProviderPubId` and `model`. Body uses the sam
 
 | Field | Type | Description |
 |---|---|---|
-| `name` | string | Binding label |
+| `purpose` | enum | Binding role (`CHAT` — the agent-loop model) |
 | `providerType` | enum | |
 | `baseUrl` | string? | Null = provider default |
 | `model` | string | |
@@ -195,9 +193,9 @@ Replaces an existing binding's `llmProviderPubId` and `model`. Body uses the sam
 
 Returns all bindings of the authenticated agent whose providers are `enabled=true`. Disabled providers are silently excluded.
 
-### `GET /control/agent/llm/{name}`
+### `GET /control/agent/llm/{purpose}`
 
-Returns the single binding identified by its label. `404` if the binding does not exist or its provider is disabled.
+Returns the binding for the given purpose. `404` if the agent has no such binding or its provider is disabled.
 
 ---
 
@@ -208,7 +206,7 @@ A single system-owned `llm_providers` row (owner = synthetic system user, name `
 - **Created and managed entirely by an ADMIN via the API** — there is no startup seeding and no `app.platform-llm.*` environment variables. On a fresh install the platform provider simply does not exist until an ADMIN creates it with `POST /manage/llm-providers/platform` (see below).
 - The **DB is the sole source of truth**: key rotation and model changes are done via `PATCH /{id}` and persist across restarts.
 - Created with `enabled=false`; enabling the free-tier is a deliberate action performed by an **ADMIN**, typically after quotas are configured.
-- Invisible to regular users in `/manage/llm-providers/**` and not addressable in binding requests (`404` — the provider belongs to the system user).
+- Invisible to regular users in `/manage/llm-providers/**` and not addressable in binding requests (`404` — the provider belongs to the system user). ADMINs **do** see the row in `GET /manage/llm-providers/`, but binding it to an agent is still `404`: the fallback is implicit by design, so a client must not offer `platform: true` rows as bindable.
 - `default_model` exists on every provider (`Create`/`Update` requests accept it; for user providers it is a UI preselect); on the platform row it is the fallback model and is required for the fallback to work.
 
 ### ADMIN management

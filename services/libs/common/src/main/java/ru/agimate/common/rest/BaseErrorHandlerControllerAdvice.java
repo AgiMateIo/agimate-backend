@@ -24,10 +24,12 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -172,6 +174,19 @@ public class BaseErrorHandlerControllerAdvice {
     public ErrorResponse missingParameter(MultipartException ex, HttpServletRequest request, HttpServletResponse response) {
         log.info("Bad request on {} {}: {}", request.getMethod(), request.getRequestURL(), ex.getMessage());
         return new ErrorResponse("Bad multipart request");
+    }
+
+    /** Непарсящийся path/query-параметр (напр. enum-значение не из набора) — ошибка клиента, не 500. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse typeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        log.info("Bad request on {} {}: parameter '{}' has unparseable value",
+                request.getMethod(), request.getRequestURL(), ex.getName());
+        Class<?> target = ex.getRequiredType();
+        String expected = target != null && target.isEnum()
+                ? " Expected one of: " + Arrays.toString(target.getEnumConstants()) + "."
+                : "";
+        return new ErrorResponse("Bad request: invalid value for '" + ex.getName() + "'." + expected);
     }
 
     @ExceptionHandler({InternalServerErrorStatusException.class, Exception.class})

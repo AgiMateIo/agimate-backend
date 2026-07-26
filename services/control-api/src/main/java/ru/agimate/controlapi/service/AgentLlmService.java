@@ -43,7 +43,7 @@ public class AgentLlmService {
 
     public List<AgentLlmResponse> listForAgent(UUID agentId, UUID userId) {
         Agent agent = requireOwnedAgent(agentId, userId);
-        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByName(agent.getId());
+        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurpose(agent.getId());
         if (bindings.isEmpty()) {
             return platformFallbackEntry();
         }
@@ -57,7 +57,7 @@ public class AgentLlmService {
         if (agentIds.isEmpty()) {
             return Map.of();
         }
-        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdInOrderByAgentIdAscNameAsc(agentIds);
+        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdInOrderByAgentIdAscPurposeAsc(agentIds);
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
 
         Map<UUID, List<AgentLlmResponse>> result = new HashMap<>();
@@ -87,56 +87,51 @@ public class AgentLlmService {
         LlmProvider provider = llmProviderService.requireOwned(request.llmProviderId(), userId);
         validateModel(provider, request.model());
 
-        if (agentLlmRepository.existsByAgentIdAndName(agent.getId(), request.name())) {
-            throw new ConflictStatusException("Agent already has an LLM binding with name '" + request.name() + "'");
+        LlmPurpose purpose = request.purpose() != null ? request.purpose() : LlmPurpose.CHAT;
+        if (agentLlmRepository.existsByAgentIdAndPurpose(agent.getId(), purpose)) {
+            throw new ConflictStatusException(
+                    "Agent already has an LLM binding for purpose " + purpose + "; replace it with PUT");
         }
 
         AgentLlm binding = AgentLlm.builder()
                 .userId(userId)
                 .agentId(agent.getId())
                 .llmProviderId(provider.getId())
-                .name(request.name())
                 .model(request.model())
-                .purpose(request.purpose() != null ? request.purpose() : LlmPurpose.CHAT)
+                .purpose(purpose)
                 .build();
         binding = agentLlmRepository.save(binding);
 
-        log.info("Created agent_llm: agent={} name={} provider={} model={} purpose={}",
-                agent.getId(), binding.getName(), provider.getId(), binding.getModel(), binding.getPurpose());
+        log.info("Created agent_llm: agent={} purpose={} provider={} model={}",
+                agent.getId(), binding.getPurpose(), provider.getId(), binding.getModel());
         return AgentLlmResponse.from(binding, provider);
     }
 
     @Transactional
-    public AgentLlmResponse replace(UUID agentId, UUID userId, String name, UpdateAgentLlmRequest request) {
+    public AgentLlmResponse replace(UUID agentId, UUID userId, LlmPurpose purpose, UpdateAgentLlmRequest request) {
         Agent agent = requireOwnedAgent(agentId, userId);
-        AgentLlm binding = agentLlmRepository.findByAgentIdAndName(agent.getId(), name)
-                .orElseThrow(() -> new NotFoundStatusException("LLM binding '" + name + "' not found for this agent"));
+        AgentLlm binding = requireBinding(agent.getId(), purpose);
         LlmProvider provider = llmProviderService.requireOwned(request.llmProviderId(), userId);
         validateModel(provider, request.model());
 
         binding.setLlmProviderId(provider.getId());
         binding.setModel(request.model());
-        if (request.purpose() != null) {
-            binding.setPurpose(request.purpose());
-        }
         binding = agentLlmRepository.save(binding);
 
-        log.info("Replaced agent_llm: agent={} name={} provider={} model={} purpose={}",
-                agent.getId(), name, provider.getId(), binding.getModel(), binding.getPurpose());
+        log.info("Replaced agent_llm: agent={} purpose={} provider={} model={}",
+                agent.getId(), purpose, provider.getId(), binding.getModel());
         return AgentLlmResponse.from(binding, provider);
     }
 
     @Transactional
-    public void delete(UUID agentId, UUID userId, String name) {
+    public void delete(UUID agentId, UUID userId, LlmPurpose purpose) {
         Agent agent = requireOwnedAgent(agentId, userId);
-        AgentLlm binding = agentLlmRepository.findByAgentIdAndName(agent.getId(), name)
-                .orElseThrow(() -> new NotFoundStatusException("LLM binding '" + name + "' not found for this agent"));
-        agentLlmRepository.delete(binding);
-        log.info("Deleted agent_llm: agent={} name={}", agent.getId(), name);
+        agentLlmRepository.delete(requireBinding(agent.getId(), purpose));
+        log.info("Deleted agent_llm: agent={} purpose={}", agent.getId(), purpose);
     }
 
     public List<AgentLlmRuntimeResponse> runtimeForAgent(UUID agentId) {
-        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByName(agentId);
+        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurpose(agentId);
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
         return bindings.stream()
                 .map(b -> toRuntime(b, providersById.get(b.getLlmProviderId())))
@@ -144,16 +139,21 @@ public class AgentLlmService {
                 .toList();
     }
 
-    public AgentLlmRuntimeResponse runtimeForAgentByName(UUID agentId, String name) {
-        AgentLlm binding = agentLlmRepository.findByAgentIdAndName(agentId, name)
-                .orElseThrow(() -> new NotFoundStatusException("LLM binding '" + name + "' not found for this agent"));
+    public AgentLlmRuntimeResponse runtimeForAgentByPurpose(UUID agentId, LlmPurpose purpose) {
+        AgentLlm binding = requireBinding(agentId, purpose);
         LlmProvider provider = llmProviderRepository.findById(binding.getLlmProviderId())
                 .orElseThrow(() -> new NotFoundStatusException("Linked LLM provider not found"));
         AgentLlmRuntimeResponse runtime = toRuntime(binding, provider);
         if (runtime == null) {
-            throw new NotFoundStatusException("LLM provider for binding '" + name + "' is disabled");
+            throw new NotFoundStatusException("LLM provider for purpose " + purpose + " is disabled");
         }
         return runtime;
+    }
+
+    private AgentLlm requireBinding(UUID agentId, LlmPurpose purpose) {
+        return agentLlmRepository.findByAgentIdAndPurpose(agentId, purpose)
+                .orElseThrow(() -> new NotFoundStatusException(
+                        "No LLM binding for purpose " + purpose + " on this agent"));
     }
 
     private AgentLlmRuntimeResponse toRuntime(AgentLlm binding, LlmProvider provider) {
@@ -162,7 +162,7 @@ public class AgentLlmService {
         }
         String apiKey = llmProviderService.decryptApiKey(provider);
         return new AgentLlmRuntimeResponse(
-                binding.getName(),
+                binding.getPurpose(),
                 provider.getProviderType(),
                 provider.getBaseUrl(),
                 binding.getModel(),
