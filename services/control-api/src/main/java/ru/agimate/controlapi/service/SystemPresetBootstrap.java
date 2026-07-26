@@ -50,7 +50,8 @@ public class SystemPresetBootstrap {
             "astrologer",
             "platform-admin",
             "home-accountant",
-            "health-diary");
+            "health-diary",
+            "coder");
 
     private final AgentPresetRepository agentPresetRepository;
     private final SkillRepository skillRepository;

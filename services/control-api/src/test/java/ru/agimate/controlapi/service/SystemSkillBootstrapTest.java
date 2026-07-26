@@ -8,8 +8,10 @@ import ru.agimate.controlapi.service.seed.ContentLanguage;
 import ru.agimate.controlapi.service.seed.SeedContentLocator;
 import ru.agimate.controlapi.util.SkillFrontmatterParser;
 
+import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,6 +24,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @DisplayName("SystemSkillBootstrap — все системные SKILL.md парсятся во всех языках")
 class SystemSkillBootstrapTest {
+
+    /**
+     * Скилы без коннекторов: инструкция к тулам, которые приносит prompt-канал
+     * ({@code ChannelHandler.contributesPromptTools}), а не скилл-гейт. Объявить такой коннектор в
+     * скилле было бы хуже, чем не объявлять: привязка выдала бы его тулы и в остальных каналах, где
+     * они всегда падают. Для всех прочих скилов пустой список — опечатка.
+     */
+    private static final Set<String> CONNECTORLESS_SKILLS = Set.of("acp");
 
     static Stream<Arguments> languageAndCode() {
         return Stream.of(ContentLanguage.values()).flatMap(language ->
@@ -39,7 +49,8 @@ class SystemSkillBootstrapTest {
         assertFalse(parsed.name().isBlank(), "name");
         assertFalse(parsed.description().isBlank(), "description");
         assertFalse(parsed.body().isBlank(), "body");
-        assertFalse(parsed.connectors().isEmpty(), "connectors");
+        assertEquals(CONNECTORLESS_SKILLS.contains(code), parsed.connectors().isEmpty(),
+                "connectors: пустой список допустим только у " + CONNECTORLESS_SKILLS);
         assertTrue(parsed.connectors().stream().noneMatch(String::isBlank), "blank connector code");
     }
 

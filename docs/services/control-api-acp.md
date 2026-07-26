@@ -83,6 +83,14 @@ id `srv-N` и возвращает `CompletableFuture`; ответ клиент�
 мимо скилл-гейта). Требуют клиентских capabilities из `initialize`
 (`fs.readTextFile`/`fs.writeTextFile`/`terminal`).
 
+**Сид-контент**: системный скилл `acp` (инструкция «как работать из IDE») и пресет `coder`
+(«Программист», `skills: [acp, persist-memory]`) — `resources/seed/<lang>/`. Скилл объявляет
+`connectors: []` **намеренно**: тулы приносит prompt-канал, а `connectors: [acp]` привязало бы
+acp-connection к агенту и выдало бы `read_file`/`write_file`/`run_command` во всех каналах, где они
+гарантированно падают (`SystemSkillBootstrapTest.CONNECTORLESS_SKILLS`). Состав тулов до подключения
+IDE неизвестен (session-scoped MCP), поэтому скилл учит смотреть список тулов рана, а не перечисляет
+их как данность.
+
 **Обрыв IDE = валидный error tool-result** (не зависание): нет живого соединения / нет capability /
 таймаут / отказ пользователя → `ConnectorException` → запись `error` в `tool_call_logs` → воркер
 отдаёт модели `isError`-результат, ран продолжается без IDE. «Соединение оборвано» и «capability

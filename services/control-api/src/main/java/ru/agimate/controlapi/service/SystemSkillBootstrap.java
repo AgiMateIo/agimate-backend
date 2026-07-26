@@ -51,7 +51,8 @@ public class SystemSkillBootstrap {
             "divination",
             "media",
             "platform",
-            "sheets");
+            "sheets",
+            "acp");
 
     private final SkillRepository skillRepository;
     private final SeedContentLocator seedContentLocator;
