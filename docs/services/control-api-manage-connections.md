@@ -366,6 +366,57 @@ Each entry is a `ConnectorJobResponse`. `kind`: `SYSTEM` (declared by the connec
 
 ---
 
+### GET `/control/manage/connections/{connectionId}/agents/`
+
+List the agents this connection is bound to (`agent_connections` rows) — the reverse of `GET /control/manage/agents/{agentId}/connections/`. Use it before disabling, re-keying or deleting an instance to see who it will affect.
+
+This is a **usage inventory**, so disabled agents are included. It is not the list of agents that would actually receive a trigger from this connection — that additionally requires the agent and the connection to be enabled and passes through ABAC (`effect` / `params_filter`).
+
+Ordered by binding creation time. Bindings whose agent has been soft-deleted are omitted.
+
+**Path parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `connectionId` | `UUID` | Connection public ID |
+
+**Response `200`:**
+```json
+{
+  "response": [
+    {
+      "id": "0190bb...",
+      "agentId": "038b756a-1d3c-8fda-b852-f4dc0ceb5c34",
+      "name": "Support agent",
+      "description": "Answers customer questions",
+      "enabled": true,
+      "createdAt": "2026-07-12T20:00:00"
+    }
+  ]
+}
+```
+
+Each entry is a `ConnectionAgentResponse`:
+
+| Field | Type | Nullable | Description |
+|-------|------|----------|-------------|
+| `id` | `UUID` | no | Binding ID (`agent_connections` row) — the key for policy endpoints |
+| `agentId` | `UUID` | no | Agent ID |
+| `name` | `string` | no | Agent name |
+| `description` | `string` | yes | Agent description |
+| `enabled` | `boolean` | no | Whether the agent is enabled |
+| `createdAt` | `datetime` | no | When the connection was bound to this agent (`yyyy-MM-dd'T'HH:mm:ss`) |
+
+Returns an empty list if no agent uses the connection.
+
+**Errors:**
+
+| Status | Condition |
+|--------|-----------|
+| 404 | Connection not found or not owned by caller |
+
+---
+
 ### POST `/control/manage/connections/{connectionId}/test`
 
 Validate a connection's credentials and, for MCP connections, synchronously reload the tool cache.
@@ -552,6 +603,14 @@ Returns only active Telegram connections — useful to populate a dropdown when 
 
 - **Known connector type:** `GET /control/manage/connectors/{code}/tools/` — no connection required, returns the static tool catalog.
 - **Specific connection instance (e.g., MCP):** `GET /control/manage/connections/{connectionId}/tools/` — returns the live tool set from the discovered cache.
+
+### Checking the blast radius before deleting or re-keying a connection
+
+```
+GET /control/manage/connections/{connectionId}/agents/
+```
+
+Lists every agent bound to the instance (disabled ones too) so the UI can warn "this will affect N agents" before `DELETE /control/manage/connections/{connectionId}` or a credential rotation.
 
 ### Testing and refreshing an MCP connection
 

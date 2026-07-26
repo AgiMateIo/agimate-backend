@@ -13,6 +13,7 @@ import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpConnectorService;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolDiscoveryService;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.controller.manage.dto.ConnectionAgentResponse;
 import ru.agimate.controlapi.controller.manage.dto.ConnectionResponse;
 import ru.agimate.controlapi.controller.manage.dto.ConnectionTestResponse;
 import ru.agimate.controlapi.controller.manage.dto.ConnectorJobResponse;
@@ -23,6 +24,7 @@ import ru.agimate.controlapi.controller.manage.dto.UpdateConnectionSecretRequest
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.service.ConnectorJobManageService;
+import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.connection.ConnectionService;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
 import ru.agimate.controlapi.service.trigger.TriggerDefinitionService;
@@ -39,6 +41,7 @@ public class ManageConnectionController {
     public static final String PATH = "/manage/connections";
 
     private final ConnectionService connectionService;
+    private final ConnectionBindingService bindingService;
     private final ToolDefinitionService toolDefinitionService;
     private final TriggerDefinitionService triggerDefinitionService;
     private final ConnectorJobManageService connectorJobManageService;
@@ -148,6 +151,19 @@ public class ManageConnectionController {
         UUID userId = UUID.fromString(principal.id());
         connectionService.getOwnedConnection(connectionId, userId); // 404, если коннекшен чужой/не найден
         return SuccessResponse.ok(connectorJobManageService.getConnectionJobs(userId, connectionId));
+    }
+
+    @Operation(summary = "List agents this connection is bound to (who uses this instance). "
+            + "Includes disabled agents — it is a usage inventory, not the trigger recipient list")
+    @GetMapping("/{connectionId}/agents/")
+    public SuccessResponse<List<ConnectionAgentResponse>> listAgents(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID connectionId
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(bindingService.listForConnection(userId, connectionId).stream()
+                .map(ConnectionAgentResponse::from)
+                .toList());
     }
 
     @Operation(summary = "Test a connection: validate credentials (all types) and reload tools (MCP)")

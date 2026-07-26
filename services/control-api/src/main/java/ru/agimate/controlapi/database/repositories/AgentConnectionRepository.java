@@ -29,7 +29,11 @@ public interface AgentConnectionRepository extends JpaRepository<AgentConnection
             """)
     List<AgentConnection> findActiveByAgentId(@Param("agentId") UUID agentId);
 
-    @Query("SELECT ac FROM AgentConnection ac WHERE ac.connectionId = :connectionId AND ac.deletedAt IS NULL")
+    @Query("""
+            SELECT ac FROM AgentConnection ac
+            WHERE ac.connectionId = :connectionId AND ac.deletedAt IS NULL
+            ORDER BY ac.createdAt, ac.id
+            """)
     List<AgentConnection> findActiveByConnectionId(@Param("connectionId") UUID connectionId);
 
     /**

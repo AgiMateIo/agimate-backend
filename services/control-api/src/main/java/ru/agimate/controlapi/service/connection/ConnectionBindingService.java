@@ -131,6 +131,33 @@ public class ConnectionBindingService {
         return views;
     }
 
+    /** Binding вместе с его агентом — обратный листинг «кто использует экземпляр». */
+    public record ConnectionAgentView(AgentConnection binding, Agent agent) {}
+
+    /**
+     * Активные привязки connection с их агентами. Отключённые агенты остаются в выдаче: это
+     * инвентарь использования экземпляра (кого затронет удаление/смена кредов), а не список
+     * получателей триггера — там свой фильтр {@code AgentRepository.findBoundToConnection}.
+     */
+    public List<ConnectionAgentView> listForConnection(UUID userId, UUID connectionId) {
+        connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
+                .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
+        List<AgentConnection> bindings = agentConnectionRepository.findActiveByConnectionId(connectionId);
+        List<UUID> agentIds = bindings.stream().map(AgentConnection::getAgentId).toList();
+        Map<UUID, Agent> byId = agentIds.isEmpty() ? Map.of()
+                : agentRepository.findAllById(agentIds).stream()
+                        .collect(Collectors.toMap(Agent::getId, a -> a));
+        List<ConnectionAgentView> views = new ArrayList<>();
+        for (AgentConnection b : bindings) {
+            // Агента могли удалить мягко (@SQLRestriction его уже не отдаёт), binding при этом жив.
+            Agent agent = byId.get(b.getAgentId());
+            if (agent != null) {
+                views.add(new ConnectionAgentView(b, agent));
+            }
+        }
+        return views;
+    }
+
     /** Привязать внешний экземпляр и вернуть view (binding + connection) — для ответа manage-API. */
     @Transactional
     public AgentConnectionView bindAndView(UUID userId, UUID agentId, UUID connectionId) {
