@@ -34,53 +34,11 @@ Authentication service handling OAuth2 login, JWT token management, API key mana
 | `APP_OAUTH_FRONTEND_REDIRECT_URL` | Default frontend redirect URL after OAuth2 login     |
 | `APP_OAUTH_ALLOWED_REDIRECT_URLS` | Comma-separated whitelist for multi-domain redirects |
 
-## API Endpoints
+## API reference
 
-### User Management (JWT — `Authorization: Bearer <jwt>`)
-
-| Method | Path                      | Description                    |
-|--------|---------------------------|--------------------------------|
-| GET    | `/user/user/{id}`         | Get user by id                 |
-| GET    | `/user/user/me`           | Get current authenticated user (includes `role`) |
-
-`UserResponse` fields: `id`, `email`, `firstName`, `lastName`, `displayName`, `role`
-(`GUEST` \| `USER` \| `ADMIN`), `createdAt`, `updatedAt`. The frontend uses `role` to gate
-admin-only features; the backend still enforces access independently.
-
-### OAuth2 Authentication (Public)
-
-| Method | Path                      | Description                       |
-|--------|---------------------------|-----------------------------------|
-| POST   | `/user/oauth2/refresh`    | Refresh access token              |
-| POST   | `/user/oauth2/logout`     | Logout (invalidate refresh token) |
-
-### API Key Management (JWT — `Authorization: Bearer <jwt>`)
-
-| Method | Path                             | Description                                         |
-|--------|----------------------------------|-----------------------------------------------------|
-| GET    | `/user/manage/api-keys/`         | List all API keys for current user                  |
-| POST   | `/user/manage/api-keys/`         | Create new API key (full key shown only once)       |
-| PUT    | `/user/manage/api-keys/{keyId}`  | Update API key name, description, or enabled status |
-| DELETE | `/user/manage/api-keys/{keyId}`  | Delete API key                                      |
-
-### API Key Verification (Public)
-
-| Method | Path                    | Description                                         |
-|--------|-------------------------|-----------------------------------------------------|
-| POST   | `/user/api-keys/verify` | Verify API key validity (header `X-Api-Key`)        |
-
-### Waitlist (Public)
-
-| Method | Path             | Description                             |
-|--------|------------------|-----------------------------------------|
-| POST   | `/user/waitlist` | Submit a waitlist entry (email, name)   |
-
-### Public
-
-| Method | Path                  | Description                 |
-|--------|-----------------------|-----------------------------|
-| GET    | `/user/`              | Application info and uptime |
-| GET    | `/user/favicon.ico`   | Empty favicon               |
+Paths and schemas are generated from the code. See Swagger at **`/user/docs/ui`**
+(`develop` profile); the auth contour per group is in the [Authentication](#authentication)
+table above.
 
 ## Multi-domain OAuth2 Redirect
 

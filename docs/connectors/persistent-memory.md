@@ -47,11 +47,12 @@
 Реализация — `AgentContextGrpcService` (читает через `PersistentMemoryService`). Тулы `get_memory`/
 `get_memory_notes` при этом остаются — они нужны агенту при обработке триггера `consolidate`.
 
-## Включение на агента (per-agent jobs)
+## Джобы консолидации
 
-«Память включена» = у агента есть **ALLOW**-`AgentToolPolicy` на `connector_code = persist-memory`.
-`AgentToolPolicyService` издаёт generic `AgentToolPolicyChangedEvent`; `MemoryEnablementListener`
-перечитывает политики и транслирует в lifecycle экземпляра коннектора с `scope_id = agentId`:
-`ConnectorCreatedEvent` (есть ALLOW) или `ConnectorDeletedEvent` (нет). Дальше штатный
-`ConnectorIdentityListener` пишет/удаляет декларативные `@Job` (daily + consolidation) в
-`connector_jobs` на этого агента. Оба пути идемпотентны.
+Декларативные `@Job` (daily + consolidation) заводятся не на агента, а на **подключение**:
+`ConnectorIdentityListener` слушает `ConnectorCreatedEvent`/`ConnectorModifiedEvent`/
+`ConnectorDeletedEvent` и через `ConnectorJobService` пишет, синхронизирует и удаляет строки
+`connector_jobs` по ключу `(connectorCode, connectionId, userId)`. Все три пути идемпотентны.
+
+Доступ агента к тулам памяти решает ABAC — `AgentConnectionPolicy` с `kind = TOOL` на binding'е
+агента с коннектором `persist-memory`, дефолт-allow с уточняющими DENY.

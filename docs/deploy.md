@@ -181,9 +181,10 @@ cd ops
 docker compose --profile infra up -d
 ```
 
-Configuration file: `ops/centrifugo/config.json`. Centrifugo verifies the client tokens
-control-api signs with ES256, so `client.token.ecdsa_public_key` must hold the public half of
-the `JWT_PRIVATEKEY`/`JWT_PUBLICKEY` pair — `ops/generate-jwt-keys.sh` prints it in the right form.
+Configuration file: `ops/centrifugo/config.json`. control-api signs Centrifugo client tokens with
+`CENTRIFUGO_PRIVATEKEY` (ES256), so `client.token.ecdsa_public_key` must hold the matching
+`CENTRIFUGO_PUBLICKEY`. This is a pair of its own, independent of the user-JWT one —
+`ops/generate-jwt-keys.sh` generates it and prints the PEM form for the config.
 
 ### Ports
 

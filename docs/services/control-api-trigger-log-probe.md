@@ -21,59 +21,10 @@ Stateless-механизм полуавтоматического создани
 
 Распознавание происходит в `TriggerRouterService` через `JsonUtils.toJson(trigger.data()).contains("agm-probe-block-")`.
 
-## Endpoints
+## Эндпойнты
 
-### `POST /manage/trigger-logs/probe`
-
-Выдаёт probe-код.
-
-Request:
-```json
-{ "blockDelivery": true }
-```
-`blockDelivery` — опционально, default `true`.
-
-Response 200:
-```json
-{
-  "response": {
-    "code": "agm-probe-block-7f3kx9q2ab",
-    "issuedAt": "2026-05-12T14:33:01"
-  }
-}
-```
-
-UI должен запомнить `code` и `issuedAt`, и передавать `issuedAt` как `since` в `match`.
-
-### `GET /manage/trigger-logs/probe/match?code=...&since=...`
-
-Ищет первый `trigger_log` текущего пользователя, созданный начиная с `since`, у которого `input` содержит `code` (подстрочное совпадение).
-
-Параметры:
-- `code` — обязателен, должен соответствовать regex `^agm-probe-(block|pass)-[a-z0-9]{10}$`, иначе 400.
-- `since` — обязателен, ISO-8601 datetime.
-
-Response 200 (найдено):
-```json
-{
-  "response": {
-    "id": "<UUID>",
-    "connectorCode": "telegram",
-    "connectionId": "<UUID>",
-    "externalId": "...",
-    "name": "trigger.message.new",
-    "occurredAt": "2026-05-12T14:33:10",
-    "input": { ... raw JSONB ... },
-    "createdAt": "2026-05-12T14:33:11",
-    "agentsCount": 0
-  }
-}
-```
-
-Response 404 (ещё не сматчилось — UI продолжает поллить):
-```json
-{ "error": { "message": "No matching trigger log yet" } }
-```
+`POST /manage/trigger-logs/probe` и `GET /manage/trigger-logs/probe/match` — схемы в Swagger,
+`/control/docs/ui` (профиль `develop`).
 
 ## Поток (Channel discovery)
 

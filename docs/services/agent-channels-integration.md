@@ -19,9 +19,9 @@
 
 ## 2. Маршрутизация триггера — что меняется
 
-Цепочка стандартная: connector присылает trigger → `TriggerRouterService` → `AgentTriggerPolicy` → доставка агенту. После изменений добавлены два шага:
+Цепочка: connector присылает trigger → `TriggerRouterService` → `AgentConnectionPolicy` (`kind=TRIGGER`) → доставка агенту. В ней есть два дополнительных шага:
 
-1. **Filter check**. У `AgentTriggerPolicy` появилось поле `input_filter` (JSONB, пути типа `data.message.chat_id` → ожидаемое значение). Если у matched-policy фильтр задан и не сматчился по `trigger.data` — этой policy для этого триггера как будто нет. Это позволяет одному и тому же триггеру `telegram.trigger.message.new` маршрутизироваться к разным агентам в зависимости от `chat_id`.
+1. **Filter check**. У политики есть поле `params_filter` (JSONB, пути типа `data.message.chat_id` → ожидаемое значение), которое `TriggerRouterService` сверяет с `trigger.data` через `InputFilterEvaluator`. Если фильтр задан и не сматчился — этой policy для этого триггера как будто нет. Это позволяет одному и тому же триггеру `telegram.trigger.message.new` маршрутизироваться к разным агентам в зависимости от `chat_id`.
 2. **Channel inbound pipeline**. Если у выбранной ALLOW-policy есть `channel_id`, backend:
    - находит/создаёт активную `ChannelSession` (sliding window 12h);
    - извлекает текст по `channel.trigger_message_field` (dot-path в `trigger.data`);
@@ -276,7 +276,7 @@ Backend не присылает уведомление о закрытии се�
 - `config` обработчика — для `generic`: список `triggers`, `messageField` (dot-path до текста), reply-цель (`replyConnectionId`/`replyToolName`) и `replyToolParams` (шаблон),
 - опциональный `inputFilter` (фильтр по полям `trigger.data`).
 
-Подробнее: [`control-api-manage-channels.md`](control-api-manage-channels.md).
+Подробнее — OpenAPI, раздел `/control/manage/channels`.
 
 С точки зрения агента эти настройки прозрачны — он видит результат через payload триггера и через поведение `SendChannelMessage`.
 

@@ -39,7 +39,7 @@ control-api живёт за context-path `/control`, поэтому путь э�
       "command": "node",
       "args": ["/path/to/agimate-backend/clients/acp-bridge/index.js"],
       "env": {
-        "AGIMATE_API_KEY": "apik…",
+        "AGIMATE_API_KEY": "agnt…",
         "AGIMATE_URL": "wss://api.agimate.io/control/acp"
       }
     }
@@ -53,7 +53,7 @@ control-api живёт за context-path `/control`, поэтому путь э�
 
 ```bash
 cd clients/acp-bridge && npm install
-AGIMATE_URL=ws://localhost:8180/control/acp AGIMATE_API_KEY=apik… node index.js
+AGIMATE_URL=ws://localhost:8180/control/acp AGIMATE_API_KEY=agnt… node index.js
 {"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1}}
 {"jsonrpc":"2.0","id":2,"method":"session/new","params":{"cwd":"/tmp","mcpServers":[]}}
 {"jsonrpc":"2.0","id":3,"method":"session/prompt","params":{"sessionId":"<из ответа>","prompt":[{"type":"text","text":"привет!"}]}}

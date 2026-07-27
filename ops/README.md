@@ -44,14 +44,18 @@ User `agimate`, password `agimate_dev_password`. To recreate from scratch:
 
 ## Keys
 
+The stack needs **two independent** ES256 pairs, so run the generator twice:
+
 ```bash
-./generate-jwt-keys.sh
+./generate-jwt-keys.sh   # → JWT_PRIVATEKEY / JWT_PUBLICKEY          (user auth)
+./generate-jwt-keys.sh   # → CENTRIFUGO_PRIVATEKEY / CENTRIFUGO_PUBLICKEY
 ```
 
-Prints three values: `JWT_PRIVATEKEY` and `JWT_PUBLICKEY` for `services/.env`, plus the same
-public key in PEM form for `client.token.ecdsa_public_key` in `ops/centrifugo/config.json`.
-Centrifugo verifies the client tokens control-api signs (ES256), so the two must come from the
-same key pair — the config ships with a `REPLACE_WITH_JWT_PUBLIC_KEY` placeholder.
+Both pairs go into `services/.env`. For the second one the script also prints the public key in
+PEM form: it goes into `client.token.ecdsa_public_key` in `ops/centrifugo/config.json`, because
+control-api signs Centrifugo client tokens with `CENTRIFUGO_PRIVATEKEY` and Centrifugo verifies
+them with that public half. The config ships with a `REPLACE_WITH_CENTRIFUGO_PUBLIC_KEY`
+placeholder.
 
 Every other value in `ops/centrifugo/config.json` is a local-development placeholder
 (`dev_api_key`, `dev_admin_password`). Do not reuse them anywhere reachable.

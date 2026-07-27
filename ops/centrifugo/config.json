@@ -1,7 +1,7 @@
 {
   "client": {
     "token": {
-      "ecdsa_public_key": "-----BEGIN PUBLIC KEY-----\nREPLACE_WITH_JWT_PUBLIC_KEY\n-----END PUBLIC KEY-----"
+      "ecdsa_public_key": "-----BEGIN PUBLIC KEY-----\nREPLACE_WITH_CENTRIFUGO_PUBLIC_KEY\n-----END PUBLIC KEY-----"
     },
     "allowed_origins": ["*"]
   },

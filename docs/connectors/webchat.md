@@ -2,7 +2,7 @@
 
 Чат пользователя с агентом из собственного фронта (аналог Telegram-канала, но платформа — наш UI).
 Internal-коннектор без тулов и джоб: входящие приходят REST'ом (`/manage/webchat/**`, см.
-`docs/services/control-api-manage-webchat.md`), исходящие доставляются на фронт через Centrifugo.
+OpenAPI, `/control/manage/webchat`), исходящие доставляются на фронт через Centrifugo.
 
 ## Модель
 

@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 /**
  * Метаданные файла, загруженного пользователем для webchat-сообщения. {@code fileId} — ключ,
- * который фронт кладёт в {@code parts} при отправке (docs/services/control-api-manage-webchat.md).
+ * который фронт кладёт в {@code parts} при отправке (OpenAPI, /control/manage/webchat).
  */
 @Schema(description = "Uploaded webchat file metadata")
 public record WebchatFileResponse(

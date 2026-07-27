@@ -4,3 +4,6 @@
 .agent
 /amplicode.xml
 data
+
+# Рабочие черновики спецификаций — не публикуются
+docs/tmpspec/

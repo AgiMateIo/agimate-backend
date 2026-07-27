@@ -361,7 +361,7 @@ Crash recovery — по истечении `lease_until` строку подхв
 пересинк деклараций паузу тоже не сбрасывает.
 
 Пользовательское управление — `/manage/connector-jobs/**` (list, pause/resume, delete для
-USER/AGENT; см. `docs/services/control-api-manage-connector-jobs.md`). Lifecycle-чистки: удаление
+USER/AGENT; схемы — в OpenAPI, `/control/manage/connector-jobs`). Lifecycle-чистки: удаление
 агента сносит все его задачи (`deleteByAgentId`); тула `time.cancel_scheduled` удаляет только
 `kind = AGENT` — задачу, созданную пользователем для агента, тулой отменить нельзя.
 

@@ -19,9 +19,9 @@
 
 - Запись в таблице `connectors` через Liquibase: `code='mail'`, `type=INTEGRATION`, `credential_fields=[...]`.
 - Новый Handler `connectors/integrations/mail/MailConnectorService.java implements IntegrationConnectorHandler extends BaseConnectorHandler` по образцу `TelegramConnectorService` (`services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/telegram/TelegramConnectorService.java`). Регистрация в `ConnectorRegistry` происходит автоматически через `@Component`.
-- Шифрование секретов уже работает «из коробки»: `IntegrationEncryptionService` (AES-GCM) кладёт credentials в `integration_credentials.encrypted_data`. Никаких новых таблиц не требуется.
+- Шифрование секретов уже работает «из коробки»: `SecretEncryptionService` (AES-GCM) кладёт credentials в `integration_credentials.encrypted_data`. Никаких новых таблиц не требуется.
 - REST API расширять не нужно: эндпоинты `/manage/integrations/credentials/*` универсальны, набор полей диктуется методом `getCredentialFields()` хендлера.
-- Push vs Pull: телеграм поддерживает webhook или polling. Почта IMAP — pull-only, поэтому `supportsWebhooks() = false`. Для подписки на новые письма — отдельный poller-сервис (по образцу `TelegramPollingService`), либо вообще не делать push, а ограничиться tool `mail.fetch_recent`.
+- Push vs Pull: телеграм поддерживает webhook или polling. Почта IMAP — pull-only, поэтому `supportsWebhooks() = false`. Для подписки на новые письма — отдельный poller-сервис (по образцу telegram-поллера в `TelegramToolService`), либо вообще не делать push, а ограничиться tool `mail.fetch_recent`.
 
 ## Получение креденшелов от пользователя — три варианта
 
@@ -91,7 +91,7 @@ Credentials fields: `["email", "password"]` + опционально `["imap_hos
 
 Если нужны триггеры (как `telegram.message_received`), у IMAP два подхода:
 
-- **Polling**: раз в N секунд для каждой включённой mail-интеграции дергаем UID-and-newer-than-last-seen. Простой, понятный, дёшево сделать по аналогии с `TelegramPollingService`. Хранить `last_seen_uid` в `integration_credentials.encrypted_data` или в отдельной колонке.
+- **Polling**: раз в N секунд для каждой включённой mail-интеграции дергаем UID-and-newer-than-last-seen. Простой, понятный, дёшево сделать по аналогии с telegram-поллером в `TelegramToolService`. Хранить `last_seen_uid` в `integration_credentials.encrypted_data` или в отдельной колонке.
 - **IMAP IDLE**: висим на сокете и получаем push от сервера. Эффективнее, но один поток на интеграцию — для 1000 пользователей не зайдёт без отдельного воркера/перебалансировки. Для MVP не делаем.
 
 Если триггеры на старте не нужны (только tools sending/reading) — можно вообще ничего не делать с `normalizeInbound`, `getPredefinedTriggers` и polling. Это сильно меньше кода.
@@ -115,8 +115,8 @@ Credentials fields: `["email", "password"]` + опционально `["imap_hos
 
 - `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/telegram/TelegramHandler.java` — образец Handler-а.
 - `services/control-api/src/main/java/ru/agimate/controlapi/connectors/core/BaseConnectorHandler.java` — базовый класс.
-- `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/IntegrationEncryptionService.java` — AES-GCM шифрование credentials.
+- `services/control-api/src/main/java/ru/agimate/controlapi/service/secret/SecretEncryptionService.java` — AES-GCM шифрование credentials.
 - `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/IntegrationsRegistry.java` — авто-регистрация хендлеров.
 - `services/control-api/src/main/java/ru/agimate/controlapi/database/entities/Connector.java` — сущность коннектора.
 - `services/control-api/src/main/java/ru/agimate/controlapi/database/entities/IntegrationCredentials.java` — сущность credentials.
-- `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/telegram/TelegramPollingService.java` — образец poller-а на случай триггеров.
+- `services/control-api/src/main/java/ru/agimate/controlapi/connectors/integrations/telegram/TelegramToolService.java` — образец poller-а на случай триггеров.

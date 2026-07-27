@@ -2,7 +2,7 @@
 
 Реализация agent-side [Agent Client Protocol](https://agentclientprotocol.com) (ACP от Zed —
 JSON-RPC 2.0; не путать с Agent Communication Protocol из
-[acp-review-backen.md](../acp-review-backen.md)). Позволяет разговаривать с агентом из Zed и
+[acp-review-backend.md](../acp-review-backend.md)). Позволяет разговаривать с агентом из Zed и
 других ACP-клиентов.
 
 ## Транспорт и подключение
@@ -167,7 +167,7 @@ in-memory) — ран доработает, его ответ придёт ка�
 `{stopReason}` для того prompt-запроса Zed не получит; лечится cancel/новым сообщением.
 
 Roadmap-развитие (durable-доступ к MCP во всех каналах, эффекты политик `ASK`/`LLM_DECISION`,
-`channelOnly`-коннекторы) — см. `docs/ABAC.md` §10 и `docs/connectors/architecture.md`.
+`channelOnly`-коннекторы) — см. `docs/connectors/architecture.md`.
 
 **Бюджеты** (под worker poll-timeout `agent.tool.poll-timeout`, дефолт 60s): fs — 25s, подтверждение —
 30s, `wait_for_exit` — 45s (по таймауту — `kill` + `release` + частичный вывод с `timedOut: true`).
