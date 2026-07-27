@@ -4,8 +4,10 @@ import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
+import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
 import ru.agimate.controlapi.service.channel.handler.AcpChannelHandler;
@@ -37,7 +39,10 @@ import java.util.UUID;
  */
 @Component
 public class AcpConnectorService extends BaseConnectorHandler
-        implements InternalConnectorHandler, TriggerProvider {
+        implements InternalConnectorHandler, TriggerProvider, PromptBlockProvider {
+
+    /** Тег SYSTEM-блока с корнем проекта текущей IDE-сессии. */
+    private static final String IDE_SESSION_BLOCK = "ide_session";
 
     private final AcpToolService acpToolService;
     private final AcpSessionRegistry sessionRegistry;
@@ -72,6 +77,26 @@ public class AcpConnectorService extends BaseConnectorHandler
             return super.executeTool(env, toolName, args);
         }
         return acpToolService.callMcpTool(env.sessionId(), toolName, args);
+    }
+
+    /**
+     * Корень проекта, открытого в IDE (ACP {@code cwd} сессии). Без него агент не знает, где
+     * лежит проект: {@code read_file}/{@code write_file} принимают только абсолютные пути, и взять
+     * их было бы неоткуда. Блок появляется только когда ран идёт из живой IDE-сессии — для
+     * веб-чата и триггеров {@code sessionId} чужой и в реестре его нет.
+     */
+    @Override
+    public List<PromptBlock> promptBlocks(ConnectorEnv env) {
+        UUID sessionId = env.sessionId();
+        if (sessionId == null) {
+            return List.of();
+        }
+        String cwd = sessionRegistry.cwd(sessionId);
+        if (cwd == null) {
+            return List.of();
+        }
+        return List.of(PromptBlock.system(IDE_SESSION_BLOCK,
+                "Project root open in the user's IDE: " + cwd, Map.of()));
     }
 
     @Override

@@ -46,8 +46,8 @@ ACP-требованием «один активный prompt на сессию�
 | Метод | Поведение |
 |---|---|
 | `initialize` | `{protocolVersion: 1, agentCapabilities: {loadSession: true}, authMethods: []}` |
-| `session/new` | binding+канал find-or-create, новая `channel_sessions`-строка → `{sessionId}`; `cwd`/`mcpServers` игнорируются |
-| `session/load` | реплей истории из `channel_session_messages` нотификациями `session/update` (INBOUND → `user_message_chunk`, ANSWER → `agent_message_chunk`), PROGRESS не реплеится |
+| `session/new` | binding+канал find-or-create, новая `channel_sessions`-строка → `{sessionId}`; `cwd` кладётся в registry как корень сессии, `mcpServers` мост забирает себе (наверх идёт `_agimateMcp`) |
+| `session/load` | реплей истории из `channel_session_messages` нотификациями `session/update` (INBOUND → `user_message_chunk`, ANSWER → `agent_message_chunk`), PROGRESS не реплеится; `cwd` — как в `session/new` |
 | `session/prompt` | text-блоки склеиваются → триггер-пайплайн; ответ асинхронный: rpc-id висит в registry до ANSWER (`{stopReason: "end_turn"}`) или ERROR (JSON-RPC error `-32000`) |
 | `session/cancel` | мягкий: отпускает клиента (`stopReason: "cancelled"`), ран доработает, ответ останется в истории |
 
@@ -72,6 +72,24 @@ WebSocket ACP-сессии (клиент — Zed). Это связывает д�
 | `read_file(path, line?, limit?)` | `fs/read_text_file` | нет | readOnly, openWorld |
 | `write_file(path, content)` | `session/request_permission` → `fs/write_text_file` | да | destructive, openWorld |
 | `run_command(command, args?, cwd?)` | permission → `terminal/create` → `wait_for_exit` → `output` → `release` | да | destructive, openWorld |
+
+### Корень проекта (`cwd`)
+
+`cwd` из `session/new`/`session/load` живёт в `AcpSessionRegistry` рядом с capabilities: он приходит
+при каждой привязке сессии, а тулы работают только при живом соединении — персистить нечего.
+Относительный или пустой `cwd` трактуется как «не прислали».
+
+Он нужен в двух местах:
+
+- `run_command` без явного `cwd` подставляет корень сессии. Без подстановки `terminal/create` уходит
+  без `cwd`, спека дефолт не определяет, и клиент выбирает свой — у Zed это домашняя директория,
+  а не проект пользователя.
+- `AcpConnectorService` (`PromptBlockProvider`) отдаёт SYSTEM-блок `ide_session` с путём проекта:
+  `read_file`/`write_file` принимают только абсолютные пути, и взять их агенту иначе неоткуда.
+  Блок появляется только когда prompt-сессия рана есть в registry, то есть разговор идёт из IDE.
+
+После реконнекта моста `cwd` возвращается вместе с `mcpTools` в `_agimate/restore` — мост помнит
+состояние каждой сессии независимо от того, поднимал ли он для неё MCP-серверы.
 
 **Транспорт**: `AcpSessionRegistry.request(sessionId, method, params)` шлёт server→client запрос с
 id `srv-N` и возвращает `CompletableFuture`; ответ клиента (фрейм без `method`, с `id`) роутится в
@@ -136,9 +154,10 @@ MCP-серверы, подключённые пользователем в IDE (
 состояние сервера:
 
 1. реплеит `initialize` со спец-id (`bridge-init-N`), ответ глотает — IDE его не ждала;
-2. шлёт нотификацию **`_agimate/restore`** `{sessions: [{sessionId, mcpTools}]}` — сервер для
+2. шлёт нотификацию **`_agimate/restore`** `{sessions: [{sessionId, mcpTools, cwd}]}` — сервер для
    каждой сессии проверяет владение (`AcpService.assertOwned`), заново привязывает её к
-   соединению и кладёт MCP-тулы. Чужие/несуществующие сессии молча скипаются (лог-warn).
+   соединению, возвращает корень проекта и кладёт MCP-тулы. Чужие/несуществующие сессии молча
+   скипаются (лог-warn).
 
 Локальные MCP-серверы при этом живут в мосте непрерывно — не перезапускаются. `401/403` на
 handshake — фатально сразу (ключ не станет валидным от ретраев), мост выходит с кодом 2.

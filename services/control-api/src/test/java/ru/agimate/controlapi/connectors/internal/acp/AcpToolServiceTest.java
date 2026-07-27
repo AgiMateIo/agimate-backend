@@ -6,11 +6,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry.ClientCapabilities;
 
@@ -19,6 +21,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -192,6 +195,66 @@ class AcpToolServiceTest {
         }
 
         @Test
+        @DisplayName("модель не задала cwd → команда уходит в корень проекта сессии, а не в дефолт клиента")
+        void defaultsToSessionRoot() {
+            terminalHappyPath();
+            when(registry.cwd(SESSION_ID)).thenReturn("/home/u/project");
+
+            handler.executeTool(env(), "run_command", Map.of("command", "ls"));
+
+            assertEquals("/home/u/project", createParams().get("cwd"));
+        }
+
+        @Test
+        @DisplayName("явный cwd от модели побеждает корень сессии")
+        void explicitCwdWins() {
+            terminalHappyPath();
+
+            handler.executeTool(env(), "run_command",
+                    Map.of("command", "ls", "cwd", "/home/u/project/sub"));
+
+            assertEquals("/home/u/project/sub", createParams().get("cwd"));
+            verify(registry, never()).cwd(any());
+        }
+
+        @Test
+        @DisplayName("клиент не дал корня и модель тоже → terminal/create без cwd (решает клиент)")
+        void noRootNoCwd() {
+            terminalHappyPath();
+            when(registry.cwd(SESSION_ID)).thenReturn(null);
+
+            handler.executeTool(env(), "run_command", Map.of("command", "ls"));
+
+            assertFalse(createParams().containsKey("cwd"));
+        }
+
+        @Test
+        @DisplayName("относительный cwd отклоняется до подтверждения и создания терминала")
+        void relativeCwdRejected() {
+            when(registry.capabilities(SESSION_ID)).thenReturn(FULL);
+
+            assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "run_command",
+                    Map.of("command", "ls", "cwd", "sub/dir")));
+            verify(registry, never()).request(any(), any(), any());
+        }
+
+        private void terminalHappyPath() {
+            when(registry.capabilities(SESSION_ID)).thenReturn(FULL);
+            allowPermission();
+            stub("terminal/create", reply("{\"terminalId\":\"t1\"}"));
+            stub("terminal/wait_for_exit", reply("{\"exitCode\":0}"));
+            stub("terminal/output", reply("{\"output\":\"ok\",\"exitStatus\":{\"exitCode\":0}}"));
+            stub("terminal/release", reply("null"));
+        }
+
+        @SuppressWarnings("unchecked")
+        private Map<String, Object> createParams() {
+            ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
+            verify(registry).request(eq(SESSION_ID), eq("terminal/create"), captor.capture());
+            return captor.getValue();
+        }
+
+        @Test
         @DisplayName("IDE отключилась (request бросает) → ConnectorException")
         void ideDisconnected() {
             when(registry.capabilities(SESSION_ID)).thenReturn(FULL);
@@ -275,6 +338,41 @@ class AcpToolServiceTest {
 
             assertTrue(tools.containsKey("read_file"));
             assertTrue(tools.containsKey(TOOL));
+        }
+    }
+
+    @Nested
+    @DisplayName("промпт-блок корня проекта")
+    class Blocks {
+
+        @Test
+        @DisplayName("живая IDE-сессия с корнем → SYSTEM-блок с путём проекта")
+        void rootBlock() {
+            when(registry.cwd(SESSION_ID)).thenReturn("/home/u/project");
+
+            var blocks = handler.promptBlocks(env());
+
+            assertEquals(1, blocks.size());
+            assertEquals(PromptBlock.Placement.SYSTEM, blocks.getFirst().placement());
+            assertTrue(blocks.getFirst().content().contains("/home/u/project"));
+        }
+
+        @Test
+        @DisplayName("ран не из IDE (нет sessionId) → блока нет, реестр не трогаем")
+        void noSessionNoBlock() {
+            ConnectorEnv webchat = new ConnectorEnv(
+                    "conn", UUID.randomUUID(), UUID.randomUUID(), null, null, null, Map.of(), null);
+
+            assertTrue(handler.promptBlocks(webchat).isEmpty());
+            verify(registry, never()).cwd(any());
+        }
+
+        @Test
+        @DisplayName("сессия чужая/мертвая (корня в реестре нет) → блока нет")
+        void unknownSessionNoBlock() {
+            when(registry.cwd(SESSION_ID)).thenReturn(null);
+
+            assertTrue(handler.promptBlocks(env()).isEmpty());
         }
     }
 }

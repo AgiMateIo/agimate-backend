@@ -50,7 +50,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("привязанная сессия получает нотификацию session/update")
         void deliversNotification() {
-            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE, null);
             registry.sendUpdate(SESSION_ID, Map.of("sessionUpdate", "agent_message_chunk"));
 
             assertEquals(1, client.frames.size());
@@ -73,7 +73,7 @@ class AcpSessionRegistryTest {
         void sendFailureSwallowed() {
             registry.attach(SESSION_ID, frame -> {
                 throw new RuntimeException("socket closed");
-            }, AcpSessionRegistry.ClientCapabilities.NONE);
+            }, AcpSessionRegistry.ClientCapabilities.NONE, null);
             registry.sendUpdate(SESSION_ID, Map.of("sessionUpdate", "agent_message_chunk"));
         }
     }
@@ -85,7 +85,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("completePrompt отвечает на зарегистрированный rpc-id и снимает pending")
         void completeSendsResult() {
-            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE, null);
             registry.registerPrompt(SESSION_ID, 42);
 
             assertTrue(registry.completePrompt(SESSION_ID, AcpSessionRegistry.STOP_END_TURN));
@@ -100,7 +100,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("failPrompt отвечает JSON-RPC ошибкой")
         void failSendsError() {
-            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE, null);
             registry.registerPrompt(SESSION_ID, "req-1");
 
             assertTrue(registry.failPrompt(SESSION_ID, -32000, "boom"));
@@ -114,7 +114,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("второй prompt при незавершённом первом — IllegalStateException")
         void doublePromptRejected() {
-            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE, null);
             registry.registerPrompt(SESSION_ID, 1);
             assertThrows(IllegalStateException.class, () -> registry.registerPrompt(SESSION_ID, 2));
         }
@@ -135,8 +135,8 @@ class AcpSessionRegistryTest {
         void removesOnlyOwnSessions() {
             RecordingClient other = new RecordingClient();
             UUID otherSession = UUID.randomUUID();
-            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
-            registry.attach(otherSession, other, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE, null);
+            registry.attach(otherSession, other, AcpSessionRegistry.ClientCapabilities.NONE, null);
 
             registry.detachAll(client);
 
@@ -157,7 +157,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("request шлёт JSON-RPC запрос; handleResponse завершает future результатом")
         void requestResolvedByResponse() throws Exception {
-            registry.attach(SESSION_ID, client, FULL);
+            registry.attach(SESSION_ID, client, FULL, null);
             CompletableFuture<JsonNode> future =
                     registry.request(SESSION_ID, "fs/read_text_file", Map.of("path", "/a"));
 
@@ -174,7 +174,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("handleResponse с error завершает future исключением")
         void errorResponseFailsFuture() {
-            registry.attach(SESSION_ID, client, FULL);
+            registry.attach(SESSION_ID, client, FULL, null);
             CompletableFuture<JsonNode> future = registry.request(SESSION_ID, "fs/write_text_file", Map.of());
             String id = (String) client.frames.get(0).get("id");
 
@@ -194,7 +194,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("обрыв соединения завершает висящие запросы ошибкой")
         void detachFailsPendingRequests() {
-            registry.attach(SESSION_ID, client, FULL);
+            registry.attach(SESSION_ID, client, FULL, null);
             CompletableFuture<JsonNode> future = registry.request(SESSION_ID, "terminal/create", Map.of());
 
             registry.detachAll(client);
@@ -206,7 +206,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("capabilities возвращает объявленные клиентом флаги")
         void capabilitiesStored() {
-            registry.attach(SESSION_ID, client, FULL);
+            registry.attach(SESSION_ID, client, FULL, null);
             assertTrue(registry.capabilities(SESSION_ID).fsWrite());
             assertTrue(registry.capabilities(UUID.randomUUID()) == AcpSessionRegistry.ClientCapabilities.NONE);
         }
@@ -223,7 +223,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("putMcpTools кладёт спеки и ссылки, доступные по имени")
         void storeAndLookup() {
-            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE, null);
             registry.putMcpTools(SESSION_ID, Map.of("srv__t", spec),
                     Map.of("srv__t", new AcpSessionRegistry.McpToolRef("srv", "t")));
 
@@ -236,7 +236,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("detach чистит MCP-тулы сессии")
         void clearedOnDetach() {
-            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE, null);
             registry.putMcpTools(SESSION_ID, Map.of("srv__t", spec),
                     Map.of("srv__t", new AcpSessionRegistry.McpToolRef("srv", "t")));
 
@@ -249,7 +249,7 @@ class AcpSessionRegistryTest {
         @Test
         @DisplayName("пустой список — чистка (нет MCP-серверов в сессии)")
         void emptyClears() {
-            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE);
+            registry.attach(SESSION_ID, client, AcpSessionRegistry.ClientCapabilities.NONE, null);
             registry.putMcpTools(SESSION_ID, Map.of(), Map.of());
             assertTrue(registry.mcpToolSpecs(SESSION_ID).isEmpty());
         }

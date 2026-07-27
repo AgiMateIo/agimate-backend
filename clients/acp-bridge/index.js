@@ -29,9 +29,8 @@ const log = (msg) => process.stderr.write(`agimate-acp: ${msg}\n`);
 
 // ── состояние для восстановления после реконнекта ───────────────────────────
 let initFrame = null;                 // последний initialize от IDE (реплеим на реконнекте)
-let lastMcpTools = [];                // агрегированный список [{server, tool}] последнего дискавери
-const knownSessions = new Map();      // sessionId -> mcpTools этой сессии
-const pendingSessionNew = new Map();  // rpc-id session/new -> mcpTools (ждём sessionId из ответа)
+const knownSessions = new Map();      // sessionId -> {mcpTools, cwd} этой сессии
+const pendingSessionNew = new Map();  // rpc-id session/new -> {mcpTools, cwd} (ждём sessionId из ответа)
 const swallowIds = new Set();         // id реплеев — их ответы IDE не отдаём
 
 // ── соединение с реконнектом ────────────────────────────────────────────────
@@ -58,7 +57,7 @@ const restoreServerState = () => {
   }
   if (knownSessions.size > 0) {
     const sessions = [...knownSessions.entries()]
-      .map(([sessionId, mcpTools]) => ({ sessionId, mcpTools }));
+      .map(([sessionId, state]) => ({ sessionId, mcpTools: state.mcpTools, cwd: state.cwd }));
     ws.send(JSON.stringify({ jsonrpc: '2.0', method: '_agimate/restore', params: { sessions } }));
     log(`restored ${sessions.length} session(s) after reconnect`);
   }
@@ -204,16 +203,20 @@ const handleFromIde = async (line) => {
     // Конфиги MCP-серверов (command/env с токенами) — секреты этой машины: серверу они не
     // нужны и не должны уезжать с фреймом. Наверх идёт только список тулов (_agimateMcp).
     if (frame.params?.mcpServers !== undefined) delete frame.params.mcpServers;
+    let mcpTools = [];
     if (servers.length > 0) {
       await closeMcpServers(); // на реконнекте/повторе — переподнять
-      lastMcpTools = await startMcpServers(servers);
-      log(`MCP discovery: ${lastMcpTools.length} tool(s) from ${mcpClients.size} server(s)`);
-      frame.params._agimateMcp = lastMcpTools;
-      if (frame.method === 'session/load' && frame.params.sessionId) {
-        knownSessions.set(frame.params.sessionId, lastMcpTools);
-      } else if (frame.id !== undefined) {
-        pendingSessionNew.set(String(frame.id), lastMcpTools); // sessionId узнаем из ответа
-      }
+      mcpTools = await startMcpServers(servers);
+      log(`MCP discovery: ${mcpTools.length} tool(s) from ${mcpClients.size} server(s)`);
+      frame.params._agimateMcp = mcpTools;
+    }
+    // Сессию запоминаем всегда, а не только при наличии MCP-серверов: в restore едет ещё и cwd
+    // (корень проекта), без которого сервер после реконнекта потеряет рабочую директорию сессии.
+    const state = { mcpTools, cwd: frame.params?.cwd };
+    if (frame.method === 'session/load' && frame.params.sessionId) {
+      knownSessions.set(frame.params.sessionId, state);
+    } else if (frame.id !== undefined) {
+      pendingSessionNew.set(String(frame.id), state); // sessionId узнаем из ответа
     }
     sendToServer(JSON.stringify(frame));
     return;
@@ -235,9 +238,9 @@ const handleFromServer = (text) => {
   }
   // Ответ на session/new — запоминаем sessionId для restore после реконнекта.
   if (frame.id !== undefined && pendingSessionNew.has(String(frame.id))) {
-    const tools = pendingSessionNew.get(String(frame.id));
+    const state = pendingSessionNew.get(String(frame.id));
     pendingSessionNew.delete(String(frame.id));
-    if (frame.result?.sessionId) knownSessions.set(frame.result.sessionId, tools);
+    if (frame.result?.sessionId) knownSessions.set(frame.result.sessionId, state);
   }
   process.stdout.write(text + '\n');
 };

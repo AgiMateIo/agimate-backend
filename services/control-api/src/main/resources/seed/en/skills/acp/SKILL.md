@@ -20,7 +20,7 @@ Outside an IDE conversation (web chat, a trigger firing) you have no files and n
 
 ## Files
 
-- Paths must be absolute.
+- Paths must be absolute. The root of the open project is given to you in the conversation context — build paths from it instead of guessing.
 - `write_file` **replaces the whole file**: read it first, then write the full new content. Never reconstruct a file from memory of what was in it.
 - One call, one file, and only what was asked for.
 

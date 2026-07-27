@@ -102,17 +102,20 @@ public class AcpToolService {
 
     @Tool(name = "run_command",
             description = "Run a shell command in the user's IDE terminal and return its output and exit code. "
-                    + "Requires user confirmation. Long-running commands may time out.",
+                    + "Requires user confirmation. Long-running commands may time out. "
+                    + "Runs in the project root unless an absolute working directory is given.",
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = true))
     public Map<String, Object> runCommand(
             @ToolParam("Command to execute") String command,
             @ToolParam(value = "Command arguments", required = false) List<String> args,
-            @ToolParam(value = "Absolute working directory", required = false) String cwd) {
+            @ToolParam(value = "Absolute working directory; defaults to the project root",
+                    required = false) String cwd) {
         UUID sessionId = requireLiveSession();
         requireCapability(caps(sessionId).terminal(), "run commands");
         if (command == null || command.isBlank()) {
             throw new ConnectorException("command is required");
         }
+        String effectiveCwd = effectiveCwd(sessionId, cwd);
         String title = "Run: " + command + (args == null || args.isEmpty() ? "" : " " + String.join(" ", args));
         requirePermission(sessionId, "run_command", title, "execute");
 
@@ -122,8 +125,8 @@ public class AcpToolService {
         if (args != null && !args.isEmpty()) {
             createParams.put("args", args);
         }
-        if (cwd != null && !cwd.isBlank()) {
-            createParams.put("cwd", cwd);
+        if (effectiveCwd != null) {
+            createParams.put("cwd", effectiveCwd);
         }
         createParams.put("outputByteLimit", OUTPUT_BYTE_LIMIT);
         String terminalId = call(sessionId, "terminal/create", createParams, TERMINAL_OP_TIMEOUT_S)
@@ -230,6 +233,21 @@ public class AcpToolService {
         if (path == null || path.isBlank() || !path.startsWith("/")) {
             throw new ConnectorException("path must be an absolute path");
         }
+    }
+
+    /**
+     * Рабочая директория команды: явная от модели или корень проекта сессии (ACP {@code cwd}).
+     * Без подстановки {@code terminal/create} уходит без {@code cwd} — спека дефолт не определяет,
+     * и клиент выбирает свой (у Zed — домашняя директория, а не проект пользователя).
+     */
+    private String effectiveCwd(UUID sessionId, String requested) {
+        if (requested != null && !requested.isBlank()) {
+            if (!requested.startsWith("/")) {
+                throw new ConnectorException("cwd must be an absolute path");
+            }
+            return requested;
+        }
+        return sessionRegistry.cwd(sessionId);
     }
 
     /** ACP session/request_permission: allow_once/reject_once; всё кроме явного allow — отказ. */

@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -121,7 +122,7 @@ class AcpWebSocketHandlerTest {
 
             ArgumentCaptor<AcpSessionRegistry.ClientCapabilities> caps =
                     ArgumentCaptor.forClass(AcpSessionRegistry.ClientCapabilities.class);
-            verify(sessionRegistry).attach(eq(SESSION_ID), any(), caps.capture());
+            verify(sessionRegistry).attach(eq(SESSION_ID), any(), caps.capture(), any());
             assertTrue(caps.getValue().fsRead());
             assertTrue(caps.getValue().fsWrite());
             assertTrue(caps.getValue().terminal());
@@ -142,9 +143,33 @@ class AcpWebSocketHandlerTest {
 
             receive(request("r1", "session/new", Map.of("cwd", "/tmp")));
 
-            verify(sessionRegistry).attach(eq(SESSION_ID), any(), any());
+            verify(sessionRegistry).attach(eq(SESSION_ID), any(), any(), any());
             Map<String, Object> result = (Map<String, Object>) singleResponse().get("result");
             assertEquals(SESSION_ID.toString(), result.get("sessionId"));
+        }
+
+        @Test
+        @DisplayName("cwd клиента доходит до реестра — иначе команды пойдут в дефолт клиента, не в проект")
+        void cwdFlowsToAttach() {
+            ChannelSession channelSession = mock(ChannelSession.class);
+            when(channelSession.getId()).thenReturn(SESSION_ID);
+            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(channelSession);
+
+            receive(request("r1", "session/new", Map.of("cwd", "/home/u/project")));
+
+            verify(sessionRegistry).attach(eq(SESSION_ID), any(), any(), eq("/home/u/project"));
+        }
+
+        @Test
+        @DisplayName("относительный cwd трактуется как «не прислали» — подставлять его хуже, чем ничего")
+        void relativeCwdIgnored() {
+            ChannelSession channelSession = mock(ChannelSession.class);
+            when(channelSession.getId()).thenReturn(SESSION_ID);
+            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(channelSession);
+
+            receive(request("r1", "session/new", Map.of("cwd", "project")));
+
+            verify(sessionRegistry).attach(eq(SESSION_ID), any(), any(), isNull());
         }
     }
 
@@ -245,8 +270,8 @@ class AcpWebSocketHandlerTest {
                     Map.of("sessionId", foreign.toString(), "mcpTools", List.of()))));
             receive(frame);
 
-            verify(sessionRegistry).attach(eq(SESSION_ID), any(), any());
-            verify(sessionRegistry, org.mockito.Mockito.never()).attach(eq(foreign), any(), any());
+            verify(sessionRegistry).attach(eq(SESSION_ID), any(), any(), any());
+            verify(sessionRegistry, org.mockito.Mockito.never()).attach(eq(foreign), any(), any(), any());
             @SuppressWarnings("unchecked")
             ArgumentCaptor<Map<String, Object>> specs = ArgumentCaptor.forClass(Map.class);
             verify(sessionRegistry).putMcpTools(eq(SESSION_ID), (Map) specs.capture(), any());

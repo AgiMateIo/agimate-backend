@@ -16,8 +16,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Реестр живых ACP-сессий: связывает {@code channel_sessions.id} с активным клиентским
- * соединением, незавершённым {@code session/prompt}, клиентскими capabilities и исходящими
- * server→client запросами (fs/terminal-тулы IDE-коннектора).
+ * соединением, незавершённым {@code session/prompt}, клиентскими capabilities, корнем проекта
+ * ({@code cwd}) и исходящими server→client запросами (fs/terminal-тулы IDE-коннектора).
  *
  * <p>Доставка нотификаций best-effort: нет живого соединения — no-op, сообщение уже лежит в
  * {@code channel_session_messages} и клиент увидит его при {@code session/load}. Состояние
@@ -47,11 +47,14 @@ public class AcpSessionRegistry {
     private static final class Attachment {
         final Client client;
         final ClientCapabilities capabilities;
+        /** Корень проекта сессии (ACP {@code cwd}); {@code null}, если клиент его не прислал. */
+        final String cwd;
         final AtomicReference<Object> pendingRpcId = new AtomicReference<>();
 
-        Attachment(Client client, ClientCapabilities capabilities) {
+        Attachment(Client client, ClientCapabilities capabilities, String cwd) {
             this.client = client;
             this.capabilities = capabilities;
+            this.cwd = cwd;
         }
     }
 
@@ -71,9 +74,20 @@ public class AcpSessionRegistry {
     private final Map<UUID, SessionMcpTools> mcpTools = new ConcurrentHashMap<>();
     private final AtomicLong requestCounter = new AtomicLong();
 
-    /** Привязывает сессию к соединению (session/new, session/load); перепривязка допустима. */
-    public void attach(UUID sessionId, Client client, ClientCapabilities capabilities) {
-        sessions.put(sessionId, new Attachment(client, capabilities == null ? ClientCapabilities.NONE : capabilities));
+    /**
+     * Привязывает сессию к соединению (session/new, session/load); перепривязка допустима.
+     * {@code cwd} — корень проекта из того же фрейма: он живёт ровно столько же, сколько
+     * соединение (клиент присылает его при каждом new/load), поэтому в БД не хранится.
+     */
+    public void attach(UUID sessionId, Client client, ClientCapabilities capabilities, String cwd) {
+        sessions.put(sessionId, new Attachment(
+                client, capabilities == null ? ClientCapabilities.NONE : capabilities, cwd));
+    }
+
+    /** Корень проекта сессии (ACP {@code cwd}); {@code null} — сессия не привязана или клиент его не дал. */
+    public String cwd(UUID sessionId) {
+        Attachment attachment = sessions.get(sessionId);
+        return attachment == null ? null : attachment.cwd;
     }
 
     /** Отвязывает все сессии соединения, чистит их MCP-тулы и завершает висящие запросы ошибкой (разрыв WS). */

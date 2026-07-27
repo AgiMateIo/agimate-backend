@@ -163,7 +163,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         AgentPrincipal principal = principal(session);
         ChannelSession channelSession = acpService.startSession(principal.userId(), principal.agentId());
         UUID sessionId = channelSession.getId();
-        sessionRegistry.attach(sessionId, client, capabilities(session));
+        sessionRegistry.attach(sessionId, client, capabilities(session), cwd(params));
         storeMcpTools(sessionId, params.path(ATTR_MCP_FIELD));
         client.send(resultFrame(id, Map.of("sessionId", sessionId.toString())));
     }
@@ -186,7 +186,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
                 log.warn("ACP restore skipped for session {}: {}", raw, e.getMessage());
                 continue;
             }
-            sessionRegistry.attach(sessionId, client, capabilities(session));
+            sessionRegistry.attach(sessionId, client, capabilities(session), cwd(s));
             storeMcpTools(sessionId, s.path("mcpTools"));
             log.info("ACP session {} restored after reconnect", sessionId);
         }
@@ -225,7 +225,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         UUID sessionId = sessionId(params);
         List<ChannelSessionMessage> history =
                 acpService.loadSession(principal.userId(), principal.agentId(), sessionId);
-        sessionRegistry.attach(sessionId, client, capabilities(session));
+        sessionRegistry.attach(sessionId, client, capabilities(session), cwd(params));
         storeMcpTools(sessionId, params.path(ATTR_MCP_FIELD));
         for (ChannelSessionMessage m : history) {
             String updateType = switch (m.getKind()) {
@@ -275,6 +275,20 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
             text.append(block.path("text").asText());
         }
         return text.toString();
+    }
+
+    /**
+     * Корень проекта сессии: по ACP клиент обязан прислать абсолютный {@code cwd} в
+     * {@code session/new|load} (мост дублирует его в {@code _agimate/restore}). Относительный или
+     * пустой — трактуем как «не прислали»: подставлять его в {@code terminal/create} хуже, чем
+     * оставить решение клиенту. Отсутствие корня не повод рвать сессию — IDE-тулы работают и без него.
+     */
+    private static String cwd(JsonNode params) {
+        String raw = params.path("cwd").asText(null);
+        if (raw == null || raw.isBlank() || !raw.startsWith("/")) {
+            return null;
+        }
+        return raw;
     }
 
     private static UUID sessionId(JsonNode params) {

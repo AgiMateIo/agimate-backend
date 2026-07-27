@@ -202,7 +202,7 @@ public class RunContextService {
         if (agent.getInstructions() != null && !agent.getInstructions().isBlank()) {
             systemBlocks.add(RunBlock.trusted("", "agent", agent.getInstructions().strip(), Map.of()));
         }
-        collectConnectorBlocks(connections, agent, promptChannelId, systemBlocks, userBlocks);
+        collectConnectorBlocks(connections, agent, promptChannelId, promptSessionId, systemBlocks, userBlocks);
         teamBlock(agent).ifPresent(systemBlocks::add);
         if (!listed.isEmpty()) {
             systemBlocks.add(skillsBlock(listed));
@@ -491,8 +491,12 @@ public class RunContextService {
      * Сбой одного провайдера не роняет контекст — ран уходит без его блоков (warn в лог).
      * Ephemeral для user-блоков выводится из {@code stable}: волатильный user-блок
      * (memory notes) меняется каждый ран и в историю не персистится.
+     *
+     * <p>{@code promptSessionId} — та же session-aware адресация, что и у тулов: блок может
+     * зависеть от сессии разговора (ACP отдаёт корень проекта открытой IDE).
      */
     private void collectConnectorBlocks(List<Connection> connections, Agent agent, UUID promptChannelId,
+                                        UUID promptSessionId,
                                         List<RunBlock> systemBlocks, List<RunBlock> userBlocks) {
         for (Connection connection : connections) {
             PromptBlockProvider provider = connectorRegistry
@@ -501,8 +505,8 @@ public class RunContextService {
             if (provider == null) {
                 continue;
             }
-            ConnectorEnv env = envFactory.internal(
-                    connection.getId().toString(), agent.getUserId(), agent.getId(), null, promptChannelId, null);
+            ConnectorEnv env = envFactory.internal(connection.getId().toString(), agent.getUserId(),
+                    agent.getId(), null, promptChannelId, promptSessionId);
             List<PromptBlock> blocks;
             try {
                 blocks = provider.promptBlocks(env);
