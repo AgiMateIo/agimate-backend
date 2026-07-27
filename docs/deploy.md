@@ -174,14 +174,16 @@ Centrifugo is used for real-time messaging to devices.
 
 ### Local Development
 
-Start Centrifugo using docker-compose:
+Centrifugo is part of the local stack — see [`ops/README.md`](../ops/README.md):
 
 ```bash
-cd ops/local
-docker-compose -f docker-compose-centrifugo.yaml up -d
+cd ops
+docker compose --profile infra up -d
 ```
 
-Configuration file: `ops/local/config.json`
+Configuration file: `ops/centrifugo/config.json`. Centrifugo verifies the client tokens
+control-api signs with ES256, so `client.token.ecdsa_public_key` must hold the public half of
+the `JWT_PRIVATEKEY`/`JWT_PUBLICKEY` pair — `ops/generate-jwt-keys.sh` prints it in the right form.
 
 ### Ports
 

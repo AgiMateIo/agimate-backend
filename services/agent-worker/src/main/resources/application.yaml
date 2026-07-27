@@ -52,9 +52,10 @@ agent:
     language: "en"
   dbos:
     app-name: "agent-worker"
-    database-url: "jdbc:postgresql://localhost:5432/dbos_db"
-    username: "user"
-    password: "password"
+    # Must address the same database as control-api's dbos.system-database.
+    database-url: "jdbc:postgresql://localhost:5432/dbos"
+    username: "agimate"
+    password: "agimate_dev_password"
     schema: "dbos"
     application-version:
     # Сколько хранить завершённые воркфлоу (с чекпоинтами) в системной базе DBOS;

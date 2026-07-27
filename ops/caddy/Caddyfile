@@ -1,0 +1,65 @@
+{
+	auto_https off
+	log {
+		output stdout
+		format console
+		level DEBUG
+	}
+}
+
+# Caddy runs in a container, the services it fronts run on the host (gradle bootRun) —
+# hence host.docker.internal rather than localhost. Centrifugo is a compose neighbour,
+# so it is reached by service name.
+
+http://www.agimate.lc:8000 {
+	log
+	reverse_proxy host.docker.internal:3000
+}
+
+(backend) {
+	handle /user/* {
+		reverse_proxy host.docker.internal:8080
+	}
+
+	handle /control/* {
+		reverse_proxy host.docker.internal:8180
+	}
+
+	handle /connection/websocket {
+		reverse_proxy centrifugo:8000
+	}
+}
+
+http://api.agimate.lc:8000 {
+	log
+	import backend
+}
+
+# Фолбэк для любого другого хоста: запросы с телефона идут на LAN-IP машины,
+# а не на api.agimate.lc, и без этого блока Caddy отвечает пустым 200.
+http://:8000 {
+	log
+	import backend
+}
+
+http://localhost:8000 {
+	handle /login/redirect {
+		header Content-Type "text/html; charset=utf-8"
+		respond <<HTML
+			<!DOCTYPE html>
+			<html>
+			<head><title>Redirecting...</title></head>
+			<body>
+			<script>
+				window.location.href = "http://api.agimate.lc:8000/user/login/oauth2/code/yandex" + window.location.search;
+			</script>
+			</body>
+			</html>
+			HTML 200
+	}
+}
+
+http://centrifugo.agimate.lc:8000 {
+	log
+	reverse_proxy centrifugo:8000
+}

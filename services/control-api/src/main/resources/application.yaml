@@ -37,8 +37,8 @@ spring:
       enabled: true
   datasource:
     url: "jdbc:postgresql://localhost:5432/am_control_db?reWriteBatchedInserts=true"
-    username: "user"
-    password: "password"
+    username: "agimate"
+    password: "agimate_dev_password"
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
@@ -141,10 +141,12 @@ app:
 
 dbos:
   enabled: false
+  # Shared with agent-worker (agent.dbos.*) — producer and consumer must address the same
+  # system database, otherwise the run_agent queue silently has no consumer.
   system-database:
     url: "jdbc:postgresql://localhost:5432/dbos"
-    username: "dbos_app"
-    password: ""
+    username: "agimate"
+    password: "agimate_dev_password"
     schema: "dbos"
 
 

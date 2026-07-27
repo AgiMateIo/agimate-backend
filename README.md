@@ -22,26 +22,23 @@ Java 21 (virtual threads) · Spring Boot 4 · PostgreSQL 18 · Liquibase · gRPC
 ## Quick start
 
 ```bash
-cd services
-cp .env.example .env    # every variable is documented in the file
+# PostgreSQL + Centrifugo; see ops/README.md for the other profiles
+cd ops && docker compose --profile infra up -d
 
-# generate the ES256 key pair and put the two values
-# into JWT_PRIVATEKEY / JWT_PUBLICKEY in .env
-../ops/generate-jwt-keys.sh
-
-# PostgreSQL + Centrifugo
-docker compose -f docker/docker-compose.yml up -d postgres centrifugo
-
+cd ../services
 ./gradlew build
 ./gradlew :user-api:bootRun
-./gradlew :control-api:bootRun
+./gradlew :control-api:bootRun --args='--server.port=8180'
 ```
 
-Liquibase applies the schema on first start.
+Liquibase applies the schema on first start, and the stack defaults line up with the ones baked
+into each `application.yaml` — so nothing else is needed to get the two APIs talking to the
+database. For OAuth2 sign-in, JWT keys and connector credentials, copy
+[`services/.env.example`](services/.env.example) to `services/.env`; every variable there is
+documented in place.
 
-`agent-worker` additionally needs a DBOS system database, which the compose file above does not
-create yet — see [`services/agent-worker/.env.example`](services/agent-worker/.env.example) for its
-configuration.
+To run everything in containers instead, including `agent-worker`:
+`cd ops && docker compose --profile full up -d`.
 
 ## Documentation
 

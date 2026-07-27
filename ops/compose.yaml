@@ -1,0 +1,162 @@
+name: agimate
+
+# Profiles:
+#   infra  — PostgreSQL + Centrifugo; the services themselves run from the IDE / gradle bootRun
+#   edge   — Caddy in front of the host services, for the *.agimate.lc hostnames
+#   full   — everything in containers, including the three Spring services
+#
+#   docker compose --profile infra up -d
+#   docker compose --profile infra --profile edge up -d
+#   docker compose --profile full up -d
+#
+# Credentials here are local-development defaults and match the defaults baked into each
+# application.yaml, so `--profile infra` + bootRun works with no .env at all.
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: agimate-postgres
+    profiles: [infra, full]
+    environment:
+      POSTGRES_USER: agimate
+      POSTGRES_PASSWORD: agimate_dev_password
+      POSTGRES_DB: agimate
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agimate"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [agimate]
+    restart: unless-stopped
+
+  centrifugo:
+    image: centrifugo/centrifugo:v6
+    container_name: agimate-centrifugo
+    profiles: [infra, full]
+    command: centrifugo -c /centrifugo/config.json
+    # 9000 on the host matches the centrifugo.port default in control-api's application.yaml.
+    ports:
+      - "9000:8000"
+    volumes:
+      - ./centrifugo/config.json:/centrifugo/config.json
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks: [agimate]
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: agimate-caddy
+    profiles: [edge]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+    # The services Caddy fronts run on the host under `infra`; host.docker.internal needs an
+    # explicit mapping on Linux (it is built in on Docker Desktop).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [agimate]
+    restart: unless-stopped
+
+  user-api:
+    build:
+      context: ../services
+      dockerfile: user-api/Dockerfile
+    container_name: agimate-user-api
+    profiles: [full]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      # Optional: the defaults below plus the ones in application.yaml are enough for a smoke
+      # run; .env is what adds OAuth2, JWT keys and connector credentials.
+      - path: ../services/.env
+        required: false
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_user_db
+      SPRING_DATASOURCE_USERNAME: agimate
+      SPRING_DATASOURCE_PASSWORD: agimate_dev_password
+    ports:
+      - "8080:8080"
+    networks: [agimate]
+    restart: unless-stopped
+
+  control-api:
+    build:
+      context: ../services
+      dockerfile: control-api/Dockerfile
+    container_name: agimate-control-api
+    profiles: [full]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      centrifugo:
+        condition: service_healthy
+    env_file:
+      # Optional: the defaults below plus the ones in application.yaml are enough for a smoke
+      # run; .env is what adds OAuth2, JWT keys and connector credentials.
+      - path: ../services/.env
+        required: false
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_control_db
+      SPRING_DATASOURCE_USERNAME: agimate
+      SPRING_DATASOURCE_PASSWORD: agimate_dev_password
+      CENTRIFUGO_URL: http://centrifugo
+      CENTRIFUGO_PORT: 8000
+      DBOS_ENABLED: "true"
+      DBOS_SYSTEMDATABASE_URL: jdbc:postgresql://postgres:5432/dbos
+      DBOS_SYSTEMDATABASE_USERNAME: agimate
+      DBOS_SYSTEMDATABASE_PASSWORD: agimate_dev_password
+      GRPC_SERVER_ENABLED: "true"
+    # 8180 matches the port the Caddyfile proxies /control/* to, so one Caddyfile serves both
+    # the `infra` (bootRun on the host) and `full` (container) layouts.
+    ports:
+      - "8180:8080"
+    networks: [agimate]
+    restart: unless-stopped
+
+  agent-worker:
+    build:
+      context: ../services
+      dockerfile: agent-worker/Dockerfile
+    container_name: agimate-agent-worker
+    profiles: [full]
+    depends_on:
+      - control-api
+    env_file:
+      # Optional: the defaults below plus the ones in application.yaml are enough for a smoke
+      # run; .env is what adds OAuth2, JWT keys and connector credentials.
+      - path: ../services/.env
+        required: false
+    environment:
+      # The worker refuses plaintext gRPC to anything but loopback (GrpcClientConfig).
+      # Sharing control-api's network namespace makes localhost:9091 genuinely control-api,
+      # so the stack stays plaintext-free of exceptions instead of disabling the check.
+      AGENT_GRPC_TARGET: localhost:9091
+      AGENT_GRPC_USE_TLS: "false"
+      AGENT_DBOS_DATABASE_URL: jdbc:postgresql://postgres:5432/dbos
+      AGENT_DBOS_USERNAME: agimate
+      AGENT_DBOS_PASSWORD: agimate_dev_password
+    network_mode: "service:control-api"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  agimate:
+    driver: bridge

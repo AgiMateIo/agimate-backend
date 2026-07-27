@@ -38,8 +38,8 @@ spring:
       enabled: true
   datasource:
     url: "jdbc:postgresql://localhost:5432/am_user_db?reWriteBatchedInserts=true"
-    username: "user"
-    password: "password"
+    username: "agimate"
+    password: "agimate_dev_password"
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2

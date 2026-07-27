@@ -21,7 +21,7 @@ graph TB
     subgraph "Databases"
         UserDB[(am_user_db)]
         ControlDB[(am_control_db)]
-        DbosDB[(dbos_db<br/>DBOS system DB)]
+        DbosDB[(dbos<br/>DBOS system DB)]
     end
 
     subgraph "External"
