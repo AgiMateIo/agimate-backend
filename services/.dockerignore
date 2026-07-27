@@ -1,9 +1,6 @@
 # Build artifacts
 buildinfo/
-user-api/build/
-mobile-api/build/
-connectors-api/build/
-libs/common/build/
+**/build/
 **/target/
 **/.gradle/
 **/.idea/

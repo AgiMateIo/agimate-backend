@@ -1,4 +1,4 @@
-# Multi-stage build for user-api
+# Multi-stage build for agent-worker
 FROM eclipse-temurin:21-jdk AS builder
 
 WORKDIR /app
@@ -20,12 +20,13 @@ COPY agent-worker/build.gradle.kts agent-worker/
 # Download dependencies (cached layer)
 RUN ./gradlew dependencies --no-daemon || true
 
-# Copy source code
+# Copy source code. agentworker-proto carries the .proto files the gRPC stubs are generated from.
 COPY libs/common/src libs/common/src
-COPY user-api/src user-api/src
+COPY libs/agentworker-proto/src libs/agentworker-proto/src
+COPY agent-worker/src agent-worker/src
 
 # Build the application
-RUN ./gradlew :user-api:bootJar --no-daemon
+RUN ./gradlew :agent-worker:bootJar --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
@@ -37,14 +38,9 @@ RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 
 # Copy the built jar
-COPY --from=builder /app/user-api/build/libs/*.jar app.jar
+COPY --from=builder /app/agent-worker/build/libs/*.jar app.jar
 
-# Expose port
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8088/actuator/health || exit 1
+# Headless queue consumer: no web server, so no port and no HTTP health check.
 
 # Run the application with virtual threads enabled
 ENTRYPOINT ["java", \
