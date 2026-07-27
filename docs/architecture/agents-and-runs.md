@@ -96,4 +96,4 @@ payloads — the raw transcript lives in DBOS checkpoints), only completed runs 
 (`completed=true` is set by the final ANSWER), and `GetRunContext.history` returns the filtered
 tail (`historyDetail` per ContextSpec preset). Channel delivery is a backend-side projection of
 the same record. See
-[`services/control-api-grpc-worker.md`](services/control-api-grpc-worker.md).
+[`../contracts/worker-protocol.md`](../contracts/worker-protocol.md).

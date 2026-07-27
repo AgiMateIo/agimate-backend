@@ -58,5 +58,5 @@
 
 ## Связанное
 
-- Общая архитектура SPI — [architecture.md](architecture.md).
+- Общая архитектура SPI — [architecture.md](../architecture/connectors.md).
 - Возврат тулов: record-типы дают корректный MCP `outputSchema`. `BaseConnectorHandler.invoke` разворачивает record в плоскую Map (camelCase-ключи = имена компонентов), чтобы рантайм-вывод совпадал со схемой из `ToolSchemaReflector`.

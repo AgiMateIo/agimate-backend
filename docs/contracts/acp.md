@@ -2,7 +2,7 @@
 
 Реализация agent-side [Agent Client Protocol](https://agentclientprotocol.com) (ACP от Zed —
 JSON-RPC 2.0; не путать с Agent Communication Protocol из
-[acp-review-backend.md](../acp-review-backend.md)). Позволяет разговаривать с агентом из Zed и
+[acp-review-backend.md](../decisions/acp-comparison.md)). Позволяет разговаривать с агентом из Zed и
 других ACP-клиентов.
 
 ## Транспорт и подключение

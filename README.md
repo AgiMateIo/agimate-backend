@@ -22,7 +22,7 @@ Java 21 (virtual threads) · Spring Boot 4 · PostgreSQL 18 · Liquibase · gRPC
 ## Quick start
 
 ```bash
-# PostgreSQL + Centrifugo; see ops/README.md for the other profiles
+# PostgreSQL + Centrifugo; see docs/operations/local-stack.md for the other profiles
 cd ops && docker compose --profile infra up -d
 
 cd ../services
@@ -42,10 +42,13 @@ To run everything in containers instead, including `agent-worker`:
 
 ## Documentation
 
-[`docs/`](docs/) — start with [architecture](docs/architecture.md) and
-[deployment](docs/deploy.md). Also: [connectors](docs/connectors/architecture.md),
-[worker protocol](docs/agimate-worker-protocol-spec.md), and per-service API reference under
-[`docs/services/`](docs/services/). Parts of the documentation are written in Russian.
+[`docs/`](docs/) is organised by intent: `architecture/` (how it is put together and why),
+`contracts/` (interfaces outside OpenAPI — the worker protocol, ACP, key formats),
+`operations/` (run and deploy it), `connectors/`, and `decisions/`.
+
+Start with [architecture/overview.md](docs/architecture/overview.md). Request and response schemas
+are not in the docs — they are generated from the code, see
+[the OpenAPI section](docs/README.md#начать-отсюда). Most of the documentation is in Russian.
 
 ## License
 

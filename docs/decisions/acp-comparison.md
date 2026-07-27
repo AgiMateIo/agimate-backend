@@ -2,8 +2,8 @@
 
 Разбор [Agent Communication Protocol](https://agentcommunicationprotocol.dev/) применительно к нашей
 архитектуре (worker-протокол + connectors SPI + channels/triggers). Источник по нашей стороне:
-[`agimate-worker-protocol-spec.md`](agimate-worker-protocol-spec.md),
-[`connectors/architecture.md`](connectors/architecture.md).
+[`../contracts/worker-protocol.md`](../contracts/worker-protocol.md),
+[`connectors/architecture.md`](../architecture/connectors.md).
 
 ## Рамка: это разные классы систем
 

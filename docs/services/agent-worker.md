@@ -64,7 +64,7 @@ semantics are pinned by the `ContextBuilder` system paragraph. History arrives p
 (backend window/filter, completed runs only); delivery and persistence are backend projections
 of `SaveMessage` — the worker no longer routes channels. `PreparedContext` stays in `workers/run` — its FQCN is pinned by the DBOS
 checkpoint (in-flight runs replay the serialized step result across deploys). See
-[agent-context-design.md](../agent-context-design.md) for the context-assembly design.
+[agent-context-design.md](../architecture/agents-and-runs.md) for the context-assembly design.
 
 ### Producer contract (shared code, not config)
 The queue/class/workflow/instance names (`agent_exec`/`AgentRunWorkflow`/`run_agent`/`default`)

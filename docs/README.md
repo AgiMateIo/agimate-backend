@@ -1,89 +1,82 @@
-# Agimate Documentation
+# AgiMate — документация
 
-Agimate is a platform where specialized AI agents work together: skills describe what an agent
-can do, connectors give it tools, triggers and background jobs, and devices extend it beyond the
-browser.
+Платформа, где специализированные ИИ-агенты работают вместе: скиллы описывают, что агент умеет,
+коннекторы дают ему тулы, триггеры и фоновые джобы, устройства выносят его за пределы браузера.
 
-## Tech Stack
+Разделы устроены по тому, зачем вы сюда пришли.
 
-- **Java 21** with virtual threads
-- **Spring Boot 4.0**
-- **PostgreSQL 18** with Liquibase migrations
-- **Centrifugo** for real-time messaging
-- **gRPC** for the agent-worker protocol
+## Начать отсюда
 
-## Quick Start
-
-```bash
-cd ops && docker compose --profile infra up -d    # PostgreSQL + Centrifugo
-
-cd ../services
-./gradlew build
-./gradlew test
-./gradlew :user-api:bootRun
-./gradlew :control-api:bootRun --args='--server.port=8180'
-```
-
-See [`ops/README.md`](../ops/README.md) for the other stack profiles.
-
-## Services and ports
-
-| Service      | HTTP port | Context path | Notes                                        |
-|--------------|-----------|--------------|----------------------------------------------|
-| user-api     | 8080      | `/user/`     | Accounts, OAuth2, JWT                        |
-| control-api  | 8080      | `/control`   | Agents, connectors, channels; gRPC on `:9091` |
-| agent-worker | —         | —            | Headless DBOS queue consumer                 |
-
-All HTTP services expose management endpoints on port **8088**.
-
-## General
-
-| Document | Description |
+| | |
 |---|---|
-| [architecture.md](architecture.md) | Services, databases, authentication flows |
-| [deploy.md](deploy.md) | Environment variables, key generation, configuration |
-| [ci-overview.md](ci-overview.md) | Build and deploy pipeline |
-| [api-key-format.md](api-key-format.md) | Positional format of the keys the platform issues |
-| [agent-context-design.md](agent-context-design.md) | How an agent's context is assembled |
-| [agimate-worker-protocol-spec.md](agimate-worker-protocol-spec.md) | control-api ↔ agent-worker gRPC contract |
-| [acp-review-backend.md](acp-review-backend.md) | Agent Communication Protocol vs this architecture |
-| [refactoring-uuid-pk.md](refactoring-uuid-pk.md) | Historical RFC: UUIDv7 primary keys |
+| **[architecture/overview.md](architecture/overview.md)** | Из чего состоит система и почему именно так — читается один раз, целиком |
+| **[operations/local-stack.md](operations/local-stack.md)** | Поднять локально за одну команду |
 
-## Services
-
-| Document | Description |
-|---|---|
-| [user-api.md](services/user-api.md) | Endpoints and configuration |
-| [control-api.md](services/control-api.md) | Endpoints and configuration |
-| [agent-worker.md](services/agent-worker.md) | Agent loop, DBOS queue, deployment |
-| [control-api-grpc-worker.md](services/control-api-grpc-worker.md) | gRPC server for the worker protocol |
-| [control-api-acp.md](services/control-api-acp.md) | ACP WebSocket endpoint for IDE clients |
-| [agent-channels-integration.md](services/agent-channels-integration.md) | Channels and trigger routing |
-| [control-api-trigger-log-probe.md](services/control-api-trigger-log-probe.md) | Trigger matching probe |
-
-## API reference
-
-Request and response schemas are not duplicated here — they come from the code. Run either
-service under the `develop` profile and open the OpenAPI UI:
+Схемы запросов и ответов здесь не дублируются — они генерируются из кода. Запустите сервис под
+профилем `develop` и откройте OpenAPI:
 
 ```bash
 ./gradlew :control-api:bootRun --args='--spring.profiles.active=develop --server.port=8180'
 # → http://localhost:8180/control/docs/ui
 ```
 
-The `local` profile (the default) keeps `springdoc.swagger-ui.enabled` and
-`springdoc.api-docs.enabled` off, and `application-prod.yaml` disables them explicitly.
+## Архитектура
 
-## Connectors
+Как устроено и почему. Читается для понимания системы, а не для решения конкретной задачи.
 
-| Document | Description |
+| | |
 |---|---|
-| [architecture.md](connectors/architecture.md) | Connector SPI, capabilities, registry |
-| [files.md](connectors/files.md) | File layer, `agf_` references |
-| [platform.md](connectors/platform.md) | Meta-agent managing the platform |
-| [persistent-memory.md](connectors/persistent-memory.md) | Agent long-term memory |
-| [sheets.md](connectors/sheets.md) | Agent-owned tables |
-| [webchat.md](connectors/webchat.md) · [media.md](connectors/media.md) · [astro-divination.md](connectors/astro-divination.md) | Individual connectors |
-| [mail.md](connectors/mail.md) · [terminal.md](connectors/terminal.md) | Design notes for connectors that are **not implemented** |
+| [overview.md](architecture/overview.md) | Сервисы, владение данными, аутентификация, порты |
+| [agents-and-runs.md](architecture/agents-and-runs.md) | Жизненный цикл рана, сборка контекста агента |
+| [connectors.md](architecture/connectors.md) | SPI коннекторов: капабилити, реестр, джобы |
+| [channels-and-triggers.md](architecture/channels-and-triggers.md) | Маршрутизация триггеров и каналы: политика решает «кому», канал — «как» |
+| [content-language.md](architecture/content-language.md) | Язык системного контента установки |
 
-Parts of the documentation are written in Russian.
+## Контракты
+
+Интерфейсы, которых нет в OpenAPI: другой транспорт или другая сторона.
+
+| | |
+|---|---|
+| [worker-protocol.md](contracts/worker-protocol.md) | control-api ↔ agent-worker: DBOS + gRPC |
+| [acp.md](contracts/acp.md) | Agent Client Protocol поверх WebSocket, для IDE |
+| [api-keys.md](contracts/api-keys.md) | Позиционный формат ключей платформы |
+| [centrifugo-channels.md](contracts/centrifugo-channels.md) | Неймспейсы реального времени и выпуск токенов |
+| [trigger-log-probe.md](contracts/trigger-log-probe.md) | Probe-код обнаружения каналов: бэкенд, фронт и текст в мессенджере |
+
+## Эксплуатация
+
+| | |
+|---|---|
+| [local-stack.md](operations/local-stack.md) | Локальный стенд: профили `infra`, `edge`, `full` |
+| [deploy.md](operations/deploy.md) | Переменные окружения, генерация ключей, порты |
+| [ci.md](operations/ci.md) | Сборка и деплой |
+
+## Сервисы
+
+| | |
+|---|---|
+| [control-api.md](services/control-api.md) · [user-api.md](services/user-api.md) · [agent-worker.md](services/agent-worker.md) | Настройки, переменные окружения, устройство |
+
+## Коннекторы
+
+| | |
+|---|---|
+| [files.md](connectors/files.md) | Файловый слой, ссылки `agf_` |
+| [platform.md](connectors/platform.md) | Мета-агент, управляющий платформой |
+| [persistent-memory.md](connectors/persistent-memory.md) · [sheets.md](connectors/sheets.md) | Долгая память и таблицы агента |
+| [webchat.md](connectors/webchat.md) · [media.md](connectors/media.md) · [astro-divination.md](connectors/astro-divination.md) | Остальные коннекторы |
+
+## Решения
+
+Что и почему было решено. Прошлое не протухает — в отличие от планов.
+
+| | |
+|---|---|
+| [uuid-primary-keys.md](decisions/uuid-primary-keys.md) | Переход на UUIDv7 в первичных ключах |
+| [acp-comparison.md](decisions/acp-comparison.md) | Agent Communication Protocol против нашей архитектуры |
+| [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md) |
+
+---
+
+Большая часть документации написана по-русски.

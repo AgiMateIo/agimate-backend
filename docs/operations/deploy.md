@@ -62,7 +62,7 @@ Blob store for the connector file layer (`docs/connectors/files.md`).
 | `GRPC_SERVER_SECURITY_ENABLED`          | Enable TLS (must be `true` in production)                         |
 | `GRPC_SERVER_SECURITY_CERTIFICATECHAIN` | Path to PEM certificate chain                                     |
 | `GRPC_SERVER_SECURITY_PRIVATEKEY`       | Path to PEM private key                                           |
-| `WORKER_POOLS_AUTHKEYS_0`, ..._N        | Worker pool authkeys, one per pool. See `control-api-grpc-worker`. |
+| `WORKER_POOLS_AUTHKEYS_0`, ..._N        | Worker pool authkeys, one per pool. See `docs/contracts/worker-protocol.md`. |
 
 ### DBOS (control-api)
 
@@ -174,7 +174,7 @@ Centrifugo is used for real-time messaging to devices.
 
 ### Local Development
 
-Centrifugo is part of the local stack — see [`ops/README.md`](../ops/README.md):
+Centrifugo is part of the local stack — see [`local-stack.md`](local-stack.md):
 
 ```bash
 cd ops

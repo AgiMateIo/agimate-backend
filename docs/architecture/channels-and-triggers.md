@@ -92,7 +92,7 @@
 
 ## 4. Новый gRPC сервис `ChannelGateway`
 
-Proto: `services/libs/agentworker-proto/src/main/proto/agentworker/channel_gateway.proto`. Package — `ru.agimate.agentworker` (тот же, что и `ToolGateway`). Аутентификация — стандартный worker-pool Bearer-токен через `WorkerPoolAuthInterceptor` (см. agimate-worker-protocol-spec.md §1.3).
+Аутентификация — worker-pool Bearer-токен через `WorkerPoolAuthInterceptor`, см. [`../contracts/worker-protocol.md`](../contracts/worker-protocol.md).
 
 ```proto
 service ChannelGateway {
@@ -244,7 +244,7 @@ def on_trigger(event: AgentEvent) -> None:
 
 Минимум на каждый диалоговый workflow:
 - `channel_id`, `channel_session_id` — чтобы ответить позже (например, после долгого tool-call'а);
-- история сообщений ReAct-loop — **не передаётся backend'ом**, см. agimate-worker-protocol-spec.md §6 (open issue). На PoC — в DBOS state.
+- история сообщений ReAct-loop приходит из `GetRunContext.history` — см. [`../contracts/worker-protocol.md`](../contracts/worker-protocol.md).
 
 `SendChannelMessage` можно вызывать **многократно** в рамках одной сессии (split на несколько коротких ответов / стриминг). Каждый вызов добавит OUT-сообщение в сессию и пошлёт tool-call.
 
