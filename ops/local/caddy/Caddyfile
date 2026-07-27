@@ -12,9 +12,7 @@ http://www.agimate.lc:8000 {
 	reverse_proxy localhost:3000
 }
 
-http://api.agimate.lc:8000 {
-	log
-
+(backend) {
 	handle /user/* {
 		reverse_proxy localhost:8080
 	}
@@ -32,7 +30,17 @@ http://api.agimate.lc:8000 {
 	}
 }
 
+http://api.agimate.lc:8000 {
+	log
+	import backend
+}
 
+# Fallback для любого другого хоста: запросы с телефона идут на LAN-IP машины,
+# а не на api.agimate.lc, и без этого блока Caddy отвечает пустым 200.
+http://:8000 {
+	log
+	import backend
+}
 
 http://localhost:8000 {
 	handle /login/redirect {
