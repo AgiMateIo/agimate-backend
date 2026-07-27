@@ -408,3 +408,5 @@ $RECYCLE.BIN/
 
 
 application-local.yaml
+# Вывод сборки Eclipse/VS Code Java
+bin/
