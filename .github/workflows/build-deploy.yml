@@ -7,6 +7,7 @@ on:
     paths:
       - 'services/user-api/**'
       - 'services/control-api/**'
+      - 'services/agent-worker/**'
       - 'services/libs/**'
       - 'services/build.gradle.kts'
       - 'services/settings.gradle.kts'
@@ -36,6 +37,7 @@ jobs:
     outputs:
       user-api: ${{ steps.changes.outputs.user-api }}
       control-api: ${{ steps.changes.outputs.control-api }}
+      agent-worker: ${{ steps.changes.outputs.agent-worker }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,14 +52,17 @@ jobs:
 
           echo "user-api=false" >> $GITHUB_OUTPUT
           echo "control-api=false" >> $GITHUB_OUTPUT
+          echo "agent-worker=false" >> $GITHUB_OUTPUT
 
           if echo "$CHANGED" | grep -qE '^services/(build\.gradle\.kts|settings\.gradle\.kts|gradle/|libs/)'; then
             echo "Root build files or libs changed — rebuilding all"
             echo "user-api=true" >> $GITHUB_OUTPUT
             echo "control-api=true" >> $GITHUB_OUTPUT
+            echo "agent-worker=true" >> $GITHUB_OUTPUT
           else
             echo "$CHANGED" | grep -q '^services/user-api/' && echo "user-api=true" >> $GITHUB_OUTPUT || true
             echo "$CHANGED" | grep -q '^services/control-api/' && echo "control-api=true" >> $GITHUB_OUTPUT || true
+            echo "$CHANGED" | grep -q '^services/agent-worker/' && echo "agent-worker=true" >> $GITHUB_OUTPUT || true
           fi
 
   build-user-api:
@@ -88,9 +93,23 @@ jobs:
           CR_USERNAME: ${{ secrets.CR_USERNAME }}
           CR_PASSWORD: ${{ secrets.CR_PASSWORD }}
 
+  build-agent-worker:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.agent-worker == 'true'
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and push
+        run: ./ci/build-and-push.sh agent-worker
+        env:
+          REGISTRY: ${{ vars.REGISTRY }}
+          CR_USERNAME: ${{ secrets.CR_USERNAME }}
+          CR_PASSWORD: ${{ secrets.CR_PASSWORD }}
+
   update-infra:
-    needs: [build-user-api, build-control-api]
-    if: always() && (needs.build-user-api.result == 'success' || needs.build-control-api.result == 'success')
+    needs: [build-user-api, build-control-api, build-agent-worker]
+    if: always() && (needs.build-user-api.result == 'success' || needs.build-control-api.result == 'success' || needs.build-agent-worker.result == 'success')
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
@@ -100,6 +119,7 @@ jobs:
           SERVICES=""
           [ "${{ needs.build-user-api.result }}" == "success" ] && SERVICES="$SERVICES user-api"
           [ "${{ needs.build-control-api.result }}" == "success" ] && SERVICES="$SERVICES control-api"
+          [ "${{ needs.build-agent-worker.result }}" == "success" ] && SERVICES="$SERVICES agent-worker"
           ./ci/update-infra.sh $SERVICES
         env:
           REGISTRY: ${{ vars.REGISTRY }}

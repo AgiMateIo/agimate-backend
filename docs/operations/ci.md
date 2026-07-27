@@ -1,190 +1,78 @@
-# CI/CD: как устроено в agimate-backend
+# Сборка и деплой
 
-## Общая схема
-
-```
-Push в master (с фильтром по путям)
-    |
-    v
-validate-config         — проверка секретов и переменных
-    |
-    v
-detect-changes          — определение, какие сервисы изменились
-    |
-    v
-build-*-api (параллельно) — сборка Docker-образов и push в registry
-    |
-    v
-update-infra            — обновление версий образов в infra-репозитории
-```
-
-## Файловая структура
+Пайплайн не деплоит сам — он собирает образы и обновляет версии в отдельном
+infra-репозитории. Развёртывание оттуда подхватывает уже другой контур (GitOps): у бэкенда нет ни
+доступа к кластеру, ни знания о том, как он устроен.
 
 ```
-.github/workflows/
-  build-deploy.yml        # Основной workflow
-
-ci/
-  build-and-push.sh       # Сборка и push Docker-образа
-  update-infra.sh         # Обновление infra-репозитория
-
-services/<service>/
-  Dockerfile              # Multi-stage Dockerfile для каждого сервиса
+push в master (по фильтру путей)
+    │
+    ├─ validate-config    секреты и переменные на месте
+    ├─ detect-changes     какие сервисы задеты
+    ├─ build-*            параллельно, только задетые → образы в registry
+    └─ update-infra       версии образов в infra-репозитории
 ```
 
-## Workflow: build-deploy.yml
+Файлы: [`.github/workflows/build-deploy.yml`](../../.github/workflows/build-deploy.yml),
+[`ci/build-and-push.sh`](../../ci/build-and-push.sh),
+[`ci/update-infra.sh`](../../ci/update-infra.sh) и `Dockerfile` в каждом сервисе.
 
-### Триггеры
+## Что нужно настроить в репозитории
 
-- Push в `master` с фильтром по путям (только если изменились файлы сервисов)
-- Ручной запуск (`workflow_dispatch`)
+| | |
+|---|---|
+| vars | `REGISTRY`, `INFRA_REPO_SSH` |
+| secrets | `CR_USERNAME`, `CR_PASSWORD`, `INFRA_DEPLOY_KEY` |
 
-```yaml
-on:
-  workflow_dispatch:
-  push:
-    branches: [master]
-    paths:
-      - 'services/user-api/**'
-      - 'services/control-api/**'
-      - 'services/libs/**'
-      - 'services/build.gradle.kts'
-      - 'services/settings.gradle.kts'
-```
+Джоб `validate-config` роняет пайплайн сразу, если чего-то нет, — чтобы отсутствующий секрет не
+обнаружился на середине деплоя.
 
-### Job 1: validate-config
+## Выборочная пересборка
 
-Проверяет наличие всех необходимых переменных и секретов. Если чего-то нет — пайплайн падает сразу.
+`detect-changes` смотрит на изменённые файлы и решает, какие из трёх сервисов пересобирать.
+Правило одно: если задет общий фундамент — корневые build-файлы, `gradle/` или `libs/` —
+пересобираются **все три**. `libs/agentworker-proto` меняет контракт сразу двух сторон, и собрать
+одну без другой значит развести их по версиям протокола.
 
-**Необходимые переменные (vars):**
-- `REGISTRY` — URL контейнер-реджистри
-- `INFRA_REPO_SSH` — SSH-адрес infra-репозитория
+Сравнение идёт по `HEAD~1..HEAD`. При пуше нескольких коммитов сразу видны изменения только
+последнего — известное ограничение.
 
-**Необходимые секреты:**
-- `CR_USERNAME`, `CR_PASSWORD` — логин/пароль реджистри
-- `INFRA_DEPLOY_KEY` — SSH-ключ для push в infra-репо
+## Тег образа
 
-### Job 2: detect-changes
+`git describe --tags --always` — то есть образ адресуется ближайшим тегом с расстоянием до него
+либо, если тегов нет, коротким хешем коммита. Тот же тег уезжает в infra-репозиторий, поэтому
+версия в манифестах всегда отслеживается до коммита.
 
-Сравнивает `HEAD~1` с `HEAD` через `git diff`. Выставляет boolean-флаги: какие сервисы пересобирать.
+Каждый образ дополнительно тегируется `latest`.
 
-Логика:
-- Если изменились корневые build-файлы (`build.gradle.kts`, `settings.gradle.kts`, `gradle/`, `libs/`) — пересобираются **все** сервисы
-- Иначе — только те, чьи файлы изменились
+## update-infra
 
-### Jobs 3-4: build-{service}
+Клонирует infra-репозиторий по SSH и для каждого собранного сервиса вызывает там
+`./scripts/update-image.sh <registry> <service> <tag>` — то есть формат манифестов знает infra, а
+не бэкенд. Новый сервис должен быть заведён там **до** того, как попадёт в этот пайплайн, иначе
+джоб упадёт уже после успешных сборок.
 
-Запускаются параллельно, только для изменённых сервисов. Каждый вызывает:
+Деплой-ключ пишется во временный файл и передаётся через `GIT_SSH_COMMAND`, в `~/.ssh` не
+попадает и удаляется по `trap` на выходе.
 
-```bash
-./ci/build-and-push.sh <service-name>
-```
+## Образы
 
-### Job 5: update-infra
+Двухэтапный Dockerfile, одинаковый у всех трёх сервисов: сборка на `21-jdk`, рантайм на
+`21-jre-alpine` под non-root пользователем `spring`.
 
-Запускается после всех сборок. Условие: хотя бы одна сборка завершилась успешно. Собирает список успешных сервисов и вызывает:
+Контекст сборки — каталог `services` целиком, а не каталог сервиса: Gradle отказывается
+конфигурировать проект, объявленный в `settings.gradle.kts`, но отсутствующий на диске. Поэтому
+каждый образ копирует build-файлы **всех** модулей, хотя собирает один. Об этом легко забыть,
+добавляя модуль, — образы ломаются молча, обычная `./gradlew build` этого не видит.
 
-```bash
-./ci/update-infra.sh <service1> [service2] ...
-```
+Сначала копируются только build-файлы и скачиваются зависимости — отдельным слоем, который
+переживает изменения в исходниках.
 
-## Скрипт: ci/build-and-push.sh
+Рантайм-разница одна: `agent-worker` headless, у него нет ни `EXPOSE`, ни HTTP-healthcheck. У двух
+веб-сервисов healthcheck ходит на `/actuator/health` порта 8088.
 
-Что делает:
-1. Определяет тег: `git describe --tags --always` (или из env `TAG`)
-2. Собирает Docker-образ из `services/<service>/Dockerfile`
-3. Тегирует как `<TAG>` и `latest`
-4. Логинится в реджистри
-5. Пушит оба тега
+## Раннер
 
-```bash
-docker build -t "${IMAGE}:${TAG}" -t "${IMAGE}:latest" \
-  -f "services/${SERVICE}/Dockerfile" "services"
-```
-
-## Скрипт: ci/update-infra.sh
-
-Реализует **GitOps-паттерн**: вместо деплоя напрямую — обновляет версии образов в отдельном infra-репозитории.
-
-Что делает:
-1. Создаёт временную директорию, пишет туда SSH-ключ (удаляется через `trap`)
-2. Клонирует infra-репозиторий по SSH
-3. Для каждого сервиса вызывает `./scripts/update-image.sh <service> <tag>`
-4. Коммитит и пушит изменения
-
-Ключевая деталь: SSH-ключ **не** попадает в `~/.ssh` — хранится во временном файле и удаляется на exit.
-
-## Dockerfile: Multi-stage паттерн
-
-Все сервисы используют одинаковый двухэтапный Dockerfile:
-
-**Build-этап** (`eclipse-temurin:21-jdk`):
-- Копирует gradle wrapper и build-файлы всех модулей
-- Скачивает зависимости (кешируемый слой)
-- Копирует исходники и собирает `bootJar`
-
-**Runtime-этап** (`eclipse-temurin:21-jre-alpine`):
-- Лёгкий Alpine-образ с JRE
-- Non-root пользователь `spring`
-- Health check на `/actuator/health` (порт 8088)
-- JVM-флаги: ZGC, 75% RAM, secure random
-
-```dockerfile
-ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:MaxRAMPercentage=75.0",
-    "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
-```
-
-## Runner: self-hosted
-
-Используется self-hosted runner (не GitHub-hosted). Для него есть свой Docker-образ в `ops/runner/`:
-- На базе `ubuntu:22.04`
-- Установлены: docker, git, Node.js, kustomize, act_runner
-- Скрипт `runner.sh` для управления (build, register, start, stop)
-
-## Как адаптировать для agimate-frontend
-
-### 1. Создать структуру
-
-```
-.github/workflows/
-  build-deploy.yml
-
-ci/
-  build-and-push.sh       # Скопировать, адаптировать путь к Dockerfile
-  update-infra.sh          # Скопировать без изменений
-```
-
-### 2. Адаптировать workflow
-
-- Изменить `paths` в триггерах под структуру фронтенд-проекта
-- Убрать detect-changes если сервис один (не нужна мульти-сервисная логика)
-- Оставить один build-job вместо нескольких
-
-### 3. Написать Dockerfile
-
-Типичный multi-stage для фронтенда:
-```dockerfile
-# Build
-FROM node:22-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-# Runtime
-FROM nginx:alpine
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-```
-
-### 4. Настроить секреты
-
-В репозитории agimate-frontend добавить те же vars и secrets:
-- `REGISTRY`, `INFRA_REPO_SSH` (vars)
-- `CR_USERNAME`, `CR_PASSWORD`, `INFRA_DEPLOY_KEY` (secrets)
-
-### 5. Обновить infra-репозиторий
-
-Добавить конфигурацию для фронтенд-сервиса, чтобы `update-image.sh` знал о нём.
+Джобы идут на self-hosted раннере. Отсюда следует ограничение, о котором стоит помнить при любой
+правке этого workflow: **в него нельзя добавлять триггер `pull_request`** — это дало бы любому
+автору форка выполнение произвольного кода на машине с деплой-ключами.
