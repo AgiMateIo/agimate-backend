@@ -6,8 +6,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.database.entities.AgentConnection;
@@ -26,9 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -95,30 +92,30 @@ class AgentSkillPolicyServiceTest {
     }
 
     @Test
-    @DisplayName("неизвестный connector_code (NotFound от bind) не роняет привязку скилла")
-    void unknownConnectorCodeIsSwallowed() {
+    @DisplayName("неизвестный connector_code скилла пропускается до bind, остальные биндятся")
+    void unknownConnectorCodeIsSkipped() {
         agentHasSkill(skill("board", "bogus"));
         when(agentConnectionRepository.findActiveByAgentId(AGENT_ID)).thenReturn(List.of());
-        when(connectionBindingService.bindInternal(USER_ID, AGENT_ID, "board")).thenReturn(null);
-        when(connectionBindingService.bindInternal(USER_ID, AGENT_ID, "bogus"))
-                .thenThrow(new NotFoundStatusException("Connector not found: bogus"));
+        connectorIsInternal("board");
+        when(connectorRegistry.findHandler("bogus")).thenReturn(Optional.empty());
 
-        assertDoesNotThrow(() -> service.applyDiff(AGENT_ID, USER_ID));
+        service.applyDiff(AGENT_ID, USER_ID);
 
         verify(connectionBindingService).bindInternal(USER_ID, AGENT_ID, "board");
-        verify(connectionBindingService).bindInternal(USER_ID, AGENT_ID, "bogus");
+        verify(connectionBindingService, never()).bindInternal(USER_ID, AGENT_ID, "bogus");
     }
 
     @Test
-    @DisplayName("внешний коннектор в скилле (BadRequest от bind) не роняет привязку скилла")
-    void externalConnectorIsSwallowed() {
+    @DisplayName("внешний коннектор в скилле не доходит до bindInternal (иначе его откат пометил бы транзакцию rollback-only)")
+    void externalConnectorIsSkipped() {
         agentHasSkill(skill("telegram"));
         when(agentConnectionRepository.findActiveByAgentId(AGENT_ID)).thenReturn(List.of());
-        when(connectionBindingService.bindInternal(USER_ID, AGENT_ID, "telegram"))
-                .thenThrow(new BadRequestStatusException(
-                        "Connector telegram is external — bind an explicit connection instance"));
+        when(connectorRegistry.findHandler("telegram"))
+                .thenReturn(Optional.of(mock(ConnectorHandler.class)));
 
-        assertDoesNotThrow(() -> service.applyDiff(AGENT_ID, USER_ID));
+        service.applyDiff(AGENT_ID, USER_ID);
+
+        verify(connectionBindingService, never()).bindInternal(any(), any(), any());
     }
 
     @Test

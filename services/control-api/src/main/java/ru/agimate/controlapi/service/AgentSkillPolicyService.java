@@ -4,8 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffEntry;
@@ -82,16 +80,18 @@ public class AgentSkillPolicyService {
             if (bound.containsKey(connectorCode)) {
                 continue;
             }
-            try {
-                connectionBindingService.bindInternal(userId, agentId, connectorCode);
-                added++;
-            } catch (BadRequestStatusException | NotFoundStatusException e) {
-                // Внешний коннектор (нужен явный экземпляр) или неизвестный connector_code (скилл
-                // объявил коннектор, которого нет) — способность просто «не обеспечена», привязка
-                // скилла из-за этого падать не должна.
-                log.warn("Skill cannot bind connector {} for agent {}: {}",
-                        connectorCode, agentId, e.getMessage());
+            // Внешний коннектор (нужен явный экземпляр) или неизвестный connector_code (скилл
+            // объявил коннектор, которого нет) — способность просто «не обеспечена», привязка
+            // скилла из-за этого падать не должна. Проверяем заранее, а не ловим исключение из
+            // bindInternal: его транзакция участвует в нашей, и её откат пометил бы общую
+            // rollback-only — проглоченное исключение всплыло бы UnexpectedRollbackException на коммите.
+            if (!isInternal(connectorCode)) {
+                log.warn("Skill cannot bind connector {} for agent {}: not an internal connector",
+                        connectorCode, agentId);
+                continue;
             }
+            connectionBindingService.bindInternal(userId, agentId, connectorCode);
+            added++;
         }
 
         int removed = 0;
