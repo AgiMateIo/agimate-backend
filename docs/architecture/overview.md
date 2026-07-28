@@ -105,6 +105,7 @@ control-api и подписывает **собственной** ES256-паро�
 | Порт | Назначение |
 |---|---|
 | 8080 | HTTP (оба веб-сервиса; при одновременном локальном запуске control-api переносят на 8180) |
-| 8088 | Management/actuator |
+| 8088 | Management/actuator обоих веб-сервисов |
+| 8089 | Management/actuator agent-worker'а — у него нет прикладного HTTP, и 8088 занят control-api, чей network namespace воркер делит в compose |
 | 9091 | gRPC control-api для воркеров |
 | 9000 | Centrifugo в локальном стенде |

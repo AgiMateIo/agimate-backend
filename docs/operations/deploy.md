@@ -133,11 +133,12 @@ Centrifugo uses the same ES256 key format as JWT. Generate using the JWT key gen
 | Port | Service              | Purpose                                       |
 |------|----------------------|-----------------------------------------------|
 | 8080 | All                  | HTTP API                                      |
-| 8088 | All                  | Management (health, metrics, prometheus)      |
+| 8088 | Web services         | Management (health, metrics, prometheus)      |
+| 8089 | agent-worker         | Management (health) — see below               |
 | 9090 | user-api             | gRPC server for internal s2s interactions     |
 | 9091 | control-api           | gRPC server for Generic Worker protocol (TLS) |
 
-agent-worker exposes no ports (headless, non-web): it consumes DBOS queues from Postgres and dials out to control-api :9091.
+agent-worker publishes no ports: it consumes DBOS queues from Postgres and dials out to control-api :9091. Its embedded server carries `/actuator/health` and nothing else, so the container health check matches the other two services; the port differs from 8088 because in compose the worker shares control-api's network namespace.
 
 control-api also serves the ACP WebSocket endpoint `/acp` on the main HTTP port (8080) — the ingress/reverse proxy in front of control-api must allow WebSocket upgrade on this path.
 

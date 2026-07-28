@@ -1,8 +1,9 @@
 # agent-worker
 
-Java port of the `pydantic-dbos-agent` Python worker. A headless (non-web) Spring Boot
-service that consumes work from DBOS queues, runs an agent turn-loop against an LLM (Spring AI)
-and backend tools, and talks to control-api over gRPC. control-api is the **producer** that
+Java port of the `pydantic-dbos-agent` Python worker. A headless Spring Boot service that
+consumes work from DBOS queues, runs an agent turn-loop against an LLM (Spring AI)
+and backend tools, and talks to control-api over gRPC. Its only HTTP surface is
+`/actuator/health` on port 8089 — nothing calls the worker, the health check aside. control-api is the **producer** that
 enqueues onto the shared DBOS system database; the worker is the **consumer**.
 
 Module: `services/agent-worker`. Entry point: `AgentWorkerApplication`.

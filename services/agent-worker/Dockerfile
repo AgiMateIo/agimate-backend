@@ -40,7 +40,9 @@ USER spring:spring
 # Copy the built jar
 COPY --from=builder /app/agent-worker/build/libs/*.jar app.jar
 
-# Headless queue consumer: no web server, so no port and no HTTP health check.
+# Queue consumer: nothing to publish. The embedded server exists only for the endpoint below.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8089/actuator/health || exit 1
 
 # Run the application with virtual threads enabled
 ENTRYPOINT ["java", \

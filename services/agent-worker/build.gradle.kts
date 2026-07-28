@@ -32,8 +32,11 @@ dependencies {
     // Generated agent-worker gRPC/protobuf stubs (shared with control-api).
     implementation(project(":libs:agentworker-proto"))
 
-    // Spring Boot — headless (non-web) DBOS queue consumer.
+    // Spring Boot — DBOS queue consumer; the embedded web server carries the actuator
+    // health endpoint only (see server.port in application.yaml).
     implementation("org.springframework.boot:spring-boot-starter")
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     // Spring AI OpenAI model module (no starter: the ChatModel is built per-call
     // from dynamic per-agent credentials, so we avoid the autoconfigured bean).

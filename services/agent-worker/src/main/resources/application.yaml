@@ -1,9 +1,13 @@
+server:
+  # The worker has no application HTTP surface — the embedded server carries /actuator/health
+  # and nothing else, so the health check is the same one the two web services get. Not 8088
+  # (their management port): in compose the worker shares control-api's network namespace.
+  port: 8089
+
 spring:
   application:
     name: agent-worker
   main:
-    # Headless worker: no embedded web server.
-    web-application-type: none
     banner-mode: off
   profiles:
     active: "local"

@@ -144,7 +144,7 @@ Docker Desktop оно встроенное.
 | Caddy | 8000 |
 | user-api | 8080 |
 | control-api | 8180 |
-| agent-worker | — (headless) |
+| agent-worker | — (наружу не публикует; health на 8089 внутри неймспейса control-api) |
 
 Под `full` agent-worker делит сетевой неймспейс с control-api: он отказывается ходить plaintext
 gRPC куда-либо кроме loopback, и так `localhost:9091` действительно указывает на control-api —
