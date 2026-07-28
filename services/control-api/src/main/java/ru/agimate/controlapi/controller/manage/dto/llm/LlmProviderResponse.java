@@ -4,9 +4,11 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -25,8 +27,8 @@ public record LlmProviderResponse(
         @Schema(description = "Custom base URL")
         String baseUrl,
 
-        @Schema(description = "Default model (on the platform provider — the fallback model)")
-        String defaultModel,
+        @Schema(description = "Models allowed per purpose, in priority order")
+        Map<LlmPurpose, List<String>> purposePriority,
 
         @Schema(description = "Masked API key (e.g. \"sk-AbCd...WxYz\")")
         String apiKeyMask,
@@ -55,7 +57,7 @@ public record LlmProviderResponse(
                 provider.getName(),
                 provider.getProviderType(),
                 provider.getBaseUrl(),
-                provider.getDefaultModel(),
+                provider.getPurposePriority(),
                 provider.getApiKeyMask(),
                 provider.getExtraBody(),
                 provider.getModelsRefreshedAt(),

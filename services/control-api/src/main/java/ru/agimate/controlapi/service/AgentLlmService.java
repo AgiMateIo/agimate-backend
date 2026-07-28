@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
@@ -15,11 +14,9 @@ import ru.agimate.controlapi.controller.manage.dto.llm.UpdateAgentLlmRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
-import ru.agimate.controlapi.database.entities.LlmProviderModel;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
-import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 
 import java.util.HashMap;
@@ -38,7 +35,6 @@ public class AgentLlmService {
     private final AgentLlmRepository agentLlmRepository;
     private final AgentRepository agentRepository;
     private final LlmProviderRepository llmProviderRepository;
-    private final LlmProviderModelRepository llmProviderModelRepository;
     private final LlmProviderService llmProviderService;
 
     public List<AgentLlmResponse> listForAgent(UUID agentId, UUID userId) {
@@ -75,8 +71,10 @@ public class AgentLlmService {
         return result;
     }
 
+    /** Empty when the platform has no CHAT models declared — there is nothing to fall back to, so we show nothing. */
     private List<AgentLlmResponse> platformFallbackEntry() {
         return llmProviderService.findUsablePlatformProvider()
+                .filter(p -> p.modelsFor(LlmPurpose.CHAT).map(m -> !m.isEmpty()).orElse(false))
                 .map(p -> List.of(AgentLlmResponse.platformFallback(p)))
                 .orElse(List.of());
     }
@@ -188,26 +186,7 @@ public class AgentLlmService {
         return agent;
     }
 
-    /**
-     * Protection against typos, using the {@code llm_provider_models} registry. The advisory principle:
-     * a row of any status passes (UNAVAILABLE = it disappeared from the last listing, but rebinding it is
-     * allowed — listings are sometimes incomplete); an empty registry means discovery has never run, so
-     * we let it through.
-     */
     private void validateModel(LlmProvider provider, String model) {
-        List<LlmProviderModel> models = llmProviderModelRepository
-                .findAllByProviderIdOrderByModel(provider.getId());
-        if (models.isEmpty()) {
-            log.warn("LLM provider {} has an empty model registry — skipping model validation for '{}'",
-                    provider.getId(), model);
-            return;
-        }
-        boolean matches = models.stream().anyMatch(m -> model.equals(m.getModel()));
-        if (!matches) {
-            List<String> ids = models.stream().map(LlmProviderModel::getModel).toList();
-            throw new BadRequestStatusException(
-                    "Model '" + model + "' is not in the provider's model registry. "
-                            + "Refresh models or use one of: " + ids);
-        }
+        llmProviderService.validateModelsKnown(provider, List.of(model));
     }
 }

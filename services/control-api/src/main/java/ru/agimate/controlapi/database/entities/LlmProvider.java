@@ -8,9 +8,12 @@ import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Entity
@@ -51,9 +54,16 @@ public class LlmProvider extends BaseEntity {
     @Column(name = "api_key_mask", nullable = false, columnDefinition = "TEXT")
     private String apiKeyMask;
 
-    /** Default model: mandatory for the platform provider (the fallback when there is no binding). */
-    @Column(name = "default_model", columnDefinition = "TEXT")
-    private String defaultModel;
+    /**
+     * The models this provider is allowed to serve per purpose, in priority order
+     * ({@code {"CHAT": ["m1","m2"], "VISION": []}}). An allowlist, not a hint: the resolver takes the
+     * first live entry and never picks a model outside the list, so a purpose the user has not
+     * configured is an error addressed to them rather than a guess. A missing key («not configured»)
+     * and an empty list («switched off deliberately») are distinct and yield distinct messages.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "purpose_priority", columnDefinition = "JSONB")
+    private Map<LlmPurpose, List<String>> purposePriority;
 
     /**
      * Provider-level extra parameters of the chat/completions body (OpenRouter {@code provider}
@@ -73,4 +83,13 @@ public class LlmProvider extends BaseEntity {
     @Column(name = "enabled", nullable = false)
     @Builder.Default
     private boolean enabled = true;
+
+    /**
+     * The models declared for a purpose. {@code Optional.empty()} — the purpose is not configured at
+     * all; an empty list — it is switched off deliberately. Every caller tells the two apart (the
+     * messages differ), so they must not collapse into one «nothing here».
+     */
+    public Optional<List<String>> modelsFor(LlmPurpose purpose) {
+        return Optional.ofNullable(purposePriority).map(p -> p.get(purpose));
+    }
 }

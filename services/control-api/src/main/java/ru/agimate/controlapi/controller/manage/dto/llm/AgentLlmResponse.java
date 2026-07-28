@@ -6,6 +6,7 @@ import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 
+import java.util.List;
 import java.util.UUID;
 
 @Schema(description = "Agent ↔ LLM binding (no api_key)")
@@ -46,7 +47,8 @@ public record AgentLlmResponse(
     /** The agent's effective model with no bindings: the platform fallback (its id is not addressable by the user). */
     public static AgentLlmResponse platformFallback(LlmProvider platformProvider) {
         return new AgentLlmResponse(
-                platformProvider.getDefaultModel(),
+                platformProvider.modelsFor(LlmPurpose.CHAT).stream()
+                        .flatMap(List::stream).findFirst().orElse(null),
                 LlmPurpose.CHAT,
                 null,
                 platformProvider.getName(),

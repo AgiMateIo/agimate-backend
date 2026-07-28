@@ -172,7 +172,7 @@ class AgentContextGrpcServiceTest {
                     .name(LlmProviderService.PLATFORM_PROVIDER_NAME)
                     .providerType(LlmProviderType.OPENAI_COMPATIBLE)
                     .baseUrl("https://openrouter.ai/api/v1")
-                    .defaultModel("gpt-5-mini")
+                    .purposePriority(Map.of(LlmPurpose.CHAT, List.of("gpt-5-mini")))
                     .enabled(true)
                     .build();
             when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
@@ -236,7 +236,7 @@ class AgentContextGrpcServiceTest {
                     .name(LlmProviderService.PLATFORM_PROVIDER_NAME)
                     .providerType(LlmProviderType.OPENAI_COMPATIBLE)
                     .baseUrl("https://openrouter.ai/api/v1")
-                    .defaultModel("gpt-5-mini")
+                    .purposePriority(Map.of(LlmPurpose.CHAT, List.of("gpt-5-mini")))
                     .enabled(true)
                     .build();
             when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))

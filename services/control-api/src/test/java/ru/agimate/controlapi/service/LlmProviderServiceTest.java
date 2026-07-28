@@ -14,6 +14,7 @@ import ru.agimate.controlapi.database.entities.LlmProviderModel;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.LlmProviderModelStatus;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.model.LlmModelInfo;
 import ru.agimate.controlapi.database.repositories.LlmModelDefaultsRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
@@ -85,7 +86,8 @@ class LlmProviderServiceTest {
 
             var response = service.createPlatformProvider(
                     new ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProviderRequest(
-                            LlmProviderType.OPENAI_COMPATIBLE, BASE_URL, API_KEY, MODEL));
+                            LlmProviderType.OPENAI_COMPATIBLE, BASE_URL, API_KEY,
+                            Map.of(LlmPurpose.CHAT, List.of(MODEL))));
 
             assertEquals(LlmProviderService.PLATFORM_PROVIDER_NAME, response.name());
             assertTrue(response.platform());
@@ -102,7 +104,8 @@ class LlmProviderServiceTest {
             assertThrows(ru.agimate.common.rest.error.ConflictStatusException.class,
                     () -> service.createPlatformProvider(
                             new ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProviderRequest(
-                                    LlmProviderType.OPENAI_COMPATIBLE, BASE_URL, API_KEY, MODEL)));
+                                    LlmProviderType.OPENAI_COMPATIBLE, BASE_URL, API_KEY,
+                            Map.of(LlmPurpose.CHAT, List.of(MODEL)))));
             verify(llmProviderRepository, never()).save(any());
         }
     }
@@ -112,7 +115,7 @@ class LlmProviderServiceTest {
     class FindUsable {
 
         @Test
-        @DisplayName("включён и с default_model → присутствует")
+        @DisplayName("включён → присутствует")
         void usable() {
             when(llmProviderRepository.findByUserIdAndName(
                     SystemSkillBootstrap.SYSTEM_USER_ID, LlmProviderService.PLATFORM_PROVIDER_NAME))
@@ -130,14 +133,14 @@ class LlmProviderServiceTest {
         }
 
         @Test
-        @DisplayName("без default_model → отсутствует")
-        void missingDefaultModelIsNotUsable() {
+        @DisplayName("без purpose_priority → всё равно присутствует: пригодность под назначение решает резолвер")
+        void emptyPurposePriorityIsStillReturned() {
             LlmProvider provider = existingProvider(true);
-            provider.setDefaultModel(null);
+            provider.setPurposePriority(null);
             when(llmProviderRepository.findByUserIdAndName(
                     SystemSkillBootstrap.SYSTEM_USER_ID, LlmProviderService.PLATFORM_PROVIDER_NAME))
                     .thenReturn(Optional.of(provider));
-            assertTrue(service.findUsablePlatformProvider().isEmpty());
+            assertTrue(service.findUsablePlatformProvider().isPresent());
         }
     }
 
@@ -208,7 +211,7 @@ class LlmProviderServiceTest {
         }
 
         @Test
-        @DisplayName("админ включает платформенный провайдер и меняет default_model через update")
+        @DisplayName("админ включает платформенный провайдер и задаёт purpose_priority через update")
         void adminEnablesAndSetsModel() {
             LlmProvider platform = existingProvider(false);
             when(llmProviderRepository.findById(platform.getId())).thenReturn(Optional.of(platform));
@@ -216,11 +219,64 @@ class LlmProviderServiceTest {
 
             var response = service.update(platform.getId(), adminId, true,
                     new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
-                            null, null, null, "gemini-flash", null, true));
+                            null, null, null,
+                            Map.of(LlmPurpose.CHAT, List.of("gemini-flash"),
+                                    LlmPurpose.VISION, List.of("gemini-flash")),
+                            null, true));
 
             assertTrue(response.enabled());
-            assertEquals("gemini-flash", response.defaultModel());
+            assertEquals(List.of("gemini-flash"), response.purposePriority().get(LlmPurpose.CHAT));
+            assertEquals(List.of("gemini-flash"), response.purposePriority().get(LlmPurpose.VISION));
             assertTrue(response.platform());
+        }
+
+        @Test
+        @DisplayName("модель не из реестра → 400: список — это allowlist, опечатку никто не исправит на вызове")
+        void rejectsModelOutsideRegistry() {
+            LlmProvider platform = existingProvider(true);
+            when(llmProviderRepository.findById(platform.getId())).thenReturn(Optional.of(platform));
+            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(platform.getId()))
+                    .thenReturn(List.of(LlmProviderModel.builder().model("gemini-flash").build()));
+
+            assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
+                    () -> service.update(platform.getId(), adminId, true,
+                            new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
+                                    null, null, null,
+                                    Map.of(LlmPurpose.CHAT, List.of("gemini-flahs")), null, null)));
+            verify(llmProviderRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("пустой список — это выключенное назначение, а не мусор: сохраняется как есть")
+        void keepsEmptyListAsExplicitOff() {
+            LlmProvider platform = existingProvider(true);
+            when(llmProviderRepository.findById(platform.getId())).thenReturn(Optional.of(platform));
+            when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            var response = service.update(platform.getId(), adminId, true,
+                    new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
+                            null, null, null, Map.of(LlmPurpose.IMAGE, List.of()), null, null));
+
+            assertEquals(List.of(), response.purposePriority().get(LlmPurpose.IMAGE));
+        }
+
+        @Test
+        @DisplayName("дубль и пустая строка в списке — 400")
+        void rejectsMalformedList() {
+            LlmProvider platform = existingProvider(true);
+            when(llmProviderRepository.findById(platform.getId())).thenReturn(Optional.of(platform));
+
+            assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
+                    () -> service.update(platform.getId(), adminId, true,
+                            new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
+                                    null, null, null,
+                                    Map.of(LlmPurpose.CHAT, List.of("a", "a")), null, null)));
+            assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
+                    () -> service.update(platform.getId(), adminId, true,
+                            new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
+                                    null, null, null,
+                                    Map.of(LlmPurpose.CHAT, List.of(" ")), null, null)));
+            verify(llmProviderRepository, never()).save(any());
         }
     }
 
@@ -394,7 +450,7 @@ class LlmProviderServiceTest {
                 .name(LlmProviderService.PLATFORM_PROVIDER_NAME)
                 .providerType(LlmProviderType.OPENAI_COMPATIBLE)
                 .baseUrl(BASE_URL)
-                .defaultModel(MODEL)
+                .purposePriority(Map.of(LlmPurpose.CHAT, List.of(MODEL)))
                 .secretId(UUID.randomUUID())
                 .apiKeyMask("sk-****")
                 .enabled(enabled)

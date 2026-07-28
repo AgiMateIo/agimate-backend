@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.entities.LlmQuota;
 import ru.agimate.controlapi.database.entities.LlmUsageCounter;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.enums.UsageSubjectKind;
 import ru.agimate.controlapi.database.enums.UsageWindow;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
@@ -23,6 +24,7 @@ import ru.agimate.controlapi.service.SystemSkillBootstrap;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -60,7 +62,7 @@ class LlmUsageQueryServiceTest {
                 .build();
         LlmProvider platform = LlmProvider.builder()
                 .id(UUID.randomUUID()).userId(SystemSkillBootstrap.SYSTEM_USER_ID).name("platform")
-                .providerType(LlmProviderType.OPENAI_COMPATIBLE).defaultModel("gpt-5-mini").enabled(true)
+                .providerType(LlmProviderType.OPENAI_COMPATIBLE).purposePriority(Map.of(LlmPurpose.CHAT, List.of("gpt-5-mini"))).enabled(true)
                 .build();
         when(llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(byok));
         when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));

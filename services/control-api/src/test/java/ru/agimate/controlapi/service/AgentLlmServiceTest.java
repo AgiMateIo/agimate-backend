@@ -19,7 +19,6 @@ import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
-import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 
 import java.util.List;
@@ -49,8 +48,6 @@ class AgentLlmServiceTest {
     @Mock
     private LlmProviderRepository llmProviderRepository;
     @Mock
-    private LlmProviderModelRepository llmProviderModelRepository;
-    @Mock
     private LlmProviderService llmProviderService;
 
     @InjectMocks
@@ -63,7 +60,7 @@ class AgentLlmServiceTest {
                 .name(LlmProviderService.PLATFORM_PROVIDER_NAME)
                 .providerType(LlmProviderType.OPENAI_COMPATIBLE)
                 .baseUrl("https://openrouter.ai/api/v1")
-                .defaultModel("gpt-5-mini")
+                .purposePriority(Map.of(LlmPurpose.CHAT, List.of("gpt-5-mini")))
                 .enabled(true)
                 .build();
     }
@@ -147,8 +144,6 @@ class AgentLlmServiceTest {
                     .enabled(true)
                     .build();
             when(llmProviderService.requireOwned(provider.getId(), userId)).thenReturn(provider);
-            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
-                    .thenReturn(List.of());
             return provider;
         }
 

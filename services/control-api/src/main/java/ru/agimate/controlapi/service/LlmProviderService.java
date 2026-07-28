@@ -23,6 +23,7 @@ import ru.agimate.controlapi.database.entities.LlmProviderModel;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.LlmProviderModelStatus;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.repositories.LlmModelDefaultsRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
@@ -32,6 +33,7 @@ import ru.agimate.controlapi.service.secret.SecretService;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -79,14 +81,15 @@ public class LlmProviderService {
     }
 
     /**
-     * The platform provider fit for a fallback issue: enabled and with a default_model set. The users'
-     * manage paths never look here — the system row belongs to no userId.
+     * The platform provider fit for a fallback issue: just «enabled». Whether it can serve a given
+     * purpose is decided by the caller against {@code purpose_priority} — that way the refusal names
+     * the purpose that is unconfigured instead of the row silently disappearing from the fallback.
+     * The users' manage paths never look here — the system row belongs to no userId.
      */
     public Optional<LlmProvider> findUsablePlatformProvider() {
         return llmProviderRepository
                 .findByUserIdAndName(SystemSkillBootstrap.SYSTEM_USER_ID, PLATFORM_PROVIDER_NAME)
-                .filter(LlmProvider::isEnabled)
-                .filter(p -> p.getDefaultModel() != null && !p.getDefaultModel().isBlank());
+                .filter(LlmProvider::isEnabled);
     }
 
     public LlmProviderResponse getForUser(UUID id, UUID userId, boolean admin) {
@@ -136,13 +139,14 @@ public class LlmProviderService {
             throw new ConflictStatusException("Platform provider already exists");
         }
         validateBaseUrl(request.providerType(), request.baseUrl());
+        validatePurposePriority(request.purposePriority());
 
         LlmProvider provider = llmProviderRepository.save(LlmProvider.builder()
                 .userId(SystemSkillBootstrap.SYSTEM_USER_ID)
                 .name(PLATFORM_PROVIDER_NAME)
                 .providerType(request.providerType())
                 .baseUrl(blankToNull(request.baseUrl()))
-                .defaultModel(blankToNull(request.defaultModel()))
+                .purposePriority(emptyToNull(request.purposePriority()))
                 .apiKeyMask(buildMask(request.apiKey()))
                 .enabled(false)
                 .build());
@@ -160,6 +164,7 @@ public class LlmProviderService {
     public LlmProviderResponse create(UUID userId, CreateLlmProviderRequest request) {
         validateBaseUrl(request.providerType(), request.baseUrl());
         validateExtraBody(request.extraBody());
+        validatePurposePriority(request.purposePriority());
         if (llmProviderRepository.existsByUserIdAndName(userId, request.name())) {
             throw new ConflictStatusException("LLM provider with this name already exists");
         }
@@ -170,7 +175,7 @@ public class LlmProviderService {
                 .name(request.name())
                 .providerType(request.providerType())
                 .baseUrl(blankToNull(request.baseUrl()))
-                .defaultModel(blankToNull(request.defaultModel()))
+                .purposePriority(emptyToNull(request.purposePriority()))
                 .extraBody(request.extraBody())
                 .apiKeyMask(buildMask(request.apiKey()))
                 .enabled(request.enabled() == null || request.enabled())
@@ -200,8 +205,12 @@ public class LlmProviderService {
             }
             provider.setName(request.name());
         }
-        if (request.defaultModel() != null) {
-            provider.setDefaultModel(blankToNull(request.defaultModel()));
+        if (request.purposePriority() != null) {
+            validatePurposePriority(request.purposePriority());
+            validateModelsKnown(provider, request.purposePriority().values().stream()
+                    .flatMap(List::stream).toList());
+            // The whole map is replaced; an empty object clears it (partial update: null = «leave unchanged»).
+            provider.setPurposePriority(emptyToNull(request.purposePriority()));
         }
         if (request.baseUrl() != null) {
             String normalized = blankToNull(request.baseUrl());
@@ -380,6 +389,62 @@ public class LlmProviderService {
     }
 
     /**
+     * Shape of the purpose lists. A blank or repeated model id is a typo rather than a configuration,
+     * and a null list is ambiguous where {@code []} already means «this purpose is switched off» — so
+     * all three are refused at the boundary instead of surfacing as a confusing resolution failure.
+     */
+    private static void validatePurposePriority(Map<LlmPurpose, List<String>> purposePriority) {
+        if (purposePriority == null) {
+            return;
+        }
+        purposePriority.forEach((purpose, models) -> {
+            if (models == null) {
+                throw new BadRequestStatusException("purpose_priority." + purpose
+                        + " is null; use [] to switch the purpose off");
+            }
+            Set<String> seen = new HashSet<>();
+            for (String model : models) {
+                if (model == null || model.isBlank()) {
+                    throw new BadRequestStatusException(
+                            "purpose_priority." + purpose + " contains a blank model id");
+                }
+                if (!seen.add(model)) {
+                    throw new BadRequestStatusException(
+                            "purpose_priority." + purpose + " lists '" + model + "' twice");
+                }
+            }
+        });
+    }
+
+    /**
+     * Protection against typos, using the {@code llm_provider_models} registry — for purpose lists as
+     * well as for agent bindings, since neither is ever corrected by a capability search at call time.
+     * The advisory principle: a row of any status passes (UNAVAILABLE = it disappeared from the last
+     * listing, but naming it again is allowed — listings are sometimes incomplete); an empty registry
+     * means discovery has never run, so we let everything through.
+     */
+    public void validateModelsKnown(LlmProvider provider, Collection<String> models) {
+        if (models.isEmpty()) {
+            return;
+        }
+        List<LlmProviderModel> registry = llmProviderModelRepository
+                .findAllByProviderIdOrderByModel(provider.getId());
+        if (registry.isEmpty()) {
+            log.warn("LLM provider {} has an empty model registry — skipping model validation for {}",
+                    provider.getId(), models);
+            return;
+        }
+        List<String> known = registry.stream().map(LlmProviderModel::getModel).toList();
+        for (String model : models) {
+            if (!known.contains(model)) {
+                throw new BadRequestStatusException(
+                        "Model '" + model + "' is not in the provider's model registry. "
+                                + "Refresh models or use one of: " + known);
+            }
+        }
+    }
+
+    /**
      * Extra_body is neither a secret store nor unbounded: a compact JSON object only. Its contents are
      * not validated (an allowlist of keys would drift behind the providers) — the provider itself
      * rejects garbage.
@@ -416,6 +481,10 @@ public class LlmProviderService {
 
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s;
+    }
+
+    private static Map<LlmPurpose, List<String>> emptyToNull(Map<LlmPurpose, List<String>> map) {
+        return (map == null || map.isEmpty()) ? null : map;
     }
 
     private static String buildMask(String apiKey) {

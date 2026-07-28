@@ -4,7 +4,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
+import ru.agimate.controlapi.database.enums.LlmPurpose;
 
+import java.util.List;
 import java.util.Map;
 
 @Schema(description = "Request to create an LLM provider configuration")
@@ -24,8 +26,10 @@ public record CreateLlmProviderRequest(
         @Schema(description = "API key — encrypted at rest, never returned in responses")
         String apiKey,
 
-        @Schema(description = "Default model (UI preselect; on the platform provider — the fallback model)")
-        String defaultModel,
+        @Schema(description = "Models allowed per purpose, in priority order "
+                + "(e.g. {\"CHAT\": [\"m1\", \"m2\"], \"VISION\": [\"m3\"]}). An allowlist: a purpose "
+                + "with no key is reported as unconfigured, an empty list switches the purpose off")
+        Map<LlmPurpose, List<String>> purposePriority,
 
         @Schema(description = "Provider-level extra chat/completions body fields (e.g. OpenRouter "
                 + "provider routing); deep-merged with per-model extra_body, model wins. "

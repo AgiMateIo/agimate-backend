@@ -64,6 +64,13 @@ class LlmCredentialsResolverTest {
                 .build();
     }
 
+    /** Платформенная строка узнаётся по владельцу — от этого зависит флаг platformFallback. */
+    private LlmProvider platformProvider() {
+        LlmProvider platform = provider("platform");
+        platform.setUserId(ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID);
+        return platform;
+    }
+
     private static LlmProviderModel model(String name, List<String> in, List<String> out,
                                           LlmProviderModelStatus status) {
         return LlmProviderModel.builder()
@@ -158,59 +165,66 @@ class LlmCredentialsResolverTest {
                     () -> resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE));
             verify(llmProviderRepository, never()).findAllByUserIdOrderByCreatedAtDesc(any());
         }
+
+        @Test
+        @DisplayName("модель биндинга выпала из листинга → отказ, а не тихая подмена на другую")
+        void goneBoundModelFailsWithoutFallback() {
+            LlmProvider bound = provider("my-openrouter");
+            bound.setPurposePriority(Map.of(LlmPurpose.VISION, List.of("still-alive")));
+            AgentLlm binding = AgentLlm.builder()
+                    .agentId(agentId)
+                    .llmProviderId(bound.getId())
+                    .model("retired-vision")
+                    .purpose(LlmPurpose.VISION)
+                    .build();
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.VISION))
+                    .thenReturn(Optional.of(binding));
+            when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
+            when(llmProviderModelRepository.findByProviderIdAndModel(bound.getId(), "retired-vision"))
+                    .thenReturn(Optional.of(model("retired-vision", List.of("text", "image"),
+                            List.of("text"), LlmProviderModelStatus.UNAVAILABLE)));
+
+            NoCapableModelException e = assertThrows(NoCapableModelException.class,
+                    () -> resolver.resolveForCapability(agentId, userId, LlmPurpose.VISION));
+
+            assertTrue(e.getMessage().contains("retired-vision"), e.getMessage());
+            assertTrue(e.getMessage().contains("no longer listed"), e.getMessage());
+            // список того же провайдера не подхватывается: выбор человека молча не подменяем
+            verify(llmProviderService, never()).decryptApiKey(any());
+            verify(llmQuotaService, never()).check(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("chat-биндинг на выпавшую модель → 404 с тем же текстом (в ран уедет NOT_FOUND)")
+        void goneChatBindingFails() {
+            LlmProvider bound = provider("my-openrouter");
+            AgentLlm binding = AgentLlm.builder()
+                    .agentId(agentId)
+                    .llmProviderId(bound.getId())
+                    .model("retired-chat")
+                    .purpose(LlmPurpose.CHAT)
+                    .build();
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
+                    .thenReturn(Optional.of(binding));
+            when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
+            when(llmProviderModelRepository.findByProviderIdAndModel(bound.getId(), "retired-chat"))
+                    .thenReturn(Optional.of(model("retired-chat", List.of("text"), List.of("text"),
+                            LlmProviderModelStatus.UNAVAILABLE)));
+
+            var e = assertThrows(ru.agimate.common.rest.error.NotFoundStatusException.class,
+                    () -> resolver.resolveChat(agentId, userId));
+
+            assertTrue(e.getMessage().contains("no longer listed"), e.getMessage());
+            verify(llmProviderService, never()).findUsablePlatformProvider();
+        }
     }
 
     @Nested
-    @DisplayName("ступень 2 — капабилити-матч по провайдерам пользователя")
-    class CapabilityMatch {
+    @DisplayName("ступень 2 — purpose_priority провайдера chat-биндинга")
+    class ChatProviderList {
 
-        @Test
-        @DisplayName("выбирается первая по имени AVAILABLE-модель с нужной output-модальностью")
-        void picksFirstCapableAvailableModel() {
-            LlmProvider p = provider("my-openrouter");
-            stubNoBinding(LlmPurpose.IMAGE);
-            stubNoBinding(LlmPurpose.CHAT);
-            when(llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId)).thenReturn(List.of(p));
-            stubRegistry(p,
-                    model("a-chat-only", List.of("text"), List.of("text"), LlmProviderModelStatus.AVAILABLE),
-                    model("b-image-gone", List.of("text"), List.of("image"), LlmProviderModelStatus.UNAVAILABLE),
-                    model("c-image", List.of("text"), List.of("image", "text"), LlmProviderModelStatus.AVAILABLE),
-                    model("d-image", List.of("text"), List.of("image"), LlmProviderModelStatus.AVAILABLE));
-            when(llmProviderService.decryptApiKey(p)).thenReturn("sk-key");
-            when(llmProviderModelRepository.findByProviderIdAndModel(p.getId(), "c-image"))
-                    .thenReturn(Optional.empty());
-
-            ResolvedLlm resolved = resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE);
-
-            assertEquals("c-image", resolved.model());
-            assertFalse(resolved.platformFallback());
-            verify(llmQuotaService).check(p, userId, agentId);
-        }
-
-        @Test
-        @DisplayName("VISION смотрит input_modalities: генератор без зрения не подходит")
-        void visionMatchesInputModalities() {
-            LlmProvider p = provider("my-openrouter");
-            stubNoBinding(LlmPurpose.VISION);
-            stubNoBinding(LlmPurpose.CHAT);
-            when(llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId)).thenReturn(List.of(p));
-            stubRegistry(p,
-                    model("a-image-gen", List.of("text"), List.of("image"), LlmProviderModelStatus.AVAILABLE),
-                    model("b-vision", List.of("text", "image"), List.of("text"), LlmProviderModelStatus.AVAILABLE));
-            when(llmProviderService.decryptApiKey(p)).thenReturn("sk-key");
-            when(llmProviderModelRepository.findByProviderIdAndModel(p.getId(), "b-vision"))
-                    .thenReturn(Optional.empty());
-
-            assertEquals("b-vision",
-                    resolver.resolveForCapability(agentId, userId, LlmPurpose.VISION).model());
-        }
-
-        @Test
-        @DisplayName("провайдер chat-биндинга проверяется первым, даже если он не первый в листинге")
-        void chatProviderCheckedFirst() {
-            LlmProvider other = provider("other");
-            LlmProvider chatBound = provider("chat-bound");
-            stubNoBinding(LlmPurpose.IMAGE);
+        /** Биндинг CHAT на провайдере: он же — первое звено цепочки для тулов. */
+        private void stubChatBinding(LlmProvider chatBound) {
             AgentLlm chatBinding = AgentLlm.builder()
                     .agentId(agentId)
                     .llmProviderId(chatBound.getId())
@@ -218,43 +232,96 @@ class LlmCredentialsResolverTest {
                     .build();
             when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
                     .thenReturn(Optional.of(chatBinding));
-            when(llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId))
-                    .thenReturn(List.of(other, chatBound));
-            LlmProviderModel capable =
-                    model("img", List.of("text"), List.of("image"), LlmProviderModelStatus.AVAILABLE);
-            stubRegistry(chatBound, capable);
-            when(llmProviderService.decryptApiKey(chatBound)).thenReturn("sk-key");
-            when(llmProviderModelRepository.findByProviderIdAndModel(chatBound.getId(), "img"))
-                    .thenReturn(Optional.empty());
+            when(llmProviderRepository.findById(chatBound.getId())).thenReturn(Optional.of(chatBound));
+        }
+
+        @Test
+        @DisplayName("берётся первая модель объявленного списка, реестр по модальностям не опрашивается")
+        void picksFirstDeclared() {
+            LlmProvider p = provider("my-openrouter");
+            p.setPurposePriority(Map.of(LlmPurpose.IMAGE, List.of("first-image", "second-image")));
+            stubNoBinding(LlmPurpose.IMAGE);
+            stubChatBinding(p);
+            stubRegistry(p, model("first-image", List.of("text"), List.of("image"),
+                    LlmProviderModelStatus.AVAILABLE));
+            when(llmProviderService.decryptApiKey(p)).thenReturn("sk-key");
 
             ResolvedLlm resolved = resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE);
 
-            assertEquals(chatBound.getId(), resolved.provider().getId());
-            // до реестра провайдера other дело не дошло — chat-провайдер удовлетворил запрос
-            verify(llmProviderModelRepository, never()).findAllByProviderIdOrderByModel(other.getId());
+            assertEquals("first-image", resolved.model());
+            assertFalse(resolved.platformFallback());
+            verify(llmQuotaService).check(p, userId, agentId);
+            verify(llmProviderRepository, never()).findAllByUserIdOrderByCreatedAtDesc(any());
+        }
+
+        @Test
+        @DisplayName("выпавшая из листинга модель пропускается — список это ещё и цепочка фолбэков")
+        void skipsUnavailable() {
+            LlmProvider p = provider("my-openrouter");
+            p.setPurposePriority(Map.of(LlmPurpose.IMAGE, List.of("gone", "alive")));
+            stubNoBinding(LlmPurpose.IMAGE);
+            stubChatBinding(p);
+            stubRegistry(p,
+                    model("alive", List.of("text"), List.of("image"), LlmProviderModelStatus.AVAILABLE),
+                    model("gone", List.of("text"), List.of("image"), LlmProviderModelStatus.UNAVAILABLE));
+            when(llmProviderService.decryptApiKey(p)).thenReturn("sk-key");
+
+            assertEquals("alive",
+                    resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE).model());
+        }
+
+        @Test
+        @DisplayName("модели нет в реестре вовсе → берётся как есть: настройка до первого refresh законна")
+        void takesModelUnknownToRegistry() {
+            LlmProvider p = provider("my-openrouter");
+            p.setPurposePriority(Map.of(LlmPurpose.VISION, List.of("hand-entered")));
+            stubNoBinding(LlmPurpose.VISION);
+            stubChatBinding(p);
+            stubRegistry(p);
+            when(llmProviderService.decryptApiKey(p)).thenReturn("sk-key");
+
+            assertEquals("hand-entered",
+                    resolver.resolveForCapability(agentId, userId, LlmPurpose.VISION).model());
+        }
+
+        @Test
+        @DisplayName("выключенный провайдер chat-биндинга выпадает из цепочки, а не роняет её")
+        void disabledChatProviderIsSkipped() {
+            LlmProvider disabled = provider("my-openrouter");
+            disabled.setEnabled(false);
+            LlmProvider platform = platformProvider();
+            platform.setPurposePriority(Map.of(LlmPurpose.IMAGE, List.of("platform-image")));
+            stubNoBinding(LlmPurpose.IMAGE);
+            stubChatBinding(disabled);
+            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
+            stubRegistry(platform);
+            when(llmProviderService.decryptApiKey(platform)).thenReturn("sk-platform");
+
+            assertEquals("platform-image",
+                    resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE).model());
         }
     }
 
     @Nested
-    @DisplayName("ступень 3 — платформенный провайдер и отказ")
+    @DisplayName("ступень 3 — платформенный провайдер и отказы")
     class PlatformAndFailure {
 
         @Test
-        @DisplayName("у пользователя нет подходящей модели → матч по реестру платформы")
-        void fallsBackToPlatformRegistry() {
-            LlmProvider mine = provider("mine-no-image");
-            LlmProvider platform = provider("platform");
+        @DisplayName("у провайдера пользователя нет ключа этого назначения → платформа")
+        void fallsBackToPlatformList() {
+            LlmProvider mine = provider("mine");
+            mine.setPurposePriority(Map.of(LlmPurpose.CHAT, List.of("chat-model")));
+            LlmProvider platform = platformProvider();
+            platform.setPurposePriority(Map.of(LlmPurpose.IMAGE, List.of("platform-image")));
             stubNoBinding(LlmPurpose.IMAGE);
-            stubNoBinding(LlmPurpose.CHAT);
-            when(llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId)).thenReturn(List.of(mine));
-            stubRegistry(mine,
-                    model("text-only", List.of("text"), List.of("text"), LlmProviderModelStatus.AVAILABLE));
+            AgentLlm chatBinding = AgentLlm.builder()
+                    .agentId(agentId).llmProviderId(mine.getId()).model("chat-model").build();
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
+                    .thenReturn(Optional.of(chatBinding));
+            when(llmProviderRepository.findById(mine.getId())).thenReturn(Optional.of(mine));
             when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
-            stubRegistry(platform,
-                    model("platform-image", List.of("text"), List.of("image"), LlmProviderModelStatus.AVAILABLE));
             when(llmProviderService.decryptApiKey(platform)).thenReturn("sk-platform");
-            when(llmProviderModelRepository.findByProviderIdAndModel(platform.getId(), "platform-image"))
-                    .thenReturn(Optional.empty());
+            stubRegistry(platform);
 
             ResolvedLlm resolved = resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE);
 
@@ -264,16 +331,54 @@ class LlmCredentialsResolverTest {
         }
 
         @Test
-        @DisplayName("нигде ничего → NoCapableModelException с внятным текстом")
+        @DisplayName("пустой список у своего провайдера — это «выключено»: до платформы не идём")
+        void emptyListStopsTheChain() {
+            LlmProvider mine = provider("mine");
+            mine.setPurposePriority(Map.of(LlmPurpose.IMAGE, List.of()));
+            stubNoBinding(LlmPurpose.IMAGE);
+            AgentLlm chatBinding = AgentLlm.builder()
+                    .agentId(agentId).llmProviderId(mine.getId()).model("chat-model").build();
+            when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
+                    .thenReturn(Optional.of(chatBinding));
+            when(llmProviderRepository.findById(mine.getId())).thenReturn(Optional.of(mine));
+
+            NoCapableModelException e = assertThrows(NoCapableModelException.class,
+                    () -> resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE));
+            assertTrue(e.getMessage().contains("switched off"), e.getMessage());
+            // до платформы дело не дошло: ключ не расшифровывали, квоту не трогали
+            verify(llmProviderService, never()).decryptApiKey(any());
+            verify(llmQuotaService, never()).check(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("все объявленные модели выпали из листинга → отказ с их перечислением")
+        void allDeclaredGone() {
+            LlmProvider platform = platformProvider();
+            platform.setPurposePriority(Map.of(LlmPurpose.IMAGE, List.of("gone-1", "gone-2")));
+            stubNoBinding(LlmPurpose.IMAGE);
+            stubNoBinding(LlmPurpose.CHAT);
+            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
+            stubRegistry(platform,
+                    model("gone-1", List.of("text"), List.of("image"), LlmProviderModelStatus.UNAVAILABLE),
+                    model("gone-2", List.of("text"), List.of("image"), LlmProviderModelStatus.UNAVAILABLE));
+
+            NoCapableModelException e = assertThrows(NoCapableModelException.class,
+                    () -> resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE));
+            assertTrue(e.getMessage().contains("gone-1"), e.getMessage());
+            assertTrue(e.getMessage().contains("unavailable"), e.getMessage());
+        }
+
+        @Test
+        @DisplayName("нигде ничего → NoCapableModelException с обоими выходами в тексте")
         void nothingAnywhere() {
             stubNoBinding(LlmPurpose.IMAGE);
             stubNoBinding(LlmPurpose.CHAT);
-            when(llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId)).thenReturn(List.of());
             when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.empty());
 
             NoCapableModelException e = assertThrows(NoCapableModelException.class,
                     () -> resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE));
-            assertTrue(e.getMessage().contains("generating image"), e.getMessage());
+            assertTrue(e.getMessage().contains("Bind a IMAGE model"), e.getMessage());
+            assertTrue(e.getMessage().contains("IMAGE list"), e.getMessage());
         }
 
         @Test
@@ -281,6 +386,39 @@ class LlmCredentialsResolverTest {
         void chatRejected() {
             assertThrows(IllegalArgumentException.class,
                     () -> resolver.resolveForCapability(agentId, userId, LlmPurpose.CHAT));
+        }
+    }
+
+    @Nested
+    @DisplayName("resolveChat — платформенный фолбэк без биндинга")
+    class ChatFallback {
+
+        @Test
+        @DisplayName("модель чата берётся из CHAT-списка платформы")
+        void takesFirstChatModelOfPlatform() {
+            LlmProvider platform = platformProvider();
+            platform.setPurposePriority(Map.of(LlmPurpose.CHAT, List.of("free-model")));
+            stubNoBinding(LlmPurpose.CHAT);
+            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
+            stubRegistry(platform);
+            when(llmProviderService.decryptApiKey(platform)).thenReturn("sk-platform");
+
+            ResolvedLlm resolved = resolver.resolveChat(agentId, userId);
+
+            assertEquals("free-model", resolved.model());
+            assertTrue(resolved.platformFallback());
+        }
+
+        @Test
+        @DisplayName("платформа без CHAT-списка → 404 с указанием, чего не хватает")
+        void platformWithoutChatList() {
+            LlmProvider platform = platformProvider();
+            stubNoBinding(LlmPurpose.CHAT);
+            when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
+
+            var e = assertThrows(ru.agimate.common.rest.error.NotFoundStatusException.class,
+                    () -> resolver.resolveChat(agentId, userId));
+            assertTrue(e.getMessage().contains("no models configured for CHAT"), e.getMessage());
         }
     }
 }
