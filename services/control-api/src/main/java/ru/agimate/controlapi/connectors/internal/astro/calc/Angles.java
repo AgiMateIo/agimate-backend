@@ -22,7 +22,7 @@ public class Angles {
         double inSign = ZodiacSign.degreeInSign(longitude);
         int deg = (int) inSign;
         int min = (int) Math.round((inSign - deg) * 60.0);
-        if (min == 60) { // округление 59.5+' наверх не должно давать «22°60'»
+        if (min == 60) { // rounding 59.5+' upwards must not yield «22°60'»
             deg++;
             min = 0;
         }

@@ -45,10 +45,10 @@ public class ConnectorBootstrap {
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
         upsertStatic("app", "App", ConnectorTraits.device(),
-                "Приложение-устройство: агент вызывает тулы на подключённом компьютере или телефоне "
-                        + "— скриншот, файлы, локальные действия.");
+                "A device app: the agent calls tools on a connected computer or phone "
+                        + "— screenshots, files, local actions.");
         upsertStatic("claude-code", "Claude Code", ConnectorTraits.loopback(),
-                "Claude Code как исполнитель: агент забирает вызовы себе и выполняет их в вашем окружении.");
+                "Claude Code as the executor: the agent takes the calls and runs them in your environment.");
 
         for (ConnectorHandler handler : connectorRegistry.getHandlers()) {
             upsertConnector(handler);

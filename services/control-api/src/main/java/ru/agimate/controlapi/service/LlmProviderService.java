@@ -280,7 +280,7 @@ public class LlmProviderService {
         Set<String> seen = new HashSet<>();
         for (LlmModelInfo info : discovered) {
             if (!seen.add(info.id())) {
-                continue; // дубль в листинге провайдера
+                continue; // a duplicate in the provider's listing
             }
             LlmProviderModel row = existing.get(info.id());
             if (row == null) {
@@ -297,10 +297,10 @@ public class LlmProviderService {
             row.setOutputModalities(info.outputModalities());
             row.setSupportedParameters(info.supportedParameters());
             row.setRawMetadata(info.rawMetadata());
-            applyDefaults(row, defaults.get(info.id())); // write-time оверлей: дырки discovery
+            applyDefaults(row, defaults.get(info.id())); // a write-time overlay: the gaps left by discovery
             row.setStatus(LlmProviderModelStatus.AVAILABLE);
             if (row.getFirstSeenAt() == null) {
-                row.setFirstSeenAt(now); // конфиг был заведён руками до первого появления в листинге
+                row.setFirstSeenAt(now); // the config was entered by hand before the model first appeared in a listing
             }
             row.setLastSeenAt(now);
             toSave.add(row);

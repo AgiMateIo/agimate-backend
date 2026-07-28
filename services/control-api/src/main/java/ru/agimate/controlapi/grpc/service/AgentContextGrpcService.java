@@ -152,7 +152,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             log.info("streamed file {} pool={} agent={} mime={} signature={} declared={} streamed={}",
                     fileId, poolId, agentId, mime, signature, total, streamed);
             if (streamed != total) {
-                log.warn("file {} size mismatch: declared={} streamed={} — блоб усечён/битый",
+                log.warn("file {} size mismatch: declared={} streamed={} — blob truncated or corrupt",
                         fileId, total, streamed);
             }
             responseObserver.onCompleted();

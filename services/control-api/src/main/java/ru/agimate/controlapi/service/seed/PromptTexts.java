@@ -12,8 +12,8 @@ import java.util.Properties;
  * <p>These are not captions in an interface but <b>behaviour</b>: the rules of autonomous event
  * handling, the ban on imitating a tool call as text, the attach convention, the instructions for
  * reacting to a connector's event. The model understands Russian too, but it follows an instruction
- * more reliably when it is in the language of the rest of the prompt — and in an EN installation the
- * agent's instructions and its skills are English.
+ * more reliably when it is in the language of the rest of the prompt — and in a RU installation the
+ * agent's instructions and its skills are Russian.
  *
  * <p>That is exactly why this is a separate bundle from {@link ConnectorTexts}: the connector
  * catalogue's reader is a human and the cost of an error is an ugly caption, while here the reader is

@@ -149,7 +149,7 @@ public class ManageConnectionController {
             @PathVariable UUID connectionId
     ) {
         UUID userId = UUID.fromString(principal.id());
-        connectionService.getOwnedConnection(connectionId, userId); // 404, если коннекшен чужой/не найден
+        connectionService.getOwnedConnection(connectionId, userId); // a 404 when the connection is someone else's or missing
         return SuccessResponse.ok(connectorJobManageService.getConnectionJobs(userId, connectionId));
     }
 

@@ -423,7 +423,7 @@ public class AgentService {
         // We drop every binding together with its policies: the mode rows and the external instances live on
         // (they do not belong to the agent), but an orphaned binding's rules must not remain.
         connectionBindingService.detachAgent(agent.getId());
-        connectorJobRepository.deleteByAgentId(agent.getId()); // динамические AGENT-джобы
+        connectorJobRepository.deleteByAgentId(agent.getId()); // dynamic AGENT jobs
         accessEvaluator.invalidateByAgent(agent.getId());
         // A soft delete: the row stays (every FK onto agents remains intact), and @SQLRestriction hides it from
         // all queries and joins. The bindings were already dropped by the unbind above; the webhook secret is NOT

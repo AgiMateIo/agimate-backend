@@ -145,7 +145,7 @@ public class SheetsService {
     public OperationResult deleteSheet(UUID scopeId, String name) {
         Sheet sheet = requireSheet(scopeId, name);
         long rows = sheetRowRepository.countBySheetId(sheet.getId());
-        sheetRepository.delete(sheet); // строки уносит FK ON DELETE CASCADE
+        sheetRepository.delete(sheet); // the rows go with the FK ON DELETE CASCADE
         return new OperationResult(true, "Deleted sheet '" + sheet.getName() + "' with " + rows + " row(s)");
     }
 

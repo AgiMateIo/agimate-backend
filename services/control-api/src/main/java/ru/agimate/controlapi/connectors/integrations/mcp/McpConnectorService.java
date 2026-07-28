@@ -53,8 +53,8 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
 
     @Override
     public String connectorDescription() {
-        return "Подключение к внешнему MCP-серверу: его тулы становятся доступны агенту как свои. "
-                + "Набор тулов свой у каждого подключения — вычитывается с сервера при добавлении.";
+        return "A connection to an external MCP server: its tools become the agent's own. "
+                + "Each connection has its own tool set, read from the server when it is added.";
     }
 
     @Override

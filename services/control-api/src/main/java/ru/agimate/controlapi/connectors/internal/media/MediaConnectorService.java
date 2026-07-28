@@ -32,7 +32,7 @@ public class MediaConnectorService extends BaseConnectorHandler implements Inter
 
     @Override
     public String connectorDescription() {
-        return "Картинки для агентов, чья модель этого не умеет: генерация, редактирование "
-                + "и распознавание изображений отдельной моделью.";
+        return "Images for agents whose own model can't do them: generating, editing "
+                + "and recognising pictures through a separate model.";
     }
 }

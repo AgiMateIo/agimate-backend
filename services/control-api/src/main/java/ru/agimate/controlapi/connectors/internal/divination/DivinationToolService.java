@@ -106,7 +106,7 @@ public class DivinationToolService {
     @Tool(name = "tarot_draw_spread",
             description = "Draw a random tarot spread from the full 78-card Rider-Waite deck (no duplicates, "
                     + "each card may be reversed). Always draw via this tool — never invent which cards came up.",
-            annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false)) // random — не idempotent
+            annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = false)) // random — not idempotent
     public Map<String, Object> tarotDrawSpread(
             @ToolParam("Spread type: THREE_CARD (past/present/future), CELTIC_CROSS (10 cards), "
                     + "YES_NO (1 card)") Spread spread,

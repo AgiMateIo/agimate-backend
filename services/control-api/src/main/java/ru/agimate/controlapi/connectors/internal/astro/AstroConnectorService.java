@@ -30,7 +30,7 @@ public class AstroConnectorService extends BaseConnectorHandler implements Inter
 
     @Override
     public String connectorDescription() {
-        return "Настоящие астрономические расчёты: натальная карта, транзиты и синастрия "
-                + "по эфемеридам с точностью до угловой минуты.";
+        return "Real astronomical calculations: natal chart, transits and synastry from "
+                + "ephemerides, accurate to the arcminute.";
     }
 }

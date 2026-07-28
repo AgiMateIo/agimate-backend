@@ -114,8 +114,8 @@ public class AcpConnectorService extends BaseConnectorHandler
 
     @Override
     public String connectorDescription() {
-        return "Диалог с агентом прямо из IDE по Agent Client Protocol (Zed и другие клиенты): "
-                + "агент читает и пишет файлы, запускает команды в вашем проекте.";
+        return "Talk to the agent straight from your IDE over the Agent Client Protocol "
+                + "(Zed and other clients): it reads and writes files and runs commands in your project.";
     }
 
     @Override

@@ -62,8 +62,8 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
 
     @Override
     public String connectorDescription() {
-        return "Долговременная память агента: заметки по ходу диалога и сжатая выжимка из них, "
-                + "которая переживает сессии.";
+        return "The agent's long-term memory: notes taken during a conversation and a "
+                + "condensed digest of them that outlives sessions.";
     }
 
     /**

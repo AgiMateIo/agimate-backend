@@ -36,7 +36,7 @@ public class WebchatConnectorService implements InternalConnectorHandler, Trigge
 
     @Override
     public String connectorDescription() {
-        return "Чат с агентом в веб-интерфейсе — канал по умолчанию для диалога с пользователем.";
+        return "Chat with the agent in the web interface — the default channel for talking to the user.";
     }
 
     @Override

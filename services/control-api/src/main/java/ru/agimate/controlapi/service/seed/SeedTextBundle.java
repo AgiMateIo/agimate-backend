@@ -13,9 +13,9 @@ import java.util.Properties;
 /**
  * Loading of a translation properties bundle from {@code seed/<lang>/<file>}.
  *
- * <p>Russian lives in the code and serves as the fallback, so for {@link ContentLanguage#DEFAULT}
+ * <p>English lives in the code and serves as the fallback, so for {@link ContentLanguage#DEFAULT}
  * there are no bundles: a request returns empty {@link Properties} and every key falls back. A missing
- * bundle for another language is a warning, not a refusal to start: the installation stays in Russian
+ * bundle for another language is a warning, not a refusal to start: the installation stays in English
  * but comes up.
  */
 @Slf4j

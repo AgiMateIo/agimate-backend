@@ -57,8 +57,8 @@ public class SheetsConnectorService extends BaseConnectorHandler implements Inte
 
     @Override
     public String connectorDescription() {
-        return "Таблицы агента с объявленной схемой колонок: фильтры и сводки по любой колонке, "
-                + "графики и выгрузка в CSV/XLSX.";
+        return "Agent sheets with a declared column schema: filters and summaries over any "
+                + "column, charts and export to CSV/XLSX.";
     }
 
     @Override

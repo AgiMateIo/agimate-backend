@@ -24,8 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Полнота перевода каталога коннекторов. Пропущенный ключ не роняет ничего — {@link ConnectorTexts}
- * молча отдаёт значение из кода, — поэтому на EN-инсталляции половина каталога подключений просто
- * осталась бы русской, и заметил бы это только пользователь.
+ * молча отдаёт значение из кода, — поэтому на RU-инсталляции половина каталога подключений просто
+ * осталась бы английской, и заметил бы это только пользователь.
  *
  * <p>Список кодов дублируется здесь намеренно: реестр коннекторов собирается Spring'ом, а тест
  * держится на статике, чтобы падать на сборке, а не на старте контекста. Новый коннектор без
@@ -88,21 +88,21 @@ class ConnectorTextsTest {
         void defaultLanguageUsesCode() {
             ConnectorTexts texts = texts(ContentLanguage.DEFAULT);
 
-            assertEquals("Доска", texts.name("board", "Доска"));
+            assertEquals("Board", texts.name("board", "Board"));
         }
 
         @Test
         @DisplayName("перевод перекрывает значение из кода")
         void translationOverridesCode() {
-            ConnectorTexts texts = texts(ContentLanguage.EN);
+            ConnectorTexts texts = texts(ContentLanguage.RU);
 
-            assertNotEquals("Канбан-доска команды", texts.description("board", "Канбан-доска команды"));
+            assertNotEquals("The team's Kanban board", texts.description("board", "The team's Kanban board"));
         }
 
         @Test
         @DisplayName("нет ключа — значение из кода")
         void unknownCodeFallsBackToCode() {
-            ConnectorTexts texts = texts(ContentLanguage.EN);
+            ConnectorTexts texts = texts(ContentLanguage.RU);
 
             assertEquals("Заглушка", texts.name("no-such-connector", "Заглушка"));
         }

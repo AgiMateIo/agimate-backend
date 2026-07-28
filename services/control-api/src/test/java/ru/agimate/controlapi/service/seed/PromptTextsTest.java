@@ -100,7 +100,7 @@ class PromptTextsTest {
         @Test
         @DisplayName("перевод перекрывает значение из кода")
         void translationOverridesCode() {
-            PromptTexts texts = texts(ContentLanguage.EN);
+            PromptTexts texts = texts(ContentLanguage.RU);
 
             assertNotEquals("блок из кода", texts.get(PromptTexts.RUN_TRIGGER_GUIDANCE, "блок из кода"));
         }
@@ -109,7 +109,7 @@ class PromptTextsTest {
         @Test
         @DisplayName("guidance коннектора находится по общему ключу для любого его триггера")
         void connectorGuidanceFallsBackToConnectorWideKey() {
-            PromptTexts texts = texts(ContentLanguage.EN);
+            PromptTexts texts = texts(ContentLanguage.RU);
 
             String created = texts.triggerGuidance("board", "task_created", "код");
             String changed = texts.triggerGuidance("board", "task_changed", "код");
@@ -121,7 +121,7 @@ class PromptTextsTest {
         @Test
         @DisplayName("коннектор без перевода — значение из кода")
         void unknownConnectorFallsBackToCode() {
-            PromptTexts texts = texts(ContentLanguage.EN);
+            PromptTexts texts = texts(ContentLanguage.RU);
 
             assertEquals("из кода", texts.triggerGuidance("no-such-connector", "event", "из кода"));
         }

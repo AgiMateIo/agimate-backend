@@ -46,7 +46,7 @@ public class TurnLog {
                     MessageCodec.toolCallRecs(m.toolCalls()), List.of(), meta);
             case TOOL -> send(TurnRole.TURN_ROLE_TOOL, null, false,
                     List.of(), MessageCodec.toolResultRecs(m.toolResults()), null);
-            case USER, SYSTEM -> { /* prompt/inbound фиксируется отдельно; здесь не проецируем */ }
+            case USER, SYSTEM -> { /* prompt/inbound is recorded separately; nothing is projected here */ }
         }
     }
 

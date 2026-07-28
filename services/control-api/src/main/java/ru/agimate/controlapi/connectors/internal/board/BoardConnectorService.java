@@ -32,13 +32,14 @@ public class BoardConnectorService extends BaseConnectorHandler
      */
     private static final ContextDirectives BOARD_EVENT_CONTEXT = ContextDirectives.builder()
             .ownConnectionTools(true)
-            .guidance("Ниже — событие kanban-доски твоей команды. Реагируй, только если оно требует "
-                    + "действий именно от тебя: ты назначен исполнителем, задан вопрос тебе или нужен "
-                    + "твой следующий шаг. На собственные действия (actorAgentId == твой id) не "
-                    + "реагируй. Детали и действия — тулами board-коннектора. Всё, что хочешь "
-                    + "сообщить по задаче команде или пользователю, пиши строго комментарием на доске "
-                    + "(create_comment): финальный текст этого рана никуда не доставляется и никем "
-                    + "не будет прочитан — он годится только как короткое служебное резюме.")
+            .guidance("Below is an event from your team's kanban board. React only if it requires "
+                    + "action from you specifically: you are the assigned owner, a question was "
+                    + "addressed to you, or your next step is needed. Do not react to your own actions "
+                    + "(actorAgentId == your id). Details and actions go through the board connector's "
+                    + "tools. Anything you want to tell the team or the user about the task must be "
+                    + "written strictly as a board comment (create_comment): this run's final text is "
+                    + "delivered nowhere and will be read by no one — it only serves as a short "
+                    + "internal summary.")
             .build();
 
     public BoardConnectorService(BoardToolService toolService) {
@@ -57,8 +58,8 @@ public class BoardConnectorService extends BaseConnectorHandler
 
     @Override
     public String connectorDescription() {
-        return "Канбан-доска команды: задачи, статусы, исполнители и комментарии — "
-                + "агент ведёт их сам и реагирует на изменения.";
+        return "The team's Kanban board: tasks, statuses, owners and comments — "
+                + "the agent keeps them itself and reacts to changes.";
     }
 
     @Override

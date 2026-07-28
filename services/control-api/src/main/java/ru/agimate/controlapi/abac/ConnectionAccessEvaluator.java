@@ -74,10 +74,10 @@ public class ConnectionAccessEvaluator {
 
         List<AgentConnectionPolicy> resolved = policyRepository.resolve(binding.getId(), kind, name);
         if (resolved.isEmpty()) {
-            return AccessDecision.allow(null); // дефолт-allow при наличии binding
+            return AccessDecision.allow(null); // default-allow once a binding exists
         }
 
-        AgentConnectionPolicy winner = resolved.get(0); // точное имя приоритетнее wildcard (см. resolve)
+        AgentConnectionPolicy winner = resolved.get(0); // an exact name beats a wildcard (see resolve)
         if (winner.getEffect() == AccessEffect.DENY) {
             return AccessDecision.deny(
                     "Denied by policy (" + (winner.isBindingWide() ? "binding-wide" : winner.getName()) + ")",

@@ -4,10 +4,10 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Map;
 
-@Schema(description = "Доступный обработчик канала и JSON Schema его config")
+@Schema(description = "An available channel handler and the JSON Schema of its config")
 public record ChannelHandlerResponse(
-        @Schema(description = "Имя handler-а (значение channelHandler при создании канала)")
+        @Schema(description = "Handler name (the channelHandler value when creating a channel)")
         String name,
-        @Schema(description = "JSON Schema (object) полей config для рендера формы")
+        @Schema(description = "JSON Schema (object) of the config fields, for rendering the form")
         Map<String, Object> configFields
 ) {}

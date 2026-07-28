@@ -129,7 +129,7 @@ public final class ContextBuilder {
                 continue;
             }
             if (turn != null && turn.getResultsCount() > 0) {
-                continue; // осиротевшая results-запись без calls-половины
+                continue; // an orphaned results record with no calls half
             }
             if (m.getText().isBlank()) {
                 continue;

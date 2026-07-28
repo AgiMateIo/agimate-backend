@@ -29,6 +29,6 @@ public class DivinationConnectorService extends BaseConnectorHandler implements 
 
     @Override
     public String connectorDescription() {
-        return "Детерминированная эзотерика: Матрица судьбы, нумерология и расклады Таро.";
+        return "Deterministic esoterics: Destiny Matrix, numerology and Tarot spreads.";
     }
 }

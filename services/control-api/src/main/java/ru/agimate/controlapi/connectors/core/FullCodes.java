@@ -37,7 +37,7 @@ public class FullCodes {
                 return url;
             }
             String[] labels = host.split("\\.");
-            int end = labels.length - 1; // отбрасываем TLD
+            int end = labels.length - 1; // drop the TLD
             int start = 0;
             while (start < end && (labels[start].equals("www") || labels[start].equals("mcp")
                     || labels[start].equals("api") || labels[start].equals("app"))) {

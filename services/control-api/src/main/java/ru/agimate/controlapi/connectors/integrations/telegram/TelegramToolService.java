@@ -230,7 +230,7 @@ public class TelegramToolService {
                 // of the form /bot{token}/... into the text or the stack, which would leak the token into the logs.
                 log.warn("Failed to deleteWebhook before polling for {}: {}",
                         connectionId, e.getClass().getSimpleName());
-                webhookDeleted.remove(connectionId); // дать шанс ретраю на следующем tick'е
+                webhookDeleted.remove(connectionId); // give the retry a chance on the next tick
             }
         }
 

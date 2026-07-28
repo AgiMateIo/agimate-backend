@@ -32,7 +32,7 @@ public class PlatformConnectorService extends BaseConnectorHandler implements In
 
     @Override
     public String connectorDescription() {
-        return "Управление платформой из диалога: агент заводит других агентов, скиллы, "
-                + "подключения и расписания вместо ручной настройки в интерфейсе.";
+        return "Managing the platform from a conversation: the agent creates other agents, "
+                + "skills, connections and schedules instead of you configuring them by hand.";
     }
 }

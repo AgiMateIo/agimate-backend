@@ -9,7 +9,7 @@ import java.util.Properties;
  * Localisation of the connector catalogue's texts: {@code seed/<lang>/connectors.properties} with the
  * keys {@code <code>.name} and {@code <code>.description}.
  *
- * <p>Russian lives in the code ({@code connectorName()}/{@code connectorDescription()}) and serves as
+ * <p>English lives in the code ({@code connectorName()}/{@code connectorDescription()}) and serves as
  * the last fallback, which is why there is no file for {@link ContentLanguage#DEFAULT} — translations
  * are added only for the other languages. The asymmetry is deliberate: otherwise the same text would
  * sit both in Java and in the properties and would drift apart when one of them was edited.

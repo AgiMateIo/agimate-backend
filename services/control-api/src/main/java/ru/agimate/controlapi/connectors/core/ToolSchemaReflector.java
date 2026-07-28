@@ -104,7 +104,7 @@ final class ToolSchemaReflector {
         }
         if (raw.isRecord()) {
             if (stack.contains(raw)) {
-                return JsonSchema.scalar("object", description); // защита от само-рекурсии
+                return JsonSchema.scalar("object", description); // guard against self-recursion
             }
             stack.push(raw);
             try {

@@ -10,11 +10,11 @@ package ru.agimate.controlapi.service.seed;
  */
 public enum ContentLanguage {
 
-    RU,
-    EN;
+    EN,
+    RU;
 
     /** The source language: the fallback when there is no content for the chosen one. */
-    public static final ContentLanguage DEFAULT = RU;
+    public static final ContentLanguage DEFAULT = EN;
 
     /** The path segment in {@code resources/seed/}. */
     public String dir() {

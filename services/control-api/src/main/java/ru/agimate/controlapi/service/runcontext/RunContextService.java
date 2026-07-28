@@ -83,32 +83,30 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class RunContextService {
 
-    // The constants below are the Russian source and the fallback: on an installation with another
+    // The constants below are the English source and the fallback: on an installation with another
     // language the block comes from seed/<lang>/prompt.properties, under the PromptTexts.RUN_* keys.
 
     /** Trigger-path guidance (trusted instructions): autonomous handling of events, not a dialogue. */
     static final String TRIGGER_GUIDANCE =
-            "- Это автономная обработка внешних событий, а не диалог. Если по "
-            + "событиям ничего делать не требуется — отвечать не обязательно; можно "
-            + "ответить очень кратко, например: «Решено проигнорировать, действия не "
-            + "требуются».\n"
-            + "- Каждый вызов инструмента должен быть обоснован: вызывай инструмент "
-            + "только когда событие действительно требует действия, и коротко поясняй "
-            + "причину вызова.\n"
-            + "- Результат работы — только проверяемый артефакт: id файла или задачи из "
-            + "результата инструмента, реально выполненный вызов. Если нужного инструмента "
-            + "нет или вызов завершился ошибкой — зафиксируй блокер и остановись. Никогда "
-            + "не сообщай о выполнении, которого не было, и не выдумывай id файлов.";
+            "- This is autonomous handling of external events, not a conversation. If the events "
+            + "require nothing of you, you do not have to answer; a very short reply is fine, for "
+            + "example: \"Decided to ignore, no action required\".\n"
+            + "- Every tool call must be justified: call a tool only when the event genuinely "
+            + "requires action, and briefly state why you are calling it.\n"
+            + "- The only acceptable result is a verifiable artefact: a file or task id from a tool "
+            + "result, a call that actually happened. If the tool you need does not exist or the call "
+            + "failed, record a blocker and stop. Never report work that did not happen, and never "
+            + "invent file ids.";
 
     /**
      * The rule for calling tools — added whenever the run has any tools. Weak models imitate a call as
      * text («🔧 name»), copying the pattern out of history — such a «call» is never executed.
      */
     static final String TOOL_CALL_GUIDANCE =
-            "Инструменты вызывай только через структурный tool-calling API. Никогда не пиши вызов "
-            + "инструмента текстом ответа: строки вида «🔧 имя» или «[вызван инструмент …]» — "
-            + "служебная разметка уже выполненной работы, а не образец ответа; написанный текстом "
-            + "«вызов» не исполняется.";
+            "Call tools only through the structural tool-calling API. Never write a tool call as "
+            + "reply text: lines like \"🔧 name\" or \"[tool called ...]\" are markup for work that "
+            + "already happened, not a template for your reply; a \"call\" written as text does not "
+            + "execute.";
 
     /**
      * The answer's attach convention — added only in DIALOGUE runs whose prompt channel supports
@@ -116,12 +114,12 @@ public class RunContextService {
      * attach a file the channel silently fails to deliver.
      */
     static final String ATTACHMENT_GUIDANCE =
-            "Чтобы приложить файл к своему ответу пользователю, вставь в текст ответа маркер "
-            + "[[attach:agf_...]] с id файла (формат agf_<uuid>). id можно взять из результата "
-            + "инструмента (поле file.id) или из описания загруженного пользователем файла "
-            + "(строка «Описание загруженного файла … id: agf_…»). Маркер будет вырезан из текста, "
-            + "а файл доставлен в канал вложением (изображение/видео/документ — по типу файла). "
-            + "Не выдумывай id: используй только полученные в этом разговоре.";
+            "To attach a file to your reply to the user, put the marker [[attach:agf_...]] with the "
+            + "file id (format agf_<uuid>) into your reply text. The id comes either from a tool "
+            + "result (the file.id field) or from the description of a file the user uploaded (the "
+            + "line \"Uploaded file description ... id: agf_...\"). The marker is stripped from the "
+            + "text and the file is delivered to the channel as an attachment (image/video/document, "
+            + "by file type). Do not invent ids: use only the ones you received in this conversation.";
 
     /** Deterministic serialisation of an event (sorted keys) — the same block whatever the map's order. */
     private static final ObjectMapper EVENT_MAPPER = new ObjectMapper()
@@ -336,7 +334,7 @@ public class RunContextService {
             return null;
         }
         if (PROGRESS_TEXT.equals(m.getProgressType()) && structuredRuns.contains(m.getRunId())) {
-            return null; // преамбула уже в toolTurn.text
+            return null; // the preamble is already inside toolTurn.text
         }
         return new RunHistoryMessage(kind, m.getMessage());
     }

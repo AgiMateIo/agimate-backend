@@ -42,8 +42,8 @@ public class TimeConnectorService extends BaseConnectorHandler
 
     @Override
     public String connectorDescription() {
-        return "Текущее время и отложенные задачи: агент планирует действие на будущее "
-                + "и сам возвращается к нему в срок.";
+        return "Current time and deferred tasks: the agent schedules an action for the "
+                + "future and comes back to it on time.";
     }
 
     @Override
@@ -54,8 +54,8 @@ public class TimeConnectorService extends BaseConnectorHandler
                 ContextDirectives.builder()
                         .presentation(ContextDirectives.Presentation.PROMPT)
                         .promptParam("prompt")
-                        .guidance("Ниже — текст отложенной задачи, которую ты сам ранее запланировал "
-                                + "через time.schedule. Выполни её.")
+                        .guidance("Below is the text of a deferred task you scheduled earlier "
+                                + "through time.schedule. Carry it out.")
                         .ownConnectionTools(true)
                         .build()));
     }
