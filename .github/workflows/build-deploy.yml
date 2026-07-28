@@ -12,8 +12,17 @@ on:
       - 'services/build.gradle.kts'
       - 'services/settings.gradle.kts'
 
+# The runner is self-hosted and long-lived: a leaked token stays usable on it long after
+# the job ends. Nothing here needs to write back to the repo, so the default token is
+# narrowed to read-only for every job.
+permissions:
+  contents: read
+
 jobs:
   validate-config:
+    # Deploy targets our own infrastructure — a fork must never reach it. Guarding the
+    # first job is enough for the chain below, which is gated on `needs`.
+    if: github.repository == 'AgiMateIo/backend'
     runs-on: self-hosted
     steps:
       - name: Check required variables and secrets
@@ -39,9 +48,12 @@ jobs:
       control-api: ${{ steps.changes.outputs.control-api }}
       agent-worker: ${{ steps.changes.outputs.agent-worker }}
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned by commit: a tag can be moved to point at new code, a commit cannot.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 2
+          # Otherwise the token is left in .git/config on a runner that outlives the job.
+          persist-credentials: false
 
       - name: Detect changed services
         id: changes
@@ -70,7 +82,9 @@ jobs:
     if: needs.detect-changes.outputs.user-api == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Build and push
         run: ./ci/build-and-push.sh user-api
@@ -84,7 +98,9 @@ jobs:
     if: needs.detect-changes.outputs.control-api == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Build and push
         run: ./ci/build-and-push.sh control-api
@@ -98,7 +114,9 @@ jobs:
     if: needs.detect-changes.outputs.agent-worker == 'true'
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Build and push
         run: ./ci/build-and-push.sh agent-worker
@@ -109,10 +127,13 @@ jobs:
 
   update-infra:
     needs: [build-user-api, build-control-api, build-agent-worker]
-    if: always() && (needs.build-user-api.result == 'success' || needs.build-control-api.result == 'success' || needs.build-agent-worker.result == 'success')
+    # `always()` ignores upstream skips, so the repository guard is repeated here.
+    if: always() && github.repository == 'AgiMateIo/backend' && (needs.build-user-api.result == 'success' || needs.build-control-api.result == 'success' || needs.build-agent-worker.result == 'success')
     runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Update infra
         run: |
