@@ -89,19 +89,18 @@ public class CryptoUtils {
      */
     public static byte[] encryptAES256GCM(byte[] data, SecretKey key) {
         try {
-            // Generate random IV
+            // A fresh IV per call is what makes GCM safe; reusing one across two messages under the
+            // same key breaks confidentiality outright. It is not secret, so it travels in the clear
+            // alongside the ciphertext — that is why the return value is a single blob.
             byte[] iv = new byte[GCM_IV_LENGTH];
             new SecureRandom().nextBytes(iv);
 
-            // Initialize cipher
             Cipher cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM);
             GCMParameterSpec parameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
             cipher.init(Cipher.ENCRYPT_MODE, key, parameterSpec);
 
-            // Encrypt (includes authentication tag automatically)
-            byte[] ciphertext = cipher.doFinal(data);
+            byte[] ciphertext = cipher.doFinal(data); // GCM appends the auth tag itself
 
-            // Combine IV + ciphertext (ciphertext already includes GCM tag)
             byte[] encrypted = new byte[GCM_IV_LENGTH + ciphertext.length];
             System.arraycopy(iv, 0, encrypted, 0, GCM_IV_LENGTH);
             System.arraycopy(ciphertext, 0, encrypted, GCM_IV_LENGTH, ciphertext.length);
@@ -124,25 +123,22 @@ public class CryptoUtils {
      */
     public static byte[] decryptAES256GCM(byte[] encrypted, SecretKey key) {
         try {
-            // Validate minimum size (IV + tag = 28 bytes minimum)
+            // Anything shorter cannot hold an IV and a tag, so it was never produced by encrypt.
             if (encrypted.length < GCM_IV_LENGTH + 16) {
                 throw new IllegalArgumentException("Encrypted data too short");
             }
 
-            // Extract IV
             byte[] iv = new byte[GCM_IV_LENGTH];
             System.arraycopy(encrypted, 0, iv, 0, GCM_IV_LENGTH);
 
-            // Extract ciphertext (includes authentication tag)
             byte[] ciphertext = new byte[encrypted.length - GCM_IV_LENGTH];
             System.arraycopy(encrypted, GCM_IV_LENGTH, ciphertext, 0, ciphertext.length);
 
-            // Initialize cipher
             Cipher cipher = Cipher.getInstance(ENCRYPTION_ALGORITHM);
             GCMParameterSpec parameterSpec = new GCMParameterSpec(GCM_TAG_LENGTH, iv);
             cipher.init(Cipher.DECRYPT_MODE, key, parameterSpec);
 
-            // Decrypt (automatically verifies authentication tag)
+            // Throws on a bad tag — tampering surfaces here, not as garbage plaintext.
             return cipher.doFinal(ciphertext);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to decrypt data with AES-256-GCM (possibly tampered or wrong key)", e);

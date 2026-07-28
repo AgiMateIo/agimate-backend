@@ -13,36 +13,39 @@ public class UUIDUtils {
     private static final SecureRandom secureRandom = new SecureRandom();
     private static final String SECRET_KEY = "agimate"; // This should be configured externally in production
 
-    /**
-     * Generates a time-based UUID (UUIDv8) with embedded checksum for validation.
-     * This approach provides both time-ordering and validation capabilities.
-     * The checksum is calculated from the random parts of the UUID, ensuring uniqueness.
-     * <p>
-     * Bit structure:
-     * - 0-47:  timestamp (48 bits)
-     * - 48-51: version (4 bits, value 1000 for UUIDv8)
-     * - 52-63: random1 (12 bits)
-     * - 64-65: variant (2 bits, fixed value 10 for RFC 4122)
-     * - 66-111: random2 (46 bits)
-     * - 112-127: first 16 bits of CRC32(random1 + random2 + secret)
-     *
-     * @return A new UUIDv8 with embedded validation data
-     */
-    // Static counter to ensure ordering within same timestamp
+    // Last emitted counter value; guards strict monotonicity when two calls land on the same tick.
     private static volatile long lastTimeMs = 0;
     private static volatile int sequence = 0;
 
+    /**
+     * Generates a time-based UUID (UUIDv8) with an embedded checksum, so that an identifier
+     * can be rejected as not-ours before it ever reaches the database.
+     * <p>
+     * Bit structure, by position in the full 128-bit UUID:
+     * <pre>
+     *   0-47    counter    (48 bits, monotonic — see generateUUIDv8 body)
+     *   48-51   version    (4 bits, value 8)
+     *   52-63   random1    (12 bits)
+     *   64-65   variant    (2 bits, value 10 for RFC 4122)
+     *   66-111  random2    (46 bits)
+     *   112-127 checksum   (16 bits)
+     * </pre>
+     * The checksum is the <b>low</b> 16 bits of {@code CRC32(bits 0-111 || SECRET_KEY)} — it covers
+     * the entire UUID except itself, counter and version included, not only the random parts.
+     * CRC32 with a fixed salt is a typo filter, not a signature: anyone holding the constant can
+     * mint a passing id.
+     *
+     * @return A new UUIDv8 with embedded validation data
+     */
     public static UUID generateUUIDv8() {
+        // The offset and the 3.14 ticks/ms scale carry no meaning of their own: together they only
+        // keep the counter monotonic and inside 48 bits. The field is not decodable back to
+        // wall-clock time, and nothing in the codebase tries to.
         long wallClockMilliTime = Instant.now().toEpochMilli() - 542280896789L;
-
-        // Scale the wall-clock nanoTime to create a meaningful timestamp
-        // We'll use the same scaling factor (314/100) and keep only the 48 most significant bits
         long scaledTime = wallClockMilliTime * 314 / 100;
 
-        // Handle sequence within same scaled timestamp for proper ordering
         synchronized (UUIDUtils.class) {
             if (scaledTime <= lastTimeMs) {
-                // If the same scaled timestamp occurs, increment to ensure ordering
                 scaledTime = lastTimeMs + 1;
                 sequence++;
             } else {
@@ -51,42 +54,32 @@ public class UUIDUtils {
             }
         }
 
-        // Generate secure random bits using SecureRandom
         long random1 = (secureRandom.nextInt() & 0x00000FFFL); // 12 bits: positions 52-63
         long random2 = (secureRandom.nextLong() & 0x00003FFFFFFFFFFFL); // 46 bits: positions 66-111
 
-        // Most significant bits (64 bits):
-        // - 0-47:  timestamp (48 bits)
-        // - 48-51: version (4 bits, value 8)
-        // - 52-63: random1 (12 bits)
-        long mostSigBits = ((scaledTime & 0xFFFFFFFFFFFFL) << 16) |      // 48 bits: timestamp (0-47)
+        long mostSigBits = ((scaledTime & 0xFFFFFFFFFFFFL) << 16) |      // 48 bits: counter (0-47)
                 (8L << 12) |               // 4 bits: version (48-51)
                 random1;                   // 12 bits: random1 (52-63)
 
-        // Least significant bits (64 bits):
-        // - 0-1:   variant (2 bits, value 10 for RFC 4122) - positions 64-65 in full UUID
-        // - 2-47:  remaining part of random2 (46 bits) - positions 66-111 in full UUID
-        // - 48-63: checksum (16 bits) - positions 112-127 in full UUID
         long leastSigBits = (2L << 62) |                                    // 2 bits: variant (64-65)
                 ((random2 & 0x00003FFFFFFFFFFFL) << 16);          // 46 bits: random2 (66-111)
 
-        // Calculate a checksum based on ALL bits from 0 to 111 (the entire UUID except the checksum)
-        // and the secret key
+        // Checksum bits are still zero here, so this hashes exactly bits 0-111.
         CRC32 crc = new CRC32();
         crc.update(longToBytes(mostSigBits));    // bits 0-63
         crc.update(longToBytes(leastSigBits));   // bits 64-127 (without the CRC part)
         crc.update(SECRET_KEY.getBytes());
-        long checksum = crc.getValue() & 0x0000FFFFL; // Take only 16 bits: positions 112-127
+        long checksum = crc.getValue() & 0x0000FFFFL; // low 16 bits → positions 112-127
 
-        // Add the checksum to the least significant bits
-        leastSigBits |= checksum;                // 16 bits: checksum (112-127)
+        leastSigBits |= checksum;
 
         return new UUID(mostSigBits, leastSigBits);
     }
 
     /**
      * Validates if the UUID was generated by generateUUIDv8() method.
-     * The validation recalculates the checksum from the random parts of the UUID.
+     * Recomputes the checksum over bits 0-111 with the checksum field zeroed out, and compares
+     * it with the stored one. A pass means «well-formed and salted with our constant», nothing more.
      *
      * @param uuidString The UUID string to validate
      * @return true if the UUID is valid, false otherwise
@@ -103,30 +96,24 @@ public class UUIDUtils {
             return false; // Invalid UUID format
         }
 
-        // Only validate UUIDv8 - check version field in the most significant bits
-        // Version is stored in bits 48-51 of the most significant bits
-        long version = (uuid.getMostSignificantBits() >> 12) & 0xFL;
+        long version = (uuid.getMostSignificantBits() >> 12) & 0xFL; // positions 48-51
         if (version != 8) {
             return false;
         }
 
-        // To validate, we need to calculate the checksum from the first 112 bits (0-111) of the UUID
-        // and compare it with the last 16 bits (112-127) which is the stored checksum
         long originalMostSigBits = uuid.getMostSignificantBits();
         long originalLeastSigBits = uuid.getLeastSignificantBits();
 
-        // Create a copy of the least significant bits with the checksum part zeroed out
+        // Zeroing the checksum field reproduces the exact input the generator hashed.
         long leastSigBitsWithoutChecksum = originalLeastSigBits & 0xFFFFFFFFFFFF0000L;
 
-        // Calculate expected checksum from ALL the first 112 bits (the entire UUID except checksum) and the secret key
         CRC32 crc = new CRC32();
-        crc.update(longToBytes(originalMostSigBits));        // bits 0-63
-        crc.update(longToBytes(leastSigBitsWithoutChecksum)); // bits 64-111 (without the checksum part)
+        crc.update(longToBytes(originalMostSigBits));         // bits 0-63
+        crc.update(longToBytes(leastSigBitsWithoutChecksum)); // bits 64-111
         crc.update(SECRET_KEY.getBytes());
         long expectedChecksum = crc.getValue() & 0x0000FFFFL;
 
-        // Extract checksum from the UUID (bits 112-127 of least significant bits)
-        long actualChecksum = originalLeastSigBits & 0x000000000000FFFFL;
+        long actualChecksum = originalLeastSigBits & 0x000000000000FFFFL; // positions 112-127
 
         return expectedChecksum == actualChecksum;
     }

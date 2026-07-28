@@ -18,11 +18,17 @@ import java.util.zip.CRC32;
  * <p>
  * Key format: {prefix}{keyid}{payload} (no separators, positional)
  * <ul>
- *   <li>prefix: exactly 4 lowercase letters identifying key type (e.g., "dvck")</li>
+ *   <li>prefix: exactly 4 lowercase letters identifying key type (e.g., "agnt")</li>
  *   <li>keyid: base64url(timestamp_4bytes || random_5bytes) = 12 chars</li>
  *   <li>payload: base64url(secret_32bytes || crc32_4bytes) = 48 chars</li>
  * </ul>
  * Total length: 64 characters (4 + 12 + 48)
+ * <p>
+ * The keyid is what the lookup is done by, which is why it must be independently readable without
+ * decoding the payload — hence fixed positions rather than separators. The CRC32 rejects typos
+ * before the database is touched; it is not authentication, that is {@link #verifySecret}.
+ * <p>
+ * Which prefix means what, and where each key is stored: {@code docs/contracts/api-keys.md}.
  */
 public final class AppKeyUtils {
 
@@ -51,7 +57,7 @@ public final class AppKeyUtils {
     /**
      * Generate a new app key with the specified prefix.
      *
-     * @param prefix key prefix (exactly 4 lowercase letters, e.g. "dvck")
+     * @param prefix key prefix (exactly 4 lowercase letters, e.g. "agnt")
      * @return generated key with fullKey, keyId, and secretHash
      * @throws IllegalArgumentException if prefix format is invalid
      */
@@ -60,7 +66,6 @@ public final class AppKeyUtils {
             throw new IllegalArgumentException("Prefix must be exactly 4 lowercase letters");
         }
 
-        // 1. Generate keyId = timestamp(4) + random(5) → base64url → 12 chars
         byte[] randomKeyIdPart = new byte[RANDOM_KEYID_BYTES];
         SECURE_RANDOM.nextBytes(randomKeyIdPart);
 
@@ -69,23 +74,19 @@ public final class AppKeyUtils {
         keyIdBuffer.put(randomKeyIdPart);
         String keyId = Base64.getUrlEncoder().withoutPadding().encodeToString(keyIdBuffer.array());
 
-        // 2. Generate secret = random(32)
         byte[] secret = new byte[SECRET_BYTES];
         SECURE_RANDOM.nextBytes(secret);
 
-        // 3. Calculate checksum = crc32(prefix || keyid || secret)
         byte[] checksum = calculateChecksum(prefix, keyId, secret);
 
-        // 4. Build payload = base64url(secret || checksum) → 48 chars
         ByteBuffer payloadBuffer = ByteBuffer.allocate(PAYLOAD_BYTES);
         payloadBuffer.put(secret);
         payloadBuffer.put(checksum);
         String payload = Base64.getUrlEncoder().withoutPadding().encodeToString(payloadBuffer.array());
 
-        // 5. Build full key without separators (positional format)
         String fullKey = prefix + keyId + payload;
 
-        // 6. Calculate secretHash = sha256(secret) hex
+        // Only the hash is returned for storage — the secret itself is never persisted.
         String secretHash = hashSecret(secret);
 
         return new GeneratedAppKey(fullKey, keyId, secretHash);
@@ -110,36 +111,28 @@ public final class AppKeyUtils {
             throw new IllegalArgumentException("Invalid API key length: expected " + TOTAL_LENGTH + " characters");
         }
 
-        // Simple positional parsing (all parts have fixed lengths)
         int pos = 0;
 
-        // prefix: 4 characters
         String prefix = key.substring(pos, pos + PREFIX_LENGTH);
         pos += PREFIX_LENGTH;
 
-        // keyId: 12 characters
         String keyId = key.substring(pos, pos + KEYID_LENGTH);
         pos += KEYID_LENGTH;
 
-        // payload: 48 characters
         String payload = key.substring(pos);
 
-        // Validate prefix
         if (!PREFIX_PATTERN.matcher(prefix).matches()) {
             throw new IllegalArgumentException("Invalid prefix: must be exactly 4 lowercase letters");
         }
 
-        // Validate keyId format
         if (!BASE64URL_PATTERN.matcher(keyId).matches()) {
             throw new IllegalArgumentException("Invalid keyId: must be base64url encoded");
         }
 
-        // Validate payload format
         if (!BASE64URL_PATTERN.matcher(payload).matches()) {
             throw new IllegalArgumentException("Invalid payload: must be base64url encoded");
         }
 
-        // Decode payload
         byte[] payloadBytes;
         try {
             payloadBytes = Base64.getUrlDecoder().decode(payload);
