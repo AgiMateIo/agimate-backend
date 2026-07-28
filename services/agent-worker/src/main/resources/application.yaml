@@ -1,8 +1,12 @@
 server:
-  # The worker has no application HTTP surface — the embedded server carries /actuator/health
-  # and nothing else, so the health check is the same one the two web services get. Not 8088
-  # (their management port): in compose the worker shares control-api's network namespace.
   port: 8089
+
+management:
+  server:
+    # Same port as the application one on purpose: that is what keeps management in the same
+    # context, so the worker runs one web server and it serves nothing but /actuator/**. Not
+    # 8088 — in compose the worker shares control-api's network namespace, and 8088 is theirs.
+    port: 8089
 
 spring:
   application:
