@@ -6,57 +6,60 @@ option java_multiple_files = true;
 option java_package = "ru.agimate.agentworker";
 option java_outer_classname = "MessageLogProto";
 
-// Единая запись событий диалога (протокол v2, этап 3): воркер — единственный писатель истории,
-// доставка в каналы — проекция записи на бэке (роутинг по kind и снапшоту каналов маршрута).
-// Идемпотентность — (run_id, seq): DBOS-шаги at-least-once, ретрай не даёт ни дубля в
-// истории, ни повторной доставки (дедуп downstream по детерминированному message_id).
+// The single record of dialogue events (protocol v2, stage 3): the worker is the only writer of
+// history, and channel delivery is a projection of that record on the backend (routed by kind and
+// by the channel snapshot of the route). Idempotency key is (run_id, seq): DBOS steps are
+// at-least-once, so a retry yields neither a duplicate in history nor a second delivery
+// (downstream dedup by a deterministic message_id).
 service MessageLog {
   rpc SaveMessage(SaveMessageRequest) returns (SaveMessageResponse);
-  // Канонический full-fidelity ход рана (agent_run_turns): по одной записи на AgentChatMessage
-  // воркера (assistant/tool), без капов. В отличие от SaveMessage — не durable-шаг: ход это
-  // идемпотентная проекция уже-durable данных (результатов дочерних LLM/tool-воркфлоу), поэтому
-  // реплей переотправляет ту же пару (run_id, turn_index), а бэк дедуплицирует. Доставки нет.
+  // The canonical full-fidelity turn of a run (agent_run_turns): one record per worker
+  // AgentChatMessage (assistant/tool), uncapped. Unlike SaveMessage this is not a durable step: a
+  // turn is an idempotent projection of already-durable data (results of child LLM/tool workflows),
+  // so a replay re-sends the same (run_id, turn_index) pair and the backend deduplicates. No
+  // delivery.
   rpc SaveTurn(SaveTurnRequest) returns (SaveTurnResponse);
-  // Снимок стартового промпта рана (agent_runs.prompt): список сообщений ровно как он ушёл в
-  // первый LLM-вызов — system + history + триггер-сообщение (с ephemeral-префиксом). Шлётся один
-  // раз перед циклом; дальнейшие ходы идут отдельно в SaveTurn. Не durable-шаг, best-effort; бэк
-  // пишет first-write-wins (реплей/ретрай не перезатирает).
+  // Snapshot of the run's starting prompt (agent_runs.prompt): the message list exactly as it went
+  // into the first LLM call — system + history + trigger message (with the ephemeral prefix). Sent
+  // once before the loop; subsequent turns go separately via SaveTurn. Not a durable step,
+  // best-effort; the backend writes first-write-wins (a replay or retry does not overwrite).
   rpc SavePrompt(SavePromptRequest) returns (SavePromptResponse);
 }
 
 enum MessageKind {
   MESSAGE_KIND_UNSPECIFIED = 0;
-  MESSAGE_KIND_INBOUND = 1;   // ack «агент получил»: text пуст, канонику бэк берёт сам из trigger_log
-  MESSAGE_KIND_PROGRESS = 2;  // промежуточный вывод (thinking/tool/text), уточняется progress_type
-  MESSAGE_KIND_ANSWER = 3;    // финальный ответ LLM; помечает все сообщения рана completed=true
-  MESSAGE_KIND_ERROR = 4;     // user notice об ошибке рана
+  MESSAGE_KIND_INBOUND = 1;   // «the agent received it» ack: text is empty, the backend takes the canonical form from trigger_log itself
+  MESSAGE_KIND_PROGRESS = 2;  // intermediate output (thinking/tool/text), refined by progress_type
+  MESSAGE_KIND_ANSWER = 3;    // the LLM's final answer; marks every message of the run completed=true
+  MESSAGE_KIND_ERROR = 4;     // user-facing notice about a run failure
 }
 
 enum ProgressType {
   PROGRESS_TYPE_UNSPECIFIED = 0;
   PROGRESS_TYPE_THINKING = 1;
-  PROGRESS_TYPE_TOOL_CALL = 2;    // ход с вызовами: tool_turn несёт только calls (результатов ещё нет)
+  PROGRESS_TYPE_TOOL_CALL = 2;    // a turn with calls: tool_turn carries calls only (no results yet)
   PROGRESS_TYPE_TEXT = 3;
-  PROGRESS_TYPE_TOOL_RESULT = 4;  // результаты того же хода (пишутся после исполнения): tool_turn несёт только results, text пуст → в канал не доставляется
+  PROGRESS_TYPE_TOOL_RESULT = 4;  // results of that same turn (written after execution): tool_turn carries results only, text is empty → not delivered to the channel
 }
 
 message SaveMessageRequest {
   string agent_id = 1;
   string run_id = 2;        // agent_runs.id (= DBOS workflow id)
-  int32 seq = 3;                // монотонный счётчик рана (0 = inbound); ключ идемпотентности
+  int32 seq = 3;                // the run's monotonic counter (0 = inbound); the idempotency key
   MessageKind kind = 4;
-  ProgressType progress_type = 5;  // только для PROGRESS
-  string text = 6;              // для INBOUND пуст
-  // Структурная запись tool-хода (протокол v2.1), дробится на две строки (v2.1a): у
-  // PROGRESS/TOOL_CALL — только calls (text = канальная 🔧-проекция, доставляется сразу до
-  // исполнения), у PROGRESS/TOOL_RESULT — только results (text пуст, история-only). В историю
-  // следующих ранов бэк отдаёт обе как нативную пару tool_use/tool_result. Старый бэк поле
-  // игнорирует; легаси-строки с calls+results в одной записи воркер по-прежнему понимает.
+  ProgressType progress_type = 5;  // for PROGRESS only
+  string text = 6;              // empty for INBOUND
+  // Structural record of a tool turn (protocol v2.1), split across two rows (v2.1a): under
+  // PROGRESS/TOOL_CALL only calls (text is the 🔧 channel projection, delivered right away, before
+  // execution), under PROGRESS/TOOL_RESULT only results (text empty, history-only). Into the
+  // history of later runs the backend hands both back as a native tool_use/tool_result pair. An
+  // older backend ignores this field; the worker still understands legacy rows that carry calls and
+  // results in a single record.
   ToolTurn tool_turn = 7;
 }
 
 message SaveMessageResponse {
-  bool duplicate = 1;           // (run_id, seq) уже записан — ретрай
+  bool duplicate = 1;           // (run_id, seq) already written — a retry
 }
 
 enum TurnRole {
@@ -67,68 +70,69 @@ enum TurnRole {
   TURN_ROLE_TOOL = 4;
 }
 
-// Один ход канонического журнала. Схема повторяет AgentChatMessage воркера: assistant несёт
-// text/thinking/tool_calls, tool — только tool_results. finish_reason/model/call_id — телеметрия
-// LLM-вызова (заполняется на этапе 1b; пусты — писать nullable).
+// One turn of the canonical journal. The schema mirrors the worker's AgentChatMessage: assistant
+// carries text/thinking/tool_calls, tool carries tool_results only. finish_reason/model/call_id are
+// LLM-call telemetry (populated at stage 1b; when empty, write them as nullable).
 message SaveTurnRequest {
   string agent_id = 1;
   string run_id = 2;                   // agent_runs.id (= DBOS workflow id)
-  int32 turn_index = 3;                // монотонный per-run счётчик; ключ идемпотентности (run_id, turn_index)
+  int32 turn_index = 3;                // monotonic per-run counter; idempotency key is (run_id, turn_index)
   TurnRole role = 4;
   string text = 5;
   bool thinking = 6;
-  repeated ToolCallRec tool_calls = 7;      // у assistant-хода
-  repeated ToolResultRec tool_results = 8;  // у tool-хода
-  string finish_reason = 9;            // 1b; пусто = null
-  string model = 10;                   // 1b; пусто = null
-  string call_id = 11;                 // 1b; связь с llm_usage_log; пусто = null
+  repeated ToolCallRec tool_calls = 7;      // on an assistant turn
+  repeated ToolResultRec tool_results = 8;  // on a tool turn
+  string finish_reason = 9;            // 1b; empty = null
+  string model = 10;                   // 1b; empty = null
+  string call_id = 11;                 // 1b; links to llm_usage_log; empty = null
 }
 
 message SaveTurnResponse {
-  bool duplicate = 1;                  // (run_id, turn_index) уже записан — реплей/ретрай
+  bool duplicate = 1;                  // (run_id, turn_index) already written — replay/retry
 }
 
 message SavePromptRequest {
   string agent_id = 1;
   string run_id = 2;                   // agent_runs.id (= DBOS workflow id)
-  // JSON-массив AgentChatMessage воркера ровно как он ушёл в цикл (system+history+trigger).
-  // Хранится бэком opaque в JSONB — наблюдаемость, не проекция; вложения — как ссылки, не байты.
+  // JSON array of the worker's AgentChatMessage exactly as it went into the loop
+  // (system+history+trigger). The backend stores it opaquely in JSONB — observability, not a
+  // projection; attachments appear as references, not bytes.
   string prompt_json = 3;
 }
 
 message SavePromptResponse {
-  bool stored = 1;                     // false = снимок уже был (first-write-wins)
+  bool stored = 1;                     // false = the snapshot already existed (first-write-wins)
 }
 
-// Один ход ассистента с тулами: преамбула + вызовы + результаты. Схема полей повторяет
-// AgentChatMessage воркера (и wire-формат OpenAI/Spring AI), без константы type="function".
+// One assistant turn with tools: preamble + calls + results. The field schema mirrors the worker's
+// AgentChatMessage (and the OpenAI/Spring AI wire format), minus the constant type="function".
 message ToolTurn {
-  string text = 1;                     // текст ассистента рядом с вызовами (может быть пуст)
+  string text = 1;                     // assistant text alongside the calls (may be empty)
   repeated ToolCallRec calls = 2;
   repeated ToolResultRec results = 3;
 }
 
 message ToolCallRec {
-  string id = 1;                       // id вызова из LLM-ответа
-  string name = 2;                     // LLM-имя тула ({namespace}.{name})
-  string arguments_json = 3;           // сырые JSON-аргументы
+  string id = 1;                       // call id from the LLM response
+  string name = 2;                     // the tool's LLM-facing name ({namespace}.{name})
+  string arguments_json = 3;           // raw JSON arguments
 }
 
 message ToolResultRec {
   string id = 1;                       // = ToolCallRec.id
   string name = 2;
-  string output_json = 3;              // сырой JSON результата (или {"error": ...} при failed)
+  string output_json = 3;              // raw JSON result (or {"error": ...} when failed)
   bool failed = 4;
 }
 
-// История «как видел пользователь» — для RunContext.history. Бэк уже отфильтровал по
-// completed=true и historyDetail; воркер маппит kind на роль (INBOUND → user, остальные →
-// assistant), а tool_turn — на нативную пару assistant(tool_calls) + tool(results).
+// History «as the user saw it» — for RunContext.history. The backend has already filtered by
+// completed=true and historyDetail; the worker maps kind onto a role (INBOUND → user, everything
+// else → assistant) and tool_turn onto a native assistant(tool_calls) + tool(results) pair.
 message HistoryMessage {
   MessageKind kind = 1;
   string text = 2;
-  // Структурная запись tool-хода. У новых ранов приходит двумя соседними записями: сначала с
-  // calls (tool_use), затем с results (tool_result) — воcker сшивает их в пару по порядку.
-  // Легаси-раны шлют одну запись с calls+results. Пустая — обычная текстовая строка.
+  // Structural record of a tool turn. Newer runs deliver it as two adjacent records: first with
+  // calls (tool_use), then with results (tool_result) — the worker stitches them into a pair by
+  // order. Legacy runs send a single record with calls+results. Empty — an ordinary text row.
   ToolTurn tool_turn = 3;
 }

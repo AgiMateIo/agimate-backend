@@ -36,7 +36,7 @@ single-writer-per-session, поэтому отдельного регистра�
 
 | Сервис | RPC |
 |---|---|
-| `WorkerControl` | `HealthCheck` |
+| `WorkerControl` | `HealthCheck`, `SendMessage` |
 | `AgentContext` | `GetRunContext`, `GetLlmCredentials`, `GetFile`, `ReportLlmUsage` |
 | `MessageLog` | `SaveMessage`, `SaveTurn`, `SavePrompt` |
 | `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` |

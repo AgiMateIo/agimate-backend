@@ -8,8 +8,18 @@ option java_outer_classname = "WorkerControlProto";
 
 import "google/protobuf/timestamp.proto";
 
+// The worker's service channel to the backend: diagnostics and outcome reporting. No run payload
+// travels here — that lives in AgentContext, MessageLog and ToolGateway.
 service WorkerControl {
+  // A liveness probe, but not only that: the backend resolves pool_id in the response from the
+  // caller's authkey, so a successful HealthCheck also confirms that TLS and the pool key are
+  // wired up correctly.
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  // A system detail about a run's outcome, destined for the backend log and nowhere else. Despite
+  // the name, nothing reaches the user: user-visible messages go through MessageLog into the
+  // dialogue channel. The worker calls this as a durable step on a soft abort and on an infra
+  // failure (AgentRunCore.sendSystemReport), best-effort: a failure of the report itself must not
+  // mask the run's outcome.
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
 }
 
@@ -18,18 +28,20 @@ message HealthCheckRequest {}
 message HealthCheckResponse {
   string status = 1;
   google.protobuf.Timestamp server_time = 2;
-  string pool_id = 3;
+  string pool_id = 3;  // the pool the backend resolved the presented authkey to
 }
 
+// Sets the log level on the backend — nothing more.
 enum WorkerMessageType {
   WORKER_MESSAGE_TYPE_UNSPECIFIED = 0;
-  WORKER_MESSAGE_TYPE_MESSAGE = 1;
-  WORKER_MESSAGE_TYPE_ERROR = 2;
+  WORKER_MESSAGE_TYPE_MESSAGE = 1;  // an expected abort → INFO
+  WORKER_MESSAGE_TYPE_ERROR = 2;    // an infra failure → ERROR
 }
 
 message SendMessageRequest {
   WorkerMessageType type = 1;
-  string content = 2;
+  string content = 2;  // a system detail for the operator, not text for the user
 }
 
+// Deliberately empty: the worker only needs the delivery to be acknowledged.
 message SendMessageResponse {}

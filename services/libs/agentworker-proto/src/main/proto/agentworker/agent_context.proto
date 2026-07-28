@@ -9,72 +9,75 @@ option java_outer_classname = "AgentContextProto";
 import "agentworker/message_log.proto";
 
 service AgentContext {
-  // Весь контекст рана одним вызовом: упорядоченные блоки промпта + отскоупленные тулы.
-  // Политика сборки (ContextSpec: скоуп скиллов/тулов, guidance) — целиком на бэке; воркер
-  // только рендерит блоки в присланном порядке. run_id = agent_runs.id.
+  // The whole run context in one call: ordered prompt blocks + scoped tools. Assembly policy
+  // (ContextSpec: skill/tool scope, guidance) lives entirely on the backend; the worker only
+  // renders the blocks in the order given. run_id = agent_runs.id.
   rpc GetRunContext(GetRunContextRequest) returns (RunContext);
-  // Намеренно отдельно от GetRunContext: его результат воркер чекпоинтит (durable step
-  // prepare_context), api_key в чекпоинт попадать не должен — креды запрашиваются inline
-  // на каждый llm_call.
+  // Deliberately separate from GetRunContext: the worker checkpoints that result (durable step
+  // prepare_context), and api_key must never enter a checkpoint — credentials are fetched inline
+  // on every llm_call.
   rpc GetLlmCredentials(GetLlmCredentialsRequest) returns (LlmCredentials);
-  // Учёт расхода токенов: best-effort репорт воркера после каждого успешного LLM-вызова.
-  // Идемпотентен по call_id (DBOS workflow id LLM-вызова) — повтор возвращает duplicate=true.
+  // Token accounting: best-effort report from the worker after each successful LLM call.
+  // Idempotent by call_id (the DBOS workflow id of the LLM call) — a repeat returns duplicate=true.
   rpc ReportLlmUsage(ReportLlmUsageRequest) returns (ReportLlmUsageResponse);
-  // Содержимое inbound-вложения (изображение и т.п.) чанками. Как api_key — тянется inline
-  // при llm_call и в DBOS-чекпоинт не попадает; RunContext несёт только ссылки (FilePart).
-  // Ownership-гейт по agent_id: file.user_id == agent.user_id, иначе NOT_FOUND.
+  // Contents of an inbound attachment (image and the like), chunked. Like api_key, it is pulled
+  // inline during llm_call and never enters a DBOS checkpoint; RunContext carries references only
+  // (FilePart). Ownership gate by agent_id: file.user_id == agent.user_id, otherwise NOT_FOUND.
   rpc GetFile(GetFileRequest) returns (stream FileChunk);
 }
 
 message GetRunContextRequest {
   string agent_id = 1;
-  string run_id = 2;  // agent_runs.id (= DBOS workflow id рана)
+  string run_id = 2;  // agent_runs.id (= the run's DBOS workflow id)
 }
 
-// Блок промпта: content без тегов/обёртки — XML-тег {name attrs} ставит рендерер воркера.
+// A prompt block: content carries no tags or wrapper — the worker's renderer adds the XML tag
+// {name attrs}.
 message PromptBlock {
-  string name = 1;                  // имя тега, snake_case
-  string source = 2;                // происхождение: agent | team | skill | guidance | connector:<code>
+  string name = 1;                  // tag name, snake_case
+  string source = 2;                // origin: agent | team | skill | guidance | connector:<code>
   string content = 3;
-  map<string, string> attrs = 4;    // атрибуты тега (например версия памяти)
-  bool trusted = 5;                 // false (только user-блоки) → рендерер оборачивает как untrusted data
-  bool ephemeral = 6;               // true → в историю сессии не персистится (например memory notes)
+  map<string, string> attrs = 4;    // tag attributes (e.g. memory version)
+  bool trusted = 5;                 // false (user blocks only) → the renderer wraps it as untrusted data
+  bool ephemeral = 6;               // true → not persisted into session history (e.g. memory notes)
 }
 
 message RunContext {
-  // Порядок блоков — контракт: бэк кладёт стабильные первыми (prompt-cache),
-  // воркер рендерит как есть и не пересортировывает.
+  // Block order is part of the contract: the backend puts the stable ones first (prompt cache),
+  // and the worker renders them as-is without re-sorting.
   repeated PromptBlock system_blocks = 1;
-  // Основной промпт рана (текст диалога / data триггера) — тоже user-блок, идёт последним.
+  // The run's main prompt (dialogue text / trigger data) — also a user block, and it goes last.
   repeated PromptBlock user_blocks = 2;
-  // Уже отскоупленные скиллами и прошедшие ABAC-гейт binding'ов.
+  // Already scoped by skills and past the ABAC gate on bindings.
   repeated ConnectorToolSpec tools = 3;
-  // История сессии «как видел пользователь»: только завершённые раны (completed=true),
-  // отфильтрована по historyDetail пресета ContextSpec, окно на бэке. Пусто для direct-ранов.
+  // Session history «as the user saw it»: completed runs only (completed=true), filtered by the
+  // ContextSpec preset's historyDetail, windowed on the backend. Empty for direct runs.
   repeated HistoryMessage history = 4;
-  // Вложения диалогового inbound текущего рана — только ссылки; байты воркер тянет GetFile'ом.
-  // Пусто вне DIALOGUE-контекста и у старого control-api (rolling deploy) — воркер работает
-  // как текстовый. В историю не попадают (плейсхолдер — в тексте user-блока).
+  // Attachments of this run's dialogue inbound — references only; the worker pulls the bytes with
+  // GetFile. Empty outside a DIALOGUE context and against an older control-api (rolling deploy) —
+  // the worker then behaves as text-only. These never reach history (the text of the user block
+  // carries a placeholder instead).
   repeated FilePart inbound_parts = 5;
 }
 
-// Ссылка на inbound-вложение (без байтов). type ведёт мультимодальность воркера: image идёт
-// в LLM как Media, прочее — текстовым стабом (агент может переслать attach-конвенцией).
+// A reference to an inbound attachment (no bytes). type drives the worker's multimodality: image
+// goes to the LLM as Media, anything else as a text stub (the agent can forward it using the
+// attach convention).
 message FilePart {
   string file_id = 1;   // agf_<uuid>
   string type = 2;      // image | video | audio | file
   string mime = 3;
   int64 size = 4;
-  string name = 5;      // имя файла, если известно (Telegram document); иначе пусто
+  string name = 5;      // file name when known (Telegram document), otherwise empty
 }
 
 message GetFileRequest {
   string file_id = 1;   // agf_<uuid>
-  string agent_id = 2;  // ownership-гейт: file.user_id == agent.user_id
+  string agent_id = 2;  // ownership gate: file.user_id == agent.user_id
 }
 
-// Первый чанк несёт mime и total_size; последующие — только data. Чанки ~128 KB, чтобы не
-// упираться в дефолтный 4 MB предел gRPC-сообщения.
+// The first chunk carries mime and total_size; the rest carry data only. Chunks are ~128 KB so as
+// not to hit gRPC's default 4 MB message limit.
 message FileChunk {
   bytes data = 1;
   string mime = 2;
@@ -91,25 +94,27 @@ message LlmCredentials {
   string base_url = 2;
   string api_key = 3;
   string model = 4;
-  // llm_providers.id — воркер возвращает его эхом в ReportLlmUsage, чтобы бэк не
-  // переразрешал привязку задним числом. Пусто у старого control-api (rolling deploy) —
-  // тогда воркер репорт пропускает.
+  // llm_providers.id — the worker echoes it back in ReportLlmUsage so the backend does not have to
+  // re-resolve the binding after the fact. Empty against an older control-api (rolling deploy) —
+  // the worker then skips the report.
   string provider_id = 5;
-  // JSON-объект доп. полей тела chat/completions (deep-merge провайдер- и пер-модельного
-  // extra_body уже выполнен бэком; напр. OpenRouter provider-роутинг). Пусто = нет доп. полей
-  // (в т.ч. у старого control-api при rolling deploy). НЕ секрет, но целиком в логи не писать.
+  // JSON object of extra chat/completions body fields (the deep merge of provider- and per-model
+  // extra_body is already done by the backend; e.g. OpenRouter provider routing). Empty = no extra
+  // fields (including against an older control-api during a rolling deploy). NOT a secret, but do
+  // not log it in full.
   string extra_body_json = 6;
-  // input_modalities модели из реестра бэка (llm_provider_models, с write-time фолбэком
-  // llm_model_defaults): "text", "image", "audio", … Пусто = неизвестно (модели нет в реестре /
-  // старый control-api) — воркер ведёт себя оптимистично (прикладывает image-вложения инлайном).
+  // The model's input_modalities from the backend registry (llm_provider_models, with a write-time
+  // fallback to llm_model_defaults): "text", "image", "audio", … Empty = unknown (model absent from
+  // the registry / older control-api) — the worker then behaves optimistically and attaches image
+  // parts inline.
   repeated string input_modalities = 7 [json_name = "inputModalities"];
 }
 
 message ReportLlmUsageRequest {
-  string call_id = 1;             // DBOS workflow id LLM-вызова — ключ идемпотентности
+  string call_id = 1;             // the LLM call's DBOS workflow id — the idempotency key
   string agent_id = 2;
-  string run_id = 3;              // agent_runs.id (parent workflow), пусто если неизвестен
-  string provider_id = 4;         // эхо LlmCredentials.provider_id
+  string run_id = 3;              // agent_runs.id (parent workflow), empty if unknown
+  string provider_id = 4;         // echo of LlmCredentials.provider_id
   string model = 5;
   int32 input_tokens = 6;
   int32 output_tokens = 7;
@@ -118,10 +123,10 @@ message ReportLlmUsageRequest {
 }
 
 message ReportLlmUsageResponse {
-  bool duplicate = 1;             // call_id уже учтён (реплей/повтор) — инкрементов не было
+  bool duplicate = 1;             // call_id was already accounted for (replay/retry) — nothing was incremented
 }
 
-// MCP ToolAnnotations — поведенческие хинты тула.
+// MCP ToolAnnotations — behavioural hints for a tool.
 message ToolAnnotations {
   bool read_only_hint = 1 [json_name = "readOnlyHint"];
   bool destructive_hint = 2 [json_name = "destructiveHint"];
@@ -129,7 +134,7 @@ message ToolAnnotations {
   bool open_world_hint = 4 [json_name = "openWorldHint"];
 }
 
-// MCP-совместимое описание тула (соответствует ConnectorToolSpec в control-api).
+// MCP-compatible tool description (mirrors ConnectorToolSpec in control-api).
 message ConnectorToolSpec {
   string name = 1;
   string title = 2;
@@ -138,15 +143,16 @@ message ConnectorToolSpec {
   bytes output_schema = 5 [json_name = "outputSchema"];  // MCP outputSchema (JSON Schema)
   ToolAnnotations annotations = 6;                       // MCP annotations
   map<string, string> meta = 7 [json_name = "_meta"];    // MCP _meta
-  // Экземпляр коннектора, которому принадлежит тул (= connections.id, как connection_id на ExecuteTool).
+  // The connector instance owning the tool (= connections.id, same as connection_id on ExecuteTool).
   string connection_id = 8 [json_name = "connectionId"];
-  // Неймспейс экземпляра для LLM-имени (connector_code для синглтонов, full_code для инстансов).
-  // Воркер строит LLM-имя тула как {namespace}.{name} для глобальной уникальности; на ExecuteTool
-  // возвращает исходные (connector_code, connection_id, name) — маршрутизация по wire не меняется.
+  // The instance's namespace for the LLM-facing name (connector_code for singletons, full_code for
+  // instances). The worker builds the LLM tool name as {namespace}.{name} for global uniqueness; on
+  // ExecuteTool it sends back the original (connector_code, connection_id, name) — wire routing is
+  // unchanged.
   string namespace = 9 [json_name = "namespace"];
-  // Тип коннектора — для маршрутизации ExecuteTool (раньше приходил из GetConnections).
+  // Connector type — used to route ExecuteTool (it used to arrive from GetConnections).
   string connector_code = 10 [json_name = "connectorCode"];
-  // Бюджет ожидания результата тула воркером, секунды. 0 — дефолт воркера
-  // (agent.tool.poll-timeout); воркер клампит значение сверху (30 мин).
+  // The worker's budget for awaiting the tool result, in seconds. 0 — the worker's default
+  // (agent.tool.poll-timeout); the worker clamps the value from above (30 min).
   uint32 timeout_seconds = 11 [json_name = "timeoutSeconds"];
 }

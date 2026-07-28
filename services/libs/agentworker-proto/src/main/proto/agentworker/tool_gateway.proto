@@ -6,44 +6,54 @@ option java_multiple_files = true;
 option java_package = "ru.agimate.agentworker";
 option java_outer_classname = "ToolGatewayProto";
 
+// Tools are executed by the backend, not the worker: it owns the connector layer, the connection
+// credentials and ABAC. Hence the split into two calls — a tool can run for minutes, and holding a
+// gRPC thread for that long is not an option. Dispatch is asynchronous: the ack comes back
+// immediately and the worker collects the result by polling (PENDING → SUCCESS/ERROR).
 service ToolGateway {
+  // Submits the call for execution. The ack means «accepted», not «done».
   rpc ExecuteToolAsync(ExecuteToolRequest) returns (ExecuteToolAsyncAck);
+  // Polls for the result by the tool_call_id returned in the ack.
   rpc GetToolResult(GetToolResultRequest) returns (GetToolResultResponse);
 }
 
 message ExecuteToolRequest {
+  // The idempotency key, minted by the worker (the model's turn id). A repeat with the same id and
+  // the same input finishes the earlier call instead of executing a second one; the same id with a
+  // different input is a conflict.
   string tool_call_id = 1;
   string connector_code = 2;
   string connection_id = 3 [json_name = "connectionId"];
   string tool_name = 4;
-  bytes input = 5;
+  bytes input = 5;  // tool arguments, JSON: the connector knows the schema, the protocol does not type it
   string agent_id = 6;
   string workflow_id = 7;
-  // Ран-источник вызова (agent_runs.id); сессию/канал для доменного контекста
-  // тулов бэк резолвит сам из снапшота рана.
+  // The run the call originates from (agent_runs.id); the backend resolves the session/channel for
+  // the tools' domain context itself, from the run's snapshot.
   string run_id = 8;
 }
 
 message ExecuteToolAsyncAck {
-  string tool_call_id = 1;
+  string tool_call_id = 1;  // echo of the one sent: polling uses the same value
 }
 
 message GetToolResultRequest {
   string agent_id = 1;
   string tool_call_id = 2;
-  // Ран-источник вызова: poll — признак жизни рана (продлевает last_activity_at).
+  // The run the call originates from: a poll doubles as a sign of life for the run (it extends
+  // last_activity_at).
   string run_id = 3;
 }
 
 message GetToolResultResponse {
   ToolResultStatus status = 1;
-  bytes output_json = 2;
-  string error = 3;
+  bytes output_json = 2;  // populated on SUCCESS only
+  string error = 3;       // populated on ERROR only; the text reaches the model as the tool's result
 }
 
 enum ToolResultStatus {
   TOOL_RESULT_STATUS_UNSPECIFIED = 0;
-  TOOL_RESULT_STATUS_PENDING = 1;
+  TOOL_RESULT_STATUS_PENDING = 1;  // still executing — keep polling, this is not a failure
   TOOL_RESULT_STATUS_SUCCESS = 2;
   TOOL_RESULT_STATUS_ERROR = 3;
 }
