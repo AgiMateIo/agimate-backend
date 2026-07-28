@@ -6,15 +6,15 @@ import ru.agimate.controlapi.database.enums.ConnectorJobType;
 import java.util.Map;
 
 /**
- * Декларация фоновой задачи коннектора — контракт между {@code getJobs()} и «писателями»
- * в {@code connector_jobs} ({@code ConnectorIdentityListener}, {@code ConnectorBootstrap}).
+ * Declaration of a connector's background job — the contract between {@code getJobs()} and the
+ * «writers» into {@code connector_jobs} ({@code ConnectorIdentityListener}, {@code ConnectorBootstrap}).
  *
- * @param name           имя задачи; диспатчится в {@code @Tool}-метод с этим именем
- *                       (включая обычные тулы — см. {@link Job})
+ * @param name           job name; dispatched to the {@code @Tool} method of the same name (ordinary
+ *                       tools included — see {@link Job})
  * @param type       ONETIME / PERIODIC / CRON
- * @param config     параметры расписания: {@code intervalSeconds} | {@code cron}, {@code zone}
- * @param args       аргументы, передаваемые в метод при каждом запуске
- * @param timeoutSeconds лимит одной итерации (lease)
+ * @param config     schedule parameters: {@code intervalSeconds} | {@code cron}, {@code zone}
+ * @param args       arguments passed into the method on every run
+ * @param timeoutSeconds limit of a single iteration (the lease)
  */
 public record JobSpec(
         String name,

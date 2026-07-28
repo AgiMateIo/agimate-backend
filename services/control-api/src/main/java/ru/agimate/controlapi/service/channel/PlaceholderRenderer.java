@@ -11,8 +11,8 @@ import java.util.regex.Pattern;
 
 /**
  * Recursively renders placeholders in a JSONB-style template:
- * - {text} → текст ответа агента
- * - {trigger.<dot.path>} → значение из payload последнего IN-сообщения сессии
+ * - {text} → the agent's answer text
+ * - {trigger.<dot.path>} → a value from the payload of the session's last IN message
  */
 @UtilityClass
 public class PlaceholderRenderer {

@@ -14,14 +14,14 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Синк кэша {@code connection_tools} по lifecycle-событиям MCP-экземпляров (аналог
- * {@code ConnectorIdentityListener} для тасок): на create/modify — ре-дискавери тулов
- * ({@code tools/list} → перезапись), на delete — чистка строк по connectionId.
+ * Sync of the {@code connection_tools} cache on lifecycle events of MCP instances (the analogue of
+ * {@code ConnectorIdentityListener} for jobs): on create/modify — rediscovery of the tools
+ * ({@code tools/list} → rewrite), on delete — cleanup of the rows by connectionId.
  *
- * <p>{@link TransactionPhase#AFTER_COMMIT} — синк не должен случиться, если транзакция создания/
- * изменения интеграции откатилась (и id ещё не присвоен на момент {@code validateCredentials}).
- * Сбой {@code tools/list} (сервер недоступен) не валит lifecycle — логируем warn, кэш досинкается
- * ручным refresh или следующим modify.
+ * <p>{@link TransactionPhase#AFTER_COMMIT} — the sync must not happen if the transaction creating or
+ * modifying the integration rolled back (and the id is not assigned yet at
+ * {@code validateCredentials} time). A {@code tools/list} failure (the server is down) does not break
+ * the lifecycle — we log a warning, and the cache catches up on a manual refresh or the next modify.
  */
 @Slf4j
 @Component
@@ -63,7 +63,7 @@ public class McpToolDiscoveryListener {
                 mcpToolDiscoveryService.reconcile(identityId, fresh);
             }
         } catch (Exception e) {
-            // полный стек — getMessage() у части исключений null и прячет причину
+            // the full stack — getMessage() is null on some exceptions and hides the cause
             log.warn("MCP tool discovery failed for {}", connectionId, e);
         }
     }

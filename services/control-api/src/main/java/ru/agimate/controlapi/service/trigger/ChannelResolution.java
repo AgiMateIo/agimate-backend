@@ -3,8 +3,9 @@ package ru.agimate.controlapi.service.trigger;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 
 /**
- * Как доставлять триггер агенту: {@code DIRECT} (прямая, не канальная), {@code CHANNEL}
- * (канальная — {@code channels}/{@code message} заполнены) или {@code SKIP} (handler отфильтровал).
+ * How to deliver a trigger to an agent: {@code DIRECT} (directly, outside a channel), {@code CHANNEL}
+ * (through a channel — {@code channels}/{@code message} are populated) or {@code SKIP} (the handler
+ * filtered it out).
  */
 record ChannelResolution(Kind kind, Channels channels, InboundMessage message) {
 

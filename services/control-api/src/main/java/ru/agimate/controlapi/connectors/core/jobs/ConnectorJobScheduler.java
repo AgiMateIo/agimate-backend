@@ -19,32 +19,32 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
 
 /**
- * Pull‑based scheduler фоновых задач коннекторов.
+ * Pull-based scheduler of connectors' background jobs.
  *
- * <p>На каждом тике (раз в секунду) атомарно claim'ит готовые к запуску строки
- * {@code connector_jobs} через {@code FOR UPDATE SKIP LOCKED}, сразу переводя их в
- * {@code RUNNING} с per-row lease ({@code now + timeout_seconds}). Для каждой claim'нутой строки
- * сабмитит виртуальный поток, который:
+ * <p>On every tick (once a second) it atomically claims the {@code connector_jobs} rows ready to run,
+ * through {@code FOR UPDATE SKIP LOCKED}, moving them straight to {@code RUNNING} with a per-row
+ * lease ({@code now + timeout_seconds}). For each claimed row it submits a virtual thread that:
  *
  * <ol>
- *   <li>вызывает {@link JobExecutionService#executeJob(ConnectorJob)} вне транзакции
- *       (важно: long‑poll может держать поток 20с, коннект к БД на это время отдан в пул);</li>
- *   <li>обновляет {@code next_run_at} и переводит строку обратно в {@code PENDING},
- *       либо в {@code COMPLETED} для успешного {@code ONETIME}.</li>
+ *   <li>calls {@link JobExecutionService#executeJob(ConnectorJob)} outside a transaction (this
+ *       matters: a long poll can hold the thread for 20s, and the database connection is returned to
+ *       the pool for that time);</li>
+ *   <li>updates {@code next_run_at} and moves the row back to {@code PENDING}, or to
+ *       {@code COMPLETED} for a successful {@code ONETIME}.</li>
  * </ol>
  *
- * <p>Если процесс упал между claim и complete — lease истечёт сам, и любая нода (включая эту
- * после рестарта) повторно подхватит строку. Никакого in‑memory tracking нет.
+ * <p>If the process dies between claim and complete, the lease expires on its own and any node
+ * (including this one after a restart) picks the row up again. There is no in-memory tracking at all.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ConnectorJobScheduler {
 
-    /** Сколько строк подхватываем за один тик. С запасом — на проде задач должны быть единицы. */
+    /** How many rows we pick up per tick. Generous — in production there should be only a handful of jobs. */
     private static final int BATCH_SIZE = 100;
 
-    /** Дефолтная задержка повтора после ошибки. */
+    /** Default retry delay after a failure. */
     private static final Duration DEFAULT_ERROR_RETRY = Duration.ofSeconds(60);
 
     private final ConnectorJobService jobService;
@@ -52,7 +52,7 @@ public class ConnectorJobScheduler {
 
     private final ThreadFactory virtualThreads = Thread.ofVirtual().name("cjob-", 0).factory();
 
-    /** Строки, claim'нутые этой нодой и ещё не завершённые — кандидаты на release при shutdown. */
+    /** Rows claimed by this node and not yet finished — candidates for release at shutdown. */
     private final Set<UUID> inFlight = ConcurrentHashMap.newKeySet();
 
     private volatile boolean shuttingDown;
@@ -74,9 +74,10 @@ public class ConnectorJobScheduler {
     }
 
     /**
-     * Возвращает незавершённые итерации в очередь перед остановкой JVM. Без этого строка остаётся
-     * RUNNING до истечения lease (или уходит в error-retry из-за закрывающихся пулов), и после
-     * рестарта джоба молчит до timeout_seconds — для непрерывного long-poll'а это минута глухоты.
+     * Returns unfinished iterations to the queue before the JVM stops. Without this the row stays
+     * RUNNING until its lease expires (or goes into error retry because the pools are closing), and
+     * after a restart the job stays silent for timeout_seconds — for a continuous long poll that is a
+     * minute of deafness.
      */
     @PreDestroy
     void releaseInFlight() {
@@ -102,8 +103,8 @@ public class ConnectorJobScheduler {
                 }
             } catch (Exception e) {
                 if (shuttingDown) {
-                    // Итерацию уронил сам shutdown (закрытие пулов) — это не сбой джобы,
-                    // error-retry отложил бы её на минуту после рестарта.
+                    // The iteration was killed by the shutdown itself (the pools closing) — that is not a job
+                    // failure, and an error retry would push it a minute past the restart.
                     log.info("Job {} interrupted by shutdown, released", jobKey);
                     jobService.release(row.getId());
                 } else {
@@ -117,12 +118,12 @@ public class ConnectorJobScheduler {
     }
 
     /**
-     * Когда задача должна запуститься в следующий раз.
+     * When the job should run next.
      * <ul>
-     *   <li>ONETIME: сюда попадает только после ошибки — retry через {@code DEFAULT_ERROR_RETRY},
-     *       успех финализируется {@code markCompleted} без следующего запуска.</li>
-     *   <li>PERIODIC: {@code now + intervalSeconds} в норме; {@code now + DEFAULT_ERROR_RETRY} при ошибке.</li>
-     *   <li>CRON: следующий cron‑тик (ошибка тоже идёт в очередь по cron — пропускаем итерацию).</li>
+     *   <li>ONETIME: reached here only after a failure — retry through {@code DEFAULT_ERROR_RETRY};
+     *       success is finalised by {@code markCompleted} with no next run.</li>
+     *   <li>PERIODIC: {@code now + intervalSeconds} normally; {@code now + DEFAULT_ERROR_RETRY} on failure.</li>
+     *   <li>CRON: the next cron tick (a failure also queues by cron — we skip that iteration).</li>
      * </ul>
      */
     private LocalDateTime computeNext(ConnectorJob row, boolean afterError) {

@@ -12,9 +12,9 @@ import ru.agimate.controlapi.acp.AcpHandshakeInterceptor;
 import ru.agimate.controlapi.acp.AcpWebSocketHandler;
 
 /**
- * WebSocket-эндпоинт ACP (Agent Client Protocol) для IDE-клиентов. Путь включён в api-key
- * security chain ({@code SecurityConfig}): handshake аутентифицируется агентским
- * {@code X-Api-Key}, принципала в сессию переносит {@link AcpHandshakeInterceptor}.
+ * The ACP (Agent Client Protocol) WebSocket endpoint for IDE clients. The path is part of the
+ * api-key security chain ({@code SecurityConfig}): the handshake is authenticated by the agent's
+ * {@code X-Api-Key}, and {@link AcpHandshakeInterceptor} carries the principal into the session.
  */
 @Configuration
 @EnableWebSocket
@@ -24,9 +24,10 @@ public class AcpWebSocketConfig implements WebSocketConfigurer {
     public static final String PATH = "/acp";
 
     /**
-     * Лимит одного текстового фрейма. Дефолт контейнера — 8 КБ, чего не хватает: ответы IDE на
-     * server→client запросы ({@code terminal/output}, {@code fs/read_text_file} с телом файла)
-     * легко больше — при превышении контейнер рвёт соединение с close 1009 «Message Too Big».
+     * Limit on a single text frame. The container's default is 8 KB, which is not enough: an IDE's
+     * answers to server→client requests ({@code terminal/output}, {@code fs/read_text_file} with a
+     * file body) easily exceed it — and on overflow the container tears the connection down with
+     * close 1009 «Message Too Big».
      */
     public static final int MAX_MESSAGE_BYTES = 8 * 1024 * 1024;
 
@@ -34,13 +35,13 @@ public class AcpWebSocketConfig implements WebSocketConfigurer {
 
     @Override
     public void registerWebSocketHandlers(@NonNull WebSocketHandlerRegistry registry) {
-        // Клиент — не браузер (мост/IDE), Origin-заголовка нет; политика Origin неприменима.
+        // The client is not a browser (the bridge or the IDE), there is no Origin header; an Origin policy does not apply.
         registry.addHandler(acpWebSocketHandler, PATH)
                 .addInterceptors(new AcpHandshakeInterceptor())
                 .setAllowedOrigins("*");
     }
 
-    /** Поднимает лимиты входящих фреймов контейнера (JSR-356) для крупных ответов IDE. */
+    /** Raises the container's inbound frame limits (JSR-356) for large IDE responses. */
     @Bean
     public ServletServerContainerFactoryBean acpServletServerContainer() {
         ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();

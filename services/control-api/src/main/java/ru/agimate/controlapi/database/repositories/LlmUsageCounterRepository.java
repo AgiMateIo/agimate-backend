@@ -20,7 +20,7 @@ public interface LlmUsageCounterRepository extends JpaRepository<LlmUsageCounter
             UUID llmProviderId, UsageSubjectKind subjectKind, UUID subjectId,
             UsageWindow window, LocalDate windowStart);
 
-    /** Атомарный инкремент счётчика окна: вставка первой строки или прибавка к существующей. */
+    /** Atomic increment of a window's counter: inserts the first row or adds to an existing one. */
     @Modifying
     @Query(value = """
             INSERT INTO llm_usage_counters

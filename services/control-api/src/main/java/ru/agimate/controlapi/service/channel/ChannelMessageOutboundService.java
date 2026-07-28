@@ -39,10 +39,10 @@ public class ChannelMessageOutboundService {
     public record OutboundResult(ChannelSession session, String messageId) {}
 
     /**
-     * Намеренно НЕ {@code @Transactional}: каждый шаг коммитит свою транзакцию
-     * (создание сессии, лог тула), а диспатч исполнения идёт после — иначе async-исполнитель
-     * не увидит незакоммиченный {@code tool_call_log}, а вызов из post-commit контекста
-     * (SaveMessage) молча терял бы запись (пресловутый REQUIRED внутри afterCommit).
+     * Deliberately NOT {@code @Transactional}: every step commits its own transaction (creating the
+     * session, the tool log), and the execution dispatch comes afterwards — otherwise the async
+     * executor would not see an uncommitted {@code tool_call_log}, and a call from a post-commit
+     * context (SaveMessage) would silently lose the record (the notorious REQUIRED inside afterCommit).
      */
     public OutboundResult send(UUID agentId, UUID channelId, UUID sessionIdOrNull,
                                OutboundMessage outbound, String messageId, String stream,
@@ -61,15 +61,15 @@ public class ChannelMessageOutboundService {
         ChannelSession session = resolveSession(channel, sessionIdOrNull);
         Map<String, Object> replyContext = lookupLastInboundTrigger(session);
 
-        // Attach-конвенция: маркеры [[attach:agf_…]] из текста → parts (владелец — user канала).
+        // The attach convention: [[attach:agf_…]] markers from the text → parts (the owner is the channel's user).
         OutboundMessage effectiveOutbound = attachmentParser.parse(channel.getUserId(), outbound);
         if (!effectiveOutbound.parts().isEmpty() && !handler.supportsOutboundAttachments()) {
             log.warn("Channel {} handler={} does not support outbound attachments — dropping {} part(s)",
                     channel.getId(), handler.name(), effectiveOutbound.parts().size());
             effectiveOutbound = new OutboundMessage(effectiveOutbound.text(), List.of());
         }
-        // Вложения несёт только answer-стрим: маркер, упомянутый в progress-тексте, — анонс будущего
-        // ответа; доставка и там и там задублировала бы файл (message_id у стримов разные).
+        // Only the answer stream carries attachments: a marker mentioned in progress text announces a future
+        // answer, and delivering in both places would duplicate the file (the streams have different message_ids).
         boolean answerStream = stream == null
                 || ChannelSessionMessageKind.ANSWER.name().equalsIgnoreCase(stream);
         if (!effectiveOutbound.parts().isEmpty() && !answerStream) {
@@ -93,10 +93,11 @@ public class ChannelMessageOutboundService {
     }
 
     /**
-     * Запросы независимы (текст и каждое вложение — отдельные сообщения), поэтому сбой одного не
-     * топит остальные: вложения — best-effort (как и отброс нерезолвимых маркеров в парсере),
-     * доставленный текст важнее. Полный провал пробрасывается — доставки не было вовсе, а ретрай
-     * вызывающего безопасен: ключи идемпотентны, повтор успешного запроса — replay.
+     * The requests are independent (the text and each attachment are separate messages), so one
+     * failure does not sink the rest: attachments are best-effort (as is dropping unresolvable markers
+     * in the parser), and delivered text matters more. A total failure is rethrown — there was no
+     * delivery at all, and the caller's retry is safe: the keys are idempotent and repeating a
+     * successful request is a replay.
      */
     private void dispatchAll(Channel channel, List<ToolCallRequest> requests) {
         RuntimeException firstFailure = null;

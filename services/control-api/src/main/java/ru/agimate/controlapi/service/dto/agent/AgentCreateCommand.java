@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Service-layer контракт создания агента — вход для {@code AgentService.create}, общий для HTTP-границы
- * (маппинг из {@code CreateAgentRequest}) и коннекторного слоя (platform-коннектор), чтобы последний
- * не зависел от {@code controller/**}.
+ * The service-layer contract for creating an agent — the input of {@code AgentService.create}, shared
+ * by the HTTP boundary (mapping from {@code CreateAgentRequest}) and the connector layer (the platform
+ * connector), so the latter does not depend on {@code controller/**}.
  */
 public record AgentCreateCommand(
         String name,

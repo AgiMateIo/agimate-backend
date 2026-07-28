@@ -189,8 +189,9 @@ public class ChannelService {
                 .config(config)
                 .build());
 
-        // Доступ = binding: канал гарантирует binding на свой источник и на каждую reply-connection
-        // (default-allow заменяет прежнюю авто-выдачу ALLOW-политик). Binding'и переживают канал.
+        // Access = a binding: a channel guarantees a binding onto its own source and onto every reply
+        // connection (default-allow replaces the former automatic issuing of ALLOW policies). Bindings outlive
+        // the channel.
         Set<UUID> toBind = new LinkedHashSet<>();
         toBind.add(connectionId);
         for (ToolDefinition t : tools) {
@@ -243,8 +244,8 @@ public class ChannelService {
         Channel channel = getById(userId, id);
         channel.setDeletedAt(LocalDateTime.now());
         channelRepository.save(channel);
-        // Binding'и не трогаем — их жизненный цикл отдельный (decision #1): доступ агента к
-        // коннектору сохраняется после удаления канала; отзывается явной отвязкой.
+        // Bindings are left alone — their lifecycle is separate (decision #1): the agent's access to the
+        // connector survives the channel's deletion and is revoked by an explicit unbind.
         log.info("Soft-deleted channel id={} (bindings preserved)", id);
     }
 
@@ -287,7 +288,7 @@ public class ChannelService {
     }
 
     private void validateTool(UUID userId, String connectionId, String toolName) {
-        // Reply-коннектор выводится из connection (connections.connector_code) — в config не хранится.
+        // The reply connector is derived from the connection (connections.connector_code) — it is not stored in the config.
         Connection connection = loadConnection(userId, connectionId);
         String connectorCode = connection.getConnectorCode();
         Connector connector = connectorRepository.findById(connectorCode)
@@ -299,7 +300,7 @@ public class ChannelService {
         }
     }
 
-    /** Источник по definitionBinding: STATIC — из handler (SPI), DYNAMIC — из connection_triggers. */
+    /** Source by definitionBinding: STATIC — from the handler (SPI), DYNAMIC — from connection_triggers. */
     private Set<String> lookupTriggerNames(Connector connector, UUID userId, String connectionId) {
         Connection connection = loadConnection(userId, connector.getCode(), connectionId);
         return switch (connector.getDefinitionBinding()) {
@@ -311,7 +312,7 @@ public class ChannelService {
         };
     }
 
-    /** Источник по definitionBinding: STATIC — из handler (SPI), DYNAMIC — из connection_tools. */
+    /** Source by definitionBinding: STATIC — from the handler (SPI), DYNAMIC — from connection_tools. */
     private Set<String> lookupToolNames(Connector connector, UUID userId, String connectionId) {
         Connection connection = loadConnection(userId, connector.getCode(), connectionId);
         return switch (connector.getDefinitionBinding()) {

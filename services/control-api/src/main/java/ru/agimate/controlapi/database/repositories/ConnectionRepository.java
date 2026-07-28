@@ -40,7 +40,7 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
             @Param("userId") UUID userId,
             @Param("connectorCode") String connectorCode);
 
-    /** Connection пользователя с опциональными фильтрами по реальным полям (null = не фильтровать). */
+    /** A user's connections with optional filters on real fields (null = do not filter). */
     @Query("""
             SELECT c FROM Connection c
             WHERE c.userId = :userId
@@ -64,7 +64,7 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
 
     Optional<Connection> findByAppIdAndDeletedAtIsNull(UUID appId);
 
-    /** Активные экземпляры, привязанные к агенту через {@code agent_connections} (гейт доступности). */
+    /** Active instances bound to an agent through {@code agent_connections} (the availability gate). */
     @Query("""
             SELECT c FROM Connection c, AgentConnection ac
             WHERE ac.connectionId = c.id
@@ -77,12 +77,13 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
     List<Connection> findActiveBoundToAgent(@Param("agentId") UUID agentId);
 
     /**
-     * Атомарная материализация строки-режима: INSERT, молча проигрывающий гонку по partial-индексу
-     * {@code uq_connections_full_code_user}. Возвращает 1, если строку создал этот вызов (сигнал
-     * издать {@code ConnectorCreatedEvent}), 0 — параллельный победитель успел раньше (его строка
-     * станет видна следующим SELECT'ом после его коммита). Нативно и через ON CONFLICT сознательно:
-     * Hibernate откладывает INSERT до flush — нарушение уникальности всплывало бы вне обработчика,
-     * а после него PostgreSQL-транзакция отравлена и re-read в ней невозможен.
+     * Atomic materialisation of a mode row: an INSERT that silently loses the race on the partial
+     * index {@code uq_connections_full_code_user}. Returns 1 when this call created the row (the
+     * signal to emit a {@code ConnectorCreatedEvent}), 0 when a concurrent winner got there first
+     * (its row becomes visible to the next SELECT after its commit). Native and via ON CONFLICT
+     * deliberately: Hibernate defers the INSERT until flush, so a uniqueness violation would surface
+     * outside the handler — and after it the PostgreSQL transaction is poisoned and a re-read inside
+     * it is impossible.
      */
     @Modifying
     @Query(value = """
@@ -103,8 +104,8 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
     @Query("UPDATE Connection c SET c.deletedAt = :now WHERE c.id = :id")
     void softDelete(@Param("id") UUID id, @Param("now") LocalDateTime now);
 
-    // @Transactional здесь: единственный вызов — с async-пула тулов, где внешней транзакции
-    // нет, а @Modifying без активной TX Hibernate отклоняет.
+    // @Transactional here: the only caller comes from the tools' async pool, where there is no outer
+    // transaction, and Hibernate rejects @Modifying with no active TX.
     @Transactional
     @Modifying
     @Query("UPDATE Connection c SET c.lastUsedAt = :now WHERE c.id = :id")

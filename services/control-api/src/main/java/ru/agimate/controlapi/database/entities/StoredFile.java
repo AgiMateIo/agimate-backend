@@ -9,12 +9,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Метаданные файла коннекторного слоя (docs/connectors/files.md). Байты живут в S3-совместимом
- * хранилище под ключом {@code user_id/agf_<id>}; строка — единственный источник владения (ABAC по
- * {@code user_id}) и lifecycle (TTL в {@code expires_at}).
+ * Metadata of a file in the connector layer (docs/connectors/files.md). The bytes live in
+ * S3-compatible storage under the key {@code user_id/agf_<id>}; the row is the single source of
+ * ownership (ABAC by {@code user_id}) and of lifecycle (TTL in {@code expires_at}).
  *
- * <p>{@code id} назначается приложением ({@code UUIDUtils.generateUUIDv8()}) — наружу уходит как
- * публичный идентификатор {@code agf_<uuid>} в результатах/параметрах тулов.
+ * <p>{@code id} is assigned by the application ({@code UUIDUtils.generateUUIDv8()}) — it goes out as
+ * the public identifier {@code agf_<uuid>} in tool results and parameters.
  */
 @Entity
 @Table(name = "files")
@@ -42,11 +42,11 @@ public class StoredFile extends BaseEntity {
     @Column(name = "size", nullable = false)
     private Long sizeBytes;
 
-    /** hex SHA-256 содержимого; заполняется по завершении загрузки (status=READY). */
+    /** hex SHA-256 of the contents; filled in once the upload completes (status=READY). */
     @Column(name = "sha256", columnDefinition = "TEXT")
     private String sha256;
 
-    /** Провенанс: connector_code/tool/connection, породившие файл. */
+    /** Provenance: the connector_code/tool/connection that produced the file. */
     @Column(name = "origin", columnDefinition = "TEXT")
     private String origin;
 

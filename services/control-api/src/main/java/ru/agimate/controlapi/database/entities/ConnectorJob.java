@@ -16,18 +16,20 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Registry фоновых задач коннекторов — источник истины для pull‑based scheduler'а
+ * Registry of connector background jobs — the source of truth for the pull-based scheduler
  * {@code ConnectorJobScheduler}.
  *
- * <p>Сам исполняемый код в БД не хранится: {@code name} диспатчится в {@code @Tool}-метод
- * tool-сервиса коннектора с аргументами {@link #args}. В {@link #config} лежат только
- * параметры расписания ({@code intervalSeconds}, {@code cron}, {@code zone}).
+ * <p>The executable code itself is not stored in the database: {@code name} is dispatched to a
+ * {@code @Tool} method of the connector's tool service with the arguments {@link #args}.
+ * {@link #config} holds schedule parameters only ({@code intervalSeconds}, {@code cron},
+ * {@code zone}).
  *
- * <p>Уникальность бизнес-ключа {@code (connector_code, connection_id, name)} действует только на
- * {@code kind = SYSTEM} (partial unique index, см. {@code 2026/06/11-01-connector-jobs-kind-paused.xml};
- * {@code @UniqueConstraint} в JPA не умеет в partial) — это инвариант reconcile-синка
- * ({@code findByBusinessKey} возвращает {@code Optional}). USER/AGENT-строки идентифицируются
- * собственным {@code id}, их на один {@code name} может быть много.
+ * <p>Uniqueness of the business key {@code (connector_code, connection_id, name)} applies to
+ * {@code kind = SYSTEM} only (a partial unique index, see
+ * {@code 2026/06/11-01-connector-jobs-kind-paused.xml}; JPA {@code @UniqueConstraint} cannot do
+ * partial) — that is the invariant of the reconcile sync ({@code findByBusinessKey} returns an
+ * {@code Optional}). USER/AGENT rows are identified by their own {@code id}, and there may be many
+ * of them per {@code name}.
  */
 @Entity
 @Table(name = "connector_jobs")
@@ -48,52 +50,53 @@ public class ConnectorJob extends BaseEntity {
     private String connectorCode;
 
     /**
-     * Идентификатор экземпляра коннектора: {@code connections.id} строкой (как в {@code ToolCallLog});
-     * у динамических задач — connection_id tool-вызова инициатора (восстанавливается в
-     * {@code ConnectorEnv} на срабатывании); {@code null}, если экземпляр не применим.
+     * Identifier of the connector instance: {@code connections.id} as a string (as in
+     * {@code ToolCallLog}); for dynamic jobs it is the connection_id of the initiating tool call
+     * (restored into {@code ConnectorEnv} when the job fires); {@code null} when no instance applies.
      */
     @Column(name = "connection_id", columnDefinition = "TEXT")
     private String connectionId;
 
-    /** Владелец задачи: пользователь, создавший интеграцию, либо владелец агента-инициатора. */
+    /** Owner of the job: the user who created the integration, or the owner of the initiating agent. */
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
     /**
-     * Агент-инициатор для динамических задач (например, {@code time.schedule}): по нему list/cancel
-     * и реконструкция {@link ru.agimate.controlapi.connectors.core.ConnectorEnv} на срабатывании.
-     * {@code null} у декларативных задач интеграции.
+     * The initiating agent for dynamic jobs (e.g. {@code time.schedule}): used for list/cancel and to
+     * reconstruct {@link ru.agimate.controlapi.connectors.core.ConnectorEnv} when the job fires.
+     * {@code null} for declarative integration jobs.
      */
     @Column(name = "agent_id")
     private UUID agentId;
 
     /**
-     * Исходный канал агента-инициатора (снимок на момент планирования): куда динамическая таска
-     * адресует ответ. Реконструируется в {@code ConnectorEnv.channelId} на срабатывании.
-     * {@code null}, если таска запланирована вне канального контекста.
+     * The initiating agent's originating channel (a snapshot taken at scheduling time): where a
+     * dynamic job addresses its answer. Reconstructed into {@code ConnectorEnv.channelId} when the
+     * job fires. {@code null} when the job was scheduled outside a channel context.
      */
     @Column(name = "channel_id")
     private UUID channelId;
 
     /**
-     * Prompt-сессия агента-инициатора (снимок на момент планирования, симметрично {@link #channelId}):
-     * при срабатывании реконструируется в {@code ConnectorEnv.sessionId}, а продюсер триггера кладёт её
-     * в проактивные {@code ChannelInfo} — ран получает историю и партицию исходного разговора, пока
-     * сессия жива. {@code null}, если таска запланирована вне канального контекста.
+     * The initiating agent's prompt session (a snapshot taken at scheduling time, symmetric to
+     * {@link #channelId}): when the job fires it is reconstructed into {@code ConnectorEnv.sessionId},
+     * and the trigger producer puts it into the proactive {@code ChannelInfo} — the run then gets the
+     * history and the partition of the original conversation for as long as the session lives.
+     * {@code null} when the job was scheduled outside a channel context.
      */
     @Column(name = "session_id")
     private UUID sessionId;
 
-    /** Категория строки — см. {@link ConnectorJobKind}; определяет, действует ли бизнес-ключ. */
+    /** Row category — see {@link ConnectorJobKind}; it decides whether the business key applies. */
     @Enumerated(EnumType.STRING)
     @Column(name = "kind", nullable = false, columnDefinition = "TEXT")
     private ConnectorJobKind kind;
 
-    /** Пауза пользователем: пока не {@code null}, scheduler строку не подхватывает. */
+    /** Paused by the user: while this is not {@code null} the scheduler does not pick the row up. */
     @Column(name = "paused_at")
     private LocalDateTime pausedAt;
 
-    /** Имя задачи; диспатчится в {@code @Tool}-метод коннектора с этим именем. */
+    /** Job name; dispatched to the connector's {@code @Tool} method of the same name. */
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
 
@@ -101,12 +104,12 @@ public class ConnectorJob extends BaseEntity {
     @Column(name = "type", nullable = false, columnDefinition = "TEXT")
     private ConnectorJobType type;
 
-    /** Параметры расписания: {@code intervalSeconds} | {@code cron}, {@code zone}. */
+    /** Schedule parameters: {@code intervalSeconds} | {@code cron}, {@code zone}. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "config", nullable = false, columnDefinition = "JSONB")
     private Map<String, Object> config;
 
-    /** Аргументы, передаваемые в метод при каждом запуске. */
+    /** Arguments passed into the method on every run. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "args", nullable = false, columnDefinition = "JSONB")
     private Map<String, Object> args;
@@ -116,23 +119,23 @@ public class ConnectorJob extends BaseEntity {
     @Builder.Default
     private ConnectorJobStatus status = ConnectorJobStatus.PENDING;
 
-    /** Когда поллер должен подхватить задачу в следующий раз; {@code null} для COMPLETED. */
+    /** When the poller should pick the job up next; {@code null} for COMPLETED. */
     @Column(name = "next_run_at")
     private LocalDateTime nextRunAt;
 
-    /** Лимит одной итерации в секундах: claim ставит {@code lease_until = now + timeout_seconds}. */
+    /** Limit of a single iteration in seconds: a claim sets {@code lease_until = now + timeout_seconds}. */
     @Column(name = "timeout_seconds", nullable = false)
     private Integer timeoutSeconds;
 
-    /** До этого момента строка считается «занятой» текущей нодой; после — подхватывается заново. */
+    /** Until this moment the row counts as «taken» by the current node; after it, it is picked up again. */
     @Column(name = "lease_until")
     private LocalDateTime leaseUntil;
 
-    /** Когда в последний раз scheduler claim'нул строку (информационно). */
+    /** When the scheduler last claimed the row (informational). */
     @Column(name = "last_started_at")
     private LocalDateTime lastStartedAt;
 
-    /** Последнее наблюдённое сообщение об ошибке (информационно). */
+    /** The last observed error message (informational). */
     @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
 }

@@ -67,15 +67,15 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Сборка контекста рана для {@code GetRunContext}: политика ({@link ContextSpec}) выбирается по
- * снапшоту каналов маршрута ({@code agent_runs.channels}), блоки собираются из
- * agent-спеки, {@link PromptBlockProvider}-коннекторов, команды и скиллов; тулы скоупятся
- * скиллами. Воркер получает готовые упорядоченные блоки и только рендерит их.
+ * Assembly of a run's context for {@code GetRunContext}: the policy ({@link ContextSpec}) is chosen
+ * from the route's channel snapshot ({@code agent_runs.channels}), the blocks are collected from the
+ * agent's spec, the {@link PromptBlockProvider} connectors, the team and the skills; the tools are
+ * scoped by skills. The worker receives finished, ordered blocks and merely renders them.
  *
- * <p>Порядок system-блоков — контракт (стабильные первыми, дружелюбно к prompt-cache):
- * agent → инструкции агента → блоки коннекторов → team → skills → тела скиллов (в диалоге — все,
- * в trigger-ране — подошедшие коннектору события) →
- * trigger guidance. Основной промпт рана — последний user-блок.
+ * <p>The order of the system blocks is part of the contract (stable ones first, friendly to the
+ * prompt cache): agent → the agent's instructions → connector blocks → team → skills → skill bodies
+ * (in a dialogue all of them, in a trigger run the ones matching the event's connector) → trigger
+ * guidance. The run's main prompt is the last user block.
  */
 @Slf4j
 @Service
@@ -83,10 +83,10 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class RunContextService {
 
-    // Константы ниже — русский первоисточник и фолбэк: на инсталляции с другим языком блок берётся
-    // из seed/<lang>/prompt.properties по ключам PromptTexts.RUN_*.
+    // The constants below are the Russian source and the fallback: on an installation with another
+    // language the block comes from seed/<lang>/prompt.properties, under the PromptTexts.RUN_* keys.
 
-    /** Trigger-path guidance (trusted instructions): автономная обработка событий, не диалог. */
+    /** Trigger-path guidance (trusted instructions): autonomous handling of events, not a dialogue. */
     static final String TRIGGER_GUIDANCE =
             "- Это автономная обработка внешних событий, а не диалог. Если по "
             + "событиям ничего делать не требуется — отвечать не обязательно; можно "
@@ -101,8 +101,8 @@ public class RunContextService {
             + "не сообщай о выполнении, которого не было, и не выдумывай id файлов.";
 
     /**
-     * Правило вызова инструментов — добавляется при наличии тулов в ране. Слабые модели имитируют
-     * вызов текстом («🔧 name»), скопировав паттерн из истории, — такой «вызов» не исполняется.
+     * The rule for calling tools — added whenever the run has any tools. Weak models imitate a call as
+     * text («🔧 name»), copying the pattern out of history — such a «call» is never executed.
      */
     static final String TOOL_CALL_GUIDANCE =
             "Инструменты вызывай только через структурный tool-calling API. Никогда не пиши вызов "
@@ -111,9 +111,9 @@ public class RunContextService {
             + "«вызов» не исполняется.";
 
     /**
-     * Attach-конвенция ответа — добавляется только в DIALOGUE-ранах, чей prompt-канал умеет
-     * вложения ({@code ChannelHandler.supportsOutboundAttachments()}); иначе агент приложил бы
-     * файл, который канал молча не доставит.
+     * The answer's attach convention — added only in DIALOGUE runs whose prompt channel supports
+     * attachments ({@code ChannelHandler.supportsOutboundAttachments()}); otherwise the agent would
+     * attach a file the channel silently fails to deliver.
      */
     static final String ATTACHMENT_GUIDANCE =
             "Чтобы приложить файл к своему ответу пользователю, вставь в текст ответа маркер "
@@ -123,7 +123,7 @@ public class RunContextService {
             + "а файл доставлен в канал вложением (изображение/видео/документ — по типу файла). "
             + "Не выдумывай id: используй только полученные в этом разговоре.";
 
-    /** Детерминированная сериализация события (sorted keys) — одинаковый блок при любом порядке мапы. */
+    /** Deterministic serialisation of an event (sorted keys) — the same block whatever the map's order. */
     private static final ObjectMapper EVENT_MAPPER = new ObjectMapper()
             .enable(SerializationFeature.INDENT_OUTPUT)
             .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
@@ -161,13 +161,14 @@ public class RunContextService {
                 ? ContextSpec.DIALOGUE
                 : ContextSpec.SYSTEM_TRIGGER;
         Trigger trigger = Trigger.fromLog(run.getTriggerLog());
-        // Директивы — только из статической декларации кода коннектора (registry); динамические
-        // триггеры (connection_triggers) и payload сюда не попадают — незнакомое имя = базовый пресет.
+        // Directives come only from the connector code's static declaration (the registry); dynamic
+        // triggers (connection_triggers) and the payload never reach here — an unfamiliar name = the base preset.
         EffectiveContext effective = EffectiveContext.of(spec, declaredDirectives(trigger));
 
-        // Скиллы: тулы — от ВСЕХ скиллов агента: содержание делегированной через триггер задачи
-        // не связано с коннектором события (задача с доски может требовать media). Тела: в диалоге —
-        // все (скиллы задают поведение и там), в trigger-ране скоупятся по коннектору события.
+        // Skills: the tools come from ALL of the agent's skills — the content of a task delegated through a
+        // trigger has nothing to do with the event's connector (a task from the board may require media). The
+        // bodies: in a dialogue all of them (skills define behaviour there too), in a trigger run they are
+        // scoped by the event's connector.
         List<AgentSkillWithConnectorsResponse> listed = listedSkills(agentId);
         List<AgentSkillWithConnectorsResponse> scoped = switch (spec.skillBodies()) {
             case ALL -> listed;
@@ -183,12 +184,12 @@ public class RunContextService {
                 ? channels.prompt().channelId() : null;
         UUID promptSessionId = channels != null && channels.prompt() != null
                 ? channels.prompt().sessionId() : null;
-        // Канал, приносящий свои тулы (IDE-коннектор), подмешивает коннектор prompt-канала мимо
-        // скилл-гейта — «канал приносит тулы», пока разговор идёт из этого канала. Возвращает
-        // connection этого канала, чтобы его тулы листались session-aware (session-scoped MCP из IDE).
+        // A channel that brings its own tools (the IDE connector) mixes the prompt channel's connector in past
+        // the skill gate — «the channel brings tools», for as long as the conversation comes from that channel.
+        // It returns that channel's connection so its tools are listed session-aware (session-scoped MCP from the IDE).
         UUID sessionAwareConnectionId = addPromptChannelTools(promptChannelId, requiredConnectors);
-        // ownConnectionTools: connection события (именно она, не все connections её кода — INSTANCE)
-        // попадает в выборку мимо скилл-гейта.
+        // ownConnectionTools: the event's connection (that one specifically, not every connection of its code —
+        // INSTANCE) enters the selection past the skill gate.
         UUID ownConnectionId = effective.ownConnectionTools()
                 ? tryParseUuid(trigger.connectionId()) : null;
 
@@ -221,8 +222,8 @@ public class RunContextService {
                     promptTexts.get(PromptTexts.RUN_ATTACHMENT_GUIDANCE, ATTACHMENT_GUIDANCE), Map.of()));
         }
 
-        // Основной промпт рана — последним user-блоком; вложения inbound — отдельно (мультимодальность),
-        // резолвим сообщение один раз: text → блок, parts → RunContextView.
+        // The run's main prompt is the last user block; the inbound attachments go separately (multimodality),
+        // and we resolve the message once: text → the block, parts → RunContextView.
         List<InboundPart> inboundParts = List.of();
         if (spec == ContextSpec.DIALOGUE) {
             Optional<InboundMessage> inbound = inboundTextResolver.resolve(channels.prompt().channelId(), trigger);
@@ -246,9 +247,9 @@ public class RunContextService {
                 inboundParts);
     }
 
-    // ===== История =====
+    // ===== History =====
 
-    /** Кап на один JSON tool-хода (аргументы/результат) в контексте — бюджет важнее полноты. */
+    /** Cap on a single JSON of a tool turn (arguments or result) in the context — budget beats completeness. */
     static final int TOOL_JSON_CONTEXT_CAP = 4 * 1024;
 
     private static final String PROGRESS_TOOL_CALL = "TOOL_CALL";
@@ -256,16 +257,16 @@ public class RunContextService {
     private static final String PROGRESS_TEXT = "TEXT";
 
     /**
-     * История сессии «как видел пользователь»: только завершённые раны ({@code completed=true} —
-     * поэтому сообщения текущего рана, включая его inbound-ack, сюда не попадают), хвост окном
-     * {@link EffectiveContext#historyLimit()} ({@code 0} — истории нет), фильтр по
+     * The session's history «as the user saw it»: completed runs only ({@code completed=true} — which
+     * is why the current run's messages, its inbound ack included, never appear here), the tail within
+     * the window {@link EffectiveContext#historyLimit()} ({@code 0} — no history), filtered by
      * {@link ContextSpec.HistoryDetail}.
      *
-     * <p>Tool-ходы (v2.1): у PROGRESS/TOOL_CALL с {@code message_json} наружу идёт структурный
-     * {@code toolTurn} — воркер восстановит нативные tool_use/tool_result; текстовая 🔧-проекция
-     * в историю не попадает (модель имитирует её текстом вместо реального вызова). PROGRESS/TEXT
-     * такого рана скипается — преамбула уже внутри toolTurn. Легаси 🔧-строки без message_json
-     * санитизируются в констатацию «[вызван инструмент …]».
+     * <p>Tool turns (v2.1): for PROGRESS/TOOL_CALL with a {@code message_json} the structural
+     * {@code toolTurn} goes out — the worker restores native tool_use/tool_result from it; the textual
+     * 🔧 projection never reaches history (the model imitates it as text instead of making a real
+     * call). PROGRESS/TEXT of such a run is skipped — its preamble is already inside toolTurn. Legacy
+     * 🔧 lines with no message_json are sanitised into the statement «[вызван инструмент …]».
      */
     private List<RunHistoryMessage> history(UUID sessionId, EffectiveContext effective) {
         if (sessionId == null || effective.historyLimit() <= 0) {
@@ -279,7 +280,7 @@ public class RunContextService {
         List<RunHistoryMessage> history = new ArrayList<>(tail.size());
         for (int i = tail.size() - 1; i >= 0; i--) {
             ChannelSessionMessage m = tail.get(i);
-            // TOOL_RESULT-строка (v2.1a) несёт results в message_json при пустом тексте — не скипать.
+            // A TOOL_RESULT row (v2.1a) carries its results in message_json with empty text — do not skip it.
             if ((m.getMessage() == null || m.getMessage().isBlank()) && !hasStructuredResults(m)) {
                 continue;
             }
@@ -295,7 +296,7 @@ public class RunContextService {
         return history;
     }
 
-    /** Раны окна, у которых tool-ходы записаны структурно, — их PROGRESS/TEXT дублируют toolTurn.text. */
+    /** Runs in the window whose tool turns are recorded structurally — their PROGRESS/TEXT duplicates toolTurn.text. */
     private static Set<UUID> structuredToolRuns(List<ChannelSessionMessage> tail) {
         Set<UUID> runs = new LinkedHashSet<>();
         for (ChannelSessionMessage m : tail) {
@@ -322,11 +323,11 @@ public class RunContextService {
                 log.warn("unreadable tool turn message_json run={} seq={} — falling back to text",
                         m.getRunId(), m.getSeq());
             }
-            // Легаси-строка «🔧 name»: имитируемое действие → констатация прошлой работы.
+            // A legacy «🔧 name» line: an imitated action → a statement about past work.
             return new RunHistoryMessage(kind, sanitizeToolLines(m.getMessage()));
         }
         if (PROGRESS_TOOL_RESULT.equals(m.getProgressType())) {
-            // results-половина хода (v2.1a): отдаём воркеру structured, он сошьёт с предыдущей calls-строкой.
+            // The results half of a turn (v2.1a): we hand the worker the structured form and it stitches it to the preceding calls row.
             Optional<ToolTurnRecord> turn = JsonUtils.fromMap(m.getMessageJson(), ToolTurnRecord.class);
             if (turn.isPresent()) {
                 return new RunHistoryMessage(kind, "", capToolTurn(turn.get()));
@@ -340,7 +341,7 @@ public class RunContextService {
         return new RunHistoryMessage(kind, m.getMessage());
     }
 
-    /** TOOL_RESULT-строка (v2.1a) с сохранённым message_json — results-половина хода, текст пуст. */
+    /** A TOOL_RESULT row (v2.1a) with a stored message_json — the results half of a turn, with empty text. */
     private static boolean hasStructuredResults(ChannelSessionMessage m) {
         return m.getKind() == ChannelSessionMessageKind.PROGRESS
                 && PROGRESS_TOOL_RESULT.equals(m.getProgressType())
@@ -355,7 +356,7 @@ public class RunContextService {
         };
     }
 
-    /** «🔧 name» → «[вызван инструмент name]»: прошедшее время нельзя «исполнить», имитация теряет смысл. */
+    /** «🔧 name» → «[вызван инструмент name]»: the past tense cannot be «executed», so the imitation loses its point. */
     static String sanitizeToolLines(String text) {
         return text.lines()
                 .map(line -> line.startsWith("🔧 ")
@@ -364,7 +365,7 @@ public class RunContextService {
                 .collect(Collectors.joining("\n"));
     }
 
-    /** Обрезка JSON-полей tool-хода до контекстного бюджета {@value #TOOL_JSON_CONTEXT_CAP}. */
+    /** Truncation of a tool turn's JSON fields down to the context budget {@value #TOOL_JSON_CONTEXT_CAP}. */
     private static ToolTurnRecord capToolTurn(ToolTurnRecord turn) {
         return new ToolTurnRecord(
                 turn.text(),
@@ -384,7 +385,7 @@ public class RunContextService {
         return json.substring(0, TOOL_JSON_CONTEXT_CAP) + "…[truncated]";
     }
 
-    // ===== Скиллы =====
+    // ===== Skills =====
 
     private List<AgentSkillWithConnectorsResponse> listedSkills(UUID agentId) {
         List<UUID> skillIds = agentSkillRepository.findByAgentId(agentId).stream()
@@ -394,7 +395,7 @@ public class RunContextService {
         return skillIds.stream().map(resolved::get).filter(Objects::nonNull).toList();
     }
 
-    /** Скилл подходит триггеру, если его connector_codes содержат connectorCode события. */
+    /** A skill matches the trigger when its connector_codes contain the event's connectorCode. */
     private static List<AgentSkillWithConnectorsResponse> matchedSkills(
             List<AgentSkillWithConnectorsResponse> skills, Trigger trigger) {
         return skills.stream()
@@ -484,16 +485,16 @@ public class RunContextService {
         return Optional.of(RunBlock.trusted("team", "team", String.join("\n", lines), Map.of()));
     }
 
-    // ===== Блоки коннекторов =====
+    // ===== Connector blocks =====
 
     /**
-     * Блоки {@link PromptBlockProvider}-коннекторов по активным привязанным connections.
-     * Сбой одного провайдера не роняет контекст — ран уходит без его блоков (warn в лог).
-     * Ephemeral для user-блоков выводится из {@code stable}: волатильный user-блок
-     * (memory notes) меняется каждый ран и в историю не персистится.
+     * Blocks of the {@link PromptBlockProvider} connectors, over the active bound connections. One
+     * provider's failure does not bring the context down — the run goes out without its blocks (a
+     * warning in the log). Ephemeral for user blocks is derived from {@code stable}: a volatile user
+     * block (memory notes) changes every run and is not persisted into history.
      *
-     * <p>{@code promptSessionId} — та же session-aware адресация, что и у тулов: блок может
-     * зависеть от сессии разговора (ACP отдаёт корень проекта открытой IDE).
+     * <p>{@code promptSessionId} is the same session-aware addressing the tools use: a block may
+     * depend on the conversation's session (ACP reports the root of the open IDE project).
      */
     private void collectConnectorBlocks(List<Connection> connections, Agent agent, UUID promptChannelId,
                                         UUID promptSessionId,
@@ -527,14 +528,9 @@ public class RunContextService {
         }
     }
 
-    // ===== Основной промпт =====
+    // ===== Main prompt =====
 
-    /**
-     * Текст диалога: извлекается тем же {@code ChannelHandler.handleInput}, что и при dispatch
-     * ({@link InboundTextResolver}). Fallback на untrusted-блок события, если канал/handler
-     * исчезли или текст не извлёкся.
-     */
-    /** Умеет ли handler prompt-канала доставлять вложения из ответа ({@code [[attach:…]]}). */
+    /** Whether the prompt channel's handler can deliver attachments from an answer ({@code [[attach:…]]}). */
     private boolean promptChannelSupportsAttachments(Channels channels) {
         if (channels == null || channels.prompt() == null) {
             return false;
@@ -545,6 +541,7 @@ public class RunContextService {
                 .orElse(false);
     }
 
+    /** Inbound attachments → {@link InboundPart} references (only image/video/audio/file reach the context). */
     private RunBlock dialoguePromptBlock(Optional<InboundMessage> inbound, Trigger trigger) {
         return inbound.map(InboundMessage::text)
                 .filter(text -> text != null && !text.isBlank())
@@ -556,7 +553,12 @@ public class RunContextService {
                 });
     }
 
-    /** Вложения inbound → ссылки {@link InboundPart} (только image/video/audio/file идут в контекст). */
+    /**
+     * The event's main block, per {@link EffectiveContext#presentation()}: {@code PROMPT} means
+     * trusted text from {@code data[promptParam]} (declarable by internal connectors only, guarded at
+     * bootstrap; the text is authored by the agent or the platform), and empty or non-string falls
+     * back to the untrusted event.
+     */
     private static List<InboundPart> inboundParts(Optional<InboundMessage> inbound) {
         return inbound.map(m -> m.parts().stream()
                         .map(p -> new InboundPart(p.storageRef(), p.type(), p.mime(), p.size(), partName(p)))
@@ -569,11 +571,7 @@ public class RunContextService {
         return name != null ? name.toString() : "";
     }
 
-    /**
-     * Основной блок события по {@link EffectiveContext#presentation()}: {@code PROMPT} — trusted-текст
-     * из {@code data[promptParam]} (декларация только internal-коннекторов, guard на бутстрапе;
-     * авторство текста — агент/платформа), пусто/не строка → фолбэк на untrusted событие.
-     */
+    /** The trigger's static directives from the registry ({@code null} — undeclared or a dynamic trigger). */
     private static RunBlock triggerMainBlock(EffectiveContext effective, Trigger trigger) {
         if (effective.presentation() != ContextDirectives.Presentation.PROMPT) {
             return eventBlock(trigger);
@@ -592,7 +590,7 @@ public class RunContextService {
         return eventBlock(trigger);
     }
 
-    /** Статические директивы триггера из registry ({@code null} — не объявлены/динамический триггер). */
+    /** The event as data: an untrusted block, with the wrapper and preamble applied by the worker's renderer. */
     private ContextDirectives declaredDirectives(Trigger trigger) {
         return connectorRegistry.findCapability(trigger.connectorCode(), TriggerProvider.class)
                 .map(TriggerProvider::getTriggers)
@@ -612,7 +610,13 @@ public class RunContextService {
         }
     }
 
-    /** Событие как данные: untrusted-блок, обёртку/преамбулу ставит рендерер воркера. */
+    /**
+     * If the prompt channel brings its own tools ({@link ChannelHandler#contributesPromptTools}), its
+     * connector is added to {@code requiredConnectors} — {@link #collectTools} then picks up that
+     * binding's tools regardless of the agent's skills.
+     *
+     * @return the connection of that channel (a session-aware listing), or {@code null}
+     */
     private static RunBlock eventBlock(Trigger trigger) {
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("connectorCode", trigger.connectorCode());
@@ -634,14 +638,14 @@ public class RunContextService {
     }
 
 
-    // ===== Тулы =====
+    // ===== Tools =====
 
     /**
-     * Если prompt-канал приносит свои тулы ({@link ChannelHandler#contributesPromptTools}), его
-     * коннектор добавляется в {@code requiredConnectors} — {@link #collectTools} подхватит тулы
-     * соответствующего binding'а независимо от скиллов агента.
-     *
-     * @return connection этого канала (session-aware листинг), либо {@code null}
+     * Tools of the connections whose connector is required by the scoped skills, plus
+     * {@code ownConnectionId} (the event's connection under {@code ownConnectionTools} — addressed
+     * directly, bypassing the skill gate). For {@code sessionAwareConnectionId} (the connection of a
+     * prompt channel that brings tools) the STATIC listing gets an env carrying
+     * {@code promptSessionId}, so the connector can return session-scoped tools (MCP from the IDE).
      */
     private UUID addPromptChannelTools(UUID promptChannelId, Set<String> requiredConnectors) {
         if (promptChannelId == null) {
@@ -658,10 +662,9 @@ public class RunContextService {
     }
 
     /**
-     * Тулы connections, чей коннектор требуется скоупленными скиллами, плюс {@code ownConnectionId}
-     * (connection события при {@code ownConnectionTools} — адресно, мимо скилл-гейта). Для
-     * {@code sessionAwareConnectionId} (connection prompt-канала, приносящего тулы) STATIC-листинг
-     * получает env с {@code promptSessionId}, чтобы коннектор мог отдать session-scoped тулы (MCP из IDE).
+     * The instance's namespace for the LLM-facing tool name ({@code {namespace}.{name}}): external
+     * instances → {@code full_code}; internal mode rows → {@code connector_code}. «Internal vs
+     * external» is knowledge of the registry (the handler's type), not a field on the connection.
      */
     private List<RunTool> collectTools(List<Connection> connections, Set<String> requiredConnectors,
                                        UUID ownConnectionId, UUID sessionAwareConnectionId,
@@ -701,9 +704,9 @@ public class RunContextService {
     }
 
     /**
-     * Неймспейс экземпляра для LLM-имени тула ({@code {namespace}.{name}}): внешние экземпляры →
-     * {@code full_code}; внутренние строки-режимы → {@code connector_code}. «Внутренний/внешний» —
-     * знание реестра (тип хендлера), не поля connection.
+     * The dialogue's text: extracted by the same {@code ChannelHandler.handleInput} as at dispatch
+     * ({@link InboundTextResolver}). It falls back to the untrusted event block when the channel or
+     * handler is gone or no text could be extracted.
      */
     private String namespaceOf(Connection connection) {
         boolean internal = connectorRegistry.findHandler(connection.getConnectorCode())

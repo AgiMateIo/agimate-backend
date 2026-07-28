@@ -4,39 +4,39 @@ import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.enums.ExecutionKind;
 
 /**
- * Type-level дескриптор коннектора: только функциональные оси — те, на которых ветвится механика.
- * Объявляется в {@code ConnectorHandler.traits()}, персистится в каталог {@code connectors}
- * бутстрапом — источник истины код. Остальные различия коннекторов не декларируются:
- * экземплярность выводится ({@code Connector.isInstanceBearing()}: пользователь приносит
- * идентичность экземпляра — credentials или device-регистрацию), правило владельца данных
- * (agent/team/user) воплощено в коде каждого коннектора и описано в
- * {@code docs/connectors/architecture.md}.
+ * Type-level descriptor of a connector: functional axes only — the ones the mechanics branch on.
+ * Declared in {@code ConnectorHandler.traits()} and persisted into the {@code connectors} catalogue
+ * by the bootstrap — the code is the source of truth. Other differences between connectors are not
+ * declared: instance-bearing is derived ({@code Connector.isInstanceBearing()}: the user brings the
+ * instance's identity — credentials or a device registration), and the data-owner rule
+ * (agent/team/user) is embodied in each connector's code and described in
+ * {@code docs/architecture/connectors.md}.
  *
- * @param executionKind     кто исполняет вызов тула — читает {@code ConnectorService.pushToConnector}
- * @param definitionBinding откуда определения тулов/триггеров: STATIC (рефлексия/SPI) или DYNAMIC
- *                          ({@code connection_tools}/{@code connection_triggers}) — читает листинг
+ * @param executionKind     who executes a tool call — read by {@code ConnectorService.pushToConnector}
+ * @param definitionBinding where tool/trigger definitions come from: STATIC (reflection/SPI) or
+ *                          DYNAMIC ({@code connection_tools}/{@code connection_triggers}) — read by the listing
  */
 public record ConnectorTraits(
         ExecutionKind executionKind,
         DefinitionBinding definitionBinding
 ) {
 
-    /** Дефолт: backend-исполнение, статические тулы (internal-сервисы и интеграции вроде telegram). */
+    /** The default: backend execution, static tools (internal services and integrations such as telegram). */
     public static ConnectorTraits internal() {
         return new ConnectorTraits(ExecutionKind.BACKEND, DefinitionBinding.STATIC);
     }
 
-    /** Интеграция с динамическими per-instance тулами (MCP): определения из {@code connection_tools}. */
+    /** An integration with dynamic per-instance tools (MCP): definitions come from {@code connection_tools}. */
     public static ConnectorTraits dynamicIntegration() {
         return new ConnectorTraits(ExecutionKind.BACKEND, DefinitionBinding.DYNAMIC);
     }
 
-    /** Устройство (app): исполняет девайс, вызов доставляется push'ем, тулы динамические. */
+    /** A device (app): the device executes, the call is pushed, and tools are dynamic. */
     public static ConnectorTraits device() {
         return new ConnectorTraits(ExecutionKind.DEVICE, DefinitionBinding.DYNAMIC);
     }
 
-    /** Loopback/agent-side (claude-code): исполняет агент, control-api лишь авторизует. */
+    /** Loopback/agent-side (claude-code): the agent executes, control-api only authorises. */
     public static ConnectorTraits loopback() {
         return new ConnectorTraits(ExecutionKind.LOOPBACK, DefinitionBinding.STATIC);
     }

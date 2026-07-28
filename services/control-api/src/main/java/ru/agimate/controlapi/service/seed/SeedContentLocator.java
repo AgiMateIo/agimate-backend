@@ -11,19 +11,21 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Единственное место, знающее раскладку сид-контента: {@code resources/seed/<lang>/<presets|skills>/<code>/<FILE>.md}.
- * Бутстрапы адресуют контент кодом ({@code personal-assistant}, {@code time}), а не путём — язык
- * подставляет локатор.
+ * The only place that knows the layout of seed content:
+ * {@code resources/seed/<lang>/<presets|skills>/<code>/<FILE>.md}. The bootstraps address content by
+ * code ({@code personal-assistant}, {@code time}) rather than by path — the locator substitutes the
+ * language.
  *
- * <p>Нет файла для выбранного языка — не отказ: читаем {@link ContentLanguage#DEFAULT} и пишем
- * warning. Иначе непереведённый скилл выкинул бы из каталога всё, что на него ссылается; паритет
- * языков обеспечивается тестом, так что в собранном релизе фолбэк не срабатывает.
+ * <p>A missing file for the chosen language is not a refusal: we read
+ * {@link ContentLanguage#DEFAULT} and log a warning. Otherwise an untranslated skill would throw
+ * everything referencing it out of the catalogue; language parity is guaranteed by a test, so in a
+ * built release the fallback never fires.
  */
 @Slf4j
 @Component
 public class SeedContentLocator {
 
-    /** Вид сид-контента: подпапка в {@code seed/<lang>/} и имя файла внутри папки кода. */
+    /** Kind of seed content: the subfolder in {@code seed/<lang>/} and the file's name inside the code's folder. */
     @Getter
     public enum Kind {
 
@@ -46,7 +48,7 @@ public class SeedContentLocator {
         this.language = contentProperties.getLanguage();
     }
 
-    /** Содержимое для языка инсталляции; промах → {@link ContentLanguage#DEFAULT}. */
+    /** The contents for the installation's language; a miss → {@link ContentLanguage#DEFAULT}. */
     public String read(Kind kind, String code) {
         if (language != ContentLanguage.DEFAULT && !exists(kind, code, language)) {
             log.warn("No {} '{}' for language {} — falling back to {}", kind, code, language, ContentLanguage.DEFAULT);

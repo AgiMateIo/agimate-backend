@@ -10,7 +10,7 @@ import java.util.Map;
 
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.emptyToNull;
 
-/** Маппинг proto {@link ExecuteToolRequest} → доменный {@link ToolCallRequest}. */
+/** Mapping of proto {@link ExecuteToolRequest} → the domain {@link ToolCallRequest}. */
 @UtilityClass
 public class ToolGatewayMapper {
 

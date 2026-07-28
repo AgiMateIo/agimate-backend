@@ -19,7 +19,7 @@ public interface AgentPresetRepository extends JpaRepository<AgentPreset, UUID> 
 
     List<AgentPreset> findAllByOrderBySortOrderAscNameAsc();
 
-    /** Есть ли пресет, ссылающийся на скилл по имени (skill_names — text[]). */
+    /** Whether any preset references a skill by name (skill_names is a text[]). */
     @Query(value = "SELECT COUNT(*) > 0 FROM agent_presets WHERE :name = ANY(skill_names)",
             nativeQuery = true)
     boolean existsBySkillNameReferenced(@Param("name") String name);

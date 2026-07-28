@@ -6,41 +6,43 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * MCP-совместимое описание тула коннектора. Статически на методе задаются
- * {@code name}/{@code title}/{@code description}/{@link ToolAnnotations}/{@code _meta};
- * {@code inputSchema} и {@code outputSchema} строятся рефлексией ({@link ToolSchemaReflector})
- * по сигнатуре метода (параметры с {@link ToolParam}) и типу возврата.
+ * MCP-compatible description of a connector's tool.
+ * {@code name}/{@code title}/{@code description}/{@link ToolAnnotations}/{@code _meta} are declared
+ * statically on the method; {@code inputSchema} and {@code outputSchema} are built by reflection
+ * ({@link ToolSchemaReflector}) from the method's signature (parameters carrying {@link ToolParam})
+ * and its return type.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface Tool {
 
-    /** Уникальное имя тула (диспатч-ключ). */
+    /** Unique tool name (the dispatch key). */
     String name();
 
-    /** Человекочитаемое название для UI; по умолчанию пусто → fallback на {@code name}. */
+    /** Human-readable name for the UI; empty by default → falls back to {@code name}. */
     String title() default "";
 
     String description() default "";
 
-    /** Поведенческие хинты для агента (MCP {@code annotations}). */
+    /** Behavioural hints for the agent (MCP {@code annotations}). */
     ToolAnnotations annotations() default @ToolAnnotations;
 
-    /** Произвольные строковые метаданные (MCP {@code _meta}). */
+    /** Arbitrary string metadata (MCP {@code _meta}). */
     ToolMeta[] meta() default {};
 
     /**
-     * Бюджет ожидания результата воркером, секунды. {@code 0} — дефолт воркера
-     * ({@code agent.tool.poll-timeout}, 60s). Для долгих тулов (генерация медиа и т.п.) —
-     * до 30 минут: большее значение воркер клампит. Бюджет ограничивает только ожидание,
-     * само выполнение на бэке не отменяется.
+     * The worker's budget for awaiting the result, in seconds. {@code 0} — the worker's default
+     * ({@code agent.tool.poll-timeout}, 60s). For long tools (media generation and the like) — up to
+     * 30 minutes: anything larger is clamped by the worker. The budget bounds the wait only; the
+     * execution on the backend is not cancelled.
      */
     int timeoutSeconds() default 0;
 
     /**
-     * {@code true} — метод скрыт от LLM (нет в {@code getTools()}, недоступен через {@code executeTool}),
-     * но остаётся целью диспатча через {@code executeJob} (динамические строки {@code connector_jobs},
-     * напр. {@code time.fire}). Для декларативных фоновых задач используйте {@link Job} — они скрыты сами.
+     * {@code true} — the method is hidden from the LLM (absent from {@code getTools()}, unreachable
+     * through {@code executeTool}) but remains a dispatch target for {@code executeJob} (dynamic
+     * {@code connector_jobs} rows, e.g. {@code time.fire}). For declarative background jobs use
+     * {@link Job} — those are hidden on their own.
      */
     boolean internal() default false;
 }

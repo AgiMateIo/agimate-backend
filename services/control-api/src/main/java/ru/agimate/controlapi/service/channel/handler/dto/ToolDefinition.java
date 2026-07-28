@@ -3,11 +3,11 @@ package ru.agimate.controlapi.service.channel.handler.dto;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 
 /**
- * Тул коннектора, который {@link ChannelHandler} может вызвать на исходящих.
+ * A connector tool a {@link ChannelHandler} may call on outbound.
  *
- * <p>Reply-тул может бить в другой экземпляр (для {@code generic} reply-цель лежит в config).
- * Коннектор reply-цели выводится из {@code connectionId} ({@code connections.connector_code}),
- * поэтому в ref не дублируется.
+ * <p>A reply tool may target a different instance (for {@code generic} the reply target lives in the
+ * config). The reply target's connector is derived from {@code connectionId}
+ * ({@code connections.connector_code}), so it is not duplicated in the ref.
  */
 public record ToolDefinition(
         String connectionId,

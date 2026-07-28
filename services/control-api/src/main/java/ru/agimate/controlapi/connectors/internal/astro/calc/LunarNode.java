@@ -4,7 +4,7 @@ import lombok.experimental.UtilityClass;
 
 import java.time.Instant;
 
-/** Средний (mean) лунный узел — полином Меёса. Движение ~0.05°/сутки, ΔT несущественна. */
+/** The mean lunar node — Meeus's polynomial. It moves ~0.05°/day, so ΔT is immaterial. */
 @UtilityClass
 public class LunarNode {
 
@@ -12,7 +12,7 @@ public class LunarNode {
     private static final double JD_J2000 = 2451545.0;
     private static final double DAYS_PER_CENTURY = 36525.0;
 
-    /** Долгота среднего северного узла (эклиптика даты), [0, 360). */
+    /** Longitude of the mean north node (ecliptic of date), [0, 360). */
     public static double meanNorthNodeLongitude(Instant utc) {
         double jd = utc.toEpochMilli() / 86_400_000.0 + JD_UNIX_EPOCH;
         double t = (jd - JD_J2000) / DAYS_PER_CENTURY;
@@ -24,7 +24,7 @@ public class LunarNode {
         return Angles.normalize(omega);
     }
 
-    /** Южный узел — противоположная точка. */
+    /** The south node — the opposite point. */
     public static double meanSouthNodeLongitude(Instant utc) {
         return Angles.normalize(meanNorthNodeLongitude(utc) + 180.0);
     }

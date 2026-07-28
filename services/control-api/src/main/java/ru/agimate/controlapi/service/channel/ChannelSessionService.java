@@ -49,7 +49,7 @@ public class ChannelSessionService {
         return createNew(channel, firstMessageHint);
     }
 
-    /** Всегда новая сессия, минуя TTL-эвристику — для каналов с явным выбором сессии (webchat). */
+    /** Always a new session, bypassing the TTL heuristic — for channels that choose the session explicitly (webchat). */
     @Transactional
     public ChannelSession createNew(Channel channel, String firstMessageHint) {
         ChannelSession session = ChannelSession.builder()
@@ -62,14 +62,14 @@ public class ChannelSessionService {
         return saved;
     }
 
-    /** Открытая (не закрытая) сессия данного канала; empty при чужом канале или closed. */
+    /** An open (not closed) session of this channel; empty when the channel is someone else's or the session is closed. */
     public Optional<ChannelSession> findOpen(UUID sessionId, UUID channelId) {
         return channelSessionRepository.findById(sessionId)
                 .filter(s -> s.getChannelId().equals(channelId))
                 .filter(s -> s.getClosedAt() == null);
     }
 
-    /** Проставить заголовок от первого сообщения, если он ещё пуст. */
+    /** Set the title from the first message, if it is still empty. */
     @Transactional
     public void setTitleIfEmpty(ChannelSession session, String hint) {
         if (session.getTitle() == null && hint != null && !hint.isBlank()) {

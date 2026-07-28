@@ -9,19 +9,19 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Помечает {@code @Tool}-метод как декларативную фоновую задачу коннектора: метод образует
- * {@link JobSpec} в {@code getJobs()} с расписанием из атрибутов аннотации. При материализации
- * экземпляра коннектора reconcile-синк заводит на неё строку {@code connector_jobs}
- * ({@code kind=SYSTEM}, по одной на connectionId, без агента-инициатора).
+ * Marks a {@code @Tool} method as a declarative background job of the connector: the method forms a
+ * {@link JobSpec} in {@code getJobs()} with the schedule taken from the annotation's attributes.
+ * When a connector instance is materialised, the reconcile sync creates a {@code connector_jobs} row
+ * for it ({@code kind=SYSTEM}, one per connectionId, with no initiating agent).
  *
- * <p>Декларативная задача всегда скрыта от LLM (нет в {@code getTools()}, недоступна через
- * {@code executeTool}) — это фоновый процесс, а не тула агента. Для скрытой цели диспатча,
- * которую планируют динамически (строки {@code kind=AGENT}, напр. {@code time.fire}), {@code @Job}
- * не нужен — пометьте обычный {@code @Tool} как {@code @Tool(internal = true)}, иначе reconcile завёл бы
- * на неё фоновую SYSTEM-строку без инициатора.
+ * <p>A declarative job is always hidden from the LLM (absent from {@code getTools()}, unreachable
+ * through {@code executeTool}) — it is a background process, not an agent's tool. For a hidden
+ * dispatch target that is scheduled dynamically (rows with {@code kind=AGENT}, e.g. {@code time.fire})
+ * {@code @Job} is not needed — mark the ordinary {@code @Tool} as {@code @Tool(internal = true)},
+ * otherwise reconcile would create a background SYSTEM row for it with no initiator.
  *
- * <p>{@code executeJob} умеет вызывать любой {@code @Tool}-метод, поэтому «вызов тулы по расписанию»
- * не требует отдельного метода-джобы.
+ * <p>{@code executeJob} can call any {@code @Tool} method, so «a tool call on a schedule» needs no
+ * separate job method.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
@@ -29,14 +29,14 @@ public @interface Job {
 
     ConnectorJobType type() default ConnectorJobType.PERIODIC;
 
-    /** Интервал для {@code PERIODIC}; {@code 0} — немедленный повтор (long-poll паттерн). */
+    /** Interval for {@code PERIODIC}; {@code 0} — an immediate repeat (the long-poll pattern). */
     long intervalSeconds() default 0;
 
-    /** Cron-выражение Spring (6 полей, с секундами) для {@code CRON}. */
+    /** Spring cron expression (6 fields, with seconds) for {@code CRON}. */
     String cron() default "";
 
     String zone() default "UTC";
 
-    /** Лимит одной итерации в секундах; по истечении lease строка подхватывается заново. */
+    /** Limit of a single iteration in seconds; once the lease expires the row is picked up again. */
     int timeoutSeconds() default 300;
 }

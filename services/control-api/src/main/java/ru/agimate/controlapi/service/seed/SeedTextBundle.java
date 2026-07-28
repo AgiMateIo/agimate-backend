@@ -11,11 +11,12 @@ import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 /**
- * Загрузка properties-бандла перевода из {@code seed/<lang>/<file>}.
+ * Loading of a translation properties bundle from {@code seed/<lang>/<file>}.
  *
- * <p>Русский живёт в коде и служит фолбэком, поэтому для {@link ContentLanguage#DEFAULT} бандлов нет:
- * запрос отдаёт пустые {@link Properties}, и все ключи уходят в фолбэк. Отсутствующий бандл для
- * остального языка — warning, а не отказ старта: инсталляция останется на русском, но поднимется.
+ * <p>Russian lives in the code and serves as the fallback, so for {@link ContentLanguage#DEFAULT}
+ * there are no bundles: a request returns empty {@link Properties} and every key falls back. A missing
+ * bundle for another language is a warning, not a refusal to start: the installation stays in Russian
+ * but comes up.
  */
 @Slf4j
 @UtilityClass

@@ -10,19 +10,20 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Привязка «connection доступна агенту» — M:N между {@code agents} и {@code connections}.
- * Это <b>гейт доступности</b>: нет активной строки → коннектор агенту недоступен (даже если
- * {@code connections}-запись существует). У внутренних коннекторов connection — строка-режим, одна
- * на пользователя: все его агенты с этим коннектором ссылаются на неё; владелец данных резолвится
- * кодом коннектора из {@code ConnectorEnv}. Привязки внутренних управляет скилл-синк
- * ({@code AgentSkillPolicyService}) и канальные сервисы; внешние (telegram/mcp/app) — явные.
+ * The «this connection is available to this agent» binding — M:N between {@code agents} and
+ * {@code connections}. It is an <b>availability gate</b>: with no active row the connector is
+ * unavailable to the agent (even when the {@code connections} record exists). For internal
+ * connectors a connection is a mode row, one per user: all of that user's agents using the connector
+ * point at it, and the data owner is resolved by the connector's code from {@code ConnectorEnv}.
+ * Bindings of internal connectors are managed by the skill sync ({@code AgentSkillPolicyService})
+ * and by the channel services; external ones (telegram/mcp/app) are explicit.
  *
- * <p>Тулы по умолчанию разрешены при наличии binding; {@link AgentConnectionPolicy} лишь уточняет
- * (DENY конкретных, allow-list через wildcard, {@code params_filter}).
+ * <p>Tools are allowed by default once a binding exists; {@link AgentConnectionPolicy} only refines
+ * that (DENY of specific ones, an allow-list via a wildcard, {@code params_filter}).
  *
- * <p>Уникальность среди активных: {@code (agent_id, connection_id) WHERE deleted_at IS NULL} —
- * partial unique индекс {@code uq_agent_connections_active} (JPA {@code @UniqueConstraint} partial
- * не выражает).
+ * <p>Uniqueness among active rows: {@code (agent_id, connection_id) WHERE deleted_at IS NULL} — the
+ * partial unique index {@code uq_agent_connections_active} (JPA {@code @UniqueConstraint} cannot
+ * express a partial one).
  */
 @Entity
 @Table(name = "agent_connections")

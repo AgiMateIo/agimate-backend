@@ -74,7 +74,7 @@ control, and it is why every tool call has a log row:
    the agent over its channel.
 
 Backend-side jobs follow the same shape through `connector_jobs`, claimed with
-`FOR UPDATE SKIP LOCKED` (`docs/connectors/architecture.md`).
+`FOR UPDATE SKIP LOCKED` (`docs/architecture/connectors.md`).
 
 ## Inbound triggers
 

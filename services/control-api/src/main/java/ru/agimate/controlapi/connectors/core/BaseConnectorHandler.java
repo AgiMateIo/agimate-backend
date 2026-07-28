@@ -20,17 +20,17 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * База фасада коннектора с {@code @Tool}-методами: identity ({@link ConnectorHandler},
- * {@code connectorCode} остаётся за фасадом) + единственный reflection-диспатчер
- * {@link ToolProvider}/{@link JobProvider} — сканирует {@code @Tool}-методы tool-сервиса,
- * строит спеки и выполняет вызовы с привязкой {@link ConnectorEnv} через
- * {@link ConnectorEnvHolder} (set/clear только здесь). Коннекторы без tool-сервиса
- * (webchat, MCP) базу не используют — реализуют нужные интерфейсы напрямую.
+ * Base of a connector facade with {@code @Tool} methods: identity ({@link ConnectorHandler}, with
+ * {@code connectorCode} left to the facade) plus the single reflection dispatcher
+ * {@link ToolProvider}/{@link JobProvider} — it scans the tool service's {@code @Tool} methods,
+ * builds the specs and performs calls with {@link ConnectorEnv} bound through
+ * {@link ConnectorEnvHolder} (set/clear happens only here). Connectors without a tool service
+ * (webchat, MCP) do not use this base — they implement the interfaces they need directly.
  *
- * <p>Декларативная джоба ({@link Job}) и внутренний метод ({@code @Tool(internal = true)}) скрыты
- * от LLM — не попадают в {@link #getTools()} и недоступны через {@link #executeTool}; при этом
- * {@link #executeJob} диспатчит в любой {@code @Tool}-метод, поэтому таска может быть и «вызовом
- * тулы по расписанию».
+ * <p>A declarative job ({@link Job}) and an internal method ({@code @Tool(internal = true)}) are
+ * hidden from the LLM — they are absent from {@link #getTools()} and unreachable through
+ * {@link #executeTool}; {@link #executeJob}, however, dispatches into any {@code @Tool} method, so a
+ * job can also be «a tool call on a schedule».
  */
 public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProvider, JobProvider {
 
@@ -60,7 +60,7 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
         return methods;
     }
 
-    /** Спеки тулов статичны (аннотации + сигнатуры не меняются) — строим один раз при создании. */
+    /** Tool specs are static (annotations and signatures do not change) — built once at construction. */
     private static Map<String, ConnectorToolSpec> buildToolSpecs(Map<String, Method> methodsByName) {
         Map<String, ConnectorToolSpec> specs = new LinkedHashMap<>();
         methodsByName.forEach((name, method) -> {
@@ -136,9 +136,10 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
     }
 
     /**
-     * Метод скрыт от LLM (нет в {@link #getTools()}, недоступен через {@link #executeTool}), если это
-     * декларативная джоба ({@link Job}) или внутренняя цель диспатча ({@code @Tool(internal = true)}).
-     * В обоих случаях метод всё ещё вызывается через {@link #executeJob} по строке/расписанию.
+     * A method is hidden from the LLM (absent from {@link #getTools()}, unreachable through
+     * {@link #executeTool}) when it is a declarative job ({@link Job}) or an internal dispatch target
+     * ({@code @Tool(internal = true)}). In both cases the method is still callable through
+     * {@link #executeJob}, by name or on a schedule.
      */
     private static boolean hiddenFromLlm(Method method) {
         return method.isAnnotationPresent(Job.class)
@@ -165,8 +166,8 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
             if (result instanceof Map<?, ?> map) {
                 return (Map<String, Object>) map;
             }
-            // record-возврат разворачиваем в плоскую Map (camelCase-ключи = имена компонентов), чтобы
-            // рантайм-вывод совпал с outputSchema из ToolSchemaReflector; иначе — legacy-обёртка {result}.
+            // A record return is expanded into a flat Map (camelCase keys = the component names) so the runtime
+            // output matches the outputSchema from ToolSchemaReflector; otherwise it is the legacy {result} wrapper.
             if (result.getClass().isRecord()) {
                 return JsonUtils.objectToMap(result);
             }
@@ -196,15 +197,16 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
     }
 
     /**
-     * Приводит значение аргумента к типу параметра. Поддерживает любые типы, которые описывает
-     * {@link ToolSchemaReflector}: примитивы/обёртки, enum, record, коллекции, мапы, вложенные
-     * объекты — через Jackson. String — быстрый путь (число → его строковое представление).
+     * Coerces an argument value to the parameter's type. Supports every type
+     * {@link ToolSchemaReflector} can describe: primitives and wrappers, enums, records,
+     * collections, maps, nested objects — through Jackson. String is the fast path (a number becomes
+     * its string representation).
      */
     private static Object convertArg(Object value, Type targetType) {
         JavaType javaType = JsonUtils.MAPPER.getTypeFactory().constructType(targetType);
-        // Быстрый путь — только для типов без параметров: у List<ColumnSpec> сырой класс это List,
-        // и пришедший от LLM List<Map> прошёл бы проверку целиком, оставив элементы мапами
-        // (ClassCastException уже внутри тула). Контейнеры всегда отдаём Jackson'у поэлементно.
+        // The fast path is for parameterless types only: the raw class of List<ColumnSpec> is List, so a
+        // List<Map> arriving from the LLM would pass the check wholesale and leave its elements as maps (with a
+        // ClassCastException later, inside the tool). Containers always go to Jackson element by element.
         if (!javaType.hasGenericTypes() && javaType.getRawClass().isInstance(value)) {
             return value;
         }

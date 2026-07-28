@@ -23,16 +23,18 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Сборка графика: выбор данных (сырые строки либо сводка), рендер PNG и укладка в файловый слой.
+ * Assembly of a chart: selecting the data (raw rows or a summary), rendering the PNG and placing it
+ * into the file layer.
  *
- * <p>Вместе с картинкой возвращается {@link ColumnSummary} по каждой серии — агент собственный PNG
- * не видит, и без чисел рядом он комментировал бы график по памяти о том, что в него отправлял.
+ * <p>Alongside the picture a {@link ColumnSummary} is returned for each series — the agent cannot see
+ * its own PNG, and without the numbers beside it it would comment on the chart from memory of what it
+ * sent in.
  */
 @Component
 @RequiredArgsConstructor
 public class SheetChartService {
 
-    /** Кап точек на сыром графике: дальше линия всё равно нечитаема, а выборка тяжелеет. */
+    /** Cap on points in a raw chart: beyond that the line is unreadable anyway, and the query gets heavier. */
     private static final int MAX_POINTS = 2000;
 
     private final SheetsService sheetsService;
@@ -89,9 +91,9 @@ public class SheetChartService {
         return new ChartResult(file, sheet.getName(), summaries(ys, plot));
     }
 
-    // ===== подготовка данных =====
+    // ===== data preparation =====
 
-    /** Данные графика: ось X (даты/числа для линии либо подписи для столбцов) и серии значений. */
+    /** Chart data: the X axis (dates or numbers for a line, labels for bars) and the value series. */
     private record Plot(List<?> xData, List<String> labels, Map<String, List<Double>> series) {
         int size() {
             return labels.size();
@@ -108,7 +110,7 @@ public class SheetChartService {
         for (RowView row : rows) {
             Object rawX = row.values().get(x.name());
             if (rawX == null || ys.stream().anyMatch(y -> row.values().get(y.name()) == null)) {
-                // Точка без X или с дырой в любой из серий сдвинула бы остальные — пропускаем целиком.
+                // A point with no X, or with a hole in any of the series, would shift the rest — we drop it entirely.
                 continue;
             }
             xData.add(axisValue(x, rawX));
@@ -139,7 +141,7 @@ public class SheetChartService {
         return new Plot(labels, labels, series);
     }
 
-    // ===== мелочи =====
+    // ===== odds and ends =====
 
     private static String resolveType(String type, ColumnSpec x, boolean grouped) {
         if (type == null || type.isBlank()) {
@@ -152,7 +154,7 @@ public class SheetChartService {
         return resolved;
     }
 
-    /** Значение оси X для линии: дата — как Date (XChart сам подпишет), число — как Double. */
+    /** X-axis value for a line: a date as a Date (XChart labels it itself), a number as a Double. */
     private static Object axisValue(ColumnSpec x, Object raw) {
         return switch (SheetSchema.typeOf(x)) {
             case DATE -> Date.from(SheetSchema.dateTime(raw, x.name())

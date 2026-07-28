@@ -30,9 +30,9 @@ public class TelegramApiClient {
 
     public TelegramApiClient(AttributionHeaders attribution) {
         String userAgent = attribution.userAgent();
-        // Явная стриминговая фабрика (JDK HttpClient): multipart-тело (до 50 MB) не буферизуется
-        // в heap. Дефолтный билдер выбирает фабрику детектом classpath (сейчас HttpComponents
-        // приезжает транзитивно с AWS SDK) — полагаться на это нельзя.
+        // An explicit streaming factory (the JDK HttpClient): a multipart body (up to 50 MB) is not buffered in
+        // the heap. The default builder picks a factory by classpath detection (right now HttpComponents arrives
+        // transitively with the AWS SDK) — that cannot be relied upon.
         JdkClientHttpRequestFactory sendFactory = new JdkClientHttpRequestFactory();
         sendFactory.setReadTimeout(SEND_READ_TIMEOUT);
         this.restClient = RestClient.builder()
@@ -93,9 +93,9 @@ public class TelegramApiClient {
     }
 
     /**
-     * Вызов метода Bot API с загрузкой бинарного контента multipart'ом (sendPhoto/sendDocument/
-     * sendVideo с байтами вместо URL/file_id). Остальные параметры уходят текстовыми частями.
-     * Лимит бот-аплоада Telegram — 50 MB.
+     * Calls a Bot API method uploading binary content as multipart (sendPhoto/sendDocument/sendVideo
+     * with bytes instead of a URL or a file_id). The remaining parameters go as text parts.
+     * Telegram's bot upload limit is 50 MB.
      */
     public Map<String, Object> sendRequestMultipart(String method, String token, Map<String, Object> params,
                                                     String fileField, String filename, String mime,
@@ -114,7 +114,7 @@ public class TelegramApiClient {
 
             @Override
             public long contentLength() {
-                // База читает стрим ради длины — размер известен из метаданных файла.
+                // The base reads the stream just to get the length — but the size is known from the file's metadata.
                 return contentLength;
             }
         };
@@ -138,15 +138,16 @@ public class TelegramApiClient {
         }
     }
 
-    /** Метаданные файла бота ({@code file_path}, {@code file_size}) по его {@code file_id}. */
+    /** Metadata of a bot's file ({@code file_path}, {@code file_size}) by its {@code file_id}. */
     public Map<String, Object> getFile(String token, String fileId) {
         return sendRequest("getFile", token, Map.of("file_id", fileId));
     }
 
     /**
-     * Скачивает содержимое файла бота по {@code file_path} из {@link #getFile} (буфер в память —
-     * лимит скачивания ботом ~20 MB). Хост тот же, но префикс пути другой ({@code /file/bot…}).
-     * URI собираем строкой: {@code file_path} содержит слэши, шаблон RestClient их бы заэнкодил.
+     * Downloads a bot's file contents by the {@code file_path} from {@link #getFile} (buffered in
+     * memory — a bot's download limit is ~20 MB). The host is the same but the path prefix differs
+     * ({@code /file/bot…}). The URI is assembled as a string: {@code file_path} contains slashes,
+     * which a RestClient template would encode.
      */
     public byte[] downloadFile(String token, String filePath) {
         return restClient.get()

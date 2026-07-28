@@ -7,10 +7,10 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import java.util.Map;
 
 /**
- * Константы и парсинг credentials MCP-коннектора.
+ * Constants and parsing of the MCP connector's credentials.
  *
- * <p>credentials: {@code url} (Streamable HTTP endpoint, обязателен), {@code auth_token} (Bearer,
- * опц.), {@code headers} (JSON-объект произвольных заголовков, опц.).
+ * <p>credentials: {@code url} (the Streamable HTTP endpoint, mandatory), {@code auth_token} (Bearer,
+ * optional), {@code headers} (a JSON object of arbitrary headers, optional).
  */
 @UtilityClass
 public class McpUtils {
@@ -21,7 +21,7 @@ public class McpUtils {
     public static final String FIELD_AUTH_TOKEN = "auth_token";
     public static final String FIELD_HEADERS = "headers";
 
-    /** Собирает {@link McpClient.ServerConfig} из расшифрованных credentials. */
+    /** Assembles a {@link McpClient.ServerConfig} from the decrypted credentials. */
     public static McpClient.ServerConfig toServerConfig(Map<String, String> credentials) {
         String url = credentials.get(FIELD_URL);
         if (url == null || url.isBlank()) {

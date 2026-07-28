@@ -6,9 +6,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Map;
 
 /**
- * MCP-совместимое описание тула, отдаваемое коннекторным SPI ({@code getTools()}). Заменяет
- * langchain4j {@code ToolSpecification}: несёт не только name/description/схему параметров, но и
- * MCP-поля title / {@link #annotations} / {@code _meta} / {@code outputSchema}.
+ * MCP-compatible tool description returned by the connector SPI ({@code getTools()}). It replaces
+ * langchain4j's {@code ToolSpecification}: besides name, description and the parameter schema it
+ * carries the MCP fields title / {@link #annotations} / {@code _meta} / {@code outputSchema}.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ConnectorToolSpec(
@@ -19,7 +19,7 @@ public record ConnectorToolSpec(
         JsonSchema outputSchema,
         ToolAnnotationsSpec annotations,
         @JsonProperty("_meta") Map<String, String> meta,
-        /** Бюджет ожидания результата воркером, секунды; {@code null} — дефолт воркера. */
+        /** The worker's budget for awaiting the result, in seconds; {@code null} — the worker's default. */
         Integer timeoutSeconds
 ) {
 }

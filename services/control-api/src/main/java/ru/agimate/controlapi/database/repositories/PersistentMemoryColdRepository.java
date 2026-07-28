@@ -14,9 +14,9 @@ public interface PersistentMemoryColdRepository extends JpaRepository<Persistent
     Optional<PersistentMemoryCold> findByScopeId(UUID scopeId);
 
     /**
-     * Compare-and-swap записи cold: переписывает content и инкрементит version только если
-     * текущая version совпадает с ожидаемой. {@code 0} строк → конфликт (память изменилась
-     * параллельной консолидацией), вызывающий перечитывает и повторяет.
+     * Compare-and-swap of the cold record: rewrites content and increments version only when the
+     * current version matches the expected one. {@code 0} rows → a conflict (memory was changed by a
+     * concurrent consolidation), and the caller re-reads and retries.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

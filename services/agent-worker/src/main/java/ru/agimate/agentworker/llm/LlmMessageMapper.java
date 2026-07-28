@@ -33,10 +33,10 @@ import java.util.Map;
 public class LlmMessageMapper {
 
     /**
-     * Рамка «зрения» для текущего вызова: стабы вложений ({@code MediaStubs} на бэке) нейтральны,
-     * поэтому семантику «видишь / не видишь» объясняет воркер — по аналогии с
-     * {@code ContextBuilder.TOOL_OUTPUT_GUIDANCE}. Добавляется только когда в запросе есть
-     * image-вложения.
+     * The «vision» framing for the current call: attachment stubs ({@code MediaStubs} on the backend)
+     * are neutral, so it is the worker that explains the «you can / cannot see it» semantics — by
+     * analogy with {@code ContextBuilder.TOOL_OUTPUT_GUIDANCE}. Added only when the request carries
+     * image attachments.
      */
     static final String IMAGE_VISIBLE_GUIDANCE =
             "Изображения, приложенные к сообщениям, поданы тебе напрямую — ты видишь их сам. "
@@ -54,13 +54,14 @@ public class LlmMessageMapper {
     }
 
     /**
-     * Как {@link #toSpringMessages(List)}, но у user-сообщений с image-вложениями подмешивает
-     * {@link Media} из {@code mediaBytes} (fileId → байты, подтянутые GetFile'ом при LLM-вызове).
-     * Нет байтов для ссылки (недоступна/не image) → вложение опускается: текст уже несёт стаб.
+     * Like {@link #toSpringMessages(List)}, but for user messages with image attachments it mixes in
+     * {@link Media} from {@code mediaBytes} (fileId → the bytes pulled by GetFile during the LLM
+     * call). No bytes for a reference (unavailable or not an image) → the attachment is omitted: the
+     * text already carries a stub.
      *
-     * <p>{@code imageInputSupported=false} (chat-модель без image в {@code input_modalities}) —
-     * media не подмешивается вовсе, а при наличии image-вложений добавляется system-подсказка
-     * {@link #IMAGE_NOT_VISIBLE_GUIDANCE}; иначе — {@link #IMAGE_VISIBLE_GUIDANCE}.
+     * <p>{@code imageInputSupported=false} (a chat model with no image in {@code input_modalities}) —
+     * media is not mixed in at all, and when image attachments are present the system hint
+     * {@link #IMAGE_NOT_VISIBLE_GUIDANCE} is added instead of {@link #IMAGE_VISIBLE_GUIDANCE}.
      */
     public List<Message> toSpringMessages(List<AgentChatMessage> messages, Map<String, byte[]> mediaBytes,
                                           boolean imageInputSupported) {
@@ -89,7 +90,7 @@ public class LlmMessageMapper {
             }
         }
         if (hasImageParts(messages)) {
-            // После ведущих system-сообщений, до диалога — рамка видимости для этого вызова.
+            // After the leading system messages, before the dialogue — the visibility framing for this call.
             out.add(leadingSystemCount(out),
                     new SystemMessage(imageInputSupported ? IMAGE_VISIBLE_GUIDANCE : IMAGE_NOT_VISIBLE_GUIDANCE));
         }
@@ -111,7 +112,7 @@ public class LlmMessageMapper {
     private static Message userMessage(AgentChatMessage m, Map<String, byte[]> mediaBytes,
                                        boolean imageInputSupported) {
         if (!imageInputSupported) {
-            // Модель слепая: media не подмешиваем, текст уже несёт стаб с id.
+            // The model is blind: no media is mixed in, and the text already carries a stub with the id.
             return new UserMessage(nullToEmpty(m.text()));
         }
         List<Media> media = new ArrayList<>();
@@ -121,7 +122,7 @@ public class LlmMessageMapper {
             }
             byte[] bytes = mediaBytes.get(part.fileId());
             if (bytes == null || bytes.length == 0) {
-                // image-part без байтов: GetFile не удался или вернул пусто — модель картинку не увидит.
+                // An image part with no bytes: GetFile failed or came back empty — the model will not see the picture.
                 log.warn("inbound image {} has no bytes ({}) — user turn goes text-only",
                         part.fileId(), bytes == null ? "not fetched" : "empty");
                 continue;

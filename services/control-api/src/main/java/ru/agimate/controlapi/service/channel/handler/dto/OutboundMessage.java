@@ -5,14 +5,15 @@ import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import java.util.List;
 
 /**
- * Унифицированный ответ модели — контент для {@link ChannelHandler#handleOutput} (зеркало
- * {@link InboundMessage}). Только контент: адресацию и корреляцию несёт {@link OutboundDispatch}.
+ * The unified answer from the model — content for {@link ChannelHandler#handleOutput} (the mirror of
+ * {@link InboundMessage}). Content only: addressing and correlation are carried by
+ * {@link OutboundDispatch}.
  *
- * <p>Handler разворачивает его в вызов нужного тула коннектора. В Фазе 1 используется только
- * {@code text}; {@code parts} зарезервирован под медиа-ответы.
+ * <p>The handler expands it into a call of the right connector tool. In Phase 1 only {@code text} is
+ * used; {@code parts} is reserved for media answers.
  *
- * @param text  текст ответа
- * @param parts вложения (Фаза 1: пусто)
+ * @param text  the answer's text
+ * @param parts attachments (Phase 1: empty)
  */
 public record OutboundMessage(
         String text,

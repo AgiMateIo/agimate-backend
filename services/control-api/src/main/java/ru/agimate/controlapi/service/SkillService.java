@@ -42,7 +42,7 @@ public class SkillService {
 
     private static final int MAX_PAGE_SIZE = 100;
 
-    /** {@code name} скилла — машинный код: строчные латиница/цифры через дефис (kebab-case). */
+    /** A skill's {@code name} is a machine code: lower-case latin letters and digits joined by hyphens (kebab-case). */
     private static final java.util.regex.Pattern NAME_SLUG =
             java.util.regex.Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
 
@@ -78,16 +78,16 @@ public class SkillService {
         return SkillResponse.from(doCreate(userId, request.resolveIsPublic(), request.skillMd()));
     }
 
-    /** Service-layer перегрузка (коннекторный слой): скилл из готового SKILL.md, возврат — сущность
-     * (без controller-DTO в коннекторе). */
+    /** Service-layer overload (the connector layer): a skill from a ready SKILL.md, returning the entity
+     * (no controller DTO inside a connector). */
     @Transactional
     public Skill create(UUID userId, String skillMd, boolean isPublic) {
         return doCreate(userId, isPublic, skillMd);
     }
 
     /**
-     * Создать системный скилл (owner — {@link SystemSkillBootstrap#SYSTEM_USER_ID}, всегда public,
-     * чтобы его можно было привязывать к чужим агентам). ADMIN-only на уровне контроллера.
+     * Create a system skill (owned by {@link SystemSkillBootstrap#SYSTEM_USER_ID}, always public so it
+     * can be bound to other people's agents). ADMIN-only at the controller level.
      */
     @Transactional
     public SkillResponse createSystem(CreateSkillRequest request) {
@@ -128,7 +128,7 @@ public class SkillService {
         return SkillResponse.from(update(id, userId, admin, request.skillMd(), request.resolveIsPublic()));
     }
 
-    /** Service-layer перегрузка (коннекторный слой): правка SKILL.md, возврат — сущность (без controller-DTO). */
+    /** Service-layer overload (the connector layer): editing SKILL.md, returning the entity (no controller DTO). */
     @Transactional
     public Skill update(UUID id, UUID userId, boolean admin, String skillMd, boolean isPublic) {
         Skill skill = findOwnedOrSystemAdmin(id, userId, admin);
@@ -140,8 +140,8 @@ public class SkillService {
 
         if (!skill.getName().equals(parsed.name())) {
             if (system) {
-                // Имя системного скилла — ключ ссылок: (SYSTEM_USER_ID, name) в сидере и в
-                // preset.skill_names. Переименование осиротило бы эти ссылки — запрещаем.
+                // A system skill's name is the key of every reference to it: (SYSTEM_USER_ID, name) in the seeder
+                // and in preset.skill_names. Renaming would orphan those references — so we forbid it.
                 throw new BadRequestStatusException("System skill cannot be renamed");
             }
             if (skillRepository.existsByUserIdAndNameNotDeleted(skill.getUserId(), parsed.name())) {
@@ -168,10 +168,11 @@ public class SkillService {
     }
 
     /**
-     * Точечно заменить список коннекторов скилла (без правки тела/имени). Права — как у полного
-     * {@link #update}: свой скилл или системный для ADMIN. Add-only-политика ({@code AgentSkillPolicyService})
-     * означает, что уже привязанные агенты новые коннекторы сами не подхватят — их синхронизируют явно
-     * (per-agent {@code sync-policies}); поэтому здесь только бампаем версию для детекции дрейфа.
+     * Replace a skill's connector list in place (without touching the body or the name). The rights are
+     * the same as for a full {@link #update}: one's own skill, or a system one for ADMIN. The add-only
+     * policy ({@code AgentSkillPolicyService}) means already-bound agents will not pick the new
+     * connectors up on their own — they are synchronised explicitly (per-agent {@code sync-policies});
+     * so here we only bump the version for drift detection.
      */
     @Transactional
     public SkillResponse updateConnectors(UUID id, UUID userId, boolean admin, UpdateSkillConnectorsRequest request) {
@@ -191,8 +192,8 @@ public class SkillService {
     public void delete(UUID id, UUID userId, boolean admin) {
         Skill skill = findOwnedOrSystemAdmin(id, userId, admin);
         if (isSystem(skill)) {
-            // Системный скилл — общий ресурс: hard-delete осиротил бы чужих агентов/пресеты.
-            // Для «вывода из оборота» админ снимает isPublic (перестаёт предлагаться новым).
+            // A system skill is a shared resource: a hard delete would orphan other people's agents and presets.
+            // To «retire» one, an admin clears isPublic (it stops being offered to new agents).
             if (agentSkillRepository.existsBySkillId(skill.getId())) {
                 throw new ConflictStatusException(
                         "System skill is bound to agents; unpublish it (isPublic=false) instead of deleting");
@@ -203,8 +204,8 @@ public class SkillService {
             }
         }
         skillRepository.softDelete(skill.getId(), LocalDateTime.now());
-        // Привязки (включая чужие — скилл могли ставить как публичный) удаляем сразу: политики
-        // add-only (AgentSkillPolicyService), так что пересчёт по агентам не требуется.
+        // The bindings (other people's included — the skill may have been installed while public) are deleted
+        // right away: the policies are add-only (AgentSkillPolicyService), so no per-agent recomputation is needed.
         int unbound = agentSkillRepository.deleteBySkillId(skill.getId());
         log.info("Soft-deleted skill '{}' id={} by user={}, unbound from {} agent(s)",
                 skill.getName(), id, userId, unbound);
@@ -220,9 +221,9 @@ public class SkillService {
     }
 
     /**
-     * Своя запись — как {@link #findOwnedSkill}; ADMIN дополнительно правит системные скилы
-     * (owner — {@link SystemSkillBootstrap#SYSTEM_USER_ID}). Чужие пользовательские записи и для
-     * админа недоступны — он управляет платформенными ассетами, а не чужими скилами.
+     * One's own record — as in {@link #findOwnedSkill}; an ADMIN additionally edits system skills
+     * (owned by {@link SystemSkillBootstrap#SYSTEM_USER_ID}). Other users' records are out of reach even
+     * for an admin — they manage platform assets, not other people's skills.
      */
     public Skill findOwnedOrSystemAdmin(UUID id, UUID userId, boolean admin) {
         Skill skill = skillRepository.findByIdNotDeleted(id)
@@ -262,11 +263,12 @@ public class SkillService {
     }
 
     /**
-     * Коды коннекторов скилла должны существовать в каталоге коннекторов (таблица {@code connectors}) —
-     * это же источник истины для привязки ({@link ru.agimate.controlapi.service.connection.ConnectionBindingService}).
-     * Каталог шире SPI-реестра: помимо код-хендлеров в нём есть статические коннекторы без хендлера
-     * ({@code app}, {@code claude-code}) — их скилл тоже может объявлять (INSTANCE-коннектор привязывается
-     * позже вручную по connectionId). Пустой список (скилл без коннекторов) допустим.
+     * A skill's connector codes must exist in the connector catalogue (the {@code connectors} table) —
+     * that is the same source of truth binding uses
+     * ({@link ru.agimate.controlapi.service.connection.ConnectionBindingService}). The catalogue is
+     * wider than the SPI registry: besides the code handlers it holds static connectors with no handler
+     * ({@code app}, {@code claude-code}) — a skill may declare those too (an INSTANCE connector is bound
+     * later, by hand, using a connectionId). An empty list (a skill with no connectors) is acceptable.
      */
     private void validateName(String name) {
         if (!NAME_SLUG.matcher(name).matches()) {

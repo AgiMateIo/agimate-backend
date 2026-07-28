@@ -43,15 +43,15 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseOptionalUuid;
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 
 /**
- * Поверхность протокола воркера: {@code GetRunContext} (весь контекст рана одним вызовом,
- * сборка — {@link RunContextService}), {@code GetLlmCredentials} (отдельно: результат
- * GetRunContext чекпоинтится воркером, api_key в чекпоинт попадать не должен),
- * {@code GetFile} (содержимое inbound-вложения чанками — как api_key, тянется inline и в
- * чекпоинт не попадает) и {@code ReportLlmUsage} (учёт расхода токенов).
+ * The worker protocol's surface: {@code GetRunContext} (the whole run context in one call, assembled by
+ * {@link RunContextService}), {@code GetLlmCredentials} (separate: the GetRunContext result is
+ * checkpointed by the worker, and api_key must never enter a checkpoint), {@code GetFile} (the contents
+ * of an inbound attachment in chunks — like api_key, pulled inline and never checkpointed) and
+ * {@code ReportLlmUsage} (token usage accounting).
  *
- * <p>Транзакции — на методах, НЕ на классе: {@code ReportLlmUsage} пишет, и классовый
- * {@code readOnly = true} заворачивал бы его INSERT'ы в read-only транзакцию (внутренний
- * {@code @Transactional} сервиса присоединяется к внешней и readOnly не сбрасывает).
+ * <p>Transactions are on the methods, NOT on the class: {@code ReportLlmUsage} writes, and a class-level
+ * {@code readOnly = true} would wrap its INSERTs in a read-only transaction (the service's inner
+ * {@code @Transactional} joins the outer one and does not clear readOnly).
  */
 @Service
 @RequiredArgsConstructor
@@ -65,7 +65,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     private final LlmUsageService llmUsageService;
     private final FileStorageService fileStorageService;
 
-    /** Размер чанка содержимого файла: << дефолтный 4 MB предел gRPC-сообщения. */
+    /** Chunk size of a file's contents: << gRPC's default 4 MB message limit. */
     private static final int FILE_CHUNK_BYTES = 128 * 1024;
 
     @Override
@@ -96,9 +96,9 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     }
 
     /**
-     * Содержимое inbound-вложения чанками. НЕ {@code @Transactional}: держать DB-соединение на всё
-     * время стрима байтов нельзя; ownership-гейт (file.user_id == agent.user_id) — через
-     * {@link FileStorageService#findReadable}. Первый чанк несёт mime и total_size.
+     * The contents of an inbound attachment in chunks. NOT {@code @Transactional}: a database connection
+     * must not be held for the whole byte stream; the ownership gate (file.user_id == agent.user_id)
+     * goes through {@link FileStorageService#findReadable}. The first chunk carries mime and total_size.
      */
     @Override
     public void getFile(GetFileRequest request, StreamObserver<FileChunk> responseObserver) {
@@ -116,7 +116,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
             try {
                 content = fileStorageService.open(agent.getUserId(), fileId);
             } catch (StoredFileNotFoundException e) {
-                // Владение/просрочка/незавершённость неразличимы — файл просто недоступен воркеру.
+                // Ownership, expiry and incompleteness are indistinguishable — the file is simply unavailable to the worker.
                 responseObserver.onError(Status.NOT_FOUND
                         .withDescription("file not available").asRuntimeException());
                 return;
@@ -144,11 +144,11 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
                     responseObserver.onNext(chunk.build());
                 }
                 if (first) {
-                    // Пустой файл (0 байт READY не бывает — store отвергает size<=0, но на всякий).
+                    // An empty file (a 0-byte READY does not happen — store rejects size<=0, but just in case).
                     responseObserver.onNext(FileChunk.newBuilder().setMime(mime).setTotalSize(total).build());
                 }
             }
-            // Диагностика: mime заявленный vs сигнатура содержимого + факт полной выгрузки.
+            // Diagnostics: the declared mime vs the content's signature, plus the fact of a complete upload.
             log.info("streamed file {} pool={} agent={} mime={} signature={} declared={} streamed={}",
                     fileId, poolId, agentId, mime, signature, total, streamed);
             if (streamed != total) {
@@ -218,14 +218,14 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
         }
     }
 
-    /** proto3 не различает 0 и «не прислано» — нулевые кэш-метрики храним как NULL. */
+    /** proto3 does not distinguish 0 from «not sent» — so zero cache metrics are stored as NULL. */
     private static Integer zeroToNull(int value) {
         return value == 0 ? null : value;
     }
 
     /**
-     * Итоговый extra_body резолвера в проводной формат. Пустая map → пустая строка
-     * («нет доп. полей» — то же видит воркер от старого control-api при rolling deploy).
+     * The resolver's final extra_body in wire format. An empty map → an empty string («no extra fields»
+     * — the same thing the worker sees from an older control-api during a rolling deploy).
      */
     private String toExtraBodyJson(ResolvedLlm resolved) {
         if (resolved.extraBody().isEmpty()) {
@@ -239,9 +239,10 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
     }
 
     /**
-     * Метка формата по магическим байтам заголовка (не содержимое, только сигнатура) — для
-     * диагностики: заявленный mime {@code image/jpeg} vs реальные байты. {@code unknown} при
-     * несовпадении = битый/не-тот файл; расхождение с mime = вероятная причина «модель не видит».
+     * A format marker from the header's magic bytes (not the contents, only the signature) — for
+     * diagnostics: the declared mime {@code image/jpeg} vs the actual bytes. {@code unknown} on a
+     * mismatch means a corrupt or wrong file; a divergence from the mime is the likely reason for «the
+     * model cannot see it».
      */
     private static String imageSignature(byte[] buf, int len) {
         if (len >= 3 && (buf[0] & 0xFF) == 0xFF && (buf[1] & 0xFF) == 0xD8 && (buf[2] & 0xFF) == 0xFF) {

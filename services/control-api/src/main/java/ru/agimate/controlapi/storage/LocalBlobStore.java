@@ -12,13 +12,13 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 /**
- * {@link BlobStore} на локальном диске — дефолтный backend ({@code app.files.backend=local}):
- * разработка и single-node без S3/MinIO. Ключ {@code userId/agf_<id>} ложится в дерево каталогов
- * под {@code app.files.local-dir} (пусто — {@code ~/.agimate/files}). Запись — во временный файл
- * с атомарным move: недописанный блоб не виден читателям.
+ * A {@link BlobStore} on the local disk — the default backend ({@code app.files.backend=local}): for
+ * development and single-node runs without S3/MinIO. The key {@code userId/agf_<id>} maps onto a
+ * directory tree under {@code app.files.local-dir} (empty — {@code ~/.agimate/files}). Writing goes
+ * through a temporary file with an atomic move: a half-written blob is never visible to readers.
  *
- * <p>Ключи генерирует только {@link FileStorageService} (UUID'ы), тем не менее каждый резолв
- * проверяется на выход за корень (belt-and-suspenders от path traversal).
+ * <p>Keys are generated only by {@link FileStorageService} (UUIDs), yet every resolution is still
+ * checked for escaping the root (belt-and-braces against path traversal).
  */
 @Slf4j
 @Component
@@ -68,7 +68,7 @@ public class LocalBlobStore implements BlobStore {
         try {
             Path target = resolve(key);
             Files.deleteIfExists(target);
-            // Пустой каталог пользователя не подчищаем: гонка с параллельным put дороже мусора.
+            // We do not clean up an empty user directory: racing a concurrent put costs more than the litter.
         } catch (IOException e) {
             throw new FileStorageException("local blob store delete failed: " + e.getMessage(), e);
         }

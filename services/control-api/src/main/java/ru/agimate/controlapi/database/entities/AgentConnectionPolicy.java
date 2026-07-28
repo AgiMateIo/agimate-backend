@@ -15,21 +15,21 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Уточнение правил доступа поверх {@link AgentConnection} — заменяет раздельные
- * {@code agent_tool_policies}/{@code agent_trigger_policies}. Модель — <b>дефолт-allow</b>: при
- * наличии binding тул/триггер разрешён, если нет противоположного правила.
+ * Refinement of the access rules on top of {@link AgentConnection} — it replaces the separate
+ * {@code agent_tool_policies}/{@code agent_trigger_policies}. The model is <b>default-allow</b>:
+ * given a binding, a tool or trigger is permitted unless a rule says otherwise.
  *
- * <p>Прецеденс при разрешении {@code (kind, name)}: правило по точному {@link #name} →
- * binding-wide правило ({@code name IS NULL}) → дефолт-allow. Это покрывает оба паттерна:
- * deny-list (точечные DENY) и allow-list (binding-wide DENY + точечные ALLOW). Числового priority
- * нет — на каждый {@code (binding, kind, name)} ровно одно активное правило.
+ * <p>Precedence when resolving {@code (kind, name)}: a rule for the exact {@link #name} → a
+ * binding-wide rule ({@code name IS NULL}) → default-allow. That covers both patterns: a deny-list
+ * (targeted DENYs) and an allow-list (a binding-wide DENY plus targeted ALLOWs). There is no numeric
+ * priority — each {@code (binding, kind, name)} has exactly one active rule.
  *
- * <p>{@link #paramsFilter} — единый «фильтр по параметрам»: для {@code TOOL} ограничивает аргументы
- * вызова, для {@code TRIGGER} — параметры входящего события.
+ * <p>{@link #paramsFilter} is the single «parameter filter»: for {@code TOOL} it constrains the
+ * call's arguments, for {@code TRIGGER} the parameters of the incoming event.
  *
- * <p>Уникальность среди активных: {@code (agent_connection_id, kind, COALESCE(name,'')) WHERE
- * deleted_at IS NULL} — partial unique индекс {@code uq_agent_connection_policies_active}
- * (через {@code COALESCE}, т.к. NULL в Postgres-уникальности различны).
+ * <p>Uniqueness among active rows: {@code (agent_connection_id, kind, COALESCE(name,'')) WHERE
+ * deleted_at IS NULL} — the partial unique index {@code uq_agent_connection_policies_active} (via
+ * {@code COALESCE}, because NULLs are distinct in Postgres uniqueness).
  */
 @Entity
 @Table(name = "agent_connection_policies")
@@ -53,7 +53,7 @@ public class AgentConnectionPolicy extends BaseEntity {
     @Column(name = "kind", nullable = false, columnDefinition = "TEXT")
     private PolicyKind kind;
 
-    /** Имя тула/триггера; {@code null} = правило уровня binding (применяется ко всему коннектору). */
+    /** Tool or trigger name; {@code null} = a binding-level rule (applies to the whole connector). */
     @Column(name = "name", columnDefinition = "TEXT")
     private String name;
 
@@ -61,7 +61,7 @@ public class AgentConnectionPolicy extends BaseEntity {
     @Column(name = "effect", nullable = false, columnDefinition = "TEXT")
     private AccessEffect effect;
 
-    /** TOOL — ограничение аргументов вызова; TRIGGER — фильтр параметров события. */
+    /** TOOL — a constraint on call arguments; TRIGGER — a filter on event parameters. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "params_filter", columnDefinition = "JSONB")
     private Map<String, Object> paramsFilter;

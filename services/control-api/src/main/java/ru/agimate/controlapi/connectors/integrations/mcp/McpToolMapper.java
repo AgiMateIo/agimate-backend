@@ -7,14 +7,14 @@ import ru.agimate.controlapi.database.entities.ConnectionTool;
 import java.util.UUID;
 
 /**
- * MCP-специфичный маппинг discovery: сырой JSON из {@code tools/list} → строка кэша
- * {@link ConnectionTool} (схемы сохраняются сырым текстом для фиделити). Обратное направление
- * (строка кэша → {@code ConnectorToolSpec}) — общий {@code ConnectionToolMapper} в {@code core}.
+ * MCP-specific mapping of discovery: raw JSON from {@code tools/list} → a cache row
+ * {@link ConnectionTool} (schemas are kept as raw text for fidelity). The reverse direction (a cache
+ * row → a {@code ConnectorToolSpec}) is the shared {@code ConnectionToolMapper} in {@code core}.
  */
 @UtilityClass
 public class McpToolMapper {
 
-    /** Сырой JSON тула ({@code tools/list[]}) → строка кэша. {@code null}, если нет имени. */
+    /** Raw tool JSON ({@code tools/list[]}) → a cache row. {@code null} when there is no name. */
     public static ConnectionTool toEntity(UUID connectionId, JsonNode tool) {
         String name = textOrNull(tool.get("name"));
         if (name == null || name.isBlank()) {

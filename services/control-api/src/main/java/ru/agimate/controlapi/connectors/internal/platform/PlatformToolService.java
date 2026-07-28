@@ -61,11 +61,12 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
- * Тулы platform-коннектора — мета-агент управляет платформой (агенты/скиллы/подключения) от лица
- * своего владельца-человека ({@code env.userId}). Тонкий адаптер: чтение — из репозиториев, запись —
- * через существующие сервисы (command-перегрузки, чтобы не тащить {@code controller/**}). Доменные
- * {@link BaseHttpStatusException} транслируются в {@link ConnectorException}, чтобы сообщение дошло
- * до агента. Guard {@link #requireNotSelf}: агент не управляет самим собой.
+ * Tools of the platform connector — the meta-agent manages the platform (agents, skills,
+ * connections) on behalf of its human owner ({@code env.userId}). A thin adapter: reads come from the
+ * repositories, writes go through the existing services (command overloads, so as not to drag in
+ * {@code controller/**}). Domain {@link BaseHttpStatusException}s are translated into
+ * {@link ConnectorException} so the message reaches the agent. The guard {@link #requireNotSelf}: an
+ * agent does not manage itself.
  */
 @Slf4j
 @Component
@@ -235,8 +236,9 @@ public class PlatformToolService {
         if (existing.getType() == AgentType.WEBHOOK) {
             throw new ConnectorException("WEBHOOK agents are managed in the UI");
         }
-        // AgentService.update — PUT-семантика (ставит поля безусловно). Тул частичный: не переданные
-        // description/instructions сохраняем из существующего, иначе переименование затёрло бы промпт.
+        // AgentService.update has PUT semantics (it sets the fields unconditionally). The tool is partial: a
+        // description or instructions that were not passed are carried over from the existing agent, otherwise a
+        // rename would wipe the prompt.
         String newDescription = blankToNull(description) != null ? description : existing.getDescription();
         String newInstructions = blankToNull(instructions) != null ? instructions : existing.getInstructions();
         var command = new AgentUpdateCommand(blankToNull(name), newDescription, newInstructions,
@@ -412,7 +414,7 @@ public class PlatformToolService {
         return parsed;
     }
 
-    /** Агент не управляет самим собой: цель == инициатор вызова. */
+    /** An agent does not manage itself: the target equals the caller. */
     private void requireNotSelf(UUID targetAgentId) {
         if (targetAgentId.equals(ConnectorEnvHolder.current().agentId())) {
             throw new ConnectorException("An agent cannot manage itself");
@@ -427,7 +429,7 @@ public class PlatformToolService {
         return userId;
     }
 
-    /** Выполнить доменную операцию, транслируя HTTP-исключения ядра в {@link ConnectorException}. */
+    /** Run a domain operation, translating the core's HTTP exceptions into {@link ConnectorException}. */
     private <T> T domain(Supplier<T> op) {
         try {
             return op.get();

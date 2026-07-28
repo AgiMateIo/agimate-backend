@@ -17,12 +17,14 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Канонический full-fidelity журнал ходов рана ({@code agent_run_turns}): по одной записи на
- * AgentChatMessage воркера (assistant/tool), без капов — в отличие от капнутой канальной проекции
- * {@code channel_session_messages}. Пишется для всех ранов, включая direct ({@code session_id} = null).
+ * The canonical full-fidelity journal of a run's turns ({@code agent_run_turns}): one record per worker
+ * AgentChatMessage (assistant/tool), uncapped — unlike the capped channel projection
+ * {@code channel_session_messages}. Written for every run, including direct ones
+ * ({@code session_id} = null).
  *
- * <p>Идемпотентность — UNIQUE {@code (run_id, turn_index)} через ON CONFLICT DO NOTHING: воркер шлёт
- * SaveTurn обычным (не durable) вызовом, реплей/ретрай повторяет ту же пару без дубля.
+ * <p>Idempotency is UNIQUE {@code (run_id, turn_index)} through ON CONFLICT DO NOTHING: the worker
+ * sends SaveTurn as an ordinary (non-durable) call, and a replay or retry repeats the same pair with no
+ * duplicate.
  */
 @Slf4j
 @Service

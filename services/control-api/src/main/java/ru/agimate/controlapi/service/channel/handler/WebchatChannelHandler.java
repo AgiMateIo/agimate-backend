@@ -24,19 +24,20 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Код-handler webchat-каналов: входящие приходят готовым текстом из {@code /manage/webchat}
- * (триггер {@code message_received}), исходящие доставляются без тулов — строка UI-истории
- * ({@code webchat_messages}) + Centrifugo-событие через {@link WebchatMessagePublisher}.
- * Единственный handler с {@code deliverProgress=true}: промежуточный вывод агента стримится в чат.
+ * The code handler for webchat channels: inbound arrives as ready text from {@code /manage/webchat}
+ * (the trigger {@code message_received}), and outbound is delivered without tools — a UI history row
+ * ({@code webchat_messages}) plus a Centrifugo event through {@link WebchatMessagePublisher}. The
+ * only handler with {@code deliverProgress=true}: the agent's intermediate output is streamed into
+ * the chat.
  */
 @Component
 @RequiredArgsConstructor
 public class WebchatChannelHandler implements ChannelHandler {
 
     public static final String NAME = "webchat";
-    /** Код webchat-коннектора — единый источник истины (у канальных коннекторов совпадает с {@link #NAME}). */
+    /** Code of the webchat connector — the single source of truth (for channel connectors it equals {@link #NAME}). */
     public static final String CONNECTOR_CODE = NAME;
-    /** Триггер входящего сообщения из веб-чата — единый источник истины для коннектора и оркестратора. */
+    /** Trigger for an incoming message from the web chat — the single source of truth for the connector and the orchestrator. */
     public static final String TRIGGER_MESSAGE_RECEIVED = "message_received";
 
     private static final String STREAM_ANSWER = "answer";
@@ -78,7 +79,7 @@ public class WebchatChannelHandler implements ChannelHandler {
         return Optional.of(new InboundMessage(MediaStubs.withStubs(userText, parts), parts));
     }
 
-    /** Вложения из data триггера ({@code [{type,fileId,mime,size}]}) — уже провалидированы при отправке. */
+    /** Attachments from the trigger's data ({@code [{type,fileId,mime,size}]}) — already validated when sent. */
     @SuppressWarnings("unchecked")
     private static List<Part> parts(Object raw) {
         if (!(raw instanceof List<?> list) || list.isEmpty()) {
@@ -107,7 +108,7 @@ public class WebchatChannelHandler implements ChannelHandler {
         return true;
     }
 
-    /** Вложения ответа доставляются parts'ами webchat-сообщения (изображения рендерит фронт). */
+    /** The answer's attachments are delivered as parts of the webchat message (the frontend renders images). */
     @Override
     public boolean supportsOutboundAttachments() {
         return true;

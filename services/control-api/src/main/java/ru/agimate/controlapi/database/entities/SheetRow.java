@@ -12,11 +12,11 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Строка таблицы {@link Sheet}: значения ячеек по объявленным колонкам.
+ * A row of a {@link Sheet}: cell values for the declared columns.
  *
- * <p>Порядок строк не хранится — в отличие от Excel он не значим: сортировку задаёт запрос
- * ({@code query(sortBy)}). Колонка БД называется {@code data}, а не {@code values}: VALUES —
- * зарезервированное слово PostgreSQL; в JSON-выдаче тулов ключ остаётся {@code values}.
+ * <p>Row order is not stored — unlike in Excel it carries no meaning: sorting is decided by the query
+ * ({@code query(sortBy)}). The database column is named {@code data} rather than {@code values}
+ * because VALUES is a PostgreSQL reserved word; in the tools' JSON output the key stays {@code values}.
  */
 @Entity
 @Table(name = "sheet_rows")
@@ -39,7 +39,7 @@ public class SheetRow extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    /** Значения ячеек {@code {колонка: значение}}; отсутствующий ключ — пустая ячейка. */
+    /** Cell values {@code {column: value}}; a missing key means an empty cell. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "data", nullable = false, columnDefinition = "JSONB")
     private Map<String, Object> values;

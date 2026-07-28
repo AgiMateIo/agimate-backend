@@ -7,10 +7,10 @@ import org.springframework.data.domain.Page;
 import java.util.List;
 
 /**
- * Стабильная форма постраничного ответа. Заменяет прямую сериализацию Spring {@code PageImpl}
- * (её структура не гарантирована между версиями Spring Data) — форму владеет приложение.
- * Держит только неизбыточные поля; {@code first}/{@code last}/{@code empty}/{@code numberOfElements}
- * выводятся клиентом из {@code number}/{@code totalPages}/{@code content}.
+ * A stable shape for a paginated response. It replaces serialising Spring's {@code PageImpl} directly
+ * (whose structure is not guaranteed across Spring Data versions) — the application owns the shape. It
+ * keeps only the non-redundant fields; {@code first}/{@code last}/{@code empty}/{@code numberOfElements}
+ * are derived by the client from {@code number}/{@code totalPages}/{@code content}.
  */
 @Schema(description = "Paged result")
 @JsonInclude(JsonInclude.Include.NON_NULL)

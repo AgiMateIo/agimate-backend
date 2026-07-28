@@ -4,27 +4,28 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Среда одного обращения к SPI коннектора (тула/таска/prompt-блоки/листинг/webhook):
- * адресация экземпляра, идентичность вызывающего и секреты.
+ * Environment of a single call into a connector's SPI (tool, job, prompt blocks, listing, webhook):
+ * instance addressing, the caller's identity and secrets.
  *
- * @param connectionId  идентификатор экземпляра коннектора — {@code connections.id} строкой
- *                      (как в {@code ToolCallLog}); {@code null}, если экземпляр не применим
- * @param userId        владелец; {@code null} для глобальных internal-тасок
- * @param agentId       агент-инициатор; {@code null} вне tool-use потока (декларативные таски,
- *                      webhooks); у динамической таски восстанавливается из строки при срабатывании
- * @param runId         ран-инициатор вызова ({@code agent_runs.id}); {@code null} вне tool-use
- *                      потока рана (webhooks, listing, джобы, lifecycle). Нужен учёту расхода
- *                      «модель как инструмент» (media) для привязки usage к рану
- * @param channelId     исходный канал вызова: для tool-вызова — канал prompt-сессии (резолвится на
- *                      границе по {@code agentSessionId}); для динамической таски — снимок из строки
- *                      {@code connector_jobs}. {@code null} вне канального контекста. Нужен тулам,
- *                      которым важен исходный канал (например {@code time.schedule} — куда отвечать)
- * @param sessionId     prompt-сессия вызова ({@code channel_sessions.id}); {@code null} вне
- *                      канального tool-use потока. Нужен тулам, адресующим конкретную живую сессию
- *                      (IDE-коннектор — ключ {@code AcpSessionRegistry})
- * @param credentials   расшифрованные credentials; пустая мапа для internal и для webhook
- *                      hot path (валидация/нормализация не требует расшифровки)
- * @param webhookSecret секрет для валидации входящих webhook'ов; {@code null}, если не применимо
+ * @param connectionId  identifier of the connector instance — {@code connections.id} as a string (as
+ *                      in {@code ToolCallLog}); {@code null} when no instance applies
+ * @param userId        the owner; {@code null} for global internal jobs
+ * @param agentId       the initiating agent; {@code null} outside a tool-use flow (declarative jobs,
+ *                      webhooks); for a dynamic job it is restored from the row when the job fires
+ * @param runId         the run that initiated the call ({@code agent_runs.id}); {@code null} outside a
+ *                      run's tool-use flow (webhooks, listing, jobs, lifecycle). Needed by the
+ *                      «model as a tool» usage accounting (media) to attribute usage to a run
+ * @param channelId     the call's originating channel: for a tool call it is the prompt session's
+ *                      channel (resolved at the boundary from {@code agentSessionId}); for a dynamic
+ *                      job it is the snapshot taken from the {@code connector_jobs} row. {@code null}
+ *                      outside a channel context. Needed by tools that care about the originating
+ *                      channel (e.g. {@code time.schedule} — where to answer)
+ * @param sessionId     the call's prompt session ({@code channel_sessions.id}); {@code null} outside a
+ *                      channel tool-use flow. Needed by tools addressing one particular live session
+ *                      (the IDE connector — the key of {@code AcpSessionRegistry})
+ * @param credentials   decrypted credentials; an empty map for internal connectors and for the
+ *                      webhook hot path (validation and normalisation need no decryption)
+ * @param webhookSecret secret for validating incoming webhooks; {@code null} when not applicable
  */
 public record ConnectorEnv(
         String connectionId,

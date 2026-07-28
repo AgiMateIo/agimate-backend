@@ -13,13 +13,14 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Код-handler для Telegram-каналов: сводит все типы входящих сообщений к единому
- * {@link InboundMessage} и отправляет ответ (текст + вложения) через {@code telegram.send_*}.
+ * The code handler for Telegram channels: it reduces every kind of incoming message to a single
+ * {@link InboundMessage} and sends the answer (text plus attachments) through {@code telegram.send_*}.
  *
- * <p>Входящие фото/документы скачиваются на ingest-границе ({@link ru.agimate.controlapi.connectors
- * .integrations.telegram.TelegramMediaService}) и приходят сюда готовыми {@code data.parts} —
- * handler маппит их в {@link InboundMessage#parts()} + текст-заглушку (image воркер подаёт в LLM).
- * Если parts нет (скачивание отключено/не удалось), подставляется описание + подпись, как раньше.
+ * <p>Incoming photos and documents are downloaded at the ingest boundary
+ * ({@link ru.agimate.controlapi.connectors.integrations.telegram.TelegramMediaService}) and arrive
+ * here as ready {@code data.parts} — the handler maps them into {@link InboundMessage#parts()} plus a
+ * stub text (the worker feeds an image to the LLM). When there are no parts (downloading is disabled
+ * or failed), a description plus the caption is substituted, as before.
  */
 @Component
 public class TelegramChannelHandler implements ChannelHandler {
@@ -66,7 +67,7 @@ public class TelegramChannelHandler implements ChannelHandler {
 
     @Override
     public List<ToolDefinition> listOfTools(ChannelConfig config) {
-        // Всё, что может вернуть handleOutput: текст + вложения attach-конвенции.
+        // Everything handleOutput may return: the text plus the attach convention's attachments.
         return List.of(
                 new ToolDefinition(config.connectionId(), TOOL_SEND_MESSAGE),
                 new ToolDefinition(config.connectionId(), TOOL_SEND_PHOTO),
@@ -87,7 +88,7 @@ public class TelegramChannelHandler implements ChannelHandler {
         if (!chatAllowed(config, data.get("chatId"))) {
             return Optional.empty();
         }
-        // Медиа скачано на ingest'е → data.parts; текст = подпись + заглушки (image → LLM видит).
+        // The media was downloaded at ingest → data.parts; the text = the caption plus the stubs (image → the LLM sees it).
         List<Part> parts = parts(data.get("parts"));
         if (!parts.isEmpty()) {
             String caption = asString(data.get("caption"));
@@ -103,7 +104,7 @@ public class TelegramChannelHandler implements ChannelHandler {
         return Optional.of(InboundMessage.text(text));
     }
 
-    /** Вложения из {@code data.parts} ({@code [{type,fileId,mime,size,name}]}), материализованные на ingest'е. */
+    /** Attachments from {@code data.parts} ({@code [{type,fileId,mime,size,name}]}), materialised at ingest. */
     @SuppressWarnings("unchecked")
     private static List<Part> parts(Object raw) {
         if (!(raw instanceof List<?> list) || list.isEmpty()) {
@@ -137,7 +138,7 @@ public class TelegramChannelHandler implements ChannelHandler {
     public List<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
                                               OutboundDispatch dispatch) {
         Map<String, Object> replyContext = dispatch.replyContext() != null ? dispatch.replyContext() : Map.of();
-        // Адрес ответа: из входящего (replyContext) → дефолт из config (проактивные/не-канальные триггеры).
+        // The answer's address: from the incoming message (replyContext) → the default from config (proactive and non-channel triggers).
         Object chatId = replyContext.get("chatId");
         if (chatId == null) {
             chatId = config.setting(CFG_DEFAULT_CHAT_ID);
@@ -154,16 +155,16 @@ public class TelegramChannelHandler implements ChannelHandler {
             args.put("text", outbound.text());
             requests.add(request(config, dispatch.messageId(), TOOL_SEND_MESSAGE, args));
         }
-        // Вложения — отдельными сообщениями (не caption'ом): сбой доставки одного не топит
-        // остальные, а send_* сам резолвит agf_ в байты (см. TelegramToolService.sendMedia).
+        // Attachments go as separate messages (not as a caption): a delivery failure for one does not sink the
+        // rest, and send_* resolves agf_ into bytes itself (see TelegramToolService.sendMedia).
         for (Part part : outbound.parts()) {
             MediaTool tool = mediaTool(part.type());
             Map<String, Object> args = new LinkedHashMap<>();
             args.put("chatId", chatId.toString());
             args.put(tool.param(), part.storageRef());
-            // Контентный ключ идемпотентности (messageId:fileId): устойчив к изменению состава
-            // parts между ретраями — позиционный суффикс давал бы InputConflict при сдвиге.
-            // Дубль одного файла в сообщении схлопывается в replay и доставляется один раз.
+            // A content idempotency key (messageId:fileId): resilient to the composition of parts changing
+            // between retries — a positional suffix would give an InputConflict on a shift. A duplicate of the
+            // same file within a message collapses into a replay and is delivered once.
             requests.add(request(config, dispatch.messageId() + ":" + part.storageRef(), tool.name(), args));
         }
         return requests;

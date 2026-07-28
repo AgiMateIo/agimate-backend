@@ -6,30 +6,30 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Матрица судьбы (метод Ладини): арканы 1..22 из даты рождения. Редукция {@link #r22}
- * сворачивает число только пока оно больше 22 — правило ДРУГОЕ, чем в классической
- * нумерологии ({@link Numerology}); функции не переиспользовать.
+ * The Destiny Matrix (Ladini's method): arcana 1..22 derived from a date of birth. The reduction
+ * {@link #r22} folds a number only while it exceeds 22 — a DIFFERENT rule from classical numerology
+ * ({@link Numerology}); do not reuse the functions across the two.
  *
- * <p>Школы расходятся в формулах производных зон — все формулы изолированы здесь.
+ * <p>Schools disagree on the formulas for the derived zones — every formula is isolated here.
  */
 @UtilityClass
 public class DestinyMatrix {
 
     /**
-     * Точки матрицы (все — арканы 1..22).
+     * Points of the matrix (all of them arcana 1..22).
      *
-     * @param day           A, точка характера (запад)
-     * @param month         B, точка талантов (север)
-     * @param year          C, карма рода (восток)
-     * @param mission       D, кармическая задача (юг)
-     * @param center        E, зона комфорта (центр)
-     * @param paternalLine  F = A+B, отцовская линия (северо-запад)
-     * @param maternalLine  G = B+C, материнская линия (северо-восток)
+     * @param day           A, the point of character (west)
+     * @param month         B, the point of talents (north)
+     * @param year          C, the family's karma (east)
+     * @param mission       D, the karmic task (south)
+     * @param center        E, the comfort zone (centre)
+     * @param paternalLine  F = A+B, the paternal line (north-west)
+     * @param maternalLine  G = B+C, the maternal line (north-east)
      * @param southEast     H = C+D
      * @param southWest     I = A+D
-     * @param money         линия денег
-     * @param relationships линия отношений
-     * @param karmicTail    кармический хвост: (I, I+D, D)
+     * @param money         the money line
+     * @param relationships the relationship line
+     * @param karmicTail    the karmic tail: (I, I+D, D)
      */
     public record MatrixResult(int day, int month, int year, int mission, int center,
                                int paternalLine, int maternalLine, int southEast, int southWest,
@@ -54,7 +54,7 @@ public class DestinyMatrix {
         return new MatrixResult(a, b, c, d, e, f, g, h, i, money, relationships, karmicTail);
     }
 
-    /** Редукция к диапазону арканов: сворачиваем сумму цифр, только пока число больше 22. */
+    /** Reduction into the arcana range: fold the digit sum only while the number exceeds 22. */
     static int r22(int n) {
         while (n > 22) {
             n = digitSum(n);

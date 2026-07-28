@@ -16,33 +16,34 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Сидинг системных скиллов в БД при старте приложения.
+ * Seeding of the system skills into the database at application start.
  *
- * <p>Скилл лежит как classpath-ресурс ({@code resources/seed/<lang>/skills/<code>/SKILL.md}) —
- * язык подставляет {@link SeedContentLocator} по {@code app.content.language}. Владелец —
- * синтетический {@link #SYSTEM_USER_ID}, публикуется как public (его можно привязать к агенту
- * напрямую, без клонирования). Имя/описание/коннекторы берутся из frontmatter, тело — в
- * {@code md_content}. Seed-only-if-missing: строка ищется по {@code (userId, name)} и создаётся,
- * только если её ещё нет — после первого сидинга classpath перестаёт быть source of truth, чтобы
- * правки через будущий admin UI не затирались следующим деплоем. Изменение SKILL.md в репозитории
- * применяется только к свежим (ещё не засеянным) окружениям.
+ * <p>A skill lives as a classpath resource ({@code resources/seed/<lang>/skills/<code>/SKILL.md}) — the
+ * language is substituted by {@link SeedContentLocator} from {@code app.content.language}. The owner is
+ * the synthetic {@link #SYSTEM_USER_ID}, and it is published as public (so it can be bound to an agent
+ * directly, without cloning). The name, description and connectors come from the frontmatter, and the
+ * body goes into {@code md_content}. Seed-only-if-missing: the row is looked up by
+ * {@code (userId, name)} and created only when it does not exist yet — after the first seeding the
+ * classpath stops being the source of truth, so edits through a future admin UI are not wiped by the
+ * next deploy. A change to SKILL.md in the repository applies only to fresh (not yet seeded)
+ * environments.
  *
- * <p><b>Язык фиксируется первым сидингом.</b> {@code name} от языка не зависит, поэтому смена
- * {@code app.content.language} на засеянном окружении не переводит существующие строки: в БД лежит
- * один набор. Переключение языка — выбор для свежей инсталляции.
+ * <p><b>The language is fixed by the first seeding.</b> {@code name} does not depend on the language,
+ * so changing {@code app.content.language} on a seeded environment does not translate the existing
+ * rows: the database holds a single set. Switching the language is a choice for a fresh installation.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SystemSkillBootstrap {
 
-    /** Синтетический владелец системных скиллов (реального пользователя в control-api нет). */
+    /** The synthetic owner of the system skills (there is no real user in control-api). */
     public static final java.util.UUID SYSTEM_USER_ID = new java.util.UUID(0L, 0L);
 
-    /** Скилы сидятся раньше пресетов ({@link SystemPresetBootstrap}) — те ссылаются на них по имени. */
+    /** Skills are seeded before presets ({@link SystemPresetBootstrap}) — those reference them by name. */
     static final int BOOTSTRAP_ORDER = 0;
 
-    /** Коды системных скилов — папки в {@code seed/<lang>/skills/}. */
+    /** Codes of the system skills — the folders in {@code seed/<lang>/skills/}. */
     static final List<String> SYSTEM_SKILL_CODES = List.of(
             "board",
             "time",
@@ -60,8 +61,8 @@ public class SystemSkillBootstrap {
     @Order(BOOTSTRAP_ORDER)
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
-        // Без объемлющей транзакции: каждый вызов репозитория идёт в своей tx, поэтому конфликт
-        // уникального индекса на одном скилле (гонка нод на холодном старте) не отравляет остальные.
+        // No enclosing transaction: every repository call runs in its own tx, so a unique-index conflict on one
+        // skill (a race between nodes on a cold start) does not poison the rest.
         for (String code : SYSTEM_SKILL_CODES) {
             try {
                 seedSkill(code);
@@ -92,7 +93,7 @@ public class SystemSkillBootstrap {
                     .build());
             log.info("Seeded system skill '{}' id={} connectors={}", skill.getName(), skill.getId(), connectors);
         } catch (DataIntegrityViolationException e) {
-            // Параллельная нода успела вставить тот же (user_id, name) на холодном старте — уже засеяно.
+            // A concurrent node inserted the same (user_id, name) on a cold start — it is seeded already.
             log.debug("System skill '{}' already seeded by a concurrent node", parsed.name());
         }
     }

@@ -14,13 +14,13 @@ public class SkillFrontmatterParser {
     private static final String FRONTMATTER_DELIMITER = "---";
 
     /**
-     * Разобранный SKILL.md: {@code name}/{@code description}/{@code connectors} из frontmatter и
-     * {@code body} — тело без заголовков (всё после закрывающего {@code ---}).
+     * A parsed SKILL.md: {@code name}/{@code description}/{@code connectors} from the frontmatter, and
+     * {@code body} — the body without the headers (everything after the closing {@code ---}).
      */
     public record ParsedSkill(String name, String title, String description,
                               List<String> connectors, String body) {}
 
-    /** Сырой разбор markdown-документа с YAML-frontmatter: поля + тело после закрывающего {@code ---}. */
+    /** A raw parse of a markdown document with YAML frontmatter: the fields plus the body after the closing {@code ---}. */
     public record RawFrontmatter(Map<String, Object> fields, String body) {}
 
     public static ParsedSkill parse(String content) {
@@ -45,8 +45,8 @@ public class SkillFrontmatterParser {
     }
 
     /**
-     * Разбирает документ на YAML-frontmatter и тело. {@code docLabel} — имя формата для сообщений
-     * об ошибках (например {@code SKILL.md} или {@code PRESET.md}).
+     * Parses a document into YAML frontmatter and a body. {@code docLabel} is the format's name for
+     * error messages (e.g. {@code SKILL.md} or {@code PRESET.md}).
      */
     public static RawFrontmatter parseRaw(String content, String docLabel) {
         if (content == null || content.isBlank()) {
@@ -85,14 +85,14 @@ public class SkillFrontmatterParser {
             throw new BadRequestStatusException("Invalid YAML in " + docLabel + " frontmatter: " + e.getMessage());
         }
 
-        // Тело — всё после строки закрывающего ---.
+        // The body is everything after the closing --- line.
         int closeLineEnd = trimmed.indexOf('\n', secondDelimiter + 1);
         String body = closeLineEnd < 0 ? "" : trimmed.substring(closeLineEnd + 1).strip();
 
         return new RawFrontmatter(frontmatter, body);
     }
 
-    /** Значение frontmatter как список строк: YAML-список или одиночный скаляр. */
+    /** A frontmatter value as a list of strings: a YAML list or a single scalar. */
     public static List<String> parseStringList(Object value) {
         List<String> result = new ArrayList<>();
         if (value instanceof List<?> list) {

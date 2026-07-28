@@ -17,9 +17,9 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
     Optional<ToolCallLog> findByExternalIdAndAgentId(String externalId, UUID agentId);
 
     /**
-     * {@code status} — строка {@link ru.agimate.controlapi.controller.manage.dto.ToolCallStatus}
-     * ({@code SUCCESS}/{@code ERROR}/{@code PENDING}), выводится из {@code finish_at}/{@code error}.
-     * {@code name} — регистронезависимый подстрочный поиск по имени тула.
+     * {@code status} is a string {@link ru.agimate.controlapi.controller.manage.dto.ToolCallStatus}
+     * ({@code SUCCESS}/{@code ERROR}/{@code PENDING}), derived from {@code finish_at}/{@code error}.
+     * {@code name} is a case-insensitive substring search over the tool's name.
      */
     @Query("""
             SELECT t FROM ToolCallLog t

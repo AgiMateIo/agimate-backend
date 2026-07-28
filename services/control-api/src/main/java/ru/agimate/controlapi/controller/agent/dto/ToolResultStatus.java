@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.controller.agent.dto;
 
-/** Статус результата tool_call для HTTP-опроса: зеркало gRPC {@code ToolResultStatus}. */
+/** Status of a tool_call result for HTTP polling: the mirror of the gRPC {@code ToolResultStatus}. */
 public enum ToolResultStatus {
     PENDING,
     SUCCESS,

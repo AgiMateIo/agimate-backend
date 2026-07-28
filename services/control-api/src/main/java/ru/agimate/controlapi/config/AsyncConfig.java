@@ -12,9 +12,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class AsyncConfig {
 
     /**
-     * Пул исполнения коннекторных тулов ({@code ExecuteToolAsync} не должен держать gRPC-тред).
-     * CallerRuns при переполнении: под экстремальной нагрузкой вызов деградирует в синхронный,
-     * но не теряется.
+     * Execution pool for connector tools ({@code ExecuteToolAsync} must not hold a gRPC thread).
+     * CallerRuns on overflow: under extreme load a call degrades to synchronous, but is never lost.
      */
     @Bean
     public ThreadPoolTaskExecutor toolExecutor() {

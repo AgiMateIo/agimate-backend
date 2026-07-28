@@ -66,30 +66,31 @@ public class AgentRun extends BaseEntity {
     private RunStatus status = RunStatus.ENQUEUED;
 
     /**
-     * Последний признак жизни рана: продлевается его RPC (SaveMessage, GetLlmCredentials,
-     * ExecuteToolAsync/GetToolResult). RUNNING без активности дольше порога добирает
-     * фоновый сборщик ({@code RunActivityService}).
+     * The run's latest sign of life: extended by its own RPCs (SaveMessage, GetLlmCredentials,
+     * ExecuteToolAsync/GetToolResult). A RUNNING run idle for longer than the threshold is collected
+     * by the background sweeper ({@code RunActivityService}).
      */
     @Column(name = "last_activity_at")
     private LocalDateTime lastActivityAt;
 
     /**
-     * Снапшот каналов маршрута ({@code Channels}: prompt/progress/answer), зафиксированный при
-     * dispatch. Хранится сырой JSONB-мапой, чтобы entity-слой не зависел от service-типов;
-     * типизацию даёт service-слой ({@code TriggerRouterService} пишет, {@code RunContextService}
-     * читает). {@code null} — direct-ран без каналов.
+     * Snapshot of the route's channels ({@code Channels}: prompt/progress/answer), fixed at dispatch
+     * time. Stored as a raw JSONB map so the entity layer does not depend on service types; typing is
+     * the service layer's job ({@code TriggerRouterService} writes, {@code RunContextService} reads).
+     * {@code null} — a direct run with no channels.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "channels", columnDefinition = "JSONB")
     private Map<String, Object> channels;
 
     /**
-     * Снимок стартового промпта рана: список сообщений ровно как он ушёл в первый LLM-вызов
-     * (system + history + триггер с ephemeral-префиксом). Пишет воркер один раз перед циклом
-     * ({@code SavePrompt}), first-write-wins. Хранится opaque JSON-деревом — наблюдаемость, не
-     * проекция; дальнейшие ходы рана идут в {@code agent_run_turns}. {@code null} — снимок ещё не
-     * снят (ран не дошёл до цикла) либо ран до этой фичи. Пользовательский контент → до прода
-     * подпадает под per-user DEK + retention, как {@code agent_run_turns}.
+     * Snapshot of the run's starting prompt: the message list exactly as it went into the first LLM
+     * call (system + history + trigger with its ephemeral prefix). Written once by the worker before
+     * the loop ({@code SavePrompt}), first-write-wins. Stored as an opaque JSON tree — observability,
+     * not a projection; later turns of the run go to {@code agent_run_turns}. {@code null} — the
+     * snapshot was never taken (the run did not reach the loop) or the run predates this feature.
+     * User content → before production this falls under per-user DEK + retention, like
+     * {@code agent_run_turns}.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "prompt", columnDefinition = "JSONB")

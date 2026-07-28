@@ -12,15 +12,16 @@ import java.util.Base64;
 import java.util.UUID;
 
 /**
- * Envelope-шифрование секретов. KEK (master key) — один источник (config
- * {@code app.secrets.encryption-key}, base64 32 байта; в проде задаётся env'ом через relaxed
- * binding). На каждый секрет генерится случайный DEK:
+ * Envelope encryption of secrets. The KEK (master key) has a single source (the config
+ * {@code app.secrets.encryption-key}, base64 of 32 bytes; in production it is set from env through
+ * relaxed binding). A random DEK is generated per secret:
  * <ul>
  *   <li>{@code encrypted_data} = AES-256-GCM(plaintext, DEK, iv);</li>
  *   <li>{@code encrypted_dek} = [IV(12)] + AES-256-GCM(DEK, KEK, AAD = entity + ownerId).</li>
  * </ul>
- * AAD-привязка к владельцу: DEK не расшифровать, перенеся строку {@code secrets} на другого
- * владельца (другой {@code entity}/{@code ownerId}). {@code ownerId} в строке не хранится.
+ * The AAD binds the secret to its owner: the DEK cannot be decrypted after moving a {@code secrets} row
+ * to a different owner (a different {@code entity}/{@code ownerId}). {@code ownerId} is not stored in
+ * the row.
  */
 @Service
 public class SecretEncryptionService {
@@ -36,8 +37,8 @@ public class SecretEncryptionService {
     }
 
     /**
-     * Зашифровать plaintext под нового владельца. Возвращает НЕсохранённую сущность {@link Secret}
-     * (без id) — сохранение на вызывающем.
+     * Encrypt a plaintext for a new owner. Returns an UNSAVED {@link Secret} entity (with no id) —
+     * saving is the caller's job.
      */
     public Secret encrypt(String entity, UUID ownerId, byte[] plaintext) {
         SecretKey dek = CryptoUtils.generateAES256Key();
@@ -56,7 +57,7 @@ public class SecretEncryptionService {
                 .build();
     }
 
-    /** Расшифровать полезные данные секрета. Бросает, если AAD (entity+ownerId) не совпадает. */
+    /** Decrypt a secret's payload. Throws when the AAD (entity+ownerId) does not match. */
     public byte[] decrypt(Secret secret, UUID ownerId) {
         byte[] dekBlob = unb64(secret.getEncryptedDek());
         int ivLen = CryptoUtils.gcmIvLength();
@@ -68,7 +69,7 @@ public class SecretEncryptionService {
         return CryptoUtils.decryptGcm(unb64(secret.getEncryptedData()), dek, unb64(secret.getIv()), null);
     }
 
-    /** Перешифровать существующую строку на новый plaintext (in-place, тот же владелец). */
+    /** Re-encrypt an existing row onto a new plaintext (in place, same owner). */
     public void reencrypt(Secret secret, UUID ownerId, byte[] plaintext) {
         Secret fresh = encrypt(secret.getEntity(), ownerId, plaintext);
         secret.setIv(fresh.getIv());

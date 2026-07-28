@@ -12,11 +12,11 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Агенты удаляются мягко: {@code deleted_at} проставляется вместо физического DELETE, строка
- * остаётся ради целостности всех ссылающихся таблиц (channels, agent_runs, board_*,
- * channel_session_messages, agent_llms/skills, secrets). {@link SQLRestriction} скрывает
- * удалённых из всех выборок и join'ов (включая auth {@code findByKeyId} и роутинг триггеров) —
- * ни одного ручного {@code deletedAt IS NULL} по месту не требуется.
+ * Agents are deleted softly: {@code deleted_at} is set instead of a physical DELETE, and the row
+ * stays for the integrity of every referencing table (channels, agent_runs, board_*,
+ * channel_session_messages, agent_llms/skills, secrets). {@link SQLRestriction} hides deleted rows
+ * from every query and join (including the auth {@code findByKeyId} and trigger routing) — not a
+ * single manual {@code deletedAt IS NULL} is needed anywhere.
  */
 @Entity
 @Table(name = "agents", uniqueConstraints = @UniqueConstraint(columnNames = "key_id"))
@@ -61,8 +61,8 @@ public class Agent extends BaseEntity {
     private String webhookUrl;
 
     /**
-     * Значение Authorization-заголовка для outbound-webhook'ов: ссылка на {@code secrets}
-     * (entity = {@code agent_webhook_auth}, AAD-owner = {@code id}). {@code null} — без auth.
+     * The Authorization header value for outbound webhooks: a reference into {@code secrets}
+     * (entity = {@code agent_webhook_auth}, AAD owner = {@code id}). {@code null} — no auth.
      */
     @Column(name = "webhook_auth_secret_id")
     private UUID webhookAuthSecretId;
@@ -74,11 +74,11 @@ public class Agent extends BaseEntity {
     @Column(name = "agentic_team_id")
     private UUID agenticTeamId;
 
-    /** Имя (машинный код) пресета, с которого стартовал мастер создания (аналитика воронки); без FK. */
+    /** Name (machine code) of the preset the creation wizard started from (funnel analytics); no FK. */
     @Column(name = "preset_name", columnDefinition = "TEXT")
     private String presetName;
 
-    /** Момент мягкого удаления; {@code null} — активен. Скрытие из выборок — через {@link SQLRestriction}. */
+    /** Moment of the soft delete; {@code null} — active. Hiding from queries is done by {@link SQLRestriction}. */
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 

@@ -22,14 +22,15 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Листинг триггеров — параллель {@link ru.agimate.controlapi.service.tool.ToolDefinitionService}
- * для триггеров. Каталог отдаёт только type-declared спеки типа коннектора; экземпляр —
- * объединение type-declared с динамическими триггерами {@code connection_triggers} (device-apps),
- * так как разные экземпляры одного коннектора могут открывать разные наборы.
+ * Listing of triggers — the parallel of
+ * {@link ru.agimate.controlapi.service.tool.ToolDefinitionService} for triggers. The catalogue returns
+ * only the type-declared specs of a connector type; an instance returns the union of the type-declared
+ * ones with the dynamic triggers from {@code connection_triggers} (device apps), because different
+ * instances of one connector may expose different sets.
  *
- * <p>Источники мёржатся напрямую (объединение, а не switch по {@code definitionBinding}): type-declared
- * из {@link TriggerProvider}, динамические — из {@code connection_triggers} по {@code connectionId},
- * который проверяется на принадлежность вызывающему (иначе IDOR).
+ * <p>The sources are merged directly (a union, not a switch on {@code definitionBinding}):
+ * type-declared ones from {@link TriggerProvider}, dynamic ones from {@code connection_triggers} by
+ * {@code connectionId}, which is checked to belong to the caller (otherwise it is an IDOR).
  */
 @Slf4j
 @Service
@@ -41,7 +42,7 @@ public class TriggerDefinitionService {
     private final ConnectionRepository connectionRepository;
     private final ConnectionTriggerRepository connectionTriggerRepository;
 
-    /** Type-level триггеры типа коннектора (каталог); нет {@link TriggerProvider} — пустой список. */
+    /** Type-level triggers of a connector type (the catalogue); no {@link TriggerProvider} — an empty list. */
     public List<TriggerSpecificationResponse> getCatalogTriggers(String connectorCode) {
         if (connectorRegistry.findHandler(connectorCode).isEmpty()) {
             throw new NotFoundStatusException("Connector not found: " + connectorCode);
@@ -49,12 +50,12 @@ public class TriggerDefinitionService {
         return typeTriggers(connectorCode);
     }
 
-    /** Триггеры экземпляра: type-declared ∪ динамические из {@code connection_triggers}. */
+    /** An instance's triggers: type-declared ∪ the dynamic ones from {@code connection_triggers}. */
     public List<TriggerSpecificationResponse> getConnectionTriggers(UUID userId, UUID connectionId) {
         Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
 
-        // name — бизнес-ключ; динамические перекрывают одноимённые type-declared.
+        // name is the business key; dynamic ones override type-declared entries of the same name.
         Map<String, TriggerSpecificationResponse> merged = new LinkedHashMap<>();
         typeTriggers(connection.getConnectorCode()).forEach(t -> merged.put(t.name(), t));
         connectionTriggerRepository.findActiveByConnectionId(connectionId)
@@ -78,7 +79,7 @@ public class TriggerDefinitionService {
                 schemaParamNames(trigger.getParamsSchema()));
     }
 
-    /** Best-effort: имена property из сырой JSON Schema параметров динамического триггера. */
+    /** Best-effort: the property names from the raw JSON Schema of a dynamic trigger's parameters. */
     private static List<String> schemaParamNames(String paramsSchema) {
         if (paramsSchema == null || paramsSchema.isBlank()) {
             return List.of();

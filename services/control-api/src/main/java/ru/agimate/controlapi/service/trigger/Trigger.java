@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
-/** Также wire-payload для воркера в {@code AgentMessage}; {@code NON_NULL} убирает routing-поля (context) когда пусты. */
+/** Also the wire payload for the worker in {@code AgentMessage}; {@code NON_NULL} strips the routing fields (context) when empty. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record Trigger(
         String connectorCode,
@@ -19,7 +19,7 @@ public record Trigger(
         TriggerContext context
 ) {
 
-    /** Копия триггера с заменённой {@code data} (ingest-материализация медиа: сырые дескрипторы → parts). */
+    /** A copy of the trigger with {@code data} replaced (ingest materialisation of media: raw descriptors → parts). */
     public Trigger withData(Map<String, Object> newData) {
         return new Trigger(connectorCode, connectionId, name, id, newData, occurredAt, context);
     }
@@ -48,9 +48,9 @@ public record Trigger(
     }
 
     /**
-     * Триггер от внешнего источника, приславшего собственные {@code id} и время события: они
-     * проносятся в {@code TriggerLog.externalId}/{@code occurredAt} для корреляции. Fallback на
-     * случайный id и {@code now()}, когда источник их не указал (оба поля запроса необязательны).
+     * A trigger from an external source that supplied its own {@code id} and event time: those are
+     * carried into {@code TriggerLog.externalId}/{@code occurredAt} for correlation. It falls back to a
+     * random id and {@code now()} when the source gave neither (both request fields are optional).
      */
     public static Trigger fromSource(String connectorCode, String connectionId, String name, String id,
                                      Map<String, Object> data, Instant occurredAt) {
@@ -66,9 +66,9 @@ public record Trigger(
     }
 
     /**
-     * Реконструирует {@link Trigger} из персистентной строки лога рана ({@link TriggerLog}) — для
-     * сборки контекста и каноникализации inbound. {@code context} не восстанавливается: маршрутизация
-     * уже произошла при первичной обработке события.
+     * Reconstructs a {@link Trigger} from the run's persistent log row ({@link TriggerLog}) — for
+     * assembling the context and canonicalising the inbound message. {@code context} is not restored:
+     * routing already happened when the event was first processed.
      */
     public static Trigger fromLog(TriggerLog log) {
         return new Trigger(

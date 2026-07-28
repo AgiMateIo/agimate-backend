@@ -79,7 +79,7 @@ public class AgentProperties {
         private String userAgent = "AgiMate managed agent (agimate.io)";
     }
 
-    /** Параметры выполнения бэкенд-тулов. */
+    /** Backend tool execution settings. */
     @Getter
     @Setter
     public static class Tool {

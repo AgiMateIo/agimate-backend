@@ -6,14 +6,15 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Описание параметра тула для {@code inputSchema}. Имя параметра берётся из рефлексии
- * (javac компилируется с {@code -parameters}), поэтому в аннотации только описание и required.
+ * Description of a tool's parameter for {@code inputSchema}. The parameter's name comes from
+ * reflection (javac is compiled with {@code -parameters}), so the annotation carries only the
+ * description and required.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.PARAMETER)
 public @interface ToolParam {
 
-    /** Описание параметра (shorthand: {@code @ToolParam("...")}). */
+    /** Parameter description (shorthand: {@code @ToolParam("...")}). */
     String value() default "";
 
     boolean required() default true;

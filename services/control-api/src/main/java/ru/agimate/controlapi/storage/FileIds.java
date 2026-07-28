@@ -6,8 +6,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Публичный идентификатор файла: {@code agf_<uuid>} (docs/connectors/files.md). Префикс делает
- * fileId узнаваемым в параметрах тулов и логах и не конфликтует с URL/чужими id.
+ * Public identifier of a file: {@code agf_<uuid>} (docs/connectors/files.md). The prefix makes a
+ * fileId recognisable in tool parameters and logs, and keeps it from colliding with URLs or foreign ids.
  */
 @UtilityClass
 public class FileIds {
@@ -18,7 +18,7 @@ public class FileIds {
         return PREFIX + id;
     }
 
-    /** {@code Optional.empty()} — строка не является fileId (не наш префикс / не UUID). */
+    /** {@code Optional.empty()} — the string is not a fileId (wrong prefix or not a UUID). */
     public static Optional<UUID> parse(String value) {
         if (value == null || !value.startsWith(PREFIX)) {
             return Optional.empty();

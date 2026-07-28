@@ -42,8 +42,8 @@ public class TriggerLogProbeService {
     }
 
     /**
-     * Trigger несёт discovery-probe в block-режиме → доставку агентам пропускаем,
-     * только фиксируем в trigger_log. Знание о формате probe-кода живёт здесь же.
+     * The trigger carries a discovery probe in block mode → skip delivery to the agents and only
+     * record it in trigger_log. Knowledge of the probe code's format lives right here.
      */
     public boolean isBlockProbe(Map<String, Object> data) {
         if (data == null || data.isEmpty()) {

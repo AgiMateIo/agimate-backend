@@ -17,17 +17,17 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
- * Схема листа: разбор/сборка колонок и приведение значений ячеек.
+ * A sheet's schema: parsing and assembling columns, and coercing cell values.
  *
- * <p>Ключевой инвариант, на который опирается {@link SheetQueryBuilder}: значение попадает в JSONB
- * только пройдя {@link #coerceCell}, поэтому в числовой колонке лежит JSON-число либо ключа нет
- * вовсе (пустая строка не пишется). Из-за этого {@code (data->>'col')::numeric} в агрегации не может
- * упасть на мусоре — NULL кастуется в NULL.
+ * <p>The key invariant {@link SheetQueryBuilder} relies on: a value reaches JSONB only after passing
+ * {@link #coerceCell}, so a numeric column holds a JSON number or has no key at all (an empty string
+ * is never written). Because of that, {@code (data->>'col')::numeric} in aggregation cannot trip over
+ * garbage — NULL casts to NULL.
  */
 @UtilityClass
 public class SheetSchema {
 
-    /** Машинный код колонки/листа: он подставляется в SQL как имя ключа JSONB, поэтому строго ASCII. */
+    /** Machine code of a column or sheet: it is substituted into SQL as a JSONB key, hence strictly ASCII. */
     public static final Pattern NAME = Pattern.compile("^[a-z][a-z0-9_]{0,47}$");
 
     public static final int MAX_COLUMNS = 32;
@@ -41,7 +41,7 @@ public class SheetSchema {
             DateTimeFormatter.ofPattern("dd.MM.yyyy"),
             DateTimeFormatter.ofPattern("dd/MM/yyyy"));
 
-    // ===== колонки =====
+    // ===== columns =====
 
     public static List<ColumnSpec> columns(Sheet sheet) {
         List<ColumnSpec> specs = new ArrayList<>();
@@ -68,7 +68,7 @@ public class SheetSchema {
         return raw;
     }
 
-    /** Нормализовать объявление колонки: имя-slug, непустой title, известный тип. */
+    /** Normalise a column declaration: a slug name, a non-empty title, a known type. */
     public static ColumnSpec normalize(ColumnSpec column) {
         if (column == null || column.name() == null) {
             throw new ConnectorException("Column declaration requires 'name'");
@@ -89,7 +89,7 @@ public class SheetSchema {
         }
     }
 
-    /** Колонка по имени; иначе — ошибка со списком существующих, чтобы агент починился сам. */
+    /** The column by name; otherwise an error listing the existing ones, so the agent can fix itself. */
     public static ColumnSpec require(List<ColumnSpec> columns, String name, String sheetName) {
         for (ColumnSpec column : columns) {
             if (column.name().equals(name)) {
@@ -110,11 +110,11 @@ public class SheetSchema {
                 : columns.stream().map(ColumnSpec::name).reduce((a, b) -> a + ", " + b).orElse("");
     }
 
-    // ===== значения =====
+    // ===== values =====
 
     /**
-     * Значение ячейки в JSON-представление колонки. {@code null} — ячейка пустая: ключ в JSONB не
-     * пишется вовсе (см. инвариант в javadoc класса).
+     * A cell value in the column's JSON representation. {@code null} means the cell is empty: the key
+     * is not written into JSONB at all (see the invariant in the class javadoc).
      */
     public static Object coerceCell(ColumnSpec column, Object raw) {
         if (raw == null || (raw instanceof String s && s.isBlank())) {
@@ -128,7 +128,7 @@ public class SheetSchema {
         };
     }
 
-    /** Значение фильтра в bind-параметр SQL нужного типа. */
+    /** A filter value as a SQL bind parameter of the right type. */
     public static Object coerceParam(ColumnSpec column, String raw) {
         if (raw == null) {
             throw new ConnectorException("Filter on column '" + column.name() + "' requires a value");
@@ -145,7 +145,7 @@ public class SheetSchema {
         if (raw instanceof Number n) {
             return new BigDecimal(n.toString());
         }
-        // Пользователь диктует «1 200,50» — принимаем пробелы-разделители и запятую как точку.
+        // A user dictates «1 200,50» — we accept spaces as separators and a comma as the decimal point.
         String cleaned = String.valueOf(raw).replace(" ", "").replace(" ", "").replace(',', '.');
         try {
             return new BigDecimal(cleaned);
@@ -166,14 +166,14 @@ public class SheetSchema {
             try {
                 return LocalDateTime.parse(value, format);
             } catch (DateTimeParseException ignored) {
-                // следующий формат
+                // the next format
             }
         }
         for (DateTimeFormatter format : DATE_FORMATS) {
             try {
                 return LocalDate.parse(value, format).atStartOfDay();
             } catch (DateTimeParseException ignored) {
-                // следующий формат
+                // the next format
             }
         }
         throw new ConnectorException("Column '" + column + "' is a date, but got: '" + raw

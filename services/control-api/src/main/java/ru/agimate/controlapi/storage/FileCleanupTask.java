@@ -6,8 +6,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Периодическая чистка файлового слоя: просроченные READY + брошенные UPLOADING.
- * Батчи под {@code SKIP LOCKED} — несколько инстансов не мешают друг другу.
+ * Periodic cleanup of the file layer: expired READY plus abandoned UPLOADING. Batches run under
+ * {@code SKIP LOCKED} so several instances do not get in each other's way.
  */
 @Slf4j
 @Component
@@ -28,7 +28,7 @@ public class FileCleanupTask {
                 total += purged;
             } while (purged == BATCH_SIZE);
         } catch (Exception e) {
-            // Недоступный blob store не должен ронять scheduler — попробуем на следующем тике.
+            // An unreachable blob store must not bring the scheduler down — we will try again on the next tick.
             log.warn("file cleanup pass failed after {} purged: {}", total, e.getMessage());
             return;
         }

@@ -68,10 +68,11 @@ public class TriggerRouterService {
     }
 
     /**
-     * Получатели триггера («кто»): кандидаты с активным binding на connection (= connectionId триггера),
-     * сужение по {@link TriggerAudience}, затем per-agent ABAC через {@link ConnectionAccessEvaluator}
-     * (дефолт-allow + DENY-исключения + опциональный {@code params_filter} по {@code trigger.data()}).
-     * Канал («как») сюда не входит — chat-filtering применяется в {@code ChannelRouteResolver}.
+     * Recipients of a trigger (the «who»): candidates with an active binding to the connection (= the
+     * trigger's connectionId), narrowed by {@link TriggerAudience}, then per-agent ABAC through
+     * {@link ConnectionAccessEvaluator} (default-allow + DENY exceptions + an optional
+     * {@code params_filter} over {@code trigger.data()}). The channel (the «how») is not part of this —
+     * chat filtering is applied in {@code ChannelRouteResolver}.
      */
     private List<Agent> findRecipients(UUID userId, Trigger trigger) {
         UUID connectionId = tryParseUuid(trigger.connectionId());
@@ -106,8 +107,8 @@ public class TriggerRouterService {
     }
 
     /**
-     * Доменное решение «как доставлять» для уже отобранных получателей ({@link #findRecipients}),
-     * без персистентности — делегирует {@link ChannelRouteResolver}.
+     * The domain decision «how to deliver» for the recipients already selected
+     * ({@link #findRecipients}), with no persistence — it delegates to {@link ChannelRouteResolver}.
      */
     private List<TriggerRoute> planRoutes(List<Agent> recipients, Trigger trigger) {
         List<TriggerRoute> routes = new ArrayList<>();
@@ -124,11 +125,11 @@ public class TriggerRouterService {
     }
 
     /**
-     * Персистентность и доставка. Работает с {@link TriggerLog}/{@link AgentRun};
-     * {@code sessionId} запуска резолвится здесь один раз (prompt-канал, иначе answer) и
-     * уезжает воркеру явным полем {@code AgentMessage.sessionId} — правило определено только
-     * на этой стороне. Сбой доставки одного получателя не должен ронять остальных —
-     * изолируем по маршруту.
+     * Persistence and delivery. It works with {@link TriggerLog}/{@link AgentRun}; the run's
+     * {@code sessionId} is resolved here once (the prompt channel, otherwise the answer one) and
+     * travels to the worker as the explicit field {@code AgentMessage.sessionId} — the rule is defined
+     * on this side alone. A delivery failure for one recipient must not bring the others down — so we
+     * isolate per route.
      */
     private void dispatch(TriggerLog triggerLog, Trigger trigger, List<TriggerRoute> routes) {
         if (routes.isEmpty()) {
@@ -143,8 +144,8 @@ public class TriggerRouterService {
                         .agent(route.agent())
                         .destination(route.agent().getType().name())
                         .sessionId(route.sessionId())
-                        // Снапшот маршрута: GetRunContext (профиль/inbound) и доставка SaveMessage
-                        // (этап 3) читают каналы отсюда, а не ре-резолвят их.
+                        // A snapshot of the route: GetRunContext (the profile and the inbound message) and
+                        // SaveMessage delivery (stage 3) read the channels from here rather than re-resolving them.
                         .channels(ChannelsCodec.toMap(route.channels()))
                         .build();
                 // Persist before delivery so the DB-generated id (the canonical run_id == DBOS
@@ -163,16 +164,16 @@ public class TriggerRouterService {
         return trigger.context() != null ? trigger.context().audience() : null;
     }
 
-    /** Разрешённый маршрут до агента: {@code channels}/{@code message} == null для прямой (не канальной) доставки. */
+    /** A permitted route to an agent: {@code channels}/{@code message} == null for direct (non-channel) delivery. */
     private record TriggerRoute(Agent agent, Channels channels, InboundMessage message) {
         private static TriggerRoute direct(Agent agent) {
             return new TriggerRoute(agent, null, null);
         }
 
         /**
-         * Single-writer/history ключ запуска: сессия prompt-канала, иначе answer-канала;
-         * null для прямой доставки. Единственное место, где это правило определено —
-         * воркер получает готовое значение в {@code AgentMessage.sessionId}.
+         * The run's single-writer/history key: the prompt channel's session, otherwise the answer
+         * channel's; null for direct delivery. The only place this rule is defined — the worker
+         * receives the finished value in {@code AgentMessage.sessionId}.
          */
         private UUID sessionId() {
             if (channels == null) {

@@ -5,8 +5,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.UUID;
 
 /**
- * Статус коннектора скилла для конкретного агента: есть ли у агента активный коннекшен этого типа.
- * {@code connectionId == null} → коннектор не подключён (фронт предлагает подключить).
+ * Status of a skill's connector for a particular agent: whether the agent has an active connection of
+ * that type. {@code connectionId == null} → the connector is not connected (the frontend offers to
+ * connect it).
  */
 @Schema(description = "Connector requirement of a skill and the agent's connection for it (null = not connected)")
 public record SkillConnectorStatus(

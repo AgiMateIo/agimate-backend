@@ -3,7 +3,7 @@ package ru.agimate.controlapi.service.dto.board;
 import java.util.List;
 import java.util.UUID;
 
-/** Centrifugo-событие правки полей задачи (не статуса): фронт перечитывает карточку. */
+/** Centrifugo event for an edit of a task's fields (not its status): the frontend re-reads the card. */
 public record BoardTaskUpdatedEvent(
         UUID boardId,
         UUID taskId,

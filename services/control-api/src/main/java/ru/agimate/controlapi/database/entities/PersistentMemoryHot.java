@@ -10,9 +10,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * «Hot» заметка памяти — строка журнала на пространство ({@code scope_id} = agentId). Добавление =
- * INSERT (append-only), поэтому конкурентные записи не конфликтуют. Консолидация клеймит партию заметок
- * ({@code consolidationId} + {@code claimedAt} как лиз), сворачивает их в cold и удаляет.
+ * A «hot» memory note — a journal row per space ({@code scope_id} = agentId). Adding one is an
+ * INSERT (append-only), so concurrent writes never conflict. Consolidation claims a batch of notes
+ * ({@code consolidationId} plus {@code claimedAt} as the lease), folds them into cold and deletes them.
  */
 @Entity
 @Table(name = "persistent_memory_hot")
@@ -29,25 +29,25 @@ public class PersistentMemoryHot extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** Носитель памяти: agentId (AGENT scope) или teamId (TEAM scope). */
+    /** Owner of the memory: agentId (AGENT scope) or teamId (TEAM scope). */
     @Column(name = "scope_id", nullable = false)
     private UUID scopeId;
 
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    /** Сессия-источник заметки (трейсинг); {@code null} для инлайн-заметок вне сессии. */
+    /** The session the note came from (tracing); {@code null} for inline notes outside a session. */
     @Column(name = "session_id")
     private UUID sessionId;
 
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    /** Id партии консолидации, заклеймившей эту заметку; {@code null} — ещё не сконсолидирована. */
+    /** Id of the consolidation batch that claimed this note; {@code null} — not consolidated yet. */
     @Column(name = "consolidation_id")
     private UUID consolidationId;
 
-    /** Момент клейма — лиз: по истечении заметка реклеймится следующей консолидацией. */
+    /** Moment of the claim — a lease: once it expires the note is reclaimed by the next consolidation. */
     @Column(name = "claimed_at")
     private LocalDateTime claimedAt;
 }

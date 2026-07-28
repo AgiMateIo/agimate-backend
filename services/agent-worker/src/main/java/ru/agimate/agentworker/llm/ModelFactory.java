@@ -57,7 +57,7 @@ public class ModelFactory {
     /** Cache key. Carries a SHA-256 of the api key, never the secret itself (records auto-expose
      * every field via {@code toString()}, so a plaintext key would be one debug log away from
      * leaking); the plaintext for building the client travels via the {@code build} closure.
-     * extraBodyJson participates too: a changed extra_body (провайдер-роутинг и т.п.) must
+     * extraBodyJson participates too: a changed extra_body (provider routing and the like) must
      * produce a new client with new default options, not a stale cache hit. */
     private record ModelKey(String baseUrl, String apiKeyHash, String model, String extraBodyJson) {}
 
@@ -76,8 +76,8 @@ public class ModelFactory {
     }
 
     private OpenAiChatModel buildModel(String baseUrl, LlmCredentials creds) {
-        // Доп. поля тела chat/completions от бэка (deep-merge провайдер+модель уже выполнен там).
-        // Spring AI мёржит их в запрос сам (createRequest → extraBody). Целиком не логируем.
+        // Extra chat/completions body fields from the backend (the provider+model deep merge is already done there).
+        // Spring AI merges them into the request itself (createRequest → extraBody). We never log them in full.
         Map<String, Object> extraBody = JsonUtils.fromJsonToMap(creds.getExtraBodyJson());
         log.info("building chat model: baseUrl={} model={} extraBodyKeys={}",
                 baseUrl, creds.getModel(), extraBody.keySet());

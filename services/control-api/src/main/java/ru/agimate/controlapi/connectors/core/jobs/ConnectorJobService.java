@@ -19,10 +19,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * API записи в {@code connector_jobs}. Лежит между listener'ами/bootstrap'ом и БД.
+ * The write API for {@code connector_jobs}. It sits between the listeners/bootstrap and the database.
  *
- * <p>Pull‑модель не нуждается в событиях: scheduler читает БД на каждом тике, поэтому новые/удалённые
- * задачи появляются в работе автоматически в пределах одного poll‑интервала.
+ * <p>The pull model needs no events: the scheduler reads the database on every tick, so new and
+ * deleted jobs enter or leave the working set automatically within one poll interval.
  */
 @Slf4j
 @Service
@@ -35,8 +35,9 @@ public class ConnectorJobService {
     private final ConnectorJobRepository connectorJobRepository;
 
     /**
-     * Не {@code readOnly} — внутри pickup делает UPDATE ... RETURNING. Дефолтный {@code REQUIRED}
-     * propagation у repo impl присоединился бы к внешней readOnly‑транзакции и упал на PG уровне.
+     * Not {@code readOnly} — the pickup inside performs an UPDATE ... RETURNING. The repo impl's
+     * default {@code REQUIRED} propagation would join the outer readOnly transaction and fail at the
+     * PG level.
      */
     @Transactional
     public List<ConnectorJob> claimReady(int batchSize) {
@@ -44,15 +45,15 @@ public class ConnectorJobService {
     }
 
     /**
-     * Создаёт или обновляет строку по бизнес‑ключу {@code (connectorCode, connectionId, name)}.
-     * Новая строка получает {@code status=PENDING}, {@code next_run_at=now()} — scheduler
-     * подхватит её на ближайшем тике. COMPLETED-строка (выполненный ONETIME) взводится заново.
+     * Creates or updates a row by the business key {@code (connectorCode, connectionId, name)}. A new
+     * row gets {@code status=PENDING}, {@code next_run_at=now()} — the scheduler picks it up on the
+     * next tick. A COMPLETED row (a finished ONETIME) is armed again.
      *
-     * <p>{@code REQUIRES_NEW} нужен потому, что метод вызывается из
-     * {@code @TransactionalEventListener(AFTER_COMMIT)} — там outer‑транзакция уже committed,
-     * но её EntityManagerHolder ещё привязан к потоку. REQUIRED participate'нулся бы к мёртвой
-     * транзакции и упал на «No active transaction». REQUIRES_NEW suspend'ит stale holder и
-     * стартует чистую tx.
+     * <p>{@code REQUIRES_NEW} is needed because the method is called from a
+     * {@code @TransactionalEventListener(AFTER_COMMIT)} — there the outer transaction is already
+     * committed, but its EntityManagerHolder is still bound to the thread. REQUIRED would participate
+     * in a dead transaction and fail with «No active transaction». REQUIRES_NEW suspends the stale
+     * holder and starts a clean tx.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ConnectorJob upsert(String connectorCode, String connectionId, UUID userId, JobSpec spec) {
@@ -60,10 +61,10 @@ public class ConnectorJobService {
     }
 
     /**
-     * Приводит набор SYSTEM-задач connectionId в соответствие с декларацией коннектора: upsert всех
-     * актуальных + удаление строк, чьи {@code name} больше не возвращаются {@code getJobs()}.
-     * Динамические задачи (USER/AGENT) на этом connectionId пересинк не трогает.
-     * {@code REQUIRES_NEW} — по той же причине, что и {@link #upsert}.
+     * Brings the set of SYSTEM jobs of a connectionId in line with the connector's declaration: an
+     * upsert of every current one plus deletion of rows whose {@code name} is no longer returned by
+     * {@code getJobs()}. Dynamic jobs (USER/AGENT) on that connectionId are left untouched by the
+     * re-sync. {@code REQUIRES_NEW} for the same reason as in {@link #upsert}.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void syncConnectionJobs(String connectorCode, String connectionId, UUID userId,
@@ -80,9 +81,10 @@ public class ConnectorJobService {
     }
 
     /**
-     * Удаляет все строки connectionId, включая динамические (USER/AGENT) — вызывается при удалении
-     * интеграции, когда без credentials они всё равно неисполнимы.
-     * {@code REQUIRES_NEW} — по той же причине, что и {@link #upsert}: вызов из AFTER_COMMIT listener'а.
+     * Deletes every row of a connectionId, dynamic ones (USER/AGENT) included — called when an
+     * integration is deleted, at which point they are unexecutable without credentials anyway.
+     * {@code REQUIRES_NEW} for the same reason as in {@link #upsert}: the call comes from an
+     * AFTER_COMMIT listener.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int deleteByConnectionId(String connectorCode, String connectionId) {
@@ -90,8 +92,8 @@ public class ConnectorJobService {
     }
 
     /**
-     * Завершает текущую итерацию: переводит в {@code PENDING}, очищает lease, выставляет
-     * {@code next_run_at}. {@code lastError == null} означает успех.
+     * Finishes the current iteration: moves the row to {@code PENDING}, clears the lease and sets
+     * {@code next_run_at}. {@code lastError == null} means success.
      */
     @Transactional
     public void complete(UUID taskId, LocalDateTime nextRunAt, String lastError) {
@@ -99,11 +101,12 @@ public class ConnectorJobService {
     }
 
     /**
-     * Startup-пересинк существующих SYSTEM-строк с декларацией коннекторов ({@code getJobs()}):
-     * изменение {@code @Job} (интервал/timeout/config) попадает в БД без пересоздания подключения;
-     * строки, чьи имена больше не декларируются (например, смена режима telegram polling→webhook),
-     * удаляются. Новые строки не создаёт — их заводят lifecycle-события подключений. Спека
-     * обновляется точечным UPDATE — status/lease конкурентно пишет scheduler (свой и соседних нод).
+     * Startup re-sync of the existing SYSTEM rows against the connectors' declarations
+     * ({@code getJobs()}): a change to {@code @Job} (interval, timeout, config) reaches the database
+     * without recreating the connection, and rows whose names are no longer declared (a telegram mode
+     * switch polling→webhook, say) are deleted. It creates no new rows — those are created by
+     * connection lifecycle events. The spec is updated by a targeted UPDATE, because status and lease
+     * are written concurrently by the scheduler (this node's and the neighbouring ones').
      */
     @Transactional
     public void resyncSystemJobs(Map<String, Map<String, JobSpec>> declaredByConnector) {
@@ -127,26 +130,26 @@ public class ConnectorJobService {
     }
 
     /**
-     * Возвращает claim'нутую этой нодой строку в очередь при остановке приложения: PENDING,
-     * запуск сразу после рестарта. Только для RUNNING — финализированные в гонке строки не трогает.
+     * Returns a row claimed by this node to the queue when the application stops: PENDING, to run
+     * right after the restart. RUNNING only — rows finalised in a race are left alone.
      */
     @Transactional
     public void release(UUID taskId) {
         connectorJobRepository.release(taskId, LocalDateTime.now());
     }
 
-    /** Финализирует успешно выполненный ONETIME: {@code status=COMPLETED}, без следующего запуска. */
+    /** Finalises a successfully finished ONETIME: {@code status=COMPLETED}, with no next run. */
     @Transactional
     public void markCompleted(UUID taskId, String lastError) {
         connectorJobRepository.markCompleted(taskId, trimError(lastError));
     }
 
-    // ===== Динамические задачи, запланированные агентом (time.schedule и т.п.) =====
+    // ===== Dynamic jobs scheduled by an agent (time.schedule and the like) =====
 
     /**
-     * Планирует динамическую задачу агента ({@code kind=AGENT}): INSERT новой строки (в отличие
-     * от {@link #upsert} — бизнес-ключ на неё не действует, на агента их может быть много).
-     * {@code firstRunAt} — момент первого срабатывания (для ONETIME это и есть единственный запуск).
+     * Schedules an agent's dynamic job ({@code kind=AGENT}): an INSERT of a new row (unlike
+     * {@link #upsert} — the business key does not apply to it, and one agent may have many).
+     * {@code firstRunAt} is the moment of the first firing (for a ONETIME that is the only run).
      */
     @Transactional
     public ConnectorJob schedule(String connectorCode, String connectionId, UUID userId, UUID agentId,
@@ -173,12 +176,12 @@ public class ConnectorJobService {
         return connectorJobRepository.save(row);
     }
 
-    /** Активные (не COMPLETED) задачи агента — для list. */
+    /** An agent's active (non-COMPLETED) jobs — for list. */
     public List<ConnectorJob> findActiveByAgent(String connectorCode, UUID userId, UUID agentId) {
         return connectorJobRepository.findActiveByAgent(connectorCode, userId, agentId);
     }
 
-    /** Отменяет задачу агента с проверкой владельца; {@code true} — действительно удалена. */
+    /** Cancels an agent's job with an owner check; {@code true} means it really was deleted. */
     @Transactional
     public boolean cancel(String connectorCode, UUID userId, UUID agentId, UUID taskId) {
         return connectorJobRepository.deleteOwned(taskId, connectorCode, userId, agentId) > 0;

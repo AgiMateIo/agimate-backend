@@ -22,13 +22,13 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Единое место листинга тулов экземпляра — источник определяется {@code definitionBinding}:
- * STATIC → рефлексия handler'а ({@code getTools(ctx)}); DYNAMIC → {@code connection_tools} по connectionId.
- * Сюда же делегируют agent- и gRPC-листинги, чтобы не дублировать ветвление.
+ * The single place that lists an instance's tools — the source is decided by {@code definitionBinding}:
+ * STATIC → reflection over the handler ({@code getTools(ctx)}); DYNAMIC → {@code connection_tools} by
+ * connectionId. Both the agent-facing and gRPC listings delegate here so the branching is not duplicated.
  *
- * <p>DYNAMIC-листинг скоупится по владельцу: {@code connectionId} (= connections.id) проверяется на
- * принадлежность {@code userId} — иначе IDOR (чужой экземпляр). STATIC-набор — определения уровня
- * типа коннектора, не привязаны к владельцу.
+ * <p>A DYNAMIC listing is scoped by owner: {@code connectionId} (= connections.id) is checked to belong
+ * to {@code userId}, otherwise it is an IDOR (someone else's instance). A STATIC set consists of
+ * connector-type-level definitions and is not tied to an owner.
  */
 @Slf4j
 @Service
@@ -46,7 +46,7 @@ public class ToolDefinitionService {
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + connectorCode));
 
         return switch (connector.getDefinitionBinding()) {
-            // STATIC без ToolProvider — легальный «канальный» коннектор без тулов (webchat/acp): пустой набор.
+            // STATIC with no ToolProvider is a legitimate «channel» connector without tools (webchat/acp): an empty set.
             case STATIC -> connectorRegistry.findCapability(connectorCode, ToolProvider.class)
                     .map(provider -> provider.getTools(ConnectorEnvFactory.listing(connectionId)))
                     .orElseGet(Map::of);
@@ -94,12 +94,12 @@ public class ToolDefinitionService {
         return getTools(userId, connection.getConnectorCode(), connectionId);
     }
 
-    /** Тулы динамического экземпляра из {@code connection_tools}; connectionId проверяется на владельца. */
+    /** Tools of a dynamic instance from {@code connection_tools}; connectionId is owner-checked. */
     private Map<String, ConnectorToolSpec> dynamicTools(UUID userId, UUID connectionId) {
         if (connectionId == null) {
             throw new BadRequestStatusException("This connector requires an instance connectionId (connectionId)");
         }
-        // Ownership-скоуп: экземпляр должен принадлежать вызывающему (иначе IDOR).
+        // Ownership scope: the instance must belong to the caller (otherwise it is an IDOR).
         connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
         Map<String, ConnectorToolSpec> tools = new LinkedHashMap<>();

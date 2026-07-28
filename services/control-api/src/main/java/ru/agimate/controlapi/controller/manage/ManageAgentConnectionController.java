@@ -16,11 +16,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Привязки «connection доступна агенту» ({@code agent_connections}) — гейт доступности
- * <b>внешних</b> экземпляров (telegram/mcp/app). Внутренние коннекторы (board/memory/time/media)
- * управляются скиллами ({@code AgentSkillPolicyService}), webchat/acp — своими сервисами; их
- * привязки здесь не создаются и не снимаются. Тулы/триггеры привязки уточняются через
- * {@link ManageAgentConnectionPolicyController}.
+ * The «this connection is available to this agent» bindings ({@code agent_connections}) — the
+ * availability gate for <b>external</b> instances (telegram/mcp/app). Internal connectors
+ * (board/memory/time/media) are managed by skills ({@code AgentSkillPolicyService}), and webchat/acp by
+ * their own services; their bindings are neither created nor removed here. A binding's tools and
+ * triggers are refined through {@link ManageAgentConnectionPolicyController}.
  */
 @RestController
 @RequestMapping(ManageAgentConnectionController.PATH)

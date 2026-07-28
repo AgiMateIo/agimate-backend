@@ -17,13 +17,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Хранилище persistent memory: cold (свёрнутый файл) и hot (журнал заметок).
+ * Store of persistent memory: cold (the consolidated file) and hot (the note journal).
  *
- * <p>Инварианты конкурентности:
+ * <p>Concurrency invariants:
  * <ul>
- *   <li>hot пишется только append'ом (INSERT) — конкурентные записи не конфликтуют;</li>
- *   <li>cold пишется через CAS по {@code version} — параллельная консолидация получит конфликт;</li>
- *   <li>запись cold и удаление заклеймленных заметок — в одной транзакции ({@link #updateMemory}).</li>
+ *   <li>hot is written by append (INSERT) only — concurrent writes never conflict;</li>
+ *   <li>cold is written through a CAS on {@code version} — a concurrent consolidation gets a conflict;</li>
+ *   <li>writing cold and deleting the claimed notes happen in one transaction ({@link #updateMemory}).</li>
  * </ul>
  */
 @Service
@@ -35,7 +35,7 @@ public class PersistentMemoryService {
     private final PersistentMemoryHotRepository hotRepository;
     private final AgentConnectionRepository agentConnectionRepository;
 
-    /** Все агенты, привязанные к memory-строке (их личные пространства обходят фоновые джобы). */
+    /** Every agent bound to the memory row (the background jobs walk their personal spaces). */
     public List<UUID> boundAgents(UUID connectionId) {
         return agentConnectionRepository.findActiveByConnectionId(connectionId).stream()
                 .map(AgentConnection::getAgentId)
@@ -50,7 +50,7 @@ public class PersistentMemoryService {
         return hotRepository.findByScopeIdOrderByCreatedAtAsc(scopeId);
     }
 
-    /** Добавляет заметку в hot (append). */
+    /** Appends a note to hot. */
     @Transactional
     public PersistentMemoryHot addNote(UUID scopeId, UUID userId, UUID sessionId, String content) {
         return hotRepository.save(PersistentMemoryHot.builder()
@@ -62,11 +62,11 @@ public class PersistentMemoryService {
     }
 
     /**
-     * Записывает cold (CAS по version) и, если задан {@code consolidationId}, в той же транзакции
-     * удаляет заметки этой партии. Конфликт версии → {@link ConnectorException} (агент перечитывает
-     * и повторяет; заметки остаются заклеймлены под его {@code consolidationId}).
+     * Writes cold (a CAS on version) and, when {@code consolidationId} is given, deletes that batch's
+     * notes in the same transaction. A version conflict → {@link ConnectorException} (the agent
+     * re-reads and retries; the notes stay claimed under its {@code consolidationId}).
      *
-     * @param expectedVersion ожидаемая версия cold; {@code null} допустимо только для первой записи
+     * @param expectedVersion the expected version of cold; {@code null} is acceptable only for the first write
      */
     @Transactional
     public void updateMemory(UUID scopeId, UUID userId, String content,
@@ -102,14 +102,14 @@ public class PersistentMemoryService {
         }
     }
 
-    /** Идёт ли у scope консолидация прямо сейчас (single-flight guard). */
+    /** Whether a consolidation is running for the scope right now (the single-flight guard). */
     public boolean hasInFlightConsolidation(UUID scopeId, LocalDateTime leaseThreshold) {
         return hotRepository.countInFlight(scopeId, leaseThreshold) > 0;
     }
 
     /**
-     * Клеймит несконсолидированные заметки scope под новую партию и возвращает их.
-     * Пустой список — клеймить нечего.
+     * Claims the scope's unconsolidated notes under a new batch and returns them. An empty list means
+     * there is nothing to claim.
      */
     @Transactional
     public List<PersistentMemoryHot> claimNotesForConsolidation(UUID scopeId, UUID consolidationId,

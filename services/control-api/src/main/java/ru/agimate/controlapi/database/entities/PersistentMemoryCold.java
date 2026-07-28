@@ -9,9 +9,9 @@ import ru.agimate.common.persistence.BaseEntity;
 import java.util.UUID;
 
 /**
- * Свёрнутая («cold») память — единственный MD-файл на пространство ({@code scope_id} = agentId:
- * память личная). Один ряд на пространство ({@code scope_id} уникален). Пишется только
- * консолидацией; конкурентные записи отсекаются оптимистической блокировкой по {@code version}.
+ * Consolidated («cold») memory — a single MD file per space ({@code scope_id} = agentId: memory is
+ * personal). One row per space ({@code scope_id} is unique). Written only by consolidation;
+ * concurrent writes are rejected by optimistic locking on {@code version}.
  */
 @Entity
 @Table(name = "persistent_memory_cold", uniqueConstraints = @UniqueConstraint(
@@ -29,7 +29,7 @@ public class PersistentMemoryCold extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** Носитель памяти: agentId (AGENT scope) или teamId (TEAM scope). */
+    /** Owner of the memory: agentId (AGENT scope) or teamId (TEAM scope). */
     @Column(name = "scope_id", nullable = false)
     private UUID scopeId;
 

@@ -24,27 +24,28 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Гейт медиа-инференса «модель как инструмент» (docs/connectors/media.md): резолв модели по
- * назначению ({@link LlmCredentialsResolver#resolveForCapability}) → chat/completions →
- * байты в файловый слой → учёт usage. Единственная точка, где медиа-коннектор касается
- * LLM-инфраструктуры: сам коннектор не знает ни про провайдеров, ни про ключи, ни про реестр.
+ * The gate of «model as a tool» media inference (docs/connectors/media.md): resolving the model by
+ * purpose ({@link LlmCredentialsResolver#resolveForCapability}) → chat/completions → bytes into the
+ * file layer → usage accounting. The only point where the media connector touches the LLM
+ * infrastructure: the connector itself knows nothing about providers, keys or the registry.
  *
- * <p>Ключ живёт только в кадре вызова (как в {@code GetLlmCredentials} — inline, без персиста).
- * Наружу — доменные исключения ({@link MediaInferenceException}, {@link NoCapableModelException},
- * {@link QuotaExceededException}, …); в {@code ConnectorException} их мапит коннектор.
+ * <p>The key lives only within the call's frame (as in {@code GetLlmCredentials} — inline, never
+ * persisted). What leaves are domain exceptions ({@link MediaInferenceException},
+ * {@link NoCapableModelException}, {@link QuotaExceededException}, …); mapping them into a
+ * {@code ConnectorException} is the connector's job.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class MediaInferenceService {
 
-    /** Префикс {@code call_id} в llm_usage_log: неймспейс от {@code llm_call}-воркера. */
+    /** Prefix of {@code call_id} in llm_usage_log: a namespace apart from the {@code llm_call} worker. */
     static final String USAGE_CALL_PREFIX = "media:";
-    /** Потолок входной картинки: data-URI буферизуется в heap целиком. */
+    /** Ceiling on an input picture: a data URI is buffered in the heap in full. */
     private static final long MAX_INPUT_IMAGE_BYTES = 20L * 1024 * 1024;
-    /** Потолок на вызов: при нескольких входах в heap лежат все картинки сразу, вызовы параллельны. */
+    /** Ceiling per call: with several inputs every picture sits in the heap at once, and calls run in parallel. */
     private static final long MAX_INPUT_TOTAL_BYTES = 25L * 1024 * 1024;
-    /** Больше 4 референсов не тянет ни одна из известных image-моделей — режем до HTTP. */
+    /** No known image model handles more than 4 references — we cut it off before the HTTP call. */
     private static final int MAX_INPUT_IMAGES = 4;
     private static final String DEFAULT_DESCRIBE_PROMPT = "Describe this image in detail.";
 
@@ -54,23 +55,24 @@ public class MediaInferenceService {
     private final LlmUsageService llmUsageService;
 
     /**
-     * Идентичность вызова: владелец файлов/квот + агент-инициатор + ран-инициатор (для привязки
-     * usage к рану; {@code null} вне рана) + идемпотентный id вызова.
+     * Identity of a call: the owner of the files and quotas + the initiating agent + the initiating run
+     * (to attribute usage to a run; {@code null} outside a run) + an idempotent call id.
      */
     public record MediaCall(UUID userId, UUID agentId, UUID runId, String callId) {
     }
 
     /**
-     * Результат генерации. {@code file == null} — модель ответила текстом без картинки
-     * (safety-отказ и т.п.); {@code text} отдаётся агенту как есть, это результат, не ошибка.
+     * Result of a generation. {@code file == null} means the model answered with text and no picture
+     * (a safety refusal and the like); {@code text} is handed to the agent as-is — that is a result,
+     * not an error.
      */
     public record ImageResult(StoredFile file, String text) {
     }
 
     /**
-     * Генерация по промпту: без исходников — с нуля, с одним — редактирование, с несколькими —
-     * композиция (модель получает их в порядке списка). Результат — файл в storage с провенансом
-     * {@code media:<model>} и дефолтным TTL.
+     * Generation from a prompt: with no sources — from scratch, with one — editing, with several —
+     * composition (the model receives them in list order). The result is a file in storage with the
+     * provenance {@code media:<model>} and the default TTL.
      */
     public ImageResult generateImage(MediaCall call, String prompt, List<String> sourceFileIds) {
         List<String> sources = sourceFileIds == null ? List.of() : sourceFileIds;
@@ -96,7 +98,7 @@ public class MediaInferenceService {
         return new ImageResult(stored, text);
     }
 
-    /** Зрение по файлу: описание/ответ на вопрос об изображении {@code fileId}. */
+    /** Vision over a file: a description of, or an answer about, the image {@code fileId}. */
     public String describeImage(MediaCall call, String fileId, String question) {
         ResolvedLlm resolved = credentialsResolver.resolveForCapability(
                 call.agentId(), call.userId(), LlmPurpose.VISION);
@@ -110,7 +112,7 @@ public class MediaInferenceService {
         return MediaInferenceHttp.messageText(response);
     }
 
-    /** Итоговое тело запроса: extra_body резолва под низом, ядро (model/messages) побеждает. */
+    /** The final request body: the resolution's extra_body underneath, with the core (model/messages) winning. */
     private static Map<String, Object> requestBody(ResolvedLlm resolved, Map<String, Object> core) {
         Map<String, Object> withModel = new LinkedHashMap<>(core);
         withModel.put("model", resolved.model());
@@ -118,9 +120,10 @@ public class MediaInferenceService {
     }
 
     /**
-     * Промпт + картинки частями одного user-сообщения, в порядке списка: их нумерация в промпте
-     * («image 1», «image 2») держится на этом порядке. Бюджет суммарного размера считается по
-     * фактически прочитанным байтам — перебор рвёт вызов до HTTP, а не после буферизации всего.
+     * The prompt plus the pictures as parts of a single user message, in list order: their numbering in
+     * the prompt («image 1», «image 2») relies on that order. The total size budget is counted over the
+     * bytes actually read — an overrun aborts the call before HTTP rather than after buffering
+     * everything.
      */
     private List<Map<String, Object>> contentParts(MediaCall call, String prompt, List<String> fileIds) {
         if (fileIds.size() > MAX_INPUT_IMAGES) {
@@ -142,7 +145,7 @@ public class MediaInferenceService {
         return parts;
     }
 
-    /** Байты входной картинки с её mime; в data-URI разворачивается в момент сборки запроса. */
+    /** Bytes of an input picture together with its mime; it is expanded into a data URI when the request is assembled. */
     private record LoadedImage(String mime, byte[] bytes) {
         String dataUri() {
             return "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(bytes);
@@ -150,8 +153,8 @@ public class MediaInferenceService {
     }
 
     /**
-     * Входная картинка: ownership через {@code open(userId, fileId)} (чужой/протухший файл →
-     * {@code StoredFileNotFoundException}), затем проверки mime и размера.
+     * An input picture: ownership through {@code open(userId, fileId)} (a foreign or expired file →
+     * {@code StoredFileNotFoundException}), then the mime and size checks.
      */
     private LoadedImage loadImage(MediaCall call, String fileId) {
         FileContent content = fileStorageService.open(call.userId(), fileId);
@@ -172,9 +175,9 @@ public class MediaInferenceService {
     }
 
     /**
-     * Учёт токенов тем же {@code llm_usage_log}/счётчиками, что и агентный цикл: image-модели за
-     * chat/completions тарифицируют картинку output-токенами. Ответ без {@code usage} — нули с
-     * warn'ом (факт вызова в логе остаётся, недосчёт виден).
+     * Token accounting through the same {@code llm_usage_log} and counters as the agent loop: over
+     * chat/completions, image models bill a picture as output tokens. A response with no {@code usage}
+     * gives zeroes plus a warning (the fact of the call stays in the log, and the shortfall is visible).
      */
     private void recordUsage(MediaCall call, ResolvedLlm resolved, Map<String, Object> response) {
         Usage usage = MediaInferenceHttp.usage(response);

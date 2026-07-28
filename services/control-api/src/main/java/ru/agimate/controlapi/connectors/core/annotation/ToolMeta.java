@@ -5,8 +5,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Одна пара ключ-значение для MCP {@code _meta}. Значения только строковые — ограничение
- * Java-аннотаций (нельзя {@code Map}/произвольный JSON). Для богатого {@code _meta} место в БД/рантайме.
+ * One key-value pair for MCP {@code _meta}. Values are strings only — a limitation of Java
+ * annotations (no {@code Map} or arbitrary JSON). Rich {@code _meta} belongs in the database or at
+ * runtime.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({})

@@ -15,11 +15,11 @@ import java.time.Instant;
 import java.util.Base64;
 
 /**
- * Подписанные ссылки на файлы для браузера (docs/connectors/files.md): {@code Authorization}-header
- * в {@code <img src>} не подставить, поэтому доступ авторизуется capability-ссылкой —
- * HMAC-SHA256 по {@code fileId|exp} с коротким TTL. Владение проверяется в момент выдачи ссылки
- * (parts отдаются только владельцу webchat-сессии); сама ссылка до истечения {@code exp}
- * эквивалентна праву чтения одного файла.
+ * Signed file links for the browser (docs/connectors/files.md): an {@code Authorization} header
+ * cannot be put into {@code <img src>}, so access is authorised by a capability link — HMAC-SHA256
+ * over {@code fileId|exp} with a short TTL. Ownership is checked when the link is issued (parts are
+ * handed only to the owner of the webchat session); until {@code exp} the link itself is equivalent
+ * to the right to read one file.
  */
 @Slf4j
 @Component
@@ -38,9 +38,9 @@ public class SignedFileUrlService {
     void initKey() {
         String secret = props.getUrlSecret();
         if (secret == null || secret.isBlank()) {
-            // Вне dev-профилей сюда не дойти: секрет обязателен (SecurityGuardConfig, fail-fast).
-            // В dev случайный per-boot ключ даёт рабочие ссылки без настройки; после рестарта
-            // выданные ссылки протухают — фронт перечитывает историю и получает свежие.
+            // Outside the dev profiles this is unreachable: the secret is mandatory (SecurityGuardConfig,
+            // fail-fast). In dev a random per-boot key gives working links with no configuration; after a restart
+            // the issued links expire — the frontend re-reads the history and gets fresh ones.
             byte[] random = new byte[32];
             new SecureRandom().nextBytes(random);
             key = new SecretKeySpec(random, HMAC_ALGORITHM);
@@ -50,13 +50,13 @@ public class SignedFileUrlService {
         key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_ALGORITHM);
     }
 
-    /** Относительный подписанный URL ({@code /files/agf_…?exp=…&sig=…}); origin добавляет фронт. */
+    /** A relative signed URL ({@code /files/agf_…?exp=…&sig=…}); the origin is added by the frontend. */
     public String issue(String fileId) {
         long exp = Instant.now().plus(props.getUrlTtl()).getEpochSecond();
         return PATH_PREFIX + fileId + "?exp=" + exp + "&sig=" + sign(fileId, exp);
     }
 
-    /** Валидна ли подпись и не истёк ли срок; причины отказа намеренно неразличимы для клиента. */
+    /** Whether the signature is valid and unexpired; the reasons for refusal are deliberately indistinguishable to the client. */
     public boolean verify(String fileId, long exp, String sig) {
         if (sig == null || Instant.now().getEpochSecond() > exp) {
             return false;

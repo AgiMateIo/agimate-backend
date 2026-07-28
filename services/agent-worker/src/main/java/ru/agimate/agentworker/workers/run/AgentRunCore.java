@@ -83,18 +83,18 @@ public class AgentRunCore {
                       String context) {
         ToolRegistry registry = prepared.registry();
 
-        // Канонический журнал ходов (agent_run_turns): по записи на каждое сообщение, без капов и
-        // для всех ранов. Обычный (не durable) вызов — проекция уже-durable данных, дедуп по
-        // (run_id, turn_index) на бэке. Пишется рядом с канальной проекцией, не вместо неё.
+        // The canonical turn journal (agent_run_turns): one record per message, uncapped and for every run.
+        // An ordinary (non-durable) call — a projection of already-durable data, deduplicated by
+        // (run_id, turn_index) on the backend. Written alongside the channel projection, not instead of it.
         TurnLog turns = new TurnLog(client, agentId, runId);
 
-        // Один наблюдатель событий рана — ран-обвязка единственный писатель backend-side-записей:
-        //  • onStart — снимок стартового промпта (то, что ушло в первый LLM-вызов) в agent_runs.prompt,
-        //    один раз перед циклом; дальнейшие ходы уже пишет TurnLog. First-write-wins на бэке.
-        //  • onMessages — каждый ход отдельным вызовом (v2.1a): assistant с вызовами до dispatch →
-        //    TOOL_CALL (+преамбула/thinking), затем tool-результаты → отдельная TOOL_RESULT-запись;
-        //    историю следующих ранов бэк соберёт из этой пары в нативные tool_use/tool_result.
-        //  • onUsage — учёт расхода токенов, best-effort, идемпотентно по call_id (реплей дедупит).
+        // A single observer of the run's events — the run wiring is the only writer of backend-side records:
+        //  • onStart — the snapshot of the starting prompt (what went into the first LLM call) into
+        //    agent_runs.prompt, once before the loop; later turns are written by TurnLog. First-write-wins on the backend.
+        //  • onMessages — every turn as a separate call (v2.1a): the assistant with its calls before the dispatch →
+        //    TOOL_CALL (plus the preamble/thinking), then the tool results → a separate TOOL_RESULT entry;
+        //    the backend assembles the history of later runs out of that pair into native tool_use/tool_result.
+        //  • onUsage — token usage accounting, best-effort, idempotent by call_id (a replay deduplicates).
         SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
             @Override
             public void onStart(List<AgentChatMessage> startMessages) {
@@ -137,8 +137,9 @@ public class AgentRunCore {
     }
 
     /**
-     * Репорт токенов вызова на бэк ({@code reportLlmUsage}). Пропускается без call_id (ключ
-     * идемпотентности). Best-effort: сбой логируется и не валит ран — учёт это наблюдаемость.
+     * Reports the call's tokens to the backend ({@code reportLlmUsage}). Skipped without a call_id
+     * (the idempotency key). Best-effort: a failure is logged and does not fail the run — accounting
+     * is observability.
      */
     private void reportUsage(String agentId, String runId, LlmUsage usage) {
         if (usage.callId() == null || usage.callId().isBlank()) {
@@ -155,10 +156,11 @@ public class AgentRunCore {
     }
 
     /**
-     * Снимок стартового промпта рана ({@code savePrompt} → {@code agent_runs.prompt}): список
-     * сообщений ровно как он ушёл в первый LLM-вызов (system + history + триггер с ephemeral).
-     * Сериализуется как есть (вложения — ссылки, не байты). Best-effort: сбой логируется и не
-     * валит ран — снимок это наблюдаемость. Бэк пишет first-write-wins, реплей не перезатирает.
+     * Snapshot of the run's starting prompt ({@code savePrompt} → {@code agent_runs.prompt}): the
+     * message list exactly as it went into the first LLM call (system + history + trigger with its
+     * ephemeral prefix). Serialised as-is (attachments as references, not bytes). Best-effort: a
+     * failure is logged and does not fail the run — the snapshot is observability. The backend writes
+     * first-write-wins, so a replay does not overwrite it.
      */
     private void reportPrompt(String agentId, String runId, List<AgentChatMessage> messages) {
         try {
@@ -178,7 +180,7 @@ public class AgentRunCore {
             return initialRequest;
         }
         String base = initialRequest.text() != null ? initialRequest.text() : "";
-        // Вложения переносим на префиксированный ход — иначе «зрение» терялось бы при memory-notes.
+        // Attachments move onto the prefixed turn — otherwise «vision» would be lost during memory notes.
         return AgentChatMessage.user(prefix + "\n\n" + base, initialRequest.parts());
     }
 
@@ -188,7 +190,7 @@ public class AgentRunCore {
      * {@code WorkerControl.SendMessage}.
      */
     public void reportFailure(MessageLog messages, AgentRunAborted exc) {
-        // Best-effort: канал может быть недоступен, но системный репорт ниже уйти обязан.
+        // Best-effort: the channel may be unreachable, but the system report below must go out regardless.
         if (exc.userNotice() != null && !exc.userNotice().isEmpty()) {
             try {
                 messages.error(exc.userNotice());
@@ -214,10 +216,11 @@ public class AgentRunCore {
     }
 
     /**
-     * Системная деталь исхода рана на бэк durable-шагом (crash-replay не дублирует репорт) и
-     * best-effort: падение самого репорта не должно перекрыть исход рана. {@code type} задаёт
-     * уровень на бэке — MESSAGE (ожидаемый abort → INFO) или ERROR (инфра-сбой). Результат шага —
-     * boolean: proto-ответ в чекпоинт класть нельзя.
+     * The system detail of a run's outcome, sent to the backend as a durable step (a crash replay
+     * does not duplicate the report) and best-effort: a failure of the report itself must not mask
+     * the run's outcome. {@code type} sets the level on the backend — MESSAGE (an expected abort →
+     * INFO) or ERROR (an infra failure). The step's result is a boolean: a proto response must never
+     * go into a checkpoint.
      */
     private void sendSystemReport(WorkerMessageType type, String detail) {
         try {

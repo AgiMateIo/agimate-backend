@@ -13,10 +13,10 @@ import java.util.UUID;
 
 public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
 
-    // REQUIRES_NEW: вызовы идут и с голых gRPC-потоков (@Modifying без TX Hibernate отклоняет),
-    // и из readOnly-транзакций фасадов (AgentContextGrpcService) — своя короткая пишущая TX
-    // корректна из любого контекста.
-    /** Признак жизни рана: любой его RPC продлевает метку активности (только пока RUNNING). */
+    // REQUIRES_NEW: the calls arrive both from bare gRPC threads (Hibernate rejects @Modifying with no TX) and
+    // from the facades' readOnly transactions (AgentContextGrpcService) — a short writing TX of its own is
+    // correct from either context.
+    /** The run's sign of life: any of its RPCs extends the activity mark (only while RUNNING). */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Modifying
     @Query("""
@@ -28,8 +28,8 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
     int touchActivity(@Param("runId") UUID runId, @Param("now") LocalDateTime now);
 
     /**
-     * Сборщик залипших ранов: RUNNING без признаков жизни дольше порога → FAILED
-     * (воркер умер молча — без SaveMessage(ERROR)). Наблюдаемость, никого не блокирует.
+     * Sweeper for stuck runs: RUNNING with no sign of life for longer than the threshold → FAILED
+     * (the worker died silently, without a SaveMessage(ERROR)). Observability; it blocks nobody.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

@@ -11,12 +11,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Фасад time-коннектора: текущее время + планирование отложенных задач агента. Тулы и скрытая
- * таска-диспетчер живут в {@link TimeToolService}; единственный триггер — {@code due} (agent-facing {@code time.due})
- * (срок запланированной задачи), адресуемый агенту-инициатору.
+ * Facade of the time connector: the current time plus scheduling of an agent's deferred jobs. The
+ * tools and the hidden dispatcher job live in {@link TimeToolService}; the single trigger is
+ * {@code due} (agent-facing {@code time.due}) — a scheduled job's deadline — addressed to the
+ * initiating agent.
  *
- * <p><b>Владелец данных — вызывающий агент</b>: задачи фильтруются/отменяются по {@code env.agentId},
- * строка задачи несёт снапшот инициатора (см. чек-лист осей в docs/connectors/architecture.md).
+ * <p><b>The data owner is the calling agent</b>: jobs are filtered and cancelled by
+ * {@code env.agentId}, and the job's row carries a snapshot of its initiator (see the axis checklist
+ * in docs/architecture/connectors.md).
  */
 @Component
 public class TimeConnectorService extends BaseConnectorHandler
@@ -46,7 +48,7 @@ public class TimeConnectorService extends BaseConnectorHandler
 
     @Override
     public Map<String, TriggerSpec> getTriggers() {
-        // PROMPT легитимен: data.prompt собирает наш fire() из строки job'а, авторство — сам агент.
+        // PROMPT is legitimate here: data.prompt is assembled by our own fire() from the job's row, so the text is authored by the agent itself.
         return Map.of(TimeToolService.DUE_TRIGGER, new TriggerSpec(
                 "A scheduled task created via time.schedule is due", List.of("prompt"),
                 ContextDirectives.builder()

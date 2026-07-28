@@ -50,7 +50,7 @@ for the selected language falls back to `ru` with a warning rather than failing 
 (`TriggerSpec.description`) are written in English, because the model reads them and no translation
 bundle covers them. `@Tool(title)` is not used at all: display titles for tools are an open UI
 question, and having them on one connector only made listings uneven. See
-`docs/connectors/architecture.md`.
+`docs/architecture/connectors.md`.
 
 The one path by which a Russian tool text could reach a user is the platform connector relaying
 `get_connector` output; the English `platform` skill instructs the agent to retell rather than quote.

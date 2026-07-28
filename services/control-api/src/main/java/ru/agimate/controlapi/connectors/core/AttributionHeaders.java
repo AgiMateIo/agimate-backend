@@ -9,24 +9,24 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Единый источник брендовой атрибуции AgiMate в исходящих вызовах коннекторов. Зеркалит
- * app-identity агента (agent-worker {@code ModelFactory#requestHeaders}) на стороне тулов: внешняя
- * сторона видит стабильный {@code User-Agent} вместо дефолтного JDK/OkHttp «Java/xx», а
- * OpenAI-совместимые LLM-провайдеры (media-тул) — ту же OpenRouter app-attribution, что и агент
+ * The single source of AgiMate brand attribution in connectors' outbound calls. Mirrors the agent's
+ * app identity (agent-worker {@code ModelFactory#requestHeaders}) on the tool side: the far end sees
+ * a stable {@code User-Agent} instead of the default JDK/OkHttp «Java/xx», and OpenAI-compatible LLM
+ * providers (the media tool) see the same OpenRouter app attribution the agent sends
  * ({@link #llmHeaders(String)}).
  *
- * <p>Только бренд продукта. Идентичность вызывающего (agentId/userId/runId из {@link ConnectorEnv})
- * во внешние заголовки намеренно не кладём — это утечка внутренних id третьим сторонам без
- * потребителя. Для трассировки на своих хопах это делать отдельно и осознанно.
+ * <p>Product branding only. The caller's identity (agentId/userId/runId from {@link ConnectorEnv})
+ * is deliberately kept out of outbound headers — that would leak internal ids to third parties with
+ * nobody to consume them. Tracing across our own hops is a separate, deliberate decision.
  */
 @Component
 public class AttributionHeaders {
 
     private static final String PRODUCT_URL = "https://agimate.io";
-    /** Фолбэк, когда build-info недоступен (запуск из IDE / тесты без Gradle-сборки). */
+    /** Fallback for when build-info is unavailable (running from an IDE, or tests without a Gradle build). */
     private static final String FALLBACK_VERSION = "dev";
 
-    /** OpenRouter — единственный провайдер, принимающий app-attribution; детектится по хосту baseUrl. */
+    /** OpenRouter is the only provider that accepts app attribution; detected by the baseUrl's host. */
     private static final String OPENROUTER_HOST = "openrouter.ai";
     private static final String TITLE = "AgiMate";
     private static final String CATEGORY = "cloud-agent";
@@ -39,28 +39,28 @@ public class AttributionHeaders {
         this(resolveVersion(buildProperties));
     }
 
-    /** Явная версия — для тестов и не-Spring конструирования. */
+    /** Explicit version — for tests and non-Spring construction. */
     public AttributionHeaders(String version) {
         this.version = version;
         this.userAgent = "AgiMate/" + version + " (+" + PRODUCT_URL + ")";
     }
 
-    /** Голая версия продукта — для мест, где нужна только она (например MCP {@code clientInfo.version}). */
+    /** The bare product version — for places that need only that (e.g. MCP {@code clientInfo.version}). */
     public String version() {
         return version;
     }
 
-    /** Брендовый {@code User-Agent}: {@code AgiMate/<version> (+https://agimate.io)}. */
+    /** Branded {@code User-Agent}: {@code AgiMate/<version> (+https://agimate.io)}. */
     public String userAgent() {
         return userAgent;
     }
 
     /**
-     * Заголовки app-атрибуции для исходящего вызова к OpenAI-совместимому LLM-провайдеру — паритет
-     * с агентом ({@code ModelFactory#requestHeaders}): брендовый {@code User-Agent} всегда, плюс
-     * OpenRouter app-attribution ({@code HTTP-Referer} + title/categories), когда цель — OpenRouter
-     * (у него {@code HTTP-Referer} — основной идентификатор приложения, потому без него title/category
-     * бессмысленны).
+     * App attribution headers for an outbound call to an OpenAI-compatible LLM provider — parity with
+     * the agent ({@code ModelFactory#requestHeaders}): the branded {@code User-Agent} always, plus
+     * OpenRouter app attribution ({@code HTTP-Referer} + title/categories) when the target is
+     * OpenRouter (there {@code HTTP-Referer} is the application's primary identifier, which is why
+     * title and category are meaningless without it).
      */
     public Map<String, String> llmHeaders(String baseUrl) {
         Map<String, String> headers = new HashMap<>();

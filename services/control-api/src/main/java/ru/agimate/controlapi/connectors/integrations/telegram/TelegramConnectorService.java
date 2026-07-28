@@ -26,8 +26,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Фасад Telegram-коннектора: credentials/webhooks/триггеры. Тулы и таски живут в
- * {@link TelegramToolService}, диспатч — в {@link BaseConnectorHandler}.
+ * Facade of the Telegram connector: credentials, webhooks, triggers. The tools and jobs live in
+ * {@link TelegramToolService}, and the dispatch in {@link BaseConnectorHandler}.
  */
 @Slf4j
 @Component
@@ -92,7 +92,7 @@ public class TelegramConnectorService extends BaseConnectorHandler
         return Map.of("token", "Bot API token");
     }
 
-    /** Long-poll нужен только в polling-режиме; в webhook-режиме фоновых тасок нет. */
+    /** Long polling is only needed in polling mode; in webhook mode there are no background jobs. */
     @Override
     public Map<String, JobSpec> getJobs() {
         return isPollingMode() ? super.getJobs() : Map.of();
@@ -154,13 +154,13 @@ public class TelegramConnectorService extends BaseConnectorHandler
         if (!mediaService.hasMedia(trigger)) {
             return trigger;
         }
-        // Webhook hot path не расшифровывает credentials — токен для скачивания достаём лениво,
-        // только когда во входящем есть медиа.
+        // The webhook hot path does not decrypt the credentials — we fetch the download token lazily, only when
+        // the incoming message carries media.
         String token = webhookToken(env);
         return mediaService.materialize(token, env.userId(), env.connectionId(), trigger);
     }
 
-    /** Токен бота для скачивания медиа на webhook-пути; {@code null} → materialize деградирует. */
+    /** The bot's token for downloading media on the webhook path; {@code null} → materialisation degrades. */
     private String webhookToken(ConnectorEnv env) {
         try {
             Connection connection = connectionRepository.findByIdNotDeleted(UUID.fromString(env.connectionId()))

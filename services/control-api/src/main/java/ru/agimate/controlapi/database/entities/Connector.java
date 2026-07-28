@@ -30,24 +30,24 @@ public class Connector extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    /** Поля credentials integration-коннектора: код поля → человекочитаемое название. */
+    /** Credentials fields of an integration connector: field code → human-readable name. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "credential_fields", columnDefinition = "JSONB")
     private Map<String, String> credentialFields;
 
-    // --- Traits (функциональные оси), разложены по колонкам — рантайм читает их напрямую. ---
+    // --- Traits (the functional axes), spread across columns — the runtime reads them directly. ---
 
-    /** Кто исполняет вызов тула: BACKEND (in-proc) / DEVICE (push устройству) / LOOPBACK (агент). */
+    /** Who executes a tool call: BACKEND (in-proc) / DEVICE (pushed to the device) / LOOPBACK (the agent). */
     @Enumerated(EnumType.STRING)
     @Column(name = "execution_kind", columnDefinition = "TEXT")
     private ExecutionKind executionKind;
 
-    /** Откуда тулы/триггеры: STATIC (рефлексия handler'а) / DYNAMIC ({@code connection_tools}). */
+    /** Where tools and triggers come from: STATIC (reflection over the handler) / DYNAMIC ({@code connection_tools}). */
     @Enumerated(EnumType.STRING)
     @Column(name = "definition_binding", columnDefinition = "TEXT")
     private DefinitionBinding definitionBinding;
 
-    /** Агрегат traits (для API/бутстрапа); рантайм читает отдельные поля. */
+    /** The traits aggregate (for the API and the bootstrap); the runtime reads the individual fields. */
     public ConnectorTraits traits() {
         return new ConnectorTraits(executionKind, definitionBinding);
     }
@@ -57,17 +57,17 @@ public class Connector extends BaseEntity {
         this.definitionBinding = c.definitionBinding();
     }
 
-    /** Integration-коннектор = есть поля credentials (заменяет проверку по бывшему ConnectorType). */
+    /** An integration connector = it has credentials fields (this replaces the check on the former ConnectorType). */
     public boolean isIntegration() {
         return credentialFields != null && !credentialFields.isEmpty();
     }
 
     /**
-     * Экземплярность — выводимая ось (единственная точка деривации): пользователь приносит
-     * идентичность экземпляра — credentials (интеграции) или регистрацию устройства (DEVICE).
-     * {@code true} → connections создаются явно, по одной на экземпляр (sub_code, секреты);
-     * {@code false} → одна строка-режим на пользователя, доступ выдают скиллы.
-     * Согласованность с типом хендлера гарантирует fail-fast инвариант в {@code ConnectorBootstrap}.
+     * Instance-bearing is a derived axis (the single point of derivation): the user brings the
+     * instance's identity — credentials (integrations) or a device registration (DEVICE).
+     * {@code true} → connections are created explicitly, one per instance (sub_code, secrets);
+     * {@code false} → a single mode row per user, with access granted by skills. Consistency with
+     * the handler's type is guaranteed by a fail-fast invariant in {@code ConnectorBootstrap}.
      */
     public boolean isInstanceBearing() {
         return isIntegration() || executionKind == ExecutionKind.DEVICE;

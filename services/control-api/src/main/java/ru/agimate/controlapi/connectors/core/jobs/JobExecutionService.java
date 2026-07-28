@@ -18,12 +18,12 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Исполняет одну итерацию строки {@code connector_jobs}: находит handler по
- * {@code connector_code}, собирает {@link ConnectorEnv} (для integration — со свежими
- * credentials по {@code connectionId}) и диспатчит {@code name}/{@code args}.
+ * Executes one iteration of a {@code connector_jobs} row: finds the handler by
+ * {@code connector_code}, assembles a {@link ConnectorEnv} (for an integration — with fresh
+ * credentials for the {@code connectionId}) and dispatches {@code name}/{@code args}.
  *
- * <p>Вызывается из virtual thread'а scheduler'а вне транзакции — long-poll может держать
- * поток десятки секунд, коннект к БД на это время не занимается.
+ * <p>Called from the scheduler's virtual thread outside a transaction — a long poll can hold the
+ * thread for tens of seconds, and a database connection is not occupied for that time.
  */
 @Slf4j
 @Component
@@ -44,9 +44,9 @@ public class JobExecutionService {
 
     private ConnectorEnv buildEnv(ConnectorHandler handler, ConnectorJob row) {
         if (handler instanceof IntegrationConnectorHandler) {
-            // Credentials загружаются свежими на каждый запуск — обновление токена
-            // подхватывается без рестарта. Нет/выключены — ошибка в last_error и retry:
-            // в норме listener удаляет такие строки, так что это сигнал аномалии.
+            // The credentials are loaded fresh on every run — a token refresh is picked up without a restart.
+            // Missing or disabled ones mean an error into last_error plus a retry: normally the listener deletes
+            // such rows, so this is a signal of an anomaly.
             Connection connection = connectionRepository
                     .findByIdNotDeleted(parseIdentity(row))
                     .filter(Connection::isActive)
@@ -54,9 +54,9 @@ public class JobExecutionService {
                             "Connection missing or disabled: " + row.getConnectionId()));
             return envFactory.forConnection(connection, null, null, null);
         }
-        // Полный контекст инициатора (userId/agentId/channelId/sessionId сохранены в строке при
-        // планировании) — динамическая таска агента исполняется так же, как если бы он вызвал тулу сам.
-        // runId у джобы нет: это отложенное исполнение вне рана-инициатора.
+        // The initiator's full context (userId/agentId/channelId/sessionId were saved into the row at scheduling
+        // time) — an agent's dynamic job executes exactly as if the agent had called the tool itself. A job has no
+        // runId: this is deferred execution outside the initiating run.
         return envFactory.internal(
                 row.getConnectionId(), row.getUserId(), row.getAgentId(), null, row.getChannelId(),
                 row.getSessionId());

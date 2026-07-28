@@ -2,10 +2,10 @@ package ru.agimate.controlapi.connectors.internal.astro.calc;
 
 import java.util.Map;
 
-/** Таблицы орбисов для разных типов расчёта. */
+/** Orb tables for the different kinds of computation. */
 public enum OrbPolicy {
 
-    /** Наталь: широкие орбисы, +2° если участвует светило (Солнце/Луна). */
+    /** Natal: wide orbs, +2° when a luminary (the Sun or the Moon) is involved. */
     NATAL(Map.of(
             AspectType.CONJUNCTION, 8.0,
             AspectType.OPPOSITION, 8.0,
@@ -13,7 +13,7 @@ public enum OrbPolicy {
             AspectType.SQUARE, 7.0,
             AspectType.SEXTILE, 6.0), 2.0),
 
-    /** Транзиты: узкий плоский орбис. */
+    /** Transits: a narrow flat orb. */
     TRANSIT(Map.of(
             AspectType.CONJUNCTION, 3.0,
             AspectType.OPPOSITION, 3.0,
@@ -21,7 +21,7 @@ public enum OrbPolicy {
             AspectType.SQUARE, 3.0,
             AspectType.SEXTILE, 3.0), 0.0),
 
-    /** Синастрия. */
+    /** Synastry. */
     SYNASTRY(Map.of(
             AspectType.CONJUNCTION, 6.0,
             AspectType.OPPOSITION, 6.0,

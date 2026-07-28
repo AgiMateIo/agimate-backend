@@ -20,8 +20,8 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.nullToEmpty;
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.toJsonBytes;
 
 /**
- * Маппинг частей контекста рана: домен {@code service.runcontext} → proto {@code RunContext}.
- * Собирается в {@code AgentContextGrpcService.getRunContext}.
+ * Mapping of the parts of a run's context: the domain {@code service.runcontext} → proto
+ * {@code RunContext}. Assembled in {@code AgentContextGrpcService.getRunContext}.
  */
 @UtilityClass
 public class RunContextMapper {

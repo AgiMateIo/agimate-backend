@@ -11,9 +11,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Единственное место сборки {@link ConnectorEnv} из сущностей платформы.
- * Outbound-credentials расшифровываются из {@code secrets} по {@code connection.secretId}
- * (AAD-привязка к {@code connection.id}).
+ * The only place a {@link ConnectorEnv} is assembled from platform entities. Outbound credentials are
+ * decrypted from {@code secrets} by {@code connection.secretId} (with the AAD bound to
+ * {@code connection.id}).
  */
 @Component
 @RequiredArgsConstructor
@@ -22,18 +22,18 @@ public class ConnectorEnvFactory {
     private final SecretRepository secretRepository;
     private final SecretService secretService;
 
-    /** Полная env коннектора-экземпляра: с расшифровкой credentials (тулы, таски). */
+    /** The full env of a connector instance: with credentials decrypted (tools, jobs). */
     public ConnectorEnv forConnection(Connection connection, UUID agentId, UUID runId, UUID channelId) {
-        // Webhook-секрет тулам не нужен — не расшифровываем на каждый dispatch.
+        // Tools do not need the webhook secret — we do not decrypt it on every dispatch.
         return build(connection, decryptCredentials(connection), agentId, runId, channelId, null);
     }
 
-    /** Env с уже известной мапой credentials — lifecycle-вызовы (setup/remove webhook). */
+    /** Env with an already-known credentials map — lifecycle calls (setup/remove webhook). */
     public ConnectorEnv withCredentials(Connection connection, Map<String, String> decrypted, UUID agentId) {
         return build(connection, decrypted, agentId, null, null, revealWebhookSecret(connection));
     }
 
-    /** Webhook hot path: валидация/нормализация не требует расшифрованных credentials. */
+    /** Webhook hot path: validation and normalisation need no decrypted credentials. */
     public ConnectorEnv forWebhook(Connection connection) {
         return build(connection, Map.of(), null, null, null, revealWebhookSecret(connection));
     }
@@ -44,9 +44,9 @@ public class ConnectorEnvFactory {
     }
 
     /**
-     * Env для листинга тулов/блоков экземпляра: только адресация {@code connectionId}
-     * (динамические коннекторы читают per-instance кэш), без вызывающего и без credentials.
-     * Статический — зависимостей (secrets) не требует.
+     * Env for listing an instance's tools or blocks: addressing by {@code connectionId} only (dynamic
+     * connectors read a per-instance cache), with no caller and no credentials. A static connector
+     * needs no dependencies (secrets) at all.
      */
     public static ConnectorEnv listing(UUID connectionId) {
         return new ConnectorEnv(connectionId == null ? null : connectionId.toString(),

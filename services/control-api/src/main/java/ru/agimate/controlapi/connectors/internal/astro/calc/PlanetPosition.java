@@ -1,12 +1,12 @@
 package ru.agimate.controlapi.connectors.internal.astro.calc;
 
 /**
- * Геоцентрическая эклиптическая позиция тела (эклиптика даты, тропический зодиак).
+ * Geocentric ecliptic position of a body (ecliptic of date, tropical zodiac).
  *
- * @param body       имя тела ("Sun".."Pluto")
- * @param longitude  эклиптическая долгота, [0, 360)
- * @param latitude   эклиптическая широта, градусы
- * @param retrograde ретроградно ли видимое движение (для Sun/Moon всегда false)
+ * @param body       the body's name ("Sun".."Pluto")
+ * @param longitude  ecliptic longitude, [0, 360)
+ * @param latitude   ecliptic latitude, in degrees
+ * @param retrograde whether the apparent motion is retrograde (always false for the Sun and Moon)
  */
 public record PlanetPosition(String body, double longitude, double latitude, boolean retrograde) {
 

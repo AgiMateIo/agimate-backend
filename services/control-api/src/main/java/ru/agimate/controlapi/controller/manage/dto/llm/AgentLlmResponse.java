@@ -43,7 +43,7 @@ public record AgentLlmResponse(
         );
     }
 
-    /** Эффективная модель агента без привязок: платформенный fallback (id не адресуем юзером). */
+    /** The agent's effective model with no bindings: the platform fallback (its id is not addressable by the user). */
     public static AgentLlmResponse platformFallback(LlmProvider platformProvider) {
         return new AgentLlmResponse(
                 platformProvider.getDefaultModel(),

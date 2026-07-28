@@ -14,8 +14,8 @@ public interface AgentTransport {
     AgentType getAgentType();
 
     /**
-     * Доставляет триггер агенту. {@code agent} берётся из {@code agentRun.getAgent()}.
-     * {@code channels}/{@code inbound} заданы для канальных триггеров, {@code null} — для прямых.
+     * Delivers a trigger to an agent. {@code agent} is taken from {@code agentRun.getAgent()}.
+     * {@code channels}/{@code inbound} are set for channel triggers and {@code null} for direct ones.
      */
     void deliverTrigger(AgentRun agentRun, Trigger trigger, Channels channels, InboundMessage inbound);
 

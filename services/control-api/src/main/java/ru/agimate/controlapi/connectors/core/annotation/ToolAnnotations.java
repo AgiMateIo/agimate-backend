@@ -5,25 +5,25 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * MCP {@code ToolAnnotations} — поведенческие хинты для агента. Это именно хинты (advisory):
- * клиент им доверять не обязан. Дефолты — пессимистичные, как в спецификации MCP: считаем, что
- * тула пишет, разрушительна, неидемпотентна и ходит во внешний мир, пока не сказано обратное.
+ * MCP {@code ToolAnnotations} — behavioural hints for the agent. They are hints (advisory): a client
+ * is not obliged to trust them. The defaults are pessimistic, as in the MCP specification: assume the
+ * tool writes, is destructive, is non-idempotent and reaches the outside world until told otherwise.
  *
- * <p>{@code @Target({})} — используется только как вложенное значение в {@link Tool}, отдельно не вешается.
+ * <p>{@code @Target({})} — used only as a nested value inside {@link Tool}, never on its own.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({})
 public @interface ToolAnnotations {
 
-    /** Тула не меняет состояние → агент может звать свободно/параллельно/повторно. */
+    /** The tool changes no state → the agent may call it freely, in parallel and repeatedly. */
     boolean readOnlyHint() default false;
 
-    /** Может выполнять разрушительные изменения (delete/overwrite). Значимо только при {@code !readOnly}. */
+    /** May perform destructive changes (delete/overwrite). Meaningful only when {@code !readOnly}. */
     boolean destructiveHint() default true;
 
-    /** Повторный вызов с теми же аргументами не добавляет эффекта. */
+    /** A repeat call with the same arguments adds no further effect. */
     boolean idempotentHint() default false;
 
-    /** Взаимодействует с внешним миром (сеть/внешние системы) vs замкнутый домен. */
+    /** Interacts with the outside world (network, external systems) vs a closed domain. */
     boolean openWorldHint() default true;
 }

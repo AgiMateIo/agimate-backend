@@ -7,8 +7,8 @@ import ru.agimate.controlapi.storage.FileIds;
 import java.time.LocalDateTime;
 
 /**
- * Метаданные файла, загруженного пользователем для webchat-сообщения. {@code fileId} — ключ,
- * который фронт кладёт в {@code parts} при отправке (OpenAPI, /control/manage/webchat).
+ * Metadata of a file a user uploaded for a webchat message. {@code fileId} is the key the frontend puts
+ * into {@code parts} when sending (OpenAPI, /control/manage/webchat).
  */
 @Schema(description = "Uploaded webchat file metadata")
 public record WebchatFileResponse(

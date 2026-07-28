@@ -71,9 +71,8 @@ public class TelegramUtils {
     }
 
     /**
-     * Нормализует один Telegram update (уже распарсенный) в {@link Trigger}.
-     * Используется и webhook-путём ({@code normalizeInbound}), и long-poll'ом — без
-     * промежуточной сериализации в JSON и обратно.
+     * Normalises one already-parsed Telegram update into a {@link Trigger}. Shared by the webhook
+     * path ({@code normalizeInbound}) and by long polling — no intermediate round-trip through JSON.
      */
     @SuppressWarnings("unchecked")
     public static Trigger normalizeUpdate(Map<String, Object> update, String connectionId) {

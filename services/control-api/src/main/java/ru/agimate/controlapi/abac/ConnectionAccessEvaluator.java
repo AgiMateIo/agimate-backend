@@ -16,16 +16,16 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Единый ABAC-эвалуатор поверх binding (заменяет {@code ToolPolicyDbEvaluatorService} +
- * {@code TriggerPolicyDbEvaluatorService}). Модель — <b>дефолт-allow с гейтом по binding</b>:
+ * The single ABAC evaluator on top of a binding (it replaces {@code ToolPolicyDbEvaluatorService} +
+ * {@code TriggerPolicyDbEvaluatorService}). The model is <b>default-allow gated by the binding</b>:
  * <ol>
- *   <li>нет активного {@link AgentConnection} (agent↔connection) → <b>deny</b> (коннектор недоступен);</li>
- *   <li>правило {@code (binding, kind, name)} по точному имени → его effect;</li>
- *   <li>иначе binding-wide правило ({@code name IS NULL}) → его effect;</li>
- *   <li>иначе → <b>allow</b> (дефолт).</li>
+ *   <li>no active {@link AgentConnection} (agent↔connection) → <b>deny</b> (the connector is unavailable);</li>
+ *   <li>a rule {@code (binding, kind, name)} matching the exact name → its effect;</li>
+ *   <li>otherwise a binding-wide rule ({@code name IS NULL}) → its effect;</li>
+ *   <li>otherwise → <b>allow</b> (the default).</li>
  * </ol>
- * {@code params_filter} победившего правила переносится в {@link AccessDecision} и применяется на
- * месте вызова (там есть аргументы/параметры).
+ * The winning rule's {@code params_filter} is carried into {@link AccessDecision} and applied at the
+ * call site (where the arguments and parameters are).
  */
 @Slf4j
 @Service
@@ -47,7 +47,7 @@ public class ConnectionAccessEvaluator {
         return cache.get(key, k -> doEvaluate(agentId, connectionId, kind, name));
     }
 
-    /** Удобный вход с connection_id-строкой (= connections.id). Невалидный UUID → deny. */
+    /** A convenience entry taking the connection_id as a string (= connections.id). An invalid UUID → deny. */
     public AccessDecision evaluate(UUID agentId, String connectionIdStr, PolicyKind kind, String name) {
         UUID connectionId;
         try {

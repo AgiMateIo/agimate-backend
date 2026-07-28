@@ -31,28 +31,28 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Тулы sheets-коннектора: таблицы агента с объявленной схемой.
+ * Tools of the sheets connector: an agent's tables with a declared schema.
  *
- * <p>Пространство листов личное — владелец резолвится из {@link ConnectorEnv} как {@code agentId}
- * (AGENT scope, как у persistent memory). Все ошибки — {@link ConnectorException}: их текст доходит
- * до агента дословно и написан так, чтобы он починился без участия человека (перечисляет
- * существующие листы, колонки, допустимые операторы).
+ * <p>The space of sheets is personal — the owner is resolved from {@link ConnectorEnv} as
+ * {@code agentId} (AGENT scope, as with persistent memory). Every error is a
+ * {@link ConnectorException}: its text reaches the agent verbatim and is written so the agent can fix
+ * itself without a human (it lists the existing sheets, the columns, the permitted operators).
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class SheetsToolService {
 
-    /** Импорт разбирает и заливает до 5000 строк — дольше обычного тула, но не минуты. */
+    /** An import parses and loads up to 5000 rows — longer than an ordinary tool, but not minutes. */
     private static final int IMPORT_TIMEOUT_SECONDS = 300;
-    /** Экспорт выгружает лист целиком, без капа выдачи агенту. */
+    /** An export dumps the whole sheet, without the cap applied to an agent. */
     private static final int EXPORT_ROW_CAP = 50_000;
 
     private final SheetsService sheetsService;
     private final SheetChartService chartService;
     private final SheetFileService fileService;
 
-    // ===== схема =====
+    // ===== schema =====
 
     @Tool(name = "list_sheets",
             description = "List your sheets with their columns (name, title, type, unit) and row counts. "
@@ -97,7 +97,7 @@ public class SheetsToolService {
         return sheetsService.deleteSheet(scopeId(), sheet);
     }
 
-    // ===== строки =====
+    // ===== rows =====
 
     @Tool(name = "add_rows",
             description = "Append rows to a sheet. Each row is an object keyed by column name; omit a "
@@ -131,7 +131,7 @@ public class SheetsToolService {
         return sheetsService.deleteRows(scopeId(), sheet, ids);
     }
 
-    // ===== запросы =====
+    // ===== queries =====
 
     @Tool(name = "query",
             description = "Read rows with optional filtering and sorting. Filter conditions are ANDed; "
@@ -168,7 +168,7 @@ public class SheetsToolService {
         return sheetsService.aggregate(scopeId(), sheet, groupBy, bucket, metrics, filter);
     }
 
-    // ===== вывод =====
+    // ===== output =====
 
     @Tool(name = "render_chart",
             description = "Draw a PNG chart and return it as a file id plus a numeric summary of every "
@@ -244,13 +244,13 @@ public class SheetsToolService {
         return new ImportResult(created.name(), created.title(), created.columns(), (int) created.rows());
     }
 
-    // ===== контекст =====
+    // ===== context =====
 
     private static ConnectorEnv env() {
         return ConnectorEnvHolder.current();
     }
 
-    /** Пространство листов личное: владелец — вызывающий агент. */
+    /** The space of sheets is personal: the owner is the calling agent. */
     private static UUID scopeId() {
         ConnectorEnv env = env();
         if (env.agentId() == null) {

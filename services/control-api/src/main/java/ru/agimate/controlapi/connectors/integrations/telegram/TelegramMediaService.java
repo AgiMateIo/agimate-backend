@@ -17,13 +17,14 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Материализация входящих файлов Telegram: скачивает фото/документ через Bot API и сохраняет в
- * файловый слой, заменяя сырые дескрипторы ({@code photo}/{@code document}) в data триггера на
- * {@code parts} со ссылками {@code agf_}. Делается ОДИН раз на ingest-границе (webhook/long-poll),
- * до персиста триггера — {@code handleInput} остаётся детерминированной функцией от данных.
+ * Materialisation of incoming Telegram files: downloads a photo or document through the Bot API and
+ * saves it into the file layer, replacing the raw descriptors ({@code photo}/{@code document}) in the
+ * trigger's data with {@code parts} carrying {@code agf_} references. Done ONCE at the ingest
+ * boundary (webhook/long-poll), before the trigger is persisted — so {@code handleInput} stays a
+ * deterministic function of the data.
  *
- * <p>Деградация: любой сбой скачивания → триггер возвращается без изменений (handler отдаст текстовую
- * заглушку, как раньше), событие не теряется. Токен в логи/исключения не попадает.
+ * <p>Degradation: any download failure → the trigger is returned unchanged (the handler produces a
+ * text stub, as before) and the event is not lost. The token never reaches the logs or exceptions.
  */
 @Slf4j
 @Component
@@ -33,21 +34,21 @@ public class TelegramMediaService {
     private static final String PHOTO_RECEIVED = "photo_received";
     private static final String DOCUMENT_RECEIVED = "document_received";
     private static final String PHOTO_MIME = "image/jpeg";
-    /** Bot API отдаёт ботам файлы примерно до этого размера — выше не пытаемся скачивать. */
+    /** The Bot API hands bots files up to roughly this size — beyond it we do not attempt a download. */
     private static final long DOWNLOAD_LIMIT_BYTES = 20L * 1024 * 1024;
 
     private final TelegramApiClient telegramApiClient;
     private final FileStorageService fileStorageService;
 
-    /** Есть ли во входящем триггере медиа, требующее скачивания (гейт перед расшифровкой токена). */
+    /** Whether the incoming trigger carries media that needs downloading (the gate before decrypting the token). */
     public boolean hasMedia(Trigger trigger) {
         String name = trigger.name();
         return PHOTO_RECEIVED.equals(name) || DOCUMENT_RECEIVED.equals(name);
     }
 
     /**
-     * Скачивает медиа триггера и возвращает копию с {@code data.parts}; для не-медиа или при сбое —
-     * исходный триггер без изменений.
+     * Downloads the trigger's media and returns a copy with {@code data.parts}; for non-media or on
+     * failure it returns the original trigger unchanged.
      */
     @SuppressWarnings("unchecked")
     public Trigger materialize(String token, UUID userId, String connectionId, Trigger trigger) {
@@ -72,7 +73,7 @@ public class TelegramMediaService {
             newData.put("parts", List.of(part));
             return trigger.withData(newData);
         } catch (Exception e) {
-            // Только класс исключения: RestClient может вложить URL с токеном в message/cause.
+            // The exception's class only: RestClient may embed a URL containing the token into the message or cause.
             log.warn("Failed to materialize Telegram media for connection {}: {}",
                     connectionId, e.getClass().getSimpleName());
             return trigger;
@@ -116,7 +117,7 @@ public class TelegramMediaService {
         return part;
     }
 
-    /** Самый крупный {@code PhotoSize} (последний/max по file_size) — его и подаём модели. */
+    /** The largest {@code PhotoSize} (the last one, max by file_size) — that is what we feed to the model. */
     private static Descriptor photoDescriptor(List<Map<String, Object>> photos) {
         if (photos == null || photos.isEmpty()) {
             return null;
@@ -142,7 +143,7 @@ public class TelegramMediaService {
         return new Descriptor(fileId.toString(), mime, name);
     }
 
-    /** Дескриптор одного файла к скачиванию. */
+    /** Descriptor of one file to download. */
     private record Descriptor(String fileId, String mime, String name) {
     }
 }

@@ -14,9 +14,9 @@ public record ToolCallPayload(
 ) {
     public static ToolCallPayload from(ToolCallLog log) {
         return new ToolCallPayload(
-                // Корреляция «control-api ↔ устройство» — по PK лога (глобально уникален). external_id
-                // уникален лишь в паре (agent_id, external_id): при нескольких агентах на одном app он
-                // коллизирует, и эхо-результат устройства нельзя было бы однозначно привязать к логу.
+                // The «control-api ↔ device» correlation goes by the log's PK (globally unique). external_id is
+                // unique only within the pair (agent_id, external_id): with several agents on one app it collides,
+                // and the device's echoed result could not be tied to its log unambiguously.
                 log.getId().toString(),
                 log.getConnectorCode(),
                 log.getConnectionId(),

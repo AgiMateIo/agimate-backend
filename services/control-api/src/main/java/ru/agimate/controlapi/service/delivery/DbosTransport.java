@@ -37,13 +37,13 @@ public class DbosTransport implements AgentTransport {
         String agentId = agent.getId().toString();
         String runId = agentRun.getId().toString();
 
-        // Протокол v2: payload минимален — всё остальное (блоки, тулы, история, каналы)
-        // воркер забирает одним GetRunContext(agent_id, trigger_id) по этому runId.
+        // Protocol v2: the payload is minimal — everything else (blocks, tools, history, channels) the worker
+        // fetches with a single GetRunContext(agent_id, trigger_id) using this runId.
         WorkerRunMessage message = new WorkerRunMessage(agentId, runId);
 
-        // Run-stage энкьюится сразу (роутера нет): workflow_id == runId, партиция — сессия
-        // (single-writer-per-session — контрактное свойство очереди; direct-ран без сессии
-        // получает собственную партицию по runId). Дедуп доставки — по workflow_id.
+        // The run stage is enqueued straight away (there is no router): workflow_id == runId, and the partition
+        // is the session (single-writer-per-session is a contractual property of the queue; a direct run with no
+        // session gets its own partition, by runId). Delivery is deduplicated by workflow_id.
         String partitionKey = agentRun.getSessionId() != null
                 ? agentRun.getSessionId().toString()
                 : runId;
@@ -65,7 +65,7 @@ public class DbosTransport implements AgentTransport {
                 partitionKey);
     }
 
-    /** Push не нужен: воркер сам забирает результат тулы поллингом {@code GetToolResult} по gRPC. */
+    /** No push is needed: the worker collects a tool's result itself, by polling {@code GetToolResult} over gRPC. */
     @Override
     public void deliverToolResult(Agent agent, IToolResult toolResult) {
         log.debug("tool result '{}' for agent '{}' awaits the worker's GetToolResult poll",

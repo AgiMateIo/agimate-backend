@@ -55,11 +55,10 @@ public final class AppKeyUtils {
     }
 
     /**
-     * Generate a new app key with the specified prefix.
+     * The full key is returned exactly once — only {@code keyId} and {@code secretHash} are meant to
+     * be stored, so a lost key is reissued, never recovered.
      *
-     * @param prefix key prefix (exactly 4 lowercase letters, e.g. "agnt")
-     * @return generated key with fullKey, keyId, and secretHash
-     * @throws IllegalArgumentException if prefix format is invalid
+     * @param prefix exactly 4 lowercase letters, e.g. "agnt"
      */
     public static GeneratedAppKey generate(String prefix) {
         if (prefix == null || !PREFIX_PATTERN.matcher(prefix).matches()) {
@@ -93,14 +92,9 @@ public final class AppKeyUtils {
     }
 
     /**
-     * Parse an app key string into its components.
-     * <p>
-     * Uses simple positional parsing (no separators).
-     * Format: {prefix}{keyid}{payload} all parts have fixed lengths.
-     *
-     * @param key the full app key string
-     * @return parsed key components
-     * @throws IllegalArgumentException if the key format is invalid
+     * Splits a key by fixed positions. Structural validation only — a parsed key is not an
+     * authenticated one; that takes {@link #verifyChecksum} and then {@link #verifySecret}.
+     * Malformed input throws rather than returning empty.
      */
     public static ParsedAppKey parse(String key) {
         if (key == null || key.isBlank()) {
@@ -150,40 +144,24 @@ public final class AppKeyUtils {
         return new ParsedAppKey(prefix, keyId, secret, checksum);
     }
 
-    /**
-     * Verify the CRC32 checksum of a parsed app key.
-     *
-     * @param parsed the parsed app key
-     * @return true if checksum is valid
-     */
+    /** Catches typos without a database round-trip. Not authentication — see {@link #verifySecret}. */
     public static boolean verifyChecksum(ParsedAppKey parsed) {
         byte[] expected = calculateChecksum(parsed.prefix(), parsed.keyId(), parsed.secret());
         return Arrays.equals(expected, parsed.checksum());
     }
 
-    /**
-     * Verify the secret against a stored SHA256 hash.
-     *
-     * @param secret     the secret bytes from parsed key
-     * @param storedHash the SHA256 hex hash from database
-     * @return true if secret matches the hash
-     */
+    /** The actual authentication step: compares the presented secret with the stored hash. */
     public static boolean verifySecret(byte[] secret, String storedHash) {
         if (secret == null || storedHash == null) {
             return false;
         }
-        // Constant-time: сравнение хэшей не должно течь по таймингу.
+        // Constant-time: comparing hashes must not leak through timing.
         return MessageDigest.isEqual(
                 hashSecret(secret).getBytes(StandardCharsets.UTF_8),
                 storedHash.toLowerCase(Locale.ROOT).getBytes(StandardCharsets.UTF_8));
     }
 
-    /**
-     * Calculate SHA256 hash of secret and return as hex string.
-     *
-     * @param secret the secret bytes
-     * @return lowercase hex string of SHA256 hash
-     */
+    /** Lowercase hex SHA-256 — the form stored in {@code *.key_hash} columns. */
     public static String hashSecret(byte[] secret) {
         return CryptoUtils.sha256Hex(secret);
     }

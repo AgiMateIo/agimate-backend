@@ -10,9 +10,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Триггер динамического экземпляра коннектора (device-app). Информационная таблица: набор
- * открывается в рантайме (device link) и хранится здесь для проверки доступных триггеров.
- * {@code params_schema} — сырым JSON-текстом. Бизнес-ключ {@code (connection_id, name)} — partial
+ * A trigger of a dynamic connector instance (device app). An informational table: the set is
+ * discovered at runtime (device link) and stored here so the available triggers can be checked.
+ * {@code params_schema} is raw JSON text. The business key {@code (connection_id, name)} is partial
  * unique {@code WHERE deleted_at IS NULL}.
  */
 @Entity
@@ -42,7 +42,7 @@ public class ConnectionTrigger extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    /** Сырая JSON Schema параметров триггера; {@code null} — отсутствует. */
+    /** Raw JSON Schema of the trigger's parameters; {@code null} — absent. */
     @Column(name = "params_schema", columnDefinition = "TEXT")
     private String paramsSchema;
 

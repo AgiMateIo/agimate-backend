@@ -5,9 +5,9 @@ import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 
 /**
- * Astro — внутренний коннектор настоящих астрономических расчётов для агентов-астрологов:
- * натальная карта, транзиты, синастрия. Эфемериды — Astronomy Engine (MIT), точность
- * ±1 угловая минута; тулы см. {@link AstroToolService}.
+ * Astro — the internal connector for genuine astronomical computation, for astrologer agents: natal
+ * chart, transits, synastry. The ephemerides come from Astronomy Engine (MIT), accurate to ±1 arc
+ * minute; for the tools see {@link AstroToolService}.
  */
 @Component
 public class AstroConnectorService extends BaseConnectorHandler implements InternalConnectorHandler {

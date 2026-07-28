@@ -3,8 +3,8 @@ package ru.agimate.controlapi.service.runcontext;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 
 /**
- * Тул в составе контекста рана: спека + адресация экземпляра для маршрутизации ExecuteTool
- * и построения LLM-имени ({@code {namespace}.{name}}) на воркере.
+ * A tool within a run's context: the spec plus the instance's addressing, for routing ExecuteTool and
+ * for building the LLM-facing name ({@code {namespace}.{name}}) at the worker.
  */
 public record RunTool(
         ConnectorToolSpec spec,

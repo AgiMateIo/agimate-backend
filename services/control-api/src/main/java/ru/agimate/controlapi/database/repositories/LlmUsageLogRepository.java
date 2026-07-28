@@ -13,10 +13,10 @@ import java.util.UUID;
 public interface LlmUsageLogRepository extends JpaRepository<LlmUsageLog, UUID> {
 
     /**
-     * Идемпотентная вставка записи журнала: повтор по {@code call_id} молча игнорируется.
-     * {@code id}/{@code created_at}/{@code updated_at} — DB-дефолты.
+     * Idempotent insert of a journal record: a repeat by {@code call_id} is silently ignored.
+     * {@code id}/{@code created_at}/{@code updated_at} come from database defaults.
      *
-     * @return 1 — новая строка (нужно инкрементировать счётчики), 0 — дубликат репорта
+     * @return 1 — a new row (the counters need incrementing), 0 — a duplicate report
      */
     @Modifying
     @Query(value = """

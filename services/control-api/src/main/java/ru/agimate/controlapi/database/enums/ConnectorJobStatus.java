@@ -1,14 +1,14 @@
 package ru.agimate.controlapi.database.enums;
 
 /**
- * Состояние строки {@code connector_jobs} в pull‑based scheduler'е.
+ * State of a {@code connector_jobs} row in the pull-based scheduler.
  * <ul>
- *   <li>{@link #PENDING} — задача в очереди, ждёт момента {@code next_run_at}.</li>
- *   <li>{@link #RUNNING} — текущая нода claim'нула строку и выполняет её. {@code lease_until}
- *       — до какого момента lease считается живым; по истечении строка считается «зависшей»
- *       и подхватывается повторно (crash‑recovery).</li>
- *   <li>{@link #COMPLETED} — одноразовая ({@code ONETIME}) задача успешно выполнена; строка
- *       больше не подхватывается. Upsert по бизнес‑ключу возвращает её в {@code PENDING}.</li>
+ *   <li>{@link #PENDING} — queued, waiting for its {@code next_run_at}.</li>
+ *   <li>{@link #RUNNING} — the current node has claimed the row and is executing it.
+ *       {@code lease_until} is how long the lease is considered alive; past that the row counts as
+ *       stuck and is picked up again (crash recovery).</li>
+ *   <li>{@link #COMPLETED} — a one-shot ({@code ONETIME}) job finished successfully; the row is no
+ *       longer picked up. An upsert by the business key returns it to {@code PENDING}.</li>
  * </ul>
  */
 public enum ConnectorJobStatus {

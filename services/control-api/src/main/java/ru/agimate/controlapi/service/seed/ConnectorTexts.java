@@ -6,19 +6,19 @@ import ru.agimate.controlapi.config.ContentProperties;
 import java.util.Properties;
 
 /**
- * Локализация текстов каталога коннекторов: {@code seed/<lang>/connectors.properties} с ключами
- * {@code <code>.name} и {@code <code>.description}.
+ * Localisation of the connector catalogue's texts: {@code seed/<lang>/connectors.properties} with the
+ * keys {@code <code>.name} and {@code <code>.description}.
  *
- * <p>Русский живёт в коде ({@code connectorName()}/{@code connectorDescription()}) и служит
- * последним фолбэком, поэтому файла для {@link ContentLanguage#DEFAULT} нет — переводы добавляются
- * только для остальных языков. Асимметрия сознательная: иначе один и тот же текст лежал бы и в Java,
- * и в properties, и разъезжался бы при правке одного из них.
+ * <p>Russian lives in the code ({@code connectorName()}/{@code connectorDescription()}) and serves as
+ * the last fallback, which is why there is no file for {@link ContentLanguage#DEFAULT} — translations
+ * are added only for the other languages. The asymmetry is deliberate: otherwise the same text would
+ * sit both in Java and in the properties and would drift apart when one of them was edited.
  *
- * <p>Каталог {@code connectors} перезаписывается на каждом старте ({@code ConnectorBootstrap}),
- * поэтому смена {@code app.content.language} переводит его без миграций — в отличие от пресетов и
- * скилов, где язык фиксируется первым сидингом. Тексты промпта живут отдельно в {@link PromptTexts}:
- * у них другой читатель (модель, не пользователь) и другая цена ошибки — правка меняет поведение
- * агента, а не подпись в интерфейсе.
+ * <p>The {@code connectors} catalogue is rewritten on every start ({@code ConnectorBootstrap}), so
+ * changing {@code app.content.language} translates it with no migrations — unlike presets and skills,
+ * where the language is fixed by the first seeding. The prompt's texts live separately in
+ * {@link PromptTexts}: they have a different reader (the model, not the user) and a different cost of
+ * error — an edit changes the agent's behaviour, not a caption in the interface.
  */
 @Component
 public class ConnectorTexts {
@@ -29,12 +29,12 @@ public class ConnectorTexts {
         this.texts = SeedTextBundle.load(contentProperties.getLanguage(), "connectors.properties");
     }
 
-    /** Отображаемое имя коннектора; нет перевода — значение из кода. */
+    /** The connector's display name; no translation — the value from the code. */
     public String name(String connectorCode, String fallback) {
         return texts.getProperty(connectorCode + ".name", fallback);
     }
 
-    /** Описание коннектора для каталога подключений; нет перевода — значение из кода. */
+    /** The connector's description for the connections catalogue; no translation — the value from the code. */
     public String description(String connectorCode, String fallback) {
         return texts.getProperty(connectorCode + ".description", fallback);
     }

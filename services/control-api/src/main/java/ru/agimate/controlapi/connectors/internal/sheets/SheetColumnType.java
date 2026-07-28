@@ -6,14 +6,15 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 
 /**
- * Тип колонки листа. Объявленный тип — то, что отличает лист от свободной сетки ячеек Excel: он
- * известен заранее, поэтому каст значения в SQL-агрегации безопасен, а не «повезёт/не повезёт».
+ * Type of a sheet's column. The declared type is what separates a sheet from Excel's free grid of
+ * cells: it is known up front, so casting a value in SQL aggregation is safe rather than a matter of
+ * luck.
  */
 public enum SheetColumnType {
 
     NUMBER, TEXT, DATE, BOOL;
 
-    /** Имя в wire-формате тулов (нижний регистр). */
+    /** The name in the tools' wire format (lower case). */
     public String wire() {
         return name().toLowerCase();
     }

@@ -5,10 +5,11 @@ import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 
 /**
- * Фасад platform-коннектора: тулы управления платформой живут в {@link PlatformToolService}
- * (диспатч рефлексией через {@link BaseConnectorHandler}). Триггеров/джоб нет — коннектор чисто
- * командный. Привязывается к мета-агенту скиллом {@code platform-admin} ({@code connectorCodes:
- * [platform]}); владелец операций — {@code env.userId} (человек-владелец агента).
+ * Facade of the platform connector: the tools that manage the platform live in
+ * {@link PlatformToolService} (dispatched by reflection through {@link BaseConnectorHandler}). There
+ * are no triggers and no jobs — the connector is purely imperative. It is bound to the meta-agent by
+ * the skill {@code platform-admin} ({@code connectorCodes: [platform]}); the owner of the operations
+ * is {@code env.userId} (the human who owns the agent).
  */
 @Component
 public class PlatformConnectorService extends BaseConnectorHandler implements InternalConnectorHandler {

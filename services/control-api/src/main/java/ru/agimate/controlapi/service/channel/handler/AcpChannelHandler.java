@@ -18,21 +18,22 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Код-handler ACP-каналов: входящие приходят готовым текстом из WebSocket-эндпоинта {@code /acp}
- * (триггер {@code message_received}), исходящие доставляются без тулов — JSON-RPC фреймы в живое
- * соединение через {@link AcpSessionRegistry}. Маппинг вывода агента на ACP {@code session/update}:
- * THINKING → {@code agent_thought_chunk}, TOOL_CALL → {@code tool_call} (сразу completed —
- * пер-тул статусов у бэка нет), TEXT/answer → {@code agent_message_chunk}; answer дополнительно
- * завершает висящий {@code session/prompt}, error — завершает его JSON-RPC ошибкой.
+ * The code handler for ACP channels: inbound arrives as ready text from the WebSocket endpoint
+ * {@code /acp} (the trigger {@code message_received}), and outbound is delivered without tools — as
+ * JSON-RPC frames into the live connection, through {@link AcpSessionRegistry}. The agent's output
+ * maps onto ACP {@code session/update} as follows: THINKING → {@code agent_thought_chunk}, TOOL_CALL
+ * → {@code tool_call} (immediately completed — the backend has no per-tool statuses), TEXT/answer →
+ * {@code agent_message_chunk}; an answer additionally completes the pending {@code session/prompt},
+ * and an error completes it with a JSON-RPC error.
  */
 @Component
 @RequiredArgsConstructor
 public class AcpChannelHandler implements ChannelHandler {
 
     public static final String NAME = "acp";
-    /** Код ACP-коннектора — единый источник истины (у канальных коннекторов совпадает с {@link #NAME}). */
+    /** Code of the ACP connector — the single source of truth (for channel connectors it equals {@link #NAME}). */
     public static final String CONNECTOR_CODE = NAME;
-    /** Триггер входящего сообщения из IDE — единый источник истины для коннектора и оркестратора. */
+    /** Trigger for an incoming message from the IDE — the single source of truth for the connector and the orchestrator. */
     public static final String TRIGGER_MESSAGE_RECEIVED = "message_received";
 
     private static final String STREAM_PROGRESS = "progress";
@@ -89,10 +90,11 @@ public class AcpChannelHandler implements ChannelHandler {
                                                   OutboundDispatch dispatch) {
         String stream = dispatch.stream();
         if (STREAM_ERROR.equals(stream)) {
-            // Терминальный нотис рана (квота/лимит шагов/ошибка модели) — это сообщение агента
-            // пользователю, а не сбой протокола: показываем текстом и штатно завершаем turn.
-            // Ошибку session/prompt слать нельзя — реальные сбои сюда не доходят (обрыв control-api
-            // не создаёт SaveMessage), а код -32000 в ACP = auth_required → Zed «Authentication Required».
+            // A run's terminal notice (a quota, a step limit, a model error) is a message from the agent to the
+            // user rather than a protocol failure: we show it as text and complete the turn normally. Sending a
+            // session/prompt error is not an option — real failures never reach here (a control-api disconnect
+            // creates no SaveMessage), and the code -32000 in ACP means auth_required → Zed shows «Authentication
+            // Required».
             sessionRegistry.sendUpdate(dispatch.sessionId(),
                     contentUpdate("agent_message_chunk", outbound.text()));
             sessionRegistry.completePrompt(dispatch.sessionId(), AcpSessionRegistry.STOP_END_TURN);
@@ -102,7 +104,7 @@ public class AcpChannelHandler implements ChannelHandler {
             sessionRegistry.sendUpdate(dispatch.sessionId(), progressUpdate(dispatch, outbound.text()));
             return List.of();
         }
-        // answer (или сообщение без роли — по контракту OutboundDispatch это answer)
+        // answer (or a message with no role — by the OutboundDispatch contract that is an answer)
         sessionRegistry.sendUpdate(dispatch.sessionId(), contentUpdate("agent_message_chunk", outbound.text()));
         sessionRegistry.completePrompt(dispatch.sessionId(), AcpSessionRegistry.STOP_END_TURN);
         return List.of();

@@ -9,88 +9,92 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Обработчик канала: мультимодальный «кодек» между коннектором и агентом.
+ * Channel handler: the multimodal «codec» between a connector and an agent.
  *
- * <p>Каждая реализация — отдельный bean с уникальным {@link #name()}, имя пишется в
- * {@code channels.channel_handler}. Поведение задаётся кодом, данные конкретного канала —
- * в {@link ChannelConfig} (connectorCode + connectionId + settings).
+ * <p>Every implementation is a separate bean with a unique {@link #name()}, and that name is written
+ * into {@code channels.channel_handler}. Behaviour is set by code, while a particular channel's data
+ * lives in {@link ChannelConfig} (connectorCode + connectionId + settings).
  *
- * <p>Тул-вызов, который handler вернул из {@link #handleOutput}, исполняется вызывающим через
- * штатную подсистему вызова тулов, поэтому ABAC-политики соблюдаются. {@link #listOfTriggers}
- * и {@link #listOfTools} нужны, чтобы при создании канала сгенерировать соответствующие
- * {@code AgentTriggerPolicy}/{@code AgentToolPolicy}.
+ * <p>A tool call returned by a handler from {@link #handleOutput} is executed by the caller through
+ * the regular tool-calling subsystem, so the ABAC policies are respected. {@link #listOfTriggers} and
+ * {@link #listOfTools} exist so that creating a channel can generate the corresponding
+ * {@code AgentConnectionPolicy} rules ({@code PolicyKind.TRIGGER}/{@code TOOL}).
  *
- * <p>Внутри слоя бросать только {@code ConnectorException}.
+ * <p>Inside the layer throw only {@code ConnectorException}.
  */
 public interface ChannelHandler {
 
-    /** Уникальное в системе имя обработчика; пишется в {@code channels.channel_handler}. */
+    /** System-wide unique name of the handler; written into {@code channels.channel_handler}. */
     String name();
 
     /**
-     * JSON Schema (object) полей {@code config} — чтобы UI отрисовал форму с описаниями
-     * и пользователь корректно заполнил настройки (в т.ч. параметры фильтрации).
+     * JSON Schema (object) of the {@code config} fields — so the UI can render a form with
+     * descriptions and the user fills the settings in correctly (the filtering parameters included).
      */
     default Map<String, Object> getConfigFields() {
         return Map.of("type", "object", "properties", Map.of(), "required", List.of());
     }
 
     /**
-     * Входящие триггеры, которые обрабатывает канал с данным {@code config}.
-     * Биндятся на {@link ChannelConfig#connectorCode()}/{@link ChannelConfig#connectionId()} канала
-     * при генерации {@code AgentTriggerPolicy}.
+     * Incoming triggers a channel with this {@code config} handles. They are bound to the channel's
+     * {@link ChannelConfig#connectorCode()}/{@link ChannelConfig#connectionId()} when the
+     * {@code AgentConnectionPolicy} rules of kind {@code TRIGGER} are generated.
      */
     List<TriggerDefinition> listOfTriggers(ChannelConfig config);
 
     /**
-     * Тулы (connector+connectionId+name), которые handler может вызвать на исходящих —
-     * для генерации {@code AgentToolPolicy}. Reply-цель может отличаться от connector/connectionId канала.
+     * Tools (connector+connectionId+name) the handler may call on outbound — for generating the
+     * {@code AgentConnectionPolicy} rules of kind {@code TOOL}. The reply target may differ from the
+     * channel's connector/connectionId.
      */
     List<ToolDefinition> listOfTools(ChannelConfig config);
 
-    /** Валидация {@code config} при создании/обновлении канала; бросает {@code ConnectorException} при ошибке. */
+    /** Validation of {@code config} when a channel is created or updated; throws {@code ConnectorException} on error. */
     void validateConfig(ChannelConfig config);
 
-    /** Приводит триггер к унифицированному {@link InboundMessage}; {@code empty} — триггер отфильтрован/пропущен. */
+    /** Reduces a trigger to the unified {@link InboundMessage}; {@code empty} — the trigger was filtered out or skipped. */
     Optional<InboundMessage> handleInput(ChannelConfig config, Trigger trigger);
 
     /**
-     * Доставлять ли промежуточный вывод агента (progress) в этот канал. {@code true} → роутер
-     * заполняет progress-роль в {@code Channels} тем же каналом, и worker шлёт progress-строки
-     * через {@link #handleOutput} (с {@code stream="progress"}) наравне с финальным answer.
+     * Whether the agent's intermediate output (progress) should be delivered into this channel.
+     * {@code true} → the router fills the progress role in {@code Channels} with the same channel, and
+     * the worker sends progress lines through {@link #handleOutput} (with {@code stream="progress"})
+     * on a par with the final answer.
      */
     default boolean deliverProgress(ChannelConfig config) {
         return false;
     }
 
     /**
-     * Приносит ли канал собственные тулы своего коннектора в контекст DIALOGUE-рана — мимо
-     * скилл-гейта ({@code requiredConnectors}). {@code true} → {@code RunContextService} подмешивает
-     * тулы коннектора prompt-канала независимо от скиллов агента. Семантика «канал приносит тулы»:
-     * IDE-коннектор отдаёт fs/terminal-тулы, пока разговор идёт из IDE, без ручной настройки скилла.
+     * Whether the channel brings its own connector's tools into a DIALOGUE run's context, bypassing
+     * the skill gate ({@code requiredConnectors}). {@code true} → {@code RunContextService} mixes in
+     * the prompt channel's connector tools regardless of the agent's skills. The semantics is «the
+     * channel brings tools»: the IDE connector hands over fs/terminal tools for as long as the
+     * conversation comes from the IDE, with no manual skill setup.
      */
     default boolean contributesPromptTools() {
         return false;
     }
 
     /**
-     * Поддерживает ли handler вложения в исходящем ответе ({@link OutboundMessage#parts()}).
-     * {@code true} → {@code RunContextService} объясняет агенту attach-конвенцию
-     * ({@code [[attach:agf_…]]}), а {@link #handleOutput} обязан доставить parts.
-     * {@code false} → parts молча не доставляются (маркеры из текста всё равно вырезаны).
+     * Whether the handler supports attachments in an outgoing answer ({@link OutboundMessage#parts()}).
+     * {@code true} → {@code RunContextService} explains the attach convention
+     * ({@code [[attach:agf_…]]}) to the agent, and {@link #handleOutput} is obliged to deliver the
+     * parts. {@code false} → parts are silently not delivered (the markers are cut from the text
+     * regardless).
      */
     default boolean supportsOutboundAttachments() {
         return false;
     }
 
     /**
-     * Маппит ответ модели на действия канала. Handler либо доставляет сам (webchat/acp — пуш в
-     * живое соединение) и возвращает пустой список, либо возвращает {@link ToolCallRequest}'ы —
-     * их исполняет вызывающий (идемпотентность + ABAC + диспатч после коммита лога). Ключ
-     * идемпотентности — {@link OutboundDispatch#messageId()} (для дополнительных запросов —
-     * детерминированный суффикс); адрес ответа — из {@link OutboundDispatch#replyContext()}.
-     * Побочных эффектов с тулами внутри handler'а нет — это разрывает цикл бинов с роутером
-     * инбаунда и держит диспатч вне транзакций.
+     * Maps the model's answer onto the channel's actions. The handler either delivers it itself
+     * (webchat/acp — a push into the live connection) and returns an empty list, or returns
+     * {@link ToolCallRequest}s — which the caller executes (idempotency + ABAC + dispatch after the
+     * log is committed). The idempotency key is {@link OutboundDispatch#messageId()} (with a
+     * deterministic suffix for the additional requests); the answer's address comes from
+     * {@link OutboundDispatch#replyContext()}. There are no tool side effects inside the handler —
+     * that breaks the bean cycle with the inbound router and keeps the dispatch outside transactions.
      */
     List<ToolCallRequest> handleOutput(ChannelConfig config, OutboundMessage outbound,
                                        OutboundDispatch dispatch);

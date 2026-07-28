@@ -26,9 +26,8 @@ public class AgentDeliveryService {
     private final Map<AgentType, AgentTransport> transports;
     private final AgentRepository agentRepository;
 
-    // Зависим от репозитория, а не от AgentService: доставка — низкоуровневый механизм, ему нужен
-    // лишь lookup агента. Инъекция высокоуровневого AgentService замыкала цикл бинов
-    // (ConnectorRegistry → telegram → triggerRouter → delivery → AgentService → ConnectorRegistry).
+    // We depend on the repository rather than on AgentService: delivery is a low-level mechanism and needs only
+    // an agent lookup. Injecting the high-level AgentService would close a bean cycle
     public AgentDeliveryService(List<AgentTransport> transportList, AgentRepository agentRepository) {
         this.transports = transportList.stream()
                 .collect(Collectors.toMap(AgentTransport::getAgentType, Function.identity()));

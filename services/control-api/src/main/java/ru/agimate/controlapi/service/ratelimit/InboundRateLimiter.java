@@ -11,19 +11,20 @@ import java.util.UUID;
 import java.util.function.LongSupplier;
 
 /**
- * Token-bucket лимитер входящего трафика внешних источников, ключ — {@code connectionId}
- * (для устройств {@code app.id == connection.id}, у вебхука connectionId в пути — единый субъект
- * для всех входов). In-memory (Caffeine): лимитер стоит на горячем пути, отклонённый запрос не
- * должен стоить обращения к БД. Состояние per-instance и сбрасывается рестартом — для защиты от
- * флуда это приемлемо; при переходе на реплики заменяется на распределённый счётчик за тем же API.
+ * A token-bucket limiter for inbound traffic from external sources, keyed by {@code connectionId} (for
+ * devices {@code app.id == connection.id}, and for a webhook the connectionId in the path — a single
+ * subject for every entry point). In memory (Caffeine): the limiter sits on the hot path, and a rejected
+ * request must not cost a database round-trip. The state is per instance and is reset by a restart —
+ * acceptable for flood protection; when replicas arrive it is replaced by a distributed counter behind
+ * the same API.
  *
- * <p>HTTP-семантика отказа — на границе: app-эндпойнты отвечают 429, вебхук молча дропает
- * (см. вызывающие контроллеры).
+ * <p>The HTTP semantics of a refusal live at the boundary: the app endpoints answer 429, and the webhook
+ * silently drops (see the calling controllers).
  */
 @Component
 public class InboundRateLimiter {
 
-    /** Класс входящего трафика — у каждого свой лимит и своё ведро на connection. */
+    /** A class of inbound traffic — each has its own limit and its own bucket per connection. */
     public enum Scope { TRIGGER, TOOL_RESULT, FILE_UPLOAD }
 
     private record BucketKey(Scope scope, UUID connectionId) {}
@@ -31,7 +32,7 @@ public class InboundRateLimiter {
     private final InboundRateLimitProperties properties;
     private final LongSupplier nanoTime;
     private final Cache<BucketKey, TokenBucket> buckets = Caffeine.newBuilder()
-            // Потолок памяти при флуде рандомными connectionId; честным ключам вытеснение не грозит.
+            // A memory ceiling against a flood of random connectionIds; honest keys are in no danger of eviction.
             .maximumSize(100_000)
             .expireAfterAccess(Duration.ofMinutes(10))
             .build();
@@ -46,7 +47,7 @@ public class InboundRateLimiter {
         this.nanoTime = nanoTime;
     }
 
-    /** true — запрос в пределах лимита; false — лимит исчерпан, запрос должен быть отклонён. */
+    /** true — the request is within the limit; false — the limit is exhausted and the request must be rejected. */
     public boolean tryAcquire(Scope scope, UUID connectionId) {
         if (!properties.isEnabled()) {
             return true;
@@ -64,7 +65,7 @@ public class InboundRateLimiter {
         return bucket.tryConsume(nanoTime.getAsLong());
     }
 
-    /** Ведро: ёмкость = лимит за минуту (допустимый burst), пополнение равномерное. */
+    /** The bucket: capacity = the per-minute limit (the permitted burst), refilled evenly. */
     private static final class TokenBucket {
         private final double capacity;
         private final double refillPerNano;

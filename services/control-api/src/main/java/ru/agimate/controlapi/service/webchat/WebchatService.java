@@ -56,15 +56,15 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Оркестрация webchat: одна USER-scope connection на пользователя (материализуется binding'ом при
- * первом чате), per-agent канал с handler'ом {@code webchat}, явные сессии ({@code channel_sessions}).
- * Входящее сообщение уходит штатным триггер-пайплайном: audience таргетирует агента канала (shared
- * connection — без audience был бы fanout на всех привязанных), declared prompt несёт выбранную
- * фронтом сессию.
+ * Orchestration of webchat: one USER-scope connection per user (materialised by the binding on the
+ * first chat), a per-agent channel with the {@code webchat} handler, explicit sessions
+ * ({@code channel_sessions}). An incoming message goes out through the regular trigger pipeline: the
+ * audience targets the channel's agent (the connection is shared — without an audience this would fan
+ * out to every bound agent), and the declared prompt carries the session the frontend chose.
  *
- * <p>Без класс-левел {@code @Transactional(readOnly = true)}: {@link #send} обязан выполняться вне
- * транзакции (иначе вложенные записи присоединяются к read-only, а DBOS-enqueue попадает в общую
- * транзакцию с историей) — читающие методы размечены точечно.
+ * <p>No class-level {@code @Transactional(readOnly = true)}: {@link #send} must run outside a
+ * transaction (otherwise the nested writes join a read-only one, and the DBOS enqueue ends up sharing a
+ * transaction with the history) — the reading methods are annotated individually.
  */
 @Slf4j
 @Service
@@ -84,10 +84,10 @@ public class WebchatService {
     private final FileStorageService fileStorageService;
     private final InboundRateLimiter rateLimiter;
 
-    /** Потолок вложений в одном сообщении — защита промпта/квоты от абьюза. */
+    /** Ceiling on attachments in one message — protection of the prompt and the quota from abuse. */
     private static final int MAX_PARTS = 5;
 
-    /** Новая сессия чата с агентом; binding и канал материализуются лениво (find-or-create). */
+    /** A new chat session with an agent; the binding and the channel are materialised lazily (find-or-create). */
     @Transactional
     public WebchatSessionResponse startSession(UUID userId, UUID agentId) {
         Agent agent = requireOwnedAgent(userId, agentId);
@@ -110,7 +110,7 @@ public class WebchatService {
         return WebchatSessionResponse.from(session, agentId);
     }
 
-    /** Все webchat-сессии пользователя (опционально одного агента), свежие сверху. */
+    /** All of a user's webchat sessions (optionally for one agent), freshest first. */
     @Transactional(readOnly = true)
     public List<WebchatSessionResponse> listSessions(UUID userId, UUID agentId) {
         List<Channel> channels = channelRepository
@@ -129,17 +129,18 @@ public class WebchatService {
     }
 
     /**
-     * Загрузить файл для последующей отправки в сообщении (parts). Файл кладётся в файловый слой на
-     * имя пользователя; фронт получает {@code fileId} и передаёт его в {@code parts} при {@link #send}.
+     * Upload a file to be sent later in a message (parts). The file is placed into the file layer under
+     * the user's name; the frontend receives a {@code fileId} and passes it in {@code parts} at
+     * {@link #send}.
      */
     public WebchatFileResponse uploadFile(UUID userId, MultipartFile file) {
-        // До обращения к хранилищу: ключ ведра — сам пользователь.
+        // Before touching the storage: the bucket's key is the user themselves.
         if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.FILE_UPLOAD, userId)) {
             throw new TooManyRequestsStatusException("File upload rate limit exceeded");
         }
         String mime = file.getContentType() != null && !file.getContentType().isBlank()
                 ? file.getContentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
-        // Контент пользовательский — в лог только размеры/метаданные.
+        // The content belongs to the user — only sizes and metadata go into the log.
         log.info("Webchat file upload - user={}, mime={}, {} bytes", userId, mime, file.getSize());
         StoredFile stored;
         try (InputStream content = file.getInputStream()) {
@@ -151,9 +152,9 @@ public class WebchatService {
     }
 
     /**
-     * Принять сообщение пользователя: строка UI-истории + echo-событие, затем штатный
-     * триггер-пайплайн (синхронно — ошибки маршрутизации видны фронту сразу). Не транзакционно:
-     * DBOS-enqueue внутри роутера не должен жить в общей транзакции с записью истории.
+     * Accept a user's message: a UI history row plus an echo event, then the regular trigger pipeline
+     * (synchronously — routing errors are visible to the frontend immediately). Not transactional: the
+     * DBOS enqueue inside the router must not share a transaction with writing the history.
      */
     public WebchatSendResponse send(UUID userId, UUID sessionId, WebchatSendMessageRequest request) {
         SessionContext ctx = requireOwnedWebchatSession(userId, sessionId);
@@ -200,7 +201,7 @@ public class WebchatService {
         return new WebchatSendResponse(session.getId(), messageId);
     }
 
-    /** Валидирует вложения запроса (свой + READY + не протух) и строит {@link Part}-список. */
+    /** Validates the request's attachments (own + READY + not expired) and builds the {@link Part} list. */
     private List<Part> resolveParts(UUID userId, List<Map<String, Object>> requestParts) {
         if (requestParts == null || requestParts.isEmpty()) {
             return List.of();
@@ -223,7 +224,7 @@ public class WebchatService {
         return parts;
     }
 
-    /** Parts → data триггера ({@code type/fileId/mime/size}) — handler смапит их в inbound без БД. */
+    /** Parts → the trigger's data ({@code type/fileId/mime/size}) — the handler maps them into the inbound message with no database access. */
     private static List<Map<String, Object>> dataParts(List<Part> parts) {
         return parts.stream().map(part -> {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -235,7 +236,7 @@ public class WebchatService {
         }).toList();
     }
 
-    /** UI-история сессии, новые сначала (page=0 — свежие; фронт разворачивает при отрисовке). */
+    /** The session's UI history, newest first (page=0 — the freshest; the frontend reverses it when rendering). */
     @Transactional(readOnly = true)
     public Page<WebchatMessageResponse> listMessages(UUID userId, UUID sessionId, int page, int size) {
         requireOwnedWebchatSession(userId, sessionId);
@@ -245,7 +246,7 @@ public class WebchatService {
                 .map(message -> WebchatMessageResponse.from(message, attachments(message)));
     }
 
-    /** Хранимые parts + свежая подписанная ссылка на содержимое (протухшие ссылки не хранятся). */
+    /** Stored parts plus a fresh signed link to the contents (expired links are never stored). */
     private List<WebchatAttachment> attachments(WebchatMessage message) {
         return WebchatAttachment.fromStored(message.getParts(), signedFileUrlService::issue);
     }
@@ -257,7 +258,7 @@ public class WebchatService {
         return WebchatSessionResponse.from(closed, ctx.channel().getAgentId());
     }
 
-    /** Centrifugo-токены на канал {@code webchat:{sessionId}} — live-события этой сессии. */
+    /** Centrifugo tokens for the channel {@code webchat:{sessionId}} — this session's live events. */
     @Transactional(readOnly = true)
     public CentrifugoTokenResponse token(UUID userId, UUID sessionId) {
         requireOwnedWebchatSession(userId, sessionId);

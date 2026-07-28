@@ -3,36 +3,39 @@ package ru.agimate.controlapi.connectors.core.dto;
 import lombok.Builder;
 
 /**
- * Директивы контекста триггера — overlay поверх route-пресета ({@code ContextSpec}):
- * {@code null}-поле = «как в базе». Объявляются <b>только кодом коннектора</b> в статическом
- * {@link TriggerSpec} ({@code TriggerProvider.getTriggers()}); динамические декларации
- * ({@code connection_triggers}) и payload события источником директив быть не могут —
- * незнакомый триггер получает базовый пресет (default-safe).
+ * Context directives of a trigger — an overlay on top of the route preset ({@code ContextSpec}): a
+ * {@code null} field means «as in the base». Declared <b>by connector code only</b>, in the static
+ * {@link TriggerSpec} ({@code TriggerProvider.getTriggers()}); dynamic declarations
+ * ({@code connection_triggers}) and the event payload can never be a source of directives — an
+ * unfamiliar trigger gets the base preset (default-safe).
  *
- * <p>Поля двух классов риска:
+ * <p>The fields fall into two risk classes:
  * <ul>
- *   <li><b>trust</b> — {@link #presentation}/{@link #promptParam}, {@link #guidance}: меняют доверие
- *       к тексту в промпте. Разрешены только internal-коннекторам — fail-fast валидация в
- *       {@code ConnectorBootstrap}. {@code guidance} — статическая константа кода, без
- *       интерполяции данных события;</li>
- *   <li><b>scope</b> — остальные: меняют объём контекста (тулы/тела скиллов/история), доверие
- *       не трогают.</li>
+ *   <li><b>trust</b> — {@link #presentation}/{@link #promptParam}, {@link #guidance}: they change how
+ *       much the prompt's text is trusted. Allowed for internal connectors only — fail-fast
+ *       validation in {@code ConnectorBootstrap}. {@code guidance} is a static code constant, with no
+ *       interpolation of event data;</li>
+ *   <li><b>scope</b> — the rest: they change the volume of context (tools, skill bodies, history) and
+ *       leave trust alone.</li>
  * </ul>
  *
- * @param presentation       как рендерить событие: {@code EVENT} (untrusted JSON, дефолт) или
- *                           {@code PROMPT} — trusted-текст из {@code data[promptParam]}
- *                           (первый потребитель — {@code time.due}: промпт авторства самого агента)
- * @param promptParam        для {@code PROMPT}: имя параметра {@code data} с текстом промпта
- * @param guidance           trusted user-блок непосредственно перед блоком события: провенанс/что
- *                           делать (первый потребитель — {@code time.due})
- * @param skillTools         {@code false} — не собирать тулы скиллов агента (первый потребитель —
- *                           memory-триггеры: минимальный контекст); дефолт {@code true}
- * @param ownConnectionTools {@code true} — добавить тулы connection события независимо от скиллов;
- *                           скоуп — именно connection триггера, не все connections его кода
- *                           (INSTANCE-коннекторы). Первые потребители — {@code time.due}
- *                           (отменить/перепланировать) и memory-триггеры
- * @param historyLimit       окно истории сессии; {@code 0} — без истории (первый потребитель —
- *                           memory-триггеры: сообщения уже в {@code data}); {@code null} — база
+ * @param presentation       how to render the event: {@code EVENT} (untrusted JSON, the default) or
+ *                           {@code PROMPT} — trusted text from {@code data[promptParam]} (the first
+ *                           consumer is {@code time.due}: a prompt authored by the agent itself)
+ * @param promptParam        for {@code PROMPT}: the name of the {@code data} parameter holding the
+ *                           prompt text
+ * @param guidance           a trusted user block immediately before the event block: provenance and
+ *                           what to do (the first consumer is {@code time.due})
+ * @param skillTools         {@code false} — do not collect the agent's skill tools (the first
+ *                           consumers are the memory triggers: minimal context); the default is
+ *                           {@code true}
+ * @param ownConnectionTools {@code true} — add the event's connection tools regardless of skills; the
+ *                           scope is the trigger's connection specifically, not every connection of
+ *                           its code (INSTANCE connectors). The first consumers are {@code time.due}
+ *                           (cancel/reschedule) and the memory triggers
+ * @param historyLimit       window of session history; {@code 0} — no history (the first consumers are
+ *                           the memory triggers: the messages are already in {@code data});
+ *                           {@code null} — the base
  */
 @Builder
 public record ContextDirectives(
@@ -44,6 +47,6 @@ public record ContextDirectives(
         Integer historyLimit
 ) {
 
-    /** Рендер основного user-блока события. */
+    /** Rendering of the event's main user block. */
     public enum Presentation { EVENT, PROMPT }
 }

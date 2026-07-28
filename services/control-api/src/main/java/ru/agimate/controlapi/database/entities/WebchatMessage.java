@@ -24,10 +24,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * UI-лог webchat-канала: что реально показано пользователю (его сообщения и доставленный вывод
- * агента), в отличие от {@link ChannelSessionMessage} — LLM-истории сессии.
- * {@code (session_id, message_id)} уникален: worker шлёт детерминированные {@code message_id},
- * поэтому DBOS-replay не создаёт дублей.
+ * UI log of the webchat channel: what was actually shown to the user (their messages and the agent's
+ * delivered output), as opposed to {@link ChannelSessionMessage} — the session's LLM history.
+ * {@code (session_id, message_id)} is unique: the worker sends deterministic {@code message_id}s, so
+ * a DBOS replay creates no duplicates.
  */
 @Entity
 @Table(name = "webchat_messages", uniqueConstraints = {
@@ -63,7 +63,7 @@ public class WebchatMessage extends BaseEntity {
     @Column(name = "direction", nullable = false, columnDefinition = "TEXT")
     private WebchatMessageDirection direction;
 
-    /** Поток вывода агента: {@code answer}/{@code progress}/{@code error}; null для direction=USER. */
+    /** The agent's output stream: {@code answer}/{@code progress}/{@code error}; null for direction=USER. */
     @Column(name = "stream", columnDefinition = "TEXT")
     private String stream;
 
@@ -73,7 +73,7 @@ public class WebchatMessage extends BaseEntity {
     @Column(name = "text", columnDefinition = "TEXT")
     private String text;
 
-    /** Вложения (резерв под файлы, Фаза 1 — null). */
+    /** Attachments (reserved for files, null in Phase 1). */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "parts", columnDefinition = "JSONB")
     private List<Map<String, Object>> parts;

@@ -34,9 +34,10 @@ public class ConnectorService {
     private final ToolExecutionService toolExecutionService;
 
     /**
-     * Контракт: вызывается вне активной транзакции, когда {@code ToolCallLog} уже закоммичен —
-     * async-исполнитель читает строку из БД и пишет результат. Вызов из транзакции — ошибка
-     * вызывающего (исполнитель не увидит лог; tripwire ниже ловит регрессию).
+     * The contract: called outside an active transaction, once the {@code ToolCallLog} is already
+     * committed — the async executor reads the row from the database and writes the result. Calling it
+     * from inside a transaction is the caller's bug (the executor would not see the log; the tripwire
+     * below catches the regression).
      */
     public void pushToConnector(ToolCallLog toolCallLog) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
@@ -48,11 +49,11 @@ public class ConnectorService {
                 .orElseThrow(() -> new NotFoundStatusException("Connector not found: " + toolCallLog.getConnectorCode()));
 
         switch (connector.getExecutionKind()) {
-            // In-proc: @Tool-метод хендлера; внешние вызовы (telegram/mcp API) — внутри тул-сервиса.
+            // In-proc: the handler's @Tool method; outbound calls (the telegram/mcp APIs) happen inside the tool service.
             case BACKEND -> toolExecutionService.executeTool(toolCallLog);
-            // Исполнитель сам подключается к нам — вызов доставляется push'ем в канал устройства.
+            // The executor connects to us itself — the call is pushed into the device's channel.
             case DEVICE -> pushToApp(toolCallLog);
-            // Исполняет вызывающий агент (/tool/check + /tool/result) — диспатч сюда ошибка вызывающего.
+            // The calling agent executes it (/tool/check + /tool/result) — dispatching here is the caller's bug.
             case LOOPBACK -> throw new BadRequestStatusException(
                     "Tools of connector '" + toolCallLog.getConnectorCode()
                             + "' execute on the caller side; use /tool/check and report via /tool/result");
@@ -61,17 +62,17 @@ public class ConnectorService {
         }
     }
 
-    /** Доставка INBOUND-исполнителю: push в канал приложения. */
+    /** Delivery to an INBOUND executor: a push into the application's channel. */
     private void pushToApp(ToolCallLog toolCallLog) {
-        // connectionId = connections.id; устройство берём по connection.app_id.
+        // connectionId = connections.id; the device is taken by connection.app_id.
         Connection connection = connectionRepository
                 .findByIdNotDeleted(UUID.fromString(toolCallLog.getConnectionId()))
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + toolCallLog.getConnectionId()));
         var app = appRepository.findByIdAndUserIdNotDeleted(connection.getAppId(), toolCallLog.getUserId())
                 .orElseThrow(() -> new NotFoundStatusException("App not found: " + connection.getAppId()));
-        // Канал адресуется по app.id (= connectionId, глобально уникален), а не по device_id:
-        // device_id задаёт само устройство и не уникален между тенантами — общий device_id у двух
-        // пользователей означал бы общий канал и утечку toolCall между ними.
+        // The channel is addressed by app.id (= connectionId, globally unique) rather than by device_id:
+        // device_id is set by the device itself and is not unique across tenants — a device_id shared by two
+        // users would mean a shared channel and a toolCall leaking between them.
         centrifugoService.publishMessage(
                 "app:" + app.getId(), "toolCall", ToolCallPayload.from(toolCallLog));
     }

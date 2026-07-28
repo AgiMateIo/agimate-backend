@@ -22,11 +22,11 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Дискавери и кэш тулов MCP-экземпляра в {@code connection_tools}. Сетевой {@code tools/list}
- * ({@link #discover}) намеренно отделён от записи в БД ({@link #reconcile}), чтобы не держать
- * транзакцию открытой на время сетевого вызова — оба метода публичные и вызываются из
- * {@link McpToolDiscoveryListener} (и manage-refresh) через прокси, поэтому {@code @Transactional}
- * на {@link #reconcile} применяется.
+ * Discovery and caching of an MCP instance's tools in {@code connection_tools}. The network
+ * {@code tools/list} ({@link #discover}) is deliberately separated from the database write
+ * ({@link #reconcile}) so a transaction is not held open across a network call — both methods are
+ * public and are called from {@link McpToolDiscoveryListener} (and the manage refresh) through the
+ * proxy, so the {@code @Transactional} on {@link #reconcile} does apply.
  */
 @Slf4j
 @Service
@@ -40,8 +40,8 @@ public class McpToolDiscoveryService {
     private final ConnectionToolRepository connectionToolRepository;
 
     /**
-     * Снимает тулы экземпляра с сервера (сеть, вне транзакции). {@code null} — экземпляр не найден
-     * или это не MCP-коннектор (нечего синкать).
+     * Fetches the instance's tools from the server (network, outside a transaction). {@code null} —
+     * the instance was not found or is not an MCP connector (there is nothing to sync).
      */
     public List<ConnectionTool> discover(UUID connectionId) {
         Connection connection = connectionRepository.findByIdNotDeleted(connectionId).orElse(null);
@@ -57,7 +57,7 @@ public class McpToolDiscoveryService {
                 .toList();
     }
 
-    /** Перезаписывает кэш {@code connection_tools} экземпляра: upsert по имени + удаление пропавших. */
+    /** Rewrites the instance's {@code connection_tools} cache: upsert by name plus deletion of what disappeared. */
     @Transactional
     public void reconcile(UUID connectionId, List<ConnectionTool> fresh) {
         Map<String, ConnectionTool> existing = new HashMap<>();

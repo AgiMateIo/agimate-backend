@@ -132,7 +132,7 @@ public class WebhookTransport implements AgentTransport {
         }
     }
 
-    /** Auth-заголовок хранится envelope-шифрованным в {@code secrets} (entity = agent_webhook_auth). */
+    /** The auth header is stored envelope-encrypted in {@code secrets} (entity = agent_webhook_auth). */
     private String revealWebhookAuthHeader(Agent agent) {
         Secret secret = secretRepository.findById(agent.getWebhookAuthSecretId())
                 .orElseThrow(() -> new IllegalStateException(

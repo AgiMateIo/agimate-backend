@@ -15,13 +15,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Каноническое inbound-сообщение канала: тот же {@link ChannelHandler#handleInput}, что и при
- * dispatch триггера — детерминированная функция от персистентных данных (конфиг канала +
- * {@code trigger_log.input}). Общий для сборки контекста ({@code RunContextService}) и записи
- * истории ({@code MessageLogService}).
+ * The canonical inbound message of a channel: the same {@link ChannelHandler#handleInput} as during
+ * trigger dispatch — a deterministic function of persistent data (the channel's config plus
+ * {@code trigger_log.input}). Shared by context assembly ({@code RunContextService}) and history
+ * writing ({@code MessageLogService}).
  *
- * <p>{@link #resolve} возвращает полное {@link InboundMessage} (текст + вложения) — вложения нужны
- * контексту рана (мультимодальность); {@link #resolveText} — text-only обёртка для записи истории.
+ * <p>{@link #resolve} returns the full {@link InboundMessage} (text plus attachments) — the run's
+ * context needs the attachments (multimodality); {@link #resolveText} is the text-only wrapper for
+ * writing history.
  */
 @Slf4j
 @Service
@@ -31,7 +32,7 @@ public class InboundTextResolver {
     private final ChannelRepository channelRepository;
     private final ChannelHandlerRegistry channelHandlerRegistry;
 
-    /** Полное inbound-сообщение (текст + parts); {@code empty} — канал/handler исчезли. */
+    /** The full inbound message (text plus parts); {@code empty} — the channel or handler is gone. */
     public Optional<InboundMessage> resolve(UUID promptChannelId, Trigger trigger) {
         Channel channel = channelRepository.findById(promptChannelId)
                 .filter(c -> c.getDeletedAt() == null)
@@ -50,7 +51,7 @@ public class InboundTextResolver {
         return handler.handleInput(config, trigger);
     }
 
-    /** Каноничный текст inbound: непустой текст извлечённого сообщения, иначе {@code empty}. */
+    /** The canonical inbound text: the non-empty text of the extracted message, otherwise {@code empty}. */
     public Optional<String> resolveText(UUID promptChannelId, Trigger trigger) {
         return resolve(promptChannelId, trigger)
                 .map(InboundMessage::text)

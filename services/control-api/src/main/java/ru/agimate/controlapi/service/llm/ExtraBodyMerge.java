@@ -6,15 +6,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Deep-merge двух extra_body: пер-модельный оверрайд поверх провайдер-уровневого.
- * Семантика: вложенные объекты мёржатся рекурсивно, на конфликте скаляров побеждает
- * оверрайд, массивы заменяются целиком (не конкатенируются — предсказуемее для
- * списков вроде OpenRouter {@code provider.only}).
+ * Deep merge of two extra_body maps: the per-model override on top of the provider-level one. The
+ * semantics: nested objects merge recursively, on a scalar conflict the override wins, and arrays are
+ * replaced wholesale (not concatenated — more predictable for lists such as OpenRouter's
+ * {@code provider.only}).
  */
 @UtilityClass
 public class ExtraBodyMerge {
 
-    /** null-безопасно: null-аргумент = пустой уровень; оба null → пустая мапа. */
+    /** Null-safe: a null argument means an empty level; both null → an empty map. */
     public static Map<String, Object> merge(Map<String, Object> base, Map<String, Object> override) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (base != null) {

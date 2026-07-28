@@ -15,10 +15,11 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Реестр моделей LLM-провайдера (замена JSONB-кэша {@code available_models}): discovery-метаданные,
- * lifecycle (пропала ли модель из листинга — см. {@link LlmProviderModelStatus}) и пер-модельный
- * конфиг-оверрайд {@code extra_body}. Строка при пропаже из листинга не удаляется — на ней конфиг,
- * и на модель могут ссылаться биндинги {@code agent_llms}.
+ * Registry of an LLM provider's models (replacing the {@code available_models} JSONB cache):
+ * discovery metadata, lifecycle (whether the model disappeared from the listing — see
+ * {@link LlmProviderModelStatus}) and the per-model config override {@code extra_body}. A row is not
+ * deleted when it disappears from the listing — it holds config, and {@code agent_llms} bindings may
+ * reference the model.
  */
 @Entity
 @Table(name = "llm_provider_models", uniqueConstraints = {
@@ -41,46 +42,46 @@ public class LlmProviderModel extends BaseEntity {
     @Column(name = "provider_id", nullable = false)
     private UUID providerId;
 
-    /** Идентификатор модели у провайдера (например {@code moonshotai/kimi-k2.5}). */
+    /** The model's identifier at the provider (e.g. {@code moonshotai/kimi-k2.5}). */
     @Column(name = "model", nullable = false, columnDefinition = "TEXT")
     private String model;
 
     @Column(name = "display_name", columnDefinition = "TEXT")
     private String displayName;
 
-    /** Контекст в токенах ({@code context_length} из /models, если провайдер отдаёт). */
+    /** Context in tokens ({@code context_length} from /models, when the provider reports it). */
     @Column(name = "context_window")
     private Integer contextWindow;
 
-    /** Потолок токенов ответа ({@code top_provider.max_completion_tokens}), если провайдер отдаёт. */
+    /** Ceiling on response tokens ({@code top_provider.max_completion_tokens}), when the provider reports it. */
     @Column(name = "max_output_tokens")
     private Integer maxOutputTokens;
 
-    /** Входные модальности ({@code ["text","image"]}) — «умеет ли модель зрение». */
+    /** Input modalities ({@code ["text","image"]}) — «can this model see». */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "input_modalities", columnDefinition = "JSONB")
     private List<String> inputModalities;
 
-    /** Выходные модальности ({@code ["image"]}, {@code ["audio"]}) — основа матчинга «модель-как-инструмент». */
+    /** Output modalities ({@code ["image"]}, {@code ["audio"]}) — the basis of «model-as-a-tool» matching. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "output_modalities", columnDefinition = "JSONB")
     private List<String> outputModalities;
 
-    /** Поддерживаемые параметры запроса ({@code reasoning}, {@code tools}, …), если провайдер отдаёт. */
+    /** Supported request parameters ({@code reasoning}, {@code tools}, …), when the provider reports them. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "supported_parameters", columnDefinition = "JSONB")
     private List<String> supportedParameters;
 
-    /** Сырой entry ответа /models провайдера целиком — источник для backfill новых полей без ре-дискавери. */
+    /** The provider's whole raw /models entry — the source for backfilling new fields without re-discovery. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "raw_metadata", columnDefinition = "JSONB")
     private Map<String, Object> rawMetadata;
 
     /**
-     * Пер-модельные доп. параметры тела chat/completions (например OpenRouter
-     * {@code provider.only}/{@code require_parameters} для пиннинга vision-хостера). Deep-merge
-     * поверх {@link LlmProvider#getExtraBody()} в getLlmCredentials, модель побеждает.
-     * НЕ секрет — уходит воркеру открытым полем.
+     * Per-model extra parameters of the chat/completions body (e.g. OpenRouter
+     * {@code provider.only}/{@code require_parameters} to pin a vision hoster). Deep-merged on top of
+     * {@link LlmProvider#getExtraBody()} in getLlmCredentials, and the model wins. NOT a secret — it
+     * goes to the worker as a plain field.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "extra_body", columnDefinition = "JSONB")
@@ -91,7 +92,7 @@ public class LlmProviderModel extends BaseEntity {
     @Builder.Default
     private LlmProviderModelStatus status = LlmProviderModelStatus.AVAILABLE;
 
-    /** null = модель ни разу не встречалась в листинге (конфиг заведён руками до refresh). */
+    /** null = the model has never appeared in a listing (config entered by hand before a refresh). */
     @Column(name = "first_seen_at")
     private LocalDateTime firstSeenAt;
 

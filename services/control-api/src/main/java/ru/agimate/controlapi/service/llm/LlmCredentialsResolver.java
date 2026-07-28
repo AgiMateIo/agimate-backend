@@ -21,15 +21,15 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Единый конвейер выдачи LLM-кредов: выбор провайдера/модели → {@code enabled}-проверка →
- * квота → расшифровка ключа → deep-merge {@code extra_body}. Потребители: gRPC-путь воркера
- * ({@code GetLlmCredentials} → {@link #resolveChat}) и медиа-путь коннектора
- * ({@link #resolveForCapability}). Логика в одном месте, чтобы пути не дрейфовали на квотах
- * и extra_body.
+ * The single pipeline for issuing LLM credentials: provider/model selection → the {@code enabled}
+ * check → the quota → key decryption → the {@code extra_body} deep merge. Its consumers are the
+ * worker's gRPC path ({@code GetLlmCredentials} → {@link #resolveChat}) and the connector's media
+ * path ({@link #resolveForCapability}). The logic lives in one place so the paths do not drift apart
+ * on quotas and extra_body.
  *
- * <p>Не {@code @Transactional}: присоединяется к read-only транзакции вызывающего. Ключ
- * расшифровывается в момент вызова и наружу уходит только в возвращаемом значении —
- * вызывающий не должен его персистить (в т.ч. в DBOS-чекпоинты).
+ * <p>Not {@code @Transactional}: it joins the caller's read-only transaction. The key is decrypted at
+ * call time and leaves only inside the return value — the caller must not persist it (into DBOS
+ * checkpoints included).
  */
 @Component
 @RequiredArgsConstructor
@@ -43,12 +43,13 @@ public class LlmCredentialsResolver {
     private final LlmQuotaService llmQuotaService;
 
     /**
-     * Результат резолва. {@code extraBody} — итоговый deep-merge провайдер-уровневого и
-     * пер-модельного (модель побеждает, см. {@link ExtraBodyMerge}); пустая map — нет доп. полей.
-     * {@code inputModalities} — из строки реестра модели ({@code llm_provider_models}, фолбэк
-     * {@code llm_model_defaults} влит write-time); пустой список — модель реестру неизвестна.
+     * The resolution's result. {@code extraBody} is the final deep merge of the provider-level and the
+     * per-model one (the model wins, see {@link ExtraBodyMerge}); an empty map means no extra fields.
+     * {@code inputModalities} comes from the model's registry row ({@code llm_provider_models}, with
+     * the {@code llm_model_defaults} fallback merged in at write time); an empty list means the model
+     * is unknown to the registry.
      *
-     * @param platformFallback {@code true} — выдан платформенный провайдер (у агента нет привязки)
+     * @param platformFallback {@code true} — the platform provider was issued (the agent has no binding)
      */
     public record ResolvedLlm(
             LlmProvider provider,
@@ -60,14 +61,14 @@ public class LlmCredentialsResolver {
     }
 
     /**
-     * Chat-модель агентного цикла: {@code purpose = CHAT} биндинг агента (он один — уникальность
-     * по {@code (agent_id, purpose)}), иначе фолбэк на платформенный провайдер с его
-     * {@code default_model} (личная привязка всегда побеждает). Биндинги-инструменты
-     * (IMAGE/VISION/…) сюда не попадают.
+     * The chat model of the agent loop: the agent's {@code purpose = CHAT} binding (there is exactly
+     * one — uniqueness on {@code (agent_id, purpose)}), otherwise a fallback to the platform provider
+     * with its {@code default_model} (a personal binding always wins). Tool bindings (IMAGE/VISION/…)
+     * never reach here.
      *
-     * @throws NotFoundStatusException      провайдер биндинга исчез / нет ни биндинга, ни платформы
-     * @throws LlmProviderDisabledException провайдер биндинга выключен
-     * @throws QuotaExceededException       квота провайдера исчерпана
+     * @throws NotFoundStatusException      the binding's provider is gone / there is neither a binding nor a platform one
+     * @throws LlmProviderDisabledException the binding's provider is disabled
+     * @throws QuotaExceededException       the provider's quota is exhausted
      */
     public ResolvedLlm resolveChat(UUID agentId, UUID userId) {
         LlmProvider provider;
@@ -86,7 +87,7 @@ public class LlmCredentialsResolver {
             }
             model = binding.getModel();
         } else {
-            // Fallback: платформенный провайдер (уже отфильтрован по enabled + default_model).
+            // The fallback: the platform provider (already filtered by enabled + default_model).
             provider = llmProviderService.findUsablePlatformProvider()
                     .orElseThrow(() -> new NotFoundStatusException(
                             "No LLM binding for agent: " + agentId));
@@ -94,24 +95,24 @@ public class LlmCredentialsResolver {
             platformFallback = true;
         }
 
-        // Перед каждым LLM-вызовом (креды запрашиваются inline на каждый llm_call).
+        // Before every LLM call (the credentials are requested inline on each llm_call).
         llmQuotaService.check(provider, userId, agentId);
 
         return resolved(provider, model, platformFallback);
     }
 
     /**
-     * Модель-инструмент под назначение (медиа-коннектор). Каскад: явный биндинг агента с этим
-     * {@code purpose} (побеждает всегда, реестр не сверяется — выбор пользователя advisory, как в
-     * {@code AgentLlmService.validateModel}) → капабилити-матч по реестру enabled-провайдеров
-     * пользователя (провайдер chat-биндинга первым — меньше сюрпризов с биллингом; внутри
-     * провайдера — первый по имени модели со статусом {@code AVAILABLE} и нужной модальностью) →
-     * тот же матч по платформенному провайдеру.
+     * A tool model for a purpose (the media connector). The cascade: an explicit agent binding with
+     * that {@code purpose} (it always wins, and the registry is not consulted — the user's choice is
+     * advisory, as in {@code AgentLlmService.validateModel}) → a capability match against the registry
+     * of the user's enabled providers (the chat binding's provider first — fewer surprises with
+     * billing; within a provider, the first model by name with status {@code AVAILABLE} and the
+     * required modality) → the same match against the platform provider.
      *
-     * @throws IllegalArgumentException     {@code purpose == CHAT} — chat-модель выдаёт {@link #resolveChat}
-     * @throws NoCapableModelException      ни биндинга, ни подходящей модели в реестрах
-     * @throws LlmProviderDisabledException провайдер явного биндинга выключен (громко, без фолбэка)
-     * @throws QuotaExceededException       квота провайдера исчерпана
+     * @throws IllegalArgumentException     {@code purpose == CHAT} — the chat model is issued by {@link #resolveChat}
+     * @throws NoCapableModelException      no binding and no suitable model in either registry
+     * @throws LlmProviderDisabledException the explicit binding's provider is disabled (loudly, with no fallback)
+     * @throws QuotaExceededException       the provider's quota is exhausted
      */
     public ResolvedLlm resolveForCapability(UUID agentId, UUID userId, LlmPurpose purpose) {
         ModalityRequirement requirement = requirement(purpose);
@@ -146,7 +147,7 @@ public class LlmCredentialsResolver {
         return resolved(provider, model, platformFallback);
     }
 
-    /** Финализация: расшифровка ключа + одна выборка строки реестра (extra_body и модальности). */
+    /** Finalisation: key decryption plus one lookup of the registry row (extra_body and the modalities). */
     private ResolvedLlm resolved(LlmProvider provider, String model, boolean platformFallback) {
         String apiKey = llmProviderService.decryptApiKey(provider);
         LlmProviderModel registryRow = model == null ? null : llmProviderModelRepository
@@ -162,7 +163,7 @@ public class LlmCredentialsResolver {
     private record Candidate(LlmProvider provider, String model, boolean platform) {
     }
 
-    /** Требование к модели: модальность на входе или выходе ({@code input/output_modalities}). */
+    /** A requirement on the model: a modality on the input or on the output ({@code input/output_modalities}). */
     private record ModalityRequirement(String modality, boolean output) {
 
         String describe() {
@@ -185,8 +186,8 @@ public class LlmCredentialsResolver {
                 .findAllByUserIdOrderByCreatedAtDesc(userId).stream()
                 .filter(LlmProvider::isEnabled)
                 .toList());
-        // Провайдер chat-биндинга — в голову списка: медиа-вызовы по умолчанию идут туда же,
-        // куда пользователь уже направил основной биллинг агента.
+        // The chat binding's provider goes to the head of the list: media calls default to the same place the
+        // user has already directed the agent's main billing.
         agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT)
                 .map(AgentLlm::getLlmProviderId)
                 .ifPresent(chatProviderId -> candidates.stream()

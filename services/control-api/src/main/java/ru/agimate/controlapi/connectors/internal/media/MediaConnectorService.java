@@ -5,10 +5,11 @@ import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 
 /**
- * Фасад media-коннектора: «модель как инструмент» — генерация/редактирование/чтение изображений
- * чужой моделью для агентов, чья chat-модель этого не умеет (docs/connectors/media.md). Тулы —
- * в {@link MediaToolService}; выбор модели, провайдеры и ключи целиком за
- * {@code MediaInferenceService} (service/llm) — коннекторный слой реестра моделей не видит.
+ * Facade of the media connector: «model as a tool» — generating, editing and reading images with
+ * another model, for agents whose chat model cannot do it (docs/connectors/media.md). The tools live
+ * in {@link MediaToolService}; model selection, providers and keys are entirely
+ * {@code MediaInferenceService}'s business (service/llm) — the connector layer never sees the model
+ * registry.
  */
 @Component
 public class MediaConnectorService extends BaseConnectorHandler implements InternalConnectorHandler {

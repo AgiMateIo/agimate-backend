@@ -6,8 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * Лимиты входящего трафика от внешних источников (устройства-app и вебхуки), per-connection.
- * Значение {@code <= 0} отключает лимит соответствующего scope.
+ * Limits on inbound traffic from external sources (device apps and webhooks), per connection. A
+ * value {@code <= 0} disables the limit for that scope.
  */
 @Component
 @ConfigurationProperties(prefix = "inbound-rate-limit")
@@ -15,10 +15,10 @@ import org.springframework.stereotype.Component;
 @Setter
 public class InboundRateLimitProperties {
     private boolean enabled = true;
-    /** Триггеры ({@code /app/trigger/new}, {@code /webhook/*}) в минуту на connection. */
+    /** Triggers ({@code /app/trigger/new}, {@code /webhook/*}) per minute per connection. */
     private int triggersPerMinute = 120;
-    /** Результаты тулов ({@code /app/tools/result}) в минуту на connection. */
+    /** Tool results ({@code /app/tools/result}) per minute per connection. */
     private int toolResultsPerMinute = 120;
-    /** Загрузки файлов ({@code /app/files}) в минуту на connection. */
+    /** File uploads ({@code /app/files}) per minute per connection. */
     private int fileUploadsPerMinute = 30;
 }

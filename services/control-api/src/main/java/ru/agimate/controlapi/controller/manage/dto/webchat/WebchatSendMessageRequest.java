@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Отправка сообщения в webchat-сессию. {@code text} и {@code parts} по отдельности опциональны, но
- * хотя бы одно должно быть непустым (проверяется в сервисе). Каждый элемент {@code parts} несёт
- * {@code {"fileId": "agf_…"}} — файл, ранее загруженный через {@code POST /manage/webchat/files}.
+ * Sending a message into a webchat session. {@code text} and {@code parts} are individually optional,
+ * but at least one must be non-empty (checked in the service). Each element of {@code parts} carries
+ * {@code {"fileId": "agf_…"}} — a file uploaded earlier through {@code POST /manage/webchat/files}.
  */
 @Schema(description = "Send a message into a webchat session")
 public record WebchatSendMessageRequest(

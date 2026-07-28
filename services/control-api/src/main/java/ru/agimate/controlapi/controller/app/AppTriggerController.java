@@ -39,12 +39,12 @@ public class AppTriggerController {
             TriggerRequest triggerRequest,
             @AuthenticationPrincipal AppPrincipal principal
     ) {
-        // До обращения к БД: ключ (appId == connectionId) уже аутентифицирован в principal.
+        // Before touching the database: the key (appId == connectionId) is already authenticated in the principal.
         if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.TRIGGER, principal.appId())) {
             throw new TooManyRequestsStatusException("Trigger rate limit exceeded");
         }
 
-        // data может содержать пользовательский контент — в лог только метаданные, не payload.
+        // data may contain user content — only metadata goes into the log, never the payload.
         log.info("Trigger received - name={}, id={}, app={}, dataFields={}",
                 triggerRequest.name(), triggerRequest.id(), principal.appId(),
                 triggerRequest.data().size());

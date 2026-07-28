@@ -6,13 +6,14 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Дескриптор канала, передаваемый в {@link ChannelHandler}.
+ * Descriptor of a channel, passed into a {@link ChannelHandler}.
  *
- * <p>{@code agentId}, {@code connectorCode}, {@code connectionId} — первого класса (отдельные колонки
- * {@code channels}). {@code agentId} — владелец канала; под ним {@code handleOutput} диспатчит
- * reply-тул (использовать чужой канал нельзя — проверка владения на границе сервиса). По
- * {@code connectorCode}/{@code connectionId} handler вызывает тулы/читает триггеры нужного коннектора.
- * {@code settings} — произвольные настройки конкретного handler'а (десериализуются им самостоятельно).
+ * <p>{@code agentId}, {@code connectorCode} and {@code connectionId} are first-class (separate
+ * {@code channels} columns). {@code agentId} is the channel's owner; {@code handleOutput} dispatches
+ * the reply tool as that agent (using someone else's channel is impossible — ownership is checked at
+ * the service boundary). By {@code connectorCode}/{@code connectionId} the handler calls the tools and
+ * reads the triggers of the right connector. {@code settings} are the arbitrary settings of a
+ * particular handler (which deserialises them itself).
  */
 public record ChannelConfig(
         UUID agentId,

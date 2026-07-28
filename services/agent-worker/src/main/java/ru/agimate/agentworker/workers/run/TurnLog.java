@@ -63,7 +63,7 @@ public class TurnLog {
                 log.debug("saveTurn duplicate idx={} role={}", n, role);
             }
         } catch (Exception e) {
-            // Журнал ходов — наблюдаемость, не петля решений: сбой не валит ран, реплей добэкфилит.
+            // The turn journal is observability, not a decision loop: a failure does not fail the run, and a replay backfills it.
             log.warn("saveTurn best-effort failed idx={} role={}: {}", n, role, e.getMessage());
         }
     }

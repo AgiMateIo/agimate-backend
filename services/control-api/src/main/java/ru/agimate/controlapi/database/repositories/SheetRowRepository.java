@@ -19,7 +19,7 @@ public interface SheetRowRepository extends JpaRepository<SheetRow, UUID> {
 
     long countBySheetId(UUID sheetId);
 
-    /** Счётчики строк разом по всем листам агента — иначе листинг даёт N+1. */
+    /** Row counts for all of an agent's sheets at once — otherwise the listing is N+1. */
     @Query("select r.sheetId, count(r) from SheetRow r where r.sheetId in :sheetIds group by r.sheetId")
     List<Object[]> countRowsBySheetIds(@Param("sheetIds") Collection<UUID> sheetIds);
 }

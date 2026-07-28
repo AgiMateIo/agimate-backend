@@ -5,9 +5,10 @@ import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import java.util.Map;
 
 /**
- * Capability коннектора: фоновые таски. Декларации ({@link #getJobs()}) материализуются в строки
- * {@code connector_jobs} ({@code ConnectorIdentityListener}); исполнение диспатчит scheduler через
- * {@link #executeJob} — в том числе в скрытые {@code @Tool}-методы (динамические таски агента).
+ * A connector capability: background jobs. Declarations ({@link #getJobs()}) are materialised into
+ * {@code connector_jobs} rows ({@code ConnectorIdentityListener}); execution is dispatched by the
+ * scheduler through {@link #executeJob} — including into hidden {@code @Tool} methods (an agent's
+ * dynamic jobs).
  */
 public interface JobProvider {
 

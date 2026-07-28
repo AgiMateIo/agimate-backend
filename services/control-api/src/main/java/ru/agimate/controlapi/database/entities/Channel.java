@@ -13,10 +13,11 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Канал взаимодействия агента с пользователем (как строится диалог). Бизнес-ключ
- * {@code (agent_id, connector_code, connection_id)} уникален среди активных каналов — обеспечивается
- * частичным индексом {@code uq_channels_agent_connector_connection_active} ({@code WHERE deleted_at IS NULL}).
- * JPA {@code @UniqueConstraint} частичное условие не выражает, поэтому здесь не дублируется.
+ * A channel of interaction between an agent and a user (how the dialogue is built). The business key
+ * {@code (agent_id, connector_code, connection_id)} is unique among active channels — enforced by
+ * the partial index {@code uq_channels_agent_connector_connection_active}
+ * ({@code WHERE deleted_at IS NULL}). JPA {@code @UniqueConstraint} cannot express a partial
+ * condition, so it is not duplicated here.
  */
 @Entity
 @Table(name = "channels")
@@ -42,27 +43,27 @@ public class Channel extends BaseEntity {
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
 
-    /** Имя {@code ChannelHandler}-а, обрабатывающего этот канал (см. ChannelHandlerRegistry). */
+    /** Name of the {@code ChannelHandler} serving this channel (see ChannelHandlerRegistry). */
     @Column(name = "channel_handler", nullable = false, columnDefinition = "TEXT")
     private String channelHandler;
 
-    /** Коннектор источника триггеров (и, как правило, ответов). */
+    /** The connector triggers come from (and, as a rule, replies go to). */
     @Column(name = "connector_code", nullable = false, columnDefinition = "TEXT")
     private String connectorCode;
 
-    /** Экземпляр коннектора, которому принадлежит канал ({@code connections.id}); источник маршрута триггера. */
+    /** The connector instance owning the channel ({@code connections.id}); the source of the trigger's route. */
     @Column(name = "connection_id", nullable = false)
     private UUID connectionId;
 
-    /** Произвольные настройки handler-а (reply-цель, шаблоны, messageField и т.п.). */
+    /** Arbitrary handler settings (reply target, templates, messageField and so on). */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "config", nullable = false, columnDefinition = "JSONB")
     private Map<String, Object> config;
 
     /**
-     * Фильтр входящих по параметрам триггера (chat-filtering) — слой «как». Применяется при
-     * резолве маршрута ({@code ChannelRouteResolver}); не матчится → доставка по этому каналу
-     * пропускается. Раньше жил на trigger-политике через {@code channel_id}.
+     * Filter on incoming trigger parameters (chat filtering) — the «how» layer. Applied while
+     * resolving the route ({@code ChannelRouteResolver}); no match → delivery over this channel is
+     * skipped. It used to live on the trigger policy via {@code channel_id}.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "input_filter", columnDefinition = "JSONB")

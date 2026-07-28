@@ -5,8 +5,9 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 /**
- * Правка лимита существующей квоты. {@code subjectKind}/{@code window} не меняются — это
- * бизнес-ключ квоты ({@code uq_llm_quotas_key}); смена субъекта/окна = другая квота (delete+create).
+ * Editing an existing quota's limit. {@code subjectKind}/{@code window} do not change — they are the
+ * quota's business key ({@code uq_llm_quotas_key}); changing the subject or the window means a
+ * different quota (delete+create).
  */
 @Schema(description = "Update a quota's token limit")
 public record UpdateLlmQuotaRequest(

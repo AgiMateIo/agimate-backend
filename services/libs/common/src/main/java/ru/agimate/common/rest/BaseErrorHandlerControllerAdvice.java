@@ -176,7 +176,7 @@ public class BaseErrorHandlerControllerAdvice {
         return new ErrorResponse("Bad multipart request");
     }
 
-    /** Непарсящийся path/query-параметр (напр. enum-значение не из набора) — ошибка клиента, не 500. */
+    /** An unparseable path or query parameter (an enum value outside the set, say) — a client error, not a 500. */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse typeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {

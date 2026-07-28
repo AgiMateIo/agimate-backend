@@ -14,9 +14,10 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Канонический full-fidelity ход рана: по одной записи на AgentChatMessage воркера (assistant/tool),
- * без капов — в отличие от капнутой канальной проекции {@link ChannelSessionMessage}. Пишется для
- * всех ранов, включая direct ({@code session_id} = null). Идемпотентность — UNIQUE (run_id, turn_index).
+ * The canonical full-fidelity turn of a run: one record per worker AgentChatMessage
+ * (assistant/tool), uncapped — unlike the capped channel projection {@link ChannelSessionMessage}.
+ * Written for every run, including direct ones ({@code session_id} = null). Idempotency is
+ * UNIQUE (run_id, turn_index).
  */
 @Entity
 @Table(name = "agent_run_turns", uniqueConstraints =
@@ -37,14 +38,14 @@ public class AgentRunTurn extends BaseEntity {
     @Column(name = "run_id", nullable = false)
     private UUID runId;
 
-    /** Денорм ключ непрерывности (сейчас — сессия канала, null у direct-ранов); AgentSession отложен. */
+    /** Denormalised continuity key (currently the channel's session, null for direct runs); AgentSession is deferred. */
     @Column(name = "session_id")
     private UUID sessionId;
 
     @Column(name = "agent_id", nullable = false)
     private UUID agentId;
 
-    /** Монотонный per-run счётчик хода: ключ идемпотентности UNIQUE (run_id, turn_index). */
+    /** Monotonic per-run turn counter: the idempotency key UNIQUE (run_id, turn_index). */
     @Column(name = "turn_index", nullable = false)
     private Integer turnIndex;
 
@@ -55,16 +56,16 @@ public class AgentRunTurn extends BaseEntity {
     @Column(name = "text", columnDefinition = "TEXT")
     private String text;
 
-    /** Ассистент эмитил reasoning на этом ходе (маркер 💭). */
+    /** The assistant emitted reasoning on this turn (the 💭 marker). */
     @Column(name = "thinking", nullable = false)
     private boolean thinking;
 
-    /** Вызовы тулов у assistant-хода ({@code [{id,name,argumentsJson}]}); null иначе. Без капа. */
+    /** Tool calls of an assistant turn ({@code [{id,name,argumentsJson}]}); null otherwise. Uncapped. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "tool_calls", columnDefinition = "JSONB")
     private List<Map<String, Object>> toolCalls;
 
-    /** Результаты тулов у tool-хода ({@code [{id,name,outputJson,failed}]}); null иначе. Без капа. */
+    /** Tool results of a tool turn ({@code [{id,name,outputJson,failed}]}); null otherwise. Uncapped. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "tool_results", columnDefinition = "JSONB")
     private List<Map<String, Object>> toolResults;
@@ -75,7 +76,7 @@ public class AgentRunTurn extends BaseEntity {
     @Column(name = "model", columnDefinition = "TEXT")
     private String model;
 
-    /** DBOS workflow id LLM-вызова этого хода — связь с {@code llm_usage_log.call_id}. */
+    /** DBOS workflow id of this turn's LLM call — the link to {@code llm_usage_log.call_id}. */
     @Column(name = "call_id", columnDefinition = "TEXT")
     private String callId;
 }

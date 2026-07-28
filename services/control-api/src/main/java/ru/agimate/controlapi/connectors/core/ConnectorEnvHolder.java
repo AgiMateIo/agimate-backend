@@ -3,9 +3,9 @@ package ru.agimate.controlapi.connectors.core;
 import lombok.experimental.UtilityClass;
 
 /**
- * ThreadLocal-связывание {@link ConnectorEnv} с потоком на время диспатча тулы/таски.
- * Единственный писатель — {@link BaseConnectorHandler} (set/clear в try/finally);
- * tool-сервисы коннекторов только читают через {@link #current()}.
+ * ThreadLocal binding of a {@link ConnectorEnv} to the thread for the duration of a tool or job
+ * dispatch. The only writer is {@link BaseConnectorHandler} (set/clear in a try/finally); connectors'
+ * tool services only read, through {@link #current()}.
  */
 @UtilityClass
 public class ConnectorEnvHolder {

@@ -1,9 +1,9 @@
 package ru.agimate.controlapi.service.llm;
 
 /**
- * Сбой медиа-инференса (модель-инструмент): неподдерживаемый провайдер, отказ/ошибка провайдера,
- * невалидный входной файл. Доменное исключение: медиа-коннектор мапит его в
- * {@code ConnectorException} — текст пишется для человека/агента, без секретов.
+ * A failure of media inference (a model as a tool): an unsupported provider, a refusal or error from
+ * the provider, an invalid input file. A domain exception: the media connector maps it to a
+ * {@code ConnectorException} — the text is written for a human or the agent, with no secrets.
  */
 public class MediaInferenceException extends RuntimeException {
 

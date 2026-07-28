@@ -14,15 +14,15 @@ import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import java.util.Map;
 
 /**
- * Превращает lifecycle-события экземпляров коннекторов в строки {@code connector_jobs}
- * (декларация — {@link JobProvider#getJobs()}; коннектор без {@link JobProvider} тасок не имеет).
+ * Turns lifecycle events of connector instances into {@code connector_jobs} rows (the declaration is
+ * {@link JobProvider#getJobs()}; a connector without {@link JobProvider} has no jobs).
  *
- * <p>Pull‑модель не требует сообщать scheduler'у об изменениях — он сам прочитает новую/удалённую
- * строку на ближайшем тике (≤1с). Поэтому listener только пишет в БД и не публикует ничего обратно.
+ * <p>The pull model needs no notification to the scheduler — it will read the new or deleted row on
+ * its next tick (≤1s). So the listener only writes to the database and publishes nothing back.
  *
- * <p>{@link TransactionPhase#AFTER_COMMIT} гарантирует, что строка не появится, если внешняя
- * транзакция (создание интеграции) откатилась. {@code fallbackExecution=true} даёт обработку
- * событий, опубликованных вне транзакции (тесты).
+ * <p>{@link TransactionPhase#AFTER_COMMIT} guarantees the row will not appear if the outer
+ * transaction (creating the integration) rolled back. {@code fallbackExecution=true} allows handling
+ * events published outside a transaction (tests).
  */
 @Slf4j
 @Component

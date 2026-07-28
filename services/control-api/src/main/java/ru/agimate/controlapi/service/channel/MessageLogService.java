@@ -13,16 +13,18 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 /**
- * Единая запись событий диалога (SaveMessage, протокол v2): воркер — единственный писатель
- * истории, доставка в каналы — проекция записи (роутинг по kind и снапшоту
- * {@code agent_runs.channels}, порт цепочек бывшего worker-side OutboundPublisher).
+ * The single record of dialogue events (SaveMessage, protocol v2): the worker is the only writer of
+ * history, and delivery into the channels is a projection of that record (routed by kind and by the
+ * {@code agent_runs.channels} snapshot, a port of the chains of the former worker-side
+ * OutboundPublisher).
  *
- * <p>Намеренно НЕ {@code @Transactional}: сначала {@link MessageLogPersistence} коммитит историю,
- * затем — обычным кодом, вне транзакции — идёт best-effort доставка. Сбой доставки (удалённый
- * канал, сломанный handler) не откатывает историю, а транзакционные шаги внутри доставки
- * (лог тула) коммитятся сами и видны async-исполнителю. Крэш между коммитом и доставкой
- * сообщение не теряет: шаг воркера ретраится, запись дедупится по {@code (run_id, seq)},
- * доставка — по детерминированному {@code message_id}.
+ * <p>Deliberately NOT {@code @Transactional}: first {@link MessageLogPersistence} commits the
+ * history, then — in ordinary code, outside a transaction — comes best-effort delivery. A delivery
+ * failure (a deleted channel, a broken handler) does not roll the history back, and the transactional
+ * steps inside delivery (the tool log) commit on their own and are visible to the async executor. A
+ * crash between the commit and the delivery loses no message: the worker's step is retried, the
+ * record is deduplicated by {@code (run_id, seq)} and the delivery by the deterministic
+ * {@code message_id}.
  */
 @Slf4j
 @Service
@@ -53,9 +55,9 @@ public class MessageLogService {
     }
 
     /**
-     * Доставка = проекция записи. Цепочки роутинга — порт worker-side OutboundPublisher:
-     * PROGRESS → progress; ANSWER → answer, иначе prompt; ERROR → progress, иначе answer,
-     * иначе prompt. Нет канала — событие остаётся только в истории/строке рана.
+     * Delivery is a projection of the record. The routing chains are a port of the worker-side
+     * OutboundPublisher: PROGRESS → progress; ANSWER → answer, else prompt; ERROR → progress, else
+     * answer, else prompt. With no channel the event stays in the history and the run's row alone.
      */
     private void deliver(UUID runId, UUID agentId, Channels channels, ChannelSessionMessageKind kind,
                          String progressType, String text, int seq) {
@@ -81,7 +83,7 @@ public class MessageLogService {
                 OutboundMessage.text(text), messageId, kind.name().toLowerCase(), progressType);
     }
 
-    /** Детерминированный message_id от (run_id, seq): ретрай шлёт тот же id, downstream дедупит. */
+    /** A deterministic message_id from (run_id, seq): a retry sends the same id and downstream deduplicates. */
     private static String deterministicId(UUID runId, int seq) {
         String name = "agimate-msglog:" + runId + ":" + seq;
         return UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8)).toString();

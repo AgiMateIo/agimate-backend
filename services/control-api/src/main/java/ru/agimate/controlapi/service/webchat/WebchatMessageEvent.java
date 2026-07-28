@@ -4,14 +4,14 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Payload события {@code webchat_message} в Centrifugo-канале {@code webchat:{sessionId}}.
- * События доставляются at-least-once — фронт дедуплицирует по {@code messageId}.
+ * Payload of the {@code webchat_message} event in the Centrifugo channel {@code webchat:{sessionId}}.
+ * Events are delivered at-least-once — the frontend deduplicates by {@code messageId}.
  *
- * @param direction {@code USER} (echo сообщения пользователя) или {@code AGENT}
- * @param stream    поток вывода агента: {@code answer}/{@code progress}/{@code error}; null для USER
- * @param parts     вложения со свежими подписанными ссылками; null — сообщение без вложений.
- *                  Ссылка живёт {@code app.files.url-ttl} — при протухании фронт перечитывает
- *                  историю и получает новую
+ * @param direction {@code USER} (an echo of the user's message) or {@code AGENT}
+ * @param stream    the agent's output stream: {@code answer}/{@code progress}/{@code error}; null for USER
+ * @param parts     attachments with fresh signed links; null — a message with no attachments. A link
+ *                  lives {@code app.files.url-ttl} — once it expires the frontend re-reads the history
+ *                  and gets a new one
  */
 public record WebchatMessageEvent(
         UUID sessionId,

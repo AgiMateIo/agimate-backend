@@ -44,28 +44,29 @@ public class LlmProvider extends BaseEntity {
     @Column(name = "base_url", columnDefinition = "TEXT")
     private String baseUrl;
 
-    /** Ссылка на {@code secrets} с API-ключом (envelope, entity = {@code llm_provider}). */
+    /** Reference into {@code secrets} holding the API key (envelope, entity = {@code llm_provider}). */
     @Column(name = "secret_id")
     private UUID secretId;
 
     @Column(name = "api_key_mask", nullable = false, columnDefinition = "TEXT")
     private String apiKeyMask;
 
-    /** Модель по умолчанию: обязательна для платформенного провайдера (fallback без привязки). */
+    /** Default model: mandatory for the platform provider (the fallback when there is no binding). */
     @Column(name = "default_model", columnDefinition = "TEXT")
     private String defaultModel;
 
     /**
-     * Провайдер-уровневые доп. параметры тела chat/completions (OpenRouter {@code provider}-роутинг,
-     * {@code transforms}, …). Deep-merge с пер-модельным {@link LlmProviderModel#getExtraBody()}
-     * (модель побеждает) в getLlmCredentials. НЕ секрет — уходит воркеру открытым полем; ключи
-     * API сюда не класть. Сами модели — в {@code llm_provider_models}.
+     * Provider-level extra parameters of the chat/completions body (OpenRouter {@code provider}
+     * routing, {@code transforms}, …). Deep-merged with the per-model
+     * {@link LlmProviderModel#getExtraBody()} (the model wins) in getLlmCredentials. NOT a secret —
+     * it goes to the worker as a plain field; do not put API keys here. The models themselves live in
+     * {@code llm_provider_models}.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "extra_body", columnDefinition = "JSONB")
     private Map<String, Object> extraBody;
 
-    /** Когда последний раз успешно ходили в /models провайдера (атрибут листинга, не модели). */
+    /** When the provider's /models was last polled successfully (an attribute of the listing, not of a model). */
     @Column(name = "models_refreshed_at")
     private LocalDateTime modelsRefreshedAt;
 

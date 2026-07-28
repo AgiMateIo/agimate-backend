@@ -22,8 +22,9 @@ public class SkillSpecs {
     }
 
     /**
-     * Скилл требует коннектор {@code connectorCode}: containment {@code connector_codes @> ARRAY[code]}.
-     * Через {@code @>} (а не {@code array_position}), чтобы задействовать GIN-индекс idx_skills_connector_codes.
+     * The skill requires the connector {@code connectorCode}: containment
+     * {@code connector_codes @> ARRAY[code]}. Via {@code @>} rather than {@code array_position} so
+     * the GIN index idx_skills_connector_codes is used.
      */
     public static Specification<Skill> hasConnector(String connectorCode) {
         return (root, query, cb) -> cb.isTrue(

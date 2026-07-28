@@ -17,9 +17,9 @@ import java.util.UUID;
 public interface AgentConnectionPolicyRepository extends JpaRepository<AgentConnectionPolicy, UUID> {
 
     /**
-     * Правила, релевантные разрешению {@code (kind, name)}: точное имя + binding-wide ({@code name IS
-     * NULL}). Упорядочены так, что точное имя идёт первым — эвалуатор берёт {@code get(0)} как
-     * победителя (прецеденс «имя > wildcard»).
+     * Rules relevant to resolving {@code (kind, name)}: the exact name plus binding-wide ones
+     * ({@code name IS NULL}). Ordered so the exact name comes first — the evaluator takes
+     * {@code get(0)} as the winner (the «name beats wildcard» precedence).
      */
     @Query("""
             SELECT p FROM AgentConnectionPolicy p

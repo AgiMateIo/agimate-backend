@@ -6,9 +6,9 @@ import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.agentworker.MessageKind;
 
 /**
- * Двунаправленный маппинг рода сообщения: proto {@link MessageKind} ↔ доменный
- * {@link ChannelSessionMessageKind}. Единый источник соответствия для обеих gRPC-границ
- * (SaveMessage — входящий, GetRunContext.history — исходящий).
+ * Bidirectional mapping of a message's kind: proto {@link MessageKind} ↔ the domain
+ * {@link ChannelSessionMessageKind}. The single source of the correspondence for both gRPC boundaries
+ * (SaveMessage — incoming, GetRunContext.history — outgoing).
  */
 @UtilityClass
 public class MessageKindMapper {

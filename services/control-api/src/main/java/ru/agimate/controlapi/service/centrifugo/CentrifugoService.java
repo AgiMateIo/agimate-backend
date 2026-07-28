@@ -27,13 +27,7 @@ public class CentrifugoService {
     private final CentrifugoClient centrifugoClient;
     private final CentrifugoProperties centrifugoProperties;
 
-    /**
-     * Publishes a message to a Centrifugo channel.
-     *
-     * @param channel The channel name
-     * @param data    The message data (will be serialized to JSON)
-     * @throws ServiceUnavailableStatusException if Centrifugo is unavailable or publishing fails
-     */
+    /** Wraps {@code data} into a {@code CentrifugoMessage} envelope; see {@link #publish} for the raw form. */
     public void publishMessage(String channel, String type, Object data) {
         publish(channel, new CentrifugoMessage(type, data));
     }
@@ -63,13 +57,8 @@ public class CentrifugoService {
     }
 
     /**
-     * Publishes a message to a Centrifugo channel with tags for server-side subscription filtering.
-     *
-     * @param channel The channel name
-     * @param type    The message type
-     * @param data    The message data (will be serialized to JSON)
-     * @param tags    Tags for subscription filtering (key-value pairs)
-     * @throws ServiceUnavailableStatusException if Centrifugo is unavailable or publishing fails
+     * Same, plus tags: Centrifugo filters deliveries by them on its side, so a subscriber receives
+     * only the matching subset instead of the whole channel.
      */
     public void publishMessage(String channel, String type, Object data, Map<String, String> tags) {
         var centrifugoMessage = new CentrifugoMessage(type, data);
@@ -117,12 +106,8 @@ public class CentrifugoService {
     }
 
     /**
-     * Generates a Centrifugo connection token (JWT) for WebSocket connection.
-     * This token does not contain channel claim and is used for initial connection.
-     *
-     * @param subject           The subject (user/device ID)
-     * @param expirationSeconds Token expiration time in seconds
-     * @return JWT connection token
+     * Carries no channel claim: it authenticates the WebSocket connection and grants nothing by
+     * itself. Signed with the Centrifugo ES256 pair, which is separate from the user JWT one.
      */
     public String generateConnectionToken(String subject, long expirationSeconds) {
         PrivateKey privateKey = getPrivateKey();
@@ -136,12 +121,8 @@ public class CentrifugoService {
     }
 
     /**
-     * Generates a Centrifugo subscription token (JWT) for the specified channel.
-     *
-     * @param subject           The subject (user/device ID)
-     * @param channel           The channel name
-     * @param expirationSeconds Token expiration time in seconds
-     * @return JWT subscription token
+     * Unlike the connection token this one <i>is</i> the access grant to {@code channel} — see the
+     * authorization note on {@link #issueTokens} before calling it directly.
      */
     public String generateSubscriptionToken(String subject, String channel, long expirationSeconds) {
         PrivateKey privateKey = getPrivateKey();

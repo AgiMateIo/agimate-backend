@@ -1,12 +1,12 @@
 package ru.agimate.controlapi.database.enums;
 
 /**
- * Тип задачи — определяет, как scheduler вычисляет {@code next_run_at} после завершения итерации.
+ * Job type — decides how the scheduler computes {@code next_run_at} once an iteration finishes.
  * <ul>
- *   <li>{@link #ONETIME} — одноразовая: после успешного запуска строка переводится в
- *       {@code COMPLETED} и больше не подхватывается; при ошибке ретраится через error retry.</li>
- *   <li>{@link #PERIODIC} — фиксированный интервал из {@code config.intervalSeconds}.</li>
- *   <li>{@link #CRON} — следующий тик cron‑выражения из {@code config.cron}/{@code config.zone}.</li>
+ *   <li>{@link #ONETIME} — one-shot: after a successful run the row moves to {@code COMPLETED} and
+ *       is never picked up again; on failure it is retried through error retry.</li>
+ *   <li>{@link #PERIODIC} — a fixed interval from {@code config.intervalSeconds}.</li>
+ *   <li>{@link #CRON} — the next tick of the cron expression from {@code config.cron}/{@code config.zone}.</li>
  * </ul>
  */
 public enum ConnectorJobType {

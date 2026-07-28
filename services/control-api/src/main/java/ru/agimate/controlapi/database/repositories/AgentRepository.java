@@ -32,8 +32,9 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
             Pageable pageable);
 
     /**
-     * Кандидаты-получатели триггера: агенты пользователя с активным binding на connection
-     * (= connectionId триггера). Тонкая фильтрация (effect/params_filter) — в {@code ConnectionAccessEvaluator}.
+     * Candidate recipients of a trigger: the user's agents with an active binding to the connection
+     * (= the trigger's connectionId). Finer filtering (effect/params_filter) happens in
+     * {@code ConnectionAccessEvaluator}.
      */
     @Query("""
             SELECT a FROM Agent a, AgentConnection ac, Connection c

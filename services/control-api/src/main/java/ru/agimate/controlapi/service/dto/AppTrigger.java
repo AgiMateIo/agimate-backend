@@ -5,9 +5,9 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
 /**
- * Триггер устройства для manage-UI. {@code paramsSchema} — сырой JSON Schema полезной нагрузки
- * события ({@code null}, если устройство её не прислало); {@code params} — производный список имён
- * для простого отображения.
+ * A device's trigger for the manage UI. {@code paramsSchema} is the raw JSON Schema of the event's
+ * payload ({@code null} when the device did not send it); {@code params} is a derived list of names for
+ * simple display.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AppTrigger(

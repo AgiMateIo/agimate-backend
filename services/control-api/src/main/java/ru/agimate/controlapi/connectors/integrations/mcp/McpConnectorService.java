@@ -18,18 +18,18 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Универсальный коннектор к удалённому MCP-серверу (Streamable HTTP). В отличие от обычных
- * коннекторов тулы динамические и per-instance: каждый экземпляр (строка
- * {@code connections} = URL + auth в {@code secrets}) отдаёт свой набор через {@code tools/list}.
- * Поэтому реализуем {@link ToolProvider} напрямую (без {@code BaseConnectorHandler}
- * и {@code @Tool}-методов):
+ * A universal connector to a remote MCP server (Streamable HTTP). Unlike ordinary connectors its
+ * tools are dynamic and per instance: each instance (a {@code connections} row = URL plus auth in
+ * {@code secrets}) reports its own set through {@code tools/list}. So we implement
+ * {@link ToolProvider} directly (without {@code BaseConnectorHandler} and {@code @Tool} methods):
  * <ul>
- *   <li>{@link #getTools()} — статических тулов нет (пусто);</li>
- *   <li>{@link #getTools(ConnectorEnv)} — список из кэша {@code connection_tools} по {@code connectionId}
- *       (наполняется {@link McpToolDiscoveryListener} на create/modify интеграции);</li>
- *   <li>{@link #executeTool} — проксирование в {@code tools/call}.</li>
+ *   <li>{@link #getTools()} — there are no static tools (empty);</li>
+ *   <li>{@link #getTools(ConnectorEnv)} — the list from the {@code connection_tools} cache by
+ *       {@code connectionId} (populated by {@link McpToolDiscoveryListener} on integration
+ *       create/modify);</li>
+ *   <li>{@link #executeTool} — proxying into {@code tools/call}.</li>
  * </ul>
- * Фоновых тасок у MCP нет — {@code JobProvider} не реализуется.
+ * MCP has no background jobs — {@code JobProvider} is not implemented.
  */
 @Slf4j
 @Component
@@ -72,9 +72,10 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
     }
 
     /**
-     * Валидация = хендшейк {@code initialize}: подтверждает доступность сервера и auth. Тулы здесь
-     * не персистим — id экземпляра ещё не присвоен; их синкает {@link McpToolDiscoveryListener}
-     * после commit'а. {@code identifier} = URL сервера (канонический ключ экземпляра).
+     * Validation = the {@code initialize} handshake: it confirms the server is reachable and the auth
+     * works. Tools are not persisted here — the instance's id is not assigned yet; they are synced by
+     * {@link McpToolDiscoveryListener} after the commit. {@code identifier} = the server's URL (the
+     * instance's canonical key).
      */
     @Override
     public IntegrationValidationResult validateCredentials(Map<String, String> credentials) {
@@ -91,13 +92,13 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
         }
     }
 
-    /** Статических тулов у MCP нет — набор всегда per-instance, см. {@link #getTools(ConnectorEnv)}. */
+    /** MCP has no static tools — the set is always per instance, see {@link #getTools(ConnectorEnv)}. */
     @Override
     public Map<String, ConnectorToolSpec> getTools() {
         return Map.of();
     }
 
-    /** Список тулов экземпляра из кэша {@code connection_tools}; connectionId — {@code connections.id}. */
+    /** The instance's tool list from the {@code connection_tools} cache; connectionId is {@code connections.id}. */
     @Override
     public Map<String, ConnectorToolSpec> getTools(ConnectorEnv env) {
         if (env == null || env.connectionId() == null) {

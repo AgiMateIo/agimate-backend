@@ -18,19 +18,20 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Фасад коннектора persistent memory: hot/cold память на scope. Тулы (get/update/note) и скрытые
- * дневная/часовая задачи живут в {@link PersistentMemoryToolService}.
+ * Facade of the persistent memory connector: hot/cold memory per scope. The tools (get/update/note)
+ * and the hidden daily and hourly jobs live in {@link PersistentMemoryToolService}.
  *
- * <p>Память личная: пространство агента, контент ключуется {@code agentId} (резолв из
- * {@code ConnectorEnv} в момент вызова). Connection — строка-режим, одна на пользователя; на ней
- * зарегистрированы декларативные {@code @Job} (daily/consolidation), обходящие пространства всех
- * привязанных агентов ({@code ConnectorCreatedEvent} при материализации строки).
+ * <p>Memory is personal: the space belongs to an agent, and its content is keyed by {@code agentId}
+ * (resolved from {@code ConnectorEnv} at call time). The connection is a mode row, one per user; the
+ * declarative {@code @Job}s (daily/consolidation) are registered on it and walk the spaces of every
+ * bound agent (a {@code ConnectorCreatedEvent} when the row is materialised).
  *
- * <p>Триггеры адресуются привязанным агентам (audience): {@code notes-by-session} — собрать заметки по
- * сессии, {@code consolidate} — свернуть накопленные заметки в cold.
+ * <p>Triggers are addressed to the bound agents (audience): {@code notes-by-session} — collect a
+ * session's notes, {@code consolidate} — fold the accumulated notes into cold.
  *
- * <p>{@link PromptBlockProvider}: cold-память — SYSTEM-блок {@code memory} (attr {@code version} для CAS
- * в {@code update_memory}), hot-заметки — USER-блок {@code memory_notes}.
+ * <p>{@link PromptBlockProvider}: cold memory is the SYSTEM block {@code memory} (with the attr
+ * {@code version} for the CAS in {@code update_memory}), and hot notes are the USER block
+ * {@code memory_notes}.
  */
 @Component
 public class PersistentMemoryConnectorService extends BaseConnectorHandler
@@ -66,9 +67,10 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
     }
 
     /**
-     * Минимальный контекст memory-тасок: материал уже в {@code data} (messages/notes) — история
-     * не нужна; из тулов достаточно памяти ({@code ownConnectionTools}, скилл-тулы выключены).
-     * Тела подошедших скиллов остаются (route-база) — memory-скилл и есть инструкция обработки.
+     * Minimal context for the memory jobs: the material is already in {@code data}
+     * (messages/notes) — no history is needed; of the tools, memory alone suffices
+     * ({@code ownConnectionTools}, skill tools off). The bodies of the matching skills stay (the route
+     * base) — the memory skill is itself the processing instruction.
      */
     private static final ContextDirectives MEMORY_TASK_CONTEXT = ContextDirectives.builder()
             .skillTools(false)
@@ -89,7 +91,7 @@ public class PersistentMemoryConnectorService extends BaseConnectorHandler
 
     @Override
     public List<PromptBlock> promptBlocks(ConnectorEnv env) {
-        // Память личная: пространство = вызывающий агент.
+        // Memory is personal: the space is the calling agent.
         UUID scopeId = env.agentId();
         if (scopeId == null) {
             return List.of();

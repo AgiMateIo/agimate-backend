@@ -191,7 +191,7 @@ public class SecurityConfig {
                         "/docs/**",
                         "/actuator/health",
                         ConnectionWebhookController.PATH + "/**",
-                        // Аутентификация — HMAC-подпись в query (exp+sig), не Spring Security.
+                        // Authentication is the HMAC signature in the query (exp+sig), not Spring Security.
                         FileDownloadController.PATH + "/**"
                 ).permitAll()
                 .anyRequest().authenticated()

@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.connectors.internal.astro.calc;
 
-/** Мажорные аспекты. */
+/** Major aspects. */
 public enum AspectType {
     CONJUNCTION(0),
     SEXTILE(60),

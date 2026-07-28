@@ -57,7 +57,7 @@ public class ToolCallLogService {
         return toolCallLogRepository.save(toolCallLog);
     }
 
-    /** Ран-инициатор из строкового run_id воркера; не-UUID/пусто → null (тул вне рана). */
+    /** The initiating run from the worker's string run_id; a non-UUID or empty value → null (the tool is outside a run). */
     private static UUID parseUuidOrNull(String runId) {
         if (runId == null || runId.isBlank()) {
             return null;
@@ -70,8 +70,9 @@ public class ToolCallLogService {
     }
 
     /**
-     * Connector code необязателен в запросе (например generic-reply его не хранит) — выводим из
-     * connection ({@code connections.connector_code}) по {@code connectionId}, когда не задан.
+     * The connector code is optional in the request (a generic reply, for instance, does not store it) —
+     * when absent we derive it from the connection ({@code connections.connector_code}) by
+     * {@code connectionId}.
      */
     private String resolveConnectorCode(IToolCall toolCall, UUID userId) {
         String code = toolCall.getConnectorCode();
@@ -88,10 +89,10 @@ public class ToolCallLogService {
     }
 
     /**
-     * Записать результат tool-вызова, пришедший от устройства (app). Устройство корреллирует по PK лога
-     * ({@code tool_call_logs.id}, глобально уникален) — так результат однозначно привязывается к логу
-     * даже когда на одном app сидят несколько агентов (у них {@code external_id} может совпадать).
-     * Владение проверяется по {@code connectionId == app.id}.
+     * Record a tool call's result that arrived from a device (app). The device correlates by the log's PK
+     * ({@code tool_call_logs.id}, globally unique) — so the result is unambiguously tied to its log even
+     * when several agents share one app (their {@code external_id}s may coincide). Ownership is checked
+     * by {@code connectionId == app.id}.
      */
     @Transactional
     public ToolCallLog recordOutputFromDevice(App app, IToolResult toolResult) {

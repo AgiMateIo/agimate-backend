@@ -46,7 +46,7 @@ public class AgentToolCallService {
 
         AccessDecision decision = accessEvaluator.evaluate(
                 agent.getId(), request.getConnectionId(), PolicyKind.TOOL, request.getName());
-        // params_filter ограничивает аргументы вызова: разрешено только если они проходят фильтр.
+        // params_filter constrains the call's arguments: it is permitted only if they pass the filter.
         if (decision.allowed() && decision.paramsFilter() != null
                 && !InputFilterEvaluator.matches(decision.paramsFilter(), request.getInput())) {
             decision = AccessDecision.deny("Tool arguments rejected by params_filter", decision.matchedPolicyId());
@@ -74,14 +74,15 @@ public class AgentToolCallService {
     /**
      * Evaluate + enforce permission + push to connector.
      *
-     * <p>Вызывать вне активной транзакции: лог тула коммитится внутри {@code createLog},
-     * и диспатч исполнения видит уже закоммиченную строку.
+     * <p>Call this outside an active transaction: the tool log is committed inside {@code createLog},
+     * so the execution dispatch sees an already-committed row.
      */
     public String processToolCall(UUID agentId, ToolCallRequest request) {
         return switch (evaluate(agentId, request)) {
             case EvaluationResult.Replay(var log) -> {
-                // Ретрай с тем же id и input: результата ещё нет — доводим исполнение до конца
-                // (крэш/обрыв между коммитом лога и диспатчем); редкий дубль лучше потери.
+                // A retry with the same id and input: there is no result yet — we carry the execution through to
+                // the end (a crash or disconnect between committing the log and the dispatch); a rare duplicate
+                // beats a loss.
                 if (log.getAccessEffect() == AccessEffect.ALLOW && log.getFinishAt() == null) {
                     connectorService.pushToConnector(log);
                 }

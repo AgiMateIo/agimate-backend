@@ -31,17 +31,18 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Оркестрация ACP-диалога (структурный близнец {@code WebchatService}): одна USER-scope
- * connection на пользователя, per-agent канал с handler'ом {@code acp}, явные сессии
- * ({@code channel_sessions}). Входящее сообщение уходит штатным триггер-пайплайном; в отличие
- * от webchat отдельной UI-истории нет — реплей {@code session/load} читает
- * {@code channel_session_messages} (INBOUND пишет воркер через SaveMessage).
+ * Orchestration of an ACP dialogue (the structural twin of {@code WebchatService}): one USER-scope
+ * connection per user, a per-agent channel with the {@code acp} handler, explicit sessions
+ * ({@code channel_sessions}). An incoming message goes out through the regular trigger pipeline;
+ * unlike webchat there is no separate UI history — a {@code session/load} replay reads
+ * {@code channel_session_messages} (INBOUND is written by the worker through SaveMessage).
  *
- * <p>Без класс-левел {@code @Transactional(readOnly = true)}: {@link #prompt} обязан выполняться
- * вне транзакции (DBOS-enqueue внутри роутера не должен жить в общей транзакции с историей).
+ * <p>No class-level {@code @Transactional(readOnly = true)}: {@link #prompt} must run outside a
+ * transaction (the DBOS enqueue inside the router must not share a transaction with the history).
  *
- * <p>Исключения — {@code *StatusException}: этот сервис — граница ACP-транспорта, WebSocket-хендлер
- * мапит их в JSON-RPC ошибки так же, как advice мапит в HTTP-статусы.
+ * <p>The exceptions are {@code *StatusException}: this service is the ACP transport's boundary, and
+ * the WebSocket handler maps them into JSON-RPC errors just as the advice maps them into HTTP
+ * statuses.
  */
 @Slf4j
 @Service
@@ -56,7 +57,7 @@ public class AcpService {
     private final ConnectionBindingService connectionBindingService;
     private final TriggerRouterService triggerRouterService;
 
-    /** Новая ACP-сессия; binding и канал материализуются лениво (find-or-create). */
+    /** A new ACP session; the binding and the channel are materialised lazily (find-or-create). */
     @Transactional
     public ChannelSession startSession(UUID userId, UUID agentId) {
         Agent agent = requireOwnedAgent(userId, agentId);
@@ -78,23 +79,23 @@ public class AcpService {
         return channelSessionService.createNew(channel, null);
     }
 
-    /** История сессии для реплея {@code session/load}, старые сначала. Проверяет владение. */
+    /** The session's history for a {@code session/load} replay, oldest first. Checks ownership. */
     @Transactional(readOnly = true)
     public List<ChannelSessionMessage> loadSession(UUID userId, UUID agentId, UUID sessionId) {
         requireOwnedAcpSession(userId, agentId, sessionId);
         return channelSessionMessageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
     }
 
-    /** Проверка владения без загрузки истории — восстановление привязки после реконнекта моста. */
+    /** An ownership check without loading the history — restoring the binding after the bridge reconnects. */
     @Transactional(readOnly = true)
     public void assertOwned(UUID userId, UUID agentId, UUID sessionId) {
         requireOwnedAcpSession(userId, agentId, sessionId);
     }
 
     /**
-     * Принять сообщение пользователя из IDE: штатный триггер-пайплайн (синхронно — ошибки
-     * маршрутизации видны клиенту сразу). Не транзакционно: DBOS-enqueue внутри роутера не
-     * должен жить в одной транзакции с записями сессии.
+     * Accept a user message from the IDE: the regular trigger pipeline (synchronously — routing errors
+     * are visible to the client immediately). Not transactional: the DBOS enqueue inside the router
+     * must not share a transaction with the session's records.
      */
     public String prompt(UUID userId, UUID agentId, UUID sessionId, String text) {
         SessionContext ctx = requireOwnedAcpSession(userId, agentId, sessionId);
@@ -137,7 +138,7 @@ public class AcpService {
         return agent;
     }
 
-    /** Сессия должна принадлежать пользователю, ACP-каналу и агенту ключа этого соединения. */
+    /** The session must belong to the user, to the ACP channel and to the agent of this connection's key. */
     private SessionContext requireOwnedAcpSession(UUID userId, UUID agentId, UUID sessionId) {
         ChannelSession session = channelSessionService.getById(sessionId);
         Channel channel = channelRepository.findById(session.getChannelId())

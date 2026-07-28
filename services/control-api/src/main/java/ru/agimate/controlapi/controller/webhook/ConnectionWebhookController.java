@@ -36,9 +36,9 @@ public class ConnectionWebhookController {
             @RequestBody String rawBody,
             HttpServletRequest request
     ) {
-        // Первым, до обращения к БД: отклонённый флуд не должен стоить ни одного запроса к базе.
-        // Дропаем молча с 200: источник не аутентифицирован (лимиты не раскрываем), а платформы
-        // (Telegram и т.п.) бесконечно ретраят не-2xx — 429 превратил бы флуд в самоподдерживающийся.
+        // First of all, before touching the database: rejected flood must not cost a single query. We drop it
+        // silently with a 200: the source is unauthenticated (we do not disclose the limits), and the platforms
+        // (Telegram and the like) retry a non-2xx forever — a 429 would turn the flood self-sustaining.
         if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.TRIGGER, connectionId)) {
             log.warn("Webhook rate limit exceeded for connection: {}", connectionId);
             return ResponseEntity.ok("ok");

@@ -7,19 +7,19 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Текстовые заглушки для inbound-вложений — «описание загруженного файла» с его id. Служат
- * плейсхолдером вложения в истории (протокол v2 текстовый), подсказкой агенту и источником id для
- * повторной отправки через {@code [[attach:agf_…]]}. Общий для webchat и Telegram.
+ * Text stubs for inbound attachments — «a description of the uploaded file» with its id. They serve as
+ * an attachment placeholder in history (protocol v2 is textual), as a hint to the agent and as the
+ * source of an id for re-sending through {@code [[attach:agf_…]]}. Shared by webchat and Telegram.
  *
- * <p>Формулировка нейтральна к «зрению»: подаст ли воркер картинку модели инлайном (Media),
- * зависит от {@code input_modalities} chat-модели и решается на каждый LLM-вызов — рамку
- * «ты видишь / не видишь изображения» добавляет воркер system-подсказкой
- * ({@code LlmMessageMapper}), стаб утверждать этого не должен.
+ * <p>The wording is neutral about «vision»: whether the worker feeds the picture to the model inline
+ * (as Media) depends on the chat model's {@code input_modalities} and is decided per LLM call — the
+ * «you can / cannot see images» framing is added by the worker as a system hint
+ * ({@code LlmMessageMapper}), and a stub must assert nothing of the sort.
  */
 @UtilityClass
 public class MediaStubs {
 
-    /** Пользовательский текст + по строке-описанию на каждое вложение (пустой текст — только описания). */
+    /** The user's text plus one description line per attachment (with empty text — the descriptions alone). */
     public static String withStubs(String userText, List<Part> parts) {
         if (parts == null || parts.isEmpty()) {
             return userText != null ? userText : "";
@@ -37,7 +37,7 @@ public class MediaStubs {
         return sb.toString();
     }
 
-    /** Описание одного загруженного файла: тип + id; про видимость картинки не утверждает ничего. */
+    /** Description of one uploaded file: type plus id; it asserts nothing about whether a picture is visible. */
     public static String stub(Part part) {
         String meta = metaSuffix(part);
         String kind = switch (part.type() == null ? "file" : part.type()) {
@@ -50,13 +50,13 @@ public class MediaStubs {
                 + ". id: " + part.storageRef() + ". Файл уже загружен и доступен по этому id.]";
     }
 
-    /** Имя файла из meta, если известно (например Telegram document). */
+    /** File name from the meta, when known (a Telegram document, for instance). */
     private static String name(Part part) {
         Object n = part.meta() != null ? part.meta().get("name") : null;
         return n != null && !n.toString().isBlank() ? " «" + n + "»" : "";
     }
 
-    /** «, mime, размер» — общая часть описания. */
+    /** «, mime, size» — the shared part of a description. */
     private static String metaSuffix(Part part) {
         StringBuilder sb = new StringBuilder();
         if (part.mime() != null && !part.mime().isBlank()) {

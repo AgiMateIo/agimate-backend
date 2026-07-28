@@ -7,12 +7,12 @@ import ru.agimate.controlapi.service.trigger.Trigger;
 import java.util.Map;
 
 /**
- * Коннектор к внешней платформе: живёт от имени пользователя по его credentials
- * (секрет адресуется {@code connections.secret_id}), опционально принимает входящие webhooks.
+ * A connector to an external platform: it acts on the user's behalf using their credentials (the
+ * secret is addressed by {@code connections.secret_id}) and optionally accepts incoming webhooks.
  */
 public interface IntegrationConnectorHandler extends ConnectorHandler {
 
-    /** Поля credentials: код поля → человекочитаемое название. */
+    /** Credentials fields: field code → human-readable name. */
     Map<String, String> getCredentialFields();
 
     IntegrationValidationResult validateCredentials(Map<String, String> credentials);
@@ -29,7 +29,7 @@ public interface IntegrationConnectorHandler extends ConnectorHandler {
         // no-op
     }
 
-    /** Нормализация сырого webhook-тела в {@link Trigger}; контекст без расшифровки credentials. */
+    /** Normalisation of a raw webhook body into a {@link Trigger}; the context has no decrypted credentials. */
     default Trigger normalizeInbound(ConnectorEnv env, String rawBody) {
         throw new UnsupportedOperationException("Platform does not support inbound webhooks");
     }

@@ -1,45 +1,47 @@
 package ru.agimate.controlapi.service.runcontext;
 
 /**
- * Политика сборки контекста рана (бывший ContextProfile воркера, переехал на бэк).
- * Пресет выбирается по маршруту триггера: есть prompt-канал → {@link #DIALOGUE},
- * иначе {@link #SYSTEM_TRIGGER}. Новые виды входа — новые константы со своей политикой,
- * не условия внутри сборки.
+ * Policy for assembling a run's context (the worker's former ContextProfile, moved to the backend).
+ * The preset is chosen by the trigger's route: a prompt channel exists → {@link #DIALOGUE},
+ * otherwise {@link #SYSTEM_TRIGGER}. New kinds of input mean new constants with their own policy,
+ * not conditionals inside the assembly.
  */
 public enum ContextSpec {
 
     /**
-     * Диалог с пользователем: тела и тулы всех скиллов агента — скиллы задают поведение
-     * и в диалоге (дисциплина итераций media, правила заметок памяти), а не только в
-     * trigger-ранах; тела стабильны и дружат с prompt-кэшем.
-     * История без reasoning-строк: «💭 thinking...» бессодержательна, а в истории читается
-     * как реплика агента; tool-ходы остаются как контекст прошлой работы — структурно
-     * (tool_turn → нативные tool_use/tool_result у воркера), не текстом: текстовый паттерн
-     * «🔧 name» модель имитирует вместо реального вызова (легаси-строки санитизируются).
+     * A dialogue with the user: the bodies and tools of all the agent's skills — skills define
+     * behaviour in a dialogue too (media iteration discipline, memory note rules), not only in
+     * trigger runs; the bodies are stable and friendly to the prompt cache.
+     * History without reasoning lines: «💭 thinking...» carries nothing, and in history it reads as
+     * an utterance by the agent; tool turns stay as context of past work — structurally
+     * (tool_turn → native tool_use/tool_result at the worker), not as text: the textual pattern
+     * «🔧 name» is something the model imitates instead of making a real call (legacy rows are
+     * sanitised).
      */
     DIALOGUE(SkillBodies.ALL, false, HistoryDetail.NO_REASONING),
 
     /**
-     * Автономная обработка события: тела — только подошедших триггеру скиллов (они и есть
-     * инструкция обработки события), тулы — всех скиллов, плюс trigger-guidance блок.
+     * Autonomous handling of an event: bodies only of the skills that matched the trigger (they are
+     * the instruction for handling the event), tools from every skill, plus the trigger-guidance
+     * block.
      */
     SYSTEM_TRIGGER(SkillBodies.MATCHED, true, HistoryDetail.NO_REASONING);
 
-    /** Какие тела скиллов инжектятся в системный промпт. */
+    /** Which skill bodies are injected into the system prompt. */
     public enum SkillBodies {
-        /** Все скиллы агента. */
+        /** All of the agent's skills. */
         ALL,
-        /** Только скиллы, чьи connector_codes содержат коннектор триггера. */
+        /** Only skills whose connector_codes contain the trigger's connector. */
         MATCHED
     }
 
-    /** Детализация истории, которую видит следующий ран (фильтр по kind/progress_type). */
+    /** Level of detail of the history the next run sees (a filter by kind/progress_type). */
     public enum HistoryDetail {
-        /** Все сообщения, как их видел пользователь (включая thinking/tool-строки). */
+        /** Every message, as the user saw it (thinking and tool lines included). */
         FULL,
-        /** Без reasoning-строк (PROGRESS c progress_type=THINKING). */
+        /** Without reasoning lines (PROGRESS with progress_type=THINKING). */
         NO_REASONING,
-        /** Только INBOUND/ANSWER/ERROR — без промежуточных шагов. */
+        /** INBOUND/ANSWER/ERROR only — no intermediate steps. */
         DIALOGUE_ONLY
     }
 

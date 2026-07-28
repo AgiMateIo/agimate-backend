@@ -17,9 +17,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Правила уточнения доступа поверх binding ({@code agent_connection_policies}). Модель — дефолт-allow:
- * при наличии binding тул/триггер разрешён, если нет правила. Прецеденс: точное имя > binding-wide
- * ({@code name=null}) > дефолт-allow.
+ * Access refinement rules on top of a binding ({@code agent_connection_policies}). The model is
+ * default-allow: given a binding, a tool or trigger is permitted unless a rule says otherwise. The
+ * precedence: an exact name > binding-wide ({@code name=null}) > default-allow.
  */
 @RestController
 @RequestMapping(ManageAgentConnectionPolicyController.PATH)

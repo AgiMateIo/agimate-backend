@@ -1,9 +1,10 @@
 package ru.agimate.controlapi.database.enums;
 
 /**
- * Что уточняет правило {@code agent_connection_policies}: {@link #TOOL} — аргументы вызова тула,
- * {@link #TRIGGER} — параметры входящего триггера. Единая таблица политик разделяется по этому
- * дискриминатору (заменяет раздельные {@code agent_tool_policies}/{@code agent_trigger_policies}).
+ * What an {@code agent_connection_policies} rule refines: {@link #TOOL} — the arguments of a tool
+ * call, {@link #TRIGGER} — the parameters of an incoming trigger. The single policy table is split
+ * by this discriminator (it replaces the separate {@code agent_tool_policies}/{@code
+ * agent_trigger_policies}).
  */
 public enum PolicyKind {
     TOOL,

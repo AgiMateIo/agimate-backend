@@ -20,9 +20,9 @@ import java.io.InputStream;
 import java.net.URI;
 
 /**
- * S3-совместимый {@link BlobStore} (AWS S3 / MinIO), включается {@code app.files.backend=s3}.
- * Клиент создаётся лениво при первом обращении — control-api стартует и без настроенного
- * хранилища, ошибка конфигурации всплывает на первом реальном использовании, а не на bootRun.
+ * S3-compatible {@link BlobStore} (AWS S3 / MinIO), enabled by {@code app.files.backend=s3}. The
+ * client is created lazily on first use — control-api starts even with no storage configured, and a
+ * configuration error surfaces on the first real use rather than at bootRun.
  */
 @Slf4j
 @Component
@@ -66,7 +66,7 @@ public class S3BlobStore implements BlobStore {
     @Override
     public void delete(String key) {
         try {
-            // S3 DeleteObject идемпотентен: отсутствующий ключ — успех.
+            // S3 DeleteObject is idempotent: a missing key is a success.
             client().deleteObject(DeleteObjectRequest.builder()
                     .bucket(props.getBucket())
                     .key(key)

@@ -22,14 +22,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Файловый слой коннекторов (docs/connectors/files.md): метаданные в {@code files}, байты в
- * {@link BlobStore} под ключом {@code userId/agf_<id>}. Владение — {@code user_id}: чужой fileId
- * не резолвится по построению.
+ * The connectors' file layer (docs/connectors/files.md): metadata in {@code files}, bytes in
+ * {@link BlobStore} under the key {@code userId/agf_<id>}. Ownership is {@code user_id}: a foreign
+ * fileId does not resolve by construction.
  *
- * <p>{@link #store} намеренно НЕ транзакционен: между insert'ом UPLOADING-строки и переводом в
- * READY идёт сетевой аплоад в S3, держать транзакцию поверх него нельзя. Упавшая загрузка
- * оставляет UPLOADING-строку — её (и возможный blob-сирота) подметает {@link #purgeExpiredBatch}
- * по возрасту.
+ * <p>{@link #store} is deliberately NOT transactional: between inserting the UPLOADING row and
+ * moving it to READY there is a network upload to S3, and a transaction must not be held across it.
+ * A failed upload leaves an UPLOADING row — that row (and any orphaned blob) is swept by
+ * {@link #purgeExpiredBatch} on age.
  */
 @Slf4j
 @Service
@@ -40,12 +40,12 @@ public class FileStorageService {
     private final BlobStore blobStore;
     private final FileStorageProperties props;
 
-    /** Метаданные + стрим содержимого; стрим закрывает вызывающий. */
+    /** Metadata plus a stream of the contents; the caller closes the stream. */
     public record FileContent(StoredFile file, InputStream content) {}
 
     /**
-     * Сохраняет файл: проверки лимитов → UPLOADING-строка → аплоад в blob store (с подсчётом
-     * SHA-256 на лету) → READY. Возвращает строку с заполненным {@code sha256}.
+     * Stores a file: limit checks → an UPLOADING row → upload into the blob store (computing SHA-256
+     * on the fly) → READY. Returns the row with {@code sha256} filled in.
      *
      * @param ttl null — {@code app.files.default-ttl}
      */
@@ -88,15 +88,15 @@ public class FileStorageService {
     }
 
     /**
-     * Метаданные файла, доступного вызывающему для чтения: свой + READY + не просрочен.
-     * {@code empty} — id неизвестен/чужой/просрочен/не дозагружен (причины намеренно неразличимы).
+     * Metadata of a file the caller may read: own + READY + not expired. {@code empty} — the id is
+     * unknown, foreign, expired or not fully uploaded (the reasons are deliberately indistinguishable).
      */
     public Optional<StoredFile> findReadable(UUID userId, String fileId) {
         return findLive(fileId)
                 .filter(f -> f.getUserId().equals(userId));
     }
 
-    /** Открывает файл по публичному id ({@code agf_<uuid>}) с проверкой владения (см. {@link #findReadable}). */
+    /** Opens a file by its public id ({@code agf_<uuid>}) with an ownership check (see {@link #findReadable}). */
     public FileContent open(UUID userId, String fileId) {
         StoredFile file = findReadable(userId, fileId)
                 .orElseThrow(() -> new StoredFileNotFoundException(fileId));
@@ -104,9 +104,9 @@ public class FileStorageService {
     }
 
     /**
-     * Открывает файл без проверки владения — только для доступа по подписанной ссылке
-     * ({@code SignedFileUrlService}): владение доказано при выдаче ссылки, подпись уже проверена
-     * вызывающим. Остальные фильтры (READY, TTL) действуют.
+     * Opens a file without an ownership check — only for access via a signed link
+     * ({@code SignedFileUrlService}): ownership was proven when the link was issued, and the caller
+     * has already verified the signature. The other filters (READY, TTL) still apply.
      */
     public FileContent openSigned(String fileId) {
         StoredFile file = findLive(fileId)
@@ -114,7 +114,7 @@ public class FileStorageService {
         return new FileContent(file, blobStore.get(blobKey(file)));
     }
 
-    /** Строка файла, пригодного к чтению: существует + READY + не просрочен (без проверки владения). */
+    /** Row of a file fit for reading: exists + READY + not expired (no ownership check). */
     private Optional<StoredFile> findLive(String fileId) {
         return FileIds.parse(fileId)
                 .flatMap(storedFileRepository::findById)
@@ -123,11 +123,11 @@ public class FileStorageService {
     }
 
     /**
-     * Один батч чистки: просроченные READY + брошенные UPLOADING (строки — под
-     * {@code SKIP LOCKED}, см. репозиторий). Блоб удаляется до строки: S3-delete идемпотентен,
-     * повтор после сбоя безопасен, а сирот-блобов без строк не остаётся.
+     * One cleanup batch: expired READY plus abandoned UPLOADING (the rows come under
+     * {@code SKIP LOCKED}, see the repository). The blob is deleted before the row: an S3 delete is
+     * idempotent, so a retry after a failure is safe, and no orphaned blobs are left without rows.
      *
-     * @return число удалённых файлов
+     * @return the number of files deleted
      */
     @Transactional
     public int purgeExpiredBatch(int limit) {

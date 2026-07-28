@@ -14,14 +14,16 @@ import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import java.util.UUID;
 
 /**
- * Снимок стартового промпта рана ({@code agent_runs.prompt}): список сообщений ровно как он ушёл в
- * первый LLM-вызов. Пишет воркер один раз перед циклом ({@code SavePrompt}), дальнейшие ходы идут в
- * {@link AgentRunTurnService}. Хранится opaque JSON-деревом — наблюдаемость, не проекция.
+ * Snapshot of a run's starting prompt ({@code agent_runs.prompt}): the message list exactly as it went
+ * into the first LLM call. The worker writes it once before the loop ({@code SavePrompt}), and later
+ * turns go to {@link AgentRunTurnService}. Stored as an opaque JSON tree — observability, not a
+ * projection.
  *
- * <p>First-write-wins: снимок пишется только если ещё пуст. Воркер шлёт SavePrompt обычным (не
- * durable) вызовом — реплей/ретрай повторяет запись, но повторная запись не перезатирает первую
- * (окно контекста могло сдвинуться, нужен снимок на старт рана). Гонок нет: очередь партиционирована
- * по сессии (concurrency=1), реплей последователен.
+ * <p>First-write-wins: the snapshot is written only while it is still empty. The worker sends
+ * SavePrompt as an ordinary (non-durable) call — a replay or retry repeats the write, but the second
+ * write does not overwrite the first (the context window may have shifted, and what is needed is the
+ * snapshot at the run's start). There are no races: the queue is partitioned by session
+ * (concurrency=1) and a replay is sequential.
  */
 @Slf4j
 @Service

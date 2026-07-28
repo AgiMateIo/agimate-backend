@@ -3,23 +3,23 @@ package ru.agimate.controlapi.service.runcontext;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 
 /**
- * Эффективная политика сборки контекста рана: route-пресет ({@link ContextSpec}) ⊕ директивы
- * триггера ({@link ContextDirectives}, статическая декларация кода коннектора). Единственное
- * место наложения — сборка ({@code RunContextService}) читает готовые значения и не ветвится
- * по источнику. {@code directives == null} (триггер без декларации, в т.ч. любой динамический)
- * даёт ровно базовый пресет.
+ * The effective policy for assembling a run's context: the route preset ({@link ContextSpec}) ⊕ the
+ * trigger's directives ({@link ContextDirectives}, a static declaration in the connector's code). The
+ * overlay happens in exactly one place — the assembly ({@code RunContextService}) reads finished
+ * values and never branches on their source. {@code directives == null} (a trigger with no
+ * declaration, any dynamic one included) yields precisely the base preset.
  *
- * @param skillBodies        какие тела скиллов инжектить (route-пресет; директивами не
- *                           переопределяется — в диалоге тела задают поведение, в trigger-ране
- *                           они и есть инструкции обработки)
- * @param triggerGuidance    добавлять system-блок trigger guidance (route-пресет)
- * @param historyDetail      детализация истории (route-пресет)
- * @param historyLimit       окно истории; {@code 0} — история не загружается
- * @param skillTools         собирать тулы скиллов агента
- * @param ownConnectionTools добавить тулы connection события (именно connection, не кода)
- * @param presentation       рендер основного блока события (EVENT | PROMPT)
- * @param promptParam        для PROMPT: параметр {@code data} с текстом
- * @param guidance           trusted user-блок перед блоком события; {@code null} — нет
+ * @param skillBodies        which skill bodies to inject (the route preset; directives cannot override
+ *                           it — in a dialogue the bodies define behaviour, and in a trigger run they
+ *                           are the handling instructions)
+ * @param triggerGuidance    whether to add the trigger-guidance system block (the route preset)
+ * @param historyDetail      level of detail of the history (the route preset)
+ * @param historyLimit       window of history; {@code 0} — history is not loaded
+ * @param skillTools         whether to collect the agent's skill tools
+ * @param ownConnectionTools add the event's connection tools (that connection specifically, not the code)
+ * @param presentation       rendering of the event's main block (EVENT | PROMPT)
+ * @param promptParam        for PROMPT: the {@code data} parameter holding the text
+ * @param guidance           a trusted user block before the event block; {@code null} — none
  */
 record EffectiveContext(
         ContextSpec.SkillBodies skillBodies,
@@ -33,7 +33,7 @@ record EffectiveContext(
         String guidance
 ) {
 
-    /** Базовое окно истории (хвост сессии), когда триггер его не переопределил. */
+    /** Base window of history (the session's tail) when the trigger did not override it. */
     static final int DEFAULT_HISTORY_LIMIT = 50;
 
     static EffectiveContext of(ContextSpec base, ContextDirectives d) {

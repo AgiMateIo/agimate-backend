@@ -20,9 +20,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * CRUD правил уточнения доступа ({@code agent_connection_policies}) поверх binding. Владение
- * проверяется через {@code binding → connection.userId}. Любое изменение инвалидирует кэш
- * {@link ConnectionAccessEvaluator} по агенту binding'а.
+ * CRUD of the access refinement rules ({@code agent_connection_policies}) on top of a binding.
+ * Ownership is checked through {@code binding → connection.userId}. Any change invalidates the
+ * {@link ConnectionAccessEvaluator} cache for the binding's agent.
  */
 @Service
 @RequiredArgsConstructor
@@ -93,7 +93,7 @@ public class AgentConnectionPolicyService {
         invalidate(policy.getAgentConnectionId());
     }
 
-    /** Правило должно принадлежать binding'у из пути — иначе путь вводит в заблуждение (несоответствие). */
+    /** The rule must belong to the binding from the path — otherwise the path is misleading (a mismatch). */
     private void requireInBinding(AgentConnectionPolicy policy, UUID agentConnectionId) {
         if (!policy.getAgentConnectionId().equals(agentConnectionId)) {
             throw new NotFoundStatusException("Policy not found");

@@ -17,19 +17,20 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Бутстрап коннекторов при старте приложения:
+ * Bootstrap of connectors at application start:
  * <ol>
- *   <li>upsert статических строк {@code connectors} без handler'а ({@code app}, {@code claude-code});</li>
- *   <li>upsert строки {@code connectors} для каждого handler'а из registry — код-источник истины
- *       для name/description/credential_fields/capabilities; name/description при этом проходят
- *       через {@link ConnectorTexts} (перевод каталога под {@code app.content.language});</li>
- *   <li>пересинк существующих SYSTEM-строк {@code connector_jobs} с {@code getJobs()} — изменения
- *       {@code @Job} (интервал/timeout) доезжают до БД без пересоздания подключений.</li>
+ *   <li>upsert of the static {@code connectors} rows that have no handler ({@code app}, {@code claude-code});</li>
+ *   <li>upsert of a {@code connectors} row for every handler in the registry — the code is the source
+ *       of truth for name/description/credential_fields/capabilities; name and description pass
+ *       through {@link ConnectorTexts} on the way (translating the catalogue under
+ *       {@code app.content.language});</li>
+ *   <li>re-sync of the existing SYSTEM {@code connector_jobs} rows against {@code getJobs()} — changes
+ *       to {@code @Job} (interval, timeout) reach the database without recreating connections.</li>
  * </ol>
  *
- * <p>Новые задачи на старте не регистрируются: декларативные таски интеграций заводятся
- * по {@code ConnectorCreatedEvent} (добавление коннектора пользователем), динамические — агентом
- * через тулы (например {@code time.schedule}).
+ * <p>New jobs are not registered at startup: declarative integration jobs are created on a
+ * {@code ConnectorCreatedEvent} (the user adding a connector), and dynamic ones by the agent through
+ * tools (e.g. {@code time.schedule}).
  */
 @Slf4j
 @Component
@@ -85,11 +86,12 @@ public class ConnectorBootstrap {
     }
 
     /**
-     * Fail-fast валидация trust-полей {@link ContextDirectives}: {@code presentation=PROMPT}
-     * отмывает текст события в trusted-блок, поэтому разрешён только internal-коннекторам
-     * (их payload собирает наш код, авторство — агент/платформа); у интеграции {@code data}
-     * приходит из внешнего мира — такая декларация роняет старт. PROMPT без {@code promptParam}
-     * бессмыслен — тоже ошибка декларации.
+     * Fail-fast validation of the trust fields of {@link ContextDirectives}:
+     * {@code presentation=PROMPT} launders the event's text into a trusted block, so it is allowed
+     * for internal connectors only (their payload is assembled by our code, authored by the agent or
+     * the platform); for an integration, {@code data} comes from the outside world — such a
+     * declaration fails the startup. A PROMPT without {@code promptParam} is meaningless, and is also
+     * a declaration error.
      */
     private static void requireValidContextDirectives(ConnectorHandler handler) {
         if (!(handler instanceof TriggerProvider triggerProvider)) {
@@ -113,11 +115,12 @@ public class ConnectorBootstrap {
     }
 
     /**
-     * Fail-fast инвариант выводимой оси «экземплярность»: у неё две фиксации — тип хендлера
-     * (ветвления кода) и деривация {@link Connector#isInstanceBearing()} из credentials/DEVICE
-     * (проверки при создании connection). Расхождение (например, integration-хендлер без
-     * credential-полей) означает ошибку моделирования нового коннектора — роняем старт, а не
-     * даём фиксациям молча разъехаться.
+     * Fail-fast invariant of the derived «instance-bearing» axis: it is pinned down in two places —
+     * the handler's type (which the code branches on) and the derivation
+     * {@link Connector#isInstanceBearing()} from credentials/DEVICE (the checks performed when a
+     * connection is created). A divergence (an integration handler with no credential fields, say)
+     * means the new connector was modelled wrongly — fail the startup rather than let the two
+     * quietly drift apart.
      */
     private static void requireConsistentInstanceBearing(ConnectorHandler handler, Connector connector) {
         boolean byHandlerType = handler instanceof IntegrationConnectorHandler;
@@ -129,7 +132,7 @@ public class ConnectorBootstrap {
         }
     }
 
-    /** Строки без handler'а: источник истины тот же (код), поэтому upsert, а не save-if-absent. */
+    /** Rows with no handler: the source of truth is the same (the code), hence an upsert rather than save-if-absent. */
     private void upsertStatic(String code, String name, ConnectorTraits traits, String description) {
         Connector connector = connectorRepository.findById(code)
                 .orElseGet(() -> Connector.builder().code(code).build());

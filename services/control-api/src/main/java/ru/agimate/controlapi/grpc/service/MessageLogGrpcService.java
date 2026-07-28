@@ -29,8 +29,8 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.handleError;
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 
 /**
- * SaveMessage (протокол v2): тонкий фасад над {@link MessageLogService} — запись события диалога
- * + доставка как её проекция. Идемпотентен по {@code (run_id, seq)}.
+ * SaveMessage (protocol v2): a thin facade over {@link MessageLogService} — recording a dialogue event
+ * plus delivery as its projection. Idempotent by {@code (run_id, seq)}.
  */
 @Service
 @RequiredArgsConstructor

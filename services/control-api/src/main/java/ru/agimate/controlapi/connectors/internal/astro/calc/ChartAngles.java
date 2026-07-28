@@ -8,15 +8,16 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import java.time.Instant;
 
 /**
- * Углы карты: асцендент и MC (Medium Coeli). Сферическая тригонометрия от местного
- * звёздного времени; наклон эклиптики берётся из матрицы поворота экватор→эклиптика даты.
+ * The chart's angles: the ascendant and the MC (Medium Coeli). Spherical trigonometry from local
+ * sidereal time; the obliquity of the ecliptic is taken from the equator→ecliptic-of-date rotation
+ * matrix.
  *
- * @param ascendant эклиптическая долгота асцендента, [0, 360)
- * @param midheaven эклиптическая долгота MC, [0, 360)
+ * @param ascendant ecliptic longitude of the ascendant, [0, 360)
+ * @param midheaven ecliptic longitude of the MC, [0, 360)
  */
 public record ChartAngles(double ascendant, double midheaven) {
 
-    /** За полярным кругом асцендент вырождается (эклиптика может не пересекать горизонт). */
+    /** Beyond the polar circle the ascendant degenerates (the ecliptic may not cross the horizon). */
     private static final double MAX_LATITUDE = 66.5;
 
     public static ChartAngles compute(Instant utc, double latitudeDeg, double longitudeEastDeg) {
@@ -26,12 +27,12 @@ public record ChartAngles(double ascendant, double midheaven) {
         }
         Time time = Ephemeris.toTime(utc);
 
-        // Местное звёздное время в градусах (RAMC)
+        // Local sidereal time in degrees (the RAMC)
         double theta = Angles.normalize(Astronomy.siderealTime(time) * 15.0 + longitudeEastDeg);
         return fromSidereal(theta, trueObliquity(time), latitudeDeg);
     }
 
-    /** Чистая тригонометрия: θ — RAMC, ε — наклон эклиптики, φ — широта (всё в градусах). */
+    /** Pure trigonometry: θ is the RAMC, ε the obliquity of the ecliptic, φ the latitude (all in degrees). */
     static ChartAngles fromSidereal(double thetaDeg, double epsDeg, double phiDeg) {
         double theta = Math.toRadians(thetaDeg);
         double eps = Math.toRadians(epsDeg);
@@ -43,7 +44,7 @@ public record ChartAngles(double ascendant, double midheaven) {
         return new ChartAngles(Angles.normalize(asc), Angles.normalize(mc));
     }
 
-    /** Истинный наклон эклиптики: угол между полюсами экватора и эклиптики даты. */
+    /** True obliquity of the ecliptic: the angle between the poles of the equator and of the ecliptic of date. */
     private static double trueObliquity(Time time) {
         Vector equatorPole = new Vector(0, 0, 1, time);
         Vector inEcliptic = Astronomy.rotationEqdEct(time).rotate(equatorPole);

@@ -55,20 +55,21 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         }
     }
 
-    /** RPC рана = признак его жизни; протокольная семантика — на протокольном слое. */
+    /** A run's RPC is its sign of life; the protocol semantics belong on the protocol layer. */
     private void touchRun(String runId) {
         if (!runId.isEmpty()) {
             try {
                 runActivityService.touch(UUID.fromString(runId));
             } catch (IllegalArgumentException ignored) {
-                // не-UUID run_id отбраковывается дальше обычной валидацией
+                // a non-UUID run_id is rejected further along, by the ordinary validation
             }
         }
     }
 
     /**
-     * Протокол v2: воркер шлёт run_id рана; сессию (доменный контекст тулов — канал prompt'а)
-     * резолвит эта сторона из строки рана. Пустой/неизвестный run_id → null (тул вне канала).
+     * Protocol v2: the worker sends the run's run_id; the session (the tools' domain context — the
+     * prompt's channel) is resolved on this side from the run's row. An empty or unknown run_id → null
+     * (the tool is outside a channel).
      */
     private String resolveSessionId(ExecuteToolRequest request) {
         if (request.getRunId().isEmpty()) {

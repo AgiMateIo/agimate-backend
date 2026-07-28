@@ -6,9 +6,9 @@ import jakarta.validation.constraints.NotNull;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 
 /**
- * Создание платформенного (free-tier) провайдера. Имя не принимается — оно форсируется на
- * {@code "platform"} (ключ fallback-выдачи), а {@code enabled} игнорируется (строка создаётся
- * выключенной). Поэтому отдельный DTO без {@code name}/{@code enabled}, а не общий
+ * Creation of the platform (free-tier) provider. The name is not accepted — it is forced to
+ * {@code "platform"} (the key of the fallback issue), and {@code enabled} is ignored (the row is
+ * created disabled). Hence a separate DTO without {@code name}/{@code enabled} rather than the shared
  * {@link CreateLlmProviderRequest}.
  */
 @Schema(description = "Create the platform LLM provider (ADMIN); name is forced, created disabled")

@@ -50,10 +50,10 @@ public class LlmProviderService {
     private static final String API_KEY_FIELD = "api_key";
     private static final String SECRET_ENTITY = "llm_provider";
 
-    /** Кап на сериализованный extra_body (провайдер- и пер-модельный). */
+    /** Cap on the serialised extra_body (both provider-level and per-model). */
     private static final int EXTRA_BODY_MAX_CHARS = 16 * 1024;
 
-    /** Имя платформенного провайдера под {@link SystemSkillBootstrap#SYSTEM_USER_ID}. */
+    /** Name of the platform provider under {@link SystemSkillBootstrap#SYSTEM_USER_ID}. */
     public static final String PLATFORM_PROVIDER_NAME = "platform";
 
     private final LlmProviderRepository llmProviderRepository;
@@ -63,7 +63,7 @@ public class LlmProviderService {
     private final SecretService secretService;
     private final LlmModelDiscoveryService modelDiscoveryService;
 
-    /** Админ видит в списке и платформенную строку (управление free-tier через те же эндпойнты). */
+    /** An admin also sees the platform row in the list (the free tier is managed through the same endpoints). */
     public List<LlmProviderResponse> listForUser(UUID userId, boolean admin) {
         List<LlmProviderResponse> result = new java.util.ArrayList<>(
                 llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
@@ -79,8 +79,8 @@ public class LlmProviderService {
     }
 
     /**
-     * Платформенный провайдер, пригодный к fallback-выдаче: включён и с заданной default_model.
-     * Пользовательские manage-пути сюда не смотрят — системная строка не принадлежит ни одному userId.
+     * The platform provider fit for a fallback issue: enabled and with a default_model set. The users'
+     * manage paths never look here — the system row belongs to no userId.
      */
     public Optional<LlmProvider> findUsablePlatformProvider() {
         return llmProviderRepository
@@ -103,9 +103,9 @@ public class LlmProviderService {
     }
 
     /**
-     * Своя строка — как {@link #requireOwned}; админу дополнительно доступна платформенная
-     * (владелец — system-пользователь). Чужие пользовательские строки и для админа 404 —
-     * он управляет free-tier, а не чужими ключами.
+     * One's own row — as in {@link #requireOwned}; an admin additionally gets the platform one (owned
+     * by the system user). Other users' rows are a 404 even for an admin — they manage the free tier,
+     * not other people's keys.
      */
     public LlmProvider requireOwnedOrPlatformAdmin(UUID id, UUID userId, boolean admin) {
         if (admin) {
@@ -124,9 +124,9 @@ public class LlmProviderService {
     }
 
     /**
-     * Создать платформенного провайдера из admin UI. Имя форсируется
-     * {@link #PLATFORM_PROVIDER_NAME} (ключ fallback-выдачи), создаётся выключенным — включение после
-     * настройки квот. Синглтон: повторное создание — 409.
+     * Create a platform provider from the admin UI. The name is forced to
+     * {@link #PLATFORM_PROVIDER_NAME} (the key of the fallback issue), and it is created disabled —
+     * enabling comes after the quotas are configured. A singleton: creating it again is a 409.
      */
     @Transactional
     public LlmProviderResponse createPlatformProvider(CreatePlatformLlmProviderRequest request) {
@@ -164,7 +164,7 @@ public class LlmProviderService {
             throw new ConflictStatusException("LLM provider with this name already exists");
         }
 
-        // id нужен до шифрования секрета (AAD-привязка) — сохраняем провайдера первым.
+        // The id is needed before the secret is encrypted (the AAD binding) — so the provider is saved first.
         LlmProvider provider = llmProviderRepository.save(LlmProvider.builder()
                 .userId(userId)
                 .name(request.name())
@@ -192,7 +192,7 @@ public class LlmProviderService {
 
         if (request.name() != null && !request.name().equals(provider.getName())) {
             if (isPlatform(provider)) {
-                // Имя platform — ключ fallback-lookup'а; переименование сломало бы выдачу кредов.
+                // The name «platform» is the key of the fallback lookup; renaming would break credential issuing.
                 throw new BadRequestStatusException("Platform provider cannot be renamed");
             }
             if (llmProviderRepository.existsByUserIdAndName(userId, request.name())) {
@@ -216,7 +216,7 @@ public class LlmProviderService {
         }
         if (request.extraBody() != null) {
             validateExtraBody(request.extraBody());
-            // Пустой объект — очистка (partial update: null = «не менять»).
+            // An empty object clears it (partial update: null = «leave unchanged»).
             provider.setExtraBody(request.extraBody().isEmpty() ? null : request.extraBody());
         }
         if (request.enabled() != null) {
@@ -232,7 +232,7 @@ public class LlmProviderService {
     public void delete(UUID id, UUID userId, boolean admin) {
         LlmProvider provider = requireOwnedOrPlatformAdmin(id, userId, admin);
         if (isPlatform(provider)) {
-            // Внезапная потеря fallback'а (+ каскад квот); выключение — через enabled.
+            // A sudden loss of the fallback (plus a cascade of quotas); to switch it off, use enabled.
             throw new BadRequestStatusException("Platform provider cannot be deleted; disable it instead");
         }
         UUID secretId = provider.getSecretId();
@@ -244,11 +244,11 @@ public class LlmProviderService {
     }
 
     /**
-     * Синхронизация реестра {@code llm_provider_models} с листингом провайдера (upsert):
-     * увиденные модели — обновить метаданные + {@code last_seen_at} + AVAILABLE, пропавшие —
-     * UNAVAILABLE (строка не удаляется: на ней конфиг и биндинги). Guard: пустой листинг
-     * статусы не трогает — один сбойный /models не должен массово «уронить» реестр
-     * (сбойный HTTP-запрос кидает исключение ещё в discovery).
+     * Synchronisation of the {@code llm_provider_models} registry with the provider's listing (an
+     * upsert): models seen get their metadata plus {@code last_seen_at} plus AVAILABLE, models gone
+     * become UNAVAILABLE (the row is not deleted: it holds config and bindings). Guard: an empty
+     * listing leaves the statuses alone — one failing /models must not «take the registry down»
+     * wholesale (a failing HTTP request throws back in discovery anyway).
      */
     @Transactional
     public RefreshModelsResponse refreshModels(UUID id, UUID userId, boolean admin) {
@@ -317,9 +317,9 @@ public class LlmProviderService {
     }
 
     /**
-     * Пер-полевой фолбэк из {@code llm_model_defaults}: заполняем только те капабилити, что
-     * discovery не отдал (discovered побеждает). Write-time — правка справочника долетит до строк
-     * при следующем refresh. Провенанс (discovered vs assumed) намеренно не храним (см. дизайн).
+     * Per-field fallback from {@code llm_model_defaults}: we fill in only the capabilities discovery
+     * did not report (discovered wins). Write-time — an edit to the reference table reaches the rows on
+     * the next refresh. Provenance (discovered vs assumed) is deliberately not stored (see the design).
      */
     private static void applyDefaults(LlmProviderModel row, LlmModelDefaults def) {
         if (def == null) {
@@ -345,7 +345,7 @@ public class LlmProviderService {
         }
     }
 
-    /** Реестр моделей провайдера (сортировка по model). */
+    /** The provider's model registry (sorted by model). */
     public List<LlmProviderModelResponse> listModels(UUID providerId) {
         return llmProviderModelRepository.findAllByProviderIdOrderByModel(providerId).stream()
                 .map(LlmProviderModelResponse::from)
@@ -357,8 +357,8 @@ public class LlmProviderService {
     }
 
     /**
-     * Задать/очистить пер-модельный extra_body. Upsert: строка создаётся и для модели, которой
-     * нет в листинге ({@code first_seen_at} null, UNAVAILABLE) — конфиг возможен до refresh.
+     * Set or clear the per-model extra_body. An upsert: the row is created even for a model absent from
+     * the listing ({@code first_seen_at} null, UNAVAILABLE) — config is possible before a refresh.
      */
     @Transactional
     public LlmProviderModelResponse upsertModelExtraBody(
@@ -380,9 +380,9 @@ public class LlmProviderService {
     }
 
     /**
-     * Extra_body — не секрет-стор и не безразмерный: только компактный JSON-объект.
-     * Содержимое не валидируем (allowlist ключей дрейфовал бы за провайдерами) — мусор
-     * отвергнет сам провайдер.
+     * Extra_body is neither a secret store nor unbounded: a compact JSON object only. Its contents are
+     * not validated (an allowlist of keys would drift behind the providers) — the provider itself
+     * rejects garbage.
      */
     private static void validateExtraBody(Map<String, Object> extraBody) {
         if (extraBody == null) {

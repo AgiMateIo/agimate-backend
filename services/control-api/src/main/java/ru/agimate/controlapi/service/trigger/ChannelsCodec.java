@@ -6,8 +6,8 @@ import ru.agimate.common.util.JsonUtils;
 import java.util.Map;
 
 /**
- * Типизация JSONB-снапшота {@code agent_runs.channels}: entity хранит сырую мапу
- * (database-слой не зависит от service-типов), сервисы работают с {@link Channels}.
+ * Typing of the {@code agent_runs.channels} JSONB snapshot: the entity stores a raw map (the database
+ * layer does not depend on service types), while the services work with {@link Channels}.
  */
 @UtilityClass
 public class ChannelsCodec {

@@ -5,17 +5,17 @@ import lombok.experimental.UtilityClass;
 import java.time.LocalDate;
 
 /**
- * Классическая нумерология по дате рождения. Редукция {@link #reduceKeepMaster} — до
- * однозначного числа с остановкой на мастер-числах 11/22/33; правило ДРУГОЕ, чем у
- * {@link DestinyMatrix#r22} (порог 22) — функции не переиспользовать.
+ * Classical numerology from a date of birth. The reduction {@link #reduceKeepMaster} goes down to a
+ * single digit but stops at the master numbers 11/22/33 — a DIFFERENT rule from
+ * {@link DestinyMatrix#r22} (which uses a threshold of 22); do not reuse the functions across the two.
  *
- * <p>Имённая нумерология (Expression/Destiny по ФИО) сознательно не реализована:
- * требует таблиц транслитерации, различных для RU/EN — отложено до реального запроса.
+ * <p>Name numerology (Expression/Destiny from a full name) is deliberately not implemented: it needs
+ * transliteration tables that differ between RU and EN — deferred until there is a real request.
  */
 @UtilityClass
 public class Numerology {
 
-    /** Число жизненного пути: день/месяц/год редуцируются по отдельности, затем сумма. */
+    /** The life path number: day, month and year are reduced separately, then summed. */
     public static int lifePath(LocalDate birthDate) {
         return reduceKeepMaster(lifePathDay(birthDate) + lifePathMonth(birthDate) + lifePathYear(birthDate));
     }
@@ -32,12 +32,12 @@ public class Numerology {
         return reduceKeepMaster(DestinyMatrix.digitSum(birthDate.getYear()));
     }
 
-    /** Число дня рождения. */
+    /** The birthday number. */
     public static int birthdayNumber(LocalDate birthDate) {
         return reduceKeepMaster(birthDate.getDayOfMonth());
     }
 
-    /** Персональный год: день + месяц рождения + текущий год. */
+    /** The personal year: day + month of birth + the current year. */
     public static int personalYear(LocalDate birthDate, int currentYear) {
         return reduceKeepMaster(lifePathDay(birthDate) + lifePathMonth(birthDate)
                 + reduceKeepMaster(DestinyMatrix.digitSum(currentYear)));
@@ -47,7 +47,7 @@ public class Numerology {
         return n == 11 || n == 22 || n == 33;
     }
 
-    /** Редукция к однозначному числу с остановкой на мастер-числах 11/22/33. */
+    /** Reduction to a single digit, stopping at the master numbers 11/22/33. */
     static int reduceKeepMaster(int n) {
         while (n > 9 && !isMaster(n)) {
             n = DestinyMatrix.digitSum(n);

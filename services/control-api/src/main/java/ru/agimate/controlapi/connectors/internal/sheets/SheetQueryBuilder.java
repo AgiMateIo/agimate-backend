@@ -21,24 +21,26 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Трансляция структурного DSL запроса (filter/sort/groupBy/metrics) в SQL по JSONB-колонке.
+ * Translation of the structured query DSL (filter/sort/groupBy/metrics) into SQL over the JSONB
+ * column.
  *
- * <p><b>Почему DSL, а не SQL от LLM.</b> Прямой SQL пришлось бы валидировать, чтобы модель не
- * дотянулась до чужих таблиц и не уронила базу тяжёлым запросом, — а валидация SQL это парсер SQL.
- * DSL же даёт защиту структурно: <b>имя колонки приходит от LLM, но резолвится по объявленной схеме
- * листа (whitelist), а любое значение уходит bind-параметром</b>. В SQL-строку попадает только имя,
- * уже прошедшее {@link SheetSchema#NAME} — инъекции нет по построению, а не по фильтрации.
+ * <p><b>Why a DSL and not SQL from the LLM.</b> Raw SQL would have to be validated so the model could
+ * not reach other people's tables or bring the database down with a heavy query — and validating SQL
+ * means parsing SQL. The DSL protects structurally instead: <b>a column name arrives from the LLM but
+ * is resolved against the sheet's declared schema (a whitelist), and every value leaves as a bind
+ * parameter</b>. Only a name that already passed {@link SheetSchema#NAME} ever reaches the SQL string
+ * — injection is impossible by construction, not by filtering.
  *
- * <p>Каст {@code ::numeric}/{@code ::timestamp} безопасен благодаря инварианту записи
- * ({@link SheetSchema#coerceCell}): в типизированной колонке лежит значение своего типа либо ключа
- * нет вовсе, а {@code NULL::numeric} — это NULL, не ошибка.
+ * <p>The {@code ::numeric}/{@code ::timestamp} casts are safe thanks to the write invariant
+ * ({@link SheetSchema#coerceCell}): a typed column holds a value of its own type or has no key at
+ * all, and {@code NULL::numeric} is NULL, not an error.
  */
 @Component
 public class SheetQueryBuilder {
 
     public static final int DEFAULT_LIMIT = 100;
     public static final int MAX_LIMIT = 500;
-    /** Кап на число групп: сводка на сотни категорий бесполезна агенту и раздувает контекст. */
+    /** Cap on the number of groups: a summary over hundreds of categories is useless to the agent and bloats the context. */
     public static final int MAX_GROUPS = 200;
 
     private static final String BASE = "select %s from sheet_rows where sheet_id = ?1";
@@ -46,11 +48,11 @@ public class SheetQueryBuilder {
     @PersistenceContext
     private EntityManager entityManager;
 
-    /** Результат выборки: строки + признак, что упёрлись в лимит. */
+    /** Result of a selection: the rows plus a flag that we hit the limit. */
     public record Selection(List<RowView> rows, boolean truncated) {
     }
 
-    // ===== выборка строк =====
+    // ===== row selection =====
 
     public Selection select(Sheet sheet, List<ColumnSpec> columns, List<Condition> filter,
                             String sortBy, String sortDir, Integer limit) {
@@ -66,7 +68,7 @@ public class SheetQueryBuilder {
         } else {
             sql.append(" order by created_at asc");
         }
-        // На одну больше запрошенного — так «есть ли ещё» узнаём без отдельного count.
+        // One more than requested — that tells us «is there more» without a separate count.
         sql.append(" limit ").append(cap + 1);
 
         Query query = bind(sql.toString(), params);
@@ -80,7 +82,7 @@ public class SheetQueryBuilder {
         return new Selection(rows, truncated);
     }
 
-    // ===== агрегация =====
+    // ===== aggregation =====
 
     public List<GroupResult> aggregate(Sheet sheet, List<ColumnSpec> columns, String groupBy, String bucket,
                                        List<Metric> metrics, List<Condition> filter) {
@@ -126,9 +128,9 @@ public class SheetQueryBuilder {
         return groups;
     }
 
-    // ===== сборка выражений =====
+    // ===== expression assembly =====
 
-    /** Выражение чтения колонки. Имя уже прошло whitelist схемы — в SQL идёт только оно. */
+    /** Expression for reading a column. The name already passed the schema's whitelist — only it goes into the SQL. */
     private static String expr(ColumnSpec column) {
         String name = column.name();
         if (!SheetSchema.NAME.matcher(name).matches()) {
@@ -269,7 +271,7 @@ public class SheetQueryBuilder {
         return values;
     }
 
-    // ===== мелочи =====
+    // ===== odds and ends =====
 
     private Query bind(String sql, List<Object> params) {
         Query query = entityManager.createNativeQuery(sql);
@@ -296,7 +298,7 @@ public class SheetQueryBuilder {
         return Math.min(limit, MAX_LIMIT);
     }
 
-    /** JSONB из нативного запроса приезжает строкой (PGobject) — разбираем общим мапперов проекта. */
+    /** JSONB from a native query arrives as a string (PGobject) — parsed with the project's shared mapper. */
     private static Map<String, Object> readJson(Object raw) {
         if (raw == null) {
             return Map.of();
@@ -308,7 +310,7 @@ public class SheetQueryBuilder {
         }
     }
 
-    /** Числа в результат тула — обычным JSON-числом, а не BigDecimal с хвостом нулей. */
+    /** Numbers reach a tool's result as ordinary JSON numbers, not as a BigDecimal with a tail of zeroes. */
     private static Object jsonNumber(Object raw) {
         if (raw instanceof BigDecimal decimal) {
             return decimal.stripTrailingZeros().doubleValue();

@@ -21,10 +21,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Enforcement квот LLM-расхода. Проверка происходит в {@code GetLlmCredentials} — то есть перед
- * КАЖДЫМ LLM-вызовом: превышение возможно максимум на один вызов (чек — до, расход — после).
- * Провайдер без квот не ограничен (BYOK по умолчанию). Чтение счётчика — один indexed lookup
- * на квоту, кэша не требует.
+ * Enforcement of LLM usage quotas. The check happens in {@code GetLlmCredentials} — that is, before
+ * EVERY LLM call: an overrun is possible by at most one call (the check comes before, the spending
+ * after). A provider with no quotas is unlimited (BYOK by default). Reading a counter is one indexed
+ * lookup per quota and needs no cache.
  */
 @Slf4j
 @Service
@@ -36,13 +36,14 @@ public class LlmQuotaService {
     private final LlmUsageCounterRepository counterRepository;
 
     /**
-     * Бросает {@link QuotaExceededException} с человекочитаемым сообщением, если хотя бы одна
-     * квота провайдера исчерпана для данного пользователя/агента.
+     * Throws a {@link QuotaExceededException} with a human-readable message when at least one of the
+     * provider's quotas is exhausted for that user or agent.
      *
-     * <p>{@code noRollbackFor}: исчерпание квоты — ожидаемый control-flow, а не сбой БД. Вызов идёт
-     * внутри readOnly-транзакции {@code getLlmCredentials}, которая исключение ловит и штатно
-     * отвечает {@code RESOURCE_EXHAUSTED}; без этого перехватчик пометил бы общую транзакцию
-     * rollback-only и её commit упал бы {@code UnexpectedRollbackException}.
+     * <p>{@code noRollbackFor}: exhausting a quota is expected control flow, not a database failure.
+     * The call happens inside the read-only transaction of {@code getLlmCredentials}, which catches
+     * the exception and answers {@code RESOURCE_EXHAUSTED} as designed; without this the interceptor
+     * would mark the enclosing transaction rollback-only and its commit would fail with
+     * {@code UnexpectedRollbackException}.
      */
     @Transactional(readOnly = true, noRollbackFor = QuotaExceededException.class)
     public void check(LlmProvider provider, UUID userId, UUID agentId) {
@@ -72,8 +73,8 @@ public class LlmQuotaService {
         }
     }
 
-    // ---- BYOK-квоты: manage CRUD (владение провайдером проверяет вызывающий контроллер-слой
-    // через LlmProviderService.requireOwned) --------------------------------------------------
+    // ---- BYOK quotas: the manage CRUD (ownership of the provider is checked by the calling controller layer
+    // through LlmProviderService.requireOwned) ------------------------------------------------
 
     public List<LlmQuota> listForProvider(UUID providerId) {
         return quotaRepository.findAllByLlmProviderId(providerId);

@@ -12,14 +12,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Наблюдаемость жизни ранов. Live-ран постоянно ходит в control-api (SaveMessage,
- * ExecuteToolAsync/GetToolResult, GetRunContext) — каждый такой RPC продлевает
- * {@code last_activity_at}; ран, замолчавший дольше {@link #STALE_AFTER} (воркер умер без
- * SaveMessage(ERROR)), добирает сборщик. Никого не блокирует — single-writer держит
- * партиционированная очередь, статус — только проекция для истории/мониторинга.
+ * Observability of runs' liveness. A live run constantly calls into control-api (SaveMessage,
+ * ExecuteToolAsync/GetToolResult, GetRunContext) — every such RPC extends {@code last_activity_at};
+ * a run silent for longer than {@link #STALE_AFTER} (the worker died without a SaveMessage(ERROR)) is
+ * collected by the sweeper. It blocks nobody — single-writer is held by the partitioned queue, and
+ * the status is only a projection for history and monitoring.
  *
- * <p>Порог обязан превышать самый длинный легальный тихий участок рана — один LLM-вызов
- * со всеми его ретраями (воркер: 4 попытки с backoff).
+ * <p>The threshold must exceed the longest legitimate quiet stretch of a run — one LLM call with all
+ * its retries (at the worker: 4 attempts with backoff).
  */
 @Slf4j
 @Service
@@ -31,7 +31,7 @@ public class RunActivityService {
 
     private final AgentRunRepository agentRunRepository;
 
-    /** Признак жизни рана — best-effort: сбой метки не должен валить сам RPC. */
+    /** The run's sign of life — best-effort: a failure to stamp it must not fail the RPC itself. */
     public void touch(UUID runId) {
         try {
             agentRunRepository.touchActivity(runId, LocalDateTime.now());

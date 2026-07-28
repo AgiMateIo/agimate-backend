@@ -10,8 +10,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * Реализация {@link ConnectorJobRepositoryCustom}. Spring Data JPA подцепляет её по конвенции
- * имени ({@code <RepositoryName>Impl}) и сливает с интерфейсом {@link ConnectorJobRepository}.
+ * Implementation of {@link ConnectorJobRepositoryCustom}. Spring Data JPA picks it up by the naming
+ * convention ({@code <RepositoryName>Impl}) and merges it into {@link ConnectorJobRepository}.
  */
 public class ConnectorJobRepositoryImpl implements ConnectorJobRepositoryCustom {
 

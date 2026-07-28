@@ -28,22 +28,22 @@ public class Skill extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** Стабильный код скилла: ключ {@code (user_id, name)}, на него ссылаются {@code preset.skill_names}. */
+    /** Stable skill code: the key {@code (user_id, name)}, referenced by {@code preset.skill_names}. */
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
 
-    /** Человекочитаемое отображаемое имя (локализуемое в будущем); {@code null} → фолбэк на {@link #name}. */
+    /** Human-readable display name (localisable in the future); {@code null} → falls back to {@link #name}. */
     @Column(name = "title", columnDefinition = "TEXT")
     private String title;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    /** Тело SKILL.md без frontmatter — контент скилла. */
+    /** The body of SKILL.md without the frontmatter — the skill's content. */
     @Column(name = "md_content", nullable = false, columnDefinition = "TEXT")
     private String mdContent;
 
-    /** Коннекторы, которые требует скилл (Postgres {@code text[]}). */
+    /** Connectors the skill requires (Postgres {@code text[]}). */
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "connector_codes", nullable = false, columnDefinition = "text[]")
     @Builder.Default

@@ -51,7 +51,7 @@ public class GrpcServerLifecycle {
             builder.useTransportSecurity(cert, key);
             log.info("gRPC server starting on port {} with TLS (cert={})", properties.port(), cert.getName());
         } else {
-            // По worker-протоколу ходит переписка пользователей — plaintext допустим только в dev.
+            // Users' conversations travel over the worker protocol — plaintext is acceptable in dev only.
             if (!environment.acceptsProfiles(DEV_PROFILES)) {
                 throw new IllegalStateException("gRPC server without TLS is allowed only for local/test profiles; "
                         + "set grpc.server.security.* (env GRPC_SERVER_SECURITY_ENABLED etc.)");

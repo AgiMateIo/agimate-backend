@@ -12,15 +12,15 @@ import java.util.UUID;
 
 public interface PersistentMemoryHotRepository extends JpaRepository<PersistentMemoryHot, UUID> {
 
-    /** Все заметки scope (сконсолидированные удаляются, поэтому всё в hot — ещё «pending»). */
+    /** Every note of a scope (consolidated ones are deleted, so everything in hot is still «pending»). */
     List<PersistentMemoryHot> findByScopeIdOrderByCreatedAtAsc(UUID scopeId);
 
-    /** Заметки конкретной партии консолидации — для доставки в триггер. */
+    /** Notes of a particular consolidation batch — for delivery into the trigger. */
     List<PersistentMemoryHot> findByConsolidationIdOrderByCreatedAtAsc(UUID consolidationId);
 
     /**
-     * Single-flight: есть ли у scope незавершённая консолидация (заклеймленные заметки,
-     * чей лиз ещё жив). {@code claimedAt >= leaseThreshold} — клейм не протух.
+     * Single-flight: whether the scope has an unfinished consolidation (claimed notes whose lease is
+     * still alive). {@code claimedAt >= leaseThreshold} means the claim has not expired.
      */
     @Query("""
             SELECT COUNT(h) FROM PersistentMemoryHot h
@@ -29,8 +29,8 @@ public interface PersistentMemoryHotRepository extends JpaRepository<PersistentM
     long countInFlight(@Param("scopeId") UUID scopeId, @Param("leaseThreshold") LocalDateTime leaseThreshold);
 
     /**
-     * Клеймит под партию {@code consolidationId} все ещё-несконсолидированные заметки scope,
-     * включая реклейм брошенных (клейм протух: {@code claimedAt < leaseThreshold}).
+     * Claims, under the batch {@code consolidationId}, every not-yet-consolidated note of the scope,
+     * including reclaiming abandoned ones (an expired claim: {@code claimedAt < leaseThreshold}).
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
@@ -44,7 +44,7 @@ public interface PersistentMemoryHotRepository extends JpaRepository<PersistentM
               @Param("now") LocalDateTime now,
               @Param("leaseThreshold") LocalDateTime leaseThreshold);
 
-    /** Удаляет заметки сконсолидированной партии (вызывается в одной tx с записью cold). */
+    /** Deletes the notes of a consolidated batch (called in the same tx as the cold write). */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("DELETE FROM PersistentMemoryHot h WHERE h.consolidationId = :consolidationId")
     int deleteByConsolidationId(@Param("consolidationId") UUID consolidationId);

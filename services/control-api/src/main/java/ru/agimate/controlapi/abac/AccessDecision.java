@@ -4,9 +4,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Решение доступа. {@link #paramsFilter} переносит фильтр сработавшего правила
- * ({@code agent_connection_policies.params_filter}) — он применяется на месте вызова, где доступны
- * аргументы тула / параметры триггера (в самом эвалуаторе их нет).
+ * An access decision. {@link #paramsFilter} carries the filter of the rule that won
+ * ({@code agent_connection_policies.params_filter}) — it is applied at the call site, where the tool's
+ * arguments or the trigger's parameters are available (the evaluator itself does not have them).
  */
 public record AccessDecision(
         AccessEffect accessEffect,

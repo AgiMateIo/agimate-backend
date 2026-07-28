@@ -39,9 +39,10 @@ class LlmCallDispatcher implements SimpleAgent.LlmCaller {
         WorkflowHandle<LlmCallWorkflow.Result, ? extends Exception> handle =
                 dbos.startWorkflow(() -> llm.llmCall(messages, toolDefs, agentId), new StartWorkflowOptions(llmQueue));
         LlmCallWorkflow.Result result = WorkflowHandles.await(handle);
-        // Сбой (HTTP/API) — терминален и без usage, бросаем сразу. Incomplete (truncation) НЕ бросаем
-        // здесь: у него токены потрачены — отдаём usage + причину на reply, чтобы цикл сперва
-        // учёл расход, а потом прервался (единый принцип: side-записи пишет ран-обвязка, не диспатчер).
+        // A failure (HTTP/API) is terminal and carries no usage, so we throw straight away. Incomplete
+        // (truncation) we do NOT throw here: its tokens are already spent — we return the usage plus the reason
+        // on the reply, so the loop first accounts for the spending and only then breaks off (one principle:
+        // side records are written by the run wiring, not by the dispatcher).
         if (result.failed()) {
             throw new LlmCallError(result.statusCode(), result.message(), result.userFacing());
         }

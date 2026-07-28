@@ -12,20 +12,20 @@ import ru.agimate.controlapi.storage.FileStorageService;
 import java.util.Set;
 
 /**
- * Единая отдача файлового содержимого по HTTP. mime — клиентский (задан при аплоаде), поэтому
- * активный контент всегда деградирует до octet-stream, а nosniff + CSP-sandbox закрывают
- * stored-XSS в origin'е сервиса. {@code inline=true} — отображаемые типы (изображения) рендерятся
- * браузером ({@code <img src>} на подписанных ссылках), остальное — attachment.
+ * The single way file contents are served over HTTP. The mime is the client's (set at upload time), so
+ * active content always degrades to octet-stream, while nosniff plus a CSP sandbox close off stored
+ * XSS in the service's origin. {@code inline=true} means displayable types (images) are rendered by
+ * the browser ({@code <img src>} on signed links), and everything else is an attachment.
  */
 @UtilityClass
 public class FileHttpResponses {
 
-    /** MIME-типы, которые браузер может исполнить в origin'е сервиса — отдаются как octet-stream. */
+    /** MIME types the browser could execute in the service's origin — served as octet-stream. */
     private static final Set<String> ACTIVE_CONTENT_TYPES = Set.of(
             "text/html", "application/xhtml+xml", "image/svg+xml", "application/xml", "text/xml",
             "text/javascript", "application/javascript");
 
-    /** @param cacheControl null — без кеш-заголовка (приватные ответы под auth-заголовком) */
+    /** @param cacheControl null — no cache header (private answers behind an auth header) */
     public static ResponseEntity<InputStreamResource> serve(FileStorageService.FileContent content,
                                                             boolean inline, CacheControl cacheControl) {
         MediaType mediaType = safeMediaType(content.file().getMime());

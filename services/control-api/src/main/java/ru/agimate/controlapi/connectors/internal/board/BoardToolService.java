@@ -35,20 +35,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Тулы board-коннектора — тонкий адаптер поверх core-{@link BoardService}. Контекст (agentId, userId)
- * приходит через {@link ConnectorEnvHolder}. Доменные {@link BaseHttpStatusException} ядра транслируются
- * в {@link ConnectorException} на границе плагина, чтобы сообщение дошло до агента, а HTTP-исключения
- * не протекали в коннекторный слой.
+ * Tools of the board connector — a thin adapter over the core {@link BoardService}. The context
+ * (agentId, userId) arrives through {@link ConnectorEnvHolder}. The core's domain
+ * {@link BaseHttpStatusException}s are translated into {@link ConnectorException} at the plugin's
+ * boundary, so the message reaches the agent and HTTP exceptions do not leak into the connector layer.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class BoardToolService {
 
-    /** Корректная agf-ссылка: префикс + uuid. */
+    /** A well-formed agf reference: the prefix plus a uuid. */
     private static final Pattern FILE_REF = Pattern.compile(
             FileIds.PREFIX + "[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}");
-    /** Всё, что похоже на agf-ссылку, включая выдуманные вроде {@code agf_hermit.png}. */
+    /** Anything that looks like an agf reference, invented ones such as {@code agf_hermit.png} included. */
     private static final Pattern FILE_REF_LIKE = Pattern.compile(FileIds.PREFIX + "[\\w.\\-]+");
 
     private final BoardService boardService;
@@ -72,7 +72,7 @@ public class BoardToolService {
         UUID assigneeFilter = resolveAgentRef(assigneeAgentId, agent);
         var result = domain(() ->
                 boardService.getTasksByStatus(board.getId(), userId(), statusFilter, assigneeFilter));
-        // Компактный листинг: description/таймстемпы за get_task — обзор доски не раздувает контекст.
+        // A compact listing: description and timestamps are left to get_task — an overview of the board does not bloat the context.
         Map<String, Object> grouped = new LinkedHashMap<>();
         result.tasks().forEach((s, list) ->
                 grouped.put(s.name(), list.stream().map(BoardToolService::compactTask).toList()));
@@ -179,9 +179,10 @@ public class BoardToolService {
     }
 
     /**
-     * Комментарий — канал передачи результатов между агентами: несуществующая agf-ссылка
-     * (галлюцинированный id) уехала бы по цепочке вплоть до attach в ответе пользователю.
-     * Отклоняем комментарий сразу — агент узнаёт об ошибке до «приёмки» задачи, а не после.
+     * A comment is the channel through which agents pass results to each other: a non-existent agf
+     * reference (a hallucinated id) would travel down the chain all the way to an attachment in the
+     * answer to the user. We reject the comment straight away — the agent learns about the mistake
+     * before the task is «accepted», not after.
      */
     private void requireResolvableFileRefs(String content) {
         if (content == null || !content.contains(FileIds.PREFIX)) {
@@ -206,9 +207,9 @@ public class BoardToolService {
     }
 
     /**
-     * Выполнить доменную операцию ядра, транслируя её HTTP-исключения в {@link ConnectorException}:
-     * сообщение (напр. «SUBTASK must have a parent task») доходит до агента, а {@code *StatusException}
-     * не покидает коннекторный слой.
+     * Run a core domain operation, translating its HTTP exceptions into {@link ConnectorException}:
+     * the message (e.g. «SUBTASK must have a parent task») reaches the agent, and a
+     * {@code *StatusException} never leaves the connector layer.
      */
     private <T> T domain(Supplier<T> op) {
         try {
@@ -218,7 +219,7 @@ public class BoardToolService {
         }
     }
 
-    /** Компактная строка листинга: id/type/title + адресация (assignee/parent), без description. */
+    /** A compact listing row: id/type/title plus addressing (assignee/parent), without the description. */
     private static Map<String, Object> compactTask(BoardTaskResponse task) {
         Map<String, Object> compact = new LinkedHashMap<>();
         compact.put("id", task.id());
@@ -233,7 +234,7 @@ public class BoardToolService {
         return compact;
     }
 
-    /** {@code null}-tolerant разбор статуса; blank → {@code null} (фильтр/поле не заданы). */
+    /** {@code null}-tolerant parsing of a status; blank → {@code null} (the filter or field was not given). */
     private static BoardTaskStatus parseStatus(String status) {
         if (status == null || status.isBlank()) {
             return null;
@@ -246,7 +247,7 @@ public class BoardToolService {
         }
     }
 
-    /** Ссылка на агента из аргумента: {@code "me"} → вызывающий агент, иначе UUID; blank → {@code null}. */
+    /** An agent reference from an argument: {@code "me"} → the calling agent, otherwise a UUID; blank → {@code null}. */
     private UUID resolveAgentRef(String value, Agent self) {
         if (value == null || value.isBlank()) {
             return null;
@@ -261,7 +262,7 @@ public class BoardToolService {
         return value == null || value.isBlank() ? null : value;
     }
 
-    /** Разобрать UUID из аргумента агента, сообщив ему внятную ошибку вместо «Tool execution failed». */
+    /** Parse a UUID out of an agent's argument, reporting a clear error instead of «Tool execution failed». */
     private static UUID parseUuid(String value, String field) {
         if (value == null || value.isBlank()) {
             throw new ConnectorException("Parameter '" + field + "' is required");

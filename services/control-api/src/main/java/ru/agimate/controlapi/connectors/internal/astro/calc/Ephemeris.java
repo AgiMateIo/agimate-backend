@@ -12,21 +12,21 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Обёртка над Astronomy Engine: геоцентрические позиции тел в истинной эклиптике даты
- * (тропический зодиак). Точность движка ±1 угловая минута — для астрологии с запасом.
+ * A wrapper over Astronomy Engine: geocentric positions of bodies in the true ecliptic of date (the
+ * tropical zodiac). The engine is accurate to ±1 arc minute — more than enough for astrology.
  */
 @UtilityClass
 public class Ephemeris {
 
-    /** Тела натальной карты в каноническом порядке. */
+    /** Bodies of a natal chart, in the canonical order. */
     static final List<Body> BODIES = List.of(
             Body.Sun, Body.Moon, Body.Mercury, Body.Venus, Body.Mars,
             Body.Jupiter, Body.Saturn, Body.Uranus, Body.Neptune, Body.Pluto);
 
-    /** Шаг конечной разности для определения ретроградности, в сутках. */
+    /** Finite-difference step for determining retrogradation, in days. */
     private static final double RETROGRADE_STEP_DAYS = 0.5;
 
-    /** Позиции всех 10 тел на момент времени. */
+    /** Positions of all 10 bodies at a moment in time. */
     public static List<PlanetPosition> positions(Instant utc) {
         Time time = toTime(utc);
         return BODIES.stream().map(body -> position(body, time)).toList();
@@ -39,7 +39,7 @@ public class Ephemeris {
         return new PlanetPosition(body.name(), longitude, latitude, retrograde);
     }
 
-    /** Эклиптическая долгота тела (эклиптика даты), [0, 360). */
+    /** Ecliptic longitude of a body (ecliptic of date), [0, 360). */
     public static double eclipticLongitude(Body body, Time time) {
         if (body == Body.Sun) {
             return Angles.normalize(Astronomy.sunPosition(time).getElon());
@@ -65,12 +65,12 @@ public class Ephemeris {
         return Astronomy.equatorialToEcliptic(Astronomy.geoVector(body, time, Aberration.Corrected));
     }
 
-    /** Видимое попятное движение: долгота убывает на интервале ±12 часов вокруг момента. */
+    /** Apparent retrograde motion: the longitude decreases over the ±12-hour interval around the moment. */
     static boolean isRetrograde(Body body, Time time) {
         double before = eclipticLongitude(body, time.addDays(-RETROGRADE_STEP_DAYS));
         double after = eclipticLongitude(body, time.addDays(RETROGRADE_STEP_DAYS));
         double delta = after - before;
-        // Переход через 0°/360°: приводим разность к (-180, 180]
+        // Crossing 0°/360°: bring the difference into (-180, 180]
         if (delta > 180) {
             delta -= 360;
         } else if (delta < -180) {

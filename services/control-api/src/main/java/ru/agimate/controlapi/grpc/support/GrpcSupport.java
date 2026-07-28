@@ -21,15 +21,15 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 /**
- * Сквозные вспомогательные функции gRPC-границы воркера: парсинг скаляров запроса,
- * конвертация в proto-типы и маппинг доменных исключений в gRPC {@link Status}.
- * Доменные proto↔entity мапперы живут в {@code grpc.mapper}.
+ * Cross-cutting helpers of the worker's gRPC boundary: parsing the request's scalars, converting to
+ * proto types and mapping domain exceptions onto gRPC {@link Status}. The domain proto↔entity mappers
+ * live in {@code grpc.mapper}.
  */
 @Slf4j
 @UtilityClass
 public class GrpcSupport {
 
-    /** Обязательный UUID-аргумент; пустой/невалидный → {@code INVALID_ARGUMENT}. */
+    /** A mandatory UUID argument; empty or invalid → {@code INVALID_ARGUMENT}. */
     public static UUID parseUuid(String value, String field) {
         if (value == null || value.isBlank()) {
             throw Status.INVALID_ARGUMENT.withDescription(field + " is required").asRuntimeException();
@@ -41,7 +41,7 @@ public class GrpcSupport {
         }
     }
 
-    /** Необязательный UUID-аргумент; пустой → {@code null}, невалидный → {@code INVALID_ARGUMENT}. */
+    /** An optional UUID argument; empty → {@code null}, invalid → {@code INVALID_ARGUMENT}. */
     public static UUID parseOptionalUuid(String value, String field) {
         if (value == null || value.isBlank()) {
             return null;
@@ -73,16 +73,17 @@ public class GrpcSupport {
         return ByteString.copyFrom(JsonUtils.writeValueAsString(value).getBytes(StandardCharsets.UTF_8));
     }
 
-    /** Единый маппинг исключения в gRPC-ответ для всех RPC воркера. */
+    /** The single exception-to-gRPC mapping for every worker RPC. */
     public static void handleError(Exception e, StreamObserver<?> observer) {
         handleError(e, observer, null);
     }
 
     /**
-     * Единый маппинг исключения в gRPC-ответ. Ожидаемые доменные исходы (deny/quota/not-found/…)
-     * логируются на DEBUG без стектрейса; неизвестная ошибка → {@code INTERNAL} с ERROR + стектрейсом.
+     * The single exception-to-gRPC mapping. Expected domain outcomes (deny/quota/not-found/…) are
+     * logged at DEBUG with no stack trace; an unknown error → {@code INTERNAL} with ERROR plus the stack
+     * trace.
      *
-     * @param context короткое описание RPC/аргументов для лога сбоя (может быть {@code null})
+     * @param context a short description of the RPC and its arguments for the failure log (may be {@code null})
      */
     public static void handleError(Exception e, StreamObserver<?> observer, String context) {
         if (e instanceof io.grpc.StatusRuntimeException sre) {
@@ -100,7 +101,7 @@ public class GrpcSupport {
         observer.onError(Status.INTERNAL.withDescription(e.getMessage()).asRuntimeException());
     }
 
-    /** Доменное исключение → gRPC-статус ожидаемого исхода; {@code null} — неизвестная ошибка (INTERNAL). */
+    /** A domain exception → the gRPC status of an expected outcome; {@code null} — an unknown error (INTERNAL). */
     private static Status domainStatus(Exception e) {
         if (e instanceof NotFoundStatusException) {
             return Status.NOT_FOUND;

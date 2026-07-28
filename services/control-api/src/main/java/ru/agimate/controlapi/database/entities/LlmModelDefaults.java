@@ -12,13 +12,14 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Курируемый фолбэк капабилити для моделей, чьи параметры не удаётся дискаверить (провайдеры вроде
- * OpenAI/Anthropic отдают в {@code /models} голые id). Глобальная по id first-party модели — он
- * однозначен, роутинга между хостерами нет (агрегаторы отдают метаданные и в фолбэк не попадают).
+ * A curated capability fallback for models whose parameters cannot be discovered (providers such as
+ * OpenAI and Anthropic return bare ids from {@code /models}). Global by first-party model id — that
+ * id is unambiguous and there is no routing between hosters (aggregators do return metadata and
+ * never reach this fallback).
  *
- * <p>Fallback-only, пер-полевой: при {@code refreshModels} null-поля discovery добираются отсюда
- * (discovered побеждает). Отсутствие строки = капабилити {@code unknown}, как без справочника —
- * никакой обязательной синхронизации с {@link LlmProviderModel}.
+ * <p>Fallback-only and per-field: during {@code refreshModels} the null fields of discovery are
+ * filled in from here (discovered wins). A missing row means capabilities are {@code unknown}, just
+ * as without the reference table — no mandatory synchronisation with {@link LlmProviderModel}.
  */
 @Entity
 @Table(name = "llm_model_defaults", uniqueConstraints = {
@@ -37,7 +38,7 @@ public class LlmModelDefaults extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** id модели у провайдера (например {@code whisper-1}, {@code gpt-image-1}). */
+    /** The model's id at the provider (e.g. {@code whisper-1}, {@code gpt-image-1}). */
     @Column(name = "model", nullable = false, columnDefinition = "TEXT")
     private String model;
 

@@ -1,12 +1,13 @@
 package ru.agimate.controlapi.connectors.core;
 
 /**
- * Единственное исключение коннекторного слоя: неизвестный коннектор/тула/таска, недоступные
- * credentials, ошибка диспатча. HTTP-граница не должна пропускать его наружу как есть —
- * контроллеры/HTTP-сервисы используют {@code ConnectorRegistry.findHandler(...)} c
- * {@code orElseThrow(*StatusException)} либо переводят сами.
+ * The only exception of the connector layer: an unknown connector, tool or job, unavailable
+ * credentials, a dispatch failure. The HTTP boundary must not let it through as-is — controllers and
+ * HTTP services use {@code ConnectorRegistry.findHandler(...)} with
+ * {@code orElseThrow(*StatusException)}, or translate it themselves.
  *
- * <p>Сообщение пишется самим кодом коннекторов и безопасно для показа агенту в tool-result.
+ * <p>The message is written by the connectors' own code and is safe to show to the agent in a
+ * tool result.
  */
 public class ConnectorException extends RuntimeException {
 

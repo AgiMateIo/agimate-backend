@@ -8,10 +8,10 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * Файловый слой коннекторов (docs/connectors/files.md): S3-совместимый backend + лимиты.
- * Креды ({@code access-key}/{@code secret-key}) в yaml не кладутся — только env
- * ({@code APP_FILES_ACCESS_KEY}/{@code APP_FILES_SECRET_KEY}); если не заданы обе — используется
- * стандартная AWS credentials chain.
+ * The connectors' file layer (docs/connectors/files.md): an S3-compatible backend plus limits.
+ * Credentials ({@code access-key}/{@code secret-key}) are never put into yaml — env only
+ * ({@code APP_FILES_ACCESS_KEY}/{@code APP_FILES_SECRET_KEY}); when neither is set, the standard AWS
+ * credentials chain is used.
  */
 @Component
 @ConfigurationProperties(prefix = "app.files")
@@ -19,32 +19,32 @@ import java.time.Duration;
 @Setter
 public class FileStorageProperties {
 
-    /** Backend блобов: {@code local} (диск, дефолт — для разработки/single-node) или {@code s3}. */
+    /** Blob backend: {@code local} (disk, the default — for development and single-node) or {@code s3}. */
     private String backend = "local";
-    /** Корень локального backend'а; пусто — {@code ~/.agimate/files}. */
+    /** Root of the local backend; empty — {@code ~/.agimate/files}. */
     private String localDir;
 
     private String bucket = "agimate-files";
     private String region = "us-east-1";
-    /** S3-совместимый endpoint (MinIO и т.п.); пусто — AWS. */
+    /** S3-compatible endpoint (MinIO and the like); empty — AWS. */
     private String endpoint;
     private String accessKey;
     private String secretKey;
-    /** Path-style адресация бакета (требуется MinIO). */
+    /** Path-style bucket addressing (required by MinIO). */
     private boolean pathStyle = true;
 
-    /** Максимальный размер одного файла (потолок Telegram-бот-аплоада — 50 MB). */
+    /** Maximum size of a single file (the ceiling of a Telegram bot upload — 50 MB). */
     private long maxFileSizeBytes = 50L * 1024 * 1024;
-    /** Суточная квота байтов на пользователя (скользящее окно 24 ч). */
+    /** Daily byte quota per user (a rolling 24-hour window). */
     private long userDailyBytes = 500L * 1024 * 1024;
-    /** TTL по умолчанию, когда продюсер не задал свой. */
+    /** Default TTL when the producer did not set its own. */
     private Duration defaultTtl = Duration.ofDays(7);
 
     /**
-     * HMAC-секрет подписанных ссылок ({@code GET /files/…?exp&sig}); только env
-     * ({@code APP_FILES_URL_SECRET}), вне dev-профилей обязателен ({@code SecurityGuardConfig}).
+     * HMAC secret of signed links ({@code GET /files/…?exp&sig}); env only
+     * ({@code APP_FILES_URL_SECRET}), and mandatory outside the dev profiles ({@code SecurityGuardConfig}).
      */
     private String urlSecret;
-    /** Срок жизни подписанной ссылки; история чата выдаёт свежие ссылки при каждом чтении. */
+    /** Lifetime of a signed link; chat history issues fresh links on every read. */
     private Duration urlTtl = Duration.ofMinutes(15);
 }

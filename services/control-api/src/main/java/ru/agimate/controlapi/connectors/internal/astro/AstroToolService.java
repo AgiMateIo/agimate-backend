@@ -26,8 +26,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Тулы astro-коннектора: настоящие астрономические расчёты (тропический зодиак, дома Whole Sign,
- * средние лунные узлы). Агент никогда не считает позиции сам — только интерпретирует эти данные.
+ * Tools of the astro connector: genuine astronomical computation (tropical zodiac, Whole Sign
+ * houses, mean lunar nodes). The agent never computes positions itself — it only interprets this data.
  */
 @Component
 public class AstroToolService {
@@ -127,9 +127,9 @@ public class AstroToolService {
         return result;
     }
 
-    // --- Сборка одной карты -------------------------------------------------------------------
+    // --- Assembling one chart ------------------------------------------------------------------
 
-    /** Рассчитанная карта: позиции + (опционально) углы, плюс примечания об ограничениях входа. */
+    /** A computed chart: positions plus (optionally) angles, along with notes about limitations of the input. */
     private record Chart(BirthMoment moment, List<PlanetPosition> planets, ChartAngles angles,
                          List<String> notes) {
 
@@ -215,7 +215,7 @@ public class AstroToolService {
         return map;
     }
 
-    // --- Маппинг результатов расчёта ----------------------------------------------------------
+    // --- Mapping the computation's results ------------------------------------------------------
 
     private static List<Map<String, Object>> planetMaps(List<PlanetPosition> planets,
                                                         Double ascendant, boolean noonEstimate) {
@@ -226,7 +226,7 @@ public class AstroToolService {
             if (noonEstimate && p.body().equals("Moon")) {
                 map.put("uncertain", true);
             }
-            // body в начало для читаемости
+            // body goes first, for readability
             Map<String, Object> ordered = new LinkedHashMap<>();
             ordered.put("body", map.remove("body"));
             ordered.putAll(map);
@@ -234,7 +234,7 @@ public class AstroToolService {
         }).toList();
     }
 
-    /** Общий вид точки зодиака: долгота, знак, градус в знаке, формат, опционально дом. */
+    /** The common shape of a zodiac point: longitude, sign, degree within the sign, formatting, optionally the house. */
     private static Map<String, Object> pointMap(double longitude, Double ascendant) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("longitude", round(longitude));

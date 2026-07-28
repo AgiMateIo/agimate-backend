@@ -15,14 +15,14 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
 
-/** Вытягивание карт: детерминированная карта дня и случайные расклады. */
+/** Drawing cards: a deterministic card of the day and random spreads. */
 @UtilityClass
 public class TarotDraw {
 
-    /** Вытянутая карта с ориентацией и позицией в раскладе. */
+    /** A drawn card with its orientation and position in the spread. */
     public record DrawnCard(TarotCard card, boolean reversed, String position) {}
 
-    /** Схемы раскладов и их позиции. */
+    /** Spread layouts and their positions. */
     public enum Spread {
         THREE_CARD(List.of("past", "present", "future")),
         CELTIC_CROSS(List.of("present", "challenge", "subconscious", "past", "crown",
@@ -41,8 +41,8 @@ public class TarotDraw {
     }
 
     /**
-     * Карта дня: детерминирована парой (userId, дата) — один пользователь получает одну и ту же
-     * карту весь день на любой ноде. Seed — первые 8 байт SHA-256, стабильно между JVM.
+     * The card of the day: determined by the pair (userId, date) — one user gets the same card all day
+     * on any node. The seed is the first 8 bytes of SHA-256, stable across JVMs.
      */
     public static DrawnCard cardOfDay(UUID userId, LocalDate date) {
         Random random = new Random(daySeed(userId, date));
@@ -50,7 +50,7 @@ public class TarotDraw {
         return new DrawnCard(card, random.nextBoolean(), "card_of_day");
     }
 
-    /** Случайный расклад: без повторов, каждая карта перевёрнута с вероятностью 50%. */
+    /** A random spread: no repeats, and each card is reversed with 50% probability. */
     public static List<DrawnCard> draw(Spread spread) {
         List<Integer> indices = new ArrayList<>(IntStream.range(0, TarotDeck.SIZE).boxed().toList());
         Random random = ThreadLocalRandom.current();

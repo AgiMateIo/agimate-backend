@@ -26,8 +26,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Тулы и таски Telegram-коннектора. Контекст (credentials, connectionId, userId) приходит через
- * {@link ConnectorEnvHolder}, привязку делает {@code BaseConnectorHandler} в
+ * Tools and jobs of the Telegram connector. The context (credentials, connectionId, userId) arrives
+ * through {@link ConnectorEnvHolder}, and the binding is done by {@code BaseConnectorHandler} in
  * {@code TelegramConnectorService}.
  */
 @Slf4j
@@ -38,7 +38,7 @@ public class TelegramToolService {
     public static final String TASK_LONG_POLL = "long_poll";
     private static final int LONG_POLL_TIMEOUT_SEC = 20;
 
-    /** Лимит Bot API на аплоад файла ботом. Свой чек — не полагаемся на app.files.max-file-size-bytes. */
+    /** The Bot API's limit on a bot's file upload. Our own check — we do not rely on app.files.max-file-size-bytes. */
     private static final long BOT_UPLOAD_LIMIT_BYTES = 50L * 1024 * 1024;
 
     private final TelegramApiClient telegramApiClient;
@@ -47,12 +47,12 @@ public class TelegramToolService {
     private final TelegramMediaService mediaService;
 
     /**
-     * Per‑integration cache long‑poll'а (ключ — connectionId, т.е. {@code connections.id}):
-     *   {@code offsets} — следующий update_id, передаваемый в getUpdates;
-     *   {@code webhookDeleted} — флаг «уже вызывали deleteWebhook» (Telegram не любит держать
-     *   и webhook, и getUpdates одновременно — 409 Conflict).
-     * Состояние live до рестарта процесса. Восстанавливать после рестарта необязательно:
-     * Telegram сам отдаст неподтверждённые updates на запрос без offset.
+     * Per-integration long-poll cache (keyed by connectionId, i.e. {@code connections.id}):
+     *   {@code offsets} — the next update_id passed into getUpdates;
+     *   {@code webhookDeleted} — the «deleteWebhook has already been called» flag (Telegram dislikes
+     *   holding both a webhook and getUpdates at once — 409 Conflict).
+     * The state lives until the process restarts. Restoring it afterwards is unnecessary: Telegram
+     * itself hands back the unacknowledged updates on a request with no offset.
      */
     private final Map<String, Long> offsets = new ConcurrentHashMap<>();
     private final Set<String> webhookDeleted = ConcurrentHashMap.newKeySet();
@@ -121,9 +121,9 @@ public class TelegramToolService {
     }
 
     /**
-     * Отправка медиа: {@code agf_…} — байты из файлового слоя multipart'ом (владение проверяет
-     * {@link FileStorageService#open} по userId из env), иначе значение уходит как есть
-     * (URL / Telegram file_id) обычным JSON-вызовом.
+     * Sending media: an {@code agf_…} means bytes from the file layer as multipart (ownership is
+     * checked by {@link FileStorageService#open} against the userId from the env), otherwise the value
+     * goes out as-is (a URL or a Telegram file_id) in an ordinary JSON call.
      */
     private Map<String, Object> sendMedia(String method, String field, String value,
                                           String fileName, Map<String, Object> apiParams) {
@@ -147,18 +147,18 @@ public class TelegramToolService {
                         effectiveName, file.file().getMime(), content, file.file().getSizeBytes());
             }
         } catch (FileStorageException e) {
-            // Сообщение уходит агенту: «file not found: agf_…» / причина отказа хранилища.
+            // The message goes to the agent: «file not found: agf_…» / the storage's reason for refusal.
             throw new ConnectorException(e.getMessage());
         } catch (IOException e) {
             throw new ConnectorException("Failed to read file " + value + ": " + e.getClass().getSimpleName());
         }
     }
 
-    /** Имя файла для multipart-части: Telegram показывает его в чате для документов. */
+    /** File name for the multipart part: Telegram shows it in the chat for documents. */
     private static String defaultFilename(String fileId, String mime) {
         String subtype = mime != null && mime.contains("/")
                 ? mime.substring(mime.indexOf('/') + 1) : "bin";
-        // "svg+xml" и т.п. → берём часть до '+'; неалфавитные хвосты не годятся в расширение
+        // "svg+xml" and the like → take the part before '+'; non-alphabetic tails do not work as an extension
         int plus = subtype.indexOf('+');
         if (plus > 0) {
             subtype = subtype.substring(0, plus);
@@ -166,7 +166,7 @@ public class TelegramToolService {
         return fileId + "." + subtype;
     }
 
-    // edit_message перезаписывает прежний текст → destructiveHint=true (дефолт).
+    // edit_message overwrites the previous text → destructiveHint=true (the default).
     @Tool(name = "edit_message", description = "Edit a message")
     public Map<String, Object> toolEditMessage(
             @ToolParam("Chat ID") String chatId,
@@ -201,17 +201,17 @@ public class TelegramToolService {
     }
 
     /**
-     * Одна итерация long‑polling'а: при необходимости снимаем webhook у Telegram, делаем
-     * {@code getUpdates(timeout=20s)}, диспатчим полученные обновления через
-     * {@link TriggerRouterService}, обновляем offset в памяти.
+     * One iteration of long polling: remove the webhook from Telegram if needed, do a
+     * {@code getUpdates(timeout=20s)}, dispatch the received updates through
+     * {@link TriggerRouterService} and update the offset in memory.
      *
-     * <p>{@code intervalSeconds = 0} — scheduler ставит {@code next_run_at = now} и подхватывает
-     * строку на следующем тике (≤1с); один запуск = один getUpdates. На ошибке —
-     * {@code next_run_at = now + 60s} (общий error retry).
+     * <p>{@code intervalSeconds = 0} — the scheduler sets {@code next_run_at = now} and picks the row
+     * up on the next tick (≤1s); one run = one getUpdates. On failure —
+     * {@code next_run_at = now + 60s} (the shared error retry).
      */
     @Tool(name = TASK_LONG_POLL, description = "Long-poll Telegram updates and dispatch them as triggers")
-    // timeoutSeconds — это lease claim'а: итерация ~20s, короткий lease ограничивает паузу
-    // поллинга после аварийного рестарта (kill -9), когда graceful release не отработал.
+    // timeoutSeconds is the claim's lease: an iteration takes ~20s, and a short lease bounds the polling
+    // pause after an abrupt restart (kill -9), when the graceful release never ran.
     @Job(intervalSeconds = 0, timeoutSeconds = 30)
     @SuppressWarnings("unchecked")
     public void longPoll() {
@@ -226,8 +226,8 @@ public class TelegramToolService {
             try {
                 telegramApiClient.deleteWebhook(token);
             } catch (Exception e) {
-                // Не логируем e.getMessage() / не передаём cause: Spring RestClient может вложить
-                // URL вида /bot{token}/... в текст или стек, что утечёт токен в логи.
+                // We do not log e.getMessage() and do not pass the cause on: Spring RestClient may embed a URL
+                // of the form /bot{token}/... into the text or the stack, which would leak the token into the logs.
                 log.warn("Failed to deleteWebhook before polling for {}: {}",
                         connectionId, e.getClass().getSimpleName());
                 webhookDeleted.remove(connectionId); // дать шанс ретраю на следующем tick'е
@@ -239,12 +239,12 @@ public class TelegramToolService {
         try {
             response = telegramApiClient.getUpdates(token, offset, LONG_POLL_TIMEOUT_SEC);
         } catch (HttpClientErrorException.Conflict e) {
-            // Другой процесс держит getUpdates с этим токеном — пусть scheduler подождёт 60s.
-            // Cause не пробрасываем — см. комментарий выше про утечку URL c токеном.
+            // Another process is holding getUpdates with this token — let the scheduler wait 60s.
+            // The cause is not propagated — see the comment above about leaking a URL containing the token.
             throw new ConnectorException(
                     "Telegram 409 Conflict — another process holds long-poll for this bot");
         } catch (Exception e) {
-            // Любая другая transport-ошибка телеги: только класс исключения, без message/cause.
+            // Any other transport error from Telegram: the exception's class only, with no message or cause.
             throw new ConnectorException(
                     "Telegram getUpdates failed: " + e.getClass().getSimpleName());
         }
@@ -268,7 +268,7 @@ public class TelegramToolService {
     private void dispatch(ConnectorEnv ctx, Map<String, Object> update) {
         try {
             Trigger trigger = TelegramUtils.normalizeUpdate(update, ctx.connectionId());
-            // Токен уже расшифрован в env long-poll'а — материализуем медиа перед маршрутизацией.
+            // The token is already decrypted in the long poll's env — we materialise the media before routing.
             trigger = mediaService.materialize(ctx.credentials().get("token"), ctx.userId(),
                     ctx.connectionId(), trigger);
             triggerRouterService.routeWhTrigger(ctx.userId(), trigger);

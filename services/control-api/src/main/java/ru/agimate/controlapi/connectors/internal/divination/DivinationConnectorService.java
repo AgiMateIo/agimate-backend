@@ -5,8 +5,8 @@ import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 
 /**
- * Divination — внутренний коннектор детерминированной эзотерики: Матрица судьбы, нумерология
- * и Таро (колода из classpath-датасета). Тулы см. {@link DivinationToolService}.
+ * Divination — the internal connector for deterministic esoterica: the Destiny Matrix, numerology and
+ * Tarot (the deck comes from a classpath dataset). For the tools see {@link DivinationToolService}.
  */
 @Component
 public class DivinationConnectorService extends BaseConnectorHandler implements InternalConnectorHandler {

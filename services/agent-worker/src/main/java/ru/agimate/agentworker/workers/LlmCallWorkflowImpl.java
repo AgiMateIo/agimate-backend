@@ -53,8 +53,8 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
         try {
             creds = client.getLlmCredentials(agentId);
         } catch (ControlApiCallException e) {
-            // Квота исчерпана: сообщение сервера написано для пользователя — отдаём его дословно,
-            // а не подменяем generic-нотисом «ошибка модели».
+            // The quota is spent: the server's message is written for the user — we pass it through verbatim
+            // rather than substituting a generic «model error» notice.
             if (e.code() == Status.Code.RESOURCE_EXHAUSTED
                     && e.description() != null && !e.description().isBlank()) {
                 log.info("LLM quota exceeded: {}", e.description());
@@ -69,22 +69,22 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
         // bug) must come back as a failure value, not escape the workflow past the error mapping.
         try {
             OpenAiChatModel model = modelFactory.build(creds);
-            // Runtime-опции НЕ мержатся с default-options модели (Spring AI 2.0 buildRequestPrompt
-            // берёт options промпта как есть), а билдер без model подставляет DEFAULT_CHAT_MODEL
-            // (gpt-5-mini) — модель из кредов обязана стоять здесь, иначе провайдер получит дефолт.
+            // Runtime options are NOT merged with the model's default options (Spring AI 2.0 buildRequestPrompt
+            // takes the prompt's options as-is), and a builder without model substitutes DEFAULT_CHAT_MODEL
+            // (gpt-5-mini) — so the model from the credentials must be set right here, or the provider gets the default.
             OpenAiChatOptions options = OpenAiChatOptions.builder()
                     .model(creds.getModel())
                     .toolCallbacks(mapper.toolCallbacks(toolDefs))
                     .build();
-            // Подаём ли картинки инлайном — решается на каждый вызов по input_modalities модели
-            // из кредов; пустой список = реестр модель не знает → оптимистично прикладываем.
+            // Whether to attach pictures inline is decided per call, from the model's input_modalities in the
+            // credentials; an empty list means the registry does not know the model → we attach optimistically.
             boolean imageInput = creds.getInputModalitiesList().isEmpty()
                     || creds.getInputModalitiesList().contains("image");
             if (!imageInput && hasImageParts(messages)) {
                 log.info("chat model {} lacks image input — inbound images stay text stubs",
                         creds.getModel());
             }
-            // Байты вложений тянем inline (как креды) — в DBOS-чекпоинт входа воркфлоу не попадают.
+            // Attachment bytes are pulled inline (like the credentials) — they never enter the workflow input's DBOS checkpoint.
             Map<String, byte[]> mediaBytes = imageInput ? fetchImageBytes(messages, agentId) : Map.of();
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes, imageInput), options);
             ChatResponse response = callWithRetry(model, prompt);
@@ -103,11 +103,12 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
     }
 
     /**
-     * Токены вызова для учёта расхода — дочерний воркфлоу только их <b>возвращает</b> на
-     * {@link Result}; сурфейсит их цикл, а репортит на бэк ран-обвязка (единственный писатель
-     * backend-side-записей рана). Самодостаточен для отчёта: несёт {@code callId}/{@code model}/
-     * {@code providerId}. {@code null}, если учитывать нечего: нет usage-метаданных или пустой
-     * {@code provider_id} (старый control-api при rolling deploy).
+     * The call's tokens for usage accounting — the child workflow only <b>returns</b> them on
+     * {@link Result}; the loop surfaces them and the run wiring reports them to the backend (the sole
+     * writer of the run's backend-side records). Self-contained for reporting: carries
+     * {@code callId}/{@code model}/{@code providerId}. {@code null} when there is nothing to account
+     * for: no usage metadata, or an empty {@code provider_id} (an older control-api during a rolling
+     * deploy).
      */
     private static LlmUsage buildUsage(ChatResponse response, LlmCredentials creds, String callId) {
         if (creds.getProviderId().isBlank()) {
@@ -124,10 +125,10 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
     }
 
     /**
-     * Байты image-вложений всех user-сообщений запроса ({@code fileId → bytes}) — inline, чтобы не
-     * попасть в чекпоинт (как {@code api_key}). Недоступный файл (NOT_FOUND/сбой) пропускается:
-     * текст сообщения уже содержит стаб, «зрение» деградирует, ран не падает. На практике parts
-     * есть только у последнего user-сообщения — цикл дешёвый.
+     * Image attachment bytes for every user message in the request ({@code fileId → bytes}) — inline,
+     * so they stay out of the checkpoint (like {@code api_key}). An unavailable file (NOT_FOUND or a
+     * failure) is skipped: the message text already carries a stub, so «vision» degrades but the run
+     * does not fail. In practice only the last user message has parts — the loop is cheap.
      */
     private static boolean hasImageParts(List<AgentChatMessage> messages) {
         return messages.stream().anyMatch(m -> m.parts().stream().anyMatch(FilePartRef::isImage));
@@ -154,7 +155,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
         return bytes;
     }
 
-    /** Собственный workflow id LLM-вызова; шов для тестов. */
+    /** The LLM call's own workflow id; a seam for tests. */
     String currentCallId() {
         return DBOSContext.workflowId();
     }
@@ -168,10 +169,10 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
     private static final long MAX_RETRY_AFTER_MS = 30_000;
 
     /**
-     * Транзиентные ошибки провайдера (429/5xx/408, сетевые сбои SDK) ретраятся здесь —
-     * иначе один блип провайдера убивает весь ран вместе с накопленной работой тулов.
-     * Прочие 4xx (401/403/400) терминальны и уходят в маппинг ошибок сразу. Worst case
-     * держит слот llm-очереди на {@value #MAX_ATTEMPTS} × request-timeout — осознанная цена.
+     * Transient provider errors (429/5xx/408, SDK network failures) are retried here — otherwise a
+     * single provider blip kills the whole run along with the tool work accumulated in it. Other 4xx
+     * (401/403/400) are terminal and go straight to error mapping. Worst case this holds an llm-queue
+     * slot for {@value #MAX_ATTEMPTS} × request-timeout — a deliberate price.
      */
     private static ChatResponse callWithRetry(OpenAiChatModel model, Prompt prompt) {
         long backoffMs = INITIAL_BACKOFF_MS;
@@ -196,7 +197,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
         }
     }
 
-    /** 429/408/5xx и сетевые исключения SDK; остальные 4xx — терминальные. */
+    /** 429/408/5xx and SDK network exceptions; every other 4xx is terminal. */
     static boolean transientProviderError(Throwable t) {
         OpenAIServiceException svc = findServiceException(t);
         if (svc != null) {
@@ -211,7 +212,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
         return false;
     }
 
-    /** Retry-After (секунды) из ответа провайдера, с потолком; 0 — нет/не распарсился. */
+    /** Retry-After (seconds) from the provider's response, capped; 0 — absent or unparseable. */
     static long retryAfterMs(Throwable t) {
         OpenAIServiceException svc = findServiceException(t);
         if (svc == null) {

@@ -28,19 +28,19 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 /**
- * Тулы media-коннектора. Файлы ходят pass-by-reference (`agf_…`, docs/connectors/files.md):
- * результат генерации — {@code {"file": {...}}}, входные картинки — id-параметрами.
- * Все доменные сбои LLM-слоя переводятся в {@link ConnectorException} — их текст агент видит
- * дословно и может пересказать пользователю.
+ * Tools of the media connector. Files travel by reference (`agf_…`, docs/connectors/files.md): the
+ * result of a generation is {@code {"file": {...}}}, and input pictures are id parameters. Every
+ * domain failure of the LLM layer is translated into {@link ConnectorException} — the agent sees that
+ * text verbatim and can relay it to the user.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class MediaToolService {
 
-    /** Генерация/редактирование у медленных image-моделей может идти долго — бюджет 30 минут. */
+    /** Generation and editing on slow image models can take a while — a 30-minute budget. */
     static final int GENERATION_TIMEOUT_SECONDS = 1800;
-    /** Зрение отвечает за секунды-минуты; долгое зависание — сбой, дольше 5 минут не ждём. */
+    /** Vision answers in seconds or minutes; a long hang is a failure, and we wait no more than 5 minutes. */
     static final int VISION_TIMEOUT_SECONDS = 300;
 
     private final MediaInferenceService mediaInferenceService;
@@ -117,10 +117,10 @@ public class MediaToolService {
     }
 
     /**
-     * Идентичность вызова из {@link ConnectorEnv}. {@code callId} — свежий uuid v8: external id
-     * строки tool_call_logs в env не прокинут, а физическое исполнение тула и так одно на строку
-     * (async-диспатч без ретраев) — дедуп учёта здесь страхует только от двойного вызова внутри
-     * одного исполнения.
+     * Identity of the call, from {@link ConnectorEnv}. {@code callId} is a fresh uuid v8: the external
+     * id of the tool_call_logs row is not threaded into the env, and the physical execution of a tool
+     * is one per row anyway (async dispatch without retries) — so deduplicating the accounting here
+     * only guards against a double call within a single execution.
      */
     private static MediaCall call() {
         ConnectorEnv env = ConnectorEnvHolder.current();
@@ -131,7 +131,7 @@ public class MediaToolService {
                 UUIDUtils.generateUUIDv8().toString());
     }
 
-    /** Результат по конвенции files.md; отказ модели (без файла) — текст как результат. */
+    /** A result by the files.md convention; a refusal by the model (no file) returns its text as the result. */
     private static Map<String, Object> imageResult(ImageResult result) {
         Map<String, Object> out = new LinkedHashMap<>();
         StoredFile file = result.file();
@@ -151,8 +151,8 @@ public class MediaToolService {
     }
 
     /**
-     * Доменные исключения LLM/файлового слоя → {@link ConnectorException} (иначе
-     * {@code BaseConnectorHandler} замаскирует их в безликое «Tool execution failed»).
+     * Domain exceptions of the LLM and file layers → {@link ConnectorException} (otherwise
+     * {@code BaseConnectorHandler} would mask them behind a faceless «Tool execution failed»).
      */
     private static <T> T guard(Supplier<T> action) {
         try {

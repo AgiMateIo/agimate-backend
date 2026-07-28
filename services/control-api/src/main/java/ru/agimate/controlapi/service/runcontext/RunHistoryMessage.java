@@ -4,12 +4,12 @@ import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 
 /**
- * Сообщение истории «как видел пользователь» в составе контекста рана.
+ * A history message «as the user saw it», within a run's context.
  *
- * <p>{@code toolTurn} (протокол v2.1) — структурная запись tool-хода у PROGRESS/TOOL_CALL:
- * воркер восстановит из неё нативные tool_use/tool_result вместо текстовой 🔧-проекции
- * (текст в истории модель имитирует вместо реального вызова). {@code null} — обычная
- * текстовая строка.
+ * <p>{@code toolTurn} (protocol v2.1) is the structural record of a tool turn on PROGRESS/TOOL_CALL:
+ * from it the worker restores native tool_use/tool_result instead of the textual 🔧 projection (text
+ * in history is something the model imitates instead of making a real call). {@code null} — an
+ * ordinary text line.
  */
 public record RunHistoryMessage(ChannelSessionMessageKind kind, String text, ToolTurnRecord toolTurn) {
 

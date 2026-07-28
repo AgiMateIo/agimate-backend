@@ -11,24 +11,25 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Единый реестр коннекторов поверх всех Spring-бинов {@link ConnectorHandler}.
+ * The single registry of connectors over every Spring {@link ConnectorHandler} bean.
  *
- * <p>{@link #getHandler(String)} — для execution-путей (бросает {@link ConnectorException});
- * HTTP-граница использует {@link #findHandler(String)} и сама решает, какой
- * {@code *StatusException} бросить. Capability-интерфейсы ({@link ToolProvider},
- * {@link TriggerProvider}, {@link JobProvider}, {@link PromptBlockProvider}) достаются через
- * {@link #findCapability} (листинги) или {@link #capability} (execution-пути,
- * уточнение роли уже полученного handler'а).
+ * <p>{@link #getHandler(String)} is for execution paths (it throws {@link ConnectorException}); the
+ * HTTP boundary uses {@link #findHandler(String)} and decides for itself which
+ * {@code *StatusException} to throw. Capability interfaces ({@link ToolProvider},
+ * {@link TriggerProvider}, {@link JobProvider}, {@link PromptBlockProvider}) are obtained through
+ * {@link #findCapability} (listings) or {@link #capability} (execution paths, refining the role of a
+ * handler already in hand).
  */
 @Component
 public class ConnectorRegistry {
 
     /**
-     * Хендлеры резолвятся лениво, а не инжектятся списком в конструктор: иначе конструирование реестра
-     * тянет за собой конструирование всех {@link ConnectorHandler}, и любой хендлер, чей tool-сервис
-     * переиспользует registry-зависимый сервис (например {@code platform} → {@code AgentService} →
-     * {@code ConnectorRegistry}), замыкает цикл бинов. Разрыв графа — здесь, в агрегаторе, а не {@code @Lazy}
-     * у потребителей. Карта строится однажды при первом обращении (контекст к тому моменту готов).
+     * Handlers are resolved lazily rather than injected as a constructor list: otherwise constructing
+     * the registry drags in the construction of every {@link ConnectorHandler}, and any handler whose
+     * tool service reuses a registry-dependent service (e.g. {@code platform} → {@code AgentService}
+     * → {@code ConnectorRegistry}) closes a bean cycle. The graph is broken here, in the aggregator,
+     * rather than with {@code @Lazy} at the consumers. The map is built once on first access (by
+     * which point the context is ready).
      */
     private final ObjectProvider<ConnectorHandler> handlerProvider;
     private volatile Map<String, ConnectorHandler> handlers;
@@ -38,7 +39,7 @@ public class ConnectorRegistry {
         this.handlerProvider = handlerProvider;
     }
 
-    /** Явный набор хендлеров (eager) — для тестов; в приложении Spring использует ObjectProvider-конструктор. */
+    /** An explicit set of handlers (eager) — for tests; in the application Spring uses the ObjectProvider constructor. */
     public ConnectorRegistry(Collection<ConnectorHandler> handlers) {
         this.handlerProvider = null;
         this.handlers = handlers.stream()
@@ -79,9 +80,9 @@ public class ConnectorRegistry {
     }
 
     /**
-     * Capability уже полученного handler'а — когда handler из registry взят один раз и его роль
-     * уточняется без повторного lookup'а (execution-пути). Коннектор её не реализует —
-     * {@link ConnectorException}.
+     * The capability of a handler already in hand — for when the handler was taken from the registry
+     * once and its role is being refined without a second lookup (execution paths). If the connector
+     * does not implement it — {@link ConnectorException}.
      */
     public static <T> T capability(ConnectorHandler handler, Class<T> capability) {
         if (!capability.isInstance(handler)) {

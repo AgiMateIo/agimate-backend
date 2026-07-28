@@ -11,11 +11,12 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 
 /**
- * Разобранный момент рождения. Если время неизвестно — берётся полдень (в tzid либо UTC),
- * {@code timeKnown=false}: позиции медленных тел валидны, Луна — оценка ±6.5°, углы/дома недоступны.
+ * A parsed moment of birth. When the time is unknown, noon is used (in the tzid, or UTC) and
+ * {@code timeKnown=false}: the positions of the slow bodies stay valid, the Moon is an estimate to
+ * ±6.5°, and angles and houses are unavailable.
  *
- * @param utc       момент в UTC
- * @param timeKnown известно ли точное время рождения
+ * @param utc       the moment in UTC
+ * @param timeKnown whether the exact time of birth is known
  */
 public record BirthMoment(Instant utc, boolean timeKnown) {
 
@@ -34,7 +35,7 @@ public record BirthMoment(Instant utc, boolean timeKnown) {
         } catch (DateTimeParseException e) {
             throw new ConnectorException("Invalid birthTime '" + birthTime + "': expected HH:mm");
         }
-        // Исторические смещения (декретное время и т.п.) разрешает tzdb из JDK
+        // Historical offsets (wartime time and the like) are resolved by the JDK's tzdb
         return new BirthMoment(date.atTime(time).atZone(parseZone(tzid)).toInstant(), true);
     }
 

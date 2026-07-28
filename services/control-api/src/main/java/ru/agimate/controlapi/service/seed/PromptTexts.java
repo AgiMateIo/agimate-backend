@@ -6,31 +6,33 @@ import ru.agimate.controlapi.config.ContentProperties;
 import java.util.Properties;
 
 /**
- * Локализация доверенных инструкций, которые платформа кладёт агенту в промпт:
+ * Localisation of the trusted instructions the platform puts into an agent's prompt:
  * {@code seed/<lang>/prompt.properties}.
  *
- * <p>Это не подписи в интерфейсе, а <b>поведение</b>: правила автономной обработки событий, запрет
- * имитировать вызов тула текстом, attach-конвенция, инструкции реакции на событие коннектора. Модель
- * понимает и русский, но соблюдает инструкцию надёжнее, когда та на языке остального промпта — а в
- * EN-инсталляции инструкции агента и его скилы английские.
+ * <p>These are not captions in an interface but <b>behaviour</b>: the rules of autonomous event
+ * handling, the ban on imitating a tool call as text, the attach convention, the instructions for
+ * reacting to a connector's event. The model understands Russian too, but it follows an instruction
+ * more reliably when it is in the language of the rest of the prompt — and in an EN installation the
+ * agent's instructions and its skills are English.
  *
- * <p>Отдельный бандл от {@link ConnectorTexts} именно поэтому: у каталога коннекторов читатель
- * человек и цена ошибки — некрасивая подпись, здесь читатель модель и цена ошибки — другое поведение
- * агента. Такие тексты нельзя отдавать на перевод по тем же правилам.
+ * <p>That is exactly why this is a separate bundle from {@link ConnectorTexts}: the connector
+ * catalogue's reader is a human and the cost of an error is an ugly caption, while here the reader is
+ * the model and the cost of an error is different agent behaviour. Such texts cannot be handed out for
+ * translation under the same rules.
  *
- * <p>Ключи: {@code run.trigger.guidance}, {@code run.tool-call.guidance},
- * {@code run.attachment.guidance} — платформенные, применяются к каждому подходящему рану;
- * {@code connector.<code>.<trigger>.guidance} с фолбэком на {@code connector.<code>.guidance} —
- * инструкция реакции на событие конкретного коннектора.
+ * <p>Keys: {@code run.trigger.guidance}, {@code run.tool-call.guidance},
+ * {@code run.attachment.guidance} — platform-level, applied to every matching run;
+ * {@code connector.<code>.<trigger>.guidance} falling back to {@code connector.<code>.guidance} — the
+ * instruction for reacting to a particular connector's event.
  */
 @Component
 public class PromptTexts {
 
-    /** Правила автономной обработки событий — trigger-раны. */
+    /** Rules of autonomous event handling — trigger runs. */
     public static final String RUN_TRIGGER_GUIDANCE = "run.trigger.guidance";
-    /** Запрет имитировать вызов тула текстом — раны, у которых есть тулы. */
+    /** The ban on imitating a tool call as text — runs that have tools. */
     public static final String RUN_TOOL_CALL_GUIDANCE = "run.tool-call.guidance";
-    /** Attach-конвенция — DIALOGUE-раны, чей prompt-канал умеет вложения. */
+    /** The attach convention — DIALOGUE runs whose prompt channel supports attachments. */
     public static final String RUN_ATTACHMENT_GUIDANCE = "run.attachment.guidance";
 
     private final Properties texts;
@@ -39,15 +41,16 @@ public class PromptTexts {
         this.texts = SeedTextBundle.load(contentProperties.getLanguage(), "prompt.properties");
     }
 
-    /** Платформенный блок промпта по ключу; нет перевода — значение из кода. */
+    /** A platform prompt block by key; no translation — the value from the code. */
     public String get(String key, String fallback) {
         return texts.getProperty(key, fallback);
     }
 
     /**
-     * Инструкция реакции на событие коннектора ({@code ContextDirectives.guidance}). Сначала ключ
-     * с именем триггера, затем общий для коннектора — так коннектор с одной инструкцией на несколько
-     * событий (board) держит её в одном ключе, и переводы не разъезжаются между копиями.
+     * The instruction for reacting to a connector's event ({@code ContextDirectives.guidance}). First
+     * the key carrying the trigger's name, then the connector's general one — so a connector with one
+     * instruction covering several events (board) keeps it under a single key, and the translations do
+     * not drift apart between copies.
      */
     public String triggerGuidance(String connectorCode, String triggerName, String fallback) {
         String specific = texts.getProperty("connector.%s.%s.guidance".formatted(connectorCode, triggerName));

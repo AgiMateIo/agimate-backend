@@ -84,7 +84,7 @@ public class AppService {
 
         App saved = appRepository.save(app);
 
-        // Регистрируем экземпляр в едином реестре connections (id = app.id → connectionId не меняется).
+        // We register the instance in the single connections registry (id = app.id → connectionId never changes).
         connectionRepository.save(Connection.builder()
                 .id(saved.getId())
                 .connectorCode(saved.getConnectorCode())
@@ -133,7 +133,7 @@ public class AppService {
         appRepository.softDelete(app.getId(), now);
         connectionRepository.findByAppIdAndDeletedAtIsNull(app.getId())
                 .ifPresent(c -> {
-                    // Каскад: снять binding'и/политики агентов на этот экземпляр, затем свернуть connection.
+                    // A cascade: drop the agents' bindings and policies onto this instance, then collapse the connection.
                     connectionBindingService.detachConnection(c.getId());
                     connectionRepository.softDelete(c.getId(), now);
                 });
@@ -162,9 +162,9 @@ public class AppService {
     }
 
     /**
-     * Триггер обязан быть задекларирован устройством при link (каталог {@code connection_triggers} —
-     * источник истины для экземпляра): незадекларированное имя — нарушение контракта, а не событие
-     * для маршрутизации. Для устройств {@code connectionId == app.id}.
+     * A trigger must have been declared by the device at link time (the {@code connection_triggers}
+     * catalogue is the instance's source of truth): an undeclared name is a breach of contract, not an
+     * event to route. For devices {@code connectionId == app.id}.
      */
     public void requireDeclaredTrigger(App app, String triggerName) {
         if (!connectionTriggerRepository.existsActiveByConnectionIdAndName(app.getId(), triggerName)) {
@@ -222,7 +222,7 @@ public class AppService {
                 .toList();
     }
 
-    /** Имена параметров для UI: явный список {@code params}, иначе ключи {@code properties} схемы, иначе пусто. */
+    /** Parameter names for the UI: the explicit {@code params} list, else the schema's {@code properties} keys, else empty. */
     @SuppressWarnings("unchecked")
     private List<String> deriveParams(Object params, Object schema) {
         if (params instanceof List<?> list) {
@@ -272,9 +272,10 @@ public class AppService {
     }
 
     /**
-     * Зеркалит набор тулов/триггеров устройства в нормализованные {@code connection_tools}/
-     * {@code connection_triggers} (для проверки доступных тулов/триггеров в каналах/политиках).
-     * Полная замена: дискаверенный набор устройства — единственный источник истины для экземпляра.
+     * Mirrors the device's set of tools and triggers into the normalised
+     * {@code connection_tools}/{@code connection_triggers} (for checking the tools and triggers available
+     * in channels and policies). A full replacement: the device's discovered set is the instance's only
+     * source of truth.
      */
     private void syncDeviceCatalog(UUID connectionId, LinkDeviceRequest request) {
         connectionToolRepository.deleteByConnectionId(connectionId);

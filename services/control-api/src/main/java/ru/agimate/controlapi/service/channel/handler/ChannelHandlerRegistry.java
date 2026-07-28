@@ -10,9 +10,9 @@ import java.util.Optional;
 import java.util.Collection;
 
 /**
- * Реестр {@link ChannelHandler}-ов по {@link ChannelHandler#name()}.
+ * Registry of {@link ChannelHandler}s by {@link ChannelHandler#name()}.
  *
- * <p>Имена должны быть уникальны — дубликат это ошибка конфигурации (fail-fast на старте).
+ * <p>The names must be unique — a duplicate is a configuration error (fail-fast at startup).
  */
 @Slf4j
 @Component

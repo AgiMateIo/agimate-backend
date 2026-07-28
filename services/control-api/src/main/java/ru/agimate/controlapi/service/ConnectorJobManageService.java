@@ -24,9 +24,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Пользовательское управление фоновыми задачами коннекторов (manage-API): список, pause/resume,
- * удаление. Мутации записи scheduler'а ({@code status}/{@code lease_until}) не трогают — пауза и
- * возобновление идут точечными UPDATE только своих полей.
+ * A user's management of connectors' background jobs (the manage API): listing, pause/resume, deletion.
+ * The mutations leave the scheduler's fields ({@code status}/{@code lease_until}) alone — pause and
+ * resume go through targeted UPDATEs of their own fields only.
  */
 @Slf4j
 @Service
@@ -52,7 +52,7 @@ public class ConnectorJobManageService {
         return connectorJobRepository.findAll(spec, pageRequest).map(ConnectorJobResponse::from);
     }
 
-    /** Все задачи конкретного экземпляра коннектора (owned). Инстансы, не декларации. */
+    /** Every job of a particular connector instance (owned). Instances, not declarations. */
     public List<ConnectorJobResponse> getConnectionJobs(UUID userId, UUID connectionId) {
         Specification<ConnectorJob> spec = ConnectorJobSpecs.ownedBy(userId)
                 .and(ConnectorJobSpecs.hasConnection(connectionId.toString()));
@@ -84,9 +84,9 @@ public class ConnectorJobManageService {
     }
 
     /**
-     * Запускает задачу немедленно: сдвигает {@code next_run_at} на «сейчас», scheduler подхватит её
-     * на ближайшем тике (≤1с). Только из статуса {@code PENDING} и не на паузе — schedule-каденс
-     * при этом сохраняется (следующий запуск пересчитается обычным образом после выполнения).
+     * Runs a job immediately: shifts {@code next_run_at} to «now», and the scheduler picks it up on the
+     * next tick (≤1s). From status {@code PENDING} only and not while paused — the schedule's cadence is
+     * preserved (the next run is recomputed the usual way after execution).
      */
     @Transactional
     public void runNow(UUID id, UUID userId) {
@@ -100,7 +100,7 @@ public class ConnectorJobManageService {
         }
         int updated = connectorJobRepository.runNow(task.getId(), userId, LocalDateTime.now());
         if (updated == 0) {
-            // Гонка: scheduler успел claim'нуть строку между загрузкой и UPDATE.
+            // A race: the scheduler claimed the row between the load and the UPDATE.
             throw new BadRequestStatusException("Job is already running");
         }
         log.info("Run-now connector task id={} ({}/{}) user={}",
@@ -111,7 +111,7 @@ public class ConnectorJobManageService {
     public void delete(UUID id, UUID userId) {
         ConnectorJob task = findOwnedTask(id, userId);
         if (task.getKind() == ConnectorJobKind.SYSTEM) {
-            // Reconcile-синк воссоздал бы строку на ближайшем событии — delete не приживётся.
+            // The reconcile sync would recreate the row on the next event — a delete would not stick.
             throw new BadRequestStatusException(
                     "Declarative connector task cannot be deleted: pause it or delete the integration");
         }
@@ -121,9 +121,9 @@ public class ConnectorJobManageService {
     }
 
     /**
-     * Пересчёт {@code next_run_at} при возобновлении: PERIODIC/CRON стартуют от «сейчас», а не
-     * догоняют срок, пропущенный за время паузы; ONETIME сохраняет свой момент (просроченный
-     * выполнится сразу — пользователь явно включил задачу).
+     * Recomputation of {@code next_run_at} on resume: PERIODIC/CRON start from «now» rather than catching
+     * up on the deadline missed while paused; ONETIME keeps its moment (an overdue one runs at once — the
+     * user explicitly re-enabled the job).
      */
     private LocalDateTime nextRunAfterResume(ConnectorJob task) {
         LocalDateTime now = LocalDateTime.now();

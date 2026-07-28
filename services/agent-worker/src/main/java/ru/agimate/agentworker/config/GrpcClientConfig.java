@@ -27,7 +27,7 @@ public class GrpcClientConfig {
     public ManagedChannel controlApiChannel(AgentProperties props) {
         AgentProperties.Grpc grpc = props.getGrpc();
         if (!grpc.isUseTls()) {
-            // По этому каналу ходит переписка пользователей — plaintext только внутри машины.
+            // Users' conversations travel over this channel — plaintext only inside the machine.
             if (!isLoopbackTarget(grpc.getTarget())) {
                 throw new IllegalStateException("Plaintext gRPC to non-loopback target '" + grpc.getTarget()
                         + "' is not allowed; enable TLS (env AGENT_GRPC_USE_TLS=true)");
@@ -66,7 +66,7 @@ public class GrpcClientConfig {
             }
         } else {
             int colon = host.indexOf(':');
-            // одно двоеточие — host:port; несколько — голый IPv6-адрес
+            // one colon — host:port; several — a bare IPv6 address
             if (colon >= 0 && colon == host.lastIndexOf(':')) {
                 host = host.substring(0, colon);
             }

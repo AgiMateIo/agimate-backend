@@ -22,8 +22,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Тулы divination-коннектора: Матрица судьбы, нумерология и Таро. Все числа и вытянутые
- * карты детерминированы движком — агент их не выдумывает, а интерпретирует.
+ * Tools of the divination connector: the Destiny Matrix, numerology and Tarot. Every number and every
+ * drawn card is determined by the engine — the agent does not invent them, it interprets them.
  */
 @Component
 public class DivinationToolService {
@@ -123,7 +123,7 @@ public class DivinationToolService {
         return result;
     }
 
-    /** Карта с позицией, ориентацией и ключевыми словами актуальной ориентации. */
+    /** A card with its position, orientation and the keywords of that orientation. */
     private static Map<String, Object> cardMap(DrawnCard drawn) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("position", drawn.position());

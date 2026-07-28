@@ -30,10 +30,10 @@ import java.nio.charset.StandardCharsets;
 public class ToolCallWorkflowImpl implements ToolCallWorkflow {
 
     private static final long POLL_INTERVAL_MS = 500;
-    /** После первой минуты ожидания поллим реже: долгие тулы не заслуживают 2 rps на gRPC. */
+    /** After the first minute of waiting we poll less often: long tools do not deserve 2 rps of gRPC. */
     private static final long SLOW_POLL_INTERVAL_MS = 2_000;
     private static final long SLOW_POLL_AFTER_MS = 60_000;
-    /** Потолок заявленного спеком бюджета — 30 минут. */
+    /** Ceiling on the budget declared by a spec — 30 minutes. */
     static final int MAX_TIMEOUT_SECONDS = 1800;
 
     private final AgentWorkerClient client;
@@ -66,7 +66,7 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
         }
     }
 
-    /** Бюджет ожидания: заявленный спеком (кламп 30 мин) либо дефолт воркера. */
+    /** Wait budget: the one declared by the spec (clamped to 30 min), or the worker's default. */
     static long effectiveTimeoutMs(int specTimeoutSeconds, long defaultMs) {
         if (specTimeoutSeconds <= 0) {
             return defaultMs;
@@ -120,7 +120,7 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
             return output;
         }
         int cut = maxChars;
-        // Не рвать суррогатную пару UTF-16 посередине.
+        // Do not tear a UTF-16 surrogate pair in half.
         if (Character.isHighSurrogate(output.charAt(cut - 1))) {
             cut--;
         }

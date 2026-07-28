@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.database.enums;
 
-/** Кто написал сообщение в webchat: пользователь (входящее) или агент (доставленный вывод). */
+/** Who wrote a webchat message: the user (inbound) or the agent (delivered output). */
 public enum WebchatMessageDirection {
     USER,
     AGENT

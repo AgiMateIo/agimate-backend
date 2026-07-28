@@ -36,7 +36,7 @@ public class ChannelSessionMessage extends BaseEntity {
     @Column(name = "run_id", nullable = false)
     private UUID runId;
 
-    /** Монотонный счётчик рана (0 = inbound): ключ идемпотентности UNIQUE (run_id, seq). Null у дореформенных строк. */
+    /** The run's monotonic counter (0 = inbound): the idempotency key UNIQUE (run_id, seq). Null on pre-reform rows. */
     @Column(name = "seq")
     private Integer seq;
 
@@ -44,13 +44,13 @@ public class ChannelSessionMessage extends BaseEntity {
     @Column(name = "kind", nullable = false, columnDefinition = "TEXT")
     private ChannelSessionMessageKind kind;
 
-    /** Подтип PROGRESS-сообщения (THINKING/TOOL_CALL/TEXT) — для фильтра historyDetail. */
+    /** Subtype of a PROGRESS message (THINKING/TOOL_CALL/TEXT) — used by the historyDetail filter. */
     @Column(name = "progress_type", columnDefinition = "TEXT")
     private String progressType;
 
     /**
-     * Все сообщения рана пишутся с false; финальный ANSWER помечает весь run_id true.
-     * История следующих ранов видит только completed — незавершённые/упавшие раны выпадают.
+     * Every message of a run is written with false; the final ANSWER marks the whole run_id true.
+     * History of later runs sees only completed ones — unfinished and failed runs drop out.
      */
     @Column(name = "completed", nullable = false)
     private boolean completed;
@@ -59,10 +59,10 @@ public class ChannelSessionMessage extends BaseEntity {
     private String message;
 
     /**
-     * v2.1: структурная запись tool-хода ({@code ToolTurnRecord}: text + calls + results) у
-     * PROGRESS/TOOL_CALL — история следующих ранов отдаёт её воркеру как нативные
-     * tool_use/tool_result. У остальных строк null. Дореформенные строки могли хранить здесь
-     * сериализованный LLM-ход старого формата — они различимы по kind (REQUEST/RESPONSE).
+     * v2.1: the structural record of a tool turn ({@code ToolTurnRecord}: text + calls + results) on
+     * PROGRESS/TOOL_CALL — history of later runs hands it to the worker as native
+     * tool_use/tool_result. Null on every other row. Pre-reform rows may have stored an
+     * old-format serialised LLM turn here — those are distinguishable by kind (REQUEST/RESPONSE).
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "message_json", columnDefinition = "JSONB")

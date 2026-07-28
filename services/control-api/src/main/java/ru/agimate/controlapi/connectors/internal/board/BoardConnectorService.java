@@ -12,21 +12,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Фасад board-коннектора: тулы живут в {@link BoardToolService}; триггеры эмитит core-{@link BoardService},
- * здесь — их статические декларации ({@link TriggerSpec} + директивы контекста).
+ * Facade of the board connector: the tools live in {@link BoardToolService}; the triggers are emitted
+ * by the core {@link BoardService}, and what lives here are their static declarations
+ * ({@link TriggerSpec} plus context directives).
  *
- * <p><b>Владелец данных — команда вызывающего агента</b>: доска резолвится
- * {@code env.agentId → agenticTeam → board}, отдельного референта в connection нет
- * (см. чек-лист осей в docs/connectors/architecture.md).
+ * <p><b>The data owner is the calling agent's team</b>: the board is resolved
+ * {@code env.agentId → agenticTeam → board}, with no separate referent in the connection (see the
+ * axis checklist in docs/architecture/connectors.md).
  */
 @Component
 public class BoardConnectorService extends BaseConnectorHandler
         implements InternalConnectorHandler, TriggerProvider {
 
     /**
-     * Board-событие действуемо тулами доски независимо от скиллов агента ({@code ownConnectionTools});
-     * guidance — провенанс и правила реакции: не отвечать на собственные действия и общаться строго
-     * комментариями доски — ран board-триггера канала не имеет, финальный текст никому не доставляется.
+     * A board event is actionable through the board's tools regardless of the agent's skills
+     * ({@code ownConnectionTools}); the guidance carries provenance and the rules of reaction: do not
+     * respond to your own actions, and communicate strictly through board comments — a board-trigger
+     * run has no channel, so its final text is delivered to nobody.
      */
     private static final ContextDirectives BOARD_EVENT_CONTEXT = ContextDirectives.builder()
             .ownConnectionTools(true)

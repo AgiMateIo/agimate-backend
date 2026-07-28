@@ -2,12 +2,12 @@ package ru.agimate.controlapi.database.enums;
 
 import java.time.LocalDate;
 
-/** Календарное окно счётчика/квоты (UTC): DAY — день, MONTH — месяц (window_start = 1-е число). */
+/** Calendar window of a counter or quota (UTC): DAY — a day, MONTH — a month (window_start = the 1st). */
 public enum UsageWindow {
     DAY,
     MONTH;
 
-    /** Начало окна, в которое попадает {@code date}. */
+    /** Start of the window {@code date} falls into. */
     public LocalDate windowStart(LocalDate date) {
         return this == DAY ? date : date.withDayOfMonth(1);
     }

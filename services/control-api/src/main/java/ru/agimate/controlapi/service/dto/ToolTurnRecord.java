@@ -3,10 +3,10 @@ package ru.agimate.controlapi.service.dto;
 import java.util.List;
 
 /**
- * Структурная запись одного tool-хода ассистента (протокол v2.1): преамбула + вызовы +
- * результаты. Персистится в {@code channel_session_messages.message_json} у PROGRESS/TOOL_CALL
- * и отдаётся истории следующих ранов как нативные tool_use/tool_result — текстовая 🔧-проекция
- * остаётся только канальной. Схема полей повторяет AgentChatMessage воркера.
+ * The structural record of a single assistant tool turn (protocol v2.1): preamble + calls + results.
+ * Persisted into {@code channel_session_messages.message_json} on PROGRESS/TOOL_CALL and handed to the
+ * history of later runs as native tool_use/tool_result — the textual 🔧 projection stays channel-only.
+ * The field schema mirrors the worker's AgentChatMessage.
  */
 public record ToolTurnRecord(String text, List<Call> calls, List<Result> results) {
 

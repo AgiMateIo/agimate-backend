@@ -1,7 +1,7 @@
 package ru.agimate.controlapi.database.enums;
 
 /**
- * Вид сообщения в истории сессии (SaveMessage): «диалог как видел пользователь».
+ * Kind of a message in session history (SaveMessage): «the dialogue as the user saw it».
  */
 public enum ChannelSessionMessageKind {
     INBOUND,

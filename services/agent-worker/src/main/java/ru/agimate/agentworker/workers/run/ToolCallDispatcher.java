@@ -91,18 +91,19 @@ class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
     }
 
     /**
-     * Вывод open-world тула ({@code openWorldHint=true}) — чужой контент (письма, тикеты, веб)
-     * и канал prompt-injection: оборачивается маркером недоверенных данных. Семантику маркера
-     * объясняет system-абзац {@code ContextBuilder.TOOL_OUTPUT_GUIDANCE}; закрывающий тег внутри
-     * данных нейтрализуется, чтобы payload не вышел из обёртки. Применяется после трункейта
-     * воркера ({@code ToolCallWorkflowImpl}) — обёртка всегда целая.
+     * Output of an open-world tool ({@code openWorldHint=true}) is third-party content (mail,
+     * tickets, the web) and a prompt-injection channel: it gets wrapped in an untrusted-data marker.
+     * The marker's meaning is explained by the system paragraph
+     * {@code ContextBuilder.TOOL_OUTPUT_GUIDANCE}; a closing tag inside the data is neutralised so
+     * the payload cannot escape the wrapper. Applied after the worker's truncation
+     * ({@code ToolCallWorkflowImpl}) — the wrapper is always intact.
      */
     static String wrapUntrusted(String content) {
         String tag = ContextBuilder.UNTRUSTED_TOOL_OUTPUT_TAG;
         return "<" + tag + ">\n" + ContextBuilder.neutralizeClosingTag(content, tag) + "\n</" + tag + ">";
     }
 
-    /** Счётчик сгенерированных fallback-id; детерминирован порядком вызовов внутри рана. */
+    /** Counter of generated fallback ids; deterministic in the order of calls within a run. */
     private int generatedIdSeq = 0;
 
     /**

@@ -3,8 +3,8 @@ package ru.agimate.controlapi.controller.agent.dto;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
- * Результат tool_call при опросе: клиент ветвится по {@link #status}, а не по форме тела/HTTP-коду.
- * Опрашивать, пока {@code status == PENDING}.
+ * The result of a tool_call while polling: the client branches on {@link #status}, not on the body's
+ * shape or the HTTP code. Keep polling while {@code status == PENDING}.
  */
 @Schema(description = "Tool call result; poll while status is PENDING")
 public record ToolResultResponse(

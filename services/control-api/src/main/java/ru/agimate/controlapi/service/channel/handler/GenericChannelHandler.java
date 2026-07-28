@@ -14,15 +14,16 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Универсальный data-driven handler: воспроизводит прежнее поведение каналов из {@code config}.
+ * The universal data-driven handler: it reproduces the previous behaviour of channels from
+ * {@code config}.
  *
- * <p>Покрывает динамические коннекторы (например {@code app}, где триггеры/тулы задаются
- * пер-устройство), где код-handler написать нельзя. Маппинг задаётся настройками:
+ * <p>It covers dynamic connectors (e.g. {@code app}, where triggers and tools are defined per device),
+ * for which a code handler cannot be written. The mapping is given by settings:
  * <ul>
- *   <li>{@code triggers} — список имён триггеров;</li>
- *   <li>{@code messageField} — dot-path в {@code trigger.data} до текста сообщения;</li>
- *   <li>{@code replyConnectionId}/{@code replyToolName} — reply-цель (коннектор выводится из connectionId);</li>
- *   <li>{@code replyToolParams} — шаблон с плейсхолдерами {@code {text}} и {@code {trigger.*}}.</li>
+ *   <li>{@code triggers} — the list of trigger names;</li>
+ *   <li>{@code messageField} — the dot-path in {@code trigger.data} to the message's text;</li>
+ *   <li>{@code replyConnectionId}/{@code replyToolName} — the reply target (the connector is derived from connectionId);</li>
+ *   <li>{@code replyToolParams} — a template with the placeholders {@code {text}} and {@code {trigger.*}}.</li>
  * </ul>
  */
 @Component

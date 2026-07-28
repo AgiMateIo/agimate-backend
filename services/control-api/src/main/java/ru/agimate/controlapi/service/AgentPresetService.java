@@ -24,10 +24,10 @@ import java.util.UUID;
 import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
 
 /**
- * Галерея пресетов ролей для мастера создания агента. Пресет — чистый префилл: фронт заполняет им
- * редактируемые поля мастера, финальные значения приходят обычным {@code CreateAgentRequest}.
- * Имена скилов резолвятся в системные скилы на момент листинга; исчезнувший скилл просто
- * выпадает из ответа (warning в лог).
+ * The gallery of role presets for the agent creation wizard. A preset is pure prefill: the frontend
+ * fills the wizard's editable fields from it, and the final values arrive as an ordinary
+ * {@code CreateAgentRequest}. Skill names are resolved into system skills at listing time; a skill that
+ * has disappeared simply drops out of the response (with a warning in the log).
  */
 @Slf4j
 @Service
@@ -44,7 +44,7 @@ public class AgentPresetService {
                 .toList();
     }
 
-    /** Все пресеты, включая disabled — для админ-таблицы. */
+    /** Every preset, disabled ones included — for the admin table. */
     public List<AgentPresetResponse> listAll() {
         return agentPresetRepository.findAllByOrderBySortOrderAscNameAsc().stream()
                 .map(this::toResponse)
@@ -108,9 +108,9 @@ public class AgentPresetService {
     }
 
     /**
-     * Каждое имя обязано резолвиться в существующий системный скилл. В отличие от толерантного
-     * листинга (пропавший скилл молча выпадает), на входе мусор не пускаем — симметрично
-     * валидации кодов коннекторов в {@code SkillService}.
+     * Every name must resolve to an existing system skill. Unlike the tolerant listing (where a missing
+     * skill silently drops out), garbage is not let in at the input — symmetrically to the validation of
+     * connector codes in {@code SkillService}.
      */
     private void validateSkillNames(List<String> names) {
         if (names == null || names.isEmpty()) {

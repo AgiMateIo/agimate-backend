@@ -34,18 +34,19 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * ACP-эндпоинт (Agent Client Protocol, JSON-RPC 2.0 поверх WebSocket): диалог IDE-клиента
- * (Zed и др., через stdio↔wss мост) с агентом ключа соединения. Реализует agent-side методы
- * {@code initialize}, {@code session/new}, {@code session/load}, {@code session/prompt} и
- * нотификацию {@code session/cancel}.
+ * The ACP endpoint (Agent Client Protocol, JSON-RPC 2.0 over WebSocket): a dialogue between an IDE
+ * client (Zed and others, through a stdio↔wss bridge) and the agent of the connection's key. It
+ * implements the agent-side methods {@code initialize}, {@code session/new}, {@code session/load},
+ * {@code session/prompt} and the notification {@code session/cancel}.
  *
- * <p>Ответ на {@code session/prompt} асинхронный: rpc-id регистрируется в
- * {@link AcpSessionRegistry}, ответ уйдёт из {@link AcpChannelHandler} при ANSWER/ERROR-проекции
- * SaveMessage. {@code session/cancel} мягкий: отпускает клиента со stopReason=cancelled, ран на
- * сервере доработает и его ответ останется в истории сессии.
+ * <p>The answer to {@code session/prompt} is asynchronous: the rpc id is registered in
+ * {@link AcpSessionRegistry}, and the answer goes out from {@link AcpChannelHandler} on the ANSWER or
+ * ERROR projection of SaveMessage. {@code session/cancel} is soft: it releases the client with
+ * stopReason=cancelled, while the run finishes on the server and its answer stays in the session's
+ * history.
  *
- * <p>Аутентификация — на handshake ({@link AcpHandshakeInterceptor}), поэтому ACP-метод
- * {@code authenticate} не требуется ({@code authMethods: []}).
+ * <p>Authentication happens at the handshake ({@link AcpHandshakeInterceptor}), so the ACP method
+ * {@code authenticate} is not needed ({@code authMethods: []}).
  */
 @Slf4j
 @Component
@@ -56,7 +57,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
 
     private static final String ATTR_CLIENT = "acpClient";
     private static final String ATTR_CAPABILITIES = "acpCapabilities";
-    /** Поле в params session/new|load, куда мост кладёт агрегированный список MCP-тулов IDE. */
+    /** The field in the params of session/new|load where the bridge puts the aggregated list of the IDE's MCP tools. */
     private static final String ATTR_MCP_FIELD = "_agimateMcp";
 
     private static final int RPC_INVALID_PARAMS = -32602;
@@ -71,8 +72,8 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        // Буфер исходящих под крупные фреймы (ответ агента, fs/write с большим content) —
-        // симметрично входному лимиту контейнера (AcpWebSocketConfig.MAX_MESSAGE_BYTES).
+        // An outgoing buffer for large frames (the agent's answer, an fs/write with big content) —
+        // symmetrical to the container's inbound limit (AcpWebSocketConfig.MAX_MESSAGE_BYTES).
         ConcurrentWebSocketSessionDecorator safeSession = new ConcurrentWebSocketSessionDecorator(
                 session, 10_000, AcpWebSocketConfig.MAX_MESSAGE_BYTES);
         AcpSessionRegistry.Client client = frame -> {
@@ -103,7 +104,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         String method = frame.path("method").asText(null);
         JsonNode params = frame.path("params");
         if (method == null) {
-            // Ответ клиента на server→client запрос (fs/terminal-тул IDE-коннектора).
+            // The client's answer to a server→client request (an fs or terminal tool of the IDE connector).
             if (id != null) {
                 sessionRegistry.handleResponse(id.asText(), frame.get("result"), frame.get("error"));
             }
@@ -134,7 +135,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    /** Сохраняет клиентские capabilities (fs/terminal) в атрибуты соединения и отвечает манифестом. */
+    /** Stores the client's capabilities (fs/terminal) in the connection's attributes and answers with the manifest. */
     private void handleInitialize(WebSocketSession session, AcpSessionRegistry.Client client,
                                   JsonNode id, JsonNode params) {
         JsonNode caps = params.path("clientCapabilities");
@@ -169,10 +170,10 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * Восстановление после реконнекта моста (рестарт control-api теряет in-memory состояние, а IDE
-     * ничего не заметила): мост шлёт нотификацию со своими живыми сессиями и их MCP-тулами, сервер
-     * заново привязывает каждую (с проверкой владения) и кладёт тулы. Capabilities — из реплея
-     * {@code initialize}, который мост шлёт до restore.
+     * Recovery after the bridge reconnects (a control-api restart loses the in-memory state while the
+     * IDE noticed nothing): the bridge sends a notification with its live sessions and their MCP tools,
+     * and the server rebinds each one (with an ownership check) and stores the tools. The capabilities
+     * come from the replayed {@code initialize} the bridge sends before restore.
      */
     private void handleRestore(WebSocketSession session, AcpSessionRegistry.Client client, JsonNode params) {
         AgentPrincipal principal = principal(session);
@@ -193,9 +194,9 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * Тулы MCP-серверов, проброшенные мостом (мост поднял их локально и сделал {@code tools/list}):
-     * массив {@code [{server, tool}]} → неймспейс-имя {@code <server>__<tool>} → спек + ссылка
-     * для {@code mcp/call_tool}.
+     * Tools of the MCP servers forwarded by the bridge (it started them locally and did a
+     * {@code tools/list}): the array {@code [{server, tool}]} → the namespaced name
+     * {@code <server>__<tool>} → the spec plus the reference for {@code mcp/call_tool}.
      */
     private void storeMcpTools(UUID sessionId, JsonNode mcp) {
         if (!mcp.isArray() || mcp.isEmpty()) {
@@ -218,7 +219,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         sessionRegistry.putMcpTools(sessionId, specs, refs);
     }
 
-    /** Реплей истории нотификациями session/update (INBOUND/ANSWER; PROGRESS не реплеим), затем ответ. */
+    /** Replay of the history as session/update notifications (INBOUND/ANSWER; PROGRESS is not replayed), then the answer. */
     private void handleSessionLoad(WebSocketSession session, AcpSessionRegistry.Client client,
                                    JsonNode id, JsonNode params) {
         AgentPrincipal principal = principal(session);
@@ -248,7 +249,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         UUID sessionId = sessionId(params);
         String text = extractText(params.path("prompt"));
 
-        // Регистрация до маршрутизации: ответ рана не должен обогнать pending rpc-id.
+        // Registration before routing: the run's answer must not outrun the pending rpc id.
         sessionRegistry.registerPrompt(sessionId, id);
         try {
             acpService.prompt(principal.userId(), principal.agentId(), sessionId, text);
@@ -258,7 +259,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
         }
     }
 
-    /** MVP принимает только text-блоки; остальные типы контента — invalid params. */
+    /** The MVP accepts text blocks only; any other content type is invalid params. */
     private static String extractText(JsonNode prompt) {
         if (!prompt.isArray() || prompt.isEmpty()) {
             throw new BadRequestStatusException("prompt must be a non-empty array of content blocks");
@@ -278,10 +279,11 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * Корень проекта сессии: по ACP клиент обязан прислать абсолютный {@code cwd} в
-     * {@code session/new|load} (мост дублирует его в {@code _agimate/restore}). Относительный или
-     * пустой — трактуем как «не прислали»: подставлять его в {@code terminal/create} хуже, чем
-     * оставить решение клиенту. Отсутствие корня не повод рвать сессию — IDE-тулы работают и без него.
+     * The session's project root: per ACP the client must send an absolute {@code cwd} in
+     * {@code session/new|load} (the bridge duplicates it in {@code _agimate/restore}). A relative or
+     * empty one is treated as «not sent»: substituting it into {@code terminal/create} is worse than
+     * leaving the decision to the client. A missing root is no reason to tear the session down — the
+     * IDE tools work without it too.
      */
     private static String cwd(JsonNode params) {
         String raw = params.path("cwd").asText(null);

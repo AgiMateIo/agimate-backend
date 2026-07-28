@@ -1,9 +1,9 @@
 package ru.agimate.controlapi.storage;
 
 /**
- * Доменная ошибка файлового слоя (квота, размер, неизвестный/чужой fileId, недоступный backend).
- * На границах переупаковывается: в коннекторном слое → {@code ConnectorException}, на HTTP —
- * в {@code *StatusException}.
+ * A domain error of the file layer (quota, size, unknown or foreign fileId, unreachable backend).
+ * Repacked at the boundaries: into {@code ConnectorException} in the connector layer, into a
+ * {@code *StatusException} over HTTP.
  */
 public class FileStorageException extends RuntimeException {
 

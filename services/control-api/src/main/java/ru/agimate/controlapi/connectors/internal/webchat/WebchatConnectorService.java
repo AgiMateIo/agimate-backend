@@ -10,15 +10,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Фасад webchat-коннектора: чат пользователя с агентом из собственного фронта.
+ * Facade of the webchat connector: the user's chat with an agent from our own frontend.
  *
- * <p>Одна connection на пользователя (строка-режим, материализуется
- * {@code ConnectionBindingService} при первом чате); владельца данных коннектор не выводит —
- * каждое взаимодействие приходит с явным адресом (sessionId → канал → агент). Агенты подключаются к ней
- * {@code agent_connections}-binding'ами, каналы — per-agent. Входящие сообщения фронт шлёт через
- * {@code /manage/webchat/...} (триггер {@code message_received} с явными sessionId/audience),
- * доставка ответов — {@code WebchatChannelHandler} (webchat_messages + Centrifugo). Тулов и джоб
- * нет — из capability-интерфейсов реализуется один {@link TriggerProvider}.
+ * <p>One connection per user (a mode row, materialised by {@code ConnectionBindingService} on the
+ * first chat); the connector derives no data owner — every interaction arrives with an explicit
+ * address (sessionId → channel → agent). Agents attach to it through {@code agent_connections}
+ * bindings, and channels are per agent. Incoming messages are sent by the frontend through
+ * {@code /manage/webchat/...} (the trigger {@code message_received} with an explicit
+ * sessionId/audience), and replies are delivered by {@code WebchatChannelHandler} (webchat_messages
+ * plus Centrifugo). There are no tools and no jobs — of the capability interfaces it implements only
+ * {@link TriggerProvider}.
  */
 @Component
 public class WebchatConnectorService implements InternalConnectorHandler, TriggerProvider {

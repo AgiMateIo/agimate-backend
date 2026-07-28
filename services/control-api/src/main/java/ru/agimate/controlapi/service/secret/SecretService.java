@@ -12,43 +12,44 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Хранение/чтение секретов-credential'ов (мапа {@code код поля → значение}) поверх
- * {@link SecretEncryptionService} + {@link SecretRepository}. {@code ownerId} — id сущности-владельца
- * (например {@code connection.id}); используется как AAD-привязка, в строке не хранится.
+ * Storage and reading of credential secrets (a map of {@code field code → value}) on top of
+ * {@link SecretEncryptionService} plus {@link SecretRepository}. {@code ownerId} is the id of the
+ * owning entity (e.g. {@code connection.id}); it is used as the AAD binding and is not stored in the
+ * row.
  */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class SecretService {
 
-    /** Ключ мапы для одиночных значений ({@link #storeValue}/{@link #revealValue}). */
+    /** The map key for single values ({@link #storeValue}/{@link #revealValue}). */
     private static final String VALUE_KEY = "value";
 
     private final SecretRepository secretRepository;
     private final SecretEncryptionService encryptionService;
 
-    /** Зашифровать и сохранить мапу credentials; вернуть сохранённую строку. */
+    /** Encrypt and store a credentials map; return the stored row. */
     @Transactional
     public Secret store(String entity, UUID ownerId, Map<String, String> credentials) {
         Secret secret = encryptionService.encrypt(entity, ownerId, toBytes(credentials));
         return secretRepository.save(secret);
     }
 
-    /** Перешифровать существующую строку на новую мапу credentials. */
+    /** Re-encrypt an existing row onto a new credentials map. */
     @Transactional
     public Secret update(Secret secret, UUID ownerId, Map<String, String> credentials) {
         encryptionService.reencrypt(secret, ownerId, toBytes(credentials));
         return secretRepository.save(secret);
     }
 
-    /** Расшифровать мапу credentials. Бросает, если AAD (entity+ownerId) не совпадает. */
+    /** Decrypt a credentials map. Throws when the AAD (entity+ownerId) does not match. */
     public Map<String, String> reveal(Secret secret, UUID ownerId) {
         byte[] plaintext = encryptionService.decrypt(secret, ownerId);
         return JsonUtils.readValue(new String(plaintext, StandardCharsets.UTF_8),
                 JsonUtils.MAP_STRING_TYPE_REFERENCE);
     }
 
-    /** Одиночное значение (webhook-секреты и т.п.) — та же мапа с единственным ключом. */
+    /** A single value (webhook secrets and the like) — the same map with one key. */
     @Transactional
     public Secret storeValue(String entity, UUID ownerId, String value) {
         return store(entity, ownerId, Map.of(VALUE_KEY, value));

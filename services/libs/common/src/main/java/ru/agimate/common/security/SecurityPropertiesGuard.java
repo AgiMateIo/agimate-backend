@@ -10,12 +10,12 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
- * Fail-fast проверка security-критичных свойств при старте сервиса.
+ * Fail-fast validation of security-critical properties at service startup.
  * <p>
- * Вне dev-профилей ({@code local}, {@code test}) перечисленные свойства обязаны быть заданы —
- * иначе сервис молча стартует с пустыми ключами (упавшая аутентификация, шифрование на пустом
- * ключе) и проблема всплывает только в рантайме. Дефолтов для ключей в {@code application.yaml}
- * нет намеренно: боевые значения приходят только из env (relaxed binding).
+ * Outside the dev profiles ({@code local}, {@code test}) the listed properties must be set — otherwise
+ * the service starts quietly with empty keys (broken authentication, encryption under an empty key) and
+ * the problem surfaces only at runtime. There are deliberately no defaults for the keys in
+ * {@code application.yaml}: production values arrive from env alone (relaxed binding).
  */
 @RequiredArgsConstructor
 public class SecurityPropertiesGuard implements InitializingBean {

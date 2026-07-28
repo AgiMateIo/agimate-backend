@@ -10,22 +10,22 @@ import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import java.util.UUID;
 
 /**
- * Каталог устройства (device link) → строки {@code connection_tools}/{@code connection_triggers}.
- * Формат дескриптора выровнен с MCP {@code tools/list[]} (ср. {@code McpToolMapper}): те же поля
- * {@code title}/{@code description}/{@code inputSchema}/{@code outputSchema}/{@code annotations}
- * сохраняются сырым JSON-текстом — лосслесс round-trip произвольной JSON Schema, ту же строку кэша
- * потом читает {@code ConnectionToolMapper.toSpec} для воркера/UI. Так app-тулы не «обделены»
- * относительно MCP и внутренних коннекторов.
+ * A device's catalogue (device link) → rows in {@code connection_tools}/{@code connection_triggers}.
+ * The descriptor's format is aligned with MCP {@code tools/list[]} (cf. {@code McpToolMapper}): the same
+ * fields {@code title}/{@code description}/{@code inputSchema}/{@code outputSchema}/{@code annotations}
+ * are kept as raw JSON text — a lossless round-trip of an arbitrary JSON Schema, and the same cache row
+ * is later read by {@code ConnectionToolMapper.toSpec} for the worker and the UI. That way app tools are
+ * not «short-changed» relative to MCP and the internal connectors.
  *
- * <p>Отличия от MCP: имя приходит ключом map (а не полем объекта), и поддержан shorthand
- * {@code params: string[]} — для простого устройства, которому неохота писать полную JSON Schema:
- * список имён разворачивается в минимальную {@code object}-схему (типы неизвестны → «any»).
- * {@code inputSchema} всегда приоритетнее {@code params}.
+ * <p>The differences from MCP: the name arrives as the map's key (rather than a field of the object),
+ * and the shorthand {@code params: string[]} is supported — for a simple device that would rather not
+ * write a full JSON Schema: the list of names expands into a minimal {@code object} schema (types are
+ * unknown → «any»). {@code inputSchema} always takes precedence over {@code params}.
  */
 @UtilityClass
 public class AppCatalogMapper {
 
-    /** Дескриптор тула (значение в map {@code tools}) → строка кэша. */
+    /** A tool's descriptor (the value in the {@code tools} map) → a cache row. */
     public static ConnectionTool toolEntity(UUID connectionId, String name, JsonNode descriptor) {
         return ConnectionTool.builder()
                 .connectionId(connectionId)
@@ -38,7 +38,7 @@ public class AppCatalogMapper {
                 .build();
     }
 
-    /** Дескриптор триггера (значение в map {@code triggers}) → строка кэша. */
+    /** A trigger's descriptor (the value in the {@code triggers} map) → a cache row. */
     public static ConnectionTrigger triggerEntity(UUID connectionId, String name, JsonNode descriptor) {
         return ConnectionTrigger.builder()
                 .connectionId(connectionId)
@@ -49,7 +49,7 @@ public class AppCatalogMapper {
                 .build();
     }
 
-    /** Явная схема как есть; иначе синтез из shorthand {@code params}; иначе {@code null}. */
+    /** The explicit schema as-is; otherwise synthesised from the shorthand {@code params}; otherwise {@code null}. */
     private static String schemaOrParams(JsonNode schema, JsonNode params) {
         if (schema != null && !schema.isNull()) {
             return schema.toString();
@@ -58,7 +58,7 @@ public class AppCatalogMapper {
         return synthesized != null ? synthesized.toString() : null;
     }
 
-    /** {@code ["a","b"]} → {@code {"type":"object","properties":{"a":{},"b":{}}}} (типы неизвестны → «any»). */
+    /** {@code ["a","b"]} → {@code {"type":"object","properties":{"a":{},"b":{}}}} (types unknown → «any»). */
     private static JsonNode synthesizeObjectSchema(JsonNode params) {
         if (params == null || !params.isArray() || params.isEmpty()) {
             return null;

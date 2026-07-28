@@ -34,21 +34,22 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Тулы time-коннектора: текущее время и планирование отложенных задач агента.
+ * Tools of the time connector: the current time and scheduling of an agent's deferred jobs.
  *
- * <p>{@code time.schedule} вставляет строку {@code connector_jobs} (ONETIME/PERIODIC/CRON); когда
- * приходит срок, {@code ConnectorJobScheduler} диспатчит скрытый {@link #fire} — он порождает
- * триггер {@code due} (agent-facing {@code time.due}), адресованный агенту-инициатору (audience), и тот «просыпается».
+ * <p>{@code time.schedule} inserts a {@code connector_jobs} row (ONETIME/PERIODIC/CRON); when the
+ * deadline arrives, {@code ConnectorJobScheduler} dispatches the hidden {@link #fire} — which raises
+ * the trigger {@code due} (agent-facing {@code time.due}) addressed to the initiating agent, and that
+ * agent «wakes up».
  */
 @Component
 @RequiredArgsConstructor
 public class TimeToolService {
 
-    /** Имя скрытой таски-диспетчера и триггера агенту. */
+    /** Name of the hidden dispatcher job and of the trigger sent to the agent. */
     static final String FIRE_TASK = "fire";
     static final String DUE_TRIGGER = "due";
 
-    /** Срабатывание — лишь публикация триггера; итерация короткая. */
+    /** Firing is merely publishing a trigger; the iteration is short. */
     private static final int FIRE_TIMEOUT_SECONDS = 60;
 
     private final ConnectorJobService jobService;
@@ -82,8 +83,8 @@ public class TimeToolService {
             throw new ConnectorException("prompt is required");
         }
 
-        // Слабые OpenAI-shim модели не опускают неиспользуемые optional-параметры, а шлют
-        // zero-values (0, "") — трактуем их как отсутствие значения, иначе modes всегда > 1.
+        // Weak OpenAI-shim models do not omit unused optional parameters but send zero values (0, "")
+        // instead — we treat those as «no value given», otherwise modes is always > 1.
         delaySeconds = delaySeconds != null && delaySeconds == 0 ? null : delaySeconds;
         intervalSeconds = intervalSeconds != null && intervalSeconds == 0 ? null : intervalSeconds;
         cron = cron != null && cron.isBlank() ? null : cron;
@@ -115,9 +116,9 @@ public class TimeToolService {
 
         JobSpec spec = new JobSpec(
                 FIRE_TASK, type, config, Map.of("prompt", prompt), FIRE_TIMEOUT_SECONDS);
-        // Снимок исходного канала и prompt-сессии вызова на строку job: напоминание уйдёт агенту
-        // с этим каналом как progress/answer (prompt у напоминания нет), а пока сессия жива —
-        // с историей и партицией исходного разговора.
+        // A snapshot of the call's originating channel and prompt session onto the job's row: the reminder
+        // will reach the agent with that channel as progress/answer (a reminder has no prompt), and while the
+        // session is alive — with the history and the partition of the original conversation.
         ConnectorJob row = jobService.schedule(
                 TimeConnectorService.CONNECTOR_CODE, ctx.connectionId(), ctx.userId(),
                 ctx.agentId(), ctx.channelId(), ctx.sessionId(), spec, firstRunAt);
@@ -172,11 +173,12 @@ public class TimeToolService {
     }
 
     /**
-     * Скрытая цель диспатча: исполняется scheduler'ом по сроку динамической строки {@code connector_jobs}
-     * ({@code kind=AGENT}), которую завёл {@link #schedule}. Контекст реконструирован из строки
-     * ({@code userId}/{@code agentId}/{@code channelId} инициатора), поэтому адресуем триггер обратно
-     * агенту через audience. {@code internal = true} — не видна LLM, но остаётся целью {@code executeJob};
-     * намеренно НЕ {@code @Job}, иначе reconcile завёл бы фоновую SYSTEM-строку без агента-инициатора.
+     * Hidden dispatch target: executed by the scheduler when a dynamic {@code connector_jobs} row
+     * ({@code kind=AGENT}) created by {@link #schedule} comes due. The context is reconstructed from
+     * the row (the initiator's {@code userId}/{@code agentId}/{@code channelId}), so the trigger is
+     * addressed back to that agent through the audience. {@code internal = true} — invisible to the
+     * LLM, yet still a target of {@code executeJob}; deliberately NOT {@code @Job}, otherwise
+     * reconcile would create a background SYSTEM row with no initiating agent.
      */
     @Tool(name = FIRE_TASK, description = "Internal: deliver a scheduled task to its agent", internal = true)
     public void fire(@ToolParam("Prompt to deliver to the agent") String prompt) {
@@ -195,10 +197,11 @@ public class TimeToolService {
     }
 
     /**
-     * Контекст триггера напоминания: к audience добавляет проактивный канал ответа (снимки канала и
-     * prompt-сессии из строки job'а). {@code prompt} остаётся {@code null} (входящего сообщения нет),
-     * исходный канал кладётся в {@code progress}/{@code answer}; закрытую к сроку сессию
-     * {@code ChannelRouteResolver} заменит на активную сессию канала.
+     * Context of the reminder trigger: on top of the audience it adds a proactive reply channel
+     * (snapshots of the channel and the prompt session taken from the job's row). {@code prompt} stays
+     * {@code null} (there is no incoming message), and the originating channel goes into
+     * {@code progress}/{@code answer}; a session closed by the time it fires is replaced by
+     * {@code ChannelRouteResolver} with the channel's active session.
      */
     private TriggerContext fireContext(TriggerAudience audience, UUID channelId, UUID sessionId) {
         if (channelId == null) {

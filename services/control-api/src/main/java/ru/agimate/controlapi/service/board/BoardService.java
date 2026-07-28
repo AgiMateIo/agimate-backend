@@ -37,10 +37,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Доменный сервис досок (ядро). Общий для HTTP-управления ({@code ManageBoardController}) и
- * board-коннектора ({@code BoardToolService}); последний вызывает его как плагин поверх ядра и
- * транслирует {@link ru.agimate.common.rest.error.BaseHttpStatusException} в {@code ConnectorException}
- * на своей границе.
+ * The domain service of boards (the core). Shared by HTTP management ({@code ManageBoardController})
+ * and the board connector ({@code BoardToolService}); the latter calls it as a plugin on top of the
+ * core and translates {@link ru.agimate.common.rest.error.BaseHttpStatusException} into a
+ * {@code ConnectorException} at its own boundary.
  */
 @Slf4j
 @Service
@@ -48,10 +48,10 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class BoardService {
 
-    /** Код board-коннектора; единый источник истины, {@code BoardConnectorService} ссылается сюда. */
+    /** Code of the board connector; the single source of truth, referenced from {@code BoardConnectorService}. */
     public static final String CONNECTOR_CODE = "board";
 
-    /** Имена триггеров; декларации ({@code TriggerSpec}) — в {@code BoardConnectorService}. */
+    /** Trigger names; the declarations ({@code TriggerSpec}) live in {@code BoardConnectorService}. */
     public static final String TASK_CREATED_TRIGGER = "task_created";
     public static final String TASK_CHANGED_TRIGGER = "task_changed";
 
@@ -108,7 +108,7 @@ public class BoardService {
         return getTasksByStatus(boardId, userId, null, null);
     }
 
-    /** Листинг с опциональными фильтрами; {@code null}-фильтр = без сужения. */
+    /** A listing with optional filters; a {@code null} filter means no narrowing. */
     public BoardTasksByStatusResponse getTasksByStatus(UUID boardId, UUID userId,
                                                        BoardTaskStatus statusFilter, UUID assigneeFilter) {
         Board board = findBoardById(boardId);
@@ -138,9 +138,9 @@ public class BoardService {
     }
 
     /**
-     * Карточка задачи: сама задача + вертикаль иерархии (ближайший EPIC, родитель, сабтаски)
-     * + хвост комментариев (последние {@code 10}, хронологически). Точечная альтернатива
-     * полной выгрузке доски.
+     * A task's card: the task itself plus the vertical of its hierarchy (the nearest EPIC, the parent,
+     * the subtasks) plus the tail of comments (the last {@code 10}, chronologically). A targeted
+     * alternative to dumping the whole board.
      */
     public BoardTaskCardResponse getTaskCard(UUID boardId, UUID taskId, UUID userId) {
         BoardTask task = requireTaskInBoard(boardId, taskId);
@@ -151,7 +151,7 @@ public class BoardService {
         BoardTask parent = task.getParentTaskId() != null
                 ? boardTaskRepository.findById(task.getParentTaskId()).orElse(null)
                 : null;
-        // Ближайший EPIC вверх: для TASK — родитель, для SUBTASK — родитель родителя (TASK → EPIC).
+        // The nearest EPIC upwards: for a TASK it is the parent, for a SUBTASK the parent's parent (TASK → EPIC).
         BoardTask epic = null;
         if (parent != null) {
             epic = parent.getType() == BoardTaskType.EPIC ? parent
@@ -246,8 +246,8 @@ public class BoardService {
             triggerData.put("parentTaskTitle", parentTask.getTitle());
         }
 
-        // Без assignee адресат — ростер команды доски: сужение получателей до команды
-        // делает только audience (см. routeBoardTrigger).
+        // With no assignee the addressee is the board's team roster: narrowing the recipients down to the team
+        // is done by the audience alone (see routeBoardTrigger).
         List<UUID> targets = assignee != null
                 ? List.of(assignee.getId())
                 : teamRosterIds(userId, board);
@@ -274,8 +274,8 @@ public class BoardService {
     }
 
     /**
-     * Загрузить задачу. Если {@code boardId} задан (REST-путь, вложенный в доску) — проверить
-     * принадлежность задачи доске; {@code null} (агентский тул оперирует по taskId) — без проверки.
+     * Load a task. When {@code boardId} is given (the REST path nested under a board) — check the task
+     * belongs to that board; {@code null} (an agent tool operates by taskId) — no check.
      */
     private BoardTask requireTaskInBoard(UUID boardId, UUID taskId) {
         BoardTask task = boardTaskRepository.findById(taskId)
@@ -293,13 +293,14 @@ public class BoardService {
     }
 
     /**
-     * Частичная правка задачи ({@code null}-поле = «не менять»); поле, совпавшее с текущим
-     * значением, изменением не считается — без изменений нет ни триггера, ни событий.
+     * Partial edit of a task (a {@code null} field means «leave unchanged»); a field matching its
+     * current value does not count as a change — with no changes there is neither a trigger nor events.
      *
-     * <p>Assignee — claim-семантика: назначить можно только неназначенную задачу или переназначить
-     * с себя; перехват чужой запрещён — при гонке «кто возьмёт» побеждает первый. Дискриминатор
-     * триггера приоритетом: менялся статус → {@code change=status} (workflow-значимое событие,
-     * фильтры по нему работают), иначе {@code change=edited}; полный список — {@code changedFields}.
+     * <p>Assignee follows claim semantics: you may assign an unassigned task, or reassign one away from
+     * yourself; taking someone else's is forbidden — in a race for «who takes it» the first one wins.
+     * The trigger's discriminator goes by priority: the status changed → {@code change=status} (a
+     * workflow-significant event, so filters on it work), otherwise {@code change=edited}; the full
+     * list is in {@code changedFields}.
      */
     @Transactional
     public BoardTaskResponse editTask(UUID boardId, UUID taskId, UUID userId, BoardTaskEditCommand command) {
@@ -448,9 +449,9 @@ public class BoardService {
     // ---- Helpers ----
 
     /**
-     * Общий снапшот задачи в {@code data} триггера {@value #TASK_CHANGED_TRIGGER}: агент понимает,
-     * о какой задаче речь, без {@code get_tasks}. Description намеренно не входит — объёмный текст
-     * доступен тулами, событие остаётся компактным.
+     * The shared task snapshot in the {@code data} of the {@value #TASK_CHANGED_TRIGGER} trigger: the
+     * agent understands which task it is about without a {@code get_tasks}. Description is deliberately
+     * left out — bulky text is available through the tools, and the event stays compact.
      */
     private static Map<String, Object> taskSnapshot(BoardTask task) {
         Map<String, Object> data = new LinkedHashMap<>();
@@ -468,10 +469,10 @@ public class BoardService {
     }
 
     /**
-     * Эмиссия board-триггера. Connection-строка коннектора общая на пользователя (одна на все его
-     * доски), поэтому сужение получателей до команды/участников — обязанность audience:
-     * {@code targetAgentIds} обязаны быть заполнены каждым вызывающим. Нет connection — к доскам
-     * не привязан ни один агент, доставлять некому.
+     * Emission of a board trigger. The connector's connection row is shared per user (one for all of
+     * their boards), so narrowing the recipients down to the team or the participants is the audience's
+     * job: {@code targetAgentIds} must be populated by every caller. With no connection, no agent is
+     * bound to the boards and there is nobody to deliver to.
      */
     private void routeBoardTrigger(UUID userId, Board board, String name,
                                    Map<String, Object> data, TriggerAudience audience) {
@@ -493,7 +494,7 @@ public class BoardService {
         triggerRouterService.routeTrigger(userId, trigger);
     }
 
-    /** Ростер команды доски — широковещательный адресат (binding'и/ABAC сузят его в роутере). */
+    /** The board's team roster — a broadcast addressee (the bindings and ABAC narrow it in the router). */
     private List<UUID> teamRosterIds(UUID userId, Board board) {
         return agentRepository.findByUserIdAndAgenticTeamId(userId, board.getAgenticTeam().getId()).stream()
                 .map(Agent::getId)

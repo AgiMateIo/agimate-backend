@@ -28,9 +28,9 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
     Page<TriggerLogWithAgentsCountProjection> findByUserIdWithFilters(UUID userId, String connectorCode, Pageable pageable);
 
     /**
-     * Per-agent листинг: прогоны триггеров у конкретного агента ({@code agent_runs}
-     * ⋈ {@code trigger_logs}). {@code status} — {@link RunStatus} прогона (реальная колонка).
-     * {@code name} — регистронезависимый подстрочный поиск по имени триггера.
+     * Per-agent listing: trigger runs for a particular agent ({@code agent_runs} ⋈
+     * {@code trigger_logs}). {@code status} is the run's {@link RunStatus} (a real column).
+     * {@code name} is a case-insensitive substring search over the trigger's name.
      */
     @Query("""
             SELECT a.id AS id, tl.id AS triggerLogId, tl.connectorCode AS connectorCode,

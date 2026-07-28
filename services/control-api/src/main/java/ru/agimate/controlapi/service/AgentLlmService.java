@@ -65,7 +65,7 @@ public class AgentLlmService {
             result.computeIfAbsent(b.getAgentId(), k -> new java.util.ArrayList<>())
                     .add(AgentLlmResponse.from(b, providersById.get(b.getLlmProviderId())));
         }
-        // Агенты без привязок работают через платформенный fallback — показываем эффективную модель.
+        // Agents with no bindings run through the platform fallback — we show the effective model.
         List<AgentLlmResponse> fallback = platformFallbackEntry();
         if (!fallback.isEmpty()) {
             agentIds.stream()
@@ -189,9 +189,10 @@ public class AgentLlmService {
     }
 
     /**
-     * Защита от опечаток по реестру {@code llm_provider_models}. Advisory-принцип: строка с любым
-     * статусом проходит (UNAVAILABLE = пропала из последнего листинга, но перебиндить её можно —
-     * листинги бывают неполными); пустой реестр = discovery ещё не запускали, пропускаем.
+     * Protection against typos, using the {@code llm_provider_models} registry. The advisory principle:
+     * a row of any status passes (UNAVAILABLE = it disappeared from the last listing, but rebinding it is
+     * allowed — listings are sometimes incomplete); an empty registry means discovery has never run, so
+     * we let it through.
      */
     private void validateModel(LlmProvider provider, String model) {
         List<LlmProviderModel> models = llmProviderModelRepository

@@ -1,25 +1,25 @@
 package ru.agimate.controlapi.database.enums;
 
 /**
- * Назначение LLM-биндинга агента ({@code agent_llms.purpose}): какую роль модель играет для агента.
- * {@link #CHAT} — основная модель агентного цикла (её выдаёт {@code GetLlmCredentials});
- * остальные — модели-инструменты медиа-коннектора, резолвятся по назначению с фолбэком на
- * капабилити-матч по реестру ({@code input/output_modalities}).
+ * Purpose of an agent's LLM binding ({@code agent_llms.purpose}): what role the model plays for the
+ * agent. {@link #CHAT} is the main model of the agent loop (the one {@code GetLlmCredentials}
+ * returns); the rest are tool models of the media connector, resolved by purpose with a fallback to
+ * a capability match against the registry ({@code input/output_modalities}).
  */
 public enum LlmPurpose {
 
-    /** Основная chat-модель агентного цикла. */
+    /** The main chat model of the agent loop. */
     CHAT,
 
-    /** Генерация/редактирование изображений ({@code output_modalities ⊇ ["image"]}). */
+    /** Image generation and editing ({@code output_modalities ⊇ ["image"]}). */
     IMAGE,
 
-    /** Зрение: описание изображения по файлу ({@code input_modalities ⊇ ["image"]}). */
+    /** Vision: describing an image from a file ({@code input_modalities ⊇ ["image"]}). */
     VISION,
 
-    /** Распознавание аудио/голосовых ({@code input_modalities ⊇ ["audio"]}). */
+    /** Speech and voice recognition ({@code input_modalities ⊇ ["audio"]}). */
     AUDIO_IN,
 
-    /** Синтез речи ({@code output_modalities ⊇ ["audio"]}). */
+    /** Speech synthesis ({@code output_modalities ⊇ ["audio"]}). */
     AUDIO_OUT
 }

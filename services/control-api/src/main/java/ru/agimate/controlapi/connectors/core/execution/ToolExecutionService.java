@@ -26,13 +26,13 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Асинхронное выполнение тулы коннектора по записи {@link ToolCallLog}: контекст собирается
- * по типу хендлера (integration — со свежими credentials по {@code connectionId}), результат
- * пишется в лог и доставляется агенту.
+ * Asynchronous execution of a connector's tool from a {@link ToolCallLog} record: the context is
+ * assembled according to the handler's type (integration — with fresh credentials for the
+ * {@code connectionId}), and the result is written to the log and delivered to the agent.
  *
- * <p>Ошибки не синхронны для вызывающего: отсутствие credentials и любые сбои выполнения
- * превращаются в error tool-result. Сообщения {@link ConnectorException} безопасны и
- * отдаются агенту как есть; остальное скрывается за общим "Tool execution failed".
+ * <p>Errors are not synchronous for the caller: missing credentials and any execution failure turn
+ * into an error tool result. {@link ConnectorException} messages are safe and are handed to the agent
+ * as-is; everything else hides behind a generic "Tool execution failed".
  */
 @Slf4j
 @Component
@@ -65,12 +65,12 @@ public class ToolExecutionService {
             log.debug("Executed tool '{}.{}'",
                     toolCallLog.getConnectorCode(), toolCallLog.getName());
         } catch (ConnectorException e) {
-            // Ожидаемый сбой с безопасным сообщением (валидация, CAS-конфликт, нет connection, …) — отдаём агенту как есть
+            // An expected failure with a safe message (validation, a CAS conflict, no connection, …) — passed to the agent as-is
             log.warn("Tool '{}.{}' failed: {}",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), e.getMessage());
             deliver(toolCallLog, null, e.getMessage());
         } catch (Exception e) {
-            // Непредвиденный сбой — сохраняем стектрейс в логе, агенту прячем детали
+            // An unexpected failure — the stack trace is kept in the log and the details are hidden from the agent
             log.error("Failed to execute '{}.{}'",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), e);
             deliver(toolCallLog, null, "Tool execution failed");
@@ -104,7 +104,7 @@ public class ToolExecutionService {
         }
     }
 
-    /** Канал prompt-сессии, из которой пришёл вызов — доменный контекст для тулов; {@code null} вне канала. */
+    /** Channel of the prompt session the call came from — domain context for the tools; {@code null} outside a channel. */
     private UUID resolveChannelId(UUID sessionId) {
         if (sessionId == null) {
             return null;

@@ -23,9 +23,9 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Файловый слой для device-apps (docs/connectors/files.md): аплоад бинарных результатов тулов
- * (скриншоты и т.п.) и скачивание файлов, доставляемых на устройство. Владелец файла —
- * пользователь приложения; чужие fileId не резолвятся.
+ * The file layer for device apps (docs/connectors/files.md): uploading binary tool results
+ * (screenshots and the like) and downloading files delivered to the device. The file's owner is the
+ * application's user; foreign fileIds do not resolve.
  */
 @Slf4j
 @RestController
@@ -44,7 +44,7 @@ public class AppFilesController {
             @RequestPart("file") MultipartFile file,
             @AuthenticationPrincipal AppPrincipal principal
     ) {
-        // До обращения к БД: ключ (appId == connectionId) уже аутентифицирован в principal.
+        // Before touching the database: the key (appId == connectionId) is already authenticated in the principal.
         if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.FILE_UPLOAD, principal.appId())) {
             throw new TooManyRequestsStatusException("File upload rate limit exceeded");
         }
@@ -52,7 +52,7 @@ public class AppFilesController {
         var app = appService.getApp(principal);
         String mime = file.getContentType() != null && !file.getContentType().isBlank()
                 ? file.getContentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
-        // Контент пользовательский — в лог только размеры/метаданные.
+        // The content belongs to the user — only sizes and metadata go into the log.
         log.info("File upload - app={}, mime={}, {} bytes", principal.appId(), mime, file.getSize());
 
         StoredFile stored;
@@ -72,7 +72,7 @@ public class AppFilesController {
     ) {
         var app = appService.getApp(principal);
         FileStorageService.FileContent content = fileStorageService.open(app.getUserId(), fileId);
-        // Устройствам заголовки безразличны — всегда attachment (без inline-рендеринга), кеш не нужен.
+        // Devices do not care about the headers — always an attachment (no inline rendering), and no cache is needed.
         return FileHttpResponses.serve(content, false, null);
     }
 }

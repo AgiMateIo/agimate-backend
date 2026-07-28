@@ -18,9 +18,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * «Как»-слой роутинга: для уже отобранного получателя решает, как строится взаимодействие —
- * канал (заданный в триггере либо активный для {@code (agent, connector, connectionId)}) или прямая
- * доставка. Policy/audience («кто») сюда не входят.
+ * The «how» layer of routing: for a recipient that has already been selected it decides how the
+ * interaction is built — a channel (the one given in the trigger, or the active one for
+ * {@code (agent, connector, connectionId)}) or direct delivery. Policy and audience (the «who») are
+ * not part of this.
  */
 @Slf4j
 @Service
@@ -34,8 +35,8 @@ public class ChannelRouteResolver {
     ChannelResolution resolve(Agent agent, Trigger trigger) {
         Channel channel = resolveChannel(agent, trigger);
         if (channel == null) {
-            // Нет prompt-канала, но продюсер мог объявить проактивный канал ответа (progress/answer
-            // без prompt) — например time.due: напоминание без входящего сообщения.
+            // There is no prompt channel, but the producer may have declared a proactive reply channel
+            // (progress/answer with no prompt) — time.due, for instance: a reminder with no incoming message.
             Channels proactive = resolveProactiveChannels(agent, trigger);
             return proactive != null ? ChannelResolution.channel(proactive, null) : ChannelResolution.direct();
         }
@@ -43,12 +44,13 @@ public class ChannelRouteResolver {
     }
 
     /**
-     * Проактивный канал без входящего: продюсер задал в {@link TriggerContext} channels с
-     * {@code progress}/{@code answer}, но без {@code prompt}. Канал должен существовать и
-     * принадлежать агенту (иначе {@code null} → прямая доставка), а сессия перерезолвливается:
-     * объявленный снапшот, если ещё открыт, иначе активная сессия канала — симметрично фолбэку
-     * outbound-доставки ({@code ChannelMessageOutboundService.resolveSession}), чтобы история,
-     * партиция и персист рана указывали туда же, куда уйдёт сообщение.
+     * A proactive channel with no incoming message: the producer set channels in
+     * {@link TriggerContext} with {@code progress}/{@code answer} but no {@code prompt}. The channel
+     * must exist and belong to the agent (otherwise {@code null} → direct delivery), and the session is
+     * re-resolved: the declared snapshot if it is still open, otherwise the channel's active session —
+     * symmetrically to the outbound delivery fallback
+     * ({@code ChannelMessageOutboundService.resolveSession}), so that the history, the partition and
+     * the run's persisted row all point where the message will actually go.
      */
     private Channels resolveProactiveChannels(Agent agent, Trigger trigger) {
         if (trigger.context() == null || trigger.context().channels() == null) {
@@ -77,7 +79,7 @@ public class ChannelRouteResolver {
                 channels.answer() != null ? resolved : null);
     }
 
-    /** Снапшот-сессия продюсера, пока открыта; иначе активная/новая сессия канала по TTL-эвристике. */
+    /** The producer's snapshot session while it is open; otherwise the channel's active or new session, by the TTL heuristic. */
     private UUID resolveProactiveSessionId(Channel channel, UUID declaredSessionId) {
         if (declaredSessionId != null) {
             if (channelSessionService.findOpen(declaredSessionId, channel.getId()).isPresent()) {
@@ -90,8 +92,9 @@ public class ChannelRouteResolver {
     }
 
     /**
-     * Канал для агента: если продюсер задал prompt-канал в {@link TriggerContext} (declared) — берём его,
-     * но только для агента-владельца канала; иначе резолвим per-agent по тройке {@code (agent, connector, connectionId)}.
+     * The channel for an agent: if the producer set a prompt channel in {@link TriggerContext}
+     * (declared), we take it — but only for the agent that owns the channel; otherwise we resolve it
+     * per agent from the triple {@code (agent, connector, connectionId)}.
      */
     private Channel resolveChannel(Agent agent, Trigger trigger) {
         UUID declaredChannelId = declaredPromptChannelId(trigger);
@@ -124,14 +127,14 @@ public class ChannelRouteResolver {
             return ChannelResolution.direct();
         }
 
-        // Chat-filtering канала (слой «как»): параметры триггера должны проходить input_filter.
+        // The channel's chat filtering (the «how» layer): the trigger's parameters must pass input_filter.
         if (!InputFilterEvaluator.matches(channel.getInputFilter(), trigger.data())) {
             log.debug("Trigger '{}' filtered out by channel {} input_filter", trigger.name(), channel.getId());
             return ChannelResolution.skip();
         }
 
-        // Извлечение текста выполняет control-api для всех handler'ов (generic делает JSON-фолбэк);
-        // empty == «триггер не для этого канала» (фильтр) → доставку пропускаем.
+        // Text extraction is done by control-api for every handler (generic falls back to JSON);
+        // empty == «this trigger is not for this channel» (filtered) → we skip the delivery.
         ChannelConfig cc = new ChannelConfig(
                 channel.getAgentId(), channel.getConnectorCode(), channel.getConnectionId().toString(), channel.getConfig());
         Optional<InboundMessage> inbound = handler.handleInput(cc, trigger);
@@ -141,8 +144,8 @@ public class ChannelRouteResolver {
 
         ChannelSession session = resolveSession(channel, trigger);
         ChannelInfo info = new ChannelInfo(channel.getId(), session.getId(), null);
-        // progress-роль тем же каналом, если handler доставляет промежуточный вывод (webchat);
-        // answer не заполняем — worker сам фолбэчится на prompt.
+        // The progress role goes to the same channel when the handler delivers intermediate output (webchat);
+        // answer is left unset — the worker falls back to prompt on its own.
         Channels channels = handler.deliverProgress(cc)
                 ? new Channels(info, info, null)
                 : Channels.ofPrompt(info);
@@ -150,8 +153,9 @@ public class ChannelRouteResolver {
     }
 
     /**
-     * Сессия входящего: объявленная продюсером в prompt-{@link ChannelInfo} (webchat — фронт выбирает
-     * сессию явно), если она открыта и принадлежит каналу; иначе активная/новая по TTL-эвристике.
+     * The incoming message's session: the one declared by the producer in the prompt
+     * {@link ChannelInfo} (webchat — the frontend chooses the session explicitly), if it is open and
+     * belongs to the channel; otherwise the active or a new one, by the TTL heuristic.
      */
     private ChannelSession resolveSession(Channel channel, Trigger trigger) {
         UUID declaredSessionId = declaredPromptSessionId(trigger);

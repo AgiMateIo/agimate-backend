@@ -5,8 +5,8 @@ import ru.agimate.controlapi.database.enums.BoardTaskStatus;
 import java.util.UUID;
 
 /**
- * Команда правки задачи: {@code null}-поле = «не менять» (вход {@code BoardService}, не зависит
- * от транспорта). Claim-правило на assignee — в сервисе.
+ * Command for editing a task: a {@code null} field means «leave unchanged» (the input of
+ * {@code BoardService}, transport-independent). The claim rule on assignee lives in the service.
  */
 public record BoardTaskEditCommand(
         UUID actorAgentId,

@@ -6,7 +6,7 @@
 ## Позиционирование: BACKEND-двойник ACP
 
 Тулы `run_command`/`read_file`/`write_file`/`list_dir` уже есть у ACP-коннектора
-(`docs/services/control-api-acp.md`), но ACP их **делегирует в IDE пользователя** (обратный JSON-RPC,
+(`docs/contracts/acp.md`), но ACP их **делегирует в IDE пользователя** (обратный JSON-RPC,
 песочница = машина юзера). Terminal — тот же набор тулов, но **`execution_locus = BACKEND`**: исполнение
 в песочнице **на нашей инфраструктуре**. Переиспользуем без изобретения заново:
 
@@ -272,5 +272,5 @@ default-allow, точечный DENY в `agent_connection_policies` режет �
 - egress-развязка: allowlist per-connection / прокси на пакетные зеркала (см. §Безопасность);
 - кастомные/расширенные base image (per-connection выбор образа);
 - `channelOnly`-ограничение (тулы terminal видны только из своего канала) — общий roadmap-пункт с ACP,
-  см. `docs/connectors/architecture.md`;
+  см. `docs/architecture/connectors.md`;
 - запись из UI (`PUT /fs/file`) и multipart-загрузка в workspace — по потребности.

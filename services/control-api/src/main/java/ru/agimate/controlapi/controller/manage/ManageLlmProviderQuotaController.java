@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Квоты провайдера: пользователь ограничивает расход своего (TOTAL — потолок кошелька,
- * AGENT — лимит каждому агенту), ADMIN дополнительно управляет квотами платформенного
- * (free-tier: USER — «каждому пользователю N за окно»). Владение/роль проверяются на каждом вызове.
+ * A provider's quotas: a user limits their own spending (TOTAL — the wallet's ceiling, AGENT — a limit
+ * per agent), and an ADMIN additionally manages the platform provider's quotas (the free tier: USER —
+ * «N per user per window»). Ownership and role are checked on every call.
  */
 @RestController
 @RequestMapping(ManageLlmProviderQuotaController.PATH)

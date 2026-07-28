@@ -4,7 +4,7 @@ import ru.agimate.controlapi.database.enums.BoardTaskType;
 
 import java.util.UUID;
 
-/** Команда создания задачи на доске (вход {@code BoardService}, не зависит от транспорта). */
+/** Command for creating a task on a board (the input of {@code BoardService}, transport-independent). */
 public record BoardTaskCreateCommand(
         BoardTaskType type,
         String title,

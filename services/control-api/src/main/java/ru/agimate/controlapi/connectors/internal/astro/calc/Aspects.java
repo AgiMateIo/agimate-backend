@@ -6,11 +6,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/** Поиск мажорных аспектов между телами. */
+/** Search for major aspects between bodies. */
 @UtilityClass
 public class Aspects {
 
-    /** Аспекты внутри одной карты (каждая пара — один раз). */
+    /** Aspects within a single chart (each pair once). */
     public static List<Aspect> within(List<PlanetPosition> chart, OrbPolicy policy) {
         List<Aspect> aspects = new ArrayList<>();
         for (int i = 0; i < chart.size(); i++) {
@@ -21,7 +21,7 @@ public class Aspects {
         return aspects;
     }
 
-    /** Аспекты между телами карты A и карты B (все пары A×B). */
+    /** Aspects between the bodies of chart A and chart B (all A×B pairs). */
     public static List<Aspect> between(List<PlanetPosition> a, List<PlanetPosition> b, OrbPolicy policy) {
         List<Aspect> aspects = new ArrayList<>();
         for (PlanetPosition pa : a) {

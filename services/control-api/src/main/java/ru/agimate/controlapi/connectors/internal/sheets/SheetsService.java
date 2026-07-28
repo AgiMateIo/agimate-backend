@@ -27,11 +27,11 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Доменная логика листов: схема, строки, выборка, агрегация. Внутри коннекторного слоя, поэтому
- * бросает только {@link ConnectorException} — его текст доходит до агента дословно, и все сообщения
- * об ошибках написаны так, чтобы агент починился сам (перечисляют существующие листы/колонки).
+ * Domain logic of sheets: schema, rows, selection, aggregation. It sits inside the connector layer,
+ * so it throws only {@link ConnectorException} — whose text reaches the agent verbatim, and every
+ * error message is written so the agent can fix itself (they list the existing sheets and columns).
  *
- * <p>Владение — AGENT scope: все операции ключуются {@code scopeId} (= agentId вызывающего).
+ * <p>Ownership is AGENT scope: every operation is keyed by {@code scopeId} (= the caller's agentId).
  */
 @Service
 @RequiredArgsConstructor
@@ -45,7 +45,7 @@ public class SheetsService {
     private final SheetRowRepository sheetRowRepository;
     private final SheetQueryBuilder queryBuilder;
 
-    // ===== схема =====
+    // ===== schema =====
 
     public List<SheetBrief> listSheets(UUID scopeId) {
         List<Sheet> sheets = sheetRepository.findByScopeIdOrderByNameAsc(scopeId);
@@ -119,14 +119,14 @@ public class SheetsService {
         List<ColumnSpec> merged = new ArrayList<>(existing);
         merged.addAll(added);
         sheet.setColumns(SheetSchema.toStorage(merged));
-        // Существующие строки не трогаем: отсутствующий ключ в JSONB и есть пустая ячейка.
+        // Existing rows are left alone: a missing key in the JSONB is precisely an empty cell.
         return new SheetDetail(sheet.getName(), sheet.getTitle(), merged,
                 sheetRowRepository.countBySheetId(sheet.getId()));
     }
 
     /**
-     * Импорт: лист и строки одной транзакцией. Отдельно от {@link #addRows}, потому что там кап на
-     * вызов агента (500), а импорт заливает готовый файл целиком.
+     * Import: the sheet and its rows in one transaction. Separate from {@link #addRows} because that
+     * one caps a single agent call (500), while an import loads a whole prepared file.
      */
     @Transactional
     public SheetDetail importSheet(UUID scopeId, UUID userId, String name, String title,
@@ -149,7 +149,7 @@ public class SheetsService {
         return new OperationResult(true, "Deleted sheet '" + sheet.getName() + "' with " + rows + " row(s)");
     }
 
-    // ===== строки =====
+    // ===== rows =====
 
     @Transactional
     public AddResult addRows(UUID scopeId, UUID userId, String name, List<Map<String, Object>> rows) {
@@ -188,7 +188,7 @@ public class SheetsService {
             throw new ConnectorException("No rows matched the given ids in sheet '" + sheet.getName()
                     + "'. Get real row ids from query first");
         }
-        // Пустое значение = очистить ячейку, поэтому null-ы здесь значимы и сохраняются как удаление ключа.
+        // An empty value means «clear the cell», so the nulls here are meaningful and are stored as a key removal.
         Map<String, Object> patch = cells(columns, sheet.getName(), values, false);
         for (SheetRow row : rows) {
             Map<String, Object> merged = new LinkedHashMap<>(row.getValues());
@@ -211,7 +211,7 @@ public class SheetsService {
         return new OperationResult(true, "Deleted " + deleted + " row(s)");
     }
 
-    // ===== запросы =====
+    // ===== queries =====
 
     public RowList query(UUID scopeId, String name, List<Condition> filter, String sortBy,
                          String sortDir, Integer limit) {
@@ -230,7 +230,7 @@ public class SheetsService {
                 queryBuilder.aggregate(sheet, columns, groupBy, bucket, metrics, filter));
     }
 
-    /** Строки для рендера/экспорта: тот же путь фильтрации, но без капа выдачи агенту. */
+    /** Rows for rendering or export: the same filtering path, but without the cap applied to an agent. */
     public List<RowView> rowsFor(Sheet sheet, List<Condition> filter, String sortBy, String sortDir,
                                  int limit) {
         return queryBuilder.select(sheet, SheetSchema.columns(sheet), filter, sortBy, sortDir, limit).rows();
@@ -239,8 +239,8 @@ public class SheetsService {
     // ===== helpers =====
 
     /**
-     * Значения ячеек по объявленной схеме. Неизвестная колонка — ошибка со списком существующих:
-     * иначе агент тихо записал бы данные в никуда и решил, что всё сохранилось.
+     * Cell values against the declared schema. An unknown column is an error listing the existing
+     * ones: otherwise the agent would quietly write data into nowhere and conclude it had been saved.
      */
     private static Map<String, Object> cells(List<ColumnSpec> columns, String sheetName,
                                              Map<String, Object> input, boolean dropEmpty) {

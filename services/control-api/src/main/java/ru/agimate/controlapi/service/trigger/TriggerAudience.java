@@ -7,15 +7,16 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Кому из привязанных агентов адресован триггер: {@code actorAgentId} исключается — инициатора не
- * уведомляем о его же действии, — а непустой {@code targetAgentIds} оставляет только перечисленных.
+ * Which of the bound agents the trigger is addressed to: {@code actorAgentId} is excluded — we do not
+ * notify the initiator of its own action — and a non-empty {@code targetAgentIds} keeps only those
+ * listed.
  * <p>
- * Ограничение, о котором стоит знать до того, как опираться на этот механизм: audience приходит
- * только из {@link TriggerContext}, а его заполняет тот, кто поднял триггер внутри процесса —
- * доска, time, память, webchat, ACP. У триггера, пришедшего снаружи (вебхук интеграции), контекста
- * нет: сузить получателей нечем, и отбор остаётся целиком за ABAC. Сама пара «actor + targets»
- * снята с модели доски — автор действия и участники задачи — и на других типах триггеров может
- * не лечь.
+ * A limitation worth knowing before relying on this mechanism: the audience comes only from
+ * {@link TriggerContext}, and that is filled in by whoever raised the trigger inside the process —
+ * the board, time, memory, webchat, ACP. A trigger arriving from outside (an integration's webhook)
+ * has no context: there is nothing to narrow the recipients with, and the selection is left entirely
+ * to ABAC. The «actor + targets» pair itself is taken from the board's model — the action's author and
+ * the task's participants — and may not fit other kinds of trigger.
  */
 public record TriggerAudience(
         UUID actorAgentId,
@@ -23,8 +24,8 @@ public record TriggerAudience(
 ) {
 
     /**
-     * Сужает список агентов под audience: исключает actor и (если задан) оставляет только targets.
-     * null audience → список без изменений.
+     * Narrows the agent list to the audience: excludes the actor and (when given) keeps only the
+     * targets. A null audience → the list unchanged.
      */
     public static List<Agent> filter(List<Agent> agents, TriggerAudience audience) {
         if (audience == null) {

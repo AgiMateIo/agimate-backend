@@ -43,9 +43,9 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
                 log.warn(e.systemDetail());
                 core.reportFailure(messages, e);
             } catch (Exception e) {
-                // Инфра-ошибка (исчерпанные ретраи шага и т.п.): workflow уйдёт в ERROR —
-                // терминально, recovery переигрывает только PENDING. Best-effort notice, чтобы
-                // пользователь не остался в тишине, затем rethrow — статус ERROR сохраняем.
+                // An infra error (a step's retries exhausted and the like): the workflow goes to ERROR —
+                // terminally, since recovery only replays PENDING. A best-effort notice so the user is not
+                // left in silence, then a rethrow — the ERROR status is preserved.
                 core.reportInfraFailure(messages,
                         "agent run infra failure: agent_id=" + message.agentId()
                         + " run=" + message.runId() + ": " + e);
@@ -57,9 +57,9 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
     private void runBody(AgentMessage message, MessageLog messages) {
         log.info("run started: agent={} run={}", message.agentId(), message.runId());
 
-        // Ack «агент получил» — первый диалоговый durable-шаг (seq 0), до сборки контекста:
-        // фиксация получения не зависит от успеха prepare_context. На бэке он же переводит
-        // статус рана в RUNNING (проекция потока SaveMessage).
+        // The «agent received it» ack — the first durable dialogue step (seq 0), before the context is
+        // assembled: recording receipt does not depend on prepare_context succeeding. On the backend the
+        // same step moves the run's status to RUNNING (the projection of the SaveMessage stream).
         messages.inbound();
 
         PreparedContext prepared = core.prepareContext(message.agentId(), message.runId());

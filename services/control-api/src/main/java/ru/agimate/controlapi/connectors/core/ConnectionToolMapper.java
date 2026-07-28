@@ -9,16 +9,17 @@ import ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 
 /**
- * Общий маппинг динамических тулов: строка кэша {@link ConnectionTool} (сырые JSON-схемы текстом) →
- * MCP-совместимый {@link ConnectorToolSpec}. Механизм не привязан к MCP — им пользуется листинг
- * доступных агенту тулов ({@code ToolDefinitionService}/{@code RunContextService}) и сами
- * динамические коннекторы. Схемы парсятся в {@link JsonSchema} лишь при отдаче спека —
- * {@code @JsonAnySetter} в {@link JsonSchema} гарантирует лосслесс round-trip произвольной JSON Schema.
+ * Shared mapping of dynamic tools: a cache row {@link ConnectionTool} (raw JSON schemas as text) →
+ * an MCP-compatible {@link ConnectorToolSpec}. The mechanism is not tied to MCP — it is used by the
+ * listing of tools available to an agent ({@code ToolDefinitionService}/{@code RunContextService})
+ * and by the dynamic connectors themselves. Schemas are parsed into {@link JsonSchema} only when a
+ * spec is handed out — {@code @JsonAnySetter} in {@link JsonSchema} guarantees a lossless round-trip
+ * of an arbitrary JSON Schema.
  */
 @UtilityClass
 public class ConnectionToolMapper {
 
-    /** Строка кэша → MCP-совместимый спек для воркера/UI. */
+    /** Cache row → an MCP-compatible spec for the worker and the UI. */
     public static ConnectorToolSpec toSpec(ConnectionTool tool) {
         return new ConnectorToolSpec(
                 tool.getName(),
@@ -32,9 +33,9 @@ public class ConnectionToolMapper {
     }
 
     /**
-     * Сырой JSON тула (напр. элемент MCP {@code tools/list[]}) → спек с заданным (неймспейс-)именем,
-     * без похода в кэш. Для session-scoped тулов, проброшенных из клиента (не персистятся в
-     * {@code connection_tools}).
+     * Raw tool JSON (e.g. an element of MCP {@code tools/list[]}) → a spec under the given
+     * (namespaced) name, without consulting the cache. For session-scoped tools passed through from
+     * the client (they are not persisted into {@code connection_tools}).
      */
     public static ConnectorToolSpec toSpec(String name, JsonNode tool) {
         return new ConnectorToolSpec(

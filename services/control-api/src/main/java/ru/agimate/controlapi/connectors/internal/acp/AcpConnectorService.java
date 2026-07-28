@@ -18,30 +18,32 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Фасад ACP-коннектора (Agent Client Protocol): диалог с агентом из IDE (Zed и другие
- * ACP-клиенты) через WebSocket-эндпоинт {@code /acp}.
+ * Facade of the ACP connector (Agent Client Protocol): a dialogue with an agent from an IDE (Zed and
+ * other ACP clients) over the WebSocket endpoint {@code /acp}.
  *
- * <p>Устройство повторяет webchat: одна connection на пользователя ({@code scope = USER},
- * материализуется binding'ом при первом {@code session/new}), каналы — per-agent. Входящие
- * шлёт {@code AcpService} (триггер {@code message_received} с явными sessionId/audience),
- * доставка ответов — {@code AcpChannelHandler} (JSON-RPC {@code session/update} в живое
- * соединение).
+ * <p>The shape mirrors webchat: one connection per user ({@code scope = USER}, materialised by the
+ * binding on the first {@code session/new}), and channels per agent. Incoming messages are sent by
+ * {@code AcpService} (the trigger {@code message_received} with an explicit sessionId/audience), and
+ * replies are delivered by {@code AcpChannelHandler} (a JSON-RPC {@code session/update} into the live
+ * connection).
  *
- * <p>Тулы IDE ({@link AcpToolService}: read_file/write_file/run_command) исполняются обратным
- * JSON-RPC в живое соединение сессии — {@code DefinitionBinding.STATIC}, {@code ExecutionKind.BACKEND}
- * (control-api диспатчит вызов, но само действие делает клиент).
+ * <p>The IDE's tools ({@link AcpToolService}: read_file/write_file/run_command) are executed by a
+ * reverse JSON-RPC call into the session's live connection — {@code DefinitionBinding.STATIC},
+ * {@code ExecutionKind.BACKEND} (control-api dispatches the call, but the action itself is performed
+ * by the client).
  *
- * <p>Плюс session-scoped MCP-тулы, проброшенные из IDE (мост поднял MCP-серверы Zed и сделал
- * {@code tools/list}): в контекст рана они подмешиваются через {@link #getTools(ConnectorEnv)}
- * (фиксированные + {@code AcpSessionRegistry.mcpToolSpecs(sessionId)}), а исполняются через
- * {@link #executeTool} обратным {@code mcp/call_tool} ({@link AcpToolService#callMcpTool}). ABAC
- * применяется к ним по имени как к любым тулам коннектора (default-allow, DENY-политикой можно закрыть).
+ * <p>Plus session-scoped MCP tools forwarded from the IDE (the bridge started Zed's MCP servers and
+ * did a {@code tools/list}): they are mixed into the run's context through
+ * {@link #getTools(ConnectorEnv)} (the fixed ones plus
+ * {@code AcpSessionRegistry.mcpToolSpecs(sessionId)}) and executed through {@link #executeTool} by a
+ * reverse {@code mcp/call_tool} ({@link AcpToolService#callMcpTool}). ABAC applies to them by name
+ * like to any of a connector's tools (default-allow, closable with a DENY policy).
  */
 @Component
 public class AcpConnectorService extends BaseConnectorHandler
         implements InternalConnectorHandler, TriggerProvider, PromptBlockProvider {
 
-    /** Тег SYSTEM-блока с корнем проекта текущей IDE-сессии. */
+    /** Tag of the SYSTEM block carrying the project root of the current IDE session. */
     private static final String IDE_SESSION_BLOCK = "ide_session";
 
     private final AcpToolService acpToolService;
@@ -53,7 +55,7 @@ public class AcpConnectorService extends BaseConnectorHandler
         this.sessionRegistry = sessionRegistry;
     }
 
-    /** Фиксированные тулы (read_file/write_file/run_command) + session-scoped MCP-тулы этой IDE-сессии. */
+    /** The fixed tools (read_file/write_file/run_command) plus this IDE session's session-scoped MCP tools. */
     @Override
     public Map<String, ConnectorToolSpec> getTools(ConnectorEnv env) {
         Map<String, ConnectorToolSpec> fixed = getTools();
@@ -70,7 +72,7 @@ public class AcpConnectorService extends BaseConnectorHandler
         return merged;
     }
 
-    /** Фиксированный @Tool → reflection-диспатч базы; иначе — MCP-тул сессии → обратный mcp/call_tool. */
+    /** A fixed @Tool → the base's reflection dispatch; otherwise a session MCP tool → a reverse mcp/call_tool. */
     @Override
     public Map<String, Object> executeTool(ConnectorEnv env, String toolName, Map<String, Object> args) {
         if (getTools().containsKey(toolName)) {
@@ -80,10 +82,11 @@ public class AcpConnectorService extends BaseConnectorHandler
     }
 
     /**
-     * Корень проекта, открытого в IDE (ACP {@code cwd} сессии). Без него агент не знает, где
-     * лежит проект: {@code read_file}/{@code write_file} принимают только абсолютные пути, и взять
-     * их было бы неоткуда. Блок появляется только когда ран идёт из живой IDE-сессии — для
-     * веб-чата и триггеров {@code sessionId} чужой и в реестре его нет.
+     * Root of the project open in the IDE (the session's ACP {@code cwd}). Without it the agent does
+     * not know where the project lives: {@code read_file}/{@code write_file} accept absolute paths
+     * only, and there would be nowhere to get them from. The block appears only when the run comes
+     * from a live IDE session — for web chat and triggers the {@code sessionId} belongs to something
+     * else and is absent from the registry.
      */
     @Override
     public List<PromptBlock> promptBlocks(ConnectorEnv env) {

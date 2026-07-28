@@ -15,28 +15,30 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Реестр живых ACP-сессий: связывает {@code channel_sessions.id} с активным клиентским
- * соединением, незавершённым {@code session/prompt}, клиентскими capabilities, корнем проекта
- * ({@code cwd}) и исходящими server→client запросами (fs/terminal-тулы IDE-коннектора).
+ * Registry of live ACP sessions: it ties a {@code channel_sessions.id} to the active client
+ * connection, the pending {@code session/prompt}, the client's capabilities, the project root
+ * ({@code cwd}) and the outgoing server→client requests (the IDE connector's fs/terminal tools).
  *
- * <p>Доставка нотификаций best-effort: нет живого соединения — no-op, сообщение уже лежит в
- * {@code channel_session_messages} и клиент увидит его при {@code session/load}. Состояние
- * in-memory, поэтому live-доставка и IDE-тулы работают при одной реплике control-api (проекция
- * SaveMessage и исполнение тула происходят на инстансе, принявшем соединение/gRPC воркера).
+ * <p>Notification delivery is best-effort: with no live connection it is a no-op, the message already
+ * sits in {@code channel_session_messages} and the client will see it on {@code session/load}. The
+ * state is in memory, so live delivery and the IDE tools work with a single control-api replica (the
+ * SaveMessage projection and the tool's execution happen on the instance that accepted the connection
+ * and the worker's gRPC).
  *
- * <p>Один prompt на сессию: параллельный {@code session/prompt} отклоняется — это требование
- * самого ACP, а single-writer-per-session на очереди {@code agent_exec} дублирует его серверно.
+ * <p>One prompt per session: a concurrent {@code session/prompt} is rejected — that is ACP's own
+ * requirement, and single-writer-per-session on the {@code agent_exec} queue duplicates it
+ * server-side.
  */
 @Slf4j
 @Component
 public class AcpSessionRegistry {
 
-    /** Живое клиентское соединение; единственная обязанность — отправить готовый JSON-RPC фрейм. */
+    /** A live client connection; its only duty is to send a ready JSON-RPC frame. */
     public interface Client {
         void send(String frame);
     }
 
-    /** Клиентские capabilities из {@code initialize} — что IDE разрешает вызывать серверу. */
+    /** The client's capabilities from {@code initialize} — what the IDE lets the server call. */
     public record ClientCapabilities(boolean fsRead, boolean fsWrite, boolean terminal) {
         public static final ClientCapabilities NONE = new ClientCapabilities(false, false, false);
     }
@@ -47,7 +49,7 @@ public class AcpSessionRegistry {
     private static final class Attachment {
         final Client client;
         final ClientCapabilities capabilities;
-        /** Корень проекта сессии (ACP {@code cwd}); {@code null}, если клиент его не прислал. */
+        /** The session's project root (the ACP {@code cwd}); {@code null} when the client did not send it. */
         final String cwd;
         final AtomicReference<Object> pendingRpcId = new AtomicReference<>();
 
@@ -58,39 +60,39 @@ public class AcpSessionRegistry {
         }
     }
 
-    /** Исходящий server→client запрос, ждущий ответа клиента (fs/terminal-вызов). */
+    /** An outgoing server→client request awaiting the client's answer (an fs or terminal call). */
     private record PendingRequest(Client client, CompletableFuture<JsonNode> future) {}
 
-    /** Ссылка на MCP-тул, проброшенный из IDE: имя сервера и «сырое» имя тула для {@code mcp/call_tool}. */
+    /** A reference to an MCP tool forwarded from the IDE: the server's name and the tool's raw name for {@code mcp/call_tool}. */
     public record McpToolRef(String server, String rawName) {}
 
-    /** MCP-тулы одной сессии: спеки (для контекста рана) + ссылки (для маршрутизации вызова), по неймспейс-имени. */
+    /** MCP tools of one session: the specs (for the run's context) plus the references (for routing a call), by namespaced name. */
     private record SessionMcpTools(Map<String, ConnectorToolSpec> specs, Map<String, McpToolRef> refs) {}
 
     private final Map<UUID, Attachment> sessions = new ConcurrentHashMap<>();
-    /** id исходящего запроса → ожидание ответа; id уникален глобально (см. {@link #requestCounter}). */
+    /** Outgoing request id → the pending wait; the id is globally unique (see {@link #requestCounter}). */
     private final Map<String, PendingRequest> pendingRequests = new ConcurrentHashMap<>();
-    /** sessionId → MCP-тулы, проброшенные IDE на session/new|load; чистятся на detach. */
+    /** sessionId → the MCP tools forwarded by the IDE on session/new|load; cleared on detach. */
     private final Map<UUID, SessionMcpTools> mcpTools = new ConcurrentHashMap<>();
     private final AtomicLong requestCounter = new AtomicLong();
 
     /**
-     * Привязывает сессию к соединению (session/new, session/load); перепривязка допустима.
-     * {@code cwd} — корень проекта из того же фрейма: он живёт ровно столько же, сколько
-     * соединение (клиент присылает его при каждом new/load), поэтому в БД не хранится.
+     * Binds a session to a connection (session/new, session/load); rebinding is allowed. {@code cwd}
+     * is the project root from that same frame: it lives exactly as long as the connection (the client
+     * sends it on every new/load), so it is not stored in the database.
      */
     public void attach(UUID sessionId, Client client, ClientCapabilities capabilities, String cwd) {
         sessions.put(sessionId, new Attachment(
                 client, capabilities == null ? ClientCapabilities.NONE : capabilities, cwd));
     }
 
-    /** Корень проекта сессии (ACP {@code cwd}); {@code null} — сессия не привязана или клиент его не дал. */
+    /** The session's project root (the ACP {@code cwd}); {@code null} — the session is unbound or the client gave none. */
     public String cwd(UUID sessionId) {
         Attachment attachment = sessions.get(sessionId);
         return attachment == null ? null : attachment.cwd;
     }
 
-    /** Отвязывает все сессии соединения, чистит их MCP-тулы и завершает висящие запросы ошибкой (разрыв WS). */
+    /** Unbinds every session of a connection, clears their MCP tools and fails the pending requests (the WS dropped). */
     public void detachAll(Client client) {
         sessions.entrySet().removeIf(e -> {
             if (e.getValue().client == client) {
@@ -107,7 +109,7 @@ public class AcpSessionRegistry {
         });
     }
 
-    /** Кладёт MCP-тулы сессии (из {@code _agimateMcp} на session/new|load). Пустой список — чистка. */
+    /** Stores a session's MCP tools (from {@code _agimateMcp} on session/new|load). An empty list clears them. */
     public void putMcpTools(UUID sessionId, Map<String, ConnectorToolSpec> specs, Map<String, McpToolRef> refs) {
         if (specs == null || specs.isEmpty()) {
             mcpTools.remove(sessionId);
@@ -116,40 +118,40 @@ public class AcpSessionRegistry {
         mcpTools.put(sessionId, new SessionMcpTools(Map.copyOf(specs), Map.copyOf(refs)));
     }
 
-    /** Спеки MCP-тулов сессии для контекста рана (по неймспейс-имени); пусто, если их нет. */
+    /** Specs of a session's MCP tools for the run's context (by namespaced name); empty when there are none. */
     public Map<String, ConnectorToolSpec> mcpToolSpecs(UUID sessionId) {
         SessionMcpTools tools = mcpTools.get(sessionId);
         return tools == null ? Map.of() : tools.specs();
     }
 
-    /** Ссылка MCP-тула по неймспейс-имени (сервер + сырое имя); {@code null}, если не MCP-тул сессии. */
+    /** Reference to an MCP tool by its namespaced name (server plus raw name); {@code null} when it is not one of the session's MCP tools. */
     public McpToolRef mcpToolRef(UUID sessionId, String name) {
         SessionMcpTools tools = mcpTools.get(sessionId);
         return tools == null ? null : tools.refs().get(name);
     }
 
-    /** Спек MCP-тула по неймспейс-имени — для решения о подтверждении (readOnly); {@code null}, если нет. */
+    /** Spec of an MCP tool by its namespaced name — used to decide about confirmation (readOnly); {@code null} when absent. */
     public ConnectorToolSpec mcpToolSpec(UUID sessionId, String name) {
         SessionMcpTools tools = mcpTools.get(sessionId);
         return tools == null ? null : tools.specs().get(name);
     }
 
-    /** Есть ли живое клиентское соединение для сессии (отличает «нет IDE» от «capability выключена»). */
+    /** Whether the session has a live client connection (this separates «no IDE» from «the capability is off»). */
     public boolean isConnected(UUID sessionId) {
         return sessions.containsKey(sessionId);
     }
 
-    /** Клиентские capabilities активной сессии; {@link ClientCapabilities#NONE} если не привязана. */
+    /** Client capabilities of the active session; {@link ClientCapabilities#NONE} when unbound. */
     public ClientCapabilities capabilities(UUID sessionId) {
         Attachment attachment = sessions.get(sessionId);
         return attachment == null ? ClientCapabilities.NONE : attachment.capabilities;
     }
 
     /**
-     * Отправляет клиенту JSON-RPC request и возвращает ожидание ответа. Future завершается из
-     * {@link #handleResponse} (result/error) или исключением при обрыве соединения.
+     * Sends a JSON-RPC request to the client and returns the pending wait. The future completes from
+     * {@link #handleResponse} (result/error) or with an exception when the connection drops.
      *
-     * @throws IllegalStateException сессия не привязана к живому соединению
+     * @throws IllegalStateException the session is not bound to a live connection
      */
     public CompletableFuture<JsonNode> request(UUID sessionId, String method, Map<String, Object> params) {
         Attachment attachment = sessions.get(sessionId);
@@ -174,7 +176,7 @@ public class AcpSessionRegistry {
         return future;
     }
 
-    /** Завершает ожидание по ответу клиента на server→client запрос. Неизвестный id — no-op. */
+    /** Completes a wait with the client's answer to a server→client request. An unknown id is a no-op. */
     public void handleResponse(String id, JsonNode result, JsonNode error) {
         PendingRequest pending = pendingRequests.remove(id);
         if (pending == null) {
@@ -188,7 +190,7 @@ public class AcpSessionRegistry {
         }
     }
 
-    /** Шлёт нотификацию {@code session/update}; нет живого соединения — no-op (history-only). */
+    /** Sends a {@code session/update} notification; with no live connection it is a no-op (history-only). */
     public void sendUpdate(UUID sessionId, Map<String, Object> update) {
         Attachment attachment = sessions.get(sessionId);
         if (attachment == null) {
@@ -204,7 +206,7 @@ public class AcpSessionRegistry {
         sendSafely(sessionId, attachment.client, JsonUtils.writeValueAsString(frame));
     }
 
-    /** Завершает висящий prompt ответом {@code {stopReason}}; без pending — no-op. */
+    /** Completes a pending prompt with {@code {stopReason}}; with nothing pending it is a no-op. */
     public boolean completePrompt(UUID sessionId, String stopReason) {
         return finishPrompt(sessionId, (client, rpcId) -> {
             Map<String, Object> frame = new LinkedHashMap<>();
@@ -215,7 +217,7 @@ public class AcpSessionRegistry {
         });
     }
 
-    /** Завершает висящий prompt JSON-RPC ошибкой; без pending — no-op. */
+    /** Completes a pending prompt with a JSON-RPC error; with nothing pending it is a no-op. */
     public boolean failPrompt(UUID sessionId, int code, String message) {
         return finishPrompt(sessionId, (client, rpcId) -> {
             Map<String, Object> frame = new LinkedHashMap<>();
@@ -227,9 +229,9 @@ public class AcpSessionRegistry {
     }
 
     /**
-     * Регистрирует незавершённый prompt; ответ уйдёт из {@link #completePrompt}/{@link #failPrompt}.
+     * Registers a pending prompt; the answer will go out from {@link #completePrompt}/{@link #failPrompt}.
      *
-     * @throws IllegalStateException сессия не привязана или prompt уже в полёте
+     * @throws IllegalStateException the session is unbound or a prompt is already in flight
      */
     public void registerPrompt(UUID sessionId, Object rpcId) {
         Attachment attachment = sessions.get(sessionId);

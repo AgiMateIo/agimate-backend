@@ -9,14 +9,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Узел JSON Schema (draft-2020-12, как в MCP). Стандартные ключевые слова: {@code type},
+ * A JSON Schema node (draft-2020-12, as used by MCP). Standard keywords: {@code type},
  * {@code description}, {@code properties}, {@code required}, {@code items}, {@code enum},
- * {@code additionalProperties}. Все поля nullable — пустая схема сериализуется в {@code {}} («any»).
+ * {@code additionalProperties}. Every field is nullable — an empty schema serialises to {@code {}} («any»).
  *
- * <p>{@link #extra} ({@code @JsonAnyGetter}/{@code @JsonAnySetter}) собирает все прочие ключевые слова
- * ({@code anyOf}/{@code oneOf}/{@code $ref}/{@code format}/{@code default}/{@code minimum}/…). Это даёт
- * лосслесс round-trip произвольной JSON Schema с внешних MCP-серверов: неизвестные поля не теряются
- * при десериализации в этот record и обратной сериализации.
+ * <p>{@link #extra} ({@code @JsonAnyGetter}/{@code @JsonAnySetter}) collects every other keyword
+ * ({@code anyOf}/{@code oneOf}/{@code $ref}/{@code format}/{@code default}/{@code minimum}/…). That gives a
+ * lossless round-trip of an arbitrary JSON Schema coming from an external MCP server: unknown fields
+ * survive deserialisation into this record and serialisation back out.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record JsonSchema(
@@ -30,12 +30,12 @@ public record JsonSchema(
         @JsonAnyGetter @JsonAnySetter Map<String, Object> extra
 ) {
 
-    /** Скаляр: string / integer / number / boolean. */
+/** A scalar: string / integer / number / boolean. */
     public static JsonSchema scalar(String type, String description) {
         return new JsonSchema(type, description, null, null, null, null, null, null);
     }
 
-    /** «Любой» тип — пустая схема {@code {}} (или только description). */
+/** The «any» type — an empty schema {@code {}} (or description only). */
     public static JsonSchema any(String description) {
         return new JsonSchema(null, description, null, null, null, null, null, null);
     }
@@ -53,7 +53,7 @@ public record JsonSchema(
         return new JsonSchema("object", description, properties, required, null, null, null, null);
     }
 
-    /** {@code Map<String, V>}: object + {@code additionalProperties} = схема значения. */
+/** {@code Map<String, V>}: object + {@code additionalProperties} = the value's schema. */
     public static JsonSchema map(String description, JsonSchema valueSchema) {
         return new JsonSchema("object", description, null, null, null, null, valueSchema, null);
     }

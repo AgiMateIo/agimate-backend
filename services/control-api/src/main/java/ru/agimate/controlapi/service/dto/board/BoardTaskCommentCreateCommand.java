@@ -2,7 +2,7 @@ package ru.agimate.controlapi.service.dto.board;
 
 import java.util.UUID;
 
-/** Команда создания комментария к задаче (вход {@code BoardService}, не зависит от транспорта). */
+/** Command for creating a comment on a task (the input of {@code BoardService}, transport-independent). */
 public record BoardTaskCommentCreateCommand(
         UUID agentId,
         String content

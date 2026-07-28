@@ -18,16 +18,17 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Единая точка доставки webchat-сообщения на фронт: строка в {@code webchat_messages} (UI-история)
- * + событие в Centrifugo {@code webchat:{sessionId}} (live). Используется и для вывода агента
- * ({@code WebchatChannelHandler.handleOutput}), и для echo сообщений пользователя.
+ * The single point of delivering a webchat message to the frontend: a row in
+ * {@code webchat_messages} (the UI history) plus an event in Centrifugo
+ * {@code webchat:{sessionId}} (live). Used both for the agent's output
+ * ({@code WebchatChannelHandler.handleOutput}) and for echoing the user's messages.
  *
- * <p>Строка идемпотентна по {@code (session_id, message_id)}; событие публикуется всегда
- * (at-least-once, включая replay) — фронт дедуплицирует по {@code messageId}, поэтому retry после
- * упавшей публикации не теряет live-доставку.
+ * <p>The row is idempotent by {@code (session_id, message_id)}; the event is always published
+ * (at-least-once, replays included) — the frontend deduplicates by {@code messageId}, so a retry after
+ * a failed publication does not lose live delivery.
  *
- * <p>Вложения: в строку — без URL (протухает), в событие — со свежей подписанной ссылкой;
- * история ({@code /manage/webchat}) выдаёт свои ссылки при чтении.
+ * <p>Attachments: into the row without the URL (it expires), into the event with a fresh signed link;
+ * the history ({@code /manage/webchat}) issues its own links on read.
  */
 @Slf4j
 @Service
@@ -62,7 +63,7 @@ public class WebchatMessagePublisher {
                         Instant.now().toString()));
     }
 
-    /** Хранимое представление parts ({@code type/fileId/mime/size}); null — сообщение без вложений. */
+    /** The stored representation of parts ({@code type/fileId/mime/size}); null — a message with no attachments. */
     private static List<Map<String, Object>> storedParts(List<Part> parts) {
         if (parts == null || parts.isEmpty()) {
             return null;

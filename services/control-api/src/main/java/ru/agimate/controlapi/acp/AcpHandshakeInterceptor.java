@@ -13,9 +13,10 @@ import ru.agimate.controlapi.security.AgentPrincipal;
 import java.util.Map;
 
 /**
- * Переносит {@link AgentPrincipal} из SecurityContext handshake-запроса (его установил
- * {@code AgentAuthFilter} по {@code X-Api-Key} — путь {@code /acp} включён в api-key chain)
- * в атрибуты WebSocket-сессии: после апгрейда SecurityContext недоступен.
+ * Carries the {@link AgentPrincipal} from the handshake request's SecurityContext (set there by
+ * {@code AgentAuthFilter} from the {@code X-Api-Key} — the {@code /acp} path is part of the api-key
+ * chain) into the WebSocket session's attributes: after the upgrade the SecurityContext is out of
+ * reach.
  */
 public class AcpHandshakeInterceptor implements HandshakeInterceptor {
 

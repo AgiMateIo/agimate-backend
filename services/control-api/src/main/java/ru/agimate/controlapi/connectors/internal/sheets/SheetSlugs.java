@@ -7,10 +7,10 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Заголовок импортируемой таблицы → машинный код колонки. Заголовки приходят человеческие
- * («Категория расхода»), а имя колонки подставляется в SQL как ключ JSONB и обязано быть
- * ASCII-slug'ом — поэтому транслитерируем, а исходный текст сохраняем в {@code title}
- * (та же пара name-как-код / title-как-дисплей, что у скиллов и пресетов).
+ * An imported table's header → a column's machine code. Headers arrive human («Категория расхода»),
+ * while a column name is substituted into SQL as a JSONB key and must be an ASCII slug — so we
+ * transliterate and keep the original text in {@code title} (the same name-as-code / title-as-display
+ * pair as skills and presets use).
  */
 @UtilityClass
 public class SheetSlugs {
@@ -28,7 +28,7 @@ public class SheetSlugs {
 
     private static final int MAX_LENGTH = 48;
 
-    /** Уникальный в пределах {@code taken} slug; при коллизии добавляет суффикс {@code _2}, {@code _3}… */
+    /** A slug unique within {@code taken}; on a collision it appends a suffix {@code _2}, {@code _3}… */
     public static String unique(String source, Collection<String> taken, String fallback) {
         String base = slug(source);
         if (base.isEmpty()) {
@@ -64,7 +64,7 @@ public class SheetSlugs {
         if (slug.length() > MAX_LENGTH) {
             slug = slug.substring(0, MAX_LENGTH).replaceAll("_+$", "");
         }
-        // Имя обязано начинаться с буквы: «2026 год» дал бы недопустимое имя.
+        // The name must begin with a letter: «2026 год» would produce an invalid one.
         if (!slug.isEmpty() && !Character.isLetter(slug.charAt(0))) {
             slug = ("c_" + slug);
             if (slug.length() > MAX_LENGTH) {

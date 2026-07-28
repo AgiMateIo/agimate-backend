@@ -6,8 +6,8 @@ import ru.agimate.controlapi.abac.AccessEffect;
 import java.util.Map;
 
 /**
- * Обновление правила. {@code effect}/{@code description} — частично (null = не менять);
- * {@code paramsFilter} заменяется целиком ({@code null} = очистить фильтр).
+ * Updating a rule. {@code effect}/{@code description} are partial (null = leave unchanged);
+ * {@code paramsFilter} is replaced wholesale ({@code null} = clear the filter).
  */
 @Schema(description = "Update an access refinement rule")
 public record UpdateAgentConnectionPolicyRequest(

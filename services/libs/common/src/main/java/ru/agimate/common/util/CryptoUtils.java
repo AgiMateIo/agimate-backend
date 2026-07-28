@@ -35,12 +35,7 @@ public class CryptoUtils {
     private static final int GCM_TAG_LENGTH = 128; // 128 bits authentication tag
     private static final int AES_KEY_SIZE = 256; // AES-256
 
-    /**
-     * Generate a random AES-256 encryption key.
-     *
-     * @return SecretKey for AES-256 encryption
-     * @throws IllegalStateException if key generation fails
-     */
+    /** Generate a random AES-256 encryption key. */
     public static SecretKey generateAES256Key() {
         try {
             KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
@@ -51,13 +46,7 @@ public class CryptoUtils {
         }
     }
 
-    /**
-     * Create SecretKey from Base64-encoded key string.
-     *
-     * @param base64Key Base64-encoded key (must be 32 bytes for AES-256)
-     * @return SecretKey for AES-256 encryption
-     * @throws IllegalArgumentException if key length is invalid
-     */
+    /** Decoded key material must be exactly 32 bytes; anything else throws rather than being padded. */
     public static SecretKey keyFromBase64(String base64Key) {
         try {
             byte[] decodedKey = Base64.getDecoder().decode(base64Key);
@@ -78,14 +67,9 @@ public class CryptoUtils {
     }
 
     /**
-     * Encrypt data using AES-256-GCM.
-     *
-     * Format of returned data: [IV (12 bytes)][Ciphertext (variable)][Authentication Tag (16 bytes)]
-     *
-     * @param data data to encrypt
-     * @param key  AES-256 encryption key
-     * @return encrypted data (IV + ciphertext + tag)
-     * @throws IllegalStateException if encryption fails
+     * AES-256-GCM with a generated IV prepended to the output:
+     * {@code [IV (12)][ciphertext][GCM tag (16)]}. Self-contained, so the caller stores one blob —
+     * unlike {@link #encryptGcm}, where the IV is the caller's problem.
      */
     public static byte[] encryptAES256GCM(byte[] data, SecretKey key) {
         try {
@@ -112,14 +96,8 @@ public class CryptoUtils {
     }
 
     /**
-     * Decrypt data using AES-256-GCM.
-     *
-     * Input format: [IV (12 bytes)][Ciphertext (variable)][Authentication Tag (16 bytes)]
-     *
-     * @param encrypted encrypted data (IV + ciphertext + tag)
-     * @param key       AES-256 decryption key
-     * @return decrypted data
-     * @throws IllegalStateException if decryption fails (including authentication failure)
+     * Inverse of {@link #encryptAES256GCM}. Throws on a tag mismatch — tampered data never comes
+     * back as plaintext.
      */
     public static byte[] decryptAES256GCM(byte[] encrypted, SecretKey key) {
         try {
@@ -183,11 +161,8 @@ public class CryptoUtils {
      * data). Unlike {@link #encryptAES256GCM} the IV is NOT prepended — caller stores it separately.
      * Used by envelope encryption (per-row DEK bound to its owner via AAD).
      *
-     * @param data plaintext
-     * @param key  AES-256 key
-     * @param iv   12-byte nonce
-     * @param aad  additional authenticated data (may be {@code null}); not encrypted but authenticated
-     * @return ciphertext (includes GCM tag), WITHOUT the IV
+     * @param iv  12-byte nonce; reusing one across two messages under the same key breaks GCM
+     * @param aad additional authenticated data (may be {@code null}); not encrypted but authenticated
      */
     public static byte[] encryptGcm(byte[] data, SecretKey key, byte[] iv, byte[] aad) {
         try {
@@ -206,11 +181,8 @@ public class CryptoUtils {
      * AES-256-GCM decryption with an explicit IV/nonce and optional AAD. Throws if the tag or AAD
      * do not match (tampered data or wrong owner binding).
      *
-     * @param ciphertext ciphertext including GCM tag (as produced by {@link #encryptGcm})
-     * @param key        AES-256 key
-     * @param iv         12-byte nonce used at encryption
-     * @param aad        same AAD as used at encryption (may be {@code null})
-     * @return plaintext
+     * @param iv  the same nonce used at encryption
+     * @param aad the same AAD used at encryption (may be {@code null})
      */
     public static byte[] decryptGcm(byte[] ciphertext, SecretKey key, byte[] iv, byte[] aad) {
         try {
@@ -235,25 +207,13 @@ public class CryptoUtils {
         return new SecretKeySpec(keyBytes, "AES");
     }
 
-    /**
-     * Encrypt data and encode to Base64 URL-safe string.
-     *
-     * @param data data to encrypt
-     * @param key  AES-256 encryption key
-     * @return Base64 URL-safe encoded encrypted data
-     */
+    /** {@link #encryptAES256GCM} in Base64 URL-safe form — for cookies, headers and other text carriers. */
     public static String encryptToBase64(byte[] data, SecretKey key) {
         byte[] encrypted = encryptAES256GCM(data, key);
         return Base64.getUrlEncoder().encodeToString(encrypted);
     }
 
-    /**
-     * Decode Base64 URL-safe string and decrypt data.
-     *
-     * @param base64Data Base64 URL-safe encoded encrypted data
-     * @param key        AES-256 decryption key
-     * @return decrypted data
-     */
+    /** Inverse of {@link #encryptToBase64}. */
     public static byte[] decryptFromBase64(String base64Data, SecretKey key) {
         byte[] encrypted = Base64.getUrlDecoder().decode(base64Data);
         return decryptAES256GCM(encrypted, key);

@@ -3,8 +3,8 @@ package ru.agimate.controlapi.service.dto.agent;
 import ru.agimate.controlapi.database.enums.AgentType;
 
 /**
- * Service-layer контракт обновления агента — вход для {@code AgentService.update}, общий для HTTP-границы
- * (маппинг из {@code UpdateAgentRequest}) и коннекторного слоя.
+ * The service-layer contract for updating an agent — the input of {@code AgentService.update}, shared
+ * by the HTTP boundary (mapping from {@code UpdateAgentRequest}) and the connector layer.
  */
 public record AgentUpdateCommand(
         String name,

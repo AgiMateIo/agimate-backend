@@ -15,16 +15,18 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Sheets — внутренний коннектор таблиц агента: объявленная схема колонок, фильтры и сводки по любой
- * колонке, графики и выгрузка в csv/xlsx. Тулы см. {@link SheetsToolService}.
+ * Sheets — the internal connector for an agent's tables: a declared column schema, filters and
+ * summaries over any column, charts and export to csv/xlsx. For the tools see
+ * {@link SheetsToolService}.
  *
- * <p>Владение личное: пространство листов ключуется {@code agentId} (AGENT scope, резолв из
- * {@link ConnectorEnv} в момент вызова), сквозная граница доступа — {@code userId}.
+ * <p>Ownership is personal: the space of sheets is keyed by {@code agentId} (AGENT scope, resolved
+ * from {@link ConnectorEnv} at call time), and the end-to-end access boundary is {@code userId}.
  *
- * <p>{@link PromptBlockProvider}: SYSTEM-блок {@code sheets} со схемой листов. Он снимает главный
- * риск модели — не увидев своих таблиц, агент завёл бы дубль вместо записи в существующую. Блок
- * O(1) от объёма данных (строка на лист, не на запись) и дополнительно капнут по числу листов и
- * колонок: полный листинг живёт в туле {@code list_sheets}, а не в промпте.
+ * <p>{@link PromptBlockProvider}: the SYSTEM block {@code sheets} carrying the sheets' schema. It
+ * removes the model's main risk — not seeing its own tables, an agent would create a duplicate
+ * instead of writing into the existing one. The block is O(1) in data volume (a line per sheet, not
+ * per record) and is additionally capped by the number of sheets and columns: the full listing lives
+ * in the tool {@code list_sheets}, not in the prompt.
  */
 @Component
 public class SheetsConnectorService extends BaseConnectorHandler implements InternalConnectorHandler,

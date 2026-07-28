@@ -21,9 +21,9 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Пресет роли агента — заготовка для мастера создания. Декларативный контент: instructions
- * копируются в агента (и дальше редактируются свободно), скилы привязываются по ссылке.
- * Системные пресеты сидятся из classpath ({@code presets/<code>/PRESET.md}) идемпотентно по
+ * An agent role preset — a blank for the creation wizard. Declarative content: instructions are
+ * copied into the agent (and freely edited afterwards), skills are bound by reference. System
+ * presets are seeded from the classpath ({@code presets/<code>/PRESET.md}) idempotently by
  * {@code code}.
  */
 @Entity
@@ -41,22 +41,22 @@ public class AgentPreset extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    /** Машинный код-слаг ('personal-assistant') — ключ идемпотентного сидинга. */
+    /** Machine code slug ('personal-assistant') — the key of idempotent seeding. */
     @Column(name = "name", nullable = false, unique = true, columnDefinition = "TEXT")
     private String name;
 
-    /** Человекочитаемое отображаемое имя. */
+    /** Human-readable display name. */
     @Column(name = "title", nullable = false, columnDefinition = "TEXT")
     private String title;
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    /** Заготовка системных инструкций агента. */
+    /** The blank for the agent's system instructions. */
     @Column(name = "instructions", nullable = false, columnDefinition = "TEXT")
     private String instructions;
 
-    /** Имена системных скилов пресета; резолвятся по (SYSTEM_USER_ID, name) при листинге. */
+    /** Names of the preset's system skills; resolved by (SYSTEM_USER_ID, name) when listing. */
     @JdbcTypeCode(SqlTypes.ARRAY)
     @Column(name = "skill_names", nullable = false, columnDefinition = "text[]")
     @Builder.Default

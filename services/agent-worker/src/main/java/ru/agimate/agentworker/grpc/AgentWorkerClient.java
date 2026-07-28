@@ -109,8 +109,8 @@ public class AgentWorkerClient {
                 return op.get();
             } catch (StatusRuntimeException e) {
                 Status.Code code = e.getStatus().getCode();
-                // Ожидаемые исходы, не инфра-сбой: ABORTED (занятый active-run claim) и
-                // RESOURCE_EXHAUSTED (исчерпана квота LLM) — тихо и без стектрейса, никогда не ретраятся.
+                // Expected outcomes rather than infra failures: ABORTED (an active-run claim already taken) and
+                // RESOURCE_EXHAUSTED (the LLM quota is spent) — quietly and without a stack trace, never retried.
                 if (code == Status.Code.ABORTED || code == Status.Code.RESOURCE_EXHAUSTED) {
                     log.debug("control-api RPC {}: {}", rpc, e.getMessage());
                     throw new ControlApiCallException(rpc, e.getStatus());
@@ -135,7 +135,7 @@ public class AgentWorkerClient {
 
     // ---- AgentContext ----------------------------------------------------------------
 
-    /** Весь контекст рана одним вызовом: упорядоченные блоки промпта + отскоупленные тулы. */
+    /** The whole run context in one call: ordered prompt blocks plus scoped tools. */
     public RunContext getRunContext(String agentId, String runId) {
         return call("GetRunContext", () -> ctx().getRunContext(GetRunContextRequest.newBuilder()
                 .setAgentId(agentId).setRunId(runId).build()));
@@ -146,15 +146,15 @@ public class AgentWorkerClient {
                 .setWorkflowId(workflowId()).setAgentId(agentId).build()));
     }
 
-    /** Дедлайн стрима содержимого файла — больше unary-таймаута: файл может быть крупным. */
+    /** Deadline for the file content stream — longer than the unary timeout: a file can be large. */
     private static final long FILE_STREAM_DEADLINE_MS = 60_000;
-    /** Потолок собираемого в память файла — защита от бесконечного/раздутого стрима. */
+    /** Ceiling on a file assembled in memory — protection against an endless or inflated stream. */
     private static final int FILE_MAX_BYTES = 32 * 1024 * 1024;
 
     /**
-     * Содержимое inbound-вложения (server-streaming чанки) в {@code byte[]}. Тянется inline при
-     * LLM-вызове — как {@link #getLlmCredentials}, вне DBOS-чекпоинта. Слишком большой стрим
-     * обрывается {@code OUT_OF_RANGE}.
+     * Contents of an inbound attachment (server-streaming chunks) as a {@code byte[]}. Pulled inline
+     * during the LLM call — like {@link #getLlmCredentials}, outside any DBOS checkpoint. An
+     * oversized stream is aborted with {@code OUT_OF_RANGE}.
      */
     public byte[] getFile(String fileId, String agentId) {
         return call("GetFile", () -> {
@@ -175,7 +175,7 @@ public class AgentWorkerClient {
         });
     }
 
-    /** Учёт расхода токенов; идемпотентен по callId (бэк дедуплицирует повторы/реплеи). */
+    /** Token accounting; idempotent by callId (the backend deduplicates retries and replays). */
     public ReportLlmUsageResponse reportLlmUsage(String callId, String agentId, String runId,
                                                  String providerId, String model,
                                                  int inputTokens, int outputTokens,
@@ -196,8 +196,9 @@ public class AgentWorkerClient {
     // ---- MessageLog --------------------------------------------------------------
 
     /**
-     * Запись события диалога; идемпотентна по (run_id, seq) — персист и доставка на бэке.
-     * {@code toolTurn} (nullable) — структурная запись tool-хода при PROGRESS/TOOL_CALL (v2.1).
+     * Records a dialogue event; idempotent by (run_id, seq) — persistence and delivery happen on the
+     * backend. {@code toolTurn} (nullable) is the structural record of a tool turn under
+     * PROGRESS/TOOL_CALL (v2.1).
      */
     public SaveMessageResponse saveMessage(String agentId, String runId, int seq,
                                            MessageKind kind, ProgressType progressType, String text,
@@ -219,9 +220,10 @@ public class AgentWorkerClient {
     }
 
     /**
-     * Канонический ход рана ({@code agent_run_turns}); идемпотентна по (run_id, turn_index).
-     * Не durable-шаг у вызывающего — ход это проекция уже-durable данных, реплей дедуплицируется
-     * бэком. {@code finishReason}/{@code model}/{@code callId} nullable (этап 1b).
+     * The canonical turn of a run ({@code agent_run_turns}); idempotent by (run_id, turn_index). Not
+     * a durable step at the caller — a turn is a projection of already-durable data, and a replay is
+     * deduplicated by the backend. {@code finishReason}/{@code model}/{@code callId} are nullable
+     * (stage 1b).
      */
     public SaveTurnResponse saveTurn(String agentId, String runId, int turnIndex, TurnRole role,
                                      String text, boolean thinking, List<ToolCallRec> toolCalls,
@@ -246,8 +248,9 @@ public class AgentWorkerClient {
     }
 
     /**
-     * Снимок стартового промпта рана ({@code agent_runs.prompt}): {@code promptJson} — JSON-массив
-     * сообщений как он ушёл в первый LLM-вызов. Один раз перед циклом, first-write-wins на бэке.
+     * Snapshot of the run's starting prompt ({@code agent_runs.prompt}): {@code promptJson} is the
+     * JSON array of messages as it went into the first LLM call. Sent once before the loop,
+     * first-write-wins on the backend.
      */
     public SavePromptResponse savePrompt(String agentId, String runId, String promptJson) {
         return call("SavePrompt", () -> messageLog.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
@@ -278,7 +281,7 @@ public class AgentWorkerClient {
 
     /**
      * Single poll of the tool result; deadline applied so a hung backend does not block forever.
-     * {@code runId} — признак жизни рана для бэка (продлевает {@code last_activity_at}).
+     * {@code runId} is the run's sign of life for the backend (it extends {@code last_activity_at}).
      */
     public GetToolResultResponse getToolResult(String agentId, String toolCallId, String runId) {
         return call("GetToolResult", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)

@@ -11,14 +11,14 @@ import java.util.UUID;
 
 public interface StoredFileRepository extends JpaRepository<StoredFile, UUID> {
 
-    /** Сумма байтов, загруженных пользователем с {@code since} (окно суточной квоты). */
+    /** Sum of bytes uploaded by a user since {@code since} (the daily quota window). */
     @Query("select coalesce(sum(f.sizeBytes), 0) from StoredFile f where f.userId = :userId and f.createdAt >= :since")
     long sumBytesSince(@Param("userId") UUID userId, @Param("since") LocalDateTime since);
 
     /**
-     * Батч на удаление под блокировкой: просроченные READY + брошенные UPLOADING (старше часа).
-     * {@code FOR UPDATE SKIP LOCKED} — несколько инстансов чистки не дерутся за одни строки;
-     * вызывать только внутри транзакции.
+     * A batch to delete, under a lock: expired READY plus abandoned UPLOADING (older than an hour).
+     * {@code FOR UPDATE SKIP LOCKED} keeps several cleanup instances from fighting over the same
+     * rows; call it inside a transaction only.
      */
     @Query(value = """
             SELECT * FROM files

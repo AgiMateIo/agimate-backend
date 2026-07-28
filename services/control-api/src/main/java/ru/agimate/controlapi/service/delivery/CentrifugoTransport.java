@@ -41,7 +41,9 @@ public class CentrifugoTransport implements AgentTransport {
     @Override
     public void deliverToolResult(Agent agent, IToolResult toolResult) {
         String agentId = agent.getId().toString();
-        // todo: для доставки ответов тулов желательно использовать дургой канал агента. Другими словами, у агента два канала: 1 для получения заланий для агента, 2 для получения результатов вызова тулов (тут оборачивание в AgentMessage уже не требуется)
+        // todo: tool results would be better delivered over a separate agent channel. In other words the agent
+        // would have two channels: one for receiving its own tasks, another for receiving tool call results (there
+        // the AgentMessage wrapper is no longer needed)
         AgentMessage<IToolResult> message = new AgentMessage<>(agentId, null, "toolResult", null, null, null, toolResult);
         centrifugoService.publish(agentChannel(agent), message);
         log.debug("Tool result '{}' sent to agent '{}' via centrifugo", toolResult.getId(), agent.getId());

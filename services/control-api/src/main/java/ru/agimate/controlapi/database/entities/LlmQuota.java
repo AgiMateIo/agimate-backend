@@ -21,10 +21,9 @@ import ru.agimate.controlapi.database.enums.UsageWindow;
 import java.util.UUID;
 
 /**
- * Квота расхода LLM-токенов на провайдере: платформенном (free-tier, USER — «каждому
- * пользователю N за окно») или BYOK (TOTAL — потолок кошелька, AGENT — лимит каждому агенту).
- * Метрика согласована со счётчиками: input + output + cache_write.
- * Одна активная квота на (провайдер, субъект, окно) — UNIQUE.
+ * Quota on LLM token usage at a provider: either the platform one (free tier, USER — «N per user per
+ * window») or BYOK (TOTAL — the wallet's ceiling, AGENT — a limit per agent). The metric matches the
+ * counters: input + output + cache_write. One active quota per (provider, subject, window) — UNIQUE.
  */
 @Entity
 @Table(name = "llm_quotas", uniqueConstraints = {

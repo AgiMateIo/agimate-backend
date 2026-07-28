@@ -3,16 +3,16 @@ package ru.agimate.controlapi.service.runcontext;
 import java.util.Map;
 
 /**
- * Блок промпта в составе контекста рана — wire-форма для {@code GetRunContext}.
- * Контент без тегов/обёртки: XML-тег {@code name}+{@code attrs} ставит рендерер воркера
- * (пустой {@code name} — сырой текст без тега).
+ * A prompt block within a run's context — the wire form for {@code GetRunContext}. Content with no
+ * tags or wrapper: the XML tag {@code name}+{@code attrs} is applied by the worker's renderer (an
+ * empty {@code name} means raw text with no tag).
  *
- * @param name      имя тега (snake_case) или пустая строка
- * @param source    происхождение: agent | team | skill | guidance | user | connector:&lt;code&gt;
- * @param content   содержимое
- * @param attrs     атрибуты тега
- * @param trusted   false (только user-блоки) → рендерер оборачивает как untrusted data
- * @param ephemeral true → воркер не персистит блок в историю сессии (например memory notes)
+ * @param name      tag name (snake_case) or an empty string
+ * @param source    origin: agent | team | skill | guidance | user | connector:&lt;code&gt;
+ * @param content   the content
+ * @param attrs     tag attributes
+ * @param trusted   false (user blocks only) → the renderer wraps it as untrusted data
+ * @param ephemeral true → the worker does not persist the block into session history (e.g. memory notes)
  */
 public record RunBlock(
         String name,

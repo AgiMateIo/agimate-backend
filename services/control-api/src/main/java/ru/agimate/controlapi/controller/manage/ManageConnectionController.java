@@ -176,8 +176,8 @@ public class ManageConnectionController {
         Connection connection = connectionService.getOwnedConnection(connectionId, userId);
         IntegrationValidationResult validation = connectionService.validate(connectionId, userId);
 
-        // Для динамических коннекторов (MCP) при валидных credentials пересобираем кэш тулов
-        // синхронно — ошибку tools/list возвращаем отдельным полем, не роняя сам тест.
+        // For dynamic connectors (MCP) with valid credentials we rebuild the tool cache synchronously — a
+        // tools/list error is returned as a separate field rather than failing the test itself.
         Integer toolsDiscovered = null;
         String toolsError = null;
         if (validation.valid() && McpConnectorService.CONNECTOR_CODE.equals(connection.getConnectorCode())) {

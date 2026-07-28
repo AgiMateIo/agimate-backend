@@ -8,7 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-/** Колода Райдера–Уэйта из classpath-датасета: 78 карт, id 0..77. */
+/** The Rider–Waite deck from a classpath dataset: 78 cards, ids 0..77. */
 @UtilityClass
 public class TarotDeck {
 
@@ -17,10 +17,10 @@ public class TarotDeck {
     private static final String DATASET = "datasets/tarot/rider_waite.json";
 
     /**
-     * Карта колоды.
+     * A card of the deck.
      *
-     * @param number для старших арканов 0..21; для младших 1..14 (11 Паж, 12 Рыцарь, 13 Королева, 14 Король)
-     * @param suit   wands|cups|swords|pentacles, у старших арканов null
+     * @param number for the major arcana 0..21; for the minor 1..14 (11 Page, 12 Knight, 13 Queen, 14 King)
+     * @param suit   wands|cups|swords|pentacles, null for the major arcana
      */
     public record TarotCard(int id, String nameEn, String nameRu, String arcana, int number, String suit,
                             List<String> keywordsUpright, List<String> keywordsReversed) {}

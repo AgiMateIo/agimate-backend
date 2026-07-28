@@ -22,10 +22,10 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * HTTP-транспорт медиа-инференса: {@code POST /chat/completions} OpenAI-совместимого провайдера
- * (единственный путь фазы 1 — см. docs/connectors/media.md) + парсинг мультимодального ответа
- * (картинки в {@code message.images[]} как data-URI, OpenRouter-конвенция). По образцу
- * {@link LlmDiscoveryHttp}, но с длинным read-таймаутом: генерация может идти минуты.
+ * The HTTP transport of media inference: {@code POST /chat/completions} of an OpenAI-compatible
+ * provider (the only path in phase 1 — see docs/connectors/media.md) plus parsing of the multimodal
+ * response (images in {@code message.images[]} as data URIs, the OpenRouter convention). Modelled on
+ * {@link LlmDiscoveryHttp}, but with a long read timeout: generation can take minutes.
  */
 @Component
 @Slf4j
@@ -33,8 +33,8 @@ import java.util.Optional;
 public class MediaInferenceHttp {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
-    // Ниже воркерного бюджета generation-тулов (30 мин): провайдерное зависание превращается
-    // в чистую ошибку control-api до того, как воркер бросит ждать.
+    // Below the worker's budget for generation tools (30 min): a provider hang turns into a clean control-api
+    // error before the worker gives up waiting.
     private static final Duration READ_TIMEOUT = Duration.ofMinutes(25);
     private static final String OPENAI_BASE_URL = "https://api.openai.com/v1";
     private static final int ERROR_BODY_PREVIEW = 300;
@@ -42,11 +42,11 @@ public class MediaInferenceHttp {
     private final AttributionHeaders attribution;
 
     /**
-     * Один chat/completions-вызов; тело уже собрано вызывающим (model/messages/extra_body).
-     * Ключ — только в заголовке, в логи и исключения не попадает.
+     * One chat/completions call; the body is already assembled by the caller (model/messages/extra_body).
+     * The key travels in the header alone and never reaches the logs or exceptions.
      *
-     * @return распарсенный JSON-ответ провайдера
-     * @throws MediaInferenceException не-2xx, сетевой сбой/таймаут или неразбираемый ответ
+     * @return the parsed JSON response from the provider
+     * @throws MediaInferenceException a non-2xx, a network failure or timeout, or an unparseable response
      */
     public Map<String, Object> chatCompletions(LlmProvider provider, String apiKey, Map<String, Object> body) {
         String baseUrl = resolveBaseUrl(provider);
@@ -112,19 +112,19 @@ public class MediaInferenceHttp {
         return body.length() <= ERROR_BODY_PREVIEW ? body : body.substring(0, ERROR_BODY_PREVIEW) + "…";
     }
 
-    // ---- парсинг ответа (статически, тестируется без HTTP) ---------------------------------
+    // ---- response parsing (static, testable without HTTP) ----------------------------------
 
-    /** Содержимое data-URI: {@code data:<mime>;base64,<payload>}. */
+    /** Contents of a data URI: {@code data:<mime>;base64,<payload>}. */
     public record DataUri(String mime, byte[] bytes) {
     }
 
-    /** Токены из {@code usage} ответа; {@code cacheReadTokens} — null, если нет/ноль. */
+    /** Tokens from the response's {@code usage}; {@code cacheReadTokens} is null when absent or zero. */
     public record Usage(int inputTokens, int outputTokens, Integer cacheReadTokens) {
     }
 
     /**
-     * Первая сгенерированная картинка: {@code choices[0].message.images[*].image_url.url} с
-     * data-URI (OpenRouter-формат). Ответ без картинки (текстовый отказ модели) → empty.
+     * The first generated image: {@code choices[0].message.images[*].image_url.url} carrying a data URI
+     * (the OpenRouter format). A response with no image (a textual refusal by the model) → empty.
      */
     public static Optional<DataUri> firstImage(Map<String, Object> response) {
         if (!(message(response).get("images") instanceof List<?> images)) {
@@ -142,8 +142,8 @@ public class MediaInferenceHttp {
     }
 
     /**
-     * Текст ответа: {@code choices[0].message.content} — строка либо массив частей
-     * (конкатенация {@code type=text}). Нет текста → пустая строка.
+     * The answer's text: {@code choices[0].message.content} — either a string or an array of parts
+     * (concatenating those with {@code type=text}). No text → an empty string.
      */
     public static String messageText(Map<String, Object> response) {
         Object content = message(response).get("content");
@@ -163,7 +163,7 @@ public class MediaInferenceHttp {
         return "";
     }
 
-    /** {@code usage} ответа; отсутствует → null (вызывающий пишет нули с warn'ом). */
+    /** The response's {@code usage}; absent → null (the caller writes zeroes with a warning). */
     public static Usage usage(Map<String, Object> response) {
         if (!(response.get("usage") instanceof Map<?, ?> usage)) {
             return null;

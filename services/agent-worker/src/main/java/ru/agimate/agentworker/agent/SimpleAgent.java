@@ -25,25 +25,26 @@ import java.util.regex.Pattern;
  * turn (calls before dispatch, results after) are what let the backend record and deliver the tool
  * call the moment it is made, ahead of the — possibly slow — execution.
  *
- * <p>Guard: слабые модели (DeepSeek и др.) иногда пишут вызов тула текстом («🔧 name») вместо
- * структурного tool call — без guard'а такой «финальный ответ» тихо завершает ран, а тул не
- * исполняется. Ответ без tool calls, но с паттерном имитации не принимается: в диалог
- * добавляется корректирующий user-ход (до {@value #MAX_IMITATION_CORRECTIONS} раз за ран),
- * и цикл продолжается. Если после исчерпания коррекций модель всё ещё имитирует вызов —
- * ран прерывается {@link ru.agimate.agentworker.agent.error.ImitationLoopExhausted}, чтобы сырая
- * «🔧 …»-строка не ушла юзеру как финальный ответ (корректирующие ходы эфемерны и не проецируются).
+ * <p>Guard: weak models (DeepSeek and others) sometimes write a tool call out as text («🔧 name»)
+ * instead of making a structural one — without the guard such a «final answer» quietly ends the run
+ * while the tool never executes. A reply with no tool calls but matching the imitation pattern is
+ * not accepted: a corrective user turn is appended to the conversation (up to
+ * {@value #MAX_IMITATION_CORRECTIONS} times per run) and the loop continues. If the model still
+ * imitates a call once the corrections are exhausted, the run aborts with
+ * {@link ru.agimate.agentworker.agent.error.ImitationLoopExhausted}, so a raw «🔧 …» line never
+ * reaches the user as a final answer (corrective turns are ephemeral and are not projected).
  *
- * <p>Мягкая посадка у лимита: за {@value #WRAP_UP_TURNS} хода до капа в диалог инжектится
- * эфемерный wrap-up-нотис («заверши с тем, что есть»), а последний ход выполняется <b>без тулов</b> —
- * модель вынуждена дать финальный текст. Итеративный перфекционизм (генерация → проверка → «не то» →
- * снова) заканчивается деградированным, но полезным ответом с готовыми артефактами, а не
- * {@link MaxTurnsExceeded} с потерей всей работы. {@code MaxTurnsExceeded} остаётся возможным,
- * только если модель и на безтуловом ходе не отвечает.
+ * <p>Soft landing at the cap: {@value #WRAP_UP_TURNS} turns before the limit an ephemeral wrap-up
+ * notice is injected («finish with what you have»), and the last turn runs <b>without tools</b> —
+ * forcing the model to produce final text. Iterative perfectionism (generate → check → «not quite»
+ * → again) then ends in a degraded but useful answer with the artefacts already produced, rather
+ * than in {@link MaxTurnsExceeded} with all the work lost. {@code MaxTurnsExceeded} remains
+ * possible only if the model fails to answer even on the tool-less turn.
  */
 @Slf4j
 public class SimpleAgent {
 
-    /** Имитация вызова текстом: строка «🔧 …» (канальная проекция) или «[вызван инструмент …]» (история). */
+    /** Imitating a call as text: a «🔧 …» line (the channel projection) or «[вызван инструмент …]» (history). */
     private static final Pattern TOOL_TEXT_IMITATION =
             Pattern.compile("(?m)^\\s*(🔧|\\[вызван инструмент)");
 
@@ -54,7 +55,7 @@ public class SimpleAgent {
             + "сделай настоящий структурный tool call через API. Если вызов не нужен — ответь без "
             + "строк вида «🔧 …».";
 
-    /** За столько ходов до капа инжектится wrap-up-нотис; последний ход идёт без тулов. */
+    /** How many turns before the cap the wrap-up notice is injected; the last turn runs without tools. */
     static final int WRAP_UP_TURNS = 2;
 
     static final String WRAP_UP_NOTICE =
@@ -141,19 +142,20 @@ public class SimpleAgent {
     public String run(List<AgentChatMessage> messages) {
         notifyStart(messages);
         int corrections = 0;
-        // Мягкая посадка только при осмысленном капе — крошечные maxTurns (тесты/дебаг) не трогаем.
+        // Soft landing only for a meaningful cap — a tiny maxTurns (tests, debugging) is left alone.
         boolean softLanding = maxTurns > WRAP_UP_TURNS;
         for (int turn = 1; turn <= maxTurns; turn++) {
             if (softLanding && turn == maxTurns - WRAP_UP_TURNS + 1) {
-                // Эфемерный ход (без notify): в историю/канал не проецируется, как и имитационная коррекция.
+                // An ephemeral turn (no notify): it is projected neither into history nor into the channel, like an imitation correction.
                 log.info("turn {}/{}: injecting wrap-up notice", turn, maxTurns);
                 messages.add(AgentChatMessage.user(WRAP_UP_NOTICE));
             }
             boolean toolless = softLanding && turn == maxTurns;
             log.info("turn {}/{}: requesting LLM{}", turn, maxTurns, toolless ? " (tool-less final)" : "");
             LlmReply reply = llmCaller.call(messages, toolless ? List.of() : toolDefs);
-            // Учёт расхода — до любых решений: у truncation-вызова токены потрачены, а сам ход
-            // сейчас прервётся. Сурфейсим в sink, репортит ран-обвязка (single-writer side-записей).
+            // Usage accounting comes before any decision: a truncated call has already spent its tokens
+            // while the turn itself is about to break off. We surface it into the sink, and the run wiring
+            // reports it (the single writer of side records).
             notifyUsage(reply.usage());
             if (reply.incompleteReason() != null) {
                 throw new LlmResponseIncomplete(reply.incompleteReason());
@@ -171,8 +173,8 @@ public class SimpleAgent {
                         messages.add(AgentChatMessage.user(IMITATION_CORRECTION));
                         continue;
                     }
-                    // Коррекции исчерпаны, модель всё ещё имитирует вызов текстом — это не финал.
-                    // Не отдаём сырую «🔧 …»-строку юзеру: soft-abort с вежливым нотисом.
+                    // The corrections are exhausted and the model still imitates a call as text — this is no final answer.
+                    // We do not hand the raw «🔧 …» line to the user: a soft abort with a polite notice.
                     log.warn("turn {}: still imitating tool call after {} corrections, aborting",
                             turn, MAX_IMITATION_CORRECTIONS);
                     throw new ImitationLoopExhausted("agent kept imitating tool calls as text after "
@@ -183,8 +185,8 @@ public class SimpleAgent {
                 return text;
             }
 
-            // Два хода-события: сначала вызовы (доставляются в канал до исполнения), затем — после
-            // dispatch — результаты. Их фиксация раздельными записями и есть цель v2.1a.
+            // Two turn events: first the calls (delivered into the channel before execution), then — after
+            // the dispatch — the results. Recording them as separate entries is precisely the point of v2.1a.
             notify(List.of(assistant), reply.meta());
             log.info("turn {}: dispatching {} tool call(s): {}", turn, assistant.toolCalls().size(),
                     assistant.toolCalls().stream().map(AgentChatMessage.ToolCall::name).toList());

@@ -1,17 +1,17 @@
 package ru.agimate.controlapi.database.enums;
 
 /**
- * Кто создал строку {@code connector_jobs} и как она управляется.
+ * Who created a {@code connector_jobs} row and how it is managed.
  * <ul>
- *   <li>{@link #SYSTEM} — декларативная задача коннектора ({@code getJobs()}): строкой владеет
- *       reconcile-синк (upsert/удаление по бизнес-ключу {@code (connector_code, connectionId,
- *       name)}); уникальность бизнес-ключа в БД действует только на эти строки.
+ *   <li>{@link #SYSTEM} — a declarative connector job ({@code getJobs()}): the row is owned by the
+ *       reconcile sync (upsert/delete by the business key {@code (connector_code, connectionId,
+ *       name)}); the business key's uniqueness in the database applies to these rows only.
  *       {@code agent_id IS NULL}.</li>
- *   <li>{@link #AGENT} — запланирована агентом в рантайме (например {@code time.schedule});
- *       идентифицируется собственным {@code id}, на агента таких строк может быть много.
- *       {@code agent_id} — инициатор (и адресат доставки для {@code time.fire}).</li>
- *   <li>{@link #USER} — создана пользователем через manage-API (создание пока не реализовано,
- *       значение зарезервировано); {@code agent_id} — целевой агент, если задача адресная.</li>
+ *   <li>{@link #AGENT} — scheduled by an agent at runtime (e.g. {@code time.schedule}); identified
+ *       by its own {@code id}, and one agent may own many such rows. {@code agent_id} is the
+ *       initiator (and the delivery target for {@code time.fire}).</li>
+ *   <li>{@link #USER} — created by a user through the manage API (creation is not implemented yet,
+ *       the value is reserved); {@code agent_id} is the target agent when the job is addressed.</li>
  * </ul>
  */
 public enum ConnectorJobKind {

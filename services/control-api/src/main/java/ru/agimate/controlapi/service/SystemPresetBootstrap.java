@@ -19,20 +19,20 @@ import java.util.Map;
 import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
 
 /**
- * Сидинг системных пресетов ролей агента при старте приложения — по образцу
+ * Seeding of the system agent role presets at application start — modelled on
  * {@link SystemSkillBootstrap}.
  *
- * <p>Пресет лежит как classpath-ресурс ({@code resources/seed/<lang>/presets/<code>/PRESET.md}) —
- * язык подставляет {@link SeedContentLocator}. Frontmatter — {@code name}/{@code title}/
- * {@code description}/{@code skills} (имена системных скилов), тело — заготовка инструкций агента.
- * Seed-only-if-missing (см. {@link SystemSkillBootstrap}): строка ищется по {@code name} и
- * создаётся, только если её ещё нет — правки через будущий admin UI не затираются следующим
- * деплоем. Запускается после сидинга скилов (см. {@code @Order}), чтобы ссылки {@code skills}
- * проверялись против уже засеянных системных скилов; неизвестное имя — warning, не отказ (резолв
- * всё равно происходит при листинге).
+ * <p>A preset lives as a classpath resource ({@code resources/seed/<lang>/presets/<code>/PRESET.md}) —
+ * the language is substituted by {@link SeedContentLocator}. The frontmatter carries
+ * {@code name}/{@code title}/{@code description}/{@code skills} (names of system skills), and the body
+ * is the blank for the agent's instructions. Seed-only-if-missing (see {@link SystemSkillBootstrap}):
+ * the row is looked up by {@code name} and created only when it does not exist yet — so edits through a
+ * future admin UI are not wiped by the next deploy. It runs after the skills are seeded (see
+ * {@code @Order}) so the {@code skills} references are checked against already-seeded system skills; an
+ * unknown name is a warning, not a refusal (resolution happens at listing time anyway).
  *
- * <p>Язык, как и у скилов, фиксируется первым сидингом: {@code instructions} копируются в агента
- * при создании, поэтому существующие агенты за сменой {@code app.content.language} не идут.
+ * <p>As with skills, the language is fixed by the first seeding: {@code instructions} are copied into
+ * the agent at creation, so existing agents do not follow a change of {@code app.content.language}.
  */
 @Slf4j
 @Component
@@ -41,7 +41,7 @@ public class SystemPresetBootstrap {
 
     static final int BOOTSTRAP_ORDER = SystemSkillBootstrap.BOOTSTRAP_ORDER + 1;
 
-    /** Коды системных пресетов — папки в {@code seed/<lang>/presets/}. */
+    /** Codes of the system presets — the folders in {@code seed/<lang>/presets/}. */
     static final List<String> SYSTEM_PRESET_CODES = List.of(
             "personal-assistant",
             "visual",
@@ -60,8 +60,8 @@ public class SystemPresetBootstrap {
     @Order(BOOTSTRAP_ORDER)
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
-        // Без объемлющей транзакции — как в SystemSkillBootstrap: конфликт уникального индекса
-        // на одном пресете (гонка нод на холодном старте) не отравляет остальные.
+        // No enclosing transaction — as in SystemSkillBootstrap: a unique-index conflict on one preset (a race
+        // between nodes on a cold start) does not poison the rest.
         for (String code : SYSTEM_PRESET_CODES) {
             try {
                 seedPreset(code);
@@ -91,7 +91,7 @@ public class SystemPresetBootstrap {
             log.info("Seeded system preset '{}' id={} skills={}", preset.getName(), preset.getId(),
                     parsed.skillNames());
         } catch (DataIntegrityViolationException e) {
-            // Параллельная нода успела вставить тот же name на холодном старте — уже засеяно.
+            // A concurrent node inserted the same name on a cold start — it is seeded already.
             log.debug("System preset '{}' already seeded by a concurrent node", parsed.name());
         }
     }
@@ -104,7 +104,7 @@ public class SystemPresetBootstrap {
         }
     }
 
-    /** Разобранный PRESET.md: frontmatter-поля и тело-инструкции. */
+    /** A parsed PRESET.md: the frontmatter fields and the instruction body. */
     record ParsedPreset(String name, String title, String description, List<String> skillNames,
                         Integer sortOrder, String instructions) {}
 

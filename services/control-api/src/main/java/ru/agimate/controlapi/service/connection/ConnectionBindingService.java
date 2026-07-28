@@ -30,21 +30,22 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Управление доступностью коннекторов агентам ({@code agent_connections}).
+ * Management of which connectors are available to which agents ({@code agent_connections}).
  *
- * <p>Внутренние коннекторы (board/memory/time/media/webchat/acp): connection — строка-режим,
- * <b>одна на пользователя</b> ({@link #ensureModeConnection}, find-or-create по
- * {@code (connector_code, user_id)}). Владельца данных код коннектора резолвит в момент вызова из
- * {@code ConnectorEnv} (правило — знание коннектора, см. docs/connectors/architecture.md). Доступ агентам
- * выдаёт скилл-синк ({@code AgentSkillPolicyService}) или канальные сервисы (webchat/acp) через
- * {@link #bindInternal}; ручное управление привязками внутренних коннекторов через manage-API
- * запрещено.
+ * <p>Internal connectors (board/memory/time/media/webchat/acp): a connection is a mode row, <b>one per
+ * user</b> ({@link #ensureModeConnection}, find-or-create by {@code (connector_code, user_id)}). The
+ * data's owner is resolved by the connector's code at call time from {@code ConnectorEnv} (the rule is
+ * the connector's knowledge, see docs/architecture/connectors.md). Access is granted to agents by the
+ * skill sync ({@code AgentSkillPolicyService}) or by the channel services (webchat/acp) through
+ * {@link #bindInternal}; managing internal connectors' bindings by hand through the manage API is
+ * forbidden.
  *
- * <p>Внешние коннекторы (telegram/mcp/app): connection = конкретный экземпляр с кредами, привязка —
- * только к существующему id ({@link #ensureBindingToExisting}).
+ * <p>External connectors (telegram/mcp/app): a connection is a concrete instance with credentials, and
+ * binding is only ever to an existing id ({@link #ensureBindingToExisting}).
  *
- * <p>При первой материализации строки-режима издаёт {@link ConnectorCreatedEvent} (регистрация
- * декларативных {@code @Job}); строка живёт дальше независимо от привязок — collapse нет.
+ * <p>On the first materialisation of a mode row it emits a {@link ConnectorCreatedEvent} (registering
+ * the declarative {@code @Job}s); the row then lives on independently of the bindings — there is no
+ * collapse.
  */
 @Slf4j
 @Service
@@ -61,14 +62,14 @@ public class ConnectionBindingService {
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorTexts connectorTexts;
 
-    /** Открыть агенту внутренний коннектор: строка-режим пользователя + {@code agent_connection}. */
+    /** Open an internal connector to an agent: the user's mode row plus an {@code agent_connection}. */
     @Transactional
     public AgentConnection bindInternal(UUID userId, UUID agentId, String connectorCode) {
         Connection connection = ensureModeConnection(userId, connectorCode);
         return ensureBinding(agentId, connection.getId());
     }
 
-    /** Строка-режим внутреннего коннектора (одна на пользователя): find-or-create. */
+    /** The mode row of an internal connector (one per user): find-or-create. */
     @Transactional
     public Connection ensureModeConnection(UUID userId, String connectorCode) {
         ConnectorHandler handler = requireInternalHandler(connectorCode);
@@ -88,10 +89,10 @@ public class ConnectionBindingService {
     }
 
     /**
-     * Материализация строки-режима. Гонку параллельного создания решает БД
-     * ({@code INSERT … ON CONFLICT DO NOTHING} по {@code uq_connections_full_code_user}):
-     * проигравший дождётся коммита победителя и перечитает его строку — без исключений и
-     * без отравления текущей транзакции.
+     * Materialisation of a mode row. A race between concurrent creations is settled by the database
+     * ({@code INSERT … ON CONFLICT DO NOTHING} on {@code uq_connections_full_code_user}): the loser
+     * waits for the winner's commit and re-reads its row — with no exception and without poisoning the
+     * current transaction.
      */
     private Connection createModeConnection(UUID userId, ConnectorHandler handler) {
         String connectorCode = handler.connectorCode();
@@ -100,7 +101,7 @@ public class ConnectionBindingService {
                 id, connectorCode, connectorCode + "_" + userId, userId,
                 connectorTexts.name(connectorCode, handler.connectorName()));
         if (inserted > 0) {
-            // Событие только от фактического создателя строки (регистрация джоб — AFTER_COMMIT).
+            // The event comes only from whoever actually created the row (job registration is AFTER_COMMIT).
             eventPublisher.publishEvent(new ConnectorCreatedEvent(connectorCode, id.toString(), userId));
             log.info("Materialized {} mode connection {} for user {}", connectorCode, id, userId);
         }
@@ -110,10 +111,10 @@ public class ConnectionBindingService {
                         "Mode connection missing right after materialization: " + connectorCode));
     }
 
-    /** Binding вместе с его connection — для manage-API (список/ответ на привязку). */
+    /** A binding together with its connection — for the manage API (the list and the binding response). */
     public record AgentConnectionView(AgentConnection binding, Connection connection) {}
 
-    /** Активные привязки агента с их connection (для manage-листинга). */
+    /** An agent's active bindings with their connections (for the manage listing). */
     public List<AgentConnectionView> listForAgent(UUID userId, UUID agentId) {
         requireOwnedAgent(userId, agentId);
         List<AgentConnection> bindings = agentConnectionRepository.findActiveByAgentId(agentId);
@@ -131,13 +132,14 @@ public class ConnectionBindingService {
         return views;
     }
 
-    /** Binding вместе с его агентом — обратный листинг «кто использует экземпляр». */
+    /** A binding together with its agent — the reverse listing «who uses this instance». */
     public record ConnectionAgentView(AgentConnection binding, Agent agent) {}
 
     /**
-     * Активные привязки connection с их агентами. Отключённые агенты остаются в выдаче: это
-     * инвентарь использования экземпляра (кого затронет удаление/смена кредов), а не список
-     * получателей триггера — там свой фильтр {@code AgentRepository.findBoundToConnection}.
+     * Active bindings of a connection with their agents. Disabled agents stay in the output: this is an
+     * inventory of the instance's use (who a deletion or a credentials change will affect), not a list
+     * of trigger recipients — that has its own filter,
+     * {@code AgentRepository.findBoundToConnection}.
      */
     public List<ConnectionAgentView> listForConnection(UUID userId, UUID connectionId) {
         connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
@@ -149,7 +151,7 @@ public class ConnectionBindingService {
                         .collect(Collectors.toMap(Agent::getId, a -> a));
         List<ConnectionAgentView> views = new ArrayList<>();
         for (AgentConnection b : bindings) {
-            // Агента могли удалить мягко (@SQLRestriction его уже не отдаёт), binding при этом жив.
+            // The agent may have been soft-deleted (@SQLRestriction no longer returns it) while the binding lives on.
             Agent agent = byId.get(b.getAgentId());
             if (agent != null) {
                 views.add(new ConnectionAgentView(b, agent));
@@ -158,7 +160,7 @@ public class ConnectionBindingService {
         return views;
     }
 
-    /** Привязать внешний экземпляр и вернуть view (binding + connection) — для ответа manage-API. */
+    /** Bind an external instance and return the view (binding + connection) — for the manage API's response. */
     @Transactional
     public AgentConnectionView bindAndView(UUID userId, UUID agentId, UUID connectionId) {
         requireOwnedAgent(userId, agentId);
@@ -176,8 +178,8 @@ public class ConnectionBindingService {
     }
 
     /**
-     * Привязать агента к уже существующему экземпляру (по его id). Для случаев, где connection
-     * уже выбрана (канал на конкретный telegram/mcp/app).
+     * Bind an agent to an already existing instance (by its id). For cases where the connection is
+     * already chosen (a channel onto a particular telegram/mcp/app).
      */
     @Transactional
     public AgentConnection ensureBindingToExisting(UUID userId, UUID agentId, UUID connectionId) {
@@ -187,8 +189,9 @@ public class ConnectionBindingService {
     }
 
     /**
-     * Отвязать внешний экземпляр от агента. Привязки внутренних коннекторов управляются
-     * скилл-синком/каналами — ручная отвязка запрещена (иначе следующий синк её воскресит).
+     * Unbind an external instance from an agent. Internal connectors' bindings are managed by the skill
+     * sync and the channels — unbinding them by hand is forbidden (the next sync would resurrect it
+     * anyway).
      */
     @Transactional
     public void unbind(UUID userId, UUID agentId, UUID connectionId) {
@@ -199,14 +202,14 @@ public class ConnectionBindingService {
         removeBinding(binding);
     }
 
-    /** Снять привязку + её политики + кэш решений. Общий низ для unbind и скилл-реконсиляции. */
+    /** Drop a binding plus its policies plus the decision cache. The shared bottom of unbind and skill reconciliation. */
     @Transactional
     public void removeBinding(AgentConnection binding) {
         LocalDateTime now = LocalDateTime.now();
         agentConnectionRepository.softDelete(binding.getId(), now);
-        // Снимаем правила этого binding'а — иначе при ре-привязке (новый binding id) они осиротеют.
+        // We drop this binding's rules — otherwise a rebind (with a new binding id) would orphan them.
         policyRepository.softDeleteByAgentConnectionId(binding.getId(), now);
-        // Сбрасываем кэш решений, чтобы отзыв применился сразу (а не через TTL).
+        // We reset the decision cache so the revocation applies at once (rather than after the TTL).
         invalidate(binding.getAgentId(), binding.getConnectionId());
     }
 
@@ -224,9 +227,10 @@ public class ConnectionBindingService {
     }
 
     /**
-     * Отвязать connection от всех агентов (например, при удалении App-экземпляра): soft-delete всех
-     * активных binding'ов + их политик + сброс кэша решений. Сам экземпляр connection не трогаем — его
-     * жизненным циклом управляет владелец (AppService удаляет connection отдельно).
+     * Unbind a connection from every agent (when an App instance is deleted, say): a soft delete of all
+     * active bindings plus their policies, and a reset of the decision cache. The connection instance
+     * itself is left alone — its lifecycle belongs to its owner (AppService deletes the connection
+     * separately).
      */
     @Transactional
     public void detachConnection(UUID connectionId) {
@@ -236,9 +240,10 @@ public class ConnectionBindingService {
     }
 
     /**
-     * Отвязать агента от всех экземпляров (удаление агента). Мимо {@link #unbind} намеренно: запрет на
-     * внутренние коннекторы — правило manage-API («руками не трогать, скилл-синк воскресит»), а не
-     * жизненного цикла, где снимается всё. Владелец проверяется вызывающим (агент уже загружен).
+     * Unbind an agent from every instance (deleting an agent). Deliberately bypassing {@link #unbind}:
+     * the ban on internal connectors is a rule of the manage API («do not touch by hand, the skill sync
+     * will resurrect it»), not of the lifecycle, where everything is removed. Ownership is checked by
+     * the caller (the agent is already loaded).
      */
     @Transactional
     public void detachAgent(UUID agentId) {
@@ -247,13 +252,13 @@ public class ConnectionBindingService {
         }
     }
 
-    /** Идемпотентно: гонку параллельной привязки решает БД (ON CONFLICT), затем перечитываем строку. */
+    /** Idempotent: a race between concurrent bindings is settled by the database (ON CONFLICT), then we re-read the row. */
     private AgentConnection ensureBinding(UUID agentId, UUID connectionId) {
         agentConnectionRepository.insertBindingIfAbsent(agentId, connectionId);
         AgentConnection binding = agentConnectionRepository.findActiveBinding(agentId, connectionId)
                 .orElseThrow(() -> new IllegalStateException(
                         "Binding missing right after insert: agent=" + agentId + ", connection=" + connectionId));
-        // Свежий binding мог иметь закэшированный deny — сбрасываем, чтобы доступ применился сразу.
+        // A fresh binding may have a cached deny — we reset it so access applies at once.
         invalidate(agentId, connectionId);
         return binding;
     }

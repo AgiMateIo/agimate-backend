@@ -17,10 +17,9 @@ import ru.agimate.common.persistence.BaseEntity;
 import java.util.UUID;
 
 /**
- * Журнал LLM-вызовов (per-call): источник правды учёта расхода, аудит и дебаг.
- * Идемпотентность репорта — UNIQUE {@code call_id} (DBOS workflow id LLM-вызова);
- * вставка идёт нативным {@code ON CONFLICT DO NOTHING}, счётчики инкрементируются
- * только для новой строки.
+ * Journal of LLM calls (per call): the source of truth for usage accounting, audit and debugging.
+ * Report idempotency is UNIQUE {@code call_id} (the LLM call's DBOS workflow id); the insert uses a
+ * native {@code ON CONFLICT DO NOTHING}, and the counters are incremented only for a new row.
  */
 @Entity
 @Table(name = "llm_usage_log", uniqueConstraints = {
@@ -42,7 +41,7 @@ public class LlmUsageLog extends BaseEntity {
     @Column(name = "call_id", nullable = false, columnDefinition = "TEXT")
     private String callId;
 
-    /** agent_runs.id (parent workflow LLM-вызова); null, если воркер его не знает. */
+    /** agent_runs.id (the LLM call's parent workflow); null when the worker does not know it. */
     @Column(name = "run_id")
     private UUID runId;
 

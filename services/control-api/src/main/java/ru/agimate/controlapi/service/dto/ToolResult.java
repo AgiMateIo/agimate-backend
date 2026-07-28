@@ -1,8 +1,8 @@
 package ru.agimate.controlapi.service.dto;
 
 /**
- * Сервисный результат tool-вызова — для внутренних производителей (исполнение коннекторов),
- * которым HTTP-DTO ({@code controller/**}) недоступны по направлению слоёв.
+ * The service-layer result of a tool call — for internal producers (executing connectors), which
+ * cannot reach the HTTP DTOs ({@code controller/**}) given the direction of the layers.
  */
 public record ToolResult(
         String id,

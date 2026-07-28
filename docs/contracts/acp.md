@@ -167,7 +167,7 @@ in-memory) — ран доработает, его ответ придёт ка�
 `{stopReason}` для того prompt-запроса Zed не получит; лечится cancel/новым сообщением.
 
 Roadmap-развитие (durable-доступ к MCP во всех каналах, эффекты политик `ASK`/`LLM_DECISION`,
-`channelOnly`-коннекторы) — см. `docs/connectors/architecture.md`.
+`channelOnly`-коннекторы) — см. `docs/architecture/connectors.md`.
 
 **Бюджеты** (под worker poll-timeout `agent.tool.poll-timeout`, дефолт 60s): fs — 25s, подтверждение —
 30s, `wait_for_exit` — 45s (по таймауту — `kill` + `release` + частичный вывод с `timedOut: true`).

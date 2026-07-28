@@ -81,7 +81,7 @@ public final class MessageCodec {
         return new ProgressLine(ProgressType.PROGRESS_TYPE_TOOL_RESULT, "", turn);
     }
 
-    /** Вызовы ассистента как proto-записи (общий конвертер для канальной проекции и журнала ходов). */
+    /** Assistant calls as proto records (shared converter for the channel projection and the turn journal). */
     public static List<ToolCallRec> toolCallRecs(List<AgentChatMessage.ToolCall> calls) {
         List<ToolCallRec> recs = new ArrayList<>(calls.size());
         for (AgentChatMessage.ToolCall call : calls) {
@@ -94,7 +94,7 @@ public final class MessageCodec {
         return recs;
     }
 
-    /** Результаты тулов как proto-записи (общий конвертер для канальной проекции и журнала ходов). */
+    /** Tool results as proto records (shared converter for the channel projection and the turn journal). */
     public static List<ToolResultRec> toolResultRecs(List<AgentChatMessage.ToolResult> results) {
         List<ToolResultRec> recs = new ArrayList<>(results.size());
         for (AgentChatMessage.ToolResult result : results) {
@@ -108,7 +108,7 @@ public final class MessageCodec {
         return recs;
     }
 
-    /** {@code tool_use}-половина хода: преамбула + вызовы ассистента (без результатов). */
+    /** The {@code tool_use} half of a turn: preamble plus the assistant's calls, without results. */
     private static ToolTurn callsTurn(AgentChatMessage assistant) {
         return ToolTurn.newBuilder()
                 .setText(assistant.text() != null ? assistant.text() : "")

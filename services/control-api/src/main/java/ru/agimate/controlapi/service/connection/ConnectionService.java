@@ -34,10 +34,11 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Жизненный цикл connector-экземпляров (telegram/mcp) поверх единого реестра {@code connections}.
- * Создание/секрет/тест валидны для integration-коннекторов (тип с {@code credentialFields}); listing
- * отдаёт все connection пользователя с фильтрами по реальным полям. Outbound-credentials — в
- * {@code secrets} (envelope), адресуются {@code connection.secretId}.
+ * Lifecycle of connector instances (telegram/mcp) on top of the single {@code connections} registry.
+ * Creation, the secret and the test are valid for integration connectors (a type with
+ * {@code credentialFields}); the listing returns every connection of the user, with filters on real
+ * fields. Outbound credentials live in {@code secrets} (envelope) and are addressed by
+ * {@code connection.secretId}.
  */
 @Slf4j
 @Service
@@ -46,7 +47,7 @@ import java.util.UUID;
 public class ConnectionService {
 
     private static final String SECRET_ENTITY = "connection";
-    /** Секрет валидации входящих webhook'ов (одиночное значение, AAD-owner = connection.id). */
+    /** Secret for validating incoming webhooks (a single value, AAD owner = connection.id). */
     public static final String WEBHOOK_SECRET_ENTITY = "connection_webhook";
 
     @Value("${app.integration.webhook-base-url}")
@@ -82,7 +83,7 @@ public class ConnectionService {
             throw new ConflictStatusException("Connection already exists for " + connectorCode + ": " + subCode);
         }
 
-        // id нужен до шифрования секретов (AAD-привязка) и до webhook URL — сохраняем строку первой.
+        // The id is needed before the secrets are encrypted (the AAD binding) and before the webhook URL — so the row is saved first.
         Connection connection = connectionRepository.save(Connection.builder()
                 .id(UUIDUtils.generateUUIDv8())
                 .connectorCode(connectorCode)
@@ -115,7 +116,7 @@ public class ConnectionService {
         return connection;
     }
 
-    /** Connection пользователя с фильтрами по реальным полям (все параметры опциональны). */
+    /** A user's connections with filters on real fields (every parameter is optional). */
     public List<Connection> list(UUID userId, String connectorCode, Boolean enabled) {
         String code = (connectorCode == null || connectorCode.isBlank()) ? null : connectorCode;
         return connectionRepository.findByUserIdFiltered(userId, code, enabled);
@@ -128,8 +129,8 @@ public class ConnectionService {
     }
 
     /**
-     * Проверка существующего экземпляра: расшифровка credentials + {@code validateCredentials}
-     * (доступность/auth платформы). Без сайд-эффектов — пригодно для всех integration-типов.
+     * A check of an existing instance: decrypting the credentials plus {@code validateCredentials} (the
+     * platform's reachability and auth). Side-effect free — suitable for every integration type.
      */
     public IntegrationValidationResult validate(UUID id, UUID userId) {
         Connection connection = getOwnedConnection(id, userId);

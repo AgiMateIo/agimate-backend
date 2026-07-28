@@ -193,7 +193,7 @@ public class AgentSkillService {
         };
     }
 
-    /** Активные коннекшены агента, отображённые connectorCode → connectionId (первый по порядку на код). */
+    /** The agent's active connections as connectorCode → connectionId (first one per code). */
     private Map<String, UUID> agentConnectionsByCode(UUID agentId) {
         Map<String, UUID> byCode = new HashMap<>();
         for (Connection connection : connectionRepository.findActiveBoundToAgent(agentId)) {
@@ -210,7 +210,7 @@ public class AgentSkillService {
         }
     }
 
-    /** Скилл доступен для привязки, если он свой или публичный (клонировать не требуется). */
+    /** A skill may be bound if it is the user's own or public — no clone required. */
     private Skill verifySkillAccessible(UUID skillId, UUID userId) {
         var skill = skillRepository.findByIdNotDeleted(skillId)
                 .orElseThrow(() -> new NotFoundStatusException("Skill not found"));

@@ -16,10 +16,10 @@ import ru.agimate.controlapi.storage.FileStorageService;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 /**
- * Скачивание файла по подписанной ссылке (docs/connectors/files.md): браузерный доступ к
- * webchat-вложениям без {@code Authorization}-заголовка ({@code <img src>}). Аутентификация —
- * HMAC-подпись {@code exp+sig} ({@link SignedFileUrlService}), поэтому путь публичный в
- * {@code SecurityConfig}; владение проверено при выдаче ссылки.
+ * Downloading a file by a signed link (docs/connectors/files.md): browser access to webchat
+ * attachments without an {@code Authorization} header ({@code <img src>}). Authentication is the HMAC
+ * signature {@code exp+sig} ({@link SignedFileUrlService}), which is why the path is public in
+ * {@code SecurityConfig}; ownership was checked when the link was issued.
  */
 @Slf4j
 @RestController
@@ -43,7 +43,7 @@ public class FileDownloadController {
             throw new ForbiddenStatusException("File link is invalid or expired");
         }
         FileStorageService.FileContent content = fileStorageService.openSigned(fileId);
-        // Контент по agf_-id неизменяем; кеш — приватный и не дольше срока жизни ссылки.
+        // Content behind an agf_ id is immutable; the cache is private and no longer than the link's lifetime.
         return FileHttpResponses.serve(content, true,
                 CacheControl.maxAge(fileStorageProperties.getUrlTtl()).cachePrivate());
     }

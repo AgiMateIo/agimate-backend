@@ -1,8 +1,9 @@
 package ru.agimate.controlapi.storage;
 
 /**
- * Файл не резолвится для вызывающего: неизвестный/чужой/просроченный/незавершённый fileId —
- * причины намеренно неразличимы (не раскрываем существование чужих файлов). На HTTP это 404.
+ * The file does not resolve for the caller: an unknown, foreign, expired or unfinished fileId — the
+ * reasons are deliberately indistinguishable (we do not reveal the existence of other people's
+ * files). 404 over HTTP.
  */
 public class StoredFileNotFoundException extends FileStorageException {
 

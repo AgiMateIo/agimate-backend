@@ -33,9 +33,10 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 /**
- * Импорт и экспорт таблиц: файл — это края потока, а не его середина. Внутри платформы истина живёт
- * в БД (быстрые агрегаты, детерминированные метрики), а xlsx/csv нужен на входе («у меня уже всё
- * в табличке») и на выходе («отдай бухгалтеру/врачу»).
+ * Import and export of tables: a file belongs at the edges of the flow, not in its middle. Inside the
+ * platform the truth lives in the database (fast aggregates, deterministic metrics), while xlsx/csv
+ * is needed on the way in («I already have it all in a spreadsheet») and on the way out («hand it to
+ * the accountant or the doctor»).
  */
 @Component
 @RequiredArgsConstructor
@@ -45,7 +46,7 @@ public class SheetFileService {
     public static final String XLSX_MIME =
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-    /** Сколько строк смотрим, чтобы определить тип колонки при импорте. */
+    /** How many rows we look at to determine a column's type during import. */
     private static final int TYPE_SAMPLE_ROWS = 50;
     public static final int MAX_IMPORT_ROWS = 5000;
     private static final int MAX_IMPORT_COLUMNS = SheetSchema.MAX_COLUMNS;
@@ -54,11 +55,11 @@ public class SheetFileService {
 
     private final FileStorageService fileStorageService;
 
-    /** Разобранная входная таблица: заголовки + сырые строки ячеек. */
+    /** A parsed input table: headers plus raw cell rows. */
     public record ParsedTable(List<String> headers, List<List<String>> rows, boolean truncated) {
     }
 
-    // ===== импорт =====
+    // ===== import =====
 
     public ParsedTable parse(UUID userId, String fileId) {
         byte[] content = read(userId, fileId);
@@ -66,8 +67,8 @@ public class SheetFileService {
     }
 
     /**
-     * Схема по разобранной таблице: заголовок → {@code name} (транслит-slug) + {@code title}
-     * (исходный текст), тип — по фактическим значениям колонки.
+     * Schema derived from the parsed table: header → {@code name} (a transliterated slug) plus
+     * {@code title} (the original text), with the type taken from the column's actual values.
      */
     public List<ColumnSpec> inferColumns(ParsedTable table) {
         List<ColumnSpec> columns = new ArrayList<>();
@@ -94,11 +95,11 @@ public class SheetFileService {
         return cells;
     }
 
-    // ===== экспорт =====
+    // ===== export =====
 
     public FileInfo exportCsv(UUID userId, String sheetName, List<ColumnSpec> columns, List<RowView> rows) {
         StringBuilder csv = new StringBuilder();
-        // BOM + ';' — иначе русский Excel открывает UTF-8 как кракозябры и склеивает всё в одну колонку.
+        // A BOM plus ';' — otherwise a Russian Excel opens the UTF-8 as mojibake and glues everything into one column.
         csv.append('﻿');
         csv.append(String.join(";", columns.stream().map(c -> quote(c.title())).toList())).append("\r\n");
         for (RowView row : rows) {
@@ -136,7 +137,7 @@ public class SheetFileService {
         return store(userId, sheetName + ".xlsx", XLSX_MIME, out.toByteArray());
     }
 
-    // ===== файловый слой =====
+    // ===== file layer =====
 
     public FileInfo store(UUID userId, String origin, String mime, byte[] content) {
         try {
@@ -161,7 +162,7 @@ public class SheetFileService {
         }
     }
 
-    // ===== разбор =====
+    // ===== parsing =====
 
     private ParsedTable parseXlsx(byte[] content) {
         try (ReadableWorkbook workbook = new ReadableWorkbook(new ByteArrayInputStream(content));
@@ -200,7 +201,7 @@ public class SheetFileService {
         return cells;
     }
 
-    /** Ячейка в текст: числа и даты берём типизированно, иначе Excel отдаёт «45123» вместо даты. */
+    /** A cell as text: numbers and dates are taken typed, otherwise Excel hands back «45123» instead of a date. */
     private static String cellText(Row row, int index) {
         Optional<LocalDateTime> date = safeDate(row, index);
         if (date.isPresent()) {
@@ -298,7 +299,7 @@ public class SheetFileService {
         return cells;
     }
 
-    // ===== типы и форматирование =====
+    // ===== types and formatting =====
 
     private static SheetColumnType inferType(List<List<String>> rows, int index) {
         boolean sawValue = false;
@@ -321,7 +322,7 @@ public class SheetFileService {
         if (!sawValue) {
             return SheetColumnType.TEXT;
         }
-        // Порядок важен: «1»/«0» проходят и как число, и как bool — числовая трактовка безопаснее.
+        // Order matters: «1»/«0» pass as both a number and a bool — the numeric reading is the safer one.
         if (number) {
             return SheetColumnType.NUMBER;
         }
@@ -373,7 +374,7 @@ public class SheetFileService {
         return value;
     }
 
-    /** Имя листа Excel: без {@code []:*?/\}, не длиннее 31 символа. */
+    /** An Excel sheet name: no {@code []:*?/\}, no longer than 31 characters. */
     private static String excelSheetName(String title) {
         String cleaned = (title == null || title.isBlank() ? "Sheet" : title)
                 .replaceAll("[\\[\\]:*?/\\\\]", " ").trim();

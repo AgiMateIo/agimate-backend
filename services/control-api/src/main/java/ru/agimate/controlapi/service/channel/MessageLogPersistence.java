@@ -23,16 +23,17 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Транзакционная часть SaveMessage: история диалога + статус рана, одной транзакцией.
- * Доставку по каналам делает {@link MessageLogService} уже после коммита.
+ * The transactional part of SaveMessage: dialogue history plus the run's status, in one transaction.
+ * Delivery over the channels is done by {@link MessageLogService} after the commit.
  *
- * <p>Идемпотентность: UNIQUE {@code (run_id, seq)} через ON CONFLICT DO NOTHING — ретрай
- * DBOS-шага не даёт дубля в истории.
+ * <p>Idempotency: UNIQUE {@code (run_id, seq)} through ON CONFLICT DO NOTHING — a retry of the DBOS
+ * step produces no duplicate in history.
  *
- * <p>INBOUND — ack «агент получил»: текст воркер не шлёт, каноника берётся из персистентных
- * данных триггера ({@link InboundTextResolver} / компактный JSON события); {@code trigger_input}
- * заполняется из {@code trigger_log.input} (reply-context механика). Финальный ANSWER помечает
- * все сообщения рана {@code completed=true} — только они видны истории следующих ранов.
+ * <p>INBOUND is the «agent received it» ack: the worker sends no text, and the canonical form is
+ * taken from the trigger's persistent data ({@link InboundTextResolver} / a compact JSON of the
+ * event); {@code trigger_input} is filled from {@code trigger_log.input} (the reply-context
+ * mechanism). A final ANSWER marks every message of the run {@code completed=true} — only those are
+ * visible to the history of later runs.
  */
 @Slf4j
 @Service
@@ -45,7 +46,7 @@ public class MessageLogPersistence {
 
     public record Persisted(boolean duplicate, Channels channels) {}
 
-    /** Кап на один JSON (аргументы/результат) в {@code message_json} — защита строки истории от гигантских выводов. */
+    /** Cap on a single JSON (arguments or result) in {@code message_json} — it protects a history row from gigantic outputs. */
     static final int TOOL_JSON_WRITE_CAP = 32 * 1024;
 
     @Transactional
@@ -59,9 +60,9 @@ public class MessageLogPersistence {
 
         projectStatus(run, kind);
 
-        // Исход рана — в строку agent_runs для ЛЮБОГО рана (самодостаточная строка рана: финальный
-        // ответ и ошибка видны без join к channel_session_messages), независимо от доставки в канал.
-        // run управляемый (findById в этой TX) → dirty checking сбрасывает на коммите.
+        // The run's outcome goes into the agent_runs row for ANY run (a self-sufficient run row: the final
+        // answer and the error are visible with no join to channel_session_messages), regardless of channel
+        // delivery. The run is managed (findById within this TX) → dirty checking flushes it at commit.
         if (kind == ChannelSessionMessageKind.ANSWER) {
             run.setResult(text);
         } else if (kind == ChannelSessionMessageKind.ERROR) {
@@ -72,8 +73,9 @@ public class MessageLogPersistence {
         UUID sessionId = run.getSessionId();
         boolean duplicate = false;
 
-        // Канальный ран: те же ANSWER/ERROR дополнительно проецируются в channel_session_messages
-        // (доставка). Direct-ран без канала: строки истории нет, исход уже записан на run выше.
+        // A channel run: those same ANSWER/ERROR are additionally projected into channel_session_messages
+        // (delivery). A direct run with no channel: there is no history row, and the outcome is already recorded
+        // on the run above.
         if (sessionId != null) {
             String message = kind == ChannelSessionMessageKind.INBOUND
                     ? canonicalInbound(run, channels)
@@ -100,10 +102,10 @@ public class MessageLogPersistence {
     }
 
     /**
-     * Статус рана — проекция потока SaveMessage (наблюдаемость; single-writer держит очередь):
-     * INBOUND → RUNNING, ANSWER → DONE, ERROR → FAILED. Терминальный статус назад не
-     * откатывается (реплей INBOUND после финиша), любое событие — признак жизни
-     * ({@code last_activity_at} для сборщика залипших).
+     * The run's status is a projection of the SaveMessage stream (observability; the single writer
+     * keeps the order): INBOUND → RUNNING, ANSWER → DONE, ERROR → FAILED. A terminal status is never
+     * rolled back (an INBOUND replay after the finish), and any event is a sign of life
+     * ({@code last_activity_at} for the stuck-run sweeper).
      */
     private static void projectStatus(AgentRun run, ChannelSessionMessageKind kind) {
         RunStatus status = run.getStatus();
@@ -121,7 +123,7 @@ public class MessageLogPersistence {
         run.setLastActivityAt(LocalDateTime.now());
     }
 
-    /** Каноника inbound: текст канала (тот же handleInput, что при dispatch) или компактный JSON события. */
+    /** The canonical inbound: the channel's text (the same handleInput as at dispatch) or a compact JSON of the event. */
     private String canonicalInbound(AgentRun run, Channels channels) {
         Trigger trigger = Trigger.fromLog(run.getTriggerLog());
         if (channels != null && channels.prompt() != null) {
@@ -140,10 +142,10 @@ public class MessageLogPersistence {
     }
 
     /**
-     * Кап JSON-полей tool-хода при записи ({@value #TOOL_JSON_WRITE_CAP} символов на поле):
-     * история сессии — не аудит (полные данные в tool_call_logs), гигантский вывод тула не
-     * должен раздувать строку. Обрезанное значение перестаёт быть валидным JSON — для
-     * потребителя (контекст LLM) это просто строка, маркер делает усечение явным.
+     * Capping the JSON fields of a tool turn on write ({@value #TOOL_JSON_WRITE_CAP} characters per
+     * field): session history is not an audit trail (the full data is in tool_call_logs), and a
+     * gigantic tool output must not bloat the row. A truncated value stops being valid JSON — to the
+     * consumer (the LLM's context) it is just a string, and the marker makes the truncation explicit.
      */
     private static ToolTurnRecord capToolTurn(ToolTurnRecord turn) {
         return new ToolTurnRecord(

@@ -47,9 +47,9 @@ public class AppCentrifugoTokenController {
             throw new ForbiddenStatusException("Device is not linked");
         }
 
-        // Канал и subject токена — по app.id (= connectionId), а не по клиентскому device_id:
-        // device_id не уникален между тенантами. Устройство подписывается на возвращённый channel.
-        // Namespace "app" — см. ops/centrifugo/config.json (allow_*_for_client=false: только server-side).
+        // The channel and the token's subject go by app.id (= connectionId) rather than by the client's
+        // device_id: device_id is not unique across tenants. The device subscribes to the channel returned here.
+        // The "app" namespace — see ops/centrifugo/config.json (allow_*_for_client=false: server-side only).
         String channel = "app:" + app.getId();
 
         CentrifugoTokenResponse tokens = centrifugoService.issueTokens(app.getId().toString(), channel);

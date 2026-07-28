@@ -43,7 +43,7 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
                              @Param("messageJson") String messageJson,
                              @Param("triggerInput") String triggerInput);
 
-    /** Финальный ANSWER завершает ран: вся его переписка становится видимой истории. */
+    /** A final ANSWER completes the run: its whole exchange becomes visible history. */
     @Modifying
     @Query("UPDATE ChannelSessionMessage m SET m.completed = true WHERE m.runId = :runId")
     int markRunCompleted(@Param("runId") UUID runId);
@@ -51,15 +51,15 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
     List<ChannelSessionMessage> findBySessionIdOrderByCreatedAtAsc(UUID sessionId);
 
     /**
-     * Хвост истории «как видел пользователь»: только завершённые раны, новые первыми
-     * (вызывающий разворачивает). Порядок — uuidv7-PK (время + монотонность в ране).
+     * The tail of history «as the user saw it»: completed runs only, newest first (the caller
+     * reverses). Ordering is by the uuidv7 PK (time plus monotonicity within a run).
      */
     List<ChannelSessionMessage> findBySessionIdAndCompletedTrueOrderByIdDesc(UUID sessionId, Pageable pageable);
 
     Optional<ChannelSessionMessage> findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(
             UUID sessionId);
 
-    /** Сессии агента, в которых были сообщения с момента {@code since} — для дневного сбора заметок. */
+    /** Sessions of an agent with messages since {@code since} — for the daily note collection. */
     @Query("""
             SELECT DISTINCT m.sessionId FROM ChannelSessionMessage m
             WHERE m.agentId = :agentId AND m.createdAt > :since

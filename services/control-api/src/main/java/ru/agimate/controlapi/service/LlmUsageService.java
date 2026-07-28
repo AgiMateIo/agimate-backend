@@ -16,12 +16,12 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Учёт расхода LLM-токенов. Одна транзакция на репорт: идемпотентная вставка журнала
- * (по {@code call_id}) + инкремент счётчиков всех субъектов (USER/AGENT/TOTAL) в обоих окнах
- * (DAY/MONTH) — статистика полна с первого дня и не зависит от момента создания квоты.
+ * Accounting of LLM token usage. One transaction per report: an idempotent insert into the journal (by
+ * {@code call_id}) plus increments of the counters for every subject (USER/AGENT/TOTAL) in both windows
+ * (DAY/MONTH) — the statistics are complete from day one and do not depend on when a quota was created.
  *
- * <p>Метрика: {@code input + output + cache_write}; cache_read не считаем — кэш-хиты почти
- * бесплатны, штрафовать за них противоестественно.
+ * <p>The metric: {@code input + output + cache_write}; cache_read is not counted — cache hits are
+ * nearly free, and penalising them would be perverse.
  */
 @Slf4j
 @Service
@@ -46,7 +46,7 @@ public class LlmUsageService {
     }
 
     /**
-     * @return {@code true}, если {@code call_id} уже был учтён (реплей/повтор) — инкрементов не было
+     * @return {@code true} when {@code call_id} had already been accounted for (a replay or repeat) — nothing was incremented
      */
     @Transactional
     public boolean record(UsageReport report) {

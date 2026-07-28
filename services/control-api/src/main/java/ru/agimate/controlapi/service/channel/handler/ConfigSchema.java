@@ -5,8 +5,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Мини-билдер JSON Schema (object) для {@link ChannelHandler#getConfigFields()}.
- * Порядок свойств сохраняется (для рендера формы в UI).
+ * A mini-builder of JSON Schema (object) for {@link ChannelHandler#getConfigFields()}. Property order
+ * is preserved (for rendering the form in the UI).
  */
 public final class ConfigSchema {
 

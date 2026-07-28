@@ -21,7 +21,7 @@ import java.util.UUID;
 public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID>,
         JpaSpecificationExecutor<ConnectorJob>, ConnectorJobRepositoryCustom {
 
-    /** Поиск по бизнес-ключу — осмыслен только для SYSTEM-строк (reconcile-синк, ≤1 строка на ключ). */
+    /** Lookup by business key — meaningful for SYSTEM rows only (the reconcile sync, ≤1 row per key). */
     @Query("""
             SELECT t FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
@@ -45,8 +45,8 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
             @Param("connectionId") String connectionId);
 
     /**
-     * Удаляет SYSTEM-строки connection_id, чьи name больше не декларируются коннектором.
-     * Динамические задачи (USER/AGENT) пересинк деклараций не трогает.
+     * Deletes SYSTEM rows of a connection_id whose names the connector no longer declares. A
+     * re-sync of declarations leaves dynamic jobs (USER/AGENT) untouched.
      */
     @Modifying
     @Query("""
@@ -61,7 +61,7 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
             @Param("connectionId") String connectionId,
             @Param("keepNames") Collection<String> keepNames);
 
-    /** Удаляет все SYSTEM-строки connection_id — когда коннектор больше не декларирует ни одной задачи. */
+    /** Deletes every SYSTEM row of a connection_id — for when the connector declares no jobs at all. */
     @Modifying
     @Query("""
             DELETE FROM ConnectorJob t
@@ -73,7 +73,7 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
             @Param("connectorCode") String connectorCode,
             @Param("connectionId") String connectionId);
 
-    /** Активные (не COMPLETED) динамические задачи агента — для list. */
+    /** An agent's active (non-COMPLETED) dynamic jobs — for list. */
     @Query("""
             SELECT t FROM ConnectorJob t
             WHERE t.connectorCode = :connectorCode
@@ -88,9 +88,10 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
             @Param("agentId") UUID agentId);
 
     /**
-     * Удаляет задачу с проверкой владельца (user + agent); {@code > 0} — действительно удалена.
-     * Только {@code kind=AGENT}: тулой агент отменяет лишь созданное им самим — USER-задачу,
-     * адресованную агенту (тот же {@code agent_id}), отменяет только пользователь через manage-API.
+     * Deletes a job with an owner check (user + agent); {@code > 0} means it really was deleted.
+     * {@code kind=AGENT} only: through the tool an agent cancels only what it created itself — a
+     * USER job addressed to an agent (same {@code agent_id}) can be cancelled by the user alone,
+     * through the manage API.
      */
     @Modifying
     @Query("""
@@ -120,12 +121,12 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
                  @Param("nextRunAt") LocalDateTime nextRunAt,
                  @Param("lastError") String lastError);
 
-    /** Все строки заданного kind — для startup-пересинка SYSTEM-джоб с декларацией коннекторов. */
+    /** Every row of a given kind — for the startup re-sync of SYSTEM jobs against connector declarations. */
     List<ConnectorJob> findByKind(ConnectorJobKind kind);
 
     /**
-     * Обновляет только спеку джобы (type/config/args/timeout): точечный UPDATE — entity-save
-     * затёр бы {@code status}/{@code lease_until}, которые конкурентно пишет scheduler.
+     * Updates the job's spec only (type/config/args/timeout): a targeted UPDATE — an entity save
+     * would clobber {@code status}/{@code lease_until}, which the scheduler writes concurrently.
      */
     @Modifying
     @Query("""
@@ -143,9 +144,9 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
                    @Param("timeoutSeconds") Integer timeoutSeconds);
 
     /**
-     * Shutdown-release: возвращает RUNNING-строку в PENDING с немедленным {@code next_run_at};
-     * {@code last_error} не трогаем. Guard по статусу — ONETIME, успевший финализироваться
-     * ({@code markCompleted}) в гонке с остановкой, не воскрешаем.
+     * Shutdown release: returns a RUNNING row to PENDING with an immediate {@code next_run_at};
+     * {@code last_error} is left alone. The status guard means a ONETIME that managed to finalise
+     * ({@code markCompleted}) while racing the shutdown is not resurrected.
      */
     @Modifying
     @Query("""
@@ -170,14 +171,15 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
     int markCompleted(@Param("id") UUID id,
                       @Param("lastError") String lastError);
 
-    /** Снимает все задачи агента (динамические + адресованные ему) — вызывается при удалении агента. */
+    /** Removes every job of an agent (dynamic ones plus those addressed to it) — called when an agent is deleted. */
     @Modifying
     @Query("DELETE FROM ConnectorJob t WHERE t.agentId = :agentId")
     int deleteByAgentId(@Param("agentId") UUID agentId);
 
     /**
-     * Пауза: точечный UPDATE только {@code paused_at} — entity-save затёр бы {@code status}/
-     * {@code lease_until}, которые конкурентно пишет scheduler. 0 строк = уже на паузе (идемпотентно).
+     * Pause: a targeted UPDATE of {@code paused_at} only — an entity save would clobber
+     * {@code status}/{@code lease_until}, which the scheduler writes concurrently. 0 rows = already
+     * paused (idempotent).
      */
     @Modifying
     @Query("""
@@ -187,7 +189,7 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
             """)
     int pause(@Param("id") UUID id, @Param("userId") UUID userId, @Param("now") LocalDateTime now);
 
-    /** Возобновление с пересчитанным {@code next_run_at}; 0 строк = не была на паузе (идемпотентно). */
+    /** Resume with a recomputed {@code next_run_at}; 0 rows = it was not paused (idempotent). */
     @Modifying
     @Query("""
             UPDATE ConnectorJob t
@@ -197,10 +199,10 @@ public interface ConnectorJobRepository extends JpaRepository<ConnectorJob, UUID
     int resume(@Param("id") UUID id, @Param("userId") UUID userId, @Param("nextRunAt") LocalDateTime nextRunAt);
 
     /**
-     * «Запустить сейчас»: точечный UPDATE {@code next_run_at = now}, чтобы scheduler подхватил строку
-     * на ближайшем тике. Только {@code PENDING} и не на паузе — {@code RUNNING}/{@code COMPLETED}/
-     * приостановленные не трогаем. {@code PENDING} ⟹ {@code lease_until = NULL}, проверять lease не нужно.
-     * 0 строк = строка уже не в этом состоянии (например, scheduler успел её claim'нуть).
+     * «Run now»: a targeted UPDATE of {@code next_run_at = now} so the scheduler picks the row up on
+     * its next tick. {@code PENDING} and not paused only — {@code RUNNING}/{@code COMPLETED}/paused
+     * rows are left alone. {@code PENDING} ⟹ {@code lease_until = NULL}, so the lease needs no check.
+     * 0 rows = the row is no longer in that state (the scheduler claimed it first, for instance).
      */
     @Modifying
     @Query("""

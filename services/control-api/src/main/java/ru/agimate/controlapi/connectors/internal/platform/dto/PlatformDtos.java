@@ -3,10 +3,11 @@ package ru.agimate.controlapi.connectors.internal.platform.dto;
 import java.util.List;
 
 /**
- * View-модели platform-коннектора — типы возврата {@code @Tool}-методов. Плоские, LLM-дружелюбные
- * (public id строками), собираются коннектором из репозиториев. Живут в коннекторном слое (не
- * {@code controller/**}): record'ы дают рефлектору нормальный {@code outputSchema}, в отличие от
- * {@code Map<String,Object>}. Списки обёрнуты в объект — верхний уровень MCP-результата всегда object.
+ * View models of the platform connector — the return types of its {@code @Tool} methods. Flat and
+ * LLM-friendly (public ids as strings), assembled by the connector from the repositories. They live
+ * in the connector layer (not in {@code controller/**}): records give the reflector a proper
+ * {@code outputSchema}, unlike {@code Map<String,Object>}. Lists are wrapped in an object — the top
+ * level of an MCP result is always an object.
  */
 public final class PlatformDtos {
 
@@ -65,7 +66,7 @@ public final class PlatformDtos {
     public record ConnectionList(List<ConnectionBrief> connections) {
     }
 
-    /** Deep-link: тул не пишет в БД — человек создаёт подключение штатной формой, вводя секрет вне LLM. */
+    /** Deep link: the tool writes nothing to the database — a human creates the connection through the regular form, entering the secret outside the LLM. */
     public record ConnectionSetup(String status, String setupUrl, String connectorCode) {
     }
 

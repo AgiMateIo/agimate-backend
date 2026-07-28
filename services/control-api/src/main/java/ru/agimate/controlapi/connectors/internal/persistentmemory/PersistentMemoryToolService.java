@@ -25,15 +25,16 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Тулы и фоновые задачи persistent memory.
+ * Tools and background jobs of persistent memory.
  *
- * <p>Тулы (видны LLM): {@code get_memory}/{@code get_memory_notes} (чтение cold/hot),
- * {@code save_memory_note} (append заметки в hot), {@code update_memory} (CAS-запись cold +
- * атомарное удаление заметок сконсолидированной партии).
+ * <p>Tools (visible to the LLM): {@code get_memory}/{@code get_memory_notes} (reading cold/hot),
+ * {@code save_memory_note} (appending a note to hot), {@code update_memory} (a CAS write of cold plus
+ * atomic deletion of the consolidated batch's notes).
  *
- * <p>Скрытые {@code @Job}-задачи (per-connection, {@code connection_id = connections.id}): {@code daily} — обходит
- * сессии агента за сутки и адресует ему {@code notes_by_session} по каждой; {@code consolidation} —
- * раз в час single-flight'ом клеймит накопленные заметки и шлёт {@code consolidate}.
+ * <p>Hidden {@code @Job}s (per connection, {@code connection_id = connections.id}): {@code daily}
+ * walks the agent's sessions of the past day and addresses a {@code notes_by_session} to it for each;
+ * {@code consolidation} claims the accumulated notes single-flight once an hour and sends a
+ * {@code consolidate}.
  */
 @Component
 @RequiredArgsConstructor
@@ -44,18 +45,18 @@ public class PersistentMemoryToolService {
     static final String NOTES_TRIGGER = "notes_by_session";
     static final String CONSOLIDATE_TRIGGER = "consolidate";
 
-    /** Сколько ждать до реклейма брошенной консолидации (лиз на заклеймленные заметки). */
+    /** How long to wait before reclaiming an abandoned consolidation (the lease on claimed notes). */
     private static final long CONSOLIDATION_LEASE_SECONDS = 1_800;
-    /** Окно дневного сбора заметок. */
+    /** Window of the daily note collection. */
     private static final int NOTES_LOOKBACK_HOURS = 24;
-    /** Срабатывание задачи — лишь чтение БД и публикация триггеров; итерация короткая. */
+    /** Firing the job is only a database read plus publishing triggers; the iteration is short. */
     private static final int JOB_TIMEOUT_SECONDS = 120;
 
     private final PersistentMemoryService memoryService;
     private final TriggerRouterService triggerRouterService;
     private final ChannelSessionMessageRepository messageRepository;
 
-    // ===== Тулы =====
+    // ===== Tools =====
 
     @Tool(name = "get_memory", description = "Get your consolidated (cold) memory with its version. "
             + "Pass the returned version to update_memory when you rewrite it.",
@@ -115,7 +116,7 @@ public class PersistentMemoryToolService {
         return Map.of("ok", true);
     }
 
-    // ===== Скрытые фоновые задачи (per-connection, connectionId = connections.id) =====
+    // ===== Hidden background jobs (per connection, connectionId = connections.id) =====
 
     @Tool(name = DAILY_JOB, description = "Internal: emit per-session note requests for the last 24h")
     @Job(type = ConnectorJobType.CRON, cron = "0 0 3 * * *", timeoutSeconds = JOB_TIMEOUT_SECONDS)
@@ -123,8 +124,8 @@ public class PersistentMemoryToolService {
         ConnectorEnv ctx = ConnectorEnvHolder.current();
         UUID connectionId = requireConnectionId(ctx);
         LocalDateTime since = LocalDateTime.now().minusHours(NOTES_LOOKBACK_HOURS);
-        // Сессии собираем по каждому привязанному агенту; заметки каждой сессии адресуются её
-        // агенту и лягут в его личное пространство (save_memory_note резолвит scope из env).
+        // Sessions are collected per bound agent; each session's notes are addressed to its agent and land in
+        // that agent's personal space (save_memory_note resolves the scope from the env).
         for (UUID agentId : memoryService.boundAgents(connectionId)) {
             for (UUID sessionId : messageRepository.findSessionIdsByAgentSince(agentId, since)) {
                 List<Map<String, Object>> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).stream()
@@ -151,10 +152,10 @@ public class PersistentMemoryToolService {
         UUID connectionId = requireConnectionId(ctx);
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime leaseThreshold = now.minusSeconds(CONSOLIDATION_LEASE_SECONDS);
-        // Пространство памяти = агент; одна джоба на connection-строку обходит пространства всех
-        // привязанных агентов. Консолидацию пространства выполняет его владелец — LLM-свод не
-        // дублируется. Single-flight по пространству: не плодим вторую консолидацию, пока идёт
-        // предыдущая (cold — CAS); брошенная партия реклеймится по протухшему лизу.
+        // The memory space is the agent; one job per connection row walks the spaces of every bound agent.
+        // A space's consolidation is performed by its owner — the LLM summary is not duplicated. Single-flight
+        // per space: we do not spawn a second consolidation while the previous one runs (cold uses a CAS); an
+        // abandoned batch is reclaimed once its lease expires.
         for (UUID agentId : memoryService.boundAgents(connectionId)) {
             if (memoryService.hasInFlightConsolidation(agentId, leaseThreshold)) {
                 continue;
@@ -175,7 +176,7 @@ public class PersistentMemoryToolService {
 
     // ===== helpers =====
 
-    /** Адресует directed-триггер привязанным агентам (audience, без канала — фоновая задача). */
+    /** Addresses a directed trigger to the bound agents (audience, with no channel — it is a background job). */
     private void routeToAgents(ConnectorEnv ctx, List<UUID> agentIds, String triggerName,
                                Map<String, Object> data) {
         if (agentIds.isEmpty()) {
@@ -190,7 +191,7 @@ public class PersistentMemoryToolService {
         triggerRouterService.routeTrigger(ctx.userId(), trigger);
     }
 
-    /** Пространство памяти личное: владелец — вызывающий агент. */
+    /** The memory space is personal: the owner is the calling agent. */
     private static UUID resolveScopeId(ConnectorEnv ctx) {
         if (ctx.agentId() == null) {
             throw new ConnectorException("persist-memory tools require an agent context");

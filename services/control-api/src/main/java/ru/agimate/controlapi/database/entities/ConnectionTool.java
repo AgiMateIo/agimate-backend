@@ -10,12 +10,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Тул динамического экземпляра коннектора (MCP-сервер, device-app). Обобщает прежний кэш
- * {@code mcp_tool}: набор открывается в рантайме ({@code tools/list} / device link) и кэшируется
- * здесь, чтобы воркер и UI политик видели список без обращения к источнику на горячем пути.
+ * A tool of a dynamic connector instance (MCP server, device app). Generalises the former
+ * {@code mcp_tool} cache: the set is discovered at runtime ({@code tools/list} / device link) and
+ * cached here so the worker and the policy UI can see the list without reaching the source on the
+ * hot path.
  *
- * <p>Схемы — сырым JSON-текстом для фиделити произвольной JSON Schema. Бизнес-ключ
- * {@code (connection_id, name)} — partial unique {@code WHERE deleted_at IS NULL}.
+ * <p>Schemas are kept as raw JSON text for fidelity to an arbitrary JSON Schema. The business key
+ * {@code (connection_id, name)} is partial unique {@code WHERE deleted_at IS NULL}.
  */
 @Entity
 @Table(name = "connection_tools")
@@ -44,15 +45,15 @@ public class ConnectionTool extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    /** Сырая JSON Schema входа как пришла с источника; {@code null} — пустая/отсутствует. */
+    /** Raw input JSON Schema exactly as it came from the source; {@code null} — empty or absent. */
     @Column(name = "input_schema", columnDefinition = "TEXT")
     private String inputSchema;
 
-    /** Сырая JSON Schema выхода; {@code null}, если источник её не отдал. */
+    /** Raw output JSON Schema; {@code null} when the source did not provide one. */
     @Column(name = "output_schema", columnDefinition = "TEXT")
     private String outputSchema;
 
-    /** JSON хинтов {@code {readOnlyHint,destructiveHint,idempotentHint,openWorldHint}}; {@code null} — дефолты. */
+    /** JSON of the hints {@code {readOnlyHint,destructiveHint,idempotentHint,openWorldHint}}; {@code null} — defaults. */
     @Column(name = "annotations", columnDefinition = "TEXT")
     private String annotations;
 

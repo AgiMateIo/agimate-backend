@@ -25,9 +25,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Вью расхода токенов для фронта («осталось N из M»). Перспектива по типу провайдера:
- * BYOK — TOTAL (весь провайдер, потолок кошелька), платформенный — USER (лимит «каждому
- * пользователю»). Per-agent разрезы здесь не показываются (enforcement их учитывает).
+ * A view of token usage for the frontend («N of M left»). The perspective depends on the provider's
+ * type: BYOK — TOTAL (the whole provider, the wallet's ceiling), platform — USER (the «per user»
+ * limit). Per-agent breakdowns are not shown here (enforcement does account for them).
  */
 @Service
 @RequiredArgsConstructor

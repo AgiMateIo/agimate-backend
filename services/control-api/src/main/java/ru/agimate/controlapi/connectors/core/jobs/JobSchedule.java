@@ -8,9 +8,9 @@ import java.time.ZoneId;
 import java.util.Map;
 
 /**
- * Вычисление следующего запуска по {@code config}. Общая логика scheduler'а (очередной тик
- * после итерации) и manage-API (пересчёт при resume, чтобы возобновлённая задача не стреляла
- * «вдогонку» по сроку, прошедшему за время паузы).
+ * Computation of the next run from {@code config}. Logic shared by the scheduler (the next tick after
+ * an iteration) and the manage API (recomputation on resume, so a resumed job does not fire «to catch
+ * up» on a deadline that passed while it was paused).
  */
 @UtilityClass
 public class JobSchedule {
@@ -20,7 +20,7 @@ public class JobSchedule {
     public static final String KEY_ZONE = "zone";
     public static final String DEFAULT_ZONE = "UTC";
 
-    /** Config-снимок расписания по типу задачи — единый источник формы для деклараций (@Job) и агентских тулов (time.schedule). */
+    /** Config snapshot of a schedule by job type — the single source of shape for declarations (@Job) and agent tools (time.schedule). */
     public static Map<String, Object> onetimeConfig() {
         return Map.of();
     }
@@ -36,8 +36,8 @@ public class JobSchedule {
     public static LocalDateTime nextCron(Map<String, Object> config, LocalDateTime now) {
         String expr = (String) config.get(KEY_CRON);
         if (expr == null || expr.isBlank()) {
-            // Без выражения в конфиге cron не запустится — отодвигаем далеко, чтобы не ловить
-            // SKIP LOCKED'ом на каждом тике.
+            // With no expression in the config a cron will never fire — we push it far out so SKIP LOCKED does
+            // not keep picking it up on every tick.
             return now.plusYears(10);
         }
         String zoneId = (String) config.getOrDefault(KEY_ZONE, DEFAULT_ZONE);

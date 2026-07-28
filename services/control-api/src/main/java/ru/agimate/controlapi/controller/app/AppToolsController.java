@@ -34,12 +34,12 @@ public class AppToolsController {
             ToolResultRequest toolResultRequest,
             @AuthenticationPrincipal AppPrincipal principal
     ) {
-        // До обращения к БД: ключ (appId == connectionId) уже аутентифицирован в principal.
+        // Before touching the database: the key (appId == connectionId) is already authenticated in the principal.
         if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.TOOL_RESULT, principal.appId())) {
             throw new TooManyRequestsStatusException("Tool result rate limit exceeded");
         }
 
-        // output может содержать пользовательский контент — в лог только размеры, не payload.
+        // The output may contain user content — only sizes go into the log, never the payload.
         log.info("Tool result received - id={}, app={}, hasError={}, outputChars={}",
                 toolResultRequest.id(), principal.appId(), toolResultRequest.error() != null,
                 toolResultRequest.output() != null ? toolResultRequest.output().length() : 0);
@@ -48,8 +48,8 @@ public class AppToolsController {
 
         var toolCallLog = toolCallLogService.recordOutputFromDevice(app, toolResultRequest);
 
-        // Устройство прислало результат под PK лога; агенту доставляем под его external_id — агент
-        // (и gRPC-поллинг воркера) корреллируют вызовы в собственном пространстве идентификаторов.
+        // The device sent the result under the log's PK; we deliver it to the agent under its external_id — the
+        // agent (and the worker's gRPC polling) correlate calls in their own identifier space.
         var agentResult = new ToolResult(
                 toolCallLog.getExternalId(),
                 toolCallLog.getConnectorCode(),

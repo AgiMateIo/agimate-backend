@@ -18,7 +18,7 @@ public class ConnectorJobSpecs {
         return (root, query, cb) -> cb.equal(root.get("connectorCode"), connectorCode);
     }
 
-    /** {@code connection_id} хранится строкой (см. {@link ConnectorJob#getConnectionId()}). */
+    /** {@code connection_id} is stored as a string (see {@link ConnectorJob#getConnectionId()}). */
     public static Specification<ConnectorJob> hasConnection(String connectionId) {
         return (root, query, cb) -> cb.equal(root.get("connectionId"), connectionId);
     }

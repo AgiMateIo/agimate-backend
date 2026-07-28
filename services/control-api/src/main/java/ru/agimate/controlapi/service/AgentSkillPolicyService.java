@@ -30,15 +30,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Привязка скиллов к доступу агента. Скилл = набор коннекторов; «иметь скилл» = агент привязан
- * ({@code agent_connections}) к строкам-режимам этих коннекторов, дальше дефолт-allow открывает их
- * тулы/триггеры.
+ * Binding of skills to an agent's access. A skill is a set of connectors; «having a skill» means the
+ * agent is bound ({@code agent_connections}) to those connectors' mode rows, after which default-allow
+ * opens their tools and triggers.
  *
- * <p><b>Реконсиляция:</b> скиллы — источник истины для привязок внутренних коннекторов. Синк
- * добавляет недостающие привязки и снимает лишние — внутренние, не требуемые ни одним текущим
- * скиллом. Привязки, удерживаемые активным каналом (webchat/acp — их создают канальные сервисы),
- * и внешние экземпляры (telegram/mcp/app, управляются явно) синк не трогает. Внешний коннектор,
- * объявленный скиллом, привязать нельзя (нужен конкретный экземпляр) — пропускается с warn.
+ * <p><b>Reconciliation:</b> skills are the source of truth for internal connectors' bindings. The sync
+ * adds the missing bindings and removes the superfluous ones — internal ones required by none of the
+ * current skills. Bindings held by an active channel (webchat/acp — created by the channel services)
+ * and external instances (telegram/mcp/app, managed explicitly) are left alone by the sync. An external
+ * connector declared by a skill cannot be bound (a concrete instance is required) — it is skipped with
+ * a warning.
  */
 @Slf4j
 @Service
@@ -80,11 +81,11 @@ public class AgentSkillPolicyService {
             if (bound.containsKey(connectorCode)) {
                 continue;
             }
-            // Внешний коннектор (нужен явный экземпляр) или неизвестный connector_code (скилл
-            // объявил коннектор, которого нет) — способность просто «не обеспечена», привязка
-            // скилла из-за этого падать не должна. Проверяем заранее, а не ловим исключение из
-            // bindInternal: его транзакция участвует в нашей, и её откат пометил бы общую
-            // rollback-only — проглоченное исключение всплыло бы UnexpectedRollbackException на коммите.
+            // An external connector (which needs an explicit instance) or an unknown connector_code (the skill
+            // declared a connector that does not exist) — the capability is simply «not provided», and binding the
+            // skill must not fail because of it. We check up front rather than catching an exception out of
+            // bindInternal: its transaction participates in ours, and its rollback would mark the outer one
+            // rollback-only — a swallowed exception would then surface as UnexpectedRollbackException at commit.
             if (!isInternal(connectorCode)) {
                 log.warn("Skill cannot bind connector {} for agent {}: not an internal connector",
                         connectorCode, agentId);
@@ -109,9 +110,9 @@ public class AgentSkillPolicyService {
     }
 
     /**
-     * Снимается ли привязка при реконсиляции: внутренний коннектор, не требуемый текущими скиллами
-     * и не удерживаемый активным каналом (webchat/acp создают привязку вместе с каналом — канал и
-     * есть признак «привязка не от скилла»).
+     * Whether a binding is removed during reconciliation: an internal connector not required by the
+     * current skills and not held by an active channel (webchat/acp create the binding together with the
+     * channel — the channel is precisely the sign of «this binding did not come from a skill»).
      */
     private boolean isRevokable(UUID agentId, String connectorCode, AgentConnection binding,
                                 Set<String> desired) {
@@ -128,7 +129,7 @@ public class AgentSkillPolicyService {
                 .orElse(false);
     }
 
-    /** Diff в терминах коннекторов: что привяжется и что будет снято реконсиляцией. */
+    /** The diff in terms of connectors: what reconciliation will bind and what it will remove. */
     private PolicyDiffResponse computeDiff(UUID agentId, Set<UUID> desiredSkillIds) {
         Set<String> desired = desiredConnectorCodes(desiredSkillIds);
         Map<String, AgentConnection> bound = boundByConnectorCode(agentId);
@@ -160,7 +161,7 @@ public class AgentSkillPolicyService {
                 .collect(Collectors.toCollection(HashSet::new));
     }
 
-    /** Активные привязки агента по коду коннектора их connection. */
+    /** An agent's active bindings, keyed by the connector code of their connection. */
     private Map<String, AgentConnection> boundByConnectorCode(UUID agentId) {
         List<AgentConnection> bindings = agentConnectionRepository.findActiveByAgentId(agentId);
         if (bindings.isEmpty()) {

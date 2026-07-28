@@ -3,12 +3,12 @@ package ru.agimate.controlapi.connectors.core.dto;
 import java.util.List;
 
 /**
- * Декларация триггера, который коннектор умеет порождать.
+ * Declaration of a trigger the connector can produce.
  *
- * @param description человекочитаемое описание
- * @param params      имена параметров, доступных в {@code trigger.data}
- * @param context     директивы контекста рана ({@code null} — базовый route-пресет); см.
- *                    {@link ContextDirectives} — trust-поля валидируются на бутстрапе
+ * @param description human-readable description
+ * @param params      names of the parameters available in {@code trigger.data}
+ * @param context     context directives of the run ({@code null} — the base route preset); see
+ *                    {@link ContextDirectives} — the trust fields are validated at bootstrap
  */
 public record TriggerSpec(
         String description,

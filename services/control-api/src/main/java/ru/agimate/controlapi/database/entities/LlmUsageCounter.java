@@ -22,10 +22,10 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 /**
- * Агрегат расхода LLM-токенов по (провайдер, субъект, календарное окно UTC) — быстрый lookup
- * для enforcement квот и «сколько осталось». Пишется атомарным upsert-инкрементом в транзакции
- * репорта ({@code ON CONFLICT ... DO UPDATE SET tokens = tokens + EXCLUDED.tokens}).
- * Для {@code subject_kind = TOTAL} субъект — {@link #TOTAL_SUBJECT_ID}.
+ * Aggregate of LLM token usage by (provider, subject, UTC calendar window) — the fast lookup for
+ * quota enforcement and «how much is left». Written by an atomic upsert-increment inside the report
+ * transaction ({@code ON CONFLICT ... DO UPDATE SET tokens = tokens + EXCLUDED.tokens}). For
+ * {@code subject_kind = TOTAL} the subject is {@link #TOTAL_SUBJECT_ID}.
  */
 @Entity
 @Table(name = "llm_usage_counters", uniqueConstraints = {
@@ -39,7 +39,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class LlmUsageCounter extends BaseEntity {
 
-    /** Синтетический subject_id строк TOTAL (суммарно на провайдер). */
+    /** Synthetic subject_id of TOTAL rows (the provider's aggregate). */
     public static final UUID TOTAL_SUBJECT_ID = new UUID(0L, 0L);
 
     @Id

@@ -27,17 +27,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
- * Тулы IDE-коннектора: исполняются не серверным кодом, а обратным JSON-RPC-вызовом в живое
- * WebSocket-соединение ACP-сессии (клиент — Zed и др.) через {@link AcpSessionRegistry}.
- * Сессия адресуется полем {@link ConnectorEnv#sessionId()}; наличие живого соединения и
- * клиентских capabilities обязательно — иначе тул возвращает {@code ConnectorException}
- * (валидный error tool-result: агент продолжит без IDE, ран не падает).
+ * Tools of the IDE connector: executed not by server code but by a reverse JSON-RPC call into the
+ * live WebSocket connection of the ACP session (the client being Zed and others), through
+ * {@link AcpSessionRegistry}. The session is addressed by {@link ConnectorEnv#sessionId()}; a live
+ * connection and the client's capabilities are mandatory — otherwise the tool returns a
+ * {@code ConnectorException} (a valid error tool result: the agent carries on without the IDE and the
+ * run does not fail).
  *
- * <p>{@code write_file}/{@code run_command} перед действием спрашивают у пользователя
- * подтверждение через ACP {@code session/request_permission} (диалог рисует сам клиент).
+ * <p>Before acting, {@code write_file}/{@code run_command} ask the user for confirmation through ACP
+ * {@code session/request_permission} (the dialogue is drawn by the client itself).
  *
- * <p>Бюджеты подобраны под worker poll-timeout ({@code agent.tool.poll-timeout}, дефолт 60s):
- * долгие команды упрутся в него — операторам с IDE-нагруженными агентами поднимать бюджет.
+ * <p>The budgets are chosen to fit the worker's poll timeout ({@code agent.tool.poll-timeout},
+ * 60s by default): long commands will hit it — operators with IDE-heavy agents should raise the
+ * budget.
  */
 @Slf4j
 @Component
@@ -142,7 +144,7 @@ public class AcpToolService {
         try {
             call(sessionId, "terminal/wait_for_exit", ref, COMMAND_WAIT_S);
         } catch (ConnectorException e) {
-            // Таймаут/сбой ожидания: убиваем команду, но всё равно читаем накопленный вывод.
+            // A timeout or a failed wait: we kill the command but still read whatever output accumulated.
             timedOut = true;
             safeCall(sessionId, "terminal/kill", ref);
         }
@@ -161,10 +163,11 @@ public class AcpToolService {
     }
 
     /**
-     * Исполнение session-scoped MCP-тула (проброшенного из IDE): опциональное подтверждение
-     * (мутирующие — {@code readOnly=false}), затем обратный {@code mcp/call_tool} в мост, который
-     * проксирует в локальный MCP-сервер Zed. Вызывается из {@code AcpConnectorService.executeTool}
-     * с уже известным {@code sessionId} (не через {@code ConnectorEnvHolder}).
+     * Execution of a session-scoped MCP tool (forwarded from the IDE): an optional confirmation
+     * (mutating ones — {@code readOnly=false}), then a reverse {@code mcp/call_tool} into the bridge,
+     * which proxies it to Zed's local MCP server. Called from
+     * {@code AcpConnectorService.executeTool} with the {@code sessionId} already known (not through
+     * {@code ConnectorEnvHolder}).
      */
     public Map<String, Object> callMcpTool(UUID sessionId, String toolName, Map<String, Object> args) {
         if (sessionId == null) {
@@ -194,14 +197,14 @@ public class AcpToolService {
         return JsonUtils.MAPPER.convertValue(result, MAP_TYPE);
     }
 
-    /** По умолчанию (нет аннотаций) — считаем мутирующим и спрашиваем: пессимистично, как MCP-дефолты. */
+    /** By default (no annotations) we treat it as mutating and ask: pessimistic, like the MCP defaults. */
     private static boolean isReadOnly(ConnectorToolSpec spec) {
         return spec != null && spec.annotations() != null && spec.annotations().readOnlyHint();
     }
 
     // ===== helpers =====
 
-    /** sessionId рана И живое соединение: разводит «не ACP-ран» / «IDE отключилась» / «capability off». */
+    /** The run's sessionId AND a live connection: this separates «not an ACP run» / «the IDE disconnected» / «capability off». */
     private UUID requireLiveSession() {
         UUID sessionId = requireSession();
         if (!sessionRegistry.isConnected(sessionId)) {
@@ -236,9 +239,10 @@ public class AcpToolService {
     }
 
     /**
-     * Рабочая директория команды: явная от модели или корень проекта сессии (ACP {@code cwd}).
-     * Без подстановки {@code terminal/create} уходит без {@code cwd} — спека дефолт не определяет,
-     * и клиент выбирает свой (у Zed — домашняя директория, а не проект пользователя).
+     * The command's working directory: either explicitly from the model, or the session's project
+     * root (the ACP {@code cwd}). Without the substitution {@code terminal/create} goes out with no
+     * {@code cwd} — the spec defines no default, so the client picks its own (for Zed that is the home
+     * directory, not the user's project).
      */
     private String effectiveCwd(UUID sessionId, String requested) {
         if (requested != null && !requested.isBlank()) {
@@ -250,7 +254,7 @@ public class AcpToolService {
         return sessionRegistry.cwd(sessionId);
     }
 
-    /** ACP session/request_permission: allow_once/reject_once; всё кроме явного allow — отказ. */
+    /** ACP session/request_permission: allow_once/reject_once; anything but an explicit allow is a refusal. */
     private void requirePermission(UUID sessionId, String toolName, String title, String kind) {
         Map<String, Object> toolCall = new LinkedHashMap<>();
         toolCall.put("toolCallId", toolName + ":" + UUID.randomUUID());
@@ -275,7 +279,7 @@ public class AcpToolService {
         }
     }
 
-    /** Синхронный вызов клиента: маппит timeout/обрыв/ошибку клиента в {@code ConnectorException}. */
+    /** Synchronous call into the client: maps a timeout, a disconnect or a client error into a {@code ConnectorException}. */
     private JsonNode call(UUID sessionId, String method, Map<String, Object> params, int timeoutSeconds) {
         CompletableFuture<JsonNode> future;
         try {
@@ -298,7 +302,7 @@ public class AcpToolService {
         }
     }
 
-    /** Best-effort вызов (kill/release): сбой не должен маскировать основной результат. */
+    /** Best-effort call (kill/release): its failure must not mask the main result. */
     private void safeCall(UUID sessionId, String method, Map<String, Object> params) {
         try {
             call(sessionId, method, params, TERMINAL_OP_TIMEOUT_S);

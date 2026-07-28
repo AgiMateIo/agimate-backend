@@ -5,9 +5,10 @@ import lombok.experimental.UtilityClass;
 import java.net.URI;
 
 /**
- * Сборка клиентского handle экземпляра коннектора: {@code full_code = connector_code + "_" + slug}.
- * {@code slug} — человекочитаемый дискриминатор из канонического identifier (URL → главная метка
- * хоста, прочее → slug). Например {@code (mcp, https://mcp.context7.com/mcp)} → {@code mcp_context7}.
+ * Assembly of a connector instance's client-facing handle: {@code full_code = connector_code + "_" +
+ * slug}. {@code slug} is a human-readable discriminator derived from the canonical identifier (a URL
+ * → the host's main label, anything else → a slug). For example {@code (mcp,
+ * https://mcp.context7.com/mcp)} → {@code mcp_context7}.
  */
 @UtilityClass
 public class FullCodes {
@@ -28,7 +29,7 @@ public class FullCodes {
         return slug.isBlank() ? connectorCode : slug;
     }
 
-    /** Главная метка хоста URL: {@code mcp.context7.com/mcp} → {@code context7}. */
+    /** The main label of a URL's host: {@code mcp.context7.com/mcp} → {@code context7}. */
     private static String mainHostLabel(String url) {
         try {
             String host = URI.create(url).getHost();

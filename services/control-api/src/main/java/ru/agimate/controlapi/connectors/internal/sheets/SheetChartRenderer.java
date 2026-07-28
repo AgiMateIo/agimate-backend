@@ -18,11 +18,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Рендер графика листа в PNG (XChart поверх Java2D; Spring Boot держит {@code java.awt.headless=true}).
+ * Rendering of a sheet's chart into PNG (XChart over Java2D; Spring Boot keeps
+ * {@code java.awt.headless=true}).
  *
- * <p>Кириллица в подписях требует шрифтов в образе: логический {@code SansSerif} резолвится через
- * fontconfig, и в «голом» JRE-образе без {@code fontconfig}+DejaVu подписи выйдут квадратами
- * (см. docs/connectors/sheets.md).
+ * <p>Cyrillic in the labels requires fonts inside the image: the logical {@code SansSerif} is
+ * resolved through fontconfig, and in a bare JRE image without {@code fontconfig} and DejaVu the
+ * labels come out as boxes (see docs/connectors/sheets.md).
  */
 @Component
 public class SheetChartRenderer {
@@ -32,7 +33,7 @@ public class SheetChartRenderer {
     private static final int WIDTH = 960;
     private static final int HEIGHT = 540;
 
-    /** Линейный график: X — даты или числа, Y — одна или несколько числовых серий. */
+    /** Line chart: X is dates or numbers, Y is one or more numeric series. */
     public byte[] renderLine(String title, String xTitle, String yTitle,
                              List<?> xData, Map<String, List<Double>> series) {
         XYChart chart = new XYChartBuilder()
@@ -45,13 +46,13 @@ public class SheetChartRenderer {
         chart.getStyler().setDatePattern("dd.MM.yy");
         series.forEach((name, values) -> {
             XYSeries added = chart.addSeries(name, xData, values);
-            // Маркеры мешают на длинных рядах и не несут смысла: точки и так на линии.
+            // Markers get in the way on long series and add nothing: the points are on the line already.
             added.setMarker(xData.size() > 60 ? SeriesMarkers.NONE : SeriesMarkers.CIRCLE);
         });
         return bytes(chart);
     }
 
-    /** Столбцы: X — категории (результат группировки), Y — числовые серии. */
+    /** Bars: X is categories (the result of grouping), Y is numeric series. */
     public byte[] renderBar(String title, String xTitle, String yTitle,
                             List<String> categories, Map<String, List<Double>> series) {
         CategoryChart chart = new CategoryChartBuilder()
@@ -66,7 +67,7 @@ public class SheetChartRenderer {
         return bytes(chart);
     }
 
-    /** Доли: одна числовая метрика по категориям. */
+    /** Shares: one numeric metric across categories. */
     public byte[] renderPie(String title, List<String> categories, List<Double> values) {
         PieChart chart = new PieChartBuilder()
                 .width(WIDTH).height(HEIGHT)

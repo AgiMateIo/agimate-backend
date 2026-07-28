@@ -5,13 +5,13 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Вложение webchat-сообщения, как его видит фронт (Centrifugo-событие и история
- * {@code /manage/webchat}). В {@code webchat_messages.parts} хранится без {@code url}
- * (type/fileId/mime/size): подписанные ссылки протухают, поэтому выдаются свежими на каждом
- * чтении/публикации.
+ * An attachment of a webchat message as the frontend sees it (the Centrifugo event and the
+ * {@code /manage/webchat} history). In {@code webchat_messages.parts} it is stored without the
+ * {@code url} (type/fileId/mime/size): signed links expire, so fresh ones are issued on every read or
+ * publication.
  *
- * @param url относительный подписанный URL содержимого ({@code /files/agf_…?exp&sig});
- *            origin control-api добавляет фронт
+ * @param url relative signed URL of the contents ({@code /files/agf_…?exp&sig}); the control-api
+ *            origin is added by the frontend
  */
 public record WebchatAttachment(
         String type,
@@ -21,7 +21,7 @@ public record WebchatAttachment(
         String url
 ) {
 
-    /** Из хранимого представления ({@code webchat_messages.parts}) + свежей ссылки. */
+    /** From the stored representation ({@code webchat_messages.parts}) plus a fresh link. */
     public static WebchatAttachment fromStored(Map<String, Object> stored, String url) {
         Object size = stored.get("size");
         return new WebchatAttachment(
@@ -32,7 +32,7 @@ public record WebchatAttachment(
                 url);
     }
 
-    /** Хранимые parts + свежие ссылки от {@code urlIssuer} (fileId → подписанный URL); null при пустом входе. */
+    /** Stored parts plus fresh links from {@code urlIssuer} (fileId → a signed URL); null when the input is empty. */
     public static List<WebchatAttachment> fromStored(List<Map<String, Object>> storedParts,
                                                      Function<String, String> urlIssuer) {
         if (storedParts == null || storedParts.isEmpty()) {

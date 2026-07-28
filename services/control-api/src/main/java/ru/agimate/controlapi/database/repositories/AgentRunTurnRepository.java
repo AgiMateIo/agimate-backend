@@ -15,8 +15,8 @@ public interface AgentRunTurnRepository extends JpaRepository<AgentRunTurn, UUID
 
     /**
      * Idempotent insert: skip on a duplicate (run_id, turn_index) instead of failing.
-     * ON CONFLICT DO NOTHING не отравляет транзакцию, поэтому безопасно поглощает
-     * DBOS-replay / ретрай того же хода. {@code id} проставляет дефолт БД ({@code uuidv7()}).
+     * ON CONFLICT DO NOTHING does not poison the transaction, so it safely absorbs a DBOS replay or
+     * a retry of the same turn. {@code id} comes from the database default ({@code uuidv7()}).
      * Returns 1 if inserted, 0 if the row already existed.
      */
     @Modifying

@@ -1,6 +1,6 @@
 package ru.agimate.controlapi.controller.manage.dto;
 
-/** Область листинга скиллов: свои (любой видимости) либо все публичные. */
+/** Scope of a skills listing: one's own (of any visibility) or all public ones. */
 public enum SkillListScope {
     MINE,
     PUBLIC

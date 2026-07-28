@@ -5,9 +5,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 /**
- * Частичное обновление пресета (ADMIN). Все поля опциональны; {@code null} — «не менять».
- * {@code name} (машинный слаг) отсутствует намеренно: это ключ идемпотентного сидинга и аналитики
- * {@code agents.preset_name}, он неизменяем.
+ * Partial update of a preset (ADMIN). Every field is optional; {@code null} means «leave unchanged».
+ * {@code name} (the machine slug) is deliberately absent: it is the key of idempotent seeding and of
+ * the {@code agents.preset_name} analytics, and it is immutable.
  */
 @Schema(description = "Partial update of an agent role preset (ADMIN); null fields are left unchanged")
 public record UpdateAgentPresetRequest(

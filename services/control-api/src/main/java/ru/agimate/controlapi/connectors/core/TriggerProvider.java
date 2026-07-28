@@ -5,9 +5,9 @@ import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import java.util.Map;
 
 /**
- * Capability коннектора: декларация триггеров, которые тип коннектора может публиковать
- * (webhook-нормализация, directed-триггеры фоновых тасок). Динамические триггеры экземпляров
- * (DYNAMIC definitionBinding) живут в {@code connection_triggers} и сюда не попадают.
+ * A connector capability: declaration of the triggers a connector type can publish (webhook
+ * normalisation, directed triggers of background jobs). Dynamic triggers of instances (DYNAMIC
+ * definitionBinding) live in {@code connection_triggers} and never appear here.
  */
 public interface TriggerProvider {
 

@@ -22,24 +22,25 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Рефлексивный генератор JSON-схем для тулов — без сторонних зависимостей (свой движок вместо
- * langchain4j). Строит {@code inputSchema} из параметров метода (имена через {@code -parameters},
- * описания/required из {@link ToolParam}) и {@code outputSchema} из типа возврата.
+ * Reflective generator of JSON schemas for tools — with no third-party dependencies (our own engine
+ * instead of langchain4j). Builds {@code inputSchema} from the method's parameters (names via
+ * {@code -parameters}, descriptions and required from {@link ToolParam}) and {@code outputSchema}
+ * from the return type.
  *
- * <p>{@code Map<String, V>} раскрывается в {@code object} + {@code additionalProperties} = схема
- * значения; {@code Map<String, Object>} → {@code additionalProperties: {}} (any). {@code void} даёт
- * отсутствие {@code outputSchema}.
+ * <p>{@code Map<String, V>} expands into {@code object} + {@code additionalProperties} = the value's
+ * schema; {@code Map<String, Object>} → {@code additionalProperties: {}} (any). {@code void} yields
+ * no {@code outputSchema} at all.
  */
 final class ToolSchemaReflector {
 
     private ToolSchemaReflector() {
     }
 
-    /** {@code object} из параметров метода; {@code null}, если параметров нет. */
+    /** An {@code object} built from the method's parameters; {@code null} when there are none. */
     static JsonSchema inputSchema(Method method) {
         Parameter[] params = method.getParameters();
         if (params.length == 0) {
-            // MCP требует inputSchema даже у тула без параметров → пустой object-схема.
+            // MCP requires an inputSchema even for a tool with no parameters → an empty object schema.
             return JsonSchema.object(Map.of(), null, null);
         }
         Map<String, JsonSchema> properties = new LinkedHashMap<>();
@@ -56,7 +57,7 @@ final class ToolSchemaReflector {
         return JsonSchema.object(properties, required.isEmpty() ? null : required, null);
     }
 
-    /** Схема по типу возврата; {@code null} для {@code void}/{@code Void}. */
+    /** Schema from the return type; {@code null} for {@code void}/{@code Void}. */
     static JsonSchema outputSchema(Method method) {
         Type returnType = method.getGenericReturnType();
         if (returnType == void.class || returnType == Void.class) {
@@ -98,7 +99,7 @@ final class ToolSchemaReflector {
             return JsonSchema.array(description, schemaFor(typeArg(type, 0), null, stack));
         }
         if (Map.class.isAssignableFrom(raw)) {
-            // ключи в JSON всегда строки → описываем только тип значения через additionalProperties
+            // JSON keys are always strings → we describe only the value's type, through additionalProperties
             return JsonSchema.map(description, schemaFor(typeArg(type, 1), null, stack));
         }
         if (raw.isRecord()) {
@@ -118,7 +119,7 @@ final class ToolSchemaReflector {
                 stack.pop();
             }
         }
-        // Object и прочие неподдержанные типы → пустая схема (any). Расширим под реальные нужды.
+        // Object and other unsupported types → an empty schema (any). We will extend it for real needs.
         return JsonSchema.any(description);
     }
 

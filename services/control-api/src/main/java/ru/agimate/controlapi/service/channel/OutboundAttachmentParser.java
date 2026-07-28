@@ -16,15 +16,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Attach-конвенция исходящего ответа агента: маркер {@code [[attach:agf_<uuid>]]} в тексте →
- * {@link Part} c {@code storageRef}. Маркеры вырезаются из текста всегда (даже невалидные —
- * пользователь не должен видеть служебную разметку); part создаётся только для файла, доступного
- * владельцу канала ({@code FileStorageService.findReadable}: свой + READY + не просрочен) — чужой
- * или галлюцинированный id молча отбрасывается с warn'ом.
+ * The attach convention of an agent's outgoing answer: the marker {@code [[attach:agf_<uuid>]]} in
+ * the text → a {@link Part} with a {@code storageRef}. Markers are always cut out of the text (even
+ * invalid ones — the user must not see internal markup); a part is created only for a file the
+ * channel's owner may read ({@code FileStorageService.findReadable}: own + READY + not expired) — a
+ * foreign or hallucinated id is silently dropped with a warning.
  *
- * <p>Парсится только текст ответа агента (доверенный автор); маркеры внутри tool-результатов
- * сюда не попадают. Семантику маркера агенту объясняет system-блок {@code RunContextService},
- * который добавляется только для каналов с {@code supportsOutboundAttachments()}.
+ * <p>Only the agent's answer text is parsed (a trusted author); markers inside tool results never get
+ * here. The marker's meaning is explained to the agent by a system block from
+ * {@code RunContextService}, which is added only for channels with
+ * {@code supportsOutboundAttachments()}.
  */
 @Slf4j
 @Component
@@ -37,8 +38,9 @@ public class OutboundAttachmentParser {
     private final FileStorageService fileStorageService;
 
     /**
-     * Извлекает вложения из текста ответа. Без маркеров возвращает {@code outbound} как есть;
-     * с уже заполненными {@code parts} (будущие структурные продюсеры) текст не трогается.
+     * Extracts attachments from the answer's text. With no markers it returns {@code outbound}
+     * unchanged; when {@code parts} are already populated (future structural producers) the text is
+     * left alone.
      */
     public OutboundMessage parse(UUID ownerUserId, OutboundMessage outbound) {
         String text = outbound.text();
