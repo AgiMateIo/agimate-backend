@@ -2,9 +2,6 @@ package ru.agimate.userapi.controller.dto.request.auth;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * Logout Request DTO
- */
 @Schema(description = "Logout Request DTO")
 public record LogoutRequest(
         @Schema(description = "Refresh token identifier to invalidate",

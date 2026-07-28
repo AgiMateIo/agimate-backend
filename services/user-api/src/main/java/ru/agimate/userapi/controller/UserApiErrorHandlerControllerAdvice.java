@@ -21,9 +21,6 @@ import ru.agimate.common.security.SecurityUtils;
 @RestControllerAdvice
 public class UserApiErrorHandlerControllerAdvice extends BaseErrorHandlerControllerAdvice {
 
-    /**
-     * Handle authentication exceptions that may bubble up to the controller layer
-     */
     @ExceptionHandler({AuthenticationCredentialsNotFoundException.class})
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ErrorResponse handleAuthenticationCredentialsNotFoundException(
@@ -35,9 +32,6 @@ public class UserApiErrorHandlerControllerAdvice extends BaseErrorHandlerControl
         return new ErrorResponse("Authentication credentials not found or invalid");
     }
 
-    /**
-     * Handle access denied exceptions that may bubble up to the controller layer
-     */
     @ExceptionHandler({AccessDeniedException.class})
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ErrorResponse handleAccessDeniedException(

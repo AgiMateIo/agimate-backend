@@ -64,9 +64,6 @@ public class OAuth2AuthorizationRequestDTO {
         this.authorizationRequestUri = authorizationRequestUri;
     }
 
-    /**
-     * Create DTO from full OAuth2AuthorizationRequest
-     */
     public static OAuth2AuthorizationRequestDTO fromAuthorizationRequest(OAuth2AuthorizationRequest request) {
         // Extract client registration ID from attributes
         Map<String, Object> attributes = request.getAttributes();

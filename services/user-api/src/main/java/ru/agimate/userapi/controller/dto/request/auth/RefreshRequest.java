@@ -2,9 +2,6 @@ package ru.agimate.userapi.controller.dto.request.auth;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * Refresh Token Request DTO
- */
 @Schema(description = "Refresh Token Request DTO")
 public record RefreshRequest(
         @Schema(description = "Refresh token identifier",

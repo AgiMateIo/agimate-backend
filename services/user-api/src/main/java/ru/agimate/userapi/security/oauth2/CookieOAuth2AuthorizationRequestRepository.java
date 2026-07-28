@@ -76,29 +76,15 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         return authorizationRequest;
     }
 
-    /**
-     * Serialize and encrypt OAuth2AuthorizationRequest to Base64 string for cookie storage.
-     *
-     * Process:
-     * 1. Convert OAuth2AuthorizationRequest to compact DTO
-     * 2. Serialize DTO to JSON using JsonUtils
-     * 3. Encrypt JSON with AES-256-GCM
-     * 4. Encode to Base64
-     *
-     * Result: ~250-350 bytes instead of ~2-3KB (8-10x reduction)
-     */
     private String serialize(OAuth2AuthorizationRequest authorizationRequest) {
         try {
-            // Convert to compact DTO
             OAuth2AuthorizationRequestDTO dto = OAuth2AuthorizationRequestDTO.fromAuthorizationRequest(authorizationRequest);
 
-            // Serialize DTO to JSON using JsonUtils
             String json = JsonUtils.writeValueAsString(dto);
             byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
 
             log.debug("Serialized OAuth2AuthorizationRequest to {} bytes (JSON)", jsonBytes.length);
 
-            // Encrypt and encode to Base64
             return CryptoUtils.encryptToBase64(jsonBytes, encryptionKey);
         } catch (Exception e) {
             log.error("Failed to serialize and encrypt OAuth2AuthorizationRequest", e);
@@ -107,26 +93,19 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
     }
 
     /**
-     * Deserialize and decrypt OAuth2AuthorizationRequest from Base64 string.
-     *
-     * Process:
-     * 1. Decode from Base64
-     * 2. Decrypt with AES-256-GCM
-     * 3. Deserialize JSON to DTO using JsonUtils
-     * 4. Convert DTO back to OAuth2AuthorizationRequest
+     * Returns {@code null} for anything unreadable — tampered, truncated, or encrypted under a
+     * retired key. Spring Security then sees no pending authorization request and restarts the
+     * flow, which is the behaviour we want: a broken cookie is a stale login, not a server error.
      */
     private OAuth2AuthorizationRequest deserialize(Cookie cookie) {
         try {
-            // Decode from Base64 and decrypt
             byte[] decrypted = CryptoUtils.decryptFromBase64(cookie.getValue(), encryptionKey);
 
-            // Deserialize JSON to DTO using JsonUtils
             String json = new String(decrypted, StandardCharsets.UTF_8);
             OAuth2AuthorizationRequestDTO dto = JsonUtils.readValue(json, OAuth2AuthorizationRequestDTO.class);
 
             log.debug("Deserialized OAuth2AuthorizationRequest from {} bytes (JSON)", decrypted.length);
 
-            // Convert DTO back to OAuth2AuthorizationRequest
             return dto.toAuthorizationRequest();
         } catch (Exception e) {
             log.error("Failed to decrypt and deserialize OAuth2AuthorizationRequest from cookie", e);
@@ -134,9 +113,6 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         }
     }
 
-    /**
-     * Get cookie by name
-     */
     private java.util.Optional<Cookie> getCookie(HttpServletRequest request, String name) {
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {

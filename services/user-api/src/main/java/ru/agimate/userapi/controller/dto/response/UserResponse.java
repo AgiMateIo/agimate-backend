@@ -7,9 +7,6 @@ import ru.agimate.common.security.UserRole;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/**
- * User Response DTO
- */
 @Schema(description = "User Response DTO")
 public record UserResponse(
         @Schema(description = "User ID", example = "0190a3b7-1234-7abc-8def-0123456789ab")

@@ -6,14 +6,8 @@ import jakarta.servlet.http.HttpServletResponse;
 public class CookieUtils {
     
     /**
-     * Sets an httpOnly cookie with the specified parameters
-     * 
-     * @param response The HTTP response to add the cookie to
-     * @param name The name of the cookie
-     * @param value The value of the cookie
-     * @param path The path for the cookie
-     * @param maxAge The maximum age of the cookie in seconds
-     * @param isSecure Whether the cookie should only be sent over HTTPS
+     * Single place where the platform's cookies are built, so HttpOnly cannot be forgotten on one
+     * of them. {@code isSecure} comes from {@code app.oauth.cookie-secure}.
      */
     public static void setHttpOnlyCookie(HttpServletResponse response, String name, String value,
                                          String path, int maxAge, boolean isSecure, String domain) {
@@ -26,12 +20,6 @@ public class CookieUtils {
         response.addCookie(cookie);
     }
 
-    /**
-     * Deletes a cookie by name
-     *
-     * @param response The HTTP response to add the cookie to
-     * @param name The name of the cookie to delete
-     */
     public static void deleteCookie(HttpServletResponse response, String name) {
         Cookie cookie = new Cookie(name, "");
         cookie.setPath("/");

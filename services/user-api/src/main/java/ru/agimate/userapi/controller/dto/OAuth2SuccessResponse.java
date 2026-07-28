@@ -3,9 +3,6 @@ package ru.agimate.userapi.controller.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * OAuth2 Success Response DTO
- */
 @Schema(description = "OAuth2 Success Response DTO")
 public record OAuth2SuccessResponse(
         @Schema(description = "JWT access token", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")

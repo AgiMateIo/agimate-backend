@@ -2,9 +2,6 @@ package ru.agimate.userapi.controller.dto.response.auth;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * Authentication Response DTO
- */
 @Schema(description = "Authentication Response DTO")
 public record AuthResponse(
         @Schema(description = "JWT access token", example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...")
