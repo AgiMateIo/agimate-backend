@@ -1,3 +1,10 @@
+app:
+  oauth:
+    # Прод всегда за HTTPS (см. forward-headers-strategy ниже), поэтому Secure здесь, а не в env:
+    # дефолт из application.yaml — false ради локального HTTP, и полагаться на то, что кто-то
+    # не забудет выставить переменную, для флага безопасности неправильно.
+    cookie-secure: true
+
 springdoc:
   swagger-ui:
     enabled: false

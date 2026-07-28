@@ -43,6 +43,7 @@ public class SecurityConfig {
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final OAuth2FailureHandler oAuth2FailureHandler;
     private final SecretKey oauth2CookieEncryptionKey;
+    private final OAuthProperties oAuthProperties;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -87,10 +88,9 @@ public class SecurityConfig {
 
     @Bean
     public AuthorizationRequestRepository<OAuth2AuthorizationRequest> authorizationRequestRepository() {
-        // Use cookie-based storage with shared encryption key + compact DTO+JSON serialization
-        // This allows OAuth2 flow to work across multiple backend instances without session affinity
-        // Reduces cookie size from ~2-3KB to ~250-350 bytes (8-10x reduction)
-        return new CookieOAuth2AuthorizationRequestRepository(oauth2CookieEncryptionKey);
+        // Cookie rather than session: the OAuth2 flow then survives landing on another instance.
+        return new CookieOAuth2AuthorizationRequestRepository(
+                oauth2CookieEncryptionKey, oAuthProperties.isCookieSecure());
     }
 
     @Bean

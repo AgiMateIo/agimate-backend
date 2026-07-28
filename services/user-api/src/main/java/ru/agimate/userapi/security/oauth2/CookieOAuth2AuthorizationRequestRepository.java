@@ -28,12 +28,15 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
     public static final int COOKIE_EXPIRE_SECONDS = 900; // 15 minutes
 
     private final SecretKey encryptionKey;
+    private final boolean cookieSecure;
 
     /**
-     * Constructor with provided encryption key (for multi-instance deployments)
+     * @param encryptionKey shared across instances, so any of them can decrypt the cookie
+     * @param cookieSecure  {@code app.oauth.cookie-secure} — off only for plain-HTTP local runs
      */
-    public CookieOAuth2AuthorizationRequestRepository(SecretKey encryptionKey) {
+    public CookieOAuth2AuthorizationRequestRepository(SecretKey encryptionKey, boolean cookieSecure) {
         this.encryptionKey = encryptionKey;
+        this.cookieSecure = cookieSecure;
         log.info("Using provided encryption key for OAuth2 cookie storage with compact DTO+JSON serialization");
     }
 
@@ -146,25 +149,20 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         return java.util.Optional.empty();
     }
 
-    /**
-     * Add cookie to response
-     */
     private void addCookie(HttpServletResponse response, String name, String value, int maxAge) {
         Cookie cookie = new Cookie(name, value);
         cookie.setPath("/");
         cookie.setHttpOnly(true);
         cookie.setMaxAge(maxAge);
-        // cookie.setSecure(true); // Enable in production with HTTPS
+        cookie.setSecure(cookieSecure);
         response.addCookie(cookie);
     }
 
-    /**
-     * Delete cookie from response
-     */
     private void deleteCookie(HttpServletRequest request, HttpServletResponse response, String name) {
         Cookie deletionCookie = new Cookie(name, "");
         deletionCookie.setPath("/");
         deletionCookie.setMaxAge(0);
+        deletionCookie.setSecure(cookieSecure); // must match the attributes it is replacing
         response.addCookie(deletionCookie);
     }
 }
