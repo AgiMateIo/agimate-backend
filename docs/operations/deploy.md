@@ -133,7 +133,7 @@ Centrifugo uses the same ES256 key format as JWT. Generate using the JWT key gen
 | Port | Service              | Purpose                                       |
 |------|----------------------|-----------------------------------------------|
 | 8080 | All                  | HTTP API                                      |
-| 8088 | Web services         | Management (health, metrics, prometheus)      |
+| 8088 | Web services         | Management (health)                           |
 | 8089 | agent-worker         | Management (health) — see below               |
 | 9090 | user-api             | gRPC server for internal s2s interactions     |
 | 9091 | control-api           | gRPC server for Generic Worker protocol (TLS) |
