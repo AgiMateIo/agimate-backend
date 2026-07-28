@@ -43,8 +43,9 @@ public record LlmProviderModelResponse(
                 + "provider-level extra_body; model wins)")
         Map<String, Object> extraBody,
 
-        @Schema(description = "Availability per the last successful listing refresh (advisory: "
-                + "UNAVAILABLE does not block LLM calls)")
+        @Schema(description = "Availability per the last successful listing refresh. UNAVAILABLE is "
+                + "skipped inside a provider's purpose_priority list and refused outright when the "
+                + "model is bound to an agent")
         LlmProviderModelStatus status,
 
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
