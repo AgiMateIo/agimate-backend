@@ -50,7 +50,8 @@ allprojects {
                 // Astronomy Engine (astro-коннектор control-api) — с JitPack
                 implementation("io.github.cosinekitty:astronomy:2.1.19")
 
-                // Рендер PNG-графиков sheets-коннектора: Apache 2.0, поверх Java2D, без транзитивов
+                // Рендер PNG-графиков sheets-коннектора: Apache 2.0, поверх Java2D. Транзитивы
+                // есть — бэкенды SVG/EPS и PDF; они отрезаны в control-api, см. там же почему
                 implementation("org.knowm.xchart:xchart:3.8.8")
 
                 // Импорт/экспорт xlsx в sheets-коннекторе: Apache 2.0, стриминговый, без xmlbeans

@@ -54,7 +54,15 @@ dependencies {
     implementation("io.github.cosinekitty:astronomy")
 
     // Графики sheets-коннектора: PNG через Java2D (Spring Boot ставит java.awt.headless=true)
-    implementation("org.knowm.xchart:xchart")
+    implementation("org.knowm.xchart:xchart") {
+        // Only BitmapEncoder is used, and it renders through ImageIO alone. The other two
+        // encoders ship their own backends: SVG/EPS pulls in LGPL VectorGraphics2D, PDF pulls
+        // in PDFBox — and pdfbox-io 3.0.1 declares JUnit as a compile dependency, which is how
+        // the test framework ends up inside the production jar. Roughly 5 MB of dead weight.
+        exclude(group = "de.erichseifert.vectorgraphics2d")
+        exclude(group = "de.rototor.pdfbox")
+        exclude(group = "org.apache.pdfbox")
+    }
 
     // Импорт/экспорт xlsx в sheets-коннекторе
     implementation("org.dhatim:fastexcel")
