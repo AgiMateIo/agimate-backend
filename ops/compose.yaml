@@ -119,9 +119,9 @@ services:
       CENTRIFUGO_URL: http://centrifugo
       CENTRIFUGO_PORT: 8000
       DBOS_ENABLED: "true"
-      DBOS_SYSTEMDATABASE_URL: jdbc:postgresql://postgres:5432/dbos
-      DBOS_SYSTEMDATABASE_USERNAME: agimate
-      DBOS_SYSTEMDATABASE_PASSWORD: agimate_dev_password
+      DBOS_SYSTEM_DATABASE_URL: jdbc:postgresql://postgres:5432/dbos
+      DBOS_SYSTEM_DATABASE_USERNAME: agimate
+      DBOS_SYSTEM_DATABASE_PASSWORD: agimate_dev_password
       GRPC_SERVER_ENABLED: "true"
     # 8180 matches the port the Caddyfile proxies /control/* to, so one Caddyfile serves both
     # the `infra` (bootRun on the host) and `full` (container) layouts.
