@@ -50,6 +50,15 @@ Start with [architecture/overview.md](docs/architecture/overview.md). Request an
 are not in the docs — they are generated from the code, see
 [the OpenAPI section](docs/README.md#начать-отсюда). Most of the documentation is in Russian.
 
+## Contributing
+
+Pull requests are welcome — [CONTRIBUTING.md](CONTRIBUTING.md) covers the setup, the
+conventions and the commit format. Contributors sign the [CLA](CLA.md) once, on their first
+pull request, by replying to a bot comment.
+
+Found a security problem? Do not open an issue — follow the
+[security policy](https://github.com/AgiMateIo/.github/blob/main/SECURITY.md).
+
 ## License
 
 [Apache-2.0](LICENSE)
