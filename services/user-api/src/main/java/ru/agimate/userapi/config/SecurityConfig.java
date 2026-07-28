@@ -106,7 +106,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/", "/oauth2/**", "/waitlist/**").permitAll()
                         .requestMatchers("/docs/**").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
+                        // Management port 8088 runs this very chain, so permitAll here decides what is
+                        // public there. Health and its liveness/readiness groups only — never the rest.
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "GUEST")
                         .anyRequest().hasAnyRole("USER", "ADMIN")
                 )

@@ -190,6 +190,8 @@ public class SecurityConfig {
                         "/favicon.ico",
                         "/docs/**",
                         "/actuator/health",
+                        // Liveness/readiness groups; the management port runs this chain too.
+                        "/actuator/health/**",
                         ConnectionWebhookController.PATH + "/**",
                         // Authentication is the HMAC signature in the query (exp+sig), not Spring Security.
                         FileDownloadController.PATH + "/**"
