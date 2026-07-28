@@ -2,6 +2,7 @@ package ru.agimate.controlapi.service.centrifugo;
 
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.opensolutionlab.httpclients.clients.CentrifugoClient;
@@ -26,6 +27,25 @@ public class CentrifugoService {
 
     private final CentrifugoClient centrifugoClient;
     private final CentrifugoProperties centrifugoProperties;
+
+    /**
+     * Without the signing key every issued client token is rejected by Centrifugo — a failure that
+     * otherwise surfaces as a silent WebSocket disconnect in the browser, far from its cause.
+     */
+    @PostConstruct
+    void warnOnIncompleteConfiguration() {
+        if (!centrifugoProperties.isEnabled()) {
+            return;
+        }
+        if (centrifugoProperties.getPrivateKey() == null || centrifugoProperties.getPrivateKey().isBlank()) {
+            log.warn("centrifugo.privateKey is not set — client tokens cannot be signed. "
+                    + "Run ops/dev-init.sh to generate the local configuration");
+        }
+        if (centrifugoProperties.getApiKey() == null || centrifugoProperties.getApiKey().isBlank()) {
+            log.warn("centrifugo.api-key is not set — server-side publishing will be rejected. "
+                    + "It must match http_api.key in ops/centrifugo/config.yaml");
+        }
+    }
 
     /** Wraps {@code data} into a {@code CentrifugoMessage} envelope; see {@link #publish} for the raw form. */
     public void publishMessage(String channel, String type, Object data) {
