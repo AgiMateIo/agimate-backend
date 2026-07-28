@@ -7,3 +7,6 @@ data
 
 # Рабочие черновики спецификаций — не публикуются
 docs/tmpspec/
+
+# Rendered by ops/dev-init.sh — carries per-machine keys
+ops/centrifugo/config.yaml

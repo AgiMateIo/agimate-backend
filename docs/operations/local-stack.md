@@ -1,80 +1,143 @@
 # Local stack
 
-One `compose.yaml`, three profiles. All of them share the same credentials and ports, and those
-match the defaults in each service's `application.yaml` — so the everyday loop needs no `.env`.
+Первый запуск — две команды:
 
-| Profile | Contains | Use it for |
+```bash
+cd ops
+./dev-init.sh                      # ключи, services/.env и конфиги из него
+docker compose --profile infra up -d
+```
+
+Дальше сервисы поднимаются из IDE или `bootRun` — ключи уже на местах.
+
+## `dev-init.sh`
+
+Скрипт генерирует всё, что нужно стенду, складывает значения в `services/.env` и рендерит из
+него конфиги, которые эти значения читают. Три пары значений должны совпасть между процессами —
+именно они и разъезжаются, когда ключи собирают руками:
+
+| Пара | Кто чем владеет |
+| --- | --- |
+| JWT ES256 | user-api подписывает токены, control-api проверяет публичной половиной |
+| Centrifugo ES256 | control-api подписывает клиентские токены, Centrifugo проверяет их публичной половиной |
+| Ключ воркер-пула | agent-worker предъявляет полный ключ, control-api хранит его хэш (authkey) |
+
+Что генерится:
+
+| Файл | Содержимое |
+| --- | --- |
+| `services/.env` | источник истины: ключи, OAuth-креды, машинно-зависимые URL |
+| `ops/centrifugo/config.yaml` | из `ops/templates/centrifugo.config.yaml`, с PEM публичного ключа |
+| `application-local.yaml` ×3 | из `ops/templates/<service>.application-local.yaml` |
+
+Всё это в `.gitignore` — значения локальные для машины.
+
+Скрипт идемпотентен: значения, уже лежащие в `services/.env`, он не трогает и генерит только
+недостающие, поэтому повторный запуск чинит полуготовый чекаут, а не ротирует ключи. Если
+`.env` ещё нет, а `application-local.yaml` уже написаны руками, значения вычитываются оттуда —
+настроенный до появления скрипта чекаут не теряет ключи и не разъезжается с конфигом Centrifugo.
+`application-local.yaml` он по умолчанию не перезаписывает — для этого `--force`:
+
+```bash
+./dev-init.sh            # добрать недостающее
+./dev-init.sh --force    # плюс перерендерить application-local.yaml из services/.env
+./dev-init.sh --yes      # без вопросов, все дефолты
+```
+
+Спрашивает три вещи, у всех есть дефолт: язык системного контента (`ru`), публичный
+WebSocket-URL Centrifugo (`ws://localhost:9000`; для доступа с телефона — LAN-IP машины, потому
+что `*.agimate.lc` там не резолвится) и OAuth-креды Google/Yandex. Пропущенный OAuth-провайдер
+получает значение-заглушку: Spring не стартует с пустым `client-id`, поэтому заглушка позволяет
+сервису подняться, и не работает только логин через этого провайдера. Реальные значения
+вписываются в `services/.env`, дальше `--force`.
+
+Требования: `openssl`, `python3`, `awk`, `fold`.
+
+Полный каталог переменных (S3, файловый слой, TLS для gRPC) — в `services/.env.example`; скрипт
+пишет только то, без чего стенд не поднимается.
+
+## Профили compose
+
+| Профиль | Что содержит | Для чего |
 | --- | --- | --- |
-| `infra` | PostgreSQL, Centrifugo | The daily loop: services run from the IDE or `gradle bootRun` |
-| `edge` | Caddy | Adds the `*.agimate.lc` hostnames on `:8000` in front of the host services |
-| `full` | infra + user-api, control-api, agent-worker | Smoke test that the images build and the stack starts |
+| `infra` | PostgreSQL, Centrifugo | Ежедневный цикл: сервисы идут из IDE или `gradle bootRun` |
+| `edge` | Caddy | Добавляет хостнеймы `*.agimate.lc` на `:8000` перед сервисами хоста |
+| `full` | infra + user-api, control-api, agent-worker | Смоук: образы собираются и стек стартует |
 
 ```bash
 cd ops
 
 docker compose --profile infra up -d                  # postgres + centrifugo
 docker compose --profile infra --profile edge up -d   # + caddy
-docker compose --profile full up -d                   # everything in containers
+docker compose --profile full up -d                   # всё в контейнерах
 ```
 
-## Everyday loop
+Под `full` контейнеры конфигурируются только из `services/.env`: `application-local.yaml`
+исключён из образа (`.dockerignore`), чтобы LAN-адреса и ключи с машины разработчика не
+запекались в имидж.
+
+Из этого следует, что профили не смешиваются: половина стека в контейнерах, половина из
+`bootRun` работает, только пока `.env` и `application-local.yaml` содержат одни и те же ключи.
+Если yaml писался руками до появления `.env`, JWT-пары разъедутся и control-api отвергнет токены
+user-api. Приводит оба набора к одному `./dev-init.sh --force`.
+
+## Ежедневный цикл
 
 ```bash
 cd ops && docker compose --profile infra up -d
 cd ../services
 ./gradlew :user-api:bootRun
-./gradlew :control-api:bootRun --args='--server.port=8180'
+./gradlew :control-api:bootRun
+./gradlew :agent-worker:bootRun
 ```
 
-Both services default to `8080`, so control-api is moved to `8180` when they run side by side —
-that is also the port the Caddyfile proxies `/control/*` to.
+Порт control-api (8180, чтобы не спорить с user-api на 8080) задан в его
+`application-local.yaml` — тот же порт, куда Caddyfile проксирует `/control/*`.
 
-## Databases
+## Базы
 
-`ops/postgres/init-databases.sh` creates all three on the first start of an empty volume:
+`ops/postgres/init-databases.sh` создаёт все три при первом старте пустого тома:
 
-| Database | Owner |
+| База | Владелец |
 | --- | --- |
 | `am_user_db` | user-api |
 | `am_control_db` | control-api |
-| `dbos` | DBOS system database — **shared**: control-api produces `run_agent`, agent-worker consumes it. Both must point here, or the queue silently has no consumer |
+| `dbos` | системная база DBOS — **общая**: control-api кладёт `run_agent`, agent-worker его забирает. Оба должны смотреть сюда, иначе у очереди молча нет консьюмера |
 
-User `agimate`, password `agimate_dev_password`. To recreate from scratch:
+Пользователь `agimate`, пароль `agimate_dev_password`. Пересоздать с нуля:
 `docker compose --profile infra down -v`.
 
-## Keys
+## Конфиг Centrifugo
 
-The stack needs **two independent** ES256 pairs, so run the generator twice:
+Правится шаблон `ops/templates/centrifugo.config.yaml`, а не отрендеренный
+`ops/centrifugo/config.yaml` — последний перезапишется следующим запуском скрипта.
+
+Centrifugo молча игнорирует ключи, которых не знает, поэтому опция из v5 не ломает старт, а
+тихо выключает функцию. Проверять так:
 
 ```bash
-./generate-jwt-keys.sh   # → JWT_PRIVATEKEY / JWT_PUBLICKEY          (user auth)
-./generate-jwt-keys.sh   # → CENTRIFUGO_PRIVATEKEY / CENTRIFUGO_PUBLICKEY
+docker run --rm -v "$PWD/centrifugo/config.yaml:/c.yaml" \
+  centrifugo/centrifugo:v6 centrifugo checkconfig -c /c.yaml
 ```
 
-Both pairs go into `services/.env`. For the second one the script also prints the public key in
-PEM form: it goes into `client.token.ecdsa_public_key` in `ops/centrifugo/config.json`, because
-control-api signs Centrifugo client tokens with `CENTRIFUGO_PRIVATEKEY` and Centrifugo verifies
-them with that public half. The config ships with a `REPLACE_WITH_CENTRIFUGO_PUBLIC_KEY`
-placeholder.
+Содержимое смонтированного файла для compose не изменение — `up -d` контейнер не пересоздаст,
+нужен `docker compose --profile infra restart centrifugo`.
 
-Every other value in `ops/centrifugo/config.json` is a local-development placeholder
-(`dev_api_key`, `dev_admin_password`). Do not reuse them anywhere reachable.
+## Хостнеймы `.lc`
 
-## The `.lc` hostnames
-
-The `edge` profile expects these in `/etc/hosts`:
+Профиль `edge` ожидает их в `/etc/hosts`:
 
 ```
 127.0.0.1 www.agimate.lc api.agimate.lc centrifugo.agimate.lc
 ```
 
-Caddy runs in a container while the services it fronts run on the host, so the Caddyfile targets
-`host.docker.internal`. On Linux that name comes from the `host-gateway` mapping declared in
-`compose.yaml`; on Docker Desktop it is built in.
+Caddy работает в контейнере, а сервисы за ним — на хосте, поэтому Caddyfile ходит в
+`host.docker.internal`. На Linux это имя даёт маппинг `host-gateway` из `compose.yaml`, на
+Docker Desktop оно встроенное.
 
-## Ports
+## Порты
 
-| | Host |
+| | Хост |
 | --- | --- |
 | PostgreSQL | 5432 |
 | Centrifugo | 9000 → 8000 |
@@ -83,6 +146,6 @@ Caddy runs in a container while the services it fronts run on the host, so the C
 | control-api | 8180 |
 | agent-worker | — (headless) |
 
-Under `full`, agent-worker shares control-api's network namespace: it refuses plaintext gRPC to
-anything but loopback, and this keeps `localhost:9091` pointing at control-api without weakening
-the check.
+Под `full` agent-worker делит сетевой неймспейс с control-api: он отказывается ходить plaintext
+gRPC куда-либо кроме loopback, и так `localhost:9091` действительно указывает на control-api —
+проверку не пришлось ослаблять.

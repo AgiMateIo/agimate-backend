@@ -22,20 +22,23 @@ Java 21 (virtual threads) · Spring Boot 4 · PostgreSQL 18 · Liquibase · gRPC
 ## Quick start
 
 ```bash
-# PostgreSQL + Centrifugo; see docs/operations/local-stack.md for the other profiles
-cd ops && docker compose --profile infra up -d
+cd ops
+./dev-init.sh                    # generates the keys and the local configuration
+docker compose --profile infra up -d   # PostgreSQL + Centrifugo
 
 cd ../services
 ./gradlew build
 ./gradlew :user-api:bootRun
-./gradlew :control-api:bootRun --args='--server.port=8180'
+./gradlew :control-api:bootRun
 ```
 
-Liquibase applies the schema on first start, and the stack defaults line up with the ones baked
-into each `application.yaml` — so nothing else is needed to get the two APIs talking to the
-database. For OAuth2 sign-in, JWT keys and connector credentials, copy
-[`services/.env.example`](services/.env.example) to `services/.env`; every variable there is
-documented in place.
+`dev-init.sh` generates every key the stack needs — user JWT, Centrifugo, worker pool, encryption
+keys — writes them to `services/.env` and renders the configs that read from it. Re-running it
+fills in what is missing without rotating what is already there. The only thing it cannot invent
+is OAuth2 credentials: without them the services still start, only the sign-in does not work.
+Liquibase applies the schema on first start.
+
+Details and the compose profiles: [docs/operations/local-stack.md](docs/operations/local-stack.md).
 
 To run everything in containers instead, including `agent-worker`:
 `cd ops && docker compose --profile full up -d`.

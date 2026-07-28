@@ -38,12 +38,14 @@ services:
     image: centrifugo/centrifugo:v6
     container_name: agimate-centrifugo
     profiles: [infra, full]
-    command: centrifugo -c /centrifugo/config.json
+    command: centrifugo -c /centrifugo/config.yaml
     # 9000 on the host matches the centrifugo.port default in control-api's application.yaml.
     ports:
       - "9000:8000"
+    # Rendered by ops/dev-init.sh — it carries the public half of the key control-api signs
+    # client tokens with, so it is generated per machine rather than committed.
     volumes:
-      - ./centrifugo/config.json:/centrifugo/config.json
+      - ./centrifugo/config.yaml:/centrifugo/config.yaml
     ulimits:
       nofile:
         soft: 65535

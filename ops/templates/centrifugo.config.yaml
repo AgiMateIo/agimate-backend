@@ -1,0 +1,64 @@
+# Rendered into ops/centrifugo/config.yaml by ops/dev-init.sh — edit the template, not the result.
+# The rendered file is gitignored: it carries the public half of the key control-api signs client
+# tokens with, and that pair is generated per machine.
+#
+# Namespace options are the flat v6 ones (history_size / history_ttl, log.level). Centrifugo
+# ignores keys it does not know instead of failing, so a v5-era name silently disables the
+# feature — `centrifugo checkconfig -c config.yaml` is the only thing that catches it.
+
+client:
+  token:
+    # Control-api signs Centrifugo client tokens with CENTRIFUGO_PRIVATEKEY; this is its public half.
+    ecdsa_public_key: |
+      __CENTRIFUGO_PUBLIC_KEY_PEM__
+  allowed_origins: ["*"]
+
+admin:
+  enabled: true
+  password: "__CENTRIFUGO_ADMIN_PASSWORD__"
+  secret: "__CENTRIFUGO_ADMIN_SECRET__"
+
+http_api:
+  key: "__CENTRIFUGO_APIKEY__"
+
+# /health is off by default, and compose waits on it before starting control-api.
+health:
+  enabled: true
+
+log:
+  level: debug
+
+channel:
+  namespaces:
+    - name: app
+      allow_subscribe_for_client: false
+      allow_publish_for_client: false
+      history_size: 100
+      history_ttl: 86400s
+      force_push_join_leave: false
+      force_recovery: false
+
+    - name: agent
+      allow_subscribe_for_client: false
+      allow_publish_for_client: false
+      history_size: 100
+      history_ttl: 600s
+      force_push_join_leave: false
+      force_recovery: false
+
+    - name: user
+      allow_subscribe_for_client: false
+      allow_publish_for_client: false
+      allow_tags_filter: true
+      history_size: 100
+      history_ttl: 600s
+      force_push_join_leave: false
+      force_recovery: false
+
+    - name: webchat
+      allow_subscribe_for_client: false
+      allow_publish_for_client: false
+      history_size: 100
+      history_ttl: 86400s
+      force_push_join_leave: false
+      force_recovery: true

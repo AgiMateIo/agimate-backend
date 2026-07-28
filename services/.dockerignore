@@ -34,6 +34,9 @@ buildinfo/
 .env
 .env.local
 *.env
+# Personal dev config: without it the `full` profile is driven purely by services/.env,
+# so a developer's LAN addresses and keys never end up baked into an image.
+**/application-local.yaml
 
 # OS files
 .DS_Store
