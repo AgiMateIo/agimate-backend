@@ -1,9 +1,18 @@
 package ru.agimate.controlapi.service.llm;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.hc.client5.http.DnsResolver;
+import org.apache.hc.client5.http.SystemDefaultDnsResolver;
+import org.apache.hc.client5.http.config.ConnectionConfig;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.core5.util.Timeout;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -12,7 +21,6 @@ import ru.agimate.controlapi.service.llm.MediaTransport.InputImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
@@ -25,7 +33,11 @@ import java.time.Duration;
  * <p>The address comes from a provider's response, so it is treated as untrusted input: https only,
  * no redirects, no private or loopback addresses, a hard size ceiling and a required {@code image/*}
  * content type. Without those a compromised or merely sloppy provider turns this into a request
- * forgery primitive pointed at our own network.
+ * forgery primitive pointed at our own network — and providers are created by users, with a base URL
+ * of their choosing, so «the provider is trusted» is not an assumption available here.
+ *
+ * <p>The address check sits in the client's DNS resolver rather than in front of the call, so the
+ * connection can only reach the addresses that were vetted; see {@link #resolvePublicOnly}.
  */
 @Component
 @Slf4j
@@ -42,14 +54,27 @@ public class RemoteImageFetcher {
      */
     public InputImage fetch(String url) {
         URI uri = parse(url);
-        requirePublicHttps(uri);
+        requireHttps(uri);
         try {
             return client().get()
                     .uri(uri)
                     .exchange((request, response) -> read(response, uri), false);
         } catch (ResourceAccessException e) {
+            // The address check lives in the DNS resolver, so its refusal arrives wrapped.
+            if (unwrapRefusal(e) instanceof MediaInferenceException refusal) {
+                throw refusal;
+            }
             throw new MediaInferenceException("failed to download the generated image: " + e.getMessage());
         }
+    }
+
+    private static Throwable unwrapRefusal(Throwable e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof MediaInferenceException) {
+                return cause;
+            }
+        }
+        return e;
     }
 
     private static InputImage read(ClientHttpResponse response, URI uri) throws IOException {
@@ -97,39 +122,64 @@ public class RemoteImageFetcher {
         }
     }
 
-    /**
-     * The link must be public https. The host is resolved and checked here rather than pattern-matched:
-     * a name that resolves into the private range is the whole point of an SSRF attempt.
-     */
-    static void requirePublicHttps(URI uri) {
+    static void requireHttps(URI uri) {
         if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) {
             throw new MediaInferenceException("provider's image link is not https");
         }
-        try {
-            for (InetAddress address : InetAddress.getAllByName(uri.getHost())) {
-                if (address.isLoopbackAddress() || address.isSiteLocalAddress()
-                        || address.isLinkLocalAddress() || address.isAnyLocalAddress()
-                        || address.isMulticastAddress()) {
-                    throw new MediaInferenceException("provider's image link points to a private address");
-                }
-            }
-        } catch (UnknownHostException e) {
-            throw new MediaInferenceException("provider's image link host is unresolvable");
+    }
+
+    /**
+     * Resolves the name once and lets the connection use <b>only</b> the addresses vetted here.
+     * Checking the address separately and then letting the client resolve again would be two
+     * different lookups: a name can answer with a public address to the check and a private one to
+     * the connection (DNS rebinding), which is exactly what this guard exists to stop.
+     */
+    static InetAddress[] resolvePublicOnly(String host) throws UnknownHostException {
+        InetAddress[] addresses = InetAddress.getAllByName(host);
+        for (InetAddress address : addresses) {
+            requirePublic(address);
+        }
+        return addresses;
+    }
+
+    /** Not a lambda: {@link DnsResolver} has a second method, and canonical-name lookup stays default. */
+    private static final DnsResolver PUBLIC_ONLY_DNS = new DnsResolver() {
+        @Override
+        public InetAddress[] resolve(String host) throws UnknownHostException {
+            return resolvePublicOnly(host);
+        }
+
+        @Override
+        public String resolveCanonicalHostname(String host) throws UnknownHostException {
+            return SystemDefaultDnsResolver.INSTANCE.resolveCanonicalHostname(host);
+        }
+    };
+
+    static void requirePublic(InetAddress address) {
+        if (address.isLoopbackAddress() || address.isSiteLocalAddress()
+                || address.isLinkLocalAddress() || address.isAnyLocalAddress()
+                || address.isMulticastAddress()) {
+            throw new MediaInferenceException("provider's image link points to a private address");
         }
     }
 
     /** Redirects are not followed: a redirect would move the request to an address nothing has vetted. */
     private static RestClient client() {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory() {
-            @Override
-            protected void prepareConnection(HttpURLConnection connection, String httpMethod)
-                    throws IOException {
-                super.prepareConnection(connection, httpMethod);
-                connection.setInstanceFollowRedirects(false);
-            }
-        };
-        factory.setConnectTimeout((int) CONNECT_TIMEOUT.toMillis());
-        factory.setReadTimeout((int) READ_TIMEOUT.toMillis());
-        return RestClient.builder().requestFactory(factory).build();
+        PoolingHttpClientConnectionManager connections = PoolingHttpClientConnectionManagerBuilder.create()
+                .setDnsResolver(PUBLIC_ONLY_DNS)
+                .setDefaultConnectionConfig(ConnectionConfig.custom()
+                        .setConnectTimeout(Timeout.ofMilliseconds(CONNECT_TIMEOUT.toMillis()))
+                        .build())
+                .build();
+        CloseableHttpClient httpClient = HttpClients.custom()
+                .setConnectionManager(connections)
+                .disableRedirectHandling()
+                .setDefaultRequestConfig(RequestConfig.custom()
+                        .setResponseTimeout(Timeout.ofMilliseconds(READ_TIMEOUT.toMillis()))
+                        .build())
+                .build();
+        return RestClient.builder()
+                .requestFactory(new HttpComponentsClientHttpRequestFactory(httpClient))
+                .build();
     }
 }
