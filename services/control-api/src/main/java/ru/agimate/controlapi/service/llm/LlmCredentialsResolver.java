@@ -52,9 +52,9 @@ public class LlmCredentialsResolver {
     /**
      * The resolution's result. {@code extraBody} is the final deep merge of the provider-level and the
      * per-model one (the model wins, see {@link ExtraBodyMerge}); an empty map means no extra fields.
-     * {@code inputModalities} comes from the model's registry row ({@code llm_provider_models}, with
-     * the {@code llm_model_defaults} fallback merged in at write time); an empty list means the model
-     * is unknown to the registry.
+     * The modalities come from the model's registry row ({@code llm_provider_models}, with the
+     * {@code llm_model_defaults} fallback merged in at write time); an empty list means the model is
+     * unknown to the registry — «not declared», never «cannot».
      *
      * @param platformFallback {@code true} — the platform provider was issued (the agent has no binding)
      */
@@ -64,6 +64,7 @@ public class LlmCredentialsResolver {
             String apiKey,
             Map<String, Object> extraBody,
             List<String> inputModalities,
+            List<String> outputModalities,
             boolean platformFallback) {
     }
 
@@ -283,9 +284,15 @@ public class LlmCredentialsResolver {
         LlmProviderModel row = pick.row();
         Map<String, Object> extraBody = ExtraBodyMerge.merge(provider.getExtraBody(),
                 row != null ? row.getExtraBody() : null);
-        List<String> inputModalities = row != null && row.getInputModalities() != null
-                ? List.copyOf(row.getInputModalities()) : List.of();
-        return new ResolvedLlm(provider, pick.model(), apiKey, extraBody, inputModalities, platformFallback);
+        return new ResolvedLlm(provider, pick.model(), apiKey, extraBody,
+                modalities(row == null ? null : row.getInputModalities()),
+                modalities(row == null ? null : row.getOutputModalities()),
+                platformFallback);
+    }
+
+    /** An absent registry row or an absent field are the same thing for the caller: nothing declared. */
+    private static List<String> modalities(List<String> declared) {
+        return declared == null ? List.of() : List.copyOf(declared);
     }
 
 }

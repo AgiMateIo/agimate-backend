@@ -48,6 +48,8 @@ public class MediaInferenceService {
     /** No known image model handles more than 4 references — we cut it off before the HTTP call. */
     private static final int MAX_INPUT_IMAGES = 4;
     private static final String DEFAULT_DESCRIBE_PROMPT = "Describe this image in detail.";
+    /** The modality value in the registry ({@code architecture.input/output_modalities} of /models). */
+    private static final String IMAGE_MODALITY = "image";
 
     private final LlmCredentialsResolver credentialsResolver;
     private final MediaInferenceHttp http;
@@ -78,6 +80,7 @@ public class MediaInferenceService {
         List<String> sources = sourceFileIds == null ? List.of() : sourceFileIds;
         ResolvedLlm resolved = credentialsResolver.resolveForCapability(
                 call.agentId(), call.userId(), LlmPurpose.IMAGE);
+        requireImageModality(resolved, LlmPurpose.IMAGE);
         Object content = sources.isEmpty() ? prompt : contentParts(call, prompt, sources);
         Map<String, Object> body = requestBody(resolved, Map.of(
                 "modalities", List.of("image", "text"),
@@ -102,6 +105,7 @@ public class MediaInferenceService {
     public String describeImage(MediaCall call, String fileId, String question) {
         ResolvedLlm resolved = credentialsResolver.resolveForCapability(
                 call.agentId(), call.userId(), LlmPurpose.VISION);
+        requireImageModality(resolved, LlmPurpose.VISION);
         String prompt = question == null || question.isBlank() ? DEFAULT_DESCRIBE_PROMPT : question;
         Map<String, Object> body = requestBody(resolved, Map.of(
                 "messages", List.of(Map.of("role", "user", "content",
@@ -110,6 +114,27 @@ public class MediaInferenceService {
         Map<String, Object> response = http.chatCompletions(resolved.provider(), resolved.apiKey(), body);
         recordUsage(call, resolved, response);
         return MediaInferenceHttp.messageText(response);
+    }
+
+    /**
+     * The registry's verdict on «can this model do it at all», checked before HTTP: a model that
+     * declares its modalities and has no {@code image} among them will never return a picture, and the
+     * provider's own refusal for that case is unreadable (Polza answers a bare 500). A model the
+     * registry knows nothing about passes — an empty list means «not declared», never «cannot», and
+     * configuring a model before the first {@code refreshModels} is legitimate (see
+     * {@link LlmCredentialsResolver}).
+     */
+    private static void requireImageModality(ResolvedLlm resolved, LlmPurpose purpose) {
+        boolean generating = purpose == LlmPurpose.IMAGE;
+        List<String> declared = generating ? resolved.outputModalities() : resolved.inputModalities();
+        if (declared.isEmpty() || declared.contains(IMAGE_MODALITY)) {
+            return;
+        }
+        throw new NoCapableModelException("Model '" + resolved.model() + "' of provider '"
+                + resolved.provider().getName() + "' cannot " + (generating ? "generate" : "accept")
+                + " images: it declares " + (generating ? "output" : "input") + " modalities "
+                + declared + ". Bind a suitable model to this agent for " + purpose
+                + " or fix the provider's " + purpose + " list.");
     }
 
     /** The final request body: the resolution's extra_body underneath, with the core (model/messages) winning. */

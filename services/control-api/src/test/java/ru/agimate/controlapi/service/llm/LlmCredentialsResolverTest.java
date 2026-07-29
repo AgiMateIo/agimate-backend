@@ -124,8 +124,8 @@ class LlmCredentialsResolverTest {
         }
 
         @Test
-        @DisplayName("input_modalities берутся из строки реестра резолвнутой модели")
-        void inputModalitiesComeFromRegistryRow() {
+        @DisplayName("input/output_modalities берутся из строки реестра резолвнутой модели")
+        void modalitiesComeFromRegistryRow() {
             LlmProvider bound = provider("my-openrouter");
             AgentLlm binding = AgentLlm.builder()
                     .agentId(agentId)
@@ -139,11 +139,12 @@ class LlmCredentialsResolverTest {
             when(llmProviderService.decryptApiKey(bound)).thenReturn("sk-key");
             when(llmProviderModelRepository.findByProviderIdAndModel(bound.getId(), "deepseek/deepseek-v4-flash"))
                     .thenReturn(Optional.of(model("deepseek/deepseek-v4-flash",
-                            List.of("text"), List.of("text"), LlmProviderModelStatus.AVAILABLE)));
+                            List.of("text", "image"), List.of("text"), LlmProviderModelStatus.AVAILABLE)));
 
             ResolvedLlm resolved = resolver.resolveChat(agentId, userId);
 
-            assertEquals(List.of("text"), resolved.inputModalities());
+            assertEquals(List.of("text", "image"), resolved.inputModalities());
+            assertEquals(List.of("text"), resolved.outputModalities());
         }
 
         @Test

@@ -3,6 +3,7 @@ package ru.agimate.controlapi.service.llm;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import ru.agimate.controlapi.service.llm.MediaInferenceHttp.DataUri;
 import ru.agimate.controlapi.service.llm.MediaInferenceHttp.Usage;
 
@@ -13,6 +14,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,6 +27,33 @@ class MediaInferenceHttpTest {
 
     private static Map<String, Object> responseWithMessage(Map<String, Object> message) {
         return Map.of("choices", List.of(Map.of("message", message)));
+    }
+
+    @Nested
+    @DisplayName("rejectionMessage")
+    class RejectionMessage {
+
+        private static final String BODY = "{\"error\":{\"code\":\"INTERNAL_ERROR\"}}";
+
+        @Test
+        @DisplayName("5xx: подсказка про транспорт + тело провайдера — агент не должен ретраить бесконечно")
+        void serverErrorCarriesTransportHint() {
+            String message = MediaInferenceHttp.rejectionMessage(HttpStatus.INTERNAL_SERVER_ERROR, BODY);
+
+            assertTrue(message.contains("500"), message);
+            assertTrue(message.contains("separate endpoint"), message);
+            assertTrue(message.contains(BODY), message);
+        }
+
+        @Test
+        @DisplayName("4xx: тело провайдера как есть, без домыслов про транспорт")
+        void clientErrorStaysVerbatim() {
+            String message = MediaInferenceHttp.rejectionMessage(HttpStatus.BAD_REQUEST, BODY);
+
+            assertTrue(message.contains("400"), message);
+            assertTrue(message.contains(BODY), message);
+            assertFalse(message.contains("separate endpoint"), message);
+        }
     }
 
     @Nested

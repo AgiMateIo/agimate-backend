@@ -3,6 +3,7 @@ package ru.agimate.controlapi.service.llm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -68,14 +69,29 @@ public class MediaInferenceHttp {
         String body = new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8);
         if (!response.getStatusCode().is2xxSuccessful()) {
             log.warn("media chat/completions returned {}: {}", response.getStatusCode(), truncate(body));
-            throw new MediaInferenceException("media model rejected request ("
-                    + response.getStatusCode().value() + "): " + truncate(body));
+            throw new MediaInferenceException(rejectionMessage(response.getStatusCode(), body));
         }
         try {
             return JsonUtils.fromJsonToMap(body);
         } catch (Exception e) {
             throw new MediaInferenceException("media model returned unparsable response");
         }
+    }
+
+    /**
+     * The text the agent will read verbatim. A 5xx gets the transport hint: a gateway that serves
+     * images on a separate endpoint fails exactly like this (Polza answers a bare «internal error»),
+     * and without the hint the agent sees an outage and retries a call that can never succeed. The
+     * provider's own body is kept either way — for a real outage it is the only useful part.
+     */
+    static String rejectionMessage(HttpStatusCode status, String body) {
+        if (status.is5xxServerError()) {
+            return "media provider returned a server error (" + status.value()
+                    + "). Image generation is supported only over chat/completions with modalities;"
+                    + " a provider that serves images on a separate endpoint will always fail here."
+                    + " Provider said: " + truncate(body);
+        }
+        return "media model rejected request (" + status.value() + "): " + truncate(body);
     }
 
     private static String resolveBaseUrl(LlmProvider provider) {

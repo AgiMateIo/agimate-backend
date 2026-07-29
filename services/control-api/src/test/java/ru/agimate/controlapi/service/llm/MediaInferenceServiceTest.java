@@ -64,13 +64,21 @@ class MediaInferenceServiceTest {
 
     private final LlmProvider provider = LlmProvider.builder()
             .id(UUID.randomUUID())
+            .name("openrouter")
             .providerType(LlmProviderType.OPENAI_COMPATIBLE)
             .baseUrl("https://openrouter.ai/api/v1")
             .enabled(true)
             .build();
 
+    /** Модель, которой реестр не знает: модальности не объявлены — путь не должен упираться в guard. */
     private ResolvedLlm resolved(String model, Map<String, Object> extraBody) {
-        return new ResolvedLlm(provider, model, "sk-key", extraBody, java.util.List.of(), false);
+        return resolved(model, extraBody, List.of(), List.of());
+    }
+
+    private ResolvedLlm resolved(String model, Map<String, Object> extraBody,
+                                 List<String> inputModalities, List<String> outputModalities) {
+        return new ResolvedLlm(provider, model, "sk-key", extraBody,
+                inputModalities, outputModalities, false);
     }
 
     private static Map<String, Object> imageResponse(String text) {
@@ -181,6 +189,35 @@ class MediaInferenceServiceTest {
         }
 
         @Test
+        @DisplayName("модель не объявляет image в output — отказ до HTTP-вызова")
+        void rejectsModelThatCannotDrawAccordingToRegistry() {
+            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+                    .thenReturn(resolved("chat-model", Map.of(),
+                            List.of("text", "image"), List.of("text")));
+
+            NoCapableModelException e = assertThrows(NoCapableModelException.class,
+                    () -> service.generateImage(call, "нарисуй кота", List.of()));
+
+            assertTrue(e.getMessage().contains("chat-model"), e.getMessage());
+            assertTrue(e.getMessage().contains("cannot generate images"), e.getMessage());
+            verify(http, never()).chatCompletions(any(), anyString(), any());
+        }
+
+        @Test
+        @DisplayName("модели нет в реестре (модальности не объявлены) — вызов идёт, guard не мешает")
+        void unknownModalitiesPassTheGuard() {
+            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
+                    .thenReturn(resolved("hand-typed-model", Map.of(), List.of(), List.of()));
+            when(http.chatCompletions(any(), anyString(), any())).thenReturn(imageResponse(""));
+            when(fileStorageService.store(any(), any(), any(), anyLong(), any(), any()))
+                    .thenReturn(StoredFile.builder().id(UUID.randomUUID()).build());
+
+            service.generateImage(call, "нарисуй кота", List.of());
+
+            verify(http).chatCompletions(any(), anyString(), any());
+        }
+
+        @Test
         @DisplayName("больше четырёх входных картинок — отказ до HTTP-вызова")
         void rejectsTooManySources() {
             when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
@@ -237,6 +274,20 @@ class MediaInferenceServiceTest {
 
             assertEquals("на фото кот", answer);
             verify(llmUsageService).record(any());
+        }
+
+        @Test
+        @DisplayName("модель не объявляет image во входе — отказ до чтения файла")
+        void rejectsModelThatCannotSeeAccordingToRegistry() {
+            when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.VISION))
+                    .thenReturn(resolved("text-model", Map.of(), List.of("text"), List.of("text")));
+
+            NoCapableModelException e = assertThrows(NoCapableModelException.class,
+                    () -> service.describeImage(call, "agf_img", null));
+
+            assertTrue(e.getMessage().contains("cannot accept images"), e.getMessage());
+            verify(fileStorageService, never()).open(any(), anyString());
+            verify(http, never()).chatCompletions(any(), anyString(), any());
         }
 
         @Test
