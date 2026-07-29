@@ -17,6 +17,17 @@ push в master (по фильтру путей)
 [`ci/build-and-push.sh`](../../ci/build-and-push.sh),
 [`ci/update-infra.sh`](../../ci/update-infra.sh) и `Dockerfile` в каждом сервисе.
 
+## Где идёт пайплайн
+
+Деплой выполняется **только на GitVerse** (`agimate/agimate-backend`) — там self-hosted раннер,
+registry и деплой-ключи. GitHub (`AgiMateIo/backend`) — публичное зеркало: тот же файл workflow
+там лежит, но `validate-config` гардится по `github.repository` и пропускает всю цепочку, потому
+что следующие джобы висят на `needs`. Форк, склонировавший workflow, по той же причине до нашей
+инфраструктуры не дотянется.
+
+Практическое следствие: запуск на GitHub выглядит как «джоб skipped» — это норма, а не поломка.
+Гард продублирован на `update-infra`, потому что там `always()`, который игнорирует пропуски выше.
+
 ## Что нужно настроить в репозитории
 
 | | |

@@ -16,7 +16,9 @@ jobs:
   validate-config:
     # Deploy targets our own infrastructure — a fork must never reach it. Guarding the
     # first job is enough for the chain below, which is gated on `needs`.
-    if: github.repository == 'AgiMateIo/backend'
+    # The name is the GitVerse repository, not the GitHub mirror: the runner and the
+    # deploy secrets live there, so on GitHub the whole chain is meant to skip.
+    if: github.repository == 'agimate/agimate-backend'
     runs-on: self-hosted
     steps:
       - name: Check required variables and secrets
@@ -134,7 +136,7 @@ jobs:
   update-infra:
     needs: [build-user-api, build-control-api, build-agent-worker]
     # `always()` ignores upstream skips, so the repository guard is repeated here.
-    if: always() && github.repository == 'AgiMateIo/backend' && (needs.build-user-api.result == 'success' || needs.build-control-api.result == 'success' || needs.build-agent-worker.result == 'success')
+    if: always() && github.repository == 'agimate/agimate-backend' && (needs.build-user-api.result == 'success' || needs.build-control-api.result == 'success' || needs.build-agent-worker.result == 'success')
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
