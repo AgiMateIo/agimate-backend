@@ -3,7 +3,6 @@ package ru.agimate.common.security.jwt;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 
 import java.security.KeyFactory;
@@ -15,10 +14,13 @@ import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@RequiredArgsConstructor
 public class JwtService {
 
     private final JwtProperties jwtProperties;
+
+    /** Null where the half is not configured: control-api verifies only and has no signing key. */
+    private final PrivateKey privateKey;
+    private final PublicKey publicKey;
 
     private static final String CLAIM_TYPE = "t";
     private static final String CLAIM_TYPE_REFRESH = "r";
@@ -26,26 +28,55 @@ public class JwtService {
 
     private static final String CLAIM_JWT_ID = "jti";
 
-    private PrivateKey getPrivateKey() {
+    /** Tolerance for clock drift between the issuing and the verifying instance. */
+    private static final long CLOCK_SKEW_SECONDS = 30;
+
+    /**
+     * Keys are parsed once: {@link KeyFactory} is expensive and this runs on every request. A key
+     * that is present but malformed fails here, at startup, rather than on the first token.
+     */
+    public JwtService(JwtProperties jwtProperties) {
+        this.jwtProperties = jwtProperties;
+        this.privateKey = loadPrivateKey(jwtProperties.getPrivateKey());
+        this.publicKey = loadPublicKey(jwtProperties.getPublicKey());
+    }
+
+    private static PrivateKey loadPrivateKey(String base64) {
+        if (base64 == null || base64.isBlank()) {
+            return null;
+        }
         try {
-            byte[] keyBytes = Base64.getDecoder().decode(jwtProperties.getPrivateKey());
-            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
-            KeyFactory keyFactory = KeyFactory.getInstance("EC");
-            return keyFactory.generatePrivate(keySpec);
+            byte[] keyBytes = Base64.getDecoder().decode(base64);
+            return KeyFactory.getInstance("EC").generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
         } catch (Exception e) {
             throw new JwtException("Failed to load JWT private key", e);
         }
     }
 
-    private PublicKey getPublicKey() {
+    private static PublicKey loadPublicKey(String base64) {
+        if (base64 == null || base64.isBlank()) {
+            return null;
+        }
         try {
-            byte[] keyBytes = Base64.getDecoder().decode(jwtProperties.getPublicKey());
-            X509EncodedKeySpec keySpec = new X509EncodedKeySpec(keyBytes);
-            KeyFactory keyFactory = KeyFactory.getInstance("EC");
-            return keyFactory.generatePublic(keySpec);
+            byte[] keyBytes = Base64.getDecoder().decode(base64);
+            return KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(keyBytes));
         } catch (Exception e) {
             throw new JwtException("Failed to load JWT public key", e);
         }
+    }
+
+    private PrivateKey requirePrivateKey() {
+        if (privateKey == null) {
+            throw new JwtException("JWT private key is not configured — this service cannot issue tokens");
+        }
+        return privateKey;
+    }
+
+    private PublicKey requirePublicKey() {
+        if (publicKey == null) {
+            throw new JwtException("JWT public key is not configured — this service cannot verify tokens");
+        }
+        return publicKey;
     }
 
     public String generateAccessToken(AgimateUserPrincipal agimateUserPrincipal) {
@@ -57,7 +88,7 @@ public class JwtService {
         claims.put(CLAIM_TYPE, CLAIM_TYPE_ACCESS);
         claims.put("roles", roles);
 
-        return createToken(agimateUserPrincipal.getName(), claims);
+        return createToken(agimateUserPrincipal.getName(), claims, jwtProperties.getAccessExpiration());
     }
 
     public String generateRefreshToken(AgimateUserPrincipal agimateUserPrincipal, String jwtId) {
@@ -66,16 +97,22 @@ public class JwtService {
         claims.put(CLAIM_TYPE, CLAIM_TYPE_REFRESH);
         claims.put(CLAIM_JWT_ID, jwtId);
 
-        return createToken(agimateUserPrincipal.getName(), claims);
+        return createToken(agimateUserPrincipal.getName(), claims, jwtProperties.getRefreshExpiration());
     }
 
-    private String createToken(String subject, Map<String, Object> claims) {
-        PrivateKey privateKey = getPrivateKey();
+    /**
+     * The lifetime is baked into {@code exp} rather than recomputed at verification time: otherwise
+     * changing the configured expiration retroactively re-dates every token already in the wild, and
+     * nothing outside this class (a gateway, a debugger) can tell whether a token is still valid.
+     */
+    private String createToken(String subject, Map<String, Object> claims, int expirationSeconds) {
+        Instant now = Instant.now();
         return Jwts.builder()
                 .subject(subject)
                 .claims(claims)
-                .issuedAt(new Date(System.currentTimeMillis()))
-                .signWith(privateKey, Jwts.SIG.ES256)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(expirationSeconds)))
+                .signWith(requirePrivateKey(), Jwts.SIG.ES256)
                 .compact();
     }
 
@@ -104,37 +141,35 @@ public class JwtService {
     }
 
     private Claims extractAllClaims(String token) {
-        PublicKey publicKey = getPublicKey();
-
+        // exp is enforced by the parser itself, which is why nothing below re-checks it.
         var claims = Jwts.parser()
-                .verifyWith(publicKey)
+                .verifyWith(requirePublicKey())
+                .clockSkewSeconds(CLOCK_SKEW_SECONDS)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
 
-        Integer expiration = switch ((String) claims.getOrDefault(CLAIM_TYPE, "undefined")) {
+        if (claims.getExpiration() == null) {
+            requireNotExpiredByIssuedAt(claims);
+        }
+
+        return claims;
+    }
+
+    /**
+     * Fallback for tokens issued before {@code exp} was set, which stay in circulation for one
+     * refresh lifetime after the deploy. Delete once that window has passed.
+     */
+    private void requireNotExpiredByIssuedAt(Claims claims) {
+        Integer lifetime = switch ((String) claims.getOrDefault(CLAIM_TYPE, "undefined")) {
             case CLAIM_TYPE_ACCESS -> jwtProperties.getAccessExpiration();
             case CLAIM_TYPE_REFRESH -> jwtProperties.getRefreshExpiration();
             default -> throw new JwtException("Undefined jwt type: " + claims.getOrDefault(CLAIM_TYPE, "undefined"));
         };
 
-        if (isClaimsExpired(claims, expiration)) {
+        if (claims.getIssuedAt() == null
+                || claims.getIssuedAt().toInstant().plusSeconds(lifetime).isBefore(Instant.now())) {
             throw new JwtException("JWT token is expired");
         }
-
-        return claims;
-
-    }
-
-    private Boolean isClaimsExpired(Claims claims, Integer seconds) {
-        if (claims.getExpiration() != null) {
-            return claims.getExpiration().before(new Date());
-        }
-
-        if (claims.getIssuedAt() == null) {
-            return true;
-        }
-
-        return claims.getIssuedAt().toInstant().plusSeconds(seconds).isBefore(Instant.now());
     }
 }

@@ -54,6 +54,12 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-api")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // The security package is compileOnly against these; tests need them on the classpath for real.
+    testImplementation("org.springframework.boot:spring-boot-starter-security")
+    testImplementation("io.jsonwebtoken:jjwt-api:0.12.6")
+    testRuntimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    testRuntimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 }
 
 dependencyManagement {

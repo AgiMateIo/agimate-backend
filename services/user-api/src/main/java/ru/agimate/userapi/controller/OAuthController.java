@@ -59,16 +59,18 @@ public class OAuthController {
 
         String refreshTokenValue = requireRefreshTokenFromCookie(request);
 
-        if (refreshTokenService.isAlreadyUsed(refreshRequest.refreshTokenId())) {
-            throw new ForbiddenStatusException("Refresh token already used");
-        }
-
         var wrappedJwtOptional = jwtService.extractClaimsFromValidRefreshToken(refreshTokenValue, refreshRequest.refreshTokenId());
         if (wrappedJwtOptional.isEmpty()) {
             refreshTokenService.deleteRefreshTokenCookie(response, resolved.cookieDomain());
             throw new ForbiddenStatusException("Invalid or expired refresh token");
         }
 
+        // Taken from the signed claims, not from the request body: the caller must not get to pick
+        // which id is looked up, and the replay check is only meaningful after the signature holds.
+        String refreshTokenId = wrappedJwtOptional.get().claims().getId();
+        if (refreshTokenService.isUsed(refreshTokenId)) {
+            throw new ForbiddenStatusException("Refresh token already used");
+        }
 
         var subject = wrappedJwtOptional.get().claims().getSubject();
         UserEntity userEntity = userService.findById(UUID.fromString(subject))
@@ -80,7 +82,7 @@ public class OAuthController {
         String newRefreshTokenId = UUID.randomUUID().toString();
         String newRefreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, newRefreshTokenId);
 
-        refreshTokenService.markTokenAsUsed(refreshTokenValue);
+        refreshTokenService.markUsed(refreshTokenId);
 
         refreshTokenService.setHttpOnlyRefreshTokenCookie(response, newRefreshToken,
                 resolved.cookieDomain(), resolved.cookieSecure());
@@ -108,7 +110,9 @@ public class OAuthController {
             throw new ForbiddenStatusException("Invalid or expired refresh token");
         }
 
-        refreshTokenService.markTokenAsUsed(refreshTokenValue);
+        // Revoking the id is what actually ends the session — deleting the cookie only clears the
+        // honest client's browser, not a copy of its value.
+        refreshTokenService.markUsed(wrappedJwtOptional.get().claims().getId());
         refreshTokenService.deleteRefreshTokenCookie(response, resolved.cookieDomain());
 
         return ResponseEntity.ok(SuccessResponse.ok("success"));
