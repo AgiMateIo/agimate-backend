@@ -99,7 +99,13 @@ tasks.withType<JavaCompile> {
 tasks.withType<Test> {
     useJUnitPlatform()
     listOf("generate.worker.authkey").forEach { key ->
-        System.getProperty(key)?.let { systemProperty(key, it) }
+        System.getProperty(key)?.let {
+            systemProperty(key, it)
+            // Generators print the key to stdout; Gradle hides it unless asked, and would
+            // skip the task as UP-TO-DATE on a repeat run with unchanged sources.
+            testLogging.showStandardStreams = true
+            outputs.upToDateWhen { false }
+        }
     }
 }
 

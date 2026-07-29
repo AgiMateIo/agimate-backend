@@ -15,7 +15,7 @@ class WorkerAuthkeyGeneratorTest {
 
     @Test
     @DisplayName("generate worker pool authkey")
-//    @EnabledIfSystemProperty(named = "generate.worker.authkey", matches = "true")
+    @EnabledIfSystemProperty(named = "generate.worker.authkey", matches = "true")
     void generate() {
         GeneratedAppKey generated = AppKeyUtils.generate(WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX);
         String authkey = ParsedWorkerAuthkey.build(WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX, generated);
