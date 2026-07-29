@@ -54,7 +54,9 @@ public class LlmCredentialsResolver {
      * per-model one (the model wins, see {@link ExtraBodyMerge}); an empty map means no extra fields.
      * The modalities come from the model's registry row ({@code llm_provider_models}, with the
      * {@code llm_model_defaults} fallback merged in at write time); an empty list means the model is
-     * unknown to the registry — «not declared», never «cannot».
+     * unknown to the registry — «not declared», never «cannot». {@code modelMetadata} is that row's
+     * raw listing entry, in the provider's own shape: only a transport built for that provider may
+     * read it, and only it knows what the shape means.
      *
      * @param platformFallback {@code true} — the platform provider was issued (the agent has no binding)
      */
@@ -65,6 +67,7 @@ public class LlmCredentialsResolver {
             Map<String, Object> extraBody,
             List<String> inputModalities,
             List<String> outputModalities,
+            Map<String, Object> modelMetadata,
             boolean platformFallback) {
     }
 
@@ -284,10 +287,12 @@ public class LlmCredentialsResolver {
         LlmProviderModel row = pick.row();
         Map<String, Object> extraBody = ExtraBodyMerge.merge(provider.getExtraBody(),
                 row != null ? row.getExtraBody() : null);
+        Map<String, Object> metadata = row == null || row.getRawMetadata() == null
+                ? Map.of() : row.getRawMetadata();
         return new ResolvedLlm(provider, pick.model(), apiKey, extraBody,
                 modalities(row == null ? null : row.getInputModalities()),
                 modalities(row == null ? null : row.getOutputModalities()),
-                platformFallback);
+                metadata, platformFallback);
     }
 
     /** An absent registry row or an absent field are the same thing for the caller: nothing declared. */

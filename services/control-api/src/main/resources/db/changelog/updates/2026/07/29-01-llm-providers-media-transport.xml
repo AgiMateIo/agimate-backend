@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="llm-providers-media-transport" author="agimate">
+        <comment>
+            Which dialect the provider is asked for a picture in. Nullable = the default
+            (CHAT_MODALITIES, the OpenRouter convention we started from), so existing rows keep
+            working untouched. It cannot be derived from provider_type: OpenRouter and Polza are both
+            OPENAI_COMPATIBLE, yet Polza answers chat/completions for an image model either with a
+            bare 500 (models whose output is image-only) or with 200, no picture and a full charge
+            (models declaring image+text) — measured, see docs/decisions/media-transport.md. Nor can
+            it be derived from the model: the same model id is reached over different dialects
+            depending on who serves it.
+        </comment>
+
+        <addColumn tableName="llm_providers">
+            <column name="media_transport" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

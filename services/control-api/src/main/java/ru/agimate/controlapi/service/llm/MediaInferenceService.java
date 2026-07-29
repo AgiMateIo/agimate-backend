@@ -7,8 +7,10 @@ import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.service.LlmUsageService;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
-import ru.agimate.controlapi.service.llm.MediaInferenceHttp.DataUri;
 import ru.agimate.controlapi.service.llm.MediaInferenceHttp.Usage;
+import ru.agimate.controlapi.service.llm.MediaTransport.GeneratedImage;
+import ru.agimate.controlapi.service.llm.MediaTransport.GenerationRequest;
+import ru.agimate.controlapi.service.llm.MediaTransport.InputImage;
 import ru.agimate.controlapi.storage.FileStorageService;
 import ru.agimate.controlapi.storage.FileStorageService.FileContent;
 
@@ -16,18 +18,21 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
  * The gate of «model as a tool» media inference (docs/connectors/media.md): resolving the model by
- * purpose ({@link LlmCredentialsResolver#resolveForCapability}) → chat/completions → bytes into the
- * file layer → usage accounting. The only point where the media connector touches the LLM
- * infrastructure: the connector itself knows nothing about providers, keys or the registry.
+ * purpose ({@link LlmCredentialsResolver#resolveForCapability}) → the provider's dialect
+ * ({@link MediaTransport}) → bytes into the file layer → usage accounting. The only point where the
+ * media connector touches the LLM infrastructure: the connector itself knows nothing about
+ * providers, keys or the registry.
+ *
+ * <p>Generation goes through a transport because providers disagree on how a picture is requested;
+ * vision does not — an image in a chat message is the one thing every OpenAI-compatible provider
+ * reads the same way (see {@code docs/decisions/media-transport.md}).
  *
  * <p>The key lives only within the call's frame (as in {@code GetLlmCredentials} — inline, never
  * persisted). What leaves are domain exceptions ({@link MediaInferenceException},
@@ -53,6 +58,7 @@ public class MediaInferenceService {
 
     private final LlmCredentialsResolver credentialsResolver;
     private final MediaInferenceHttp http;
+    private final MediaTransportRegistry transports;
     private final FileStorageService fileStorageService;
     private final LlmUsageService llmUsageService;
 
@@ -77,28 +83,26 @@ public class MediaInferenceService {
      * provenance {@code media:<model>} and the default TTL.
      */
     public ImageResult generateImage(MediaCall call, String prompt, List<String> sourceFileIds) {
-        List<String> sources = sourceFileIds == null ? List.of() : sourceFileIds;
+        List<String> sourceIds = sourceFileIds == null ? List.of() : sourceFileIds;
         ResolvedLlm resolved = credentialsResolver.resolveForCapability(
                 call.agentId(), call.userId(), LlmPurpose.IMAGE);
         requireImageModality(resolved, LlmPurpose.IMAGE);
-        Object content = sources.isEmpty() ? prompt : contentParts(call, prompt, sources);
-        Map<String, Object> body = requestBody(resolved, Map.of(
-                "modalities", List.of("image", "text"),
-                "messages", List.of(Map.of("role", "user", "content", content))));
+        List<InputImage> sources = loadSources(call, sourceIds);
 
-        Map<String, Object> response = http.chatCompletions(resolved.provider(), resolved.apiKey(), body);
-        recordUsage(call, resolved, response);
+        MediaTransport transport = transports.forProvider(resolved.provider());
+        GeneratedImage generated = transport.generate(
+                new GenerationRequest(resolved, prompt, sources));
+        recordUsage(call, resolved, generated.usage());
 
-        Optional<DataUri> image = MediaInferenceHttp.firstImage(response);
-        String text = MediaInferenceHttp.messageText(response);
-        if (image.isEmpty()) {
-            log.info("media image call returned no image agent={} model={}", call.agentId(), resolved.model());
-            return new ImageResult(null, text);
+        if (generated.bytes() == null) {
+            log.info("media image call returned no image agent={} model={} transport={}",
+                    call.agentId(), resolved.model(), transport.type());
+            return new ImageResult(null, generated.text());
         }
-        DataUri dataUri = image.get();
         StoredFile stored = fileStorageService.store(call.userId(), "media:" + resolved.model(),
-                dataUri.mime(), dataUri.bytes().length, new ByteArrayInputStream(dataUri.bytes()), null);
-        return new ImageResult(stored, text);
+                generated.mime(), generated.bytes().length,
+                new ByteArrayInputStream(generated.bytes()), null);
+        return new ImageResult(stored, generated.text());
     }
 
     /** Vision over a file: a description of, or an answer about, the image {@code fileId}. */
@@ -107,12 +111,13 @@ public class MediaInferenceService {
                 call.agentId(), call.userId(), LlmPurpose.VISION);
         requireImageModality(resolved, LlmPurpose.VISION);
         String prompt = question == null || question.isBlank() ? DEFAULT_DESCRIBE_PROMPT : question;
+        String dataUri = ChatModalitiesTransport.dataUri(loadImage(call, fileId));
         Map<String, Object> body = requestBody(resolved, Map.of(
                 "messages", List.of(Map.of("role", "user", "content",
-                        List.of(textPart(prompt), imagePart(loadImage(call, fileId).dataUri()))))));
+                        List.of(textPart(prompt), imagePart(dataUri))))));
 
         Map<String, Object> response = http.chatCompletions(resolved.provider(), resolved.apiKey(), body);
-        recordUsage(call, resolved, response);
+        recordUsage(call, resolved, MediaInferenceHttp.usage(response));
         return MediaInferenceHttp.messageText(response);
     }
 
@@ -145,43 +150,35 @@ public class MediaInferenceService {
     }
 
     /**
-     * The prompt plus the pictures as parts of a single user message, in list order: their numbering in
-     * the prompt («image 1», «image 2») relies on that order. The total size budget is counted over the
-     * bytes actually read — an overrun aborts the call before HTTP rather than after buffering
-     * everything.
+     * The source pictures in list order — numbering them in the prompt («image 1», «image 2») relies on
+     * it. The budgets live here rather than in a transport: they are about our heap, not about anyone's
+     * dialect, and the total is counted over the bytes actually read, so an overrun aborts the call
+     * before HTTP instead of after buffering everything.
      */
-    private List<Map<String, Object>> contentParts(MediaCall call, String prompt, List<String> fileIds) {
+    private List<InputImage> loadSources(MediaCall call, List<String> fileIds) {
         if (fileIds.size() > MAX_INPUT_IMAGES) {
             throw new MediaInferenceException("too many input images: " + fileIds.size()
                     + ", limit " + MAX_INPUT_IMAGES);
         }
-        List<Map<String, Object>> parts = new ArrayList<>();
-        parts.add(textPart(prompt));
+        List<InputImage> sources = new ArrayList<>();
         long total = 0;
         for (String fileId : fileIds) {
-            LoadedImage image = loadImage(call, fileId);
+            InputImage image = loadImage(call, fileId);
             total += image.bytes().length;
             if (total > MAX_INPUT_TOTAL_BYTES) {
                 throw new MediaInferenceException("input images are too large together ("
                         + total + " bytes, limit " + MAX_INPUT_TOTAL_BYTES + " per call)");
             }
-            parts.add(imagePart(image.dataUri()));
+            sources.add(image);
         }
-        return parts;
-    }
-
-    /** Bytes of an input picture together with its mime; it is expanded into a data URI when the request is assembled. */
-    private record LoadedImage(String mime, byte[] bytes) {
-        String dataUri() {
-            return "data:" + mime + ";base64," + Base64.getEncoder().encodeToString(bytes);
-        }
+        return sources;
     }
 
     /**
      * An input picture: ownership through {@code open(userId, fileId)} (a foreign or expired file →
      * {@code StoredFileNotFoundException}), then the mime and size checks.
      */
-    private LoadedImage loadImage(MediaCall call, String fileId) {
+    private InputImage loadImage(MediaCall call, String fileId) {
         FileContent content = fileStorageService.open(call.userId(), fileId);
         StoredFile file = content.file();
         if (file.getMime() == null || !file.getMime().startsWith("image/")) {
@@ -193,7 +190,7 @@ public class MediaInferenceService {
                     + file.getSizeBytes() + " bytes, limit " + MAX_INPUT_IMAGE_BYTES + ")");
         }
         try (InputStream in = content.content()) {
-            return new LoadedImage(file.getMime(), in.readAllBytes());
+            return new InputImage(file.getMime(), in.readAllBytes());
         } catch (IOException e) {
             throw new MediaInferenceException("failed to read file " + fileId);
         }
@@ -201,11 +198,13 @@ public class MediaInferenceService {
 
     /**
      * Token accounting through the same {@code llm_usage_log} and counters as the agent loop: over
-     * chat/completions, image models bill a picture as output tokens. A response with no {@code usage}
-     * gives zeroes plus a warning (the fact of the call stays in the log, and the shortfall is visible).
+     * chat/completions, image models bill a picture as output tokens. No {@code usage} means zeroes
+     * plus a warning — the fact of the call stays in the log and the shortfall is visible. A media
+     * endpoint bills in money rather than tokens, so its calls are all zeroes here until the log
+     * learns about cost; the price is meanwhile logged by the transport.
      */
-    private void recordUsage(MediaCall call, ResolvedLlm resolved, Map<String, Object> response) {
-        Usage usage = MediaInferenceHttp.usage(response);
+    private void recordUsage(MediaCall call, ResolvedLlm resolved, Usage reported) {
+        Usage usage = reported;
         if (usage == null) {
             log.warn("media response carried no usage provider={} model={} — recording zeros",
                     resolved.provider().getId(), resolved.model());

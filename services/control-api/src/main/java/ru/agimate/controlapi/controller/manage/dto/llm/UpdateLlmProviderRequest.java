@@ -2,6 +2,7 @@ package ru.agimate.controlapi.controller.manage.dto.llm;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.MediaTransportType;
 
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,10 @@ public record UpdateLlmProviderRequest(
         @Schema(description = "Provider-level extra chat/completions body fields; empty object "
                 + "clears it, absent — kept")
         Map<String, Object> extraBody,
+
+        @Schema(description = "How this provider is asked to generate an image (CHAT_MODALITIES | "
+                + "MEDIA_ENDPOINT); absent — kept")
+        MediaTransportType mediaTransport,
 
         @Schema(description = "Whether the provider is enabled")
         Boolean enabled

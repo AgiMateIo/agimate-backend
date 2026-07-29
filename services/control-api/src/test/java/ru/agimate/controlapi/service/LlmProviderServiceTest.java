@@ -204,7 +204,7 @@ class LlmProviderServiceTest {
             assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
                     () -> service.update(platform.getId(), adminId, true,
                             new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
-                                    "renamed", null, null, null, null, null)));
+                                    "renamed", null, null, null, null, null, null)));
 
             assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
                     () -> service.delete(platform.getId(), adminId, true));
@@ -222,12 +222,28 @@ class LlmProviderServiceTest {
                             null, null, null,
                             Map.of(LlmPurpose.CHAT, List.of("gemini-flash"),
                                     LlmPurpose.VISION, List.of("gemini-flash")),
-                            null, true));
+                            null, null, true));
 
             assertTrue(response.enabled());
             assertEquals(List.of("gemini-flash"), response.purposePriority().get(LlmPurpose.CHAT));
             assertEquals(List.of("gemini-flash"), response.purposePriority().get(LlmPurpose.VISION));
             assertTrue(response.platform());
+        }
+
+        @Test
+        @DisplayName("media_transport задаётся через update: у OpenRouter и Polza один providerType")
+        void updatesMediaTransport() {
+            LlmProvider platform = existingProvider(false);
+            when(llmProviderRepository.findById(platform.getId())).thenReturn(Optional.of(platform));
+            when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            var response = service.update(platform.getId(), adminId, true,
+                    new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
+                            null, null, null, null, null,
+                            ru.agimate.controlapi.database.enums.MediaTransportType.MEDIA_ENDPOINT, null));
+
+            assertEquals(ru.agimate.controlapi.database.enums.MediaTransportType.MEDIA_ENDPOINT,
+                    response.mediaTransport());
         }
 
         @Test
@@ -242,7 +258,7 @@ class LlmProviderServiceTest {
                     () -> service.update(platform.getId(), adminId, true,
                             new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
                                     null, null, null,
-                                    Map.of(LlmPurpose.CHAT, List.of("gemini-flahs")), null, null)));
+                                    Map.of(LlmPurpose.CHAT, List.of("gemini-flahs")), null, null, null)));
             verify(llmProviderRepository, never()).save(any());
         }
 
@@ -255,7 +271,7 @@ class LlmProviderServiceTest {
 
             var response = service.update(platform.getId(), adminId, true,
                     new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
-                            null, null, null, Map.of(LlmPurpose.IMAGE, List.of()), null, null));
+                            null, null, null, Map.of(LlmPurpose.IMAGE, List.of()), null, null, null));
 
             assertEquals(List.of(), response.purposePriority().get(LlmPurpose.IMAGE));
         }
@@ -270,12 +286,12 @@ class LlmProviderServiceTest {
                     () -> service.update(platform.getId(), adminId, true,
                             new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
                                     null, null, null,
-                                    Map.of(LlmPurpose.CHAT, List.of("a", "a")), null, null)));
+                                    Map.of(LlmPurpose.CHAT, List.of("a", "a")), null, null, null)));
             assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
                     () -> service.update(platform.getId(), adminId, true,
                             new ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest(
                                     null, null, null,
-                                    Map.of(LlmPurpose.CHAT, List.of(" ")), null, null)));
+                                    Map.of(LlmPurpose.CHAT, List.of(" ")), null, null, null)));
             verify(llmProviderRepository, never()).save(any());
         }
     }

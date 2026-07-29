@@ -9,6 +9,7 @@ import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.MediaTransportType;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -75,6 +76,17 @@ public class LlmProvider extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "extra_body", columnDefinition = "JSONB")
     private Map<String, Object> extraBody;
+
+    /**
+     * The dialect used to ask this provider for a picture; {@code null} — the default of
+     * {@link MediaTransportType#CHAT_MODALITIES}. Explicit and per-provider on purpose: it follows
+     * neither from {@code providerType} (OpenRouter and Polza are both OPENAI_COMPATIBLE and speak
+     * different dialects) nor from the model id (the same model is reached differently depending on
+     * who serves it). See {@code docs/decisions/media-transport.md}.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "media_transport", columnDefinition = "TEXT")
+    private MediaTransportType mediaTransport;
 
     /** When the provider's /models was last polled successfully (an attribute of the listing, not of a model). */
     @Column(name = "models_refreshed_at")

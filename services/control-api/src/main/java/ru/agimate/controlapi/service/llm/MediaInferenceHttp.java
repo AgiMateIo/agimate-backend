@@ -94,7 +94,8 @@ public class MediaInferenceHttp {
         return "media model rejected request (" + status.value() + "): " + truncate(body);
     }
 
-    private static String resolveBaseUrl(LlmProvider provider) {
+    /** Shared with the other transports: which URL this provider type is addressed at. */
+    static String resolveBaseUrl(LlmProvider provider) {
         String configured = provider.getBaseUrl();
         return switch (provider.getProviderType()) {
             case OPENAI -> stripTrailingSlash(

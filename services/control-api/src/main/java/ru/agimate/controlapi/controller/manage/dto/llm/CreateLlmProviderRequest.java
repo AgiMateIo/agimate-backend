@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.MediaTransportType;
 
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,11 @@ public record CreateLlmProviderRequest(
                 + "provider routing); deep-merged with per-model extra_body, model wins. "
                 + "Not a secret store — do not put API keys here")
         Map<String, Object> extraBody,
+
+        @Schema(description = "How this provider is asked to generate an image; absent — "
+                + "CHAT_MODALITIES (the OpenRouter convention). Providers whose image models live on "
+                + "a separate endpoint (Polza) need MEDIA_ENDPOINT")
+        MediaTransportType mediaTransport,
 
         @Schema(description = "Whether the provider is enabled")
         Boolean enabled

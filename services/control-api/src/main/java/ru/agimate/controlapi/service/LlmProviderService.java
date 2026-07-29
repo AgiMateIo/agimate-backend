@@ -177,6 +177,7 @@ public class LlmProviderService {
                 .baseUrl(blankToNull(request.baseUrl()))
                 .purposePriority(emptyToNull(request.purposePriority()))
                 .extraBody(request.extraBody())
+                .mediaTransport(request.mediaTransport())
                 .apiKeyMask(buildMask(request.apiKey()))
                 .enabled(request.enabled() == null || request.enabled())
                 .build());
@@ -227,6 +228,9 @@ public class LlmProviderService {
             validateExtraBody(request.extraBody());
             // An empty object clears it (partial update: null = «leave unchanged»).
             provider.setExtraBody(request.extraBody().isEmpty() ? null : request.extraBody());
+        }
+        if (request.mediaTransport() != null) {
+            provider.setMediaTransport(request.mediaTransport());
         }
         if (request.enabled() != null) {
             provider.setEnabled(request.enabled());

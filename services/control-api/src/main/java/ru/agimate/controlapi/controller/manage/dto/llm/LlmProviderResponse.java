@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.MediaTransportType;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
 
 import java.time.LocalDateTime;
@@ -36,6 +37,10 @@ public record LlmProviderResponse(
         @Schema(description = "Provider-level extra chat/completions body fields")
         Map<String, Object> extraBody,
 
+        @Schema(description = "How this provider is asked to generate an image; null — the default "
+                + "CHAT_MODALITIES")
+        MediaTransportType mediaTransport,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the model registry was last refreshed from the provider listing")
         LocalDateTime modelsRefreshedAt,
@@ -60,6 +65,7 @@ public record LlmProviderResponse(
                 provider.getPurposePriority(),
                 provider.getApiKeyMask(),
                 provider.getExtraBody(),
+                provider.getMediaTransport(),
                 provider.getModelsRefreshedAt(),
                 provider.isEnabled(),
                 SystemSkillBootstrap.SYSTEM_USER_ID.equals(provider.getUserId()),

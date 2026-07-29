@@ -1,11 +1,11 @@
 package ru.agimate.controlapi.service.llm;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.database.entities.LlmProvider;
@@ -59,8 +59,17 @@ class MediaInferenceServiceTest {
     private FileStorageService fileStorageService;
     @Mock
     private LlmUsageService llmUsageService;
-    @InjectMocks
+
     private MediaInferenceService service;
+
+    @BeforeEach
+    void setUp() {
+        // Реальный CHAT_MODALITIES поверх замоканного http: тесты проверяют тело запроса, а не диспетчер.
+        MediaTransportRegistry transports =
+                new MediaTransportRegistry(List.of(new ChatModalitiesTransport(http)));
+        service = new MediaInferenceService(
+                credentialsResolver, http, transports, fileStorageService, llmUsageService);
+    }
 
     private final LlmProvider provider = LlmProvider.builder()
             .id(UUID.randomUUID())
@@ -78,7 +87,7 @@ class MediaInferenceServiceTest {
     private ResolvedLlm resolved(String model, Map<String, Object> extraBody,
                                  List<String> inputModalities, List<String> outputModalities) {
         return new ResolvedLlm(provider, model, "sk-key", extraBody,
-                inputModalities, outputModalities, false);
+                inputModalities, outputModalities, Map.of(), false);
     }
 
     private static Map<String, Object> imageResponse(String text) {
