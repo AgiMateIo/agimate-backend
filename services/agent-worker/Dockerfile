@@ -28,13 +28,19 @@ COPY agent-worker/src agent-worker/src
 # Build the application
 RUN ./gradlew :agent-worker:bootJar --no-daemon
 
-# Runtime stage
-FROM eclipse-temurin:21-jre-alpine
+# Runtime stage.
+# glibc, not -alpine: grpc-netty-shaded bundles netty-tcnative, whose native library is
+# built against glibc. On musl it loads and then dies in relocation —
+#   Error relocating ...tcnative_linux_x86_64.so: __isnan: symbol not found
+# which surfaces as a JVM SIGSEGV inside netty_internal_tcnative_SSLContext_JNI_OnLoad the
+# moment a TLS context is created. Invisible locally, where compose runs the worker with
+# AGENT_GRPC_USE_TLS=false over a shared loopback and no SSL context is ever built.
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S spring && adduser -S spring -G spring
+# Create non-root user (Debian/Ubuntu adduser, not the busybox flags Alpine used)
+RUN addgroup --system spring && adduser --system --ingroup spring spring
 USER spring:spring
 
 # Copy the built jar

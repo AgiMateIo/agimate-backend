@@ -28,13 +28,17 @@ COPY control-api/src control-api/src
 # Build the application
 RUN ./gradlew :control-api:bootJar --no-daemon
 
-# Runtime stage
-FROM eclipse-temurin:21-jre-alpine
+# Runtime stage.
+# glibc, not -alpine: the worker gRPC server terminates TLS via netty-tcnative, whose native
+# library is built against glibc and dies in relocation on musl (__isnan: symbol not found),
+# surfacing as a JVM SIGSEGV as soon as the SSL context is built. Kept in step with the other
+# two services — agent-worker hits the same wall from the client side.
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S spring && adduser -S spring -G spring
+# Create non-root user (Debian/Ubuntu adduser, not the busybox flags Alpine used)
+RUN addgroup --system spring && adduser --system --ingroup spring spring
 USER spring:spring
 
 # Copy the built jar

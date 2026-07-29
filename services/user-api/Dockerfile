@@ -27,13 +27,17 @@ COPY user-api/src user-api/src
 # Build the application
 RUN ./gradlew :user-api:bootJar --no-daemon
 
-# Runtime stage
-FROM eclipse-temurin:21-jre-alpine
+# Runtime stage.
+# glibc, not -alpine: kept identical to control-api and agent-worker, which need it for
+# netty-tcnative (its native TLS library is glibc-linked and faults on musl). user-api does
+# not terminate TLS itself today, but one base image across the three services means a gRPC
+# or TLS dependency added here later cannot reintroduce the same crash.
+FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S spring && adduser -S spring -G spring
+# Create non-root user (Debian/Ubuntu adduser, not the busybox flags Alpine used)
+RUN addgroup --system spring && adduser --system --ingroup spring spring
 USER spring:spring
 
 # Copy the built jar

@@ -73,7 +73,14 @@ registry и деплой-ключи. GitHub (`AgiMateIo/backend`) — публи
 ## Образы
 
 Двухэтапный Dockerfile, одинаковый у всех трёх сервисов: сборка на `21-jdk`, рантайм на
-`21-jre-alpine` под non-root пользователем `spring`.
+`21-jre` под non-root пользователем `spring`.
+
+Рантайм именно на glibc, не на `-alpine`. `grpc-netty-shaded` несёт с собой нативную
+библиотеку netty-tcnative, собранную под glibc; на musl она подгружается и падает на
+релокации (`__isnan: symbol not found`), что наружу выглядит как SIGSEGV всей JVM в
+`netty_internal_tcnative_SSLContext_JNI_OnLoad` — в момент создания TLS-контекста. Локально
+это не видно: в compose воркер ходит с `AGENT_GRPC_USE_TLS=false` через общий loopback, и
+SSL-контекст не создаётся вообще. Вылезает только там, где gRPC реально идёт по TLS.
 
 Контекст сборки — каталог `services` целиком, а не каталог сервиса: Gradle отказывается
 конфигурировать проект, объявленный в `settings.gradle.kts`, но отсутствующий на диске. Поэтому
