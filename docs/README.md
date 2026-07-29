@@ -74,6 +74,7 @@
 | | |
 |---|---|
 | [uuid-primary-keys.md](decisions/uuid-primary-keys.md) | Переход на UUIDv7 в первичных ключах |
+| [media-transport.md](decisions/media-transport.md) | Как выбирается диалект провайдера при генерации изображений |
 | [acp-comparison.md](decisions/acp-comparison.md) | Agent Communication Protocol против нашей архитектуры |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md) |
 
