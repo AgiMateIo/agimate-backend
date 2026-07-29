@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.discovery;
 
 import ru.agimate.controlapi.database.model.LlmModelInfo;
 import ru.agimate.controlapi.database.entities.LlmProvider;

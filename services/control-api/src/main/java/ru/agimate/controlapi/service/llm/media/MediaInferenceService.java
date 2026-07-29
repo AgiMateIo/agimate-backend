@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.media;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -6,13 +6,17 @@ import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.service.LlmUsageService;
+import ru.agimate.controlapi.service.llm.ExtraBodyMerge;
+import ru.agimate.controlapi.service.llm.LlmCredentialsResolver;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
-import ru.agimate.controlapi.service.llm.MediaInferenceHttp.Usage;
-import ru.agimate.controlapi.service.llm.MediaTransport.GeneratedImage;
-import ru.agimate.controlapi.service.llm.MediaTransport.GenerationRequest;
-import ru.agimate.controlapi.service.llm.MediaTransport.InputImage;
-import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.service.llm.NoCapableModelException;
+import ru.agimate.controlapi.service.llm.QuotaExceededException;
+import ru.agimate.controlapi.service.llm.media.MediaInferenceHttp.Usage;
+import ru.agimate.controlapi.service.llm.media.MediaTransport.GeneratedImage;
+import ru.agimate.controlapi.service.llm.media.MediaTransport.GenerationRequest;
+import ru.agimate.controlapi.service.llm.media.MediaTransport.InputImage;
 import ru.agimate.controlapi.storage.FileStorageService.FileContent;
+import ru.agimate.controlapi.storage.FileStorageService;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

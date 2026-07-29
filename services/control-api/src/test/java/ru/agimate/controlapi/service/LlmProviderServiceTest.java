@@ -20,7 +20,7 @@ import ru.agimate.controlapi.database.repositories.LlmModelDefaultsRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
-import ru.agimate.controlapi.service.llm.LlmModelDiscoveryService;
+import ru.agimate.controlapi.service.llm.discovery.LlmModelDiscoveryService;
 import ru.agimate.controlapi.service.secret.SecretService;
 
 import java.util.List;

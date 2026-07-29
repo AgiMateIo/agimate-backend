@@ -1,6 +1,7 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.discovery;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.database.model.LlmModelInfo;
@@ -11,13 +12,13 @@ import java.util.List;
 
 @Slf4j
 @Component
-public class GeminiModelDiscovery implements LlmModelDiscoveryStrategy {
+public class OpenAiModelDiscovery implements LlmModelDiscoveryStrategy {
 
-    private static final String DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
+    private static final String DEFAULT_BASE_URL = "https://api.openai.com";
 
     @Override
     public LlmProviderType type() {
-        return LlmProviderType.GEMINI;
+        return LlmProviderType.OPENAI;
     }
 
     @Override
@@ -26,13 +27,11 @@ public class GeminiModelDiscovery implements LlmModelDiscoveryStrategy {
                 ? provider.getBaseUrl()
                 : DEFAULT_BASE_URL;
 
-        // Gemini /v1beta/models entries: {name, displayName, description, version, inputTokenLimit, ...}.
-        // We use `name` (e.g. "models/gemini-1.5-pro") as the id and `displayName` as the label.
+        // OpenAI /v1/models returns {id, object, created, owned_by} — no human-readable name.
         return LlmDiscoveryHttp.client(baseUrl).get()
-                .uri(uriBuilder -> uriBuilder.path("/v1beta/models")
-                        .queryParam("key", decryptedApiKey)
-                        .build())
+                .uri("/v1/models")
                 .accept(MediaType.APPLICATION_JSON)
-                .exchange((req, res) -> LlmDiscoveryHttp.extractModels(res, "models", "name", "displayName"));
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + decryptedApiKey)
+                .exchange((req, res) -> LlmDiscoveryHttp.extractModels(res, "data", "id", null));
     }
 }

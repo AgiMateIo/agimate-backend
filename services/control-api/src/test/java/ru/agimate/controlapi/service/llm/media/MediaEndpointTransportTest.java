@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.media;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -7,8 +7,8 @@ import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.MediaTransportType;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
-import ru.agimate.controlapi.service.llm.MediaTransport.GenerationRequest;
-import ru.agimate.controlapi.service.llm.MediaTransport.InputImage;
+import ru.agimate.controlapi.service.llm.media.MediaTransport.GenerationRequest;
+import ru.agimate.controlapi.service.llm.media.MediaTransport.InputImage;
 
 import java.util.Base64;
 import java.util.List;

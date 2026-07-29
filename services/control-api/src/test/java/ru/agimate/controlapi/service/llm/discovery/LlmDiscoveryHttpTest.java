@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.discovery;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

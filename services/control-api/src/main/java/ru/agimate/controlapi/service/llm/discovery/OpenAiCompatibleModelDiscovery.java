@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.discovery;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;

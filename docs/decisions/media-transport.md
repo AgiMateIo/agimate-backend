@@ -5,7 +5,7 @@
 и выяснилось, что дело не в провайдере и не в нашем коде, а в том, что мы приняли конвенцию
 одного вендора за стандарт.
 
-Реализация: `controlapi.service.llm.MediaInferenceService` + `MediaInferenceHttp`, коннектор —
+Реализация: `controlapi.service.llm.media` (`MediaInferenceService`, транспорты), коннектор —
 `connectors/internal/media`. Текущее поведение описано в [../connectors/media.md](../connectors/media.md).
 
 ## Что было

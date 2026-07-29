@@ -1,7 +1,7 @@
 # Media (internal connector)
 
 Код: `media`. Пакет: `controlapi.connectors.internal.media`; вся LLM-часть — в
-`controlapi.service.llm.MediaInferenceService` + `MediaInferenceHttp`.
+`controlapi.service.llm.media` (`MediaInferenceService`, транспорты, `RemoteImageFetcher`).
 
 «Модель как инструмент»: агент, чья chat-модель не умеет рисовать или смотреть на картинки, получает
 эти способности отдельными тулами. Коннекторный слой не знает ни про провайдеров, ни про ключи, ни про

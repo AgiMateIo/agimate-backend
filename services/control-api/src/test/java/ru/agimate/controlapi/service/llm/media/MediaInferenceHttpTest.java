@@ -1,11 +1,11 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.media;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import ru.agimate.controlapi.service.llm.MediaInferenceHttp.DataUri;
-import ru.agimate.controlapi.service.llm.MediaInferenceHttp.Usage;
+import ru.agimate.controlapi.service.llm.media.MediaInferenceHttp.DataUri;
+import ru.agimate.controlapi.service.llm.media.MediaInferenceHttp.Usage;
 
 import java.util.Base64;
 import java.util.List;

@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.media;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.hc.client5.http.DnsResolver;
@@ -16,7 +16,7 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
-import ru.agimate.controlapi.service.llm.MediaTransport.InputImage;
+import ru.agimate.controlapi.service.llm.media.MediaTransport.InputImage;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

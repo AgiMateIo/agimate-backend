@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.media;
 
 /**
  * A failure of media inference (a model as a tool): an unsupported provider, a refusal or error from

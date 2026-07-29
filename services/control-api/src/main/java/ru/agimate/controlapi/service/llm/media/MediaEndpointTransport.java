@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.media;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClient;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.AttributionHeaders;
 import ru.agimate.controlapi.database.enums.MediaTransportType;
+import ru.agimate.controlapi.service.llm.ExtraBodyMerge;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
 
 import java.io.IOException;

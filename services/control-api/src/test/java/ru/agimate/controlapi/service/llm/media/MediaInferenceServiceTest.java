@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.service.llm;
+package ru.agimate.controlapi.service.llm.media;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,11 +13,13 @@ import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.service.LlmUsageService;
+import ru.agimate.controlapi.service.llm.LlmCredentialsResolver;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
-import ru.agimate.controlapi.service.llm.MediaInferenceService.ImageResult;
-import ru.agimate.controlapi.service.llm.MediaInferenceService.MediaCall;
-import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.service.llm.NoCapableModelException;
+import ru.agimate.controlapi.service.llm.media.MediaInferenceService.ImageResult;
+import ru.agimate.controlapi.service.llm.media.MediaInferenceService.MediaCall;
 import ru.agimate.controlapi.storage.FileStorageService.FileContent;
+import ru.agimate.controlapi.storage.FileStorageService;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;

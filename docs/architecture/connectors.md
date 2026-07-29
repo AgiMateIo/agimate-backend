@@ -243,7 +243,7 @@ BoardToolService), `internal/time/` (TimeConnectorService + TimeToolService — 
 (астрология по эфемеридам и Матрица/нумерология/Таро для пресета «Астролог», см.
 `docs/connectors/astro-divination.md`), `internal/media/` (MediaConnectorService + MediaToolService —
 «модель как инструмент»: `gen_image`/`edit_image`/`combine_images`/`read_image` чужой моделью, выбор
-модели и ключи — в `service/llm/MediaInferenceService`, см. `docs/connectors/media.md`),
+модели и ключи — в `service/llm/media/MediaInferenceService`, см. `docs/connectors/media.md`),
 `internal/sheets/` (таблицы агента с объявленной схемой: фильтры и сводки по любой колонке,
 PNG-графики, импорт/выгрузка xlsx/csv, см. `docs/connectors/sheets.md`).
 

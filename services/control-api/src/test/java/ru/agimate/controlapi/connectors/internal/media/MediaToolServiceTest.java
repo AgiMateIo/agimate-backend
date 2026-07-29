@@ -10,9 +10,9 @@ import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.JsonSchema;
 import ru.agimate.controlapi.database.entities.StoredFile;
-import ru.agimate.controlapi.service.llm.MediaInferenceService;
-import ru.agimate.controlapi.service.llm.MediaInferenceService.ImageResult;
-import ru.agimate.controlapi.service.llm.MediaInferenceService.MediaCall;
+import ru.agimate.controlapi.service.llm.media.MediaInferenceService;
+import ru.agimate.controlapi.service.llm.media.MediaInferenceService.ImageResult;
+import ru.agimate.controlapi.service.llm.media.MediaInferenceService.MediaCall;
 import ru.agimate.controlapi.service.llm.NoCapableModelException;
 import ru.agimate.controlapi.storage.FileIds;
 
