@@ -15,6 +15,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import ru.agimate.agentworker.LlmCredentials;
+import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
@@ -32,6 +33,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,7 +55,9 @@ class LlmCallWorkflowImplTest {
         private final OpenAiChatModel model = mock(OpenAiChatModel.class);
 
         /** Реальный DBOS-контекст в юнит-тесте недоступен — подменяем шов call id; runId — параметр. */
-        private final LlmCallWorkflowImpl workflow = new LlmCallWorkflowImpl(client, modelFactory, mapper) {
+        private final ResponseTemplates templates = mock(ResponseTemplates.class);
+
+        private final LlmCallWorkflowImpl workflow = new LlmCallWorkflowImpl(client, modelFactory, mapper, templates) {
             @Override
             String currentCallId() {
                 return "wf-llm-77";
@@ -145,10 +149,31 @@ class LlmCallWorkflowImplTest {
         }
 
         @Test
-        @DisplayName("прочий отказ кредов (не квота) → generic failure без userFacing")
+        @DisplayName("NOT_FOUND/FAILED_PRECONDITION (нет модели) → нотис «настрой модель», не generic")
+        void missingModelSurfacedAsSetupNotice() {
+            when(templates.noModel()).thenReturn("Настрой модель агенту.");
+            for (Status status : List.of(
+                    Status.NOT_FOUND.withDescription("No LLM binding for agent 019f…"),
+                    Status.FAILED_PRECONDITION.withDescription("LLM provider disabled"))) {
+                // doThrow, не when(...): повторный when() на уже бросающем стабе сам получил бы исключение.
+                doThrow(new ControlApiCallException("GetLlmCredentials", status))
+                        .when(client).getLlmCredentials("agent-1");
+
+                LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+
+                assertTrue(result.failed());
+                assertTrue(result.userFacing());
+                // Текст сервера («No LLM binding for agent <uuid>») пользователю не показываем.
+                assertEquals("Настрой модель агенту.", result.message());
+            }
+            verify(modelFactory, never()).build(any());
+        }
+
+        @Test
+        @DisplayName("прочий отказ кредов (не квота, не отсутствие модели) → generic failure без userFacing")
         void otherCredentialFailureStaysGeneric() {
             when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
-                    "GetLlmCredentials", Status.NOT_FOUND.withDescription("No LLM binding")));
+                    "GetLlmCredentials", Status.INTERNAL.withDescription("boom")));
 
             LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
 

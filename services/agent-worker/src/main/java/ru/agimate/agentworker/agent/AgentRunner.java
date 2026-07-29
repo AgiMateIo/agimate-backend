@@ -68,7 +68,7 @@ public class AgentRunner {
             throw new AgentRunAborted(userNotice,
                     "llm response incomplete (" + e.reason() + ") " + context + ": " + e.getMessage());
         } catch (LlmCallError e) {
-            // The server sent a ready user-facing notice (a quota text, say) — pass it through verbatim.
+            // The call already produced a ready user notice (a quota text, «no model configured») — verbatim.
             if (e.userFacing()) {
                 throw new AgentRunAborted(e.getMessage(),
                         "LLM call aborted " + context + ": " + e.getMessage());

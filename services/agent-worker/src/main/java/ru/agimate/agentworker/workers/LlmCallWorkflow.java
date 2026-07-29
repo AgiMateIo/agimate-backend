@@ -15,8 +15,9 @@ public interface LlmCallWorkflow {
      * A failure is returned (not thrown) so DBOS never logs the HTTP/API error at ERROR with a
      * stack trace; the dispatcher converts a failure back into an exception in plain context.
      * {@code statusCode} is null for a non-HTTP API error. {@code userFacing} means {@code message}
-     * is a server-authored notice for the user (e.g. a quota message) and must be surfaced verbatim
-     * rather than mapped to a generic notice. {@code finishReason} is the provider's raw
+     * is already a notice for the user (a quota message from the server, the «no model configured»
+     * notice) and must be surfaced verbatim rather than mapped to a generic one.
+     * {@code finishReason} is the provider's raw
      * {@code finish_reason} on a successful call (null on failures) — the dispatcher decides which
      * reasons are terminal (truncation/filtering). {@code model}/{@code callId} carry the turn's
      * provenance to the ledger ({@code callId} = this call's own workflow id, the join key to

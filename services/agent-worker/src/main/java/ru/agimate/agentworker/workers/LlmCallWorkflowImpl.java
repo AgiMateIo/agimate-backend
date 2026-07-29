@@ -14,6 +14,7 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import ru.agimate.agentworker.LlmCredentials;
+import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.FilePartRef;
 import ru.agimate.agentworker.agent.model.LlmUsage;
@@ -39,11 +40,14 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
     private final AgentWorkerClient client;
     private final ModelFactory modelFactory;
     private final LlmMessageMapper mapper;
+    private final ResponseTemplates templates;
 
-    public LlmCallWorkflowImpl(AgentWorkerClient client, ModelFactory modelFactory, LlmMessageMapper mapper) {
+    public LlmCallWorkflowImpl(AgentWorkerClient client, ModelFactory modelFactory,
+                               LlmMessageMapper mapper, ResponseTemplates templates) {
         this.client = client;
         this.modelFactory = modelFactory;
         this.mapper = mapper;
+        this.templates = templates;
     }
 
     @Override
@@ -59,6 +63,14 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
                     && e.description() != null && !e.description().isBlank()) {
                 log.info("LLM quota exceeded: {}", e.description());
                 return Result.userError(e.description());
+            }
+            // NOT_FOUND (no binding / the bound model is gone) and FAILED_PRECONDITION (the provider is
+            // switched off) are all «the agent has no model», which the owner fixes in settings — a generic
+            // «model error, try again» sends them nowhere. The server's own text is developer-facing
+            // (agent uuids, provider internals), so the notice is authored here instead of passed through.
+            if (e.code() == Status.Code.NOT_FOUND || e.code() == Status.Code.FAILED_PRECONDITION) {
+                log.warn("no usable chat model for agent {}: {}", agentId, e.getMessage());
+                return Result.userError(templates.noModel());
             }
             log.warn("LLM credentials unavailable: {}", e.getMessage());
             return Result.failure(null, e.getMessage());

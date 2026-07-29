@@ -28,6 +28,7 @@ class ResponseTemplatesTest {
         assertTrue(templates("en").maxTurns().startsWith("Sorry"));
         assertTrue(templates("ru").maxTurns().startsWith("Извини"));
         assertNotEquals(templates("en").filtered(), templates("ru").filtered());
+        assertNotEquals(templates("en").noModel(), templates("ru").noModel());
     }
 
     @Test

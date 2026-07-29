@@ -35,6 +35,11 @@ public class ResponseTemplates {
         return get("notice.auth-error");
     }
 
+    /** The agent has no usable chat model — an owner-actionable notice, not a «model error». */
+    public String noModel() {
+        return get("notice.no-model");
+    }
+
     public String imitationError() {
         return get("notice.imitation-error");
     }
