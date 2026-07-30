@@ -43,6 +43,7 @@ import ru.agimate.controlapi.controller.manage.ManageLlmUsageController;
 import ru.agimate.controlapi.controller.manage.ManageSkillController;
 import ru.agimate.controlapi.controller.manage.ManageWebchatController;
 import ru.agimate.controlapi.controller.manage.ManageWebhookDeliveryLogsController;
+import ru.agimate.controlapi.controller.manage.admin.ManageAdminPaths;
 import ru.agimate.controlapi.controller.files.FileDownloadController;
 import ru.agimate.controlapi.controller.webhook.ConnectionWebhookController;
 import ru.agimate.controlapi.security.AgentAuthFilter;
@@ -133,12 +134,17 @@ public class SecurityConfig {
                 ManageLlmProviderController.PATH + "/**",
                 ManageLlmUsageController.PATH + "/**",
                 ManageChannelController.PATH + "/**",
-                ManageWebchatController.PATH + "/**"
+                ManageWebchatController.PATH + "/**",
+                // The whole admin area by prefix, not per controller: adding one there must not require
+                // an edit here, or the next admin endpoint ships ungated.
+                ManageAdminPaths.PREFIX + "/**"
         );
 
         applyCommonSecurityConfig(http);
 
-        http.authorizeHttpRequests(authz -> authz.anyRequest().hasAnyRole("USER", "ADMIN"))
+        http.authorizeHttpRequests(authz -> authz
+                        .requestMatchers(ManageAdminPaths.PREFIX + "/**").hasRole("ADMIN")
+                        .anyRequest().hasAnyRole("USER", "ADMIN"))
                 .userDetailsService(userDetailsService())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
