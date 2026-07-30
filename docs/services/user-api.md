@@ -40,6 +40,35 @@ Paths and schemas are generated from the code. See Swagger at **`/user/docs/ui`*
 (`develop` profile); the auth contour per group is in the [Authentication](#authentication)
 table above.
 
+## Админский раздел `/admin`
+
+Зеркало `/manage/admin` в control-api: гейт — путь, `ROLE_ADMIN` требует правило цепочки на
+префиксе, `@PreAuthorize` в контроллерах раздела нет. Правило стоит **выше** остальных, потому что
+`/user/**` допускает и `GUEST`, а выигрывает первое совпавшее.
+
+Префикс не повторяет контекст-путь сервиса (`/user/`), поэтому снаружи раздел виден как
+`/user/admin/...`. Удвоение в `/user/user/me` у `UserController` — его собственная особенность, и
+новый раздел её не наследует.
+
+| Эндпойнт (снаружи) | Что делает |
+|---|---|
+| `GET /user/admin/users/` | Постраничный список от новых к старым; фильтры `search` (подстрока email или display name, регистронезависимо) и `role` |
+| `PATCH /user/admin/users/{id}/role` | Смена роли (`GUEST` → `USER` — это же и есть approve из вейтлиста) |
+
+Свою роль сменить нельзя. Это не только защита от случайного self-lockout: она же делает
+недостижимым состояние «админов ноль» — последний админ не может понизить себя, а больше некому.
+Изменение пишется в лог (`кто кому с чего на что`); отдельной таблицы аудита нет.
+
+**Понижение роли доходит до control-api не сразу.** user-api читает роль из БД на каждом запросе
+(`JwtDbAuthenticationFilter`), а control-api доверяет claim'у `roles` в access-токене, живущему
+`jwt.accessExpiration` (сутки по умолчанию). До следующего refresh понижённый пользователь
+сохраняет прежние права в `/manage/**`. Отобрать доступ немедленно нынешней схемой нельзя — для
+этого нужен либо короткий access TTL, либо версия роли в claim'ах.
+
+Расходы LLM по пользователю отдаёт control-api (`GET /manage/admin/llm-usage/{userId}/`): таблицы
+`users` и `llm_usage_*` лежат в разных БД, между сервисами нет ни вызовов, ни репликации, поэтому
+связывает их фронт — по `userId`.
+
 ## Multi-domain OAuth2 Redirect
 
 Supports OAuth2 login from multiple frontend domains (e.g. `agimate.ru` and `agimate.io`).

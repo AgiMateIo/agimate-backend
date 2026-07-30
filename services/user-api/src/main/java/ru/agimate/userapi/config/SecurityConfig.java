@@ -22,6 +22,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.security.SecurityUtils;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.userapi.controller.admin.AdminPaths;
 import ru.agimate.userapi.security.jwt.JwtDbAuthenticationFilter;
 import ru.agimate.userapi.security.oauth2.CookieOAuth2AuthorizationRequestRepository;
 import ru.agimate.userapi.security.oauth2.OAuth2FailureHandler;
@@ -109,6 +110,9 @@ public class SecurityConfig {
                         // Management port 8088 runs this very chain, so permitAll here decides what is
                         // public there. Health and its liveness/readiness groups only — never the rest.
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // The admin area first: the rules below are broader (/user/** admits GUEST as
+                        // well), and the first matching rule wins.
+                        .requestMatchers(AdminPaths.PREFIX + "/**").hasRole("ADMIN")
                         .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "GUEST")
                         .anyRequest().hasAnyRole("USER", "ADMIN")
                 )
