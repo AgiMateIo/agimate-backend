@@ -73,3 +73,49 @@ providers:
         - gpt-5.1
       IMAGE:
         - gemini-3.1-flash-lite-image
+
+  - code: proxyapi
+    name: ProxyAPI
+    description: >-
+      Russian proxy to the first-party OpenAI, Anthropic and Google APIs; pays in roubles, no
+      foreign card needed.
+    providerType: OPENAI_COMPATIBLE
+    # The unified OpenAI-compatible endpoint (routes by id prefix: openai/, anthropic/, gemini/),
+    # not the per-vendor passthroughs on api.proxyapi.ru — one dialect over all vendors is the only
+    # form the agent loop can use.
+    baseUrl: https://openai.api.proxyapi.ru/v1
+    apiKeyUrl: https://console.proxyapi.ru
+    sortOrder: 30
+    # IMAGE and AUDIO are absent deliberately: image generation here lives on /images/generations
+    # (the IMAGES_GENERATIONS transport is not implemented — docs/decisions/media-transport.md),
+    # audio on dedicated STT/TTS endpoints the chat loop cannot call. The OpenRouter passthrough
+    # does speak chat+modalities but carries no OpenAI/Anthropic/Google models, so it does not
+    # change the picture. Ids checked against the ProxyAPI price list, July 2026: only the current
+    # generation is served (no gpt-5.5/gpt-5-mini, no claude-haiku), hence gpt-5.6 tiers — terra
+    # is the gpt-5.5-class workhorse, luna the cheap vision-capable one.
+    purposePriority:
+      CHAT:
+        - anthropic/claude-sonnet-5
+        - openai/gpt-5.6-terra
+        - gemini/gemini-3.6-flash
+      VISION:
+        - gemini/gemini-3.5-flash-lite
+        - openai/gpt-5.6-luna
+        - anthropic/claude-sonnet-5
+
+  - code: deepseek
+    name: DeepSeek
+    description: >-
+      First-party API of the DeepSeek V4 models — capable chat at a fraction of the flagship price.
+    providerType: OPENAI_COMPATIBLE
+    baseUrl: https://api.deepseek.com/v1
+    apiKeyUrl: https://platform.deepseek.com/api_keys
+    sortOrder: 40
+    # Chat only: the API takes no image input and serves no image or audio models (vendor docs,
+    # July 2026). Both ids are pinned per-version — the floating deepseek-chat/deepseek-reasoner
+    # aliases are gone from the vendor's docs. Pro before flash: quality-first, like every other
+    # CHAT list here.
+    purposePriority:
+      CHAT:
+        - deepseek-v4-pro
+        - deepseek-v4-flash
