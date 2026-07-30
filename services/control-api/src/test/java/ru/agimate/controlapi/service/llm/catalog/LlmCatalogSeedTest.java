@@ -3,7 +3,6 @@ package ru.agimate.controlapi.service.llm.catalog;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
-import ru.agimate.controlapi.database.enums.LlmPurpose;
 
 import java.util.HashSet;
 import java.util.List;
@@ -84,14 +83,37 @@ class LlmCatalogSeedTest {
     }
 
     @Test
-    @DisplayName("плавающие алиасы OpenRouter доехали строками, а не null")
-    void aliasesSurviveYamlParsing() {
-        // Голый ~ в YAML — это null. Алиасы вида ~anthropic/claude-sonnet-latest обязаны быть в
-        // кавычках, иначе список молча превратится в null'ы — самый тихий способ сломать сид.
-        List<String> chat = entry("openrouter").purposePriority().get(LlmPurpose.CHAT);
+    @DisplayName("плавающих алиасов в рекомендациях нет")
+    void noFloatingAliases() {
+        // Алиас вида ~vendor/model-latest молча меняет и цену, и возможности модели: новое поколение
+        // может не поддерживать параметр, на который опирается цикл. Пусть лучше протухает id —
+        // это видно и чинится, в отличие от подмены под тем же именем.
+        for (LlmCatalogSeedEntry entry : ENTRIES) {
+            if (entry.purposePriority() == null) {
+                continue;
+            }
+            entry.purposePriority().forEach((purpose, models) -> models.forEach(model ->
+                    assertFalse(model.startsWith("~"), entry.code() + "." + purpose
+                            + ": '" + model + "' — плавающий алиас, нужен фиксированный id")));
+        }
+    }
 
-        assertTrue(chat.stream().anyMatch(model -> model.startsWith("~")),
-                "в CHAT не осталось ни одного алиаса — проверять стало нечего");
+    @Test
+    @DisplayName("нет вариантов, которые агентский цикл не позовёт")
+    void noUncallableVariants() {
+        // :batch — асинхронный эндпойнт, -preview исчезают без предупреждения, :free упираются
+        // в лимиты на первом же ране. Каждый из них выглядит рабочим id и им не является.
+        for (LlmCatalogSeedEntry entry : ENTRIES) {
+            if (entry.purposePriority() == null) {
+                continue;
+            }
+            entry.purposePriority().forEach((purpose, models) -> models.forEach(model -> {
+                String at = entry.code() + "." + purpose + ": '" + model + "'";
+                assertFalse(model.endsWith(":batch"), at + " — batch-эндпойнт");
+                assertFalse(model.contains("-preview"), at + " — preview-вариант");
+                assertFalse(model.endsWith(":free"), at + " — free-вариант");
+            }));
+        }
     }
 
     @Test
@@ -106,12 +128,5 @@ class LlmCatalogSeedTest {
     @DisplayName("битый путь роняет загрузку, а не отдаёт половину каталога")
     void missingFileFails() {
         assertThrows(IllegalStateException.class, () -> LlmCatalogSeed.load("seed/no-such-file.yaml"));
-    }
-
-    private static LlmCatalogSeedEntry entry(String code) {
-        return ENTRIES.stream()
-                .filter(entry -> code.equals(entry.code()))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("в каталоге нет записи '" + code + "'"));
     }
 }

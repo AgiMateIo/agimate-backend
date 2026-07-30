@@ -2,10 +2,12 @@ package ru.agimate.controlapi.service.llm.defaults;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import ru.agimate.controlapi.service.llm.catalog.LlmCatalogSeed;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -70,16 +72,38 @@ class LlmModelDefaultsSeedTest {
     }
 
     @Test
-    @DisplayName("плавающие алиасы каталога провайдеров есть в снапшоте")
-    void catalogAliasesAreCovered() {
-        // Каталог рекомендует ~vendor/model-latest; без строки в снапшоте у такой модели не будет
-        // ни модальностей, ни контекста — то есть рекомендация приедет к пользователю безликой.
-        Set<String> models = ENTRIES.stream().map(LlmModelDefaultsSeedEntry::model).collect(HashSet::new,
-                Set::add, Set::addAll);
+    @DisplayName("ни алиасов, ни batch-вариантов")
+    void holdsNeitherAliasesNorBatchVariants() {
+        for (LlmModelDefaultsSeedEntry entry : ENTRIES) {
+            // Алиас описывал бы возможности той модели, которой он означал в день снятия снапшота.
+            assertFalse(entry.model().startsWith("~"), entry.model() + " — плавающий алиас");
+            // :batch — продуктовый вариант OpenRouter поверх уже перечисленной модели. Фолбэк нужен
+            // там, где дискавери отдаёт голые id (прямые OpenAI и Anthropic), а такой id они не
+            // выдают вовсе — строка не нашлась бы никогда.
+            assertFalse(entry.model().endsWith(":batch"), entry.model() + " — batch-вариант");
+        }
+    }
 
-        assertTrue(models.contains("~anthropic/claude-sonnet-latest"));
-        assertTrue(models.contains("~google/gemini-flash-latest"));
-        assertTrue(models.contains("~openai/gpt-latest"));
+    @Test
+    @DisplayName("каждая модель из рекомендаций OpenRouter описана в снапшоте")
+    void catalogRecommendationsAreCovered() {
+        // Снапшот снят с листинга OpenRouter, поэтому сверяем только запись openrouter: у Polza своё
+        // пространство имён, её id в этом снапшоте отсутствуют по построению.
+        // Рекомендация без строки здесь приедет к пользователю безликой — без модальностей и
+        // контекста, — а MediaInferenceService ещё и отвергнет её до HTTP: пустые модальности он
+        // читает как «не объявлено», но именно от них зависит выбор модели под медиа-тул.
+        Set<String> known = ENTRIES.stream()
+                .map(LlmModelDefaultsSeedEntry::model)
+                .collect(Collectors.toUnmodifiableSet());
+
+        LlmCatalogSeed.load().stream()
+                .filter(entry -> "openrouter".equals(entry.code()))
+                .findFirst()
+                .orElseThrow()
+                .purposePriority()
+                .forEach((purpose, models) -> models.forEach(model ->
+                        assertTrue(known.contains(model),
+                                "openrouter." + purpose + ": '" + model + "' нет в снапшоте возможностей")));
     }
 
     @Test

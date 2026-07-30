@@ -3,7 +3,13 @@
 # a missing model here simply means «unknown», exactly as before the table existed.
 #
 # Snapshot of the OpenRouter catalogue, keyed by its router id (vendor/model): that id is
-# unambiguous and there is no routing between hosters, so it is a usable global key.
+# unambiguous and there is no routing between hosters, so it is a usable global key. Gateways that
+# reuse the same namespace (Polza and other OpenAI-compatible proxies) hit these rows too, which is
+# why a model that has left the OpenRouter listing is kept rather than deleted.
+#
+# Floating `~vendor/model-latest` aliases are deliberately absent: an alias silently changes the
+# model behind a stable name, and a snapshot of its capabilities would describe whatever it meant on
+# the day it was taken.
 #
 # Upserted on every start, so refreshing the snapshot is a deploy rather than a data migration.
 # Rows are matched by `model`; a model absent from this file is left untouched in the database.
@@ -215,7 +221,7 @@ models:
   - model: "arcee-ai/trinity-large-thinking"
     displayName: "Arcee AI: Trinity Large Thinking"
     contextWindow: 262144
-    maxOutputTokens: 80000
+    maxOutputTokens: 262144
     inputModalities: ["text"]
     outputModalities: ["text"]
     supportedParameters: ["frequency_penalty", "include_reasoning", "logit_bias", "logprobs", "max_tokens", "presence_penalty", "reasoning", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
@@ -383,10 +389,10 @@ models:
   - model: "deepseek/deepseek-v4-flash"
     displayName: "DeepSeek: DeepSeek V4 Flash"
     contextWindow: 1048576
-    maxOutputTokens: null
+    maxOutputTokens: 393216
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "include_reasoning", "logit_bias", "logprobs", "max_tokens", "min_p", "presence_penalty", "reasoning", "reasoning_effort", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logit_bias", "logprobs", "max_tokens", "min_p", "presence_penalty", "reasoning", "reasoning_effort", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_a", "top_k", "top_logprobs", "top_p"]
   - model: "deepseek/deepseek-v4-pro"
     displayName: "DeepSeek: DeepSeek V4 Pro"
     contextWindow: 1048576
@@ -466,7 +472,7 @@ models:
     supportedParameters: ["include_reasoning", "max_tokens", "reasoning", "reasoning_effort", "response_format", "seed", "structured_outputs", "temperature", "top_p"]
   - model: "google/gemini-3.1-flash-image-preview"
     displayName: "Google: Nano Banana 2 (Gemini 3.1 Flash Image Preview)"
-    contextWindow: 131072
+    contextWindow: 65536
     maxOutputTokens: 65536
     inputModalities: ["image", "text"]
     outputModalities: ["image", "text"]
@@ -481,7 +487,7 @@ models:
   - model: "google/gemini-3.1-flash-lite-image"
     displayName: "Google: Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)"
     contextWindow: 65536
-    maxOutputTokens: 66000
+    maxOutputTokens: 65536
     inputModalities: ["image", "text"]
     outputModalities: ["image", "text"]
     supportedParameters: ["include_reasoning", "max_tokens", "reasoning", "reasoning_effort", "response_format", "seed", "temperature", "top_p"]
@@ -565,7 +571,7 @@ models:
   - model: "google/gemma-4-26b-a4b-it"
     displayName: "Google: Gemma 4 26B A4B"
     contextWindow: 262144
-    maxOutputTokens: 262144
+    maxOutputTokens: 16384
     inputModalities: ["image", "text", "video"]
     outputModalities: ["text"]
     supportedParameters: ["frequency_penalty", "include_reasoning", "logit_bias", "logprobs", "max_tokens", "min_p", "presence_penalty", "reasoning", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
@@ -876,7 +882,7 @@ models:
     maxOutputTokens: null
     inputModalities: ["text", "image"]
     outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "logprobs", "max_tokens", "presence_penalty", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "max_tokens", "presence_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_p"]
   - model: "mistralai/mistral-large"
     displayName: "Mistral Large"
     contextWindow: 128000
@@ -1023,7 +1029,7 @@ models:
     maxOutputTokens: null
     inputModalities: ["text", "image"]
     outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "include_reasoning", "max_tokens", "presence_penalty", "reasoning", "reasoning_effort", "response_format", "stop", "structured_outputs", "tool_choice", "tools"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logit_bias", "logprobs", "max_tokens", "min_p", "presence_penalty", "reasoning", "reasoning_effort", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "morph/morph-v3-fast"
     displayName: "Morph: Morph V3 Fast"
     contextWindow: 81920
@@ -1342,17 +1348,17 @@ models:
   - model: "openai/gpt-5.1-chat"
     displayName: "OpenAI: GPT-5.1 Chat"
     contextWindow: 128000
-    maxOutputTokens: 16384
+    maxOutputTokens: 32000
     inputModalities: ["file", "image", "text"]
     outputModalities: ["text"]
-    supportedParameters: ["max_completion_tokens", "max_tokens", "response_format", "seed", "structured_outputs", "tool_choice", "tools"]
+    supportedParameters: ["max_completion_tokens", "response_format", "seed", "structured_outputs", "tool_choice", "tools"]
   - model: "openai/gpt-5.1-codex"
     displayName: "OpenAI: GPT-5.1-Codex"
     contextWindow: 400000
     maxOutputTokens: 128000
     inputModalities: ["text", "image"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_completion_tokens", "max_tokens", "reasoning", "reasoning_effort", "response_format", "seed", "structured_outputs", "tool_choice", "tools"]
+    supportedParameters: ["include_reasoning", "max_completion_tokens", "reasoning", "reasoning_effort", "response_format", "seed", "structured_outputs", "tool_choice", "tools"]
   - model: "openai/gpt-5.1-codex-max"
     displayName: "OpenAI: GPT-5.1-Codex-Max"
     contextWindow: 400000
@@ -1363,10 +1369,10 @@ models:
   - model: "openai/gpt-5.1-codex-mini"
     displayName: "OpenAI: GPT-5.1-Codex-Mini"
     contextWindow: 400000
-    maxOutputTokens: 100000
+    maxOutputTokens: 128000
     inputModalities: ["image", "text"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_completion_tokens", "max_tokens", "reasoning", "reasoning_effort", "response_format", "seed", "structured_outputs", "tool_choice", "tools"]
+    supportedParameters: ["include_reasoning", "max_completion_tokens", "reasoning", "reasoning_effort", "response_format", "seed", "structured_outputs", "tool_choice", "tools"]
   - model: "openai/gpt-5.2"
     displayName: "OpenAI: GPT-5.2"
     contextWindow: 400000
@@ -1758,7 +1764,7 @@ models:
     maxOutputTokens: 32768
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "logit_bias", "logprobs", "max_tokens", "min_p", "presence_penalty", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "logit_bias", "max_tokens", "min_p", "presence_penalty", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_p"]
   - model: "qwen/qwen-2.5-coder-32b-instruct"
     displayName: "Qwen2.5 Coder 32B Instruct"
     contextWindow: 32768
@@ -1772,21 +1778,21 @@ models:
     maxOutputTokens: 32768
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen-plus-2025-07-28"
     displayName: "Qwen: Qwen Plus 0728"
     contextWindow: 1000000
     maxOutputTokens: 32768
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen-plus-2025-07-28:thinking"
     displayName: "Qwen: Qwen Plus 0728 (thinking)"
     contextWindow: 1000000
     maxOutputTokens: 32768
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen2.5-vl-72b-instruct"
     displayName: "Qwen: Qwen2.5 VL 72B Instruct"
     contextWindow: 128000
@@ -1807,7 +1813,7 @@ models:
     maxOutputTokens: 8192
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "temperature", "tool_choice", "tools", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "temperature", "tool_choice", "tools", "top_k", "top_p"]
   - model: "qwen/qwen3-235b-a22b-2507"
     displayName: "Qwen: Qwen3 235B A22B Instruct 2507"
     contextWindow: 262144
@@ -1825,24 +1831,24 @@ models:
   - model: "qwen/qwen3-30b-a3b"
     displayName: "Qwen: Qwen3 30B A3B"
     contextWindow: 131072
-    maxOutputTokens: 8192
+    maxOutputTokens: 16384
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "include_reasoning", "logit_bias", "logprobs", "max_tokens", "min_p", "presence_penalty", "reasoning", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logit_bias", "max_tokens", "min_p", "presence_penalty", "reasoning", "repetition_penalty", "response_format", "seed", "stop", "temperature", "tool_choice", "tools", "top_k", "top_p"]
   - model: "qwen/qwen3-30b-a3b-instruct-2507"
     displayName: "Qwen: Qwen3 30B A3B Instruct 2507"
     contextWindow: 262144
-    maxOutputTokens: null
+    maxOutputTokens: 32000
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "logit_bias", "logprobs", "max_tokens", "min_p", "presence_penalty", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "logit_bias", "logprobs", "max_tokens", "presence_penalty", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3-30b-a3b-thinking-2507"
     displayName: "Qwen: Qwen3 30B A3B Thinking 2507"
     contextWindow: 81920
     maxOutputTokens: 32768
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "temperature", "tool_choice", "tools", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "temperature", "tool_choice", "tools", "top_k", "top_p"]
   - model: "qwen/qwen3-32b"
     displayName: "Qwen: Qwen3 32B"
     contextWindow: 131072
@@ -1856,7 +1862,7 @@ models:
     maxOutputTokens: 8192
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "temperature", "tool_choice", "tools", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "temperature", "tool_choice", "tools", "top_k", "top_p"]
   - model: "qwen/qwen3-coder"
     displayName: "Qwen: Qwen3 Coder 480B A35B"
     contextWindow: 262144
@@ -1877,7 +1883,7 @@ models:
     maxOutputTokens: 65536
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "stop", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3-coder-next"
     displayName: "Qwen: Qwen3 Coder Next"
     contextWindow: 262144
@@ -1891,21 +1897,21 @@ models:
     maxOutputTokens: 65536
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3-max"
     displayName: "Qwen: Qwen3 Max"
     contextWindow: 262144
-    maxOutputTokens: 32768
+    maxOutputTokens: 65536
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3-max-thinking"
     displayName: "Qwen: Qwen3 Max Thinking"
     contextWindow: 262144
-    maxOutputTokens: 32768
+    maxOutputTokens: 65536
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3-next-80b-a3b-instruct"
     displayName: "Qwen: Qwen3 Next 80B A3B Instruct"
     contextWindow: 262144
@@ -1919,7 +1925,7 @@ models:
     maxOutputTokens: 32768
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logit_bias", "logprobs", "max_tokens", "presence_penalty", "reasoning", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3-vl-235b-a22b-instruct"
     displayName: "Qwen: Qwen3 VL 235B A22B Instruct"
     contextWindow: 262144
@@ -1947,14 +1953,14 @@ models:
     maxOutputTokens: 32768
     inputModalities: ["text", "image"]
     outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3-vl-32b-instruct"
     displayName: "Qwen: Qwen3 VL 32B Instruct"
     contextWindow: 131072
     maxOutputTokens: 32768
     inputModalities: ["text", "image"]
     outputModalities: ["text"]
-    supportedParameters: ["logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "logprobs", "max_tokens", "presence_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3-vl-8b-instruct"
     displayName: "Qwen: Qwen3 VL 8B Instruct"
     contextWindow: 262144
@@ -1968,7 +1974,7 @@ models:
     maxOutputTokens: 32768
     inputModalities: ["image", "text"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3.5-122b-a10b"
     displayName: "Qwen: Qwen3.5-122B-A10B"
     contextWindow: 262144
@@ -2010,25 +2016,25 @@ models:
     maxOutputTokens: 65536
     inputModalities: ["text", "image", "video"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_p"]
   - model: "qwen/qwen3.5-plus-02-15"
     displayName: "Qwen: Qwen3.5 Plus 2026-02-15"
     contextWindow: 1000000
     maxOutputTokens: 65536
     inputModalities: ["text", "image", "video"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3.5-plus-20260420"
     displayName: "Qwen: Qwen3.5 Plus 2026-04-20"
     contextWindow: 1000000
     maxOutputTokens: 65536
     inputModalities: ["text", "image", "video"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3.6-27b"
     displayName: "Qwen: Qwen3.6 27B"
     contextWindow: 262144
-    maxOutputTokens: 131072
+    maxOutputTokens: 65536
     inputModalities: ["text", "image", "video"]
     outputModalities: ["text"]
     supportedParameters: ["frequency_penalty", "include_reasoning", "logit_bias", "logprobs", "max_tokens", "min_p", "presence_penalty", "reasoning", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
@@ -2045,35 +2051,42 @@ models:
     maxOutputTokens: 65536
     inputModalities: ["text", "image", "video"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3.6-max-preview"
     displayName: "Qwen: Qwen3.6 Max Preview"
     contextWindow: 262144
     maxOutputTokens: 65536
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3.6-plus"
     displayName: "Qwen: Qwen3.6 Plus"
     contextWindow: 1000000
     maxOutputTokens: 65536
     inputModalities: ["text", "image", "video"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
+  - model: "qwen/qwen3.7-flash"
+    displayName: "Qwen: Qwen3.7 Flash"
+    contextWindow: 1000000
+    maxOutputTokens: 65536
+    inputModalities: ["text", "image", "video"]
+    outputModalities: ["text"]
+    supportedParameters: ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
   - model: "qwen/qwen3.7-max"
     displayName: "Qwen: Qwen3.7 Max"
     contextWindow: 1000000
     maxOutputTokens: 65536
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "qwen/qwen3.7-plus"
     displayName: "Qwen: Qwen3.7 Plus"
     contextWindow: 1000000
     maxOutputTokens: 65536
     inputModalities: ["text", "image"]
     outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
+    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
   - model: "rekaai/reka-edge"
     displayName: "Reka Edge"
     contextWindow: 16384
@@ -2164,7 +2177,7 @@ models:
     maxOutputTokens: null
     inputModalities: ["text"]
     outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "include_reasoning", "max_tokens", "presence_penalty", "reasoning", "reasoning_effort", "seed", "stop", "temperature", "tool_choice", "tools", "top_k", "top_p"]
+    supportedParameters: ["include_reasoning", "max_tokens", "reasoning", "reasoning_effort", "seed", "temperature", "tool_choice", "tools", "top_p"]
   - model: "thedrummer/cydonia-24b-v4.1"
     displayName: "TheDrummer: Cydonia 24B V4.1"
     contextWindow: 131072
@@ -2343,7 +2356,7 @@ models:
   - model: "z-ai/glm-5.2"
     displayName: "Z.ai: GLM 5.2"
     contextWindow: 1048576
-    maxOutputTokens: 131072
+    maxOutputTokens: 128000
     inputModalities: ["text"]
     outputModalities: ["text"]
     supportedParameters: ["frequency_penalty", "include_reasoning", "logit_bias", "logprobs", "max_tokens", "min_p", "parallel_tool_calls", "presence_penalty", "reasoning", "reasoning_effort", "repetition_penalty", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_logprobs", "top_p"]
@@ -2354,73 +2367,3 @@ models:
     inputModalities: ["image", "text", "video"]
     outputModalities: ["text"]
     supportedParameters: ["include_reasoning", "max_tokens", "reasoning", "response_format", "temperature", "tool_choice", "tools", "top_k", "top_p"]
-  - model: "~anthropic/claude-fable-latest"
-    displayName: "Anthropic: Claude Fable Latest"
-    contextWindow: 1000000
-    maxOutputTokens: 128000
-    inputModalities: ["text", "image", "file"]
-    outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_completion_tokens", "max_tokens", "reasoning", "reasoning_effort", "response_format", "stop", "structured_outputs", "tool_choice", "tools", "verbosity"]
-  - model: "~anthropic/claude-haiku-latest"
-    displayName: "Anthropic Claude Haiku Latest"
-    contextWindow: 200000
-    maxOutputTokens: 64000
-    inputModalities: ["text", "image", "file"]
-    outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_completion_tokens", "max_tokens", "reasoning", "response_format", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_k", "top_p"]
-  - model: "~anthropic/claude-opus-latest"
-    displayName: "Anthropic: Claude Opus Latest"
-    contextWindow: 1000000
-    maxOutputTokens: 128000
-    inputModalities: ["text", "image", "file"]
-    outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_completion_tokens", "max_tokens", "reasoning", "reasoning_effort", "response_format", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "verbosity"]
-  - model: "~anthropic/claude-sonnet-latest"
-    displayName: "Anthropic Claude Sonnet Latest"
-    contextWindow: 1000000
-    maxOutputTokens: 128000
-    inputModalities: ["text", "image", "file"]
-    outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_completion_tokens", "max_tokens", "reasoning", "reasoning_effort", "response_format", "stop", "structured_outputs", "tool_choice", "tools", "verbosity"]
-  - model: "~google/gemini-flash-latest"
-    displayName: "Google Gemini Flash Latest"
-    contextWindow: 1048576
-    maxOutputTokens: 65536
-    inputModalities: ["text", "image", "video", "file", "audio"]
-    outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_tokens", "reasoning", "reasoning_effort", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_p"]
-  - model: "~google/gemini-pro-latest"
-    displayName: "Google Gemini Pro Latest"
-    contextWindow: 1048576
-    maxOutputTokens: 65536
-    inputModalities: ["audio", "file", "image", "text", "video"]
-    outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_tokens", "reasoning", "reasoning_effort", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_p"]
-  - model: "~moonshotai/kimi-latest"
-    displayName: "MoonshotAI Kimi Latest"
-    contextWindow: 1048576
-    maxOutputTokens: null
-    inputModalities: ["text", "image"]
-    outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "include_reasoning", "max_tokens", "presence_penalty", "reasoning", "reasoning_effort", "response_format", "stop", "structured_outputs", "tool_choice", "tools"]
-  - model: "~openai/gpt-latest"
-    displayName: "OpenAI GPT Latest"
-    contextWindow: 1050000
-    maxOutputTokens: 128000
-    inputModalities: ["file", "image", "text"]
-    outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_completion_tokens", "max_tokens", "reasoning", "reasoning_effort", "response_format", "seed", "structured_outputs", "tool_choice", "tools"]
-  - model: "~openai/gpt-mini-latest"
-    displayName: "OpenAI GPT Mini Latest"
-    contextWindow: 400000
-    maxOutputTokens: 128000
-    inputModalities: ["file", "image", "text"]
-    outputModalities: ["text"]
-    supportedParameters: ["include_reasoning", "max_completion_tokens", "max_tokens", "reasoning", "reasoning_effort", "response_format", "seed", "structured_outputs", "tool_choice", "tools"]
-  - model: "~x-ai/grok-latest"
-    displayName: "xAI: Grok Latest"
-    contextWindow: 500000
-    maxOutputTokens: null
-    inputModalities: ["text", "image", "file"]
-    outputModalities: ["text"]
-    supportedParameters: ["frequency_penalty", "include_reasoning", "logprobs", "max_tokens", "presence_penalty", "reasoning", "reasoning_effort", "response_format", "seed", "stop", "structured_outputs", "temperature", "tool_choice", "tools", "top_logprobs", "top_p"]
