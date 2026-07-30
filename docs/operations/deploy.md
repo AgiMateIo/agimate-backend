@@ -152,6 +152,23 @@ control-api also serves the ACP WebSocket endpoint `/acp` on the main HTTP port 
 
 Swagger UI available at `/{context-path}/docs/ui` when enabled (local profile).
 
+## Логи
+
+Логи идут только в stdout — файловых аппендеров нет ни у одного сервиса, за сбор и ротацию
+отвечает рантайм (в проде — инфраструктурный репозиторий, не этот). Общий `logback-spring.xml`
+всех трёх сервисов сводится к `include` одного файла в `libs/common`; профиль `local` печатает
+всё от `debug`, остальные — то, что разрешают уровни.
+
+Уровни задаются **только** через `logging.level.*` в yaml'ах: `root: warn` глушит Spring,
+Hibernate и Tomcat, `ru.agimate: info` (в agent-worker — `ru.agimate.agentworker: info`) оставляет
+события приложения: старт прогона агента, вызов тула, генерацию медиа со стоимостью, смену роли
+пользователя.
+
+До 2026-07-30 у аппендера для не-`local` профилей стоял `ThresholdFilter` на `WARN`, который
+перекрывал эти уровни: `info` в конфиге разрешал событие, а единственный приёмник его выбрасывал,
+и в проде не было видно ни одной INFO-строки. Фильтр снят — если в проде вдруг снова пропадут
+INFO-логи, смотреть надо сюда, а не в уровни.
+
 ## Database Configuration
 
 Each service connects to its own PostgreSQL database:

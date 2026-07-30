@@ -21,7 +21,10 @@ spring:
 
 logging:
   level:
-    root: INFO
+    # warn, like the other two services: root INFO was harmless only while the appender cut
+    # everything below WARN anyway, and without that filter it buries the per-run story in
+    # Spring, Hibernate and DBOS chatter.
+    root: warn
     # INFO = the clean per-run story (start → context → turns → answer → finish).
     # Flip to DEBUG for the full trace: credentials/model, tool names, per-progress sends, gRPC retries.
     ru.agimate.agentworker: INFO

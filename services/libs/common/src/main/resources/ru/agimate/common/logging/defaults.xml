@@ -27,17 +27,13 @@
 				<pattern>%d{ISO8601} %boldCyan([%-10.10thread]) %highlight(%-5level) - %replace(Request ID: [%X{x-request-id}]){'Request ID: \[\]', ''} %replace(run=[%X{run}] ){'run=\[\] ', ''}%msg%n</pattern>
 				<!--@formatter:on-->
             </encoder>
-            <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-                <level>WARN</level>
-            </filter>
+            <!-- No threshold filter here on purpose: the appender used to cut everything below WARN,
+                 which silently overrode logging.level.* from the yamls — `ru.agimate: info` in prod
+                 let the event through and the only appender dropped it. Levels are the one control. -->
         </appender>
         <root level="debug">
             <appender-ref ref="CONSOLE_PRETTY"/>
         </root>
     </springProfile>
-
-
-    <root level="debug">
-    </root>
 
 </included>
