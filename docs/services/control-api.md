@@ -59,6 +59,40 @@ Common error envelope for every group:
 | 403 | Authenticated but not authorized |
 | 429 | Inbound rate limit exceeded (see above) |
 
+## Каталог LLM-провайдеров
+
+`GET /manage/llm-providers/catalog/` отдаёт известные шлюзы, которыми фронт предзаполняет форму
+добавления провайдера: `base_url`, диалект генерации картинок (`media_transport`), модели на старт
+и ссылку, где взять ключ. Пользователь дописывает только имя и API-ключ.
+
+Каталог существует ради двух полей, которых пользователь знать не может: точной формы `base_url`
+(`https://openrouter.ai/api/v1` — с `/v1`, без хвостового слэша) и транспорта медиа, который у
+двух `OPENAI_COMPATIBLE`-шлюзов разный. **В резолве он не участвует никогда** — заполняет форму и
+на этом заканчивается, источник истины для работающего провайдера остаётся строкой `llm_providers`.
+Этим он отличается от таблицы префиксов `base_url`, отложенной в
+[decisions/media-transport.md](../decisions/media-transport.md): без сопоставления по URL нет ни
+нормализации, ни молчаливых промахов, а ошибка ловится, пока форма ещё открыта.
+
+Записи сидятся из `resources/seed/llm-providers.yaml` при каждом старте, upsert по `code`.
+Владение разделено:
+
+| Что | Кто владеет | Следствие |
+|---|---|---|
+| Содержимое (`base_url`, модели, транспорт, тексты) | сид | протухший id модели чинится деплоем, а не миграцией данных |
+| `enabled` | инсталляция | отключённая рекомендация остаётся отключённой после апгрейда |
+| Строка с кодом вне сида | инсталляция | обход идёт по файлу, а не по таблице — корпоративный шлюз не трогают |
+
+Правка остальных полей руками в БД будет затёрта следующим стартом: таблица здесь переключатель,
+а не редактор.
+
+В каталоге только то, что работает целиком: агентский цикл говорит на OpenAI-диалекте
+(`ModelFactory` в agent-worker), поэтому `ANTHROPIC` и `GEMINI` — которые дискавери поддерживает —
+обещали бы агента, который не запустится. Проверяется тестом `LlmCatalogSeedTest`.
+
+Описания переводятся через `seed/<lang>/llm-providers.properties` (ключ `<code>.description`);
+названия — бренды и не переводятся. Английский текст в YAML — первоисточник и фолбэк, поэтому
+файла для `en` нет, как и у коннекторов.
+
 ## Tool invocation
 
 A tool call never executes inside the request that asked for it — the caller gets an id and the
@@ -96,5 +130,5 @@ Migrations: `services/control-api/src/main/resources/db/changelog/`.
 | Connections | `connectors`, `connections`, `connection_tools`, `connection_triggers`, `agent_connections`, `agent_connection_policies`, `connector_jobs` |
 | Channels | `channels`, `channel_sessions`, `channel_session_messages`, `webchat_messages` |
 | Apps and files | `apps`, `files`, `secrets` |
-| LLM | `llm_providers`, `llm_provider_models`, `llm_model_defaults`, `llm_quotas`, `llm_usage_counters`, `llm_usage_log` |
+| LLM | `llm_providers`, `llm_provider_models`, `llm_model_defaults`, `llm_provider_catalog`, `llm_quotas`, `llm_usage_counters`, `llm_usage_log` |
 | Connector data | `persistent_memory_hot`, `persistent_memory_cold`, `sheets`, `sheet_rows`, `boards`, `board_tasks`, `board_task_comments` |

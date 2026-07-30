@@ -1,0 +1,72 @@
+# Catalogue of known LLM providers — the prefill for the «add a provider» form.
+#
+# Not under seed/<lang>/: everything here is language-independent except `description`, which lives
+# in English as the source and the fallback (translations: seed/<lang>/llm-providers.properties, the
+# same asymmetry as connectors.properties). `name` is a brand and is never translated.
+#
+# Entries are upserted by `code` on every start, so a stale model id is fixed by a deploy. The
+# `enabled` flag in the database is never written back — see the migration's comment.
+#
+# Only providers that work end to end belong here. The agent loop speaks the OpenAI dialect alone
+# (agent-worker ModelFactory), so ANTHROPIC and GEMINI provider types — which discovery does
+# support — would promise an agent that cannot run.
+
+providers:
+
+  - code: openrouter
+    name: OpenRouter
+    description: >-
+      Gateway to models from all major vendors — one key, one balance, no per-vendor contracts.
+    providerType: OPENAI_COMPATIBLE
+    baseUrl: https://openrouter.ai/api/v1
+    mediaTransport: CHAT_MODALITIES
+    apiKeyUrl: https://openrouter.ai/keys
+    sortOrder: 10
+    # The `~vendor/model-latest` ids are OpenRouter's floating aliases: they follow the vendor's
+    # current generation, so a seeded catalogue does not age between releases. Quoted because a bare
+    # `~` is YAML's null — unquoting these turns the whole list into nulls, silently.
+    # Images and audio have no aliases, hence concrete ids there (and no `-preview` variants).
+    purposePriority:
+      CHAT:
+        - "~anthropic/claude-sonnet-latest"
+        - "~openai/gpt-latest"
+        - "~google/gemini-flash-latest"
+      VISION:
+        - "~google/gemini-flash-latest"
+        - "~openai/gpt-mini-latest"
+        - "~anthropic/claude-haiku-latest"
+      IMAGE:
+        - google/gemini-3.1-flash-image
+        - google/gemini-2.5-flash-image
+        - openai/gpt-5.4-image-2
+      AUDIO_IN:
+        - "~google/gemini-flash-latest"
+        - openai/gpt-audio-mini
+        - mistralai/voxtral-small-24b-2507
+      AUDIO_OUT:
+        - openai/gpt-audio-mini
+        - openai/gpt-audio
+
+  - code: polza
+    name: Polza.ai
+    description: >-
+      Russian gateway to models from all major vendors; pays in roubles, no foreign card needed.
+    providerType: OPENAI_COMPATIBLE
+    baseUrl: https://api.polza.ai/api/v1
+    # Image models are unreachable over chat/completions here — they live on POST /media
+    # (docs/decisions/media-transport.md).
+    mediaTransport: MEDIA_ENDPOINT
+    sortOrder: 20
+    # These ids come from the July 2026 measurements recorded in the decision doc, not from a live
+    # listing — Polza's namespace differs from OpenRouter's and has no floating aliases. Purposes we
+    # have no confirmed id for are left out entirely: «not configured» is an error addressed to the
+    # user, whereas a guessed id would fail at call time on their money.
+    purposePriority:
+      CHAT:
+        - openai/gpt-5.2
+        - gpt-5.1
+      VISION:
+        - openai/gpt-5.2
+        - gpt-5.1
+      IMAGE:
+        - gemini-3.1-flash-lite-image

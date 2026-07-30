@@ -50,6 +50,10 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp")
 
+    // Reading seed/llm-providers.yaml. Boot already ships snakeyaml for application.yaml, but the
+    // catalogue reads it from our own code — an implicit dependency would break on a starter change.
+    implementation("org.yaml:snakeyaml")
+
     // Астрономические расчёты astro-коннектора: MIT, self-contained, ±1 угл. минута
     implementation("io.github.cosinekitty:astronomy")
 

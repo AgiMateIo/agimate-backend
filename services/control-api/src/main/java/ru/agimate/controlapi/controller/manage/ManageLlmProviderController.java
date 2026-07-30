@@ -11,12 +11,14 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreateLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProviderRequest;
+import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderCatalogResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderModelResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.RefreshModelsResponse;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpdateLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.UpsertModelExtraBodyRequest;
 import ru.agimate.controlapi.service.LlmProviderService;
+import ru.agimate.controlapi.service.llm.catalog.LlmProviderCatalogService;
 
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +32,7 @@ public class ManageLlmProviderController {
     public static final String PATH = "/manage/llm-providers";
 
     private final LlmProviderService llmProviderService;
+    private final LlmProviderCatalogService llmProviderCatalogService;
 
     @Operation(summary = "List LLM providers for the current user")
     @GetMapping("/")
@@ -38,6 +41,13 @@ public class ManageLlmProviderController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(llmProviderService.listForUser(userId, principal.isAdmin()));
+    }
+
+    @Operation(summary = "Catalogue of known providers to prefill the create form with "
+            + "(base URL, media dialect, models to start from)")
+    @GetMapping("/catalog/")
+    public SuccessResponse<List<LlmProviderCatalogResponse>> catalog() {
+        return SuccessResponse.ok(llmProviderCatalogService.list());
     }
 
     @Operation(summary = "Create an LLM provider")
