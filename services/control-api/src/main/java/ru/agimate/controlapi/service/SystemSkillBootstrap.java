@@ -18,7 +18,7 @@ import java.util.List;
 /**
  * Seeding of the system skills into the database at application start.
  *
- * <p>A skill lives as a classpath resource ({@code resources/seed/<lang>/skills/<code>/SKILL.md}) — the
+ * <p>A skill lives as a classpath resource ({@code resources/seed/skills/<lang>/<code>/SKILL.md}) — the
  * language is substituted by {@link SeedContentLocator} from {@code app.content.language}. The owner is
  * the synthetic {@link #SYSTEM_USER_ID}, and it is published as public (so it can be bound to an agent
  * directly, without cloning). The name, description and connectors come from the frontmatter, and the
@@ -43,7 +43,7 @@ public class SystemSkillBootstrap {
     /** Skills are seeded before presets ({@link SystemPresetBootstrap}) — those reference them by name. */
     static final int BOOTSTRAP_ORDER = 0;
 
-    /** Codes of the system skills — the folders in {@code seed/<lang>/skills/}. */
+    /** Codes of the system skills — the folders in {@code seed/skills/<lang>/}. */
     static final List<String> SYSTEM_SKILL_CODES = List.of(
             "board",
             "time",

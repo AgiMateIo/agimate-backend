@@ -7,7 +7,7 @@ import java.util.Properties;
 
 /**
  * Localisation of the trusted instructions the platform puts into an agent's prompt:
- * {@code seed/<lang>/prompt.properties}.
+ * {@code seed/texts/<lang>/prompt.properties}.
  *
  * <p>These are not captions in an interface but <b>behaviour</b>: the rules of autonomous event
  * handling, the ban on imitating a tool call as text, the attach convention, the instructions for

@@ -22,7 +22,7 @@ import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
  * Seeding of the system agent role presets at application start — modelled on
  * {@link SystemSkillBootstrap}.
  *
- * <p>A preset lives as a classpath resource ({@code resources/seed/<lang>/presets/<code>/PRESET.md}) —
+ * <p>A preset lives as a classpath resource ({@code resources/seed/presets/<lang>/<code>/PRESET.md}) —
  * the language is substituted by {@link SeedContentLocator}. The frontmatter carries
  * {@code name}/{@code title}/{@code description}/{@code skills} (names of system skills), and the body
  * is the blank for the agent's instructions. Seed-only-if-missing (see {@link SystemSkillBootstrap}):
@@ -41,7 +41,7 @@ public class SystemPresetBootstrap {
 
     static final int BOOTSTRAP_ORDER = SystemSkillBootstrap.BOOTSTRAP_ORDER + 1;
 
-    /** Codes of the system presets — the folders in {@code seed/<lang>/presets/}. */
+    /** Codes of the system presets — the folders in {@code seed/presets/<lang>/}. */
     static final List<String> SYSTEM_PRESET_CODES = List.of(
             "personal-assistant",
             "visual",

@@ -32,11 +32,11 @@ class SeedContentLocatorTest {
     class Layout {
 
         @Test
-        @DisplayName("путь собирается из языка, вида и кода")
+        @DisplayName("путь собирается из вида, языка и кода")
         void buildsPath() {
-            assertEquals("seed/ru/presets/visual/PRESET.md",
+            assertEquals("seed/presets/ru/visual/PRESET.md",
                     SeedContentLocator.path(SeedContentLocator.Kind.PRESET, "visual", ContentLanguage.RU));
-            assertEquals("seed/en/skills/time/SKILL.md",
+            assertEquals("seed/skills/en/time/SKILL.md",
                     SeedContentLocator.path(SeedContentLocator.Kind.SKILL, "time", ContentLanguage.EN));
         }
 
@@ -74,7 +74,7 @@ class SeedContentLocatorTest {
             IllegalStateException e = assertThrows(IllegalStateException.class,
                     () -> locator.read(SeedContentLocator.Kind.SKILL, "no-such-skill"));
 
-            assertTrue(e.getMessage().contains("seed/" + ContentLanguage.DEFAULT.dir() + "/"),
+            assertTrue(e.getMessage().contains("/" + ContentLanguage.DEFAULT.dir() + "/"),
                     "ожидался фолбэк на " + ContentLanguage.DEFAULT + ", а путь в ошибке: " + e.getMessage());
         }
     }

@@ -120,11 +120,11 @@ class LlmCatalogTextsTest {
 
     private static Properties load(ContentLanguage language) {
         Properties properties = new Properties();
-        try (InputStream in = new ClassPathResource("seed/%s/llm-providers.properties".formatted(language.dir()))
+        try (InputStream in = new ClassPathResource("seed/texts/%s/llm-providers.properties".formatted(language.dir()))
                 .getInputStream()) {
             properties.load(new InputStreamReader(in, StandardCharsets.UTF_8));
         } catch (IOException e) {
-            throw new UncheckedIOException("Нет seed/" + language.dir() + "/llm-providers.properties", e);
+            throw new UncheckedIOException("Нет seed/texts/" + language.dir() + "/llm-providers.properties", e);
         }
         return properties;
     }

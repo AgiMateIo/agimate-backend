@@ -110,11 +110,11 @@ class ConnectorTextsTest {
 
     private static Properties load(ContentLanguage language) {
         Properties properties = new Properties();
-        try (InputStream in = new ClassPathResource("seed/%s/connectors.properties".formatted(language.dir()))
+        try (InputStream in = new ClassPathResource("seed/texts/%s/connectors.properties".formatted(language.dir()))
                 .getInputStream()) {
             properties.load(new InputStreamReader(in, StandardCharsets.UTF_8));
         } catch (IOException e) {
-            throw new UncheckedIOException("Нет seed/" + language.dir() + "/connectors.properties", e);
+            throw new UncheckedIOException("Нет seed/texts/" + language.dir() + "/connectors.properties", e);
         }
         return properties;
     }

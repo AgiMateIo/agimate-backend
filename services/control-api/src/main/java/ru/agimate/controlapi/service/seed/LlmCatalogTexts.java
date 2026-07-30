@@ -6,7 +6,7 @@ import ru.agimate.controlapi.config.ContentProperties;
 import java.util.Properties;
 
 /**
- * Localisation of the LLM provider catalogue: {@code seed/<lang>/llm-providers.properties} with the
+ * Localisation of the LLM provider catalogue: {@code seed/texts/<lang>/llm-providers.properties} with the
  * key {@code <code>.description}.
  *
  * <p>Only the description has a key. A provider's name is a brand — it reads the same on any

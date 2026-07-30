@@ -12,9 +12,14 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * The only place that knows the layout of seed content:
- * {@code resources/seed/<lang>/<presets|skills>/<code>/<FILE>.md}. The bootstraps address content by
+ * {@code resources/seed/<presets|skills>/<lang>/<code>/<FILE>.md}. The bootstraps address content by
  * code ({@code personal-assistant}, {@code time}) rather than by path — the locator substitutes the
  * language.
+ *
+ * <p>Kind first, language second, so the root of {@code seed/} reads as the list of things the
+ * platform seeds — and content with no language dimension at all ({@code llm-providers.yaml}) has an
+ * obvious place in it. Translation bundles are their own kind, {@code seed/texts/<lang>/}
+ * ({@link SeedTextBundle}).
  *
  * <p>A missing file for the chosen language is not a refusal: we read
  * {@link ContentLanguage#DEFAULT} and log a warning. Otherwise an untranslated skill would throw
@@ -25,7 +30,7 @@ import java.nio.charset.StandardCharsets;
 @Component
 public class SeedContentLocator {
 
-    /** Kind of seed content: the subfolder in {@code seed/<lang>/} and the file's name inside the code's folder. */
+    /** Kind of seed content: the folder in {@code seed/} and the file's name inside the code's folder. */
     @Getter
     public enum Kind {
 
@@ -58,7 +63,7 @@ public class SeedContentLocator {
     }
 
     public static String path(Kind kind, String code, ContentLanguage language) {
-        return "seed/%s/%s/%s/%s".formatted(language.dir(), kind.getDir(), code, kind.getFileName());
+        return "seed/%s/%s/%s/%s".formatted(kind.getDir(), language.dir(), code, kind.getFileName());
     }
 
     public static boolean exists(Kind kind, String code, ContentLanguage language) {

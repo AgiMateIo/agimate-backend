@@ -289,7 +289,7 @@ ABAC: доступ к MCP-серверу — binding агента на его co
 `connectorName()`/`connectorDescription()` — тексты каталога подключений, они на глазах у пользователя,
 поэтому локализуются под `app.content.language` (см.
 [control-api.md](../services/control-api.md#system-content-language)). Механизм — `ConnectorTexts`
-поверх `seed/<lang>/connectors.properties` с ключами `<code>.name`/`<code>.description`; накладывается
+поверх `seed/texts/<lang>/connectors.properties` с ключами `<code>.name`/`<code>.description`; накладывается
 в `ConnectorBootstrap.upsertConnector` и `upsertStatic`. Русский остаётся в коде и служит последним
 фолбэком — файла для языка-первоисточника нет намеренно, иначе один и тот же текст лежал бы в двух
 местах и разъезжался. Каталог перезаписывается на каждом старте, поэтому смена языка доезжает до БД
@@ -297,7 +297,7 @@ ABAC: доступ к MCP-серверу — binding агента на его co
 
 `ContextDirectives.guidance` — инструкция реакции на событие, то есть **поведение**, а не подпись:
 от формулировки зависит, ответит агент в пустоту или комментарием на доске. Поэтому она локализуется
-отдельным бандлом `seed/<lang>/prompt.properties` (`PromptTexts`, ключ
+отдельным бандлом `seed/texts/<lang>/prompt.properties` (`PromptTexts`, ключ
 `connector.<code>.<trigger>.guidance` с фолбэком на `connector.<code>.guidance` — коннектор с одной
 инструкцией на несколько событий, как board, держит её в одном ключе). Резолв — в `RunContextService`
 на сборке блока, а не в самих коннекторах: `ContextDirectives` объявляются статическими константами,

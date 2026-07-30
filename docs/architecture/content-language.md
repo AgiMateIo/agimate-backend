@@ -6,17 +6,23 @@ and the trusted instruction blocks the platform injects into agent prompts. It i
 agents reply in — that follows the user and is stated in the instructions themselves. A typo in the
 value fails startup (the property binds to an enum).
 
-Content lives per language in the classpath, and `SeedContentLocator` is the only place that knows
-the layout:
+Content lives in the classpath by kind first and language second, and `SeedContentLocator` is the
+only place that knows the layout:
 
 ```
-resources/seed/<lang>/presets/<code>/PRESET.md      # seeded by SystemPresetBootstrap
-resources/seed/<lang>/skills/<code>/SKILL.md        # seeded by SystemSkillBootstrap
-resources/seed/<lang>/connectors.properties         # connector catalog name/description
-resources/seed/<lang>/prompt.properties             # trusted prompt blocks (behaviour, not captions)
+resources/seed/presets/<lang>/<code>/PRESET.md          # seeded by SystemPresetBootstrap
+resources/seed/skills/<lang>/<code>/SKILL.md            # seeded by SystemSkillBootstrap
+resources/seed/texts/<lang>/connectors.properties       # connector catalog name/description
+resources/seed/texts/<lang>/prompt.properties           # trusted prompt blocks (behaviour, not captions)
+resources/seed/texts/<lang>/llm-providers.properties    # LLM provider catalog descriptions
+resources/seed/llm-providers.yaml                       # the provider catalog itself — no language axis
 ```
 
-Adding a language = a new `ContentLanguage` constant plus a copy of the directory. Only `title`,
+Kind first, so the root of `seed/` reads as the list of things the platform seeds and content with no
+language dimension has a place in it: `llm-providers.yaml` carries URLs, provider types and model ids,
+and only its descriptions are translated.
+
+Adding a language = a new `ContentLanguage` constant plus a directory under each kind. Only `title`,
 `description` and the body are translated: `name`, `skills`, `connectors` and `sortOrder` are machine
 keys and must be byte-identical across languages — a translated slug silently breaks the
 preset→skill and skill→connector links, which is what `SeedContentParityTest` guards. A file missing
@@ -34,7 +40,7 @@ for the selected language falls back to `en` with a warning rather than failing 
 - **Connector catalog — follows the property.** `ConnectorBootstrap` upserts `connectors` rows on
   every start, so `name`/`description` move to the new language after a restart, with no migration.
   English stays in the code (`connectorName()`/`connectorDescription()`) as the last-resort fallback,
-  which is why there is deliberately no `seed/en/connectors.properties`; `ConnectorTextsTest`
+  which is why there is deliberately no `seed/texts/en/connectors.properties`; `ConnectorTextsTest`
   enforces that every registered code has a translation in every other language.
 - **Prompt blocks — follow the property.** Resolved per run in `RunContextService`, so a restart is
   enough. Keys live in `PromptTexts`: `run.trigger.guidance` (autonomous event handling),

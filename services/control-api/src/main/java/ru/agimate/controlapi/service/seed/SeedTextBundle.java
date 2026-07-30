@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 
 /**
- * Loading of a translation properties bundle from {@code seed/<lang>/<file>}.
+ * Loading of a translation properties bundle from {@code seed/texts/<lang>/<file>}.
  *
  * <p>English lives in the code and serves as the fallback, so for {@link ContentLanguage#DEFAULT}
  * there are no bundles: a request returns empty {@link Properties} and every key falls back. A missing
@@ -28,7 +28,7 @@ class SeedTextBundle {
             return properties;
         }
 
-        String path = "seed/%s/%s".formatted(language.dir(), fileName);
+        String path = "seed/texts/%s/%s".formatted(language.dir(), fileName);
         ClassPathResource resource = new ClassPathResource(path);
         if (!resource.exists()) {
             log.warn("No {} — these texts stay in {}", path, ContentLanguage.DEFAULT);

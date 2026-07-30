@@ -89,7 +89,7 @@ Common error envelope for every group:
 (`ModelFactory` в agent-worker), поэтому `ANTHROPIC` и `GEMINI` — которые дискавери поддерживает —
 обещали бы агента, который не запустится. Проверяется тестом `LlmCatalogSeedTest`.
 
-Описания переводятся через `seed/<lang>/llm-providers.properties` (ключ `<code>.description`);
+Описания переводятся через `seed/texts/<lang>/llm-providers.properties` (ключ `<code>.description`);
 названия — бренды и не переводятся. Английский текст в YAML — первоисточник и фолбэк, поэтому
 файла для `en` нет, как и у коннекторов.
 

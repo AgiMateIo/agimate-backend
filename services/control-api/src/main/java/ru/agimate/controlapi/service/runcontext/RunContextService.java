@@ -84,7 +84,7 @@ import java.util.stream.Collectors;
 public class RunContextService {
 
     // The constants below are the English source and the fallback: on an installation with another
-    // language the block comes from seed/<lang>/prompt.properties, under the PromptTexts.RUN_* keys.
+    // language the block comes from seed/texts/<lang>/prompt.properties, under the PromptTexts.RUN_* keys.
 
     /** Trigger-path guidance (trusted instructions): autonomous handling of events, not a dialogue. */
     static final String TRIGGER_GUIDANCE =

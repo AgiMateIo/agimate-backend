@@ -6,7 +6,7 @@ import ru.agimate.controlapi.config.ContentProperties;
 import java.util.Properties;
 
 /**
- * Localisation of the connector catalogue's texts: {@code seed/<lang>/connectors.properties} with the
+ * Localisation of the connector catalogue's texts: {@code seed/texts/<lang>/connectors.properties} with the
  * keys {@code <code>.name} and {@code <code>.description}.
  *
  * <p>English lives in the code ({@code connectorName()}/{@code connectorDescription()}) and serves as

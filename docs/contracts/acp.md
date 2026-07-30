@@ -102,7 +102,7 @@ id `srv-N` и возвращает `CompletableFuture`; ответ клиент�
 (`fs.readTextFile`/`fs.writeTextFile`/`terminal`).
 
 **Сид-контент**: системный скилл `acp` (инструкция «как работать из IDE») и пресет `coder`
-(«Программист», `skills: [acp, persist-memory]`) — `resources/seed/<lang>/`. Скилл объявляет
+(«Программист», `skills: [acp, persist-memory]`) — `resources/seed/{skills,presets}/<lang>/`. Скилл объявляет
 `connectors: []` **намеренно**: тулы приносит prompt-канал, а `connectors: [acp]` привязало бы
 acp-connection к агенту и выдало бы `read_file`/`write_file`/`run_command` во всех каналах, где они
 гарантированно падают (`SystemSkillBootstrapTest.CONNECTORLESS_SKILLS`). Состав тулов до подключения
