@@ -16,6 +16,7 @@ resources/seed/texts/<lang>/connectors.properties       # connector catalog name
 resources/seed/texts/<lang>/prompt.properties           # trusted prompt blocks (behaviour, not captions)
 resources/seed/texts/<lang>/llm-providers.properties    # LLM provider catalog descriptions
 resources/seed/llm-providers.yaml                       # the provider catalog itself — no language axis
+resources/seed/llm-models.yaml                          # model capability snapshot — no language axis
 ```
 
 Kind first, so the root of `seed/` reads as the list of things the platform seeds and content with no
