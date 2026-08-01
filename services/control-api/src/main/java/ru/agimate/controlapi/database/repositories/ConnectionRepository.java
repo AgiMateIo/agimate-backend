@@ -100,6 +100,32 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
     boolean existsByConnectorCodeAndUserIdAndSubCodeAndDeletedAtIsNull(
             String connectorCode, UUID userId, String subCode);
 
+    boolean existsByConnectorCodeAndUserIdAndExclusiveSubCodeAndDeletedAtIsNull(
+            String connectorCode, UUID userId, String exclusiveSubCode);
+
+    boolean existsByFullCodeAndUserIdAndDeletedAtIsNull(String fullCode, UUID userId);
+
+    /**
+     * The connection an OAuth callback belongs to. Scoped by owner on purpose: the call is
+     * authenticated anyway, but this way «someone else's state» and «expired state» give the same
+     * indistinguishable answer instead of hinting that a stranger's connection exists.
+     */
+    @Query("""
+            SELECT c FROM Connection c
+            WHERE c.oauthState = :state AND c.userId = :userId AND c.deletedAt IS NULL
+            """)
+    Optional<Connection> findByOauthStateAndUserId(@Param("state") String state, @Param("userId") UUID userId);
+
+    /**
+     * Burns the {@code state}, conditionally on it still being there. Returns 0 when a concurrent
+     * completion got there first — without this a double callback would run two parallel attempts to
+     * redeem one authorisation code.
+     */
+    @Modifying
+    @Query("UPDATE Connection c SET c.oauthState = null, c.oauthStateExpiresAt = null "
+            + "WHERE c.id = :id AND c.oauthState = :state")
+    int burnOauthState(@Param("id") UUID id, @Param("state") String state);
+
     @Modifying
     @Query("UPDATE Connection c SET c.deletedAt = :now WHERE c.id = :id")
     void softDelete(@Param("id") UUID id, @Param("now") LocalDateTime now);

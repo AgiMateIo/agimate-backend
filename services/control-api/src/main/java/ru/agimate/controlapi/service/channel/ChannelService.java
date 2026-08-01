@@ -328,7 +328,7 @@ public class ChannelService {
         UUID id = parseUuid(connectionId, "connectionId");
         Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(id, userId)
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
-        if (!connection.isActive()) {
+        if (!connection.isUsable()) {
             throw new BadRequestStatusException("Connection is not active: " + connectionId);
         }
         return connection;

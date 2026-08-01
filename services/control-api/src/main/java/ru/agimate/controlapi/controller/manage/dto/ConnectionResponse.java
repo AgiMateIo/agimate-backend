@@ -3,6 +3,7 @@ package ru.agimate.controlapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.Connection;
+import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -27,6 +28,10 @@ public record ConnectionResponse(
         @Schema(description = "Whether the connection is enabled")
         Boolean enabled,
 
+        @Schema(description = "AUTHORIZED — ready; PENDING_AUTH — the user has not authorized yet; "
+                + "AUTH_EXPIRED — the grant died and only re-authorization brings it back")
+        ConnectionAuthStatus authStatus,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "Last used timestamp")
         LocalDateTime lastUsedAt,
@@ -43,6 +48,7 @@ public record ConnectionResponse(
                 c.getFullCode(),
                 c.getName(),
                 c.getEnabled(),
+                c.getAuthStatus(),
                 c.getLastUsedAt(),
                 c.getCreatedAt()
         );

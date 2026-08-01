@@ -3,6 +3,7 @@ package ru.agimate.controlapi.database.entities;
 import jakarta.persistence.*;
 import lombok.*;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -46,6 +47,15 @@ public class Connection extends BaseEntity {
     @Column(name = "sub_code", columnDefinition = "TEXT")
     private String subCode;
 
+    /**
+     * Uniqueness key among the user's active rows of one connector: equals {@link #subCode} where a
+     * second instance of the same account is harmful, {@code null} where multiple accounts are
+     * legitimate (MCP). Filled from {@code IntegrationConnectorHandler.allowsMultipleInstances()};
+     * NULLs never collide on the partial unique index.
+     */
+    @Column(name = "exclusive_sub_code", columnDefinition = "TEXT")
+    private String exclusiveSubCode;
+
     @Column(name = "full_code", nullable = false, columnDefinition = "TEXT")
     private String fullCode;
 
@@ -75,6 +85,26 @@ public class Connection extends BaseEntity {
     @Builder.Default
     private Boolean enabled = true;
 
+    /**
+     * Authorisation state. Static-credential connections are born {@code AUTHORIZED}; an OAuth one is
+     * born {@code PENDING_AUTH} and becomes usable only after the flow completes.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "auth_status", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private ConnectionAuthStatus authStatus = ConnectionAuthStatus.AUTHORIZED;
+
+    /** One-time OAuth {@code state}; lives only between {@code /authorize} and completion. */
+    @Column(name = "oauth_state", columnDefinition = "TEXT")
+    private String oauthState;
+
+    @Column(name = "oauth_state_expires_at")
+    private LocalDateTime oauthStateExpiresAt;
+
+    /** Expiry of the access token; {@code null} means «unknown» (no {@code expires_in}), never «expired». */
+    @Column(name = "oauth_expires_at")
+    private LocalDateTime oauthExpiresAt;
+
     @Column(name = "last_used_at")
     private LocalDateTime lastUsedAt;
 
@@ -85,7 +115,20 @@ public class Connection extends BaseEntity {
         return deletedAt != null;
     }
 
+    /**
+     * Exists and is switched on. Deliberately blind to {@link #authStatus}: the refresh job must run
+     * exactly when the authorisation is broken, and {@code JobExecutionService} filters on this.
+     */
     public boolean isActive() {
         return enabled && !isDeleted();
+    }
+
+    /**
+     * Fit to serve traffic — active <em>and</em> authorised. Tool listing does not use this: the
+     * cached tool set outlives the token, and an agent is better off with an explicit «re-authorise»
+     * on the call than with half its tools silently gone.
+     */
+    public boolean isUsable() {
+        return isActive() && authStatus == ConnectionAuthStatus.AUTHORIZED;
     }
 }

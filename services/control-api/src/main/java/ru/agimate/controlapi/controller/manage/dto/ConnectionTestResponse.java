@@ -10,6 +10,10 @@ public record ConnectionTestResponse(
         @Schema(description = "Whether credentials are valid / server reachable")
         boolean valid,
 
+        @Schema(description = "Credentials are fine but the connection has to be authorized again — "
+                + "a state of its own, not a validation error")
+        boolean authorizationRequired,
+
         @Schema(description = "Resolved platform identifier (e.g. bot username, MCP server URL)")
         String identifier,
 
@@ -32,6 +36,7 @@ public record ConnectionTestResponse(
                                               Integer toolsDiscovered, String toolsError) {
         return new ConnectionTestResponse(
                 validation.valid(),
+                validation.authorizationRequired(),
                 validation.identifier(),
                 validation.displayName(),
                 validation.errorField(),

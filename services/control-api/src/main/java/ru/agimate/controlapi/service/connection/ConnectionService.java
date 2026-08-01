@@ -20,15 +20,18 @@ import ru.agimate.controlapi.connectors.core.events.ConnectorCreatedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorDeletedEvent;
 import ru.agimate.controlapi.connectors.core.events.ConnectorModifiedEvent;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
+import ru.agimate.controlapi.connectors.integrations.mcp.oauth.OAuthCredentials;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Secret;
+import ru.agimate.controlapi.database.enums.ConnectionAuthStatus;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.secret.SecretService;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -78,8 +81,12 @@ public class ConnectionService {
         }
 
         String subCode = validationResult.identifier();
-        if (connectionRepository.existsByConnectorCodeAndUserIdAndSubCodeAndDeletedAtIsNull(
-                connectorCode, userId, subCode)) {
+        // Exclusive for connectors where a second instance of the same account is harmful (a telegram
+        // bot has one webhook), null where several accounts on one endpoint are the point (MCP).
+        String exclusiveSubCode = handler.allowsMultipleInstances() ? null : subCode;
+        if (exclusiveSubCode != null
+                && connectionRepository.existsByConnectorCodeAndUserIdAndExclusiveSubCodeAndDeletedAtIsNull(
+                        connectorCode, userId, exclusiveSubCode)) {
             throw new ConflictStatusException("Connection already exists for " + connectorCode + ": " + subCode);
         }
 
@@ -88,12 +95,18 @@ public class ConnectionService {
                 .id(UUIDUtils.generateUUIDv8())
                 .connectorCode(connectorCode)
                 .subCode(subCode)
-                .fullCode(FullCodes.fullCode(connectorCode, subCode))
+                .exclusiveSubCode(exclusiveSubCode)
+                .fullCode(resolveFullCode(handler, connectorCode, userId, subCode, name))
                 .userId(userId)
                 .name(name)
+                .authStatus(validationResult.authorizationRequired()
+                        ? ConnectionAuthStatus.PENDING_AUTH
+                        : ConnectionAuthStatus.AUTHORIZED)
                 .build());
 
-        Secret secret = secretService.store(SECRET_ENTITY, connection.getId(), credentials);
+        Map<String, String> stored = new LinkedHashMap<>(credentials);
+        stored.putAll(validationResult.derivedCredentials());
+        Secret secret = secretService.store(SECRET_ENTITY, connection.getId(), stored);
         connection.setSecretId(secret.getId());
         if (handler.supportsWebhooks()) {
             Secret webhookSecret = secretService.storeValue(
@@ -104,16 +117,40 @@ public class ConnectionService {
 
         if (handler.supportsWebhooks()) {
             String webhookUrl = webhookBaseUrl + "/webhook/" + connection.getId();
-            handler.setupWebhook(envFactory.withCredentials(connection, credentials, null), webhookUrl);
+            handler.setupWebhook(envFactory.withCredentials(connection, stored, null), webhookUrl);
         }
 
-        log.info("Created connection {} for user {}: {} ({})",
-                connection.getId(), userId, connectorCode, subCode);
+        log.info("Created connection {} for user {}: {} ({}, {})",
+                connection.getId(), userId, connectorCode, subCode, connection.getAuthStatus());
 
-        eventPublisher.publishEvent(new ConnectorCreatedEvent(
-                connectorCode, connection.getId().toString(), connection.getUserId()));
+        // For a connection that still has to be authorised the event waits for the callback: tool
+        // discovery hangs on it and would get a 401 for certain — there is no token yet.
+        if (connection.isUsable()) {
+            eventPublisher.publishEvent(new ConnectorCreatedEvent(
+                    connectorCode, connection.getId().toString(), connection.getUserId()));
+        }
 
         return connection;
+    }
+
+    /**
+     * The client-facing handle. For a multi-instance connector the identifier no longer tells
+     * instances apart — two accounts share a URL — so the discriminator is the name the user gave,
+     * with a numeric suffix on a collision. Computed once, here: renaming a connection later must not
+     * silently rename the agent's tools.
+     */
+    private String resolveFullCode(IntegrationConnectorHandler handler, String connectorCode,
+                                   UUID userId, String subCode, String name) {
+        if (!handler.allowsMultipleInstances()) {
+            return FullCodes.fullCode(connectorCode, subCode);
+        }
+        String base = FullCodes.nameSlug(connectorCode, subCode, name);
+        String candidate = FullCodes.withSlug(connectorCode, base);
+        int suffix = 2;
+        while (connectionRepository.existsByFullCodeAndUserIdAndDeletedAtIsNull(candidate, userId)) {
+            candidate = FullCodes.withSlug(connectorCode, base + "_" + suffix++);
+        }
+        return candidate;
     }
 
     /** A user's connections with filters on real fields (every parameter is optional). */
@@ -156,9 +193,20 @@ public class ConnectionService {
                 connection.getConnectorCode(), connection.getId().toString()));
     }
 
+    /**
+     * Replacing the credentials of an OAuth connection is refused rather than tolerated: there is no
+     * password to change there, and the URL cannot be changed this way anyway (the {@code sub_code}
+     * invariant below is the server's URL). The real payoff is elsewhere — with this path closed the
+     * secret has exactly one writer, the refresh job, and needs no locking at all.
+     */
     @Transactional
     public Connection updateSecret(UUID id, UUID userId, Map<String, String> credentials) {
         Connection connection = getOwnedConnection(id, userId);
+        if (usesOAuth(connection)) {
+            throw new BadRequestStatusException(
+                    "This connection is authorized through the provider; re-connect it instead of "
+                            + "editing credentials");
+        }
         var handler = integrationHandler(connection.getConnectorCode());
 
         var validationResult = handler.validateCredentials(credentials);
@@ -204,16 +252,23 @@ public class ConnectionService {
         Connection saved = connectionRepository.save(connection);
 
         if (enabledChanged) {
-            if (Boolean.TRUE.equals(enabled)) {
+            // Switching an unauthorized connection back on does not make it usable, and the listeners
+            // on this event would immediately walk into a 401 on tool discovery.
+            if (Boolean.TRUE.equals(enabled) && saved.isUsable()) {
                 eventPublisher.publishEvent(new ConnectorCreatedEvent(
                         saved.getConnectorCode(), saved.getId().toString(), saved.getUserId()));
-            } else {
+            } else if (!Boolean.TRUE.equals(enabled)) {
                 eventPublisher.publishEvent(new ConnectorDeletedEvent(
                         saved.getConnectorCode(), saved.getId().toString()));
             }
         }
 
         return saved;
+    }
+
+    /** Whether the connection holds an OAuth grant rather than credentials the user typed. */
+    private boolean usesOAuth(Connection connection) {
+        return OAuthCredentials.isOAuth(revealCredentials(connection));
     }
 
     private Map<String, String> revealCredentials(Connection connection) {

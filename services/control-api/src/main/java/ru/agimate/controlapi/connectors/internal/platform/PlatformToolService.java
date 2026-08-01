@@ -375,7 +375,8 @@ public class PlatformToolService {
 
     private ConnectionBrief toConnectionBrief(Connection connection) {
         return new ConnectionBrief(connection.getId().toString(), connection.getConnectorCode(),
-                connection.getName(), Boolean.TRUE.equals(connection.getEnabled()), connection.getSubCode());
+                connection.getName(), Boolean.TRUE.equals(connection.getEnabled()), connection.getSubCode(),
+                connection.getAuthStatus().name());
     }
 
     private static boolean isSystem(Skill skill) {

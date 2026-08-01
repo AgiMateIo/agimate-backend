@@ -17,6 +17,17 @@ public interface IntegrationConnectorHandler extends ConnectorHandler {
 
     IntegrationValidationResult validateCredentials(Map<String, String> credentials);
 
+    /**
+     * Whether one user may hold several connections to the same platform instance. False by default,
+     * and that default is the safe one: for telegram a bot has a single webhook, so a second
+     * connection to the same bot silently steals delivery from the first. True where multiple
+     * accounts on one endpoint are a legitimate product feature (MCP) — then the connection's handle,
+     * not its {@code sub_code}, tells them apart.
+     */
+    default boolean allowsMultipleInstances() {
+        return false;
+    }
+
     default boolean supportsWebhooks() {
         return false;
     }

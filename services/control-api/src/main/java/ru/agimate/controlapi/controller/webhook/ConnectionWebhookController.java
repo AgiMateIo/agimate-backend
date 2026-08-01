@@ -51,8 +51,8 @@ public class ConnectionWebhookController {
         }
 
         Connection connection = connectionOpt.get();
-        if (!connection.isActive()) {
-            log.debug("Webhook received for disabled connection: {}", connectionId);
+        if (!connection.isUsable()) {
+            log.debug("Webhook received for disabled or unauthorized connection: {}", connectionId);
             return ResponseEntity.ok("ok");
         }
 

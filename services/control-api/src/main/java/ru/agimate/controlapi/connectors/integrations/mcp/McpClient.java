@@ -3,26 +3,26 @@ package ru.agimate.controlapi.connectors.integrations.mcp;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.AttributionHeaders;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
+import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpUnauthorizedException;
+import ru.agimate.controlapi.connectors.integrations.mcp.oauth.WwwAuthenticate;
 
-import java.net.Inet6Address;
-import java.net.InetAddress;
-import java.net.URI;
-import java.net.UnknownHostException;
+import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -52,27 +52,35 @@ public class McpClient {
     private final RestClient restClient;
     private final AtomicLong requestId = new AtomicLong(1);
 
-    /** SSRF: whether to allow targets on private or loopback addresses (true for local development only). */
-    private final boolean allowPrivateTargets;
+    /** SSRF guard, shared with the OAuth side: every host of the chain is vetted the same way. */
+    private final McpTargetGuard targets;
 
     /** AgiMate brand attribution: the {@code User-Agent} plus the product version for {@code clientInfo.version}. */
     private final AttributionHeaders attribution;
 
     @Autowired
-    public McpClient(
-            @Value("${app.connectors.mcp.allow-private-targets:false}") boolean allowPrivateTargets,
-            AttributionHeaders attribution) {
-        this.allowPrivateTargets = allowPrivateTargets;
+    public McpClient(McpTargetGuard targets, AttributionHeaders attribution) {
+        this.targets = targets;
         this.attribution = attribution;
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(TIMEOUT);
+        // Redirects are never followed: the target is vetted before the request, and a 302 to a
+        // private address would step around that check entirely.
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(
+                HttpClient.newBuilder()
+                        .followRedirects(HttpClient.Redirect.NEVER)
+                        .connectTimeout(TIMEOUT)
+                        .build());
         factory.setReadTimeout(TIMEOUT);
         this.restClient = RestClient.builder().requestFactory(factory).build();
     }
 
     /** Constructor for tests: no Spring context, and the brand version falls back. */
     McpClient(boolean allowPrivateTargets) {
-        this(allowPrivateTargets, new AttributionHeaders("dev"));
+        this(new McpTargetGuard(allowPrivateTargets), new AttributionHeaders("dev"));
+    }
+
+    /** The protocol revision this client speaks; the OAuth side sends it on well-known requests. */
+    public static String protocolVersion() {
+        return PROTOCOL_VERSION;
     }
 
     /** Connection config for an MCP server, from the credentials. */
@@ -131,6 +139,9 @@ public class McpClient {
                     .body(jsonRpcRequest(id, "initialize", params))
                     .retrieve()
                     .toEntity(String.class);
+        } catch (RestClientResponseException e) {
+            throw authorizationFailure(e).orElseGet(
+                    () -> new ConnectorException("MCP initialize failed: " + e.getMessage()));
         } catch (ConnectorException e) {
             throw e;
         } catch (Exception e) {
@@ -171,6 +182,9 @@ public class McpClient {
                     .body(jsonRpcRequest(id, method, params))
                     .retrieve()
                     .toEntity(String.class);
+        } catch (RestClientResponseException e) {
+            throw authorizationFailure(e).orElseGet(
+                    () -> new ConnectorException("MCP " + method + " failed: " + e.getMessage()));
         } catch (ConnectorException e) {
             throw e;
         } catch (Exception e) {
@@ -232,51 +246,39 @@ public class McpClient {
     }
 
     /**
-     * SSRF guard: before any request we check the URL leads to a public http(s) address. We resolve
-     * the host and block loopback / link-local (including {@code 169.254.169.254}) / site-local /
-     * any-local / multicast and IPv6 unique-local. Resolving on every call (rather than once when the
-     * connection is created) narrows the DNS-rebinding window but does not close it entirely. The flag
-     * {@code app.connectors.mcp.allow-private-targets} lifts the check for local development.
+     * SSRF guard, see {@link McpTargetGuard}. Applied on every call rather than once at creation: it
+     * narrows the DNS-rebinding window, though it does not close it.
      */
     private void validateTarget(String url) {
-        if (allowPrivateTargets) {
-            return;
-        }
-        URI uri;
-        try {
-            uri = URI.create(url);
-        } catch (IllegalArgumentException e) {
-            throw new ConnectorException("Invalid MCP server URL");
-        }
-        String scheme = uri.getScheme();
-        if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
-            throw new ConnectorException("MCP server URL must use http or https");
-        }
-        String host = uri.getHost();
-        if (host == null || host.isBlank()) {
-            throw new ConnectorException("MCP server URL has no host");
-        }
-        InetAddress[] addresses;
-        try {
-            addresses = InetAddress.getAllByName(host);
-        } catch (UnknownHostException e) {
-            throw new ConnectorException("Cannot resolve MCP server host: " + host);
-        }
-        for (InetAddress address : addresses) {
-            if (isBlockedAddress(address)) {
-                throw new ConnectorException(
-                        "MCP server URL resolves to a non-public address and is not allowed");
-            }
-        }
+        targets.requireAllowed(url);
     }
 
-    private static boolean isBlockedAddress(InetAddress address) {
-        if (address.isLoopbackAddress() || address.isAnyLocalAddress() || address.isLinkLocalAddress()
-                || address.isSiteLocalAddress() || address.isMulticastAddress()) {
-            return true;
+    /**
+     * Turns an HTTP failure into an authorisation one — but only 401, and 403 with
+     * {@code insufficient_scope}. Everything else stays a plain protocol failure: a 400 from a server
+     * that did not understand our revision must not be dressed up as «please log in».
+     */
+    private static Optional<ConnectorException> authorizationFailure(RestClientResponseException e) {
+        int status = e.getStatusCode().value();
+        if (status != 401 && status != 403) {
+            return Optional.empty();
         }
-        // IPv6 unique-local (fc00::/7) — InetAddress.isSiteLocalAddress does not cover it.
-        return address instanceof Inet6Address && (address.getAddress()[0] & 0xfe) == 0xfc;
+        WwwAuthenticate challenge = WwwAuthenticate
+                .bearer(e.getResponseHeaders() == null
+                        ? List.of()
+                        : e.getResponseHeaders().getOrEmpty(HttpHeaders.WWW_AUTHENTICATE))
+                .orElse(null);
+        boolean insufficientScope = challenge != null
+                && challenge.parameter("error").filter("insufficient_scope"::equals).isPresent();
+        if (status == 403 && !insufficientScope) {
+            return Optional.empty();
+        }
+        return Optional.of(new McpUnauthorizedException(
+                insufficientScope
+                        ? "MCP server requires additional permissions"
+                        : "MCP server requires authorization",
+                challenge,
+                insufficientScope));
     }
 
     private JsonNode parseSseResponse(String body, long id) {

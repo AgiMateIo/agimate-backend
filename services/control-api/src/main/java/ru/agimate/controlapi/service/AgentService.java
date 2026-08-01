@@ -233,7 +233,7 @@ public class AgentService {
         Set<String> names = new LinkedHashSet<>();
         for (AgentConnection binding : agentConnectionRepository.findActiveByAgentId(agent.getId())) {
             Connection connection = connectionRepository.findByIdNotDeleted(binding.getConnectionId()).orElse(null);
-            if (connection == null || !connection.isActive()) {
+            if (connection == null || !connection.isUsable()) {
                 continue;
             }
             Connector connector = connectorRepository.findById(connection.getConnectorCode()).orElse(null);

@@ -13,17 +13,21 @@ import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpConnectorService;
 import ru.agimate.controlapi.connectors.integrations.mcp.McpToolDiscoveryService;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.controller.manage.dto.CompleteAuthorizationRequest;
 import ru.agimate.controlapi.controller.manage.dto.ConnectionAgentResponse;
+import ru.agimate.controlapi.controller.manage.dto.ConnectionCreatedResponse;
 import ru.agimate.controlapi.controller.manage.dto.ConnectionResponse;
 import ru.agimate.controlapi.controller.manage.dto.ConnectionTestResponse;
 import ru.agimate.controlapi.controller.manage.dto.ConnectorJobResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateConnectionRequest;
+import ru.agimate.controlapi.controller.manage.dto.StartAuthorizationResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerSpecificationResponse;
 import ru.agimate.controlapi.controller.manage.dto.UpdateConnectionRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateConnectionSecretRequest;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.service.ConnectorJobManageService;
+import ru.agimate.controlapi.service.connection.ConnectionAuthorizationService;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.connection.ConnectionService;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
@@ -41,6 +45,7 @@ public class ManageConnectionController {
     public static final String PATH = "/manage/connections";
 
     private final ConnectionService connectionService;
+    private final ConnectionAuthorizationService authorizationService;
     private final ConnectionBindingService bindingService;
     private final ToolDefinitionService toolDefinitionService;
     private final TriggerDefinitionService triggerDefinitionService;
@@ -61,15 +66,41 @@ public class ManageConnectionController {
         return SuccessResponse.ok(connections);
     }
 
-    @Operation(summary = "Create a new connection (requires credentials; integration connectors only)")
+    @Operation(summary = "Create a new connection (requires credentials; integration connectors only). "
+            + "A server that answers 401 yields status=authorization_required and an authorizeUrl")
     @PostMapping("/")
-    public SuccessResponse<ConnectionResponse> create(
+    public SuccessResponse<ConnectionCreatedResponse> create(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody CreateConnectionRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
         Connection connection = connectionService.create(
                 userId, request.connectorCode(), request.credentials(), request.name());
+        return SuccessResponse.ok(ConnectionCreatedResponse.from(connection));
+    }
+
+    @Operation(summary = "Start authorization: mints state and PKCE and returns the URL to open. "
+            + "Also the way to re-authorize an expired connection or to widen its scope")
+    @PostMapping("/{connectionId}/authorize")
+    public SuccessResponse<StartAuthorizationResponse> authorize(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID connectionId
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        String url = authorizationService.startAuthorization(connectionId, userId);
+        return SuccessResponse.ok(new StartAuthorizationResponse(url));
+    }
+
+    @Operation(summary = "Finish authorization with what the browser brought back to the frontend. "
+            + "Authenticated on purpose: this is what binds the grant to the user who started it")
+    @PostMapping("/oauth/complete")
+    public SuccessResponse<ConnectionResponse> completeAuthorization(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @Valid @RequestBody CompleteAuthorizationRequest request
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        Connection connection = authorizationService.complete(
+                userId, request.state(), request.code(), request.error(), request.iss());
         return SuccessResponse.ok(ConnectionResponse.from(connection));
     }
 
@@ -177,10 +208,12 @@ public class ManageConnectionController {
         IntegrationValidationResult validation = connectionService.validate(connectionId, userId);
 
         // For dynamic connectors (MCP) with valid credentials we rebuild the tool cache synchronously — a
-        // tools/list error is returned as a separate field rather than failing the test itself.
+        // tools/list error is returned as a separate field rather than failing the test itself. A
+        // connection that needs authorizing is skipped: tools/list would be answered with a 401.
         Integer toolsDiscovered = null;
         String toolsError = null;
-        if (validation.valid() && McpConnectorService.CONNECTOR_CODE.equals(connection.getConnectorCode())) {
+        if (validation.valid() && !validation.authorizationRequired()
+                && McpConnectorService.CONNECTOR_CODE.equals(connection.getConnectorCode())) {
             try {
                 List<ConnectionTool> fresh = mcpToolDiscoveryService.discover(connectionId);
                 if (fresh != null) {

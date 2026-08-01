@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="connections-oauth-state" author="agimate">
+        <comment>
+            OAuth for connector instances (docs/decisions/mcp-oauth.md). Only what has to be searched
+            or shown without decrypting the secret becomes a column: the tokens themselves, the
+            issuer, the AS endpoints and the granted scope stay inside the connection's secret.
+
+            oauth_expires_at is deliberately out of the secret even though it travels with the token:
+            inside the encrypted blob «who needs refreshing» could be answered neither by a query nor
+            by the UI, and every background check would have to decrypt everything. NULL means
+            «unknown» (the AS sent no expires_in), never «expired» — otherwise the job would refresh
+            on a schedule that follows from nothing.
+        </comment>
+
+        <addColumn tableName="connections">
+            <column name="auth_status" type="TEXT" defaultValue="AUTHORIZED">
+                <constraints nullable="false"/>
+            </column>
+            <column name="oauth_state" type="TEXT"/>
+            <column name="oauth_state_expires_at" type="TIMESTAMP"/>
+            <column name="oauth_expires_at" type="TIMESTAMP"/>
+        </addColumn>
+
+        <!-- Lookup key of the callback: the state travels in the URL and is resolved back to the row. -->
+        <sql>
+            CREATE UNIQUE INDEX uq_connections_oauth_state
+                ON connections (oauth_state)
+                WHERE oauth_state IS NOT NULL;
+        </sql>
+    </changeSet>
+
+    <changeSet id="connections-exclusive-sub-code" author="agimate">
+        <comment>
+            Multi-account support for MCP: two connections to one server must coexist, so uniqueness
+            of (connector_code, user_id, sub_code) has to go. It cannot simply be dropped — for
+            telegram a second connection to the same bot silently steals webhook delivery from the
+            first — so the rule becomes data instead of code: exclusive_sub_code repeats sub_code
+            where a second instance of the same account is harmful and stays NULL where multiple
+            accounts are legitimate (NULLs never collide on a unique index in PostgreSQL). Filled by
+            ConnectionService.create from IntegrationConnectorHandler.allowsMultipleInstances().
+
+            The alternative — «connector_code &lt;&gt; 'mcp'» inside the index — rots on the second
+            multi-instance connector; a check in application code loses the race between two parallel
+            creates. Backfill and the drop of the old index live in this one changeSet on purpose:
+            between two changeSets there would be a window with no uniqueness at all.
+        </comment>
+
+        <addColumn tableName="connections">
+            <column name="exclusive_sub_code" type="TEXT"/>
+        </addColumn>
+
+        <sql>
+            UPDATE connections SET exclusive_sub_code = sub_code WHERE connector_code &lt;&gt; 'mcp';
+        </sql>
+
+        <dropIndex tableName="connections" indexName="uq_connections_connector_user_subcode"/>
+
+        <sql>
+            CREATE UNIQUE INDEX uq_connections_connector_user_exclusive
+                ON connections (connector_code, user_id, exclusive_sub_code)
+                WHERE deleted_at IS NULL;
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

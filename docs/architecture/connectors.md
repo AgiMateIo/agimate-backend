@@ -250,10 +250,11 @@ PNG-графики, импорт/выгрузка xlsx/csv, см. `docs/connecto
 ### MCP-коннектор
 
 `integrations/mcp/` — универсальный коннектор к удалённому MCP-серверу (транспорт **Streamable HTTP**,
-auth — статический Bearer-токен/произвольные заголовки). Особенность: тулы **динамические и per-instance** —
-каждый экземпляр (строка `connections` = `url` + auth в `secrets`) отдаёт свой набор через `tools/list`.
-Поэтому `McpConnectorService implements IntegrationConnectorHandler, ToolProvider` напрямую
-(без `BaseConnectorHandler` и `@Tool`-методов; `JobProvider` не реализует — фоновых тасок нет):
+auth — статический Bearer-токен/произвольные заголовки либо OAuth, см. ниже). Особенность: тулы
+**динамические и per-instance** — каждый экземпляр (строка `connections` = `url` + auth в `secrets`)
+отдаёт свой набор через `tools/list`. Поэтому
+`McpConnectorService implements IntegrationConnectorHandler, ToolProvider, JobProvider` напрямую
+(без `BaseConnectorHandler` и `@Tool`-методов; единственная джоба — обновление OAuth-токена):
 
 - `getTools()` пуст (статических тулов нет); `getTools(ctx)` отдаёт список из `connection_tools` по `ctx.connectionId()`.
 - `validateCredentials` = хендшейк `initialize` (доступность + auth); `identifier` = URL сервера (канонический
@@ -283,6 +284,22 @@ credentials (для всех типов — доступность/auth плат
 ABAC: доступ к MCP-серверу — binding агента на его connection; правила `agent_connection_policies`
 скоупятся по `(binding, kind, name)`, имена тулов берутся из `connection_tools`. Периодический refresh по
 расписанию и MCP `resources`/`prompts` — вне scope (YAGNI).
+
+**OAuth** (подпакет `integrations/mcp/oauth/`, решение — [../decisions/mcp-oauth.md](../decisions/mcp-oauth.md)).
+Режим определяется не настройкой, а поведением сервера: `validateCredentials` получает 401, разбирает
+`WWW-Authenticate` и идёт искать сервер авторизации — сначала `resource_metadata` из заголовка, затем PRM
+по двум well-known, затем легаси-корень origin самого сервера. Не нашли — коннекция не создаётся, но
+статический токен по-прежнему работает. Нашли — коннекция рождается в `auth_status = PENDING_AUTH`, а
+добытое (issuer, эндпойнты AS, канонический `resource`, выбранный scope) едет в её секрет через
+`IntegrationValidationResult.derivedCredentials`.
+
+Идентификация клиента — только Client ID Metadata Document: `client_id` это HTTPS-адрес нашего JSON,
+задаётся `app.connectors.mcp.oauth.client-id` (и парный `redirect-uri`), оба на публичном origin фронта.
+Публичных эндпойнтов у флоу нет: браузер возвращается на страницу фронта, а завершает
+`POST /manage/connections/oauth/complete` — обычный аутентифицированный вызов, и он же привязывает грант к
+тому, кто его начал. Токены живут в том же секрете, срок истечения — колонкой `oauth_expires_at`;
+обновляет их только джоба `oauth_refresh`, а 401 посреди `tools/call` переводит коннекцию в
+`AUTH_EXPIRED` и отдаёт агенту ссылку на переподключение.
 
 ## Тексты коннектора и язык инсталляции
 

@@ -59,8 +59,13 @@ public final class PlatformDtos {
     public record CreatedAgent(String id, String name) {
     }
 
+    /**
+     * {@code authStatus} is here and not omitted for brevity: with only {@code enabled} in sight the
+     * meta-agent takes a connection awaiting authorization for a working one and cheerfully reports
+     * to the user that everything is connected.
+     */
     public record ConnectionBrief(String id, String connectorCode, String name,
-                                  boolean enabled, String subCode) {
+                                  boolean enabled, String subCode, String authStatus) {
     }
 
     public record ConnectionList(List<ConnectionBrief> connections) {
