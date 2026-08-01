@@ -10,6 +10,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.TriggerProvider;
+import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
@@ -88,8 +89,8 @@ public class TelegramConnectorService extends BaseConnectorHandler
     }
 
     @Override
-    public Map<String, String> getCredentialFields() {
-        return Map.of("token", "Bot API token");
+    public Map<String, CredentialField> getCredentialFields() {
+        return Map.of("token", CredentialField.required("Bot API token", CredentialField.Type.SECRET));
     }
 
     /** Long polling is only needed in polling mode; in webhook mode there are no background jobs. */

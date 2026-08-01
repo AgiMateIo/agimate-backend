@@ -11,6 +11,8 @@ import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.JobProvider;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.connectors.core.dto.CredentialField;
+import ru.agimate.controlapi.connectors.core.dto.CredentialField.Type;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
 import ru.agimate.controlapi.connectors.core.jobs.JobSchedule;
@@ -88,11 +90,11 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
     }
 
     @Override
-    public Map<String, String> getCredentialFields() {
-        Map<String, String> fields = new LinkedHashMap<>();
-        fields.put(McpUtils.FIELD_URL, "Server URL (Streamable HTTP)");
-        fields.put(McpUtils.FIELD_AUTH_TOKEN, "Bearer token (optional)");
-        fields.put(McpUtils.FIELD_HEADERS, "Extra headers as JSON (optional)");
+    public Map<String, CredentialField> getCredentialFields() {
+        Map<String, CredentialField> fields = new LinkedHashMap<>();
+        fields.put(McpUtils.FIELD_URL, CredentialField.required("Server URL (Streamable HTTP)", Type.URL));
+        fields.put(McpUtils.FIELD_AUTH_TOKEN, CredentialField.optional("Bearer token", Type.SECRET));
+        fields.put(McpUtils.FIELD_HEADERS, CredentialField.optional("Extra headers as JSON", Type.JSON));
         return fields;
     }
 

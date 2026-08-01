@@ -14,6 +14,7 @@ import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.service.seed.ConnectorTexts;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -76,13 +77,25 @@ public class ConnectorBootstrap {
         connector.setName(connectorTexts.name(code, handler.connectorName()));
         connector.setDescription(connectorTexts.description(code, handler.connectorDescription()));
         connector.setCredentialFields(handler instanceof IntegrationConnectorHandler integration
-                ? integration.getCredentialFields()
+                ? labelsOf(integration)
                 : null);
         connector.applyTraits(handler.traits());
         requireConsistentInstanceBearing(handler, connector);
         requireValidContextDirectives(handler);
 
         connectorRepository.save(connector);
+    }
+
+    /**
+     * The row keeps the labels only, not the whole declaration: the column's single reader is
+     * {@link Connector#isIntegration()} («are there credentials at all»), and the API assembles the
+     * field descriptors from the handler. Storing the richer shape would buy nothing and would cost a
+     * migration of rows that this very method rewrites on every startup.
+     */
+    private static Map<String, String> labelsOf(IntegrationConnectorHandler integration) {
+        Map<String, String> labels = new LinkedHashMap<>();
+        integration.getCredentialFields().forEach((code, field) -> labels.put(code, field.label()));
+        return labels;
     }
 
     /**

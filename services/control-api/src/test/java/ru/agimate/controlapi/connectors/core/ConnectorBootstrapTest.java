@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
+import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
 import ru.agimate.controlapi.connectors.core.jobs.ConnectorJobService;
 import ru.agimate.controlapi.database.entities.Connector;
@@ -98,7 +99,8 @@ class ConnectorBootstrapTest {
         when(handler.connectorCode()).thenReturn("telegram");
         when(handler.connectorName()).thenReturn("Telegram");
         when(handler.traits()).thenReturn(ConnectorTraits.dynamicIntegration());
-        when(handler.getCredentialFields()).thenReturn(Map.of("token", "Bot token"));
+        when(handler.getCredentialFields()).thenReturn(
+                Map.of("token", CredentialField.required("Bot token", CredentialField.Type.SECRET)));
         when(handler.getTriggers()).thenReturn(Map.of("message_received", promptSpec("text")));
 
         IllegalStateException e = assertThrows(IllegalStateException.class,
@@ -129,7 +131,8 @@ class ConnectorBootstrapTest {
         when(handler.connectorCode()).thenReturn("telegram");
         when(handler.connectorName()).thenReturn("Telegram");
         when(handler.traits()).thenReturn(ConnectorTraits.dynamicIntegration());
-        when(handler.getCredentialFields()).thenReturn(Map.of("token", "Bot token"));
+        when(handler.getCredentialFields()).thenReturn(
+                Map.of("token", CredentialField.required("Bot token", CredentialField.Type.SECRET)));
         when(handler.getTriggers()).thenReturn(Map.of("message_received", new TriggerSpec(
                 "desc", List.of("text"),
                 ContextDirectives.builder().historyLimit(10).build())));

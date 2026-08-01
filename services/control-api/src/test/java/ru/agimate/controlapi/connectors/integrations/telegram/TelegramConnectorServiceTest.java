@@ -15,6 +15,7 @@ import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.FileStatus;
@@ -101,9 +102,10 @@ class TelegramConnectorServiceTest {
         }
 
         @Test
-        @DisplayName("getCredentialFields: код поля → название")
+        @DisplayName("getCredentialFields: код поля → объявление, токен маскируется")
         void credentialFields() {
-            assertEquals(Map.of("token", "Bot API token"), handler.getCredentialFields());
+            assertEquals(Map.of("token", CredentialField.required("Bot API token", CredentialField.Type.SECRET)),
+                    handler.getCredentialFields());
         }
 
         @Test

@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.connectors.core;
 
 import jakarta.servlet.http.HttpServletRequest;
+import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.service.trigger.Trigger;
 
@@ -12,8 +13,8 @@ import java.util.Map;
  */
 public interface IntegrationConnectorHandler extends ConnectorHandler {
 
-    /** Credentials fields: field code → human-readable name. */
-    Map<String, String> getCredentialFields();
+    /** Credentials fields: field code → its declaration. Order matters — keep an insertion-ordered map. */
+    Map<String, CredentialField> getCredentialFields();
 
     IntegrationValidationResult validateCredentials(Map<String, String> credentials);
 

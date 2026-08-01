@@ -48,8 +48,9 @@
    должен привозить и канал, а это не часть SPI. Смягчение — `GenericChannelHandler` как fallback.
 5. **Свои таблицы.** persistent-memory/board/sheets владеют таблицами и Liquibase-миграциями —
    плагинам этот механизм недоступен.
-6. **Management-поверхность бедная**: только `credentialFields: Map<String,String>` — ни типов
-   полей, ни secret-флага, ни произвольных действий коннектора для UI.
+6. **Management-поверхность бедная**: `credentialFields` с августа 2026 несёт тип поля, secret-флаг
+   и `required`, но на этом всё — ни placeholder'ов, ни валидации, ни произвольных действий
+   коннектора для UI.
 
 **Оговорка.** board, persistent-memory, webchat, acp, platform, sheets — не «коннекторы», а
 продуктовые фичи, оформленные через SPI. Они останутся first-party, и это нормально: плагинный
@@ -78,9 +79,9 @@ SPI нужен для integration-класса (telegram-подобные, об�
 Плагины **не** регистрируют свои REST-контроллеры (дыра в security chain, конфликты путей,
 невозможность единого ABAC). Вместо этого:
 
-- `credentialFields` → полноценная `ConfigSchema` (тип поля, secret, required, placeholder,
-  валидация, OAuth-подсказка) — фронт рендерит форму generically, как уже делает с
-  `IntegrationMeta`.
+- `credentialFields` → полноценная `ConfigSchema`: тип поля, secret и required уже есть
+  (`CredentialField`), не хватает placeholder'ов, валидации и OAuth-подсказки — фронт рендерит форму
+  generically, как уже делает с `IntegrationMeta`.
 - Новая capability `ManagementActionProvider`: методы `@Action` со схемами через тот же
   `ToolSchemaReflector`; хост даёт один generic-endpoint
   `POST /manage/connections/{id}/actions/{name}`. UI получает список действий со схемами и рисует

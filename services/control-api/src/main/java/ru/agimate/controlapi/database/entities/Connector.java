@@ -30,7 +30,11 @@ public class Connector extends BaseEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    /** Credentials fields of an integration connector: field code → human-readable name. */
+    /**
+     * Credentials fields of an integration connector: field code → human-readable name. A mirror of
+     * the declaration in code, rewritten on every startup; the field types and their optionality live
+     * in the handler, and the API reads them from there.
+     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "credential_fields", columnDefinition = "JSONB")
     private Map<String, String> credentialFields;

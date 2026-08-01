@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
+import ru.agimate.controlapi.connectors.core.dto.CredentialField;
 import ru.agimate.controlapi.connectors.core.dto.IntegrationValidationResult;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpAuthDiscovery;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpOAuthService;
@@ -60,6 +61,38 @@ class McpConnectorServiceTest {
 
     private ConnectorEnv ctx(String connectionId, Map<String, String> credentials) {
         return new ConnectorEnv(connectionId, null, null, null, null, null, credentials, null);
+    }
+
+    @Nested
+    @DisplayName("getCredentialFields")
+    class CredentialFields {
+
+        @Test
+        @DisplayName("маскируется только токен, URL и заголовки — открытые поля")
+        void types() {
+            Map<String, CredentialField> fields = service.getCredentialFields();
+
+            assertEquals(CredentialField.Type.URL, fields.get(McpUtils.FIELD_URL).type());
+            assertEquals(CredentialField.Type.SECRET, fields.get(McpUtils.FIELD_AUTH_TOKEN).type());
+            assertEquals(CredentialField.Type.JSON, fields.get(McpUtils.FIELD_HEADERS).type());
+        }
+
+        @Test
+        @DisplayName("обязателен только URL, и подписи не несут слова optional")
+        void requiredness() {
+            Map<String, CredentialField> fields = service.getCredentialFields();
+
+            assertTrue(fields.get(McpUtils.FIELD_URL).required());
+            assertFalse(fields.get(McpUtils.FIELD_AUTH_TOKEN).required());
+            assertFalse(fields.get(McpUtils.FIELD_HEADERS).required());
+            fields.values().forEach(field -> assertFalse(field.label().contains("optional")));
+        }
+
+        @Test
+        @DisplayName("порядок полей сохраняется: URL первым")
+        void order() {
+            assertEquals(McpUtils.FIELD_URL, service.getCredentialFields().keySet().iterator().next());
+        }
     }
 
     @Nested
