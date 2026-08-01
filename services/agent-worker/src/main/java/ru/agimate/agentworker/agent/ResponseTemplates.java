@@ -40,6 +40,11 @@ public class ResponseTemplates {
         return get("notice.no-model");
     }
 
+    /** The model produced no text at all — a provider-side degenerate finish, not a content problem. */
+    public String emptyAnswer() {
+        return get("notice.empty-answer");
+    }
+
     public String imitationError() {
         return get("notice.imitation-error");
     }

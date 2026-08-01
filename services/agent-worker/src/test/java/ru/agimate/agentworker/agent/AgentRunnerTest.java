@@ -85,6 +85,15 @@ class AgentRunnerTest {
     }
 
     @Test
+    @DisplayName("пустой ответ модели → AgentRunAborted с нотисом, а не пустой финал")
+    void emptyAnswer() {
+        SimpleAgent.LlmCaller empty = (msgs, defs) -> SimpleAgent.LlmReply.of(
+                AgentChatMessage.assistant("", false, List.of()));
+        AgentRunAborted ex = assertThrows(AgentRunAborted.class, () -> runOnce(runner(empty, 5)));
+        assertEquals(TEMPLATES.emptyAnswer(), ex.userNotice());
+    }
+
+    @Test
     @DisplayName("happy path returns the final answer")
     void happy() {
         assertEquals("ok", runOnce(runner(

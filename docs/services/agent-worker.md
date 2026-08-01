@@ -67,6 +67,25 @@ of `SaveMessage` — the worker no longer routes channels. `PreparedContext` sta
 checkpoint (in-flight runs replay the serialized step result across deploys). See
 [agent-context-design.md](../architecture/agents-and-runs.md) for the context-assembly design.
 
+### Гварды цикла
+Ход без tool call'ов — ещё не финал. Два вырожденных «финала» перехватываются и не доезжают до
+пользователя:
+
+- **имитация вызова текстом** («🔧 name» или «[вызван инструмент …]») — модель написала вызов
+  прозой вместо структурного, тул при этом не исполнился; идёт корректирующий user-ход, до 2 раз
+  за ран, дальше `ImitationLoopExhausted`;
+- **пустой текст** — reasoning-модели за OpenAI-совместимым шлюзом иногда тратят всю генерацию на
+  `reasoning_content` и возвращают пустой `content` с `finish_reason: stop` (наблюдалось на
+  `deepseek-v4-flash`: 858 output-токенов, текста нет). Сбоем это не помечено ничем, поэтому без
+  guard'а ран завершался «успешно», а пользователь видел тишину: пустой ANSWER бэк не доставляет
+  (`MessageLogService` режет blank), и в истории оставалась пустая строка. Пустой ход выбрасывается
+  из диалога (сигнала для модели он не несёт, а пустой assistant-content строгие шлюзы отклоняют),
+  добавляется нудж и модель переспрашивается — **один** раз: переспрос стоит пользователю ещё
+  одного полного вызова. Дальше `EmptyAnswerExhausted` → нотис `notice.empty-answer`.
+
+Нудж-ходы эфемерны: ни в историю, ни в канал они не проецируются. Токены каждой попытки при этом
+учитываются — `onUsage` идёт до решения о судьбе хода.
+
 ### Producer contract (shared code, not config)
 The queue/class/workflow/instance names (`agent_exec`/`AgentRunWorkflow`/`run_agent`/`default`)
 live in **`ru.agimate.agentworker.WorkerProtocol`** (`libs/agentworker-proto`), compiled into
@@ -98,7 +117,7 @@ binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example
 
 ### User-facing notices (i18n)
 Пользовательские нотисы (max-turns, ошибка/квота модели, «модель не настроена», обрезка/фильтр
-ответа, инфра-сбой) — `resources/messages_<lang>.properties`, резолвятся через Spring
+ответа, пустой ответ модели, инфра-сбой) — `resources/messages_<lang>.properties`, резолвятся через Spring
 `MessageSource`. Язык выбирается
 `agent.response.language` (BCP-47, дефолт `en`; в комплекте `en` и `ru`). Неизвестный язык падает
 в базовый бандл (`messages.properties`, английский) — `spring.messages.fallback-to-system-locale:

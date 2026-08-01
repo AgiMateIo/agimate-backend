@@ -1,6 +1,7 @@
 package ru.agimate.agentworker.agent;
 
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
+import ru.agimate.agentworker.agent.error.EmptyAnswerExhausted;
 import ru.agimate.agentworker.agent.error.ImitationLoopExhausted;
 import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
@@ -57,6 +58,9 @@ public class AgentRunner {
         } catch (MaxTurnsExceeded e) {
             throw new AgentRunAborted(templates.maxTurns(),
                     "agent loop hit max_turns " + context + ": " + e.getMessage());
+        } catch (EmptyAnswerExhausted e) {
+            throw new AgentRunAborted(templates.emptyAnswer(),
+                    "model returned an empty answer " + context + ": " + e.getMessage());
         } catch (ImitationLoopExhausted e) {
             throw new AgentRunAborted(templates.imitationError(),
                     "agent stuck imitating tool calls " + context + ": " + e.getMessage());

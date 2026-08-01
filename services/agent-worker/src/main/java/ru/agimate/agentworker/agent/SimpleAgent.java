@@ -1,6 +1,7 @@
 package ru.agimate.agentworker.agent;
 
 import lombok.extern.slf4j.Slf4j;
+import ru.agimate.agentworker.agent.error.EmptyAnswerExhausted;
 import ru.agimate.agentworker.agent.error.ImitationLoopExhausted;
 import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
@@ -34,6 +35,14 @@ import java.util.regex.Pattern;
  * {@link ru.agimate.agentworker.agent.error.ImitationLoopExhausted}, so a raw «🔧 …» line never
  * reaches the user as a final answer (corrective turns are ephemeral and are not projected).
  *
+ * <p>Guard: a tool-less turn with empty text is not a final answer either. Reasoning models behind
+ * OpenAI-compatible gateways sometimes spend the whole generation on {@code reasoning_content} and
+ * return an empty {@code content} with {@code finish_reason: stop} — nothing marks it as a failure,
+ * so without the guard the run ends «successfully» and the user sees silence. The empty turn is
+ * dropped from the conversation, a nudge is appended and the model is asked again (up to
+ * {@value #MAX_EMPTY_RETRIES} time per run); if it stays empty the run aborts with
+ * {@link EmptyAnswerExhausted} and the user gets a notice.
+ *
  * <p>Soft landing at the cap: {@value #WRAP_UP_TURNS} turns before the limit an ephemeral wrap-up
  * notice is injected («finish with what you have»), and the last turn runs <b>without tools</b> —
  * forcing the model to produce final text. Iterative perfectionism (generate → check → «not quite»
@@ -54,6 +63,17 @@ public class SimpleAgent {
             "Вызов инструмента, написанный текстом, не исполняется. Если нужно вызвать инструмент — "
             + "сделай настоящий структурный tool call через API. Если вызов не нужен — ответь без "
             + "строк вида «🔧 …».";
+
+    /**
+     * One retry, not several: an empty reply is a provider hiccup that a single re-ask usually
+     * clears, and every attempt costs a full model call the user waits through.
+     */
+    static final int MAX_EMPTY_RETRIES = 1;
+
+    static final String EMPTY_ANSWER_NUDGE =
+            "Предыдущий ход вернулся пустым — пользователь не получил ничего. Ответь обычным "
+            + "текстом (поле content), коротко и по существу задачи. Если для ответа нужен "
+            + "инструмент — сделай настоящий структурный tool call.";
 
     /** How many turns before the cap the wrap-up notice is injected; the last turn runs without tools. */
     static final int WRAP_UP_TURNS = 2;
@@ -142,6 +162,7 @@ public class SimpleAgent {
     public String run(List<AgentChatMessage> messages) {
         notifyStart(messages);
         int corrections = 0;
+        int emptyRetries = 0;
         // Soft landing only for a meaningful cap — a tiny maxTurns (tests, debugging) is left alone.
         boolean softLanding = maxTurns > WRAP_UP_TURNS;
         for (int turn = 1; turn <= maxTurns; turn++) {
@@ -165,6 +186,21 @@ public class SimpleAgent {
 
             if (!assistant.hasToolCalls()) {
                 String text = assistant.text() != null ? assistant.text() : "";
+                if (text.isBlank()) {
+                    if (emptyRetries < MAX_EMPTY_RETRIES) {
+                        emptyRetries++;
+                        log.warn("turn {}: empty reply, re-asking ({}/{})",
+                                turn, emptyRetries, MAX_EMPTY_RETRIES);
+                        // The empty turn is dropped rather than kept: it carries no signal for the model,
+                        // and re-sending empty assistant content is what strict gateways reject.
+                        messages.remove(messages.size() - 1);
+                        messages.add(AgentChatMessage.user(EMPTY_ANSWER_NUDGE));
+                        continue;
+                    }
+                    log.warn("turn {}: still empty after {} retry(-ies), aborting", turn, MAX_EMPTY_RETRIES);
+                    throw new EmptyAnswerExhausted("model returned no text after "
+                            + MAX_EMPTY_RETRIES + " retry(-ies)");
+                }
                 if (TOOL_TEXT_IMITATION.matcher(text).find()) {
                     if (corrections < MAX_IMITATION_CORRECTIONS) {
                         corrections++;

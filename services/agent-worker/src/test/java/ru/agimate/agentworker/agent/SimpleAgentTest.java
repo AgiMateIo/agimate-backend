@@ -1,5 +1,6 @@
 package ru.agimate.agentworker.agent;
 
+import ru.agimate.agentworker.agent.error.EmptyAnswerExhausted;
 import ru.agimate.agentworker.agent.error.ImitationLoopExhausted;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
@@ -273,6 +274,55 @@ class SimpleAgentTest {
                 .filter(m -> SimpleAgent.IMITATION_CORRECTION.equals(m.text()))
                 .count();
         assertEquals(SimpleAgent.MAX_IMITATION_CORRECTIONS, corrections);
+    }
+
+    @Test
+    @DisplayName("guard: пустой ход не финал — переспрос, пустой ход выброшен из диалога")
+    void emptyReplyRetried() {
+        AtomicInteger turn = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
+                ? reply(AgentChatMessage.assistant("   ", false, List.of()))
+                : reply(AgentChatMessage.assistant("готово", false, List.of()));
+        SimpleAgent agent = agent(llm, calls -> List.of(), null, 10);
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        assertEquals("готово", agent.run(conv));
+        // user + нудж + assistant(финал): пустого assistant-хода в диалоге не остаётся.
+        assertEquals(3, conv.size());
+        assertEquals(SimpleAgent.EMPTY_ANSWER_NUDGE, conv.get(1).text());
+        assertTrue(conv.stream().noneMatch(m -> m.role() == AgentChatMessage.Role.ASSISTANT
+                && (m.text() == null || m.text().isBlank())));
+    }
+
+    @Test
+    @DisplayName("guard: пустой ход после переспроса — EmptyAnswerExhausted, а не пустой финал")
+    void emptyReplyAbortsAfterRetries() {
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant(null, false, List.of()));
+        SimpleAgent agent = agent(llm, calls -> List.of(), null, 10);
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        assertThrows(EmptyAnswerExhausted.class, () -> agent.run(conv));
+        long nudges = conv.stream()
+                .filter(m -> SimpleAgent.EMPTY_ANSWER_NUDGE.equals(m.text()))
+                .count();
+        assertEquals(SimpleAgent.MAX_EMPTY_RETRIES, nudges);
+    }
+
+    @Test
+    @DisplayName("guard: пустой текст рядом с tool call'ами финалом не считается — обычный ход с тулами")
+    void emptyTextWithToolCallsIsNotAffected() {
+        AtomicInteger turn = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
+                ? reply(AgentChatMessage.assistant(null, false,
+                        List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))))
+                : reply(AgentChatMessage.assistant("final", false, List.of()));
+        SimpleAgent.ToolDispatcher dispatcher = calls -> List.of(
+                new AgentChatMessage.ToolResult("id1", "t", "{}", false));
+        SimpleAgent agent = agent(llm, dispatcher, null, 10);
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        assertEquals("final", agent.run(conv));
+        assertTrue(conv.stream().noneMatch(m -> SimpleAgent.EMPTY_ANSWER_NUDGE.equals(m.text())));
     }
 
     @Test
