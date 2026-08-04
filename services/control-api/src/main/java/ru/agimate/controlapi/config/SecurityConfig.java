@@ -31,6 +31,7 @@ import ru.agimate.controlapi.controller.manage.ManageAgenticTeamController;
 import ru.agimate.controlapi.controller.manage.ManageBoardController;
 import ru.agimate.controlapi.controller.manage.ManageCentrifugoTokenController;
 import ru.agimate.controlapi.controller.manage.ManageChannelController;
+import ru.agimate.controlapi.controller.manage.ManageFilesController;
 import ru.agimate.controlapi.controller.manage.ManageAppsController;
 import ru.agimate.controlapi.controller.manage.ManageToolCallLogsController;
 import ru.agimate.controlapi.controller.manage.ManageTriggerLogsController;
@@ -135,6 +136,7 @@ public class SecurityConfig {
                 ManageLlmUsageController.PATH + "/**",
                 ManageChannelController.PATH + "/**",
                 ManageWebchatController.PATH + "/**",
+                ManageFilesController.PATH + "/**",
                 // The whole admin area by prefix, not per controller: adding one there must not require
                 // an edit here, or the next admin endpoint ships ungated.
                 ManageAdminPaths.PREFIX + "/**"
