@@ -43,6 +43,7 @@ import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.storage.NewFile;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.io.IOException;
@@ -144,7 +145,15 @@ public class WebchatService {
         log.info("Webchat file upload - user={}, mime={}, {} bytes", userId, mime, file.getSize());
         StoredFile stored;
         try (InputStream content = file.getInputStream()) {
-            stored = fileStorageService.store(userId, "webchat", mime, file.getSize(), content, null);
+            // No agentId: the upload precedes the send, so the session — and with it the agent — is
+            // not yet chosen.
+            stored = fileStorageService.store(NewFile.builder()
+                    .userId(userId)
+                    .origin("webchat")
+                    .name(file.getOriginalFilename())
+                    .mime(mime)
+                    .sizeBytes(file.getSize())
+                    .build(), content);
         } catch (IOException e) {
             throw new BadRequestStatusException("Failed to read uploaded file: " + e.getMessage());
         }
@@ -219,12 +228,13 @@ public class WebchatService {
             StoredFile file = fileStorageService.findReadable(userId, fileId)
                     .orElseThrow(() -> new BadRequestStatusException("Attachment not found: " + fileId));
             String mime = file.getMime();
-            parts.add(new Part(Part.typeForMime(mime), fileId, mime, file.getSizeBytes(), Map.of()));
+            Map<String, Object> meta = file.getName() != null ? Map.of("name", file.getName()) : Map.of();
+            parts.add(new Part(Part.typeForMime(mime), fileId, mime, file.getSizeBytes(), meta));
         }
         return parts;
     }
 
-    /** Parts → the trigger's data ({@code type/fileId/mime/size}) — the handler maps them into the inbound message with no database access. */
+    /** Parts → the trigger's data ({@code type/fileId/mime/size/name}) — the handler maps them into the inbound message with no database access. */
     private static List<Map<String, Object>> dataParts(List<Part> parts) {
         return parts.stream().map(part -> {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -232,6 +242,10 @@ public class WebchatService {
             m.put("fileId", part.storageRef());
             m.put("mime", part.mime());
             m.put("size", part.size());
+            Object name = part.meta().get("name");
+            if (name != null) {
+                m.put("name", name);
+            }
             return (Map<String, Object>) m;
         }).toList();
     }

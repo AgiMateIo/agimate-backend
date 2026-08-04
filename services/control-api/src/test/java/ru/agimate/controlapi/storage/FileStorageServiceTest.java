@@ -84,6 +84,10 @@ class FileStorageServiceTest {
         return new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8));
     }
 
+    private static NewFile spec(UUID userId, String origin, String mime, long sizeBytes) {
+        return NewFile.builder().userId(userId).origin(origin).mime(mime).sizeBytes(sizeBytes).build();
+    }
+
     @Nested
     @DisplayName("store")
     class Store {
@@ -93,8 +97,7 @@ class FileStorageServiceTest {
         void storesAndComputesSha() {
             when(repository.sumBytesSince(eq(USER_ID), any())).thenReturn(0L);
 
-            StoredFile file = service.store(USER_ID, "app/take_screenshot", "text/plain", 5,
-                    bytes("hello"), null);
+            StoredFile file = service.store(spec(USER_ID, "app/take_screenshot", "text/plain", 5), bytes("hello"));
 
             assertEquals(FileStatus.READY, file.getStatus());
             assertEquals(HELLO_SHA256, file.getSha256());
@@ -112,7 +115,7 @@ class FileStorageServiceTest {
         void rejectsOversize() {
             props.setMaxFileSizeBytes(4);
             assertThrows(FileStorageException.class,
-                    () -> service.store(USER_ID, "t", "text/plain", 5, bytes("hello"), null));
+                    () -> service.store(spec(USER_ID, "t", "text/plain", 5), bytes("hello")));
             assertTrue(blobStore.blobs.isEmpty());
         }
 
@@ -122,7 +125,7 @@ class FileStorageServiceTest {
             props.setUserDailyBytes(100);
             when(repository.sumBytesSince(eq(USER_ID), any())).thenReturn(98L);
             assertThrows(FileStorageException.class,
-                    () -> service.store(USER_ID, "t", "text/plain", 5, bytes("hello"), null));
+                    () -> service.store(spec(USER_ID, "t", "text/plain", 5), bytes("hello")));
             assertTrue(blobStore.blobs.isEmpty());
         }
 
@@ -130,7 +133,68 @@ class FileStorageServiceTest {
         @DisplayName("неположительный размер — отказ")
         void rejectsNonPositiveSize() {
             assertThrows(FileStorageException.class,
-                    () -> service.store(USER_ID, "t", "text/plain", 0, bytes(""), null));
+                    () -> service.store(spec(USER_ID, "t", "text/plain", 0), bytes("")));
+        }
+
+        @Test
+        @DisplayName("имя и агент-производитель сохраняются в строке")
+        void storesNameAndProducingAgent() {
+            when(repository.sumBytesSince(eq(USER_ID), any())).thenReturn(0L);
+            UUID agentId = UUID.randomUUID();
+
+            StoredFile file = service.store(NewFile.builder()
+                    .userId(USER_ID).agentId(agentId).origin("sheets:export")
+                    .name("отчёт.csv").mime("text/csv").sizeBytes(5).build(), bytes("hello"));
+
+            assertEquals("отчёт.csv", file.getName());
+            assertEquals(agentId, file.getAgentId());
+        }
+
+        @Test
+        @DisplayName("агент-производитель неизвестен — строка пишется без него")
+        void storesWithoutAgent() {
+            when(repository.sumBytesSince(eq(USER_ID), any())).thenReturn(0L);
+
+            StoredFile file = service.store(spec(USER_ID, "webchat", "text/plain", 5), bytes("hello"));
+
+            assertNull(file.getAgentId());
+            assertNull(file.getName());
+        }
+    }
+
+    @Nested
+    @DisplayName("имя файла")
+    class Name {
+
+        @Test
+        @DisplayName("путь в имени срезается до последнего сегмента")
+        void stripsPath() {
+            assertEquals("shot.png", named("C:\\Users\\me\\shot.png").name());
+            assertEquals("shot.png", named("../../etc/shot.png").name());
+        }
+
+        @Test
+        @DisplayName("кавычки и управляющие символы вырезаются — иначе они уедут в заголовок")
+        void stripsHeaderBreakers() {
+            assertEquals("report.pdf", named("re\"po\rrt\n.pdf").name().replace(" ", ""));
+        }
+
+        @Test
+        @DisplayName("пустое, пробельное и «..» — имени нет")
+        void blankBecomesNull() {
+            assertNull(named("   ").name());
+            assertNull(named("..").name());
+            assertNull(named(null).name());
+        }
+
+        @Test
+        @DisplayName("слишком длинное имя обрезается")
+        void truncatesLongName() {
+            assertEquals(255, named("a".repeat(300)).name().length());
+        }
+
+        private NewFile named(String name) {
+            return NewFile.builder().userId(USER_ID).name(name).mime("text/plain").sizeBytes(1).build();
         }
     }
 
@@ -140,7 +204,7 @@ class FileStorageServiceTest {
 
         private StoredFile readyFile(UUID owner) {
             when(repository.sumBytesSince(eq(owner), any())).thenReturn(0L);
-            return service.store(owner, "t", "text/plain", 5, bytes("hello"), null);
+            return service.store(spec(owner, "t", "text/plain", 5), bytes("hello"));
         }
 
         @Test
@@ -200,7 +264,7 @@ class FileStorageServiceTest {
         @DisplayName("удаляет блоб и строку для каждого файла из батча")
         void purgesBlobAndRow() {
             when(repository.sumBytesSince(eq(USER_ID), any())).thenReturn(0L);
-            StoredFile file = service.store(USER_ID, "t", "text/plain", 5, bytes("hello"), null);
+            StoredFile file = service.store(spec(USER_ID, "t", "text/plain", 5), bytes("hello"));
             when(repository.claimPurgeBatch(anyInt())).thenReturn(List.of(file));
 
             int purged = service.purgeExpiredBatch(100);

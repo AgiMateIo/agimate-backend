@@ -32,6 +32,14 @@ public class StoredFile extends BaseEntity {
     @Column(name = "user_id", nullable = false, updatable = false)
     private UUID userId;
 
+    /**
+     * The agent that produced the file — provenance, never an access check: files are shared across
+     * the agents of one user by design (board comments, sheet cells). {@code null} where the producer
+     * is unknown — ingest of an inbound message, an upload from a device or the webchat UI.
+     */
+    @Column(name = "agent_id", updatable = false)
+    private UUID agentId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "TEXT")
     private FileStatus status;
@@ -41,6 +49,10 @@ public class StoredFile extends BaseEntity {
 
     @Column(name = "size", nullable = false)
     private Long sizeBytes;
+
+    /** The file name as its producer knew it; {@code null} when there was none (see {@link ru.agimate.controlapi.storage.NewFile}). */
+    @Column(name = "name", columnDefinition = "TEXT")
+    private String name;
 
     /** hex SHA-256 of the contents; filled in once the upload completes (status=READY). */
     @Column(name = "sha256", columnDefinition = "TEXT")

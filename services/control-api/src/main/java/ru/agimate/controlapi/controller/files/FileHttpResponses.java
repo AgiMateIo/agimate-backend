@@ -3,12 +3,14 @@ package ru.agimate.controlapi.controller.files;
 import lombok.experimental.UtilityClass;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import ru.agimate.controlapi.storage.FileIds;
 import ru.agimate.controlapi.storage.FileStorageService;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 /**
@@ -30,10 +32,16 @@ public class FileHttpResponses {
                                                             boolean inline, CacheControl cacheControl) {
         MediaType mediaType = safeMediaType(content.file().getMime());
         boolean render = inline && mediaType.getType().equals("image");
-        String disposition = (render ? "inline" : "attachment")
-                + "; filename=\"" + FileIds.external(content.file().getId()) + "\"";
+        // The stored name when the producer knew one, otherwise the id; a name may be non-ASCII, so
+        // the header is built by Spring (filename + RFC 5987 filename*), never by concatenation.
+        String filename = content.file().getName() != null
+                ? content.file().getName() : FileIds.external(content.file().getId());
+        ContentDisposition disposition = (render
+                ? ContentDisposition.inline() : ContentDisposition.attachment())
+                .filename(filename, StandardCharsets.UTF_8)
+                .build();
         ResponseEntity.BodyBuilder builder = ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Content-Security-Policy", "sandbox; default-src 'none'");
         if (cacheControl != null) {

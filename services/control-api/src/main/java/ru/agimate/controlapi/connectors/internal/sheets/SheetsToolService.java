@@ -188,7 +188,8 @@ public class SheetsToolService {
                     required = false) String bucket,
             @ToolParam(value = "Same filter shape as in query", required = false) List<Condition> filter,
             @ToolParam(value = "Chart title (default: sheet title)", required = false) String title) {
-        return chartService.render(scopeId(), env().userId(), sheet, type, x, y, aggregate, bucket, filter, title);
+        return chartService.render(scopeId(), env().userId(), env().agentId(), sheet, type, x, y,
+                aggregate, bucket, filter, title);
     }
 
     @Tool(name = "export",
@@ -207,9 +208,10 @@ public class SheetsToolService {
 
         String resolved = format == null || format.isBlank() ? "csv" : format.trim().toLowerCase();
         FileInfo file = switch (resolved) {
-            case "csv" -> fileService.exportCsv(env().userId(), entity.getName(), columns, rows);
-            case "xlsx" -> fileService.exportXlsx(env().userId(), entity.getName(), entity.getTitle(),
+            case "csv" -> fileService.exportCsv(env().userId(), env().agentId(), entity.getName(),
                     columns, rows);
+            case "xlsx" -> fileService.exportXlsx(env().userId(), env().agentId(), entity.getName(),
+                    entity.getTitle(), columns, rows);
             default -> throw new ConnectorException("Invalid format: '" + format + "'. Allowed: csv, xlsx");
         };
         return new ExportResult(file, rows.size());

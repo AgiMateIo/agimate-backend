@@ -17,6 +17,9 @@ public record FileResponse(
         @Schema(description = "Size in bytes")
         long size,
 
+        @Schema(description = "File name as uploaded; null when the upload carried none")
+        String name,
+
         @Schema(description = "Hex SHA-256 of the content")
         String sha256,
 
@@ -26,6 +29,6 @@ public record FileResponse(
 
     public static FileResponse from(StoredFile file) {
         return new FileResponse(FileIds.external(file.getId()), file.getMime(),
-                file.getSizeBytes(), file.getSha256(), file.getExpiresAt());
+                file.getSizeBytes(), file.getName(), file.getSha256(), file.getExpiresAt());
     }
 }

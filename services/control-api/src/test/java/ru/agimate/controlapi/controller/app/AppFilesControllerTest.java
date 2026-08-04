@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
@@ -21,6 +22,7 @@ import ru.agimate.controlapi.service.AppService;
 import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
 import ru.agimate.controlapi.storage.FileIds;
 import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.storage.NewFile;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -29,9 +31,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -83,13 +83,19 @@ class AppFilesControllerTest {
         when(rateLimiter.tryAcquire(InboundRateLimiter.Scope.FILE_UPLOAD, APP_ID)).thenReturn(true);
         when(appService.getApp(PRINCIPAL)).thenReturn(app());
         StoredFile stored = storedFile();
-        when(fileStorageService.store(eq(USER_ID), any(), eq("image/png"), anyLong(), any(), isNull()))
-                .thenReturn(stored);
+        when(fileStorageService.store(any(NewFile.class), any())).thenReturn(stored);
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "shot.png", "image/png", "hello".getBytes(StandardCharsets.UTF_8));
         SuccessResponse<FileResponse> response = controller.uploadFile(file, PRINCIPAL);
 
+        ArgumentCaptor<NewFile> spec = ArgumentCaptor.forClass(NewFile.class);
+        verify(fileStorageService).store(spec.capture(), any());
+        assertEquals(USER_ID, spec.getValue().userId());
+        assertEquals("image/png", spec.getValue().mime());
+        assertEquals("shot.png", spec.getValue().name());
+        // Устройство грузит под своим ключом, вне рана — инициатор здесь неизвестен.
+        assertNull(spec.getValue().agentId());
         assertEquals(FileIds.external(stored.getId()), response.getResponse().id());
         assertEquals("image/png", response.getResponse().mime());
         assertEquals(5L, response.getResponse().size());
@@ -100,12 +106,15 @@ class AppFilesControllerTest {
     void uploadDefaultsMime() {
         when(rateLimiter.tryAcquire(InboundRateLimiter.Scope.FILE_UPLOAD, APP_ID)).thenReturn(true);
         when(appService.getApp(PRINCIPAL)).thenReturn(app());
-        when(fileStorageService.store(eq(USER_ID), any(), eq("application/octet-stream"),
-                anyLong(), any(), isNull())).thenReturn(storedFile());
+        when(fileStorageService.store(any(NewFile.class), any())).thenReturn(storedFile());
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "blob", null, "hello".getBytes(StandardCharsets.UTF_8));
         assertNotNull(controller.uploadFile(file, PRINCIPAL).getResponse());
+
+        ArgumentCaptor<NewFile> spec = ArgumentCaptor.forClass(NewFile.class);
+        verify(fileStorageService).store(spec.capture(), any());
+        assertEquals("application/octet-stream", spec.getValue().mime());
     }
 
     @Test

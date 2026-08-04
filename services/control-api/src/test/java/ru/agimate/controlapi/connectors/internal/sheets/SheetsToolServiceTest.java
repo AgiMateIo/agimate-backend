@@ -112,8 +112,8 @@ class SheetsToolServiceTest {
     @Test
     @DisplayName("render_chart: вместе с файлом возвращается сводка — агент не видит собственный PNG")
     void chartReturnsSummaryAlongsideFile() {
-        when(chartService.render(eq(agentId), eq(userId), eq("pressure"), isNull(), eq("date"),
-                any(), isNull(), isNull(), isNull(), isNull()))
+        when(chartService.render(eq(agentId), eq(userId), eq(agentId), eq("pressure"), isNull(),
+                eq("date"), any(), isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(new ChartResult(
                         new FileInfo("agf_" + UUID.randomUUID(), "image/png", 42_000L), "pressure",
                         List.of(new ColumnSummary("sys", "мм рт.ст.", 30, 118d, 152d, 131.4d, 3942d))));

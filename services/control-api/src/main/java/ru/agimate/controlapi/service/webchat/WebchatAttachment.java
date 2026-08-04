@@ -10,14 +10,17 @@ import java.util.function.Function;
  * {@code url} (type/fileId/mime/size): signed links expire, so fresh ones are issued on every read or
  * publication.
  *
- * @param url relative signed URL of the contents ({@code /files/agf_…?exp&sig}); the control-api
- *            origin is added by the frontend
+ * @param name the file name when the producer knew one; {@code null} for a Telegram photo or a
+ *             generated image, where there is none to show
+ * @param url  relative signed URL of the contents ({@code /files/agf_…?exp&sig}); the control-api
+ *             origin is added by the frontend
  */
 public record WebchatAttachment(
         String type,
         String fileId,
         String mime,
         Long size,
+        String name,
         String url
 ) {
 
@@ -29,6 +32,7 @@ public record WebchatAttachment(
                 (String) stored.get("fileId"),
                 (String) stored.get("mime"),
                 size instanceof Number number ? number.longValue() : null,
+                (String) stored.get("name"),
                 url);
     }
 

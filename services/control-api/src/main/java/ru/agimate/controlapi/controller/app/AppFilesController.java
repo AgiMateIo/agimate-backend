@@ -18,6 +18,7 @@ import ru.agimate.controlapi.security.AppPrincipal;
 import ru.agimate.controlapi.service.AppService;
 import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
 import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.storage.NewFile;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,8 +58,15 @@ public class AppFilesController {
 
         StoredFile stored;
         try (InputStream content = file.getInputStream()) {
-            stored = fileStorageService.store(app.getUserId(), "app:" + app.getId(), mime,
-                    file.getSize(), content, null);
+            // No agentId: the device uploads under its own key, outside the run whose tool call asked
+            // for the file — the initiator is not recoverable here.
+            stored = fileStorageService.store(NewFile.builder()
+                    .userId(app.getUserId())
+                    .origin("app:" + app.getId())
+                    .name(file.getOriginalFilename())
+                    .mime(mime)
+                    .sizeBytes(file.getSize())
+                    .build(), content);
         } catch (IOException e) {
             throw new BadRequestStatusException("Failed to read uploaded file: " + e.getMessage());
         }

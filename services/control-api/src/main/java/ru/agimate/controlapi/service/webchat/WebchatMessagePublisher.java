@@ -63,7 +63,7 @@ public class WebchatMessagePublisher {
                         Instant.now().toString()));
     }
 
-    /** The stored representation of parts ({@code type/fileId/mime/size}); null — a message with no attachments. */
+    /** The stored representation of parts ({@code type/fileId/mime/size/name}); null — a message with no attachments. */
     private static List<Map<String, Object>> storedParts(List<Part> parts) {
         if (parts == null || parts.isEmpty()) {
             return null;
@@ -74,6 +74,10 @@ public class WebchatMessagePublisher {
             stored.put("fileId", part.storageRef());
             stored.put("mime", part.mime());
             stored.put("size", part.size());
+            Object name = part.meta() != null ? part.meta().get("name") : null;
+            if (name != null) {
+                stored.put("name", name);
+            }
             return stored;
         }).toList();
     }

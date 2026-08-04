@@ -4,12 +4,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.storage.FileIds;
 import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.storage.NewFile;
 
 import java.io.InputStream;
 import java.util.List;
@@ -21,9 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -82,11 +82,20 @@ class TelegramMediaServiceTest {
                             Map.of("file_path", "photos/f.jpg", "file_size", 9000)));
             when(telegramApiClient.downloadFile(TOKEN, "photos/f.jpg")).thenReturn(new byte[9000]);
             UUID fileId = UUID.randomUUID();
-            when(fileStorageService.store(eq(USER_ID), eq("telegram:" + CONNECTION_ID), eq("image/jpeg"),
-                    anyLong(), any(InputStream.class), isNull())).thenReturn(stored(fileId, "image/jpeg", 9000));
+            when(fileStorageService.store(any(NewFile.class), any(InputStream.class)))
+                    .thenReturn(stored(fileId, "image/jpeg", 9000));
 
             Trigger out = service().materialize(TOKEN, USER_ID, CONNECTION_ID, photoTrigger(photo));
 
+            ArgumentCaptor<NewFile> spec = ArgumentCaptor.forClass(NewFile.class);
+            verify(fileStorageService).store(spec.capture(), any(InputStream.class));
+            assertEquals(USER_ID, spec.getValue().userId());
+            assertEquals("telegram:" + CONNECTION_ID, spec.getValue().origin());
+            assertEquals("image/jpeg", spec.getValue().mime());
+            // Ингест идёт до маршрутизации — получатели ещё не выбраны.
+            assertNull(spec.getValue().agentId());
+            // У фото в Telegram имени нет — придумывать его нельзя.
+            assertNull(spec.getValue().name());
             assertNull(out.data().get("photo"));
             List<?> parts = (List<?>) out.data().get("parts");
             assertEquals(1, parts.size());
@@ -108,11 +117,15 @@ class TelegramMediaServiceTest {
                             Map.of("file_path", "docs/report.pdf", "file_size", 512)));
             when(telegramApiClient.downloadFile(TOKEN, "docs/report.pdf")).thenReturn(new byte[512]);
             UUID fileId = UUID.randomUUID();
-            when(fileStorageService.store(eq(USER_ID), any(), eq("application/pdf"), anyLong(),
-                    any(InputStream.class), isNull())).thenReturn(stored(fileId, "application/pdf", 512));
+            when(fileStorageService.store(any(NewFile.class), any(InputStream.class)))
+                    .thenReturn(stored(fileId, "application/pdf", 512));
 
             Trigger out = service().materialize(TOKEN, USER_ID, CONNECTION_ID, trigger);
 
+            ArgumentCaptor<NewFile> spec = ArgumentCaptor.forClass(NewFile.class);
+            verify(fileStorageService).store(spec.capture(), any(InputStream.class));
+            assertEquals("application/pdf", spec.getValue().mime());
+            assertEquals("report.pdf", spec.getValue().name());
             Map<?, ?> part = (Map<?, ?>) ((List<?>) out.data().get("parts")).get(0);
             assertEquals("file", part.get("type"));
             assertEquals("report.pdf", part.get("name"));

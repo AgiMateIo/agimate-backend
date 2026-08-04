@@ -141,8 +141,11 @@ public class TelegramToolService {
                     throw new ConnectorException("file " + value + " is too large for Telegram bot upload: "
                             + sizeBytes + " bytes, limit " + BOT_UPLOAD_LIMIT_BYTES + " (50 MB)");
                 }
-                String effectiveName = fileName != null && !fileName.isBlank()
-                        ? fileName : defaultFilename(value, file.file().getMime());
+                // What the agent asked for → the name the file was stored under → a synthetic one:
+                // a document forwarded to a chat should keep the name the user sent it with.
+                String effectiveName = fileName != null && !fileName.isBlank() ? fileName
+                        : file.file().getName() != null ? file.file().getName()
+                        : defaultFilename(value, file.file().getMime());
                 return telegramApiClient.sendRequestMultipart(method, token, apiParams, field,
                         effectiveName, file.file().getMime(), content, file.file().getSizeBytes());
             }

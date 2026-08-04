@@ -17,6 +17,7 @@ import ru.agimate.controlapi.service.llm.media.MediaTransport.GenerationRequest;
 import ru.agimate.controlapi.service.llm.media.MediaTransport.InputImage;
 import ru.agimate.controlapi.storage.FileStorageService.FileContent;
 import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.storage.NewFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -103,9 +104,14 @@ public class MediaInferenceService {
                     call.agentId(), resolved.model(), transport.type());
             return new ImageResult(null, generated.text());
         }
-        StoredFile stored = fileStorageService.store(call.userId(), "media:" + resolved.model(),
-                generated.mime(), generated.bytes().length,
-                new ByteArrayInputStream(generated.bytes()), null);
+        // No name: a generated image has none, and a synthetic one would be indistinguishable from a real one.
+        StoredFile stored = fileStorageService.store(NewFile.builder()
+                .userId(call.userId())
+                .agentId(call.agentId())
+                .origin("media:" + resolved.model())
+                .mime(generated.mime())
+                .sizeBytes(generated.bytes().length)
+                .build(), new ByteArrayInputStream(generated.bytes()));
         return new ImageResult(stored, generated.text());
     }
 

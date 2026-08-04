@@ -8,6 +8,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.storage.FileIds;
 import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.storage.NewFile;
 
 import java.io.ByteArrayInputStream;
 import java.util.Comparator;
@@ -102,8 +103,15 @@ public class TelegramMediaService {
         if (bytes == null || bytes.length == 0) {
             return null;
         }
-        StoredFile stored = fileStorageService.store(userId, "telegram:" + connectionId,
-                descriptor.mime(), bytes.length, new ByteArrayInputStream(bytes), null);
+        // No agentId: ingest happens in the webhook, before routing decides which agents receive the
+        // message — and there may be several of them.
+        StoredFile stored = fileStorageService.store(NewFile.builder()
+                .userId(userId)
+                .origin("telegram:" + connectionId)
+                .name(descriptor.name())
+                .mime(descriptor.mime())
+                .sizeBytes(bytes.length)
+                .build(), new ByteArrayInputStream(bytes));
 
         String fileId = FileIds.external(stored.getId());
         Map<String, Object> part = new LinkedHashMap<>();

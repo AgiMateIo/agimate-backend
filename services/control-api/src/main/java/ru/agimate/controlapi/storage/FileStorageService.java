@@ -46,11 +46,10 @@ public class FileStorageService {
     /**
      * Stores a file: limit checks → an UPLOADING row → upload into the blob store (computing SHA-256
      * on the fly) → READY. Returns the row with {@code sha256} filled in.
-     *
-     * @param ttl null — {@code app.files.default-ttl}
      */
-    public StoredFile store(UUID userId, String origin, String mime, long sizeBytes,
-                            InputStream content, Duration ttl) {
+    public StoredFile store(NewFile spec, InputStream content) {
+        long sizeBytes = spec.sizeBytes();
+        UUID userId = spec.userId();
         if (sizeBytes <= 0) {
             throw new FileRejectedException("file size must be positive, got " + sizeBytes);
         }
@@ -64,26 +63,30 @@ public class FileStorageService {
                     + props.getUserDailyBytes() + " bytes used in the last 24h");
         }
 
-        Duration effectiveTtl = ttl != null ? ttl : props.getDefaultTtl();
+        Duration effectiveTtl = spec.ttl() != null ? spec.ttl() : props.getDefaultTtl();
         StoredFile file = StoredFile.builder()
                 .id(UUIDUtils.generateUUIDv8())
                 .userId(userId)
+                .agentId(spec.agentId())
                 .status(FileStatus.UPLOADING)
-                .mime(mime)
+                .mime(spec.mime())
+                .name(spec.name())
                 .sizeBytes(sizeBytes)
-                .origin(origin)
+                .origin(spec.origin())
                 .expiresAt(LocalDateTime.now().plus(effectiveTtl))
                 .build();
         storedFileRepository.save(file);
 
         DigestInputStream digest = new DigestInputStream(content, sha256Digest());
-        blobStore.put(blobKey(file), digest, sizeBytes, mime);
+        blobStore.put(blobKey(file), digest, sizeBytes, spec.mime());
 
         file.setSha256(HexFormat.of().formatHex(digest.getMessageDigest().digest()));
         file.setStatus(FileStatus.READY);
         storedFileRepository.save(file);
-        log.info("stored file {} for user {}: origin={}, mime={}, {} bytes",
-                FileIds.external(file.getId()), userId, origin, mime, sizeBytes);
+        // The name is the user's content, like the bytes — it stays out of the log.
+        log.info("stored file {} for user {}: origin={}, agent={}, mime={}, {} bytes",
+                FileIds.external(file.getId()), userId, spec.origin(), spec.agentId(),
+                spec.mime(), sizeBytes);
         return file;
     }
 

@@ -20,6 +20,7 @@ import ru.agimate.controlapi.service.llm.media.MediaInferenceService.ImageResult
 import ru.agimate.controlapi.service.llm.media.MediaInferenceService.MediaCall;
 import ru.agimate.controlapi.storage.FileStorageService.FileContent;
 import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.storage.NewFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -114,11 +115,20 @@ class MediaInferenceServiceTest {
             when(http.chatCompletions(eq(provider), eq("sk-key"), any()))
                     .thenReturn(imageResponse("готово"));
             StoredFile stored = StoredFile.builder().id(UUID.randomUUID()).mime("image/png").build();
-            when(fileStorageService.store(eq(userId), eq("media:img-model"), eq("image/png"),
-                    eq((long) PNG_BYTES.length), any(), eq(null))).thenReturn(stored);
+            when(fileStorageService.store(any(NewFile.class), any())).thenReturn(stored);
 
             ImageResult result = service.generateImage(call, "нарисуй кота", List.of());
 
+            ArgumentCaptor<NewFile> spec = ArgumentCaptor.forClass(NewFile.class);
+            verify(fileStorageService).store(spec.capture(), any());
+            assertEquals(userId, spec.getValue().userId());
+            // Файл породил конкретный агент — провенанс проставляется.
+            assertEquals(agentId, spec.getValue().agentId());
+            assertEquals("media:img-model", spec.getValue().origin());
+            assertEquals("image/png", spec.getValue().mime());
+            assertEquals(PNG_BYTES.length, spec.getValue().sizeBytes());
+            // Имени у сгенерированной картинки нет, выдумывать его нельзя.
+            assertNull(spec.getValue().name());
             assertEquals(stored, result.file());
             assertEquals("готово", result.text());
 
@@ -152,7 +162,7 @@ class MediaInferenceServiceTest {
 
             assertNull(result.file());
             assertEquals("не буду рисовать", result.text());
-            verify(fileStorageService, never()).store(any(), any(), any(), anyLong(), any(), any());
+            verify(fileStorageService, never()).store(any(), any());
             // usage в ответе не было — нули, но факт вызова учтён
             ArgumentCaptor<LlmUsageService.UsageReport> usage =
                     ArgumentCaptor.forClass(LlmUsageService.UsageReport.class);
@@ -167,7 +177,7 @@ class MediaInferenceServiceTest {
                     .thenReturn(resolved("img-model", Map.of()));
             stubOpenImage("agf_src", "image/jpeg", new byte[]{1, 2, 3});
             when(http.chatCompletions(any(), anyString(), any())).thenReturn(imageResponse(""));
-            when(fileStorageService.store(any(), any(), any(), anyLong(), any(), any()))
+            when(fileStorageService.store(any(NewFile.class), any()))
                     .thenReturn(StoredFile.builder().id(UUID.randomUUID()).build());
 
             service.generateImage(call, "сделай фон синим", List.of("agf_src"));
@@ -185,7 +195,7 @@ class MediaInferenceServiceTest {
             stubOpenImage("agf_a", "image/png", new byte[]{1});
             stubOpenImage("agf_b", "image/jpeg", new byte[]{2});
             when(http.chatCompletions(any(), anyString(), any())).thenReturn(imageResponse(""));
-            when(fileStorageService.store(any(), any(), any(), anyLong(), any(), any()))
+            when(fileStorageService.store(any(NewFile.class), any()))
                     .thenReturn(StoredFile.builder().id(UUID.randomUUID()).build());
 
             service.generateImage(call, "человека с image 1 в сцену image 2",
@@ -220,7 +230,7 @@ class MediaInferenceServiceTest {
             when(credentialsResolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE))
                     .thenReturn(resolved("hand-typed-model", Map.of(), List.of(), List.of()));
             when(http.chatCompletions(any(), anyString(), any())).thenReturn(imageResponse(""));
-            when(fileStorageService.store(any(), any(), any(), anyLong(), any(), any()))
+            when(fileStorageService.store(any(NewFile.class), any()))
                     .thenReturn(StoredFile.builder().id(UUID.randomUUID()).build());
 
             service.generateImage(call, "нарисуй кота", List.of());

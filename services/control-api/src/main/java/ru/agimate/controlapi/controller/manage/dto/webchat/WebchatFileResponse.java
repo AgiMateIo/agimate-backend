@@ -21,12 +21,15 @@ public record WebchatFileResponse(
         @Schema(description = "Size in bytes")
         long size,
 
+        @Schema(description = "File name as uploaded; null when the upload carried none")
+        String name,
+
         @Schema(description = "Expiration timestamp (TTL)")
         LocalDateTime expiresAt
 ) {
 
     public static WebchatFileResponse from(StoredFile file) {
         return new WebchatFileResponse(FileIds.external(file.getId()), file.getMime(),
-                file.getSizeBytes(), file.getExpiresAt());
+                file.getSizeBytes(), file.getName(), file.getExpiresAt());
     }
 }

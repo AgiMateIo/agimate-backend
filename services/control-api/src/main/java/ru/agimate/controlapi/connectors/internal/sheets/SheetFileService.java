@@ -13,6 +13,7 @@ import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.RowView;
 import ru.agimate.controlapi.storage.FileIds;
 import ru.agimate.controlapi.storage.FileRejectedException;
 import ru.agimate.controlapi.storage.FileStorageService;
+import ru.agimate.controlapi.storage.NewFile;
 import ru.agimate.controlapi.storage.StoredFileNotFoundException;
 import ru.agimate.controlapi.database.entities.StoredFile;
 
@@ -97,7 +98,8 @@ public class SheetFileService {
 
     // ===== export =====
 
-    public FileInfo exportCsv(UUID userId, String sheetName, List<ColumnSpec> columns, List<RowView> rows) {
+    public FileInfo exportCsv(UUID userId, UUID agentId, String sheetName, List<ColumnSpec> columns,
+                              List<RowView> rows) {
         StringBuilder csv = new StringBuilder();
         // A BOM plus ';' — otherwise a Russian Excel opens the UTF-8 as mojibake and glues everything into one column.
         csv.append('﻿');
@@ -109,11 +111,11 @@ public class SheetFileService {
             }
             csv.append(String.join(";", cells)).append("\r\n");
         }
-        return store(userId, sheetName + ".csv", CSV_MIME,
+        return store(userId, agentId, "export", sheetName + ".csv", CSV_MIME,
                 csv.toString().getBytes(StandardCharsets.UTF_8));
     }
 
-    public FileInfo exportXlsx(UUID userId, String sheetName, String sheetTitle,
+    public FileInfo exportXlsx(UUID userId, UUID agentId, String sheetName, String sheetTitle,
                                List<ColumnSpec> columns, List<RowView> rows) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try {
@@ -134,15 +136,23 @@ public class SheetFileService {
         } catch (IOException e) {
             throw new ConnectorException("Failed to write xlsx: " + e.getMessage(), e);
         }
-        return store(userId, sheetName + ".xlsx", XLSX_MIME, out.toByteArray());
+        return store(userId, agentId, "export", sheetName + ".xlsx", XLSX_MIME, out.toByteArray());
     }
 
     // ===== file layer =====
 
-    public FileInfo store(UUID userId, String origin, String mime, byte[] content) {
+    /** @param name the name the user will see when downloading or forwarding the export */
+    public FileInfo store(UUID userId, UUID agentId, String origin, String name, String mime,
+                          byte[] content) {
         try {
-            StoredFile file = fileStorageService.store(userId, "sheets:" + origin, mime, content.length,
-                    new ByteArrayInputStream(content), null);
+            StoredFile file = fileStorageService.store(NewFile.builder()
+                    .userId(userId)
+                    .agentId(agentId)
+                    .origin("sheets:" + origin)
+                    .name(name)
+                    .mime(mime)
+                    .sizeBytes(content.length)
+                    .build(), new ByteArrayInputStream(content));
             return new FileInfo(FileIds.external(file.getId()), file.getMime(), file.getSizeBytes());
         } catch (FileRejectedException e) {
             throw new ConnectorException(e.getMessage(), e);

@@ -59,7 +59,8 @@ public class OutboundAttachmentParser {
             String fileId = matcher.group(1);
             fileStorageService.findReadable(ownerUserId, fileId).ifPresentOrElse(
                     file -> parts.add(new Part(
-                            partType(file.getMime()), fileId, file.getMime(), file.getSizeBytes(), Map.of())),
+                            partType(file.getMime()), fileId, file.getMime(), file.getSizeBytes(),
+                            file.getName() != null ? Map.of("name", file.getName()) : Map.of())),
                     () -> log.warn("Dropping unresolvable attachment marker {} (user {})", fileId, ownerUserId));
             matcher.appendReplacement(clean, "");
         }

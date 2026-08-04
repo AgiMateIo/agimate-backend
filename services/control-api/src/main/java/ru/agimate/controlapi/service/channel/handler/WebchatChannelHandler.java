@@ -79,7 +79,7 @@ public class WebchatChannelHandler implements ChannelHandler {
         return Optional.of(new InboundMessage(MediaStubs.withStubs(userText, parts), parts));
     }
 
-    /** Attachments from the trigger's data ({@code [{type,fileId,mime,size}]}) — already validated when sent. */
+    /** Attachments from the trigger's data ({@code [{type,fileId,mime,size,name}]}) — already validated when sent. */
     @SuppressWarnings("unchecked")
     private static List<Part> parts(Object raw) {
         if (!(raw instanceof List<?> list) || list.isEmpty()) {
@@ -98,7 +98,8 @@ public class WebchatChannelHandler implements ChannelHandler {
             String mime = m.get("mime") != null ? m.get("mime").toString() : null;
             String type = m.get("type") != null ? m.get("type").toString() : Part.typeForMime(mime);
             long size = m.get("size") instanceof Number n ? n.longValue() : 0L;
-            parts.add(new Part(type, fileId.toString(), mime, size, Map.of()));
+            Map<String, Object> meta = m.get("name") != null ? Map.of("name", m.get("name")) : Map.of();
+            parts.add(new Part(type, fileId.toString(), mime, size, meta));
         }
         return parts;
     }

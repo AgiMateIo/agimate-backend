@@ -41,8 +41,8 @@ public class SheetChartService {
     private final SheetChartRenderer renderer;
     private final SheetFileService fileService;
 
-    public ChartResult render(UUID scopeId, UUID userId, String sheetName, String type, String xColumn,
-                              List<String> yColumns, String aggregateFunc, String bucket,
+    public ChartResult render(UUID scopeId, UUID userId, UUID agentId, String sheetName, String type,
+                              String xColumn, List<String> yColumns, String aggregateFunc, String bucket,
                               List<Condition> filter, String title) {
         Sheet sheet = sheetsService.requireSheet(scopeId, sheetName);
         List<ColumnSpec> columns = SheetSchema.columns(sheet);
@@ -87,7 +87,8 @@ public class SheetChartService {
             default -> renderer.renderBar(chartTitle, x.title(), unitOf(ys), plot.labels(), plot.series());
         };
 
-        FileInfo file = fileService.store(userId, "chart", SheetChartRenderer.MIME, png);
+        FileInfo file = fileService.store(userId, agentId, "chart", sheet.getName() + "-chart.png",
+                SheetChartRenderer.MIME, png);
         return new ChartResult(file, sheet.getName(), summaries(ys, plot));
     }
 

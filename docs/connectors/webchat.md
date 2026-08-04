@@ -53,7 +53,7 @@ progress-роль `Channels` тем же каналом, и worker шлёт и �
 
 **Вложения ответа агента работают** (attach-конвенция, `docs/connectors/files.md`):
 `supportsOutboundAttachments = true`, `OutboundMessage.parts` пишутся в `webchat_messages.parts`
-(без URL — только `type/fileId/mime/size`) и уходят фронту в событии и истории со свежим
+(без URL — только `type/fileId/mime/size` плюс `name`, если у файла оно есть) и уходят фронту в событии и истории со свежим
 подписанным URL содержимого (`GET /files/{fileId}?exp&sig`, TTL `app.files.url-ttl`). Parts несёт
 только answer-стрим. Изображения фронт рендерит `<img src>` прямо по ссылке.
 
