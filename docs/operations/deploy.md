@@ -192,6 +192,11 @@ Swagger UI available at `/{context-path}/docs/ui` when enabled (local profile).
 **не стартует** («Could not initialize Logback logging from classpath:logback-spring.xml»). То есть
 прямая подстановка сделала бы проперть обязательной для запуска.
 
+Переопределить само имя `CONSOLE_LOG_STRUCTURED_FORMAT` тоже можно — но только с `scope="local"`,
+чтобы перебить одноимённую local-переменную Boot (context-scope она перекрывает, и сервис снова
+не стартует). Такое переопределение молча зависит от того, что наш `<include>` стоит выше; поэтому
+переменная называется своим именем — `CONSOLE_JSON_FORMAT`, по аппендеру, который настраивает.
+
 Отдельного профиля логирования (`prod,log-logstash`) намеренно нет: профиль — глобальный
 строковый переключатель, под который заводится `application-log-logstash.yaml` и `@Profile(...)`
 на бинах, а нужна здесь одна строка. Проперть выше уже даёт ту же ручку, валидируется Spring Boot

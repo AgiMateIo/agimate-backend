@@ -6,12 +6,16 @@
 
     <springProperty scope="context" name="appName" source="spring.application.name"/>
 
-    <!-- Not Boot's own ${CONSOLE_LOG_STRUCTURED_FORMAT}: its defaults.xml defines that one as the empty
-         string when logging.structured.format.console is unset, and StructuredLogEncoder only guards
-         against null — empty reaches the factory and the whole Logback init throws, so the service does
-         not start at all. springProperty reads the same Spring property (so LOGGING_STRUCTURED_FORMAT_CONSOLE
-         still overrides it to logstash/gelf without a rebuild) but keeps a default that boots. -->
-    <springProperty scope="context" name="LOG_STRUCTURED_FORMAT" source="logging.structured.format.console"
+    <!-- The format of CONSOLE_JSON below, read from the same Spring property Boot itself uses, so
+         LOGGING_STRUCTURED_FORMAT_CONSOLE still switches ecs/logstash/gelf from the environment.
+
+         Boot's own ${CONSOLE_LOG_STRUCTURED_FORMAT} cannot be used directly: its defaults.xml defines it
+         as the empty string when the property is unset, StructuredLogEncoder only guards against null, so
+         empty reaches the formatter factory and the whole Logback init throws — the service does not
+         start. Nor is this a redefinition of that name: overriding it takes scope="local" to out-shadow
+         Boot's own local property, which then silently depends on our include staying above it. A name of
+         our own, tied to the appender it configures, has no such ordering to get wrong. -->
+    <springProperty scope="context" name="CONSOLE_JSON_FORMAT" source="logging.structured.format.console"
                     defaultValue="ecs"/>
 
     <springProfile name="local">
@@ -57,7 +61,7 @@
     <springProfile name="prod">
         <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
-                <format>${LOG_STRUCTURED_FORMAT}</format>
+                <format>${CONSOLE_JSON_FORMAT}</format>
                 <charset>${CONSOLE_LOG_CHARSET}</charset>
             </encoder>
         </appender>
