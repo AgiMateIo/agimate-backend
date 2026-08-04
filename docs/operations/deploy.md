@@ -204,9 +204,18 @@ Swagger UI available at `/{context-path}/docs/ui` when enabled (local profile).
 `local`, `develop`, `prod`.
 
 Два следствия, ради которых это и сделано: **стектрейс едет одним событием**, а не N строками,
-которые сборщик склеивает эвристикой; и **MDC становится полями верхнего уровня** —
-`x-request-id` (см. `RequestIdFilter`), `run` (прогон агента в agent-worker), `jobKey`
-(джоба коннектора) можно фильтровать, а не грепать.
+которые сборщик склеивает эвристикой; и **MDC становится полями верхнего уровня** — `run`
+(прогон агента в agent-worker) и `jobKey` (джоба коннектора) можно фильтровать, а не грепать:
+
+```json
+{"@timestamp":"…","log":{"level":"INFO","logger":"…AgentRunWorkflowImpl"},
+ "message":"run finished","run":"a1b2c3d4","jobKey":"sheets:sync","ecs":{"version":"8.11"}}
+```
+
+Третьего ключа, `x-request-id`, в логах нет, хотя паттерн текстовых аппендеров его читает:
+`RequestIdFilter` кладёт id под ключ `X-Request-ID` (регистр не совпадает), и сам фильтр
+не зарегистрирован ни в одном сервисе. То есть сквозной id запроса сейчас не работает **нигде** —
+ни в тексте, ни в JSON; это не следствие перехода на JSON.
 
 Уровни задаются **только** через `logging.level.*` в yaml'ах: `root: warn` глушит Spring,
 Hibernate и Tomcat, `ru.agimate: info` (в agent-worker — `ru.agimate.agentworker: info`) оставляет

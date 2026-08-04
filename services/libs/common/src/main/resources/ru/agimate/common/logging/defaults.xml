@@ -56,8 +56,12 @@
          knob and takes LOGGING_STRUCTURED_FORMAT_CONSOLE from the environment, so a collector swap needs
          no release. A `log-<format>` profile would be a second mechanism for the same one string.
 
-         ECS: MDC entries (x-request-id, run, jobKey) become top-level fields, so what the pattern above
-         merely prefixes to the message stays queryable; service.name comes from spring.application.name. -->
+         ECS: MDC entries become top-level fields, so `run` (an agent run) and `jobKey` (a connector job)
+         are queryable instead of being a prefix on the message; service.name comes from
+         spring.application.name. The pattern above also reads %X{x-request-id}, which resolves to
+         nothing — RequestIdFilter puts that id under the key `X-Request-ID` and is not registered in any
+         service anyway. Left as is: fixing the key would only surface an id nobody sets. -->
+
     <springProfile name="prod">
         <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
             <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
