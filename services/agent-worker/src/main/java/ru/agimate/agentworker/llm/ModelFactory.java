@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.config.AgentProperties;
@@ -13,6 +14,7 @@ import ru.agimate.common.util.JsonUtils;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -22,6 +24,11 @@ import java.util.Set;
  * <p>Only OpenAI-compatible providers are supported today (extend {@link #build} when the
  * backend returns other {@code provider_type}s). No agent/advisor is built here — the turn
  * loop is driven manually so the model call can be queued separately from tool calls.
+ *
+ * <p>Per-call request options come from here too ({@link #requestOptions}): Spring AI 2.0 does not
+ * merge a prompt's options with the model's defaults ({@code buildRequestPrompt} keeps the prompt's
+ * as-is), so everything that must reach the request body — the model and {@code extra_body} —
+ * belongs to the per-call options, and building them anywhere else silently drops it.
  *
  * <p>Models are cached per {@code (baseUrl, sha256(apiKey), model)}: {@code OpenAiChatModel.build()}
  * eagerly constructs sync+async OpenAI clients (each with its own OkHttp connection pool and
@@ -57,9 +64,9 @@ public class ModelFactory {
     /** Cache key. Carries a SHA-256 of the api key, never the secret itself (records auto-expose
      * every field via {@code toString()}, so a plaintext key would be one debug log away from
      * leaking); the plaintext for building the client travels via the {@code build} closure.
-     * extraBodyJson participates too: a changed extra_body (provider routing and the like) must
-     * produce a new client with new default options, not a stale cache hit. */
-    private record ModelKey(String baseUrl, String apiKeyHash, String model, String extraBodyJson) {}
+     * extra_body is deliberately absent: it rides on the per-call options, so the same client
+     * serves any of them. */
+    private record ModelKey(String baseUrl, String apiKeyHash, String model) {}
 
     public ModelFactory(AgentProperties props) {
         this.app = props.getApp();
@@ -71,23 +78,34 @@ public class ModelFactory {
             throw new IllegalArgumentException("Unsupported provider_type: " + creds.getProviderType());
         }
         ModelKey key = new ModelKey(emptyToNull(creds.getBaseUrl()), CryptoUtils.sha256Hex(creds.getApiKey()),
-                creds.getModel(), creds.getExtraBodyJson());
+                creds.getModel());
         return models.get(key, k -> buildModel(k.baseUrl(), creds));
     }
 
-    private OpenAiChatModel buildModel(String baseUrl, LlmCredentials creds) {
-        // Extra chat/completions body fields from the backend (the provider+model deep merge is already done there).
-        // Spring AI merges them into the request itself (createRequest → extraBody). We never log them in full.
+    /**
+     * Options for one chat request. Everything the provider must see in the body goes here and
+     * nowhere else — the client's default options are never consulted for a prompt that carries its
+     * own (see the class javadoc). {@code extra_body} holds the backend's deep merge of the
+     * provider- and per-model extra fields (OpenRouter provider routing and the like); we never log
+     * it in full.
+     */
+    public OpenAiChatOptions requestOptions(LlmCredentials creds, List<ToolCallback> toolCallbacks) {
         Map<String, Object> extraBody = JsonUtils.fromJsonToMap(creds.getExtraBodyJson());
-        log.info("building chat model: baseUrl={} model={} extraBodyKeys={}",
-                baseUrl, creds.getModel(), extraBody.keySet());
+        return OpenAiChatOptions.builder()
+                .model(creds.getModel())
+                .toolCallbacks(toolCallbacks)
+                .extraBody(extraBody.isEmpty() ? null : extraBody)
+                .build();
+    }
+
+    private OpenAiChatModel buildModel(String baseUrl, LlmCredentials creds) {
+        log.info("building chat model: baseUrl={} model={}", baseUrl, creds.getModel());
         OpenAiChatOptions options = OpenAiChatOptions.builder()
                 .baseUrl(baseUrl)
                 .apiKey(creds.getApiKey())
                 .model(creds.getModel())
                 .timeout(REQUEST_TIMEOUT)
                 .customHeaders(requestHeaders(baseUrl))
-                .extraBody(extraBody.isEmpty() ? null : extraBody)
                 .build();
         return OpenAiChatModel.builder().options(options).build();
     }

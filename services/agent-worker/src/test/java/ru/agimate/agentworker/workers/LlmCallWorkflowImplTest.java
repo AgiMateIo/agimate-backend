@@ -5,6 +5,7 @@ import com.openai.errors.InternalServerException;
 import com.openai.errors.OpenAIIoException;
 import com.openai.errors.RateLimitException;
 import com.openai.errors.UnauthorizedException;
+import com.sun.net.httpserver.HttpServer;
 import io.grpc.Status;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -18,12 +19,18 @@ import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmUsage;
+import ru.agimate.agentworker.config.AgentProperties;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.grpc.ControlApiCallException;
 import ru.agimate.agentworker.llm.LlmMessageMapper;
 import ru.agimate.agentworker.llm.ModelFactory;
 
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -179,6 +186,79 @@ class LlmCallWorkflowImplTest {
 
             assertTrue(result.failed());
             assertFalse(result.userFacing());
+        }
+    }
+
+    @Nested
+    @DisplayName("тело запроса на проводе")
+    class RequestBody {
+
+        private static final String COMPLETION = """
+                {"id":"cmpl-1","object":"chat.completion","created":1,"model":"moonshotai/kimi-k2.5",
+                 "choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],
+                 "usage":{"prompt_tokens":10,"completion_tokens":2,"total_tokens":12}}
+                """;
+
+        /**
+         * The one check that cannot be replaced by asserting on options: the assembled request is what a
+         * provider actually receives. Spring AI 2.0 builds the body from the prompt's options alone, so
+         * a field set only on the client's default options leaves no trace here — extra_body travelled
+         * that dead path from the model registry's arrival until this test. OpenRouter-style extensions
+         * (provider routing, require_parameters) are unknown to the OpenAI schema and reach the provider
+         * through extra_body or not at all. A local stub server stands in for the provider; no network.
+         */
+        @Test
+        @DisplayName("extra_body из кредов доезжает до провайдера вместе с моделью")
+        void extraBodyReachesTheProvider() throws Exception {
+            AtomicReference<String> wireBody = new AtomicReference<>();
+            HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+            server.createContext("/", exchange -> {
+                try (InputStream in = exchange.getRequestBody()) {
+                    wireBody.set(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+                }
+                byte[] out = COMPLETION.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, out.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(out);
+                }
+            });
+            server.start();
+            try {
+                LlmCredentials creds = LlmCredentials.newBuilder()
+                        .setProviderType("openai_compatible")
+                        .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/v1")
+                        .setApiKey("sk-test")
+                        .setModel("moonshotai/kimi-k2.5")
+                        .setProviderId("prov-1")
+                        .setExtraBodyJson("{\"provider\":{\"only\":[\"moonshotai\"],\"require_parameters\":true}}")
+                        .build();
+                AgentWorkerClient client = mock(AgentWorkerClient.class);
+                when(client.getLlmCredentials("agent-1")).thenReturn(creds);
+                LlmCallWorkflowImpl workflow = new LlmCallWorkflowImpl(client,
+                        new ModelFactory(new AgentProperties()), new LlmMessageMapper(),
+                        mock(ResponseTemplates.class)) {
+                    @Override
+                    String currentCallId() {
+                        return "wf-llm-1";
+                    }
+                };
+
+                LlmCallWorkflow.Result result = workflow.llmCall(
+                        List.of(AgentChatMessage.user("привет")), List.of(), "agent-1");
+
+                assertFalse(result.failed(), () -> "вызов не дошёл: " + result.message());
+                String body = wireBody.get();
+                assertTrue(body.contains("\"model\":\"moonshotai/kimi-k2.5\""),
+                        () -> "модель из кредов не в теле запроса:\n" + body);
+                assertTrue(body.contains("\"provider\""), () -> "нет provider-блока extra_body:\n" + body);
+                assertTrue(body.contains("\"only\":[\"moonshotai\"]"),
+                        () -> "нет значения only из extra_body:\n" + body);
+                assertTrue(body.contains("\"require_parameters\":true"),
+                        () -> "нет require_parameters из extra_body:\n" + body);
+            } finally {
+                server.stop(0);
+            }
         }
     }
 
