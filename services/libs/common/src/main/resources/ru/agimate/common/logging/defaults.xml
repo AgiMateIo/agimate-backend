@@ -6,6 +6,14 @@
 
     <springProperty scope="context" name="appName" source="spring.application.name"/>
 
+    <!-- Not Boot's own ${CONSOLE_LOG_STRUCTURED_FORMAT}: its defaults.xml defines that one as the empty
+         string when logging.structured.format.console is unset, and StructuredLogEncoder only guards
+         against null — empty reaches the factory and the whole Logback init throws, so the service does
+         not start at all. springProperty reads the same Spring property (so LOGGING_STRUCTURED_FORMAT_CONSOLE
+         still overrides it to logstash/gelf without a rebuild) but keeps a default that boots. -->
+    <springProperty scope="context" name="LOG_STRUCTURED_FORMAT" source="logging.structured.format.console"
+                    defaultValue="ecs"/>
+
     <springProfile name="local">
         <appender name="CONSOLE_PRETTY_LOCAL" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
@@ -20,19 +28,41 @@
         </root>
     </springProfile>
 
-    <springProfile name="!local">
+    <!-- develop and test, spelled as a negation so that the three branches stay exhaustive: a profile
+         that matches none of them would get no appender at all, and a service logging nothing is the
+         one failure mode here that reports itself as success. -->
+    <springProfile name="!local &amp; !prod">
         <appender name="CONSOLE_PRETTY" class="ch.qos.logback.core.ConsoleAppender">
             <encoder>
                 <!--@formatter:off-->
 				<pattern>%d{ISO8601} %boldCyan([%-10.10thread]) %highlight(%-5level) - %replace(Request ID: [%X{x-request-id}]){'Request ID: \[\]', ''} %replace(run=[%X{run}] ){'run=\[\] ', ''}%msg%n</pattern>
 				<!--@formatter:on-->
             </encoder>
-            <!-- No threshold filter here on purpose: the appender used to cut everything below WARN,
-                 which silently overrode logging.level.* from the yamls — `ru.agimate: info` in prod
-                 let the event through and the only appender dropped it. Levels are the one control. -->
+            <!-- No threshold filter on any appender here on purpose: one used to cut everything below
+                 WARN, which silently overrode logging.level.* from the yamls — `ru.agimate: info` in
+                 prod let the event through and the only appender dropped it. Levels are the one control. -->
         </appender>
         <root level="debug">
             <appender-ref ref="CONSOLE_PRETTY"/>
+        </root>
+    </springProfile>
+
+    <!-- One JSON object per line, because that is what a log collector can index. Which JSON is a
+         property, not a profile: logging.structured.format.console (ecs | logstash | gelf) is Boot's own
+         knob and takes LOGGING_STRUCTURED_FORMAT_CONSOLE from the environment, so a collector swap needs
+         no release. A `log-<format>` profile would be a second mechanism for the same one string.
+
+         ECS: MDC entries (x-request-id, run, jobKey) become top-level fields, so what the pattern above
+         merely prefixes to the message stays queryable; service.name comes from spring.application.name. -->
+    <springProfile name="prod">
+        <appender name="CONSOLE_JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="org.springframework.boot.logging.logback.StructuredLogEncoder">
+                <format>${LOG_STRUCTURED_FORMAT}</format>
+                <charset>${CONSOLE_LOG_CHARSET}</charset>
+            </encoder>
+        </appender>
+        <root level="debug">
+            <appender-ref ref="CONSOLE_JSON"/>
         </root>
     </springProfile>
 

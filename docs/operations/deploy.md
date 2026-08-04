@@ -149,6 +149,7 @@ control-api also serves the ACP WebSocket endpoint `/acp` on the main HTTP port 
 | `local`   | Development with debug logging, Swagger enabled |
 | `develop` | Development environment                         |
 | `test`    | Test configuration                              |
+| `prod`    | Production: Swagger off, JSON logs              |
 
 Swagger UI available at `/{context-path}/docs/ui` when enabled (local profile).
 
@@ -158,6 +159,49 @@ Swagger UI available at `/{context-path}/docs/ui` when enabled (local profile).
 отвечает рантайм (в проде — инфраструктурный репозиторий, не этот). Общий `logback-spring.xml`
 всех трёх сервисов сводится к `include` одного файла в `libs/common`; профиль `local` печатает
 всё от `debug`, остальные — то, что разрешают уровни.
+
+### Формат
+
+Текст или JSON решает профиль стенда, разновидность JSON — переменная окружения (см. ниже):
+
+| Профиль                        | Формат                                           |
+|--------------------------------|--------------------------------------------------|
+| `local`                        | Цветной паттерн с `logger:line`                   |
+| `!local & !prod` (`develop`, `test`, любой неназванный) | Цветной паттерн без `logger:line` |
+| `prod`                         | **JSON, одна строка = один объект**               |
+
+Средняя ветка записана отрицанием намеренно: три ветки обязаны покрывать все профили, иначе
+профиль, не попавший ни в одну, останется вообще без аппендера — а сервис, который молчит,
+это единственный отказ здесь, который выглядит как успех.
+
+Даёт JSON штатный `StructuredLogEncoder` Spring Boot — отдельной зависимости вроде
+`logstash-logback-encoder` не требуется. Формат выбирается пропертёй
+`logging.structured.format.console` (в k8s — `LOGGING_STRUCTURED_FORMAT_CONSOLE`), пересборка для
+смены не нужна:
+
+| Значение             | Что получится                                                                                  |
+|----------------------|------------------------------------------------------------------------------------------------|
+| не задано → **`ecs`** | `@timestamp`, `log.level`, `log.logger`, `message`, `service.name`, `error.stack_trace`         |
+| `logstash`           | `@timestamp`, `@version`, `level`, `level_value`, `logger_name`, `message`                       |
+| `gelf`               | GELF 1.1: `short_message`, `host`, числовой `level`, остальное префиксом `_`                     |
+
+**Дефолт задан через `<springProperty defaultValue="ecs">`, а не через `${CONSOLE_LOG_STRUCTURED_FORMAT}`
+из `defaults.xml` Spring Boot — и это не стилистика.** Boot определяет свою переменную как пустую
+строку, когда проперть не задана, а `StructuredLogEncoder.start()` проверяет только `!= null`:
+пустая строка доходит до фабрики форматтеров, инициализация Logback падает целиком, и сервис
+**не стартует** («Could not initialize Logback logging from classpath:logback-spring.xml»). То есть
+прямая подстановка сделала бы проперть обязательной для запуска.
+
+Отдельного профиля логирования (`prod,log-logstash`) намеренно нет: профиль — глобальный
+строковый переключатель, под который заводится `application-log-logstash.yaml` и `@Profile(...)`
+на бинах, а нужна здесь одна строка. Проперть выше уже даёт ту же ручку, валидируется Spring Boot
+и не создаёт второго механизма, который может разойтись с первым. Профили остаются про стенд:
+`local`, `develop`, `prod`.
+
+Два следствия, ради которых это и сделано: **стектрейс едет одним событием**, а не N строками,
+которые сборщик склеивает эвристикой; и **MDC становится полями верхнего уровня** —
+`x-request-id` (см. `RequestIdFilter`), `run` (прогон агента в agent-worker), `jobKey`
+(джоба коннектора) можно фильтровать, а не грепать.
 
 Уровни задаются **только** через `logging.level.*` в yaml'ах: `root: warn` глушит Spring,
 Hibernate и Tomcat, `ru.agimate: info` (в agent-worker — `ru.agimate.agentworker: info`) оставляет
