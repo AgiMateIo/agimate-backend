@@ -14,6 +14,14 @@ public interface AgentTransport {
     AgentType getAgentType();
 
     /**
+     * Whether work can be pushed to the agent at all. {@code false} means the brain only pulls (MCP):
+     * such an agent is not a trigger recipient, so no run is created for it in the first place.
+     */
+    default boolean supportsPush() {
+        return true;
+    }
+
+    /**
      * Delivers a trigger to an agent. {@code agent} is taken from {@code agentRun.getAgent()}.
      * {@code channels}/{@code inbound} are set for channel triggers and {@code null} for direct ones.
      */

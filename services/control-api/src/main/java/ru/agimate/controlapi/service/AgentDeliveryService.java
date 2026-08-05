@@ -34,6 +34,15 @@ public class AgentDeliveryService {
         this.agentRepository = agentRepository;
     }
 
+    /**
+     * Whether anything can be pushed to the agent — see {@link AgentTransport#supportsPush()}. Asked
+     * before a run is created: pushing is the only reason to create one.
+     */
+    public boolean supportsPush(Agent agent) {
+        AgentTransport transport = transports.get(agent.getType());
+        return transport != null && transport.supportsPush();
+    }
+
     public void deliverTrigger(AgentRun agentRun, Trigger trigger, Channels channels, InboundMessage inbound) {
         Agent agent = agentRun.getAgent();
         try {

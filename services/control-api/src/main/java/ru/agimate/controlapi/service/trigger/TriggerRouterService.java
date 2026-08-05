@@ -73,6 +73,9 @@ public class TriggerRouterService {
      * {@link ConnectionAccessEvaluator} (default-allow + DENY exceptions + an optional
      * {@code params_filter} over {@code trigger.data()}). The channel (the «how») is not part of this —
      * chat filtering is applied in {@code ChannelRouteResolver}.
+     *
+     * <p>Agents with no push transport (MCP) are dropped before ABAC: a binding makes their tools
+     * reachable, not their attention, and a run nobody can receive would still cost a worker slot.
      */
     private List<Agent> findRecipients(UUID userId, Trigger trigger) {
         UUID connectionId = tryParseUuid(trigger.connectionId());
@@ -84,6 +87,7 @@ public class TriggerRouterService {
         List<Agent> bound = agentRepository.findBoundToConnection(userId, connectionId);
         List<Agent> targeted = TriggerAudience.filter(bound, audienceOf(trigger));
         return targeted.stream()
+                .filter(agentDeliveryService::supportsPush)
                 .filter(agent -> isTriggerAllowed(agent.getId(), connectionId, trigger))
                 .toList();
     }

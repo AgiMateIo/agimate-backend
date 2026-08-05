@@ -32,6 +32,9 @@ public class AgentAuthFilter extends OncePerRequestFilter {
     /** Surface of a user-side client talking to the agent (the ACP WebSocket of an IDE). */
     public static final String ROLE_AGENT_CLIENT = "AGENT_CLIENT";
 
+    /** MCP surface: the brain of an {@link AgentType#MCP} agent pulling its tools. */
+    public static final String ROLE_MCP_AGENT = "MCP_AGENT";
+
     private final AgentKeyAuthService agentKeyAuthService;
 
     @Override
@@ -68,12 +71,14 @@ public class AgentAuthFilter extends OncePerRequestFilter {
      * own worker over gRPC, so its key must not open the REST brain surface — {@code /agent/llm}
      * hands out decrypted LLM credentials, and no legitimate client of a GENERIC agent ever asks for
      * them over HTTP. The ACP WebSocket is the opposite direction (an IDE talking <em>to</em> the
-     * agent), so every type whose brain can be pushed to keeps it.
+     * agent), so every type whose brain can be pushed to keeps it — and {@link AgentType#MCP}, whose
+     * brain only pulls, gets neither.
      */
     private static List<GrantedAuthority> authorities(AgentType type) {
         return switch (type) {
             case CENTRIFUGO, WEBHOOK -> List.of(role(ROLE_AGENT), role(ROLE_AGENT_CLIENT));
             case GENERIC -> List.of(role(ROLE_AGENT_CLIENT));
+            case MCP -> List.of(role(ROLE_MCP_AGENT));
         };
     }
 

@@ -77,6 +77,12 @@ class AgentAuthFilterTest {
     }
 
     @Test
+    @DisplayName("MCP — мозг тянет сам: только /mcp, ни REST агента, ни ACP")
+    void mcp() throws Exception {
+        assertEquals(List.of("ROLE_MCP_AGENT"), rolesOf(AgentType.MCP));
+    }
+
+    @Test
     @DisplayName("невалидный ключ → контекст пуст")
     void invalidKey() throws Exception {
         when(keyAuthService.validateKey(anyString())).thenReturn(Optional.empty());
