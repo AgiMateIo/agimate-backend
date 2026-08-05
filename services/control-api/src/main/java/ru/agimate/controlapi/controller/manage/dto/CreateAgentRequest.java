@@ -19,7 +19,7 @@ public record CreateAgentRequest(
         @Schema(description = "Agent instructions")
         String instructions,
 
-        @Schema(description = "Agent type: CENTRIFUGO, WEBHOOK or GENERIC")
+        @Schema(description = "Agent type — where the brain lives: CENTRIFUGO, WEBHOOK, GENERIC or MCP")
         AgentType type,
 
         @Schema(description = "Webhook URL (required when type is WEBHOOK)")
