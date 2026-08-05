@@ -3,6 +3,7 @@ package ru.agimate.controlapi.connectors.core.execution;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
@@ -21,9 +22,14 @@ import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.dto.ToolResult;
 import ru.agimate.controlapi.service.tool.ToolCallLogService;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Execution of a connector's tool from a {@link ToolCallLog} record: the context is assembled
@@ -50,12 +56,39 @@ public class ToolExecutionService {
     private final ConnectorEnvFactory envFactory;
     private final ToolCallLogService toolCallLogService;
     private final AgentDeliveryService agentDeliveryService;
+    /** The pool {@link #executeTool} runs on — a bounded wait needs a thread other than the caller's. */
+    private final ThreadPoolTaskExecutor toolExecutor;
 
     @Async("toolExecutor")
     public void executeTool(ToolCallLog toolCallLog) {
         ToolResult result = executeAndRecord(toolCallLog);
         if (toolCallLog.getAgentId() != null) {
             agentDeliveryService.deliverToolResult(toolCallLog.getAgentId(), result);
+        }
+    }
+
+    /**
+     * Runs the tool on the pool and waits at most {@code timeout} — for a caller holding an open
+     * request. On timeout the execution is not cancelled: it runs to the end and records its outcome
+     * in the log, the caller simply stops waiting. Under pool overflow {@code CallerRunsPolicy}
+     * executes the tool on the calling thread, and the wait is then whatever the connector takes.
+     */
+    public ToolResult executeWithTimeout(ToolCallLog toolCallLog, Duration timeout) {
+        Future<ToolResult> execution = toolExecutor.submit(() -> executeAndRecord(toolCallLog));
+        try {
+            return execution.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            log.warn("Tool '{}.{}' did not finish in {}s — the caller stops waiting",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName(), timeout.toSeconds());
+            return error(toolCallLog, "Tool execution timed out after " + timeout.toSeconds() + "s");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return error(toolCallLog, "Tool execution was interrupted");
+        } catch (ExecutionException e) {
+            // executeAndRecord turns failures into an error result, so getting here means the pool itself broke
+            log.error("Tool '{}.{}' failed outside execution",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName(), e.getCause());
+            return error(toolCallLog, "Tool execution failed");
         }
     }
 
@@ -129,6 +162,11 @@ public class ToolExecutionService {
         return channelSessionRepository.findById(sessionId)
                 .map(ChannelSession::getChannelId)
                 .orElse(null);
+    }
+
+    /** A result that never reached the tool — nothing to record, the log keeps whatever the run writes. */
+    private static ToolResult error(ToolCallLog toolCallLog, String message) {
+        return new ToolResult(toolCallLog.getExternalId(), toolCallLog.getConnectorCode(), null, message);
     }
 
     /** A failure to persist the outcome must not swallow the outcome itself — the caller still gets it. */

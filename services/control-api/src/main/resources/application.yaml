@@ -177,6 +177,7 @@ inbound-rate-limit:
   triggers-per-minute: 120
   tool-results-per-minute: 120
   file-uploads-per-minute: 30
+  mcp-calls-per-minute: 120
 
 grpc:
   server:

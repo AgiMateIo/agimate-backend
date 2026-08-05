@@ -35,6 +35,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `INBOUND_RATE_LIMIT_TRIGGERS_PER_MINUTE` | Trigger events per minute per connection — `/app/trigger/new` + `/webhook/*` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_TOOL_RESULTS_PER_MINUTE` | Tool results per minute per connection — `/app/tools/result` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_FILE_UPLOADS_PER_MINUTE` | File uploads per minute per connection — `/app/files` (default `30`, `<=0` disables) |
+| `INBOUND_RATE_LIMIT_MCP_CALLS_PER_MINUTE` | MCP tool calls per minute per agent — `/mcp` (default `120`, `<=0` disables) |
 | `APP_FILES_BACKEND` | Connector file layer blob store: `local` (disk, default; root — `APP_FILES_LOCAL_DIR`, empty = `~/.agimate/files`) or `s3` (`docs/connectors/files.md`) |
 | `APP_FILES_BUCKET` / `APP_FILES_ENDPOINT` / `APP_FILES_REGION` / `APP_FILES_ACCESS_KEY` / `APP_FILES_SECRET_KEY` | s3 backend only; empty endpoint = AWS, empty keys = AWS credentials chain |
 

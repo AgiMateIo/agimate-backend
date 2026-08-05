@@ -40,6 +40,7 @@
 |---|---|
 | [worker-protocol.md](contracts/worker-protocol.md) | control-api ↔ agent-worker: DBOS + gRPC |
 | [acp.md](contracts/acp.md) | Agent Client Protocol поверх WebSocket, для IDE |
+| [mcp-server.md](contracts/mcp-server.md) | MCP-сервер: тулы агента наружу, ревизия 2026-07-28 |
 | [api-keys.md](contracts/api-keys.md) | Позиционный формат ключей платформы |
 | [centrifugo-channels.md](contracts/centrifugo-channels.md) | Неймспейсы реального времени и выпуск токенов |
 | [trigger-log-probe.md](contracts/trigger-log-probe.md) | Probe-код обнаружения каналов: бэкенд, фронт и текст в мессенджере |

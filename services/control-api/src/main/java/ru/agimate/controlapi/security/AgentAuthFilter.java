@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.lang.NonNull;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -25,6 +26,7 @@ import java.util.List;
 public class AgentAuthFilter extends OncePerRequestFilter {
 
     private static final String API_KEY_HEADER = "X-Api-Key";
+    private static final String BEARER_PREFIX = "Bearer ";
 
     /** REST surface of the agent's own brain: settings, context, LLM credentials, tool calls. */
     public static final String ROLE_AGENT = "AGENT";
@@ -42,7 +44,7 @@ public class AgentAuthFilter extends OncePerRequestFilter {
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {
 
-        String apiKey = request.getHeader(API_KEY_HEADER);
+        String apiKey = extractKey(request);
 
         if (StringUtils.hasText(apiKey)) {
             agentKeyAuthService.validateKey(apiKey)
@@ -63,6 +65,21 @@ public class AgentAuthFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * The same key under two headers: {@code X-Api-Key} is what agents have always sent, and MCP
+     * requires {@code Authorization: Bearer} — a client we do not write cannot be asked to use ours.
+     */
+    private static String extractKey(HttpServletRequest request) {
+        String apiKey = request.getHeader(API_KEY_HEADER);
+        if (StringUtils.hasText(apiKey)) {
+            return apiKey;
+        }
+        String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
+        return authorization != null && authorization.startsWith(BEARER_PREFIX)
+                ? authorization.substring(BEARER_PREFIX.length())
+                : null;
     }
 
     /**

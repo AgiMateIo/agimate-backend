@@ -91,11 +91,28 @@ public class AgentToolCallService {
             case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());
             case EvaluationResult.Created(var log, var decision) -> {
                 if (!decision.allowed()) {
-                    throw new ForbiddenStatusException(
-                            "Tool '" + request.getName() + "' is not authorized for this agent: " + decision.reason());
+                    throw notAuthorized(request, decision.reason());
                 }
                 connectorService.pushToConnector(log);
                 yield log.getExternalId();
+            }
+        };
+    }
+
+    /**
+     * Evaluate + enforce permission, and hand the log back instead of dispatching — for a caller that
+     * runs the tool itself and answers with the result (the MCP {@code tools/call}). A replay is
+     * returned as-is: the caller re-executes, same as the dispatching path does.
+     */
+    public ToolCallLog authorizeToolCall(UUID agentId, ToolCallRequest request) {
+        return switch (evaluate(agentId, request)) {
+            case EvaluationResult.Replay(var log) -> log;
+            case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());
+            case EvaluationResult.Created(var log, var decision) -> {
+                if (!decision.allowed()) {
+                    throw notAuthorized(request, decision.reason());
+                }
+                yield log;
             }
         };
     }
@@ -107,6 +124,11 @@ public class AgentToolCallService {
             case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());
             case EvaluationResult.Created(var log, var decision) -> decision.accessEffect();
         };
+    }
+
+    private static ForbiddenStatusException notAuthorized(ToolCallRequest request, String reason) {
+        return new ForbiddenStatusException(
+                "Tool '" + request.getName() + "' is not authorized for this agent: " + reason);
     }
 
     private static ConflictStatusException inputConflict(String externalId) {

@@ -45,6 +45,7 @@ import ru.agimate.controlapi.controller.manage.ManageSkillController;
 import ru.agimate.controlapi.controller.manage.ManageWebchatController;
 import ru.agimate.controlapi.controller.manage.ManageWebhookDeliveryLogsController;
 import ru.agimate.controlapi.controller.manage.admin.ManageAdminPaths;
+import ru.agimate.controlapi.controller.mcp.McpController;
 import ru.agimate.controlapi.controller.files.FileDownloadController;
 import ru.agimate.controlapi.controller.webhook.ConnectionWebhookController;
 import ru.agimate.controlapi.security.AgentAuthFilter;
@@ -174,7 +175,8 @@ public class SecurityConfig {
     public SecurityFilterChain apiKeySecurityFilterChain(HttpSecurity http) throws Exception {
         http.securityMatcher(
                 AgentController.PATH + "/**",
-                AcpWebSocketConfig.PATH
+                AcpWebSocketConfig.PATH,
+                McpController.PATH
         );
 
         applyCommonSecurityConfig(http);
@@ -184,6 +186,7 @@ public class SecurityConfig {
         http.authorizeHttpRequests(authz -> authz
                         .requestMatchers(AgentController.PATH + "/**").hasRole(AgentAuthFilter.ROLE_AGENT)
                         .requestMatchers(AcpWebSocketConfig.PATH).hasRole(AgentAuthFilter.ROLE_AGENT_CLIENT)
+                        .requestMatchers(McpController.PATH).hasRole(AgentAuthFilter.ROLE_MCP_AGENT)
                         .anyRequest().authenticated())
                 .userDetailsService(userDetailsService())
                 .addFilterBefore(agentAuthFilter, UsernamePasswordAuthenticationFilter.class);

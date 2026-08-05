@@ -25,9 +25,9 @@ import java.util.function.LongSupplier;
 public class InboundRateLimiter {
 
     /** A class of inbound traffic — each has its own limit and its own bucket per connection. */
-    public enum Scope { TRIGGER, TOOL_RESULT, FILE_UPLOAD }
+    public enum Scope { TRIGGER, TOOL_RESULT, FILE_UPLOAD, MCP_CALL }
 
-    private record BucketKey(Scope scope, UUID connectionId) {}
+    private record BucketKey(Scope scope, UUID subjectId) {}
 
     private final InboundRateLimitProperties properties;
     private final LongSupplier nanoTime;
@@ -48,7 +48,7 @@ public class InboundRateLimiter {
     }
 
     /** true — the request is within the limit; false — the limit is exhausted and the request must be rejected. */
-    public boolean tryAcquire(Scope scope, UUID connectionId) {
+    public boolean tryAcquire(Scope scope, UUID subjectId) {
         if (!properties.isEnabled()) {
             return true;
         }
@@ -56,11 +56,12 @@ public class InboundRateLimiter {
             case TRIGGER -> properties.getTriggersPerMinute();
             case TOOL_RESULT -> properties.getToolResultsPerMinute();
             case FILE_UPLOAD -> properties.getFileUploadsPerMinute();
+            case MCP_CALL -> properties.getMcpCallsPerMinute();
         };
         if (perMinute <= 0) {
             return true;
         }
-        TokenBucket bucket = buckets.get(new BucketKey(scope, connectionId),
+        TokenBucket bucket = buckets.get(new BucketKey(scope, subjectId),
                 k -> new TokenBucket(perMinute, nanoTime.getAsLong()));
         return bucket.tryConsume(nanoTime.getAsLong());
     }
