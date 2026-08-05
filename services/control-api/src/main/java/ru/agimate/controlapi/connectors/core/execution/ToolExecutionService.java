@@ -26,13 +26,18 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Asynchronous execution of a connector's tool from a {@link ToolCallLog} record: the context is
- * assembled according to the handler's type (integration — with fresh credentials for the
- * {@code connectionId}), and the result is written to the log and delivered to the agent.
+ * Execution of a connector's tool from a {@link ToolCallLog} record: the context is assembled
+ * according to the handler's type (integration — with fresh credentials for the
+ * {@code connectionId}), and the outcome is written to the log.
  *
- * <p>Errors are not synchronous for the caller: missing credentials and any execution failure turn
- * into an error tool result. {@link ConnectorException} messages are safe and are handed to the agent
- * as-is; everything else hides behind a generic "Tool execution failed".
+ * <p>Two callers, one core. An agent that is pushed to gets {@link #executeTool} — the result travels
+ * back over its transport, so the call itself returns nothing. A caller holding an open request (the
+ * MCP tools/call) takes {@link #executeAndRecord} and answers with the result it gets. Delivery is
+ * the only difference; the log is written the same way in both.
+ *
+ * <p>Failures never surface as exceptions: missing credentials and any execution failure turn into an
+ * error tool result. {@link ConnectorException} messages are safe and are handed over as-is;
+ * everything else hides behind a generic "Tool execution failed".
  */
 @Slf4j
 @Component
@@ -48,6 +53,18 @@ public class ToolExecutionService {
 
     @Async("toolExecutor")
     public void executeTool(ToolCallLog toolCallLog) {
+        ToolResult result = executeAndRecord(toolCallLog);
+        if (toolCallLog.getAgentId() != null) {
+            agentDeliveryService.deliverToolResult(toolCallLog.getAgentId(), result);
+        }
+    }
+
+    /**
+     * Runs the tool and writes the outcome to the log, then hands the result back instead of
+     * delivering it. Blocks for as long as the connector takes — a caller that cannot wait forever
+     * (an open HTTP request) has to bound it itself.
+     */
+    public ToolResult executeAndRecord(ToolCallLog toolCallLog) {
         try {
             ConnectorHandler handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());
             ToolProvider toolProvider = ConnectorRegistry.capability(handler, ToolProvider.class);
@@ -61,19 +78,19 @@ public class ToolExecutionService {
                         UUID.fromString(toolCallLog.getConnectionId()), LocalDateTime.now());
             }
 
-            deliver(toolCallLog, JsonUtils.writeValueAsString(result), null);
             log.debug("Executed tool '{}.{}'",
                     toolCallLog.getConnectorCode(), toolCallLog.getName());
+            return record(toolCallLog, JsonUtils.writeValueAsString(result), null);
         } catch (ConnectorException e) {
             // An expected failure with a safe message (validation, a CAS conflict, no connection, …) — passed to the agent as-is
             log.warn("Tool '{}.{}' failed: {}",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), e.getMessage());
-            deliver(toolCallLog, null, e.getMessage());
+            return record(toolCallLog, null, e.getMessage());
         } catch (Exception e) {
             // An unexpected failure — the stack trace is kept in the log and the details are hidden from the agent
             log.error("Failed to execute '{}.{}'",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), e);
-            deliver(toolCallLog, null, "Tool execution failed");
+            return record(toolCallLog, null, "Tool execution failed");
         }
     }
 
@@ -114,7 +131,8 @@ public class ToolExecutionService {
                 .orElse(null);
     }
 
-    private void deliver(ToolCallLog toolCallLog, String output, String error) {
+    /** A failure to persist the outcome must not swallow the outcome itself — the caller still gets it. */
+    private ToolResult record(ToolCallLog toolCallLog, String output, String error) {
         var toolResult = new ToolResult(
                 toolCallLog.getExternalId(), toolCallLog.getConnectorCode(), output, error);
         try {
@@ -122,8 +140,6 @@ public class ToolExecutionService {
         } catch (Exception logError) {
             log.warn("Failed to log tool result: {}", logError.getMessage());
         }
-        if (toolCallLog.getAgentId() != null) {
-            agentDeliveryService.deliverToolResult(toolCallLog.getAgentId(), toolResult);
-        }
+        return toolResult;
     }
 }
