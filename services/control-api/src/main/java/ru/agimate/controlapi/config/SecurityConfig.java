@@ -179,7 +179,12 @@ public class SecurityConfig {
 
         applyCommonSecurityConfig(http);
 
-        http.authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
+        // One key, but not one surface: the agent's type decides which of them it opens (see
+        // AgentAuthFilter#authorities). A valid key on a foreign surface is a 403, not a 401.
+        http.authorizeHttpRequests(authz -> authz
+                        .requestMatchers(AgentController.PATH + "/**").hasRole(AgentAuthFilter.ROLE_AGENT)
+                        .requestMatchers(AcpWebSocketConfig.PATH).hasRole(AgentAuthFilter.ROLE_AGENT_CLIENT)
+                        .anyRequest().authenticated())
                 .userDetailsService(userDetailsService())
                 .addFilterBefore(agentAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
