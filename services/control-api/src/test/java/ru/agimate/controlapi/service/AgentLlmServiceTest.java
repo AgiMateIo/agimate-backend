@@ -1,6 +1,5 @@
 package ru.agimate.controlapi.service;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -8,7 +7,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.llm.AgentLlmResponse;
@@ -17,7 +15,6 @@ import ru.agimate.controlapi.controller.manage.dto.llm.UpdateAgentLlmRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
-import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
@@ -212,38 +209,6 @@ class AgentLlmServiceTest {
             service.delete(AGENT_ID, userId, LlmPurpose.IMAGE);
 
             verify(agentLlmRepository).delete(binding);
-        }
-    }
-
-    @Nested
-    @DisplayName("MCP-агент — модель у клиента")
-    class McpAgent {
-
-        private final UUID userId = UUID.randomUUID();
-
-        @BeforeEach
-        void stubMcpAgent() {
-            when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(
-                    Agent.builder().id(AGENT_ID).userId(userId).type(AgentType.MCP).build()));
-        }
-
-        @Test
-        @DisplayName("create → 400, биндинг не создаётся")
-        void createRejected() {
-            CreateAgentLlmRequest request =
-                    new CreateAgentLlmRequest(UUID.randomUUID(), "gpt-4o", LlmPurpose.CHAT);
-
-            assertThrows(BadRequestStatusException.class, () -> service.create(AGENT_ID, userId, request));
-            verify(agentLlmRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("replace → 400")
-        void replaceRejected() {
-            UpdateAgentLlmRequest request = new UpdateAgentLlmRequest(UUID.randomUUID(), "gpt-4o");
-
-            assertThrows(BadRequestStatusException.class,
-                    () -> service.replace(AGENT_ID, userId, LlmPurpose.CHAT, request));
         }
     }
 }

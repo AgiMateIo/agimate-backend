@@ -28,13 +28,13 @@ public class AgentAuthFilter extends OncePerRequestFilter {
     private static final String API_KEY_HEADER = "X-Api-Key";
     private static final String BEARER_PREFIX = "Bearer ";
 
-    /** REST surface of the agent's own brain: settings, context, LLM credentials, tool calls. */
+    /** REST surface of the agent's own brain: settings, context, skills, tool calls. */
     public static final String ROLE_AGENT = "AGENT";
 
     /** Surface of a user-side client talking to the agent (the ACP WebSocket of an IDE). */
     public static final String ROLE_AGENT_CLIENT = "AGENT_CLIENT";
 
-    /** MCP surface: the brain of an {@link AgentType#MCP} agent pulling its tools. */
+    /** MCP surface: a brain pulling its tools itself. */
     public static final String ROLE_MCP_AGENT = "MCP_AGENT";
 
     private final AgentKeyAuthService agentKeyAuthService;
@@ -83,19 +83,19 @@ public class AgentAuthFilter extends OncePerRequestFilter {
     }
 
     /**
-     * Surfaces the key opens, decided by the agent's type. The type says where the agent's brain
-     * lives, and a brain has exactly one way in: a {@link AgentType#GENERIC} agent is driven by our
-     * own worker over gRPC, so its key must not open the REST brain surface — {@code /agent/llm}
-     * hands out decrypted LLM credentials, and no legitimate client of a GENERIC agent ever asks for
-     * them over HTTP. The ACP WebSocket is the opposite direction (an IDE talking <em>to</em> the
-     * agent), so every type whose brain can be pushed to keeps it — and {@link AgentType#MCP}, whose
-     * brain only pulls, gets neither.
+     * Surfaces the key opens, decided by the agent's type — and the type says one thing only: how
+     * events reach the brain. Every agent whose brain is outside gets the same surfaces, whether we
+     * push to it over a websocket, over a callback, or not at all; which of them a given client
+     * speaks is its own business. {@link AgentType#GENERIC} is the exception, and not by degree: its
+     * brain is our own worker on gRPC, so the whole HTTP brain surface has no legitimate caller and
+     * stays shut. What remains for it is {@code /acp} — the opposite direction, an IDE talking
+     * <em>to</em> the agent.
      */
     private static List<GrantedAuthority> authorities(AgentType type) {
         return switch (type) {
-            case CENTRIFUGO, WEBHOOK -> List.of(role(ROLE_AGENT), role(ROLE_AGENT_CLIENT));
+            case CENTRIFUGO, WEBHOOK, MCP ->
+                    List.of(role(ROLE_AGENT), role(ROLE_AGENT_CLIENT), role(ROLE_MCP_AGENT));
             case GENERIC -> List.of(role(ROLE_AGENT_CLIENT));
-            case MCP -> List.of(role(ROLE_MCP_AGENT));
         };
     }
 

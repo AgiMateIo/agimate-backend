@@ -21,6 +21,7 @@ import ru.agimate.controlapi.database.entities.ConnectionTool;
 import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
+import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
@@ -58,6 +59,7 @@ public class ChannelService {
     private final ConnectorRegistry connectorRegistry;
     private final ChannelHandlerRegistry channelHandlerRegistry;
     private final ConnectionBindingService connectionBindingService;
+    private final AgentDeliveryService agentDeliveryService;
 
     public Channel getById(UUID userId, UUID id) {
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(id)
@@ -153,6 +155,12 @@ public class ChannelService {
                 .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
         if (!agent.getUserId().equals(userId)) {
             throw new ForbiddenStatusException("Access denied to agent");
+        }
+        // A channel is a two-way conversation, and the inbound half needs a push transport. Without one
+        // the messages would pile up in channel_sessions with nobody ever woken to read them.
+        if (!agentDeliveryService.supportsPush(agent)) {
+            throw new BadRequestStatusException(
+                    "Agent of type " + agent.getType() + " receives no messages, so it cannot have channels");
         }
 
         ChannelHandler handler = requireHandler(data.channelHandler());

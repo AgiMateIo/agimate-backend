@@ -4,7 +4,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 
-@Schema(description = "LLM credentials returned to the agent at runtime")
+/**
+ * The model an agent is configured to run on — metadata, never a credential. An external brain holds
+ * its own copy of the provider's key: the one place that decrypts keys is
+ * {@code LlmCredentialsResolver}, and it serves our own worker over gRPC, where the quota is checked
+ * and the spend is reported back. A key handed over HTTP would outlive every one of those checks.
+ */
+@Schema(description = "LLM binding of the agent at runtime — which model to use, without credentials")
 public record AgentLlmRuntimeResponse(
         @Schema(description = "Binding role (CHAT — the agent-loop model)")
         LlmPurpose purpose,
@@ -16,9 +22,6 @@ public record AgentLlmRuntimeResponse(
         String baseUrl,
 
         @Schema(description = "Model to use")
-        String model,
-
-        @Schema(description = "Decrypted API key — keep in memory only, never log")
-        String apiKey
+        String model
 ) {
 }

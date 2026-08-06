@@ -58,28 +58,31 @@ class AgentAuthFilterTest {
         return authentication.getAuthorities().stream().map(GrantedAuthority::getAuthority).sorted().toList();
     }
 
+    private static final List<String> EXTERNAL_ROLES =
+            List.of("ROLE_AGENT", "ROLE_AGENT_CLIENT", "ROLE_MCP_AGENT");
+
     @Test
-    @DisplayName("CENTRIFUGO — мозг снаружи: и REST-поверхность агента, и ACP")
+    @DisplayName("CENTRIFUGO — мозг снаружи: все поверхности внешнего агента")
     void centrifugo() throws Exception {
-        assertEquals(List.of("ROLE_AGENT", "ROLE_AGENT_CLIENT"), rolesOf(AgentType.CENTRIFUGO));
+        assertEquals(EXTERNAL_ROLES, rolesOf(AgentType.CENTRIFUGO));
     }
 
     @Test
-    @DisplayName("WEBHOOK — мозг снаружи: и REST-поверхность агента, и ACP")
+    @DisplayName("WEBHOOK — тип отличается только доставкой, поверхности те же")
     void webhook() throws Exception {
-        assertEquals(List.of("ROLE_AGENT", "ROLE_AGENT_CLIENT"), rolesOf(AgentType.WEBHOOK));
+        assertEquals(EXTERNAL_ROLES, rolesOf(AgentType.WEBHOOK));
     }
 
     @Test
-    @DisplayName("GENERIC — мозг в нашем воркере: только ACP, /agent/** закрыт (там ключи LLM)")
+    @DisplayName("MCP — тоже внешний: /mcp плюс то, что он и так не умеет позвать")
+    void mcp() throws Exception {
+        assertEquals(EXTERNAL_ROLES, rolesOf(AgentType.MCP));
+    }
+
+    @Test
+    @DisplayName("GENERIC — мозг в нашем воркере: только ACP, HTTP-поверхность мозга закрыта")
     void generic() throws Exception {
         assertEquals(List.of("ROLE_AGENT_CLIENT"), rolesOf(AgentType.GENERIC));
-    }
-
-    @Test
-    @DisplayName("MCP — мозг тянет сам: только /mcp, ни REST агента, ни ACP")
-    void mcp() throws Exception {
-        assertEquals(List.of("ROLE_MCP_AGENT"), rolesOf(AgentType.MCP));
     }
 
     @Test

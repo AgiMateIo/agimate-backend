@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
@@ -15,7 +14,6 @@ import ru.agimate.controlapi.controller.manage.dto.llm.UpdateAgentLlmRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
-import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
@@ -84,7 +82,6 @@ public class AgentLlmService {
     @Transactional
     public AgentLlmResponse create(UUID agentId, UUID userId, CreateAgentLlmRequest request) {
         Agent agent = requireOwnedAgent(agentId, userId);
-        requireModelHost(agent);
         LlmProvider provider = llmProviderService.requireOwned(request.llmProviderId(), userId);
         validateModel(provider, request.model());
 
@@ -111,7 +108,6 @@ public class AgentLlmService {
     @Transactional
     public AgentLlmResponse replace(UUID agentId, UUID userId, LlmPurpose purpose, UpdateAgentLlmRequest request) {
         Agent agent = requireOwnedAgent(agentId, userId);
-        requireModelHost(agent);
         AgentLlm binding = requireBinding(agent.getId(), purpose);
         LlmProvider provider = llmProviderService.requireOwned(request.llmProviderId(), userId);
         validateModel(provider, request.model());
@@ -162,13 +158,11 @@ public class AgentLlmService {
         if (provider == null || !provider.isEnabled()) {
             return null;
         }
-        String apiKey = llmProviderService.decryptApiKey(provider);
         return new AgentLlmRuntimeResponse(
                 binding.getPurpose(),
                 provider.getProviderType(),
                 provider.getBaseUrl(),
-                binding.getModel(),
-                apiKey
+                binding.getModel()
         );
     }
 
@@ -188,17 +182,6 @@ public class AgentLlmService {
             throw new ForbiddenStatusException("Access denied");
         }
         return agent;
-    }
-
-    /**
-     * An {@link AgentType#MCP} agent has its brain outside and brings its own model — a binding here
-     * would be a model nobody ever calls, and a reason to hand its provider's key to a client that
-     * must not see it.
-     */
-    private static void requireModelHost(Agent agent) {
-        if (agent.getType() == AgentType.MCP) {
-            throw new BadRequestStatusException("An MCP agent runs on the client's own model and has no LLM binding");
-        }
     }
 
     private void validateModel(LlmProvider provider, String model) {

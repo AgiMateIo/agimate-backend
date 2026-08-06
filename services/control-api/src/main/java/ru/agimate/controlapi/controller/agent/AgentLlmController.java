@@ -19,7 +19,7 @@ import java.util.List;
 @RestController
 @RequestMapping(AgentLlmController.PATH)
 @RequiredArgsConstructor
-@Tag(name = "Agent LLM runtime", description = "Returns LLM credentials to the authenticated agent")
+@Tag(name = "Agent LLM runtime", description = "Returns the LLM binding of the authenticated agent")
 public class AgentLlmController {
 
     public static final String PATH = "/agent/llm";
@@ -28,7 +28,7 @@ public class AgentLlmController {
 
     @Operation(
             summary = "List LLM bindings with decrypted credentials",
-            description = "Returns all enabled LLM bindings of the current agent including decrypted apiKey"
+            description = "Returns all enabled LLM bindings of the current agent — model metadata, without credentials"
     )
     @GetMapping("/")
     public SuccessResponse<List<AgentLlmRuntimeResponse>> list(

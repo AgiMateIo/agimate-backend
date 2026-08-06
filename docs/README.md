@@ -78,7 +78,7 @@
 | [media-transport.md](decisions/media-transport.md) | Как выбирается диалект провайдера при генерации изображений |
 | [acp-comparison.md](decisions/acp-comparison.md) | Agent Communication Protocol против нашей архитектуры |
 | [mcp-oauth.md](decisions/mcp-oauth.md) | OAuth в MCP-коннекторе: discovery по 401, CIMD вместо DCR, состояние на коннекции |
-| [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [agent-to-agent-internal](decisions/deferred/agent-to-agent-internal.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md) |
+| [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [agent-to-agent-internal](decisions/deferred/agent-to-agent-internal.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md) |
 
 ---
 
