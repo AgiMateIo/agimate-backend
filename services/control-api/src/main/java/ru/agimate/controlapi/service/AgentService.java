@@ -106,7 +106,7 @@ public class AgentService {
 
         List<UUID> agentIds = agents.getContent().stream().map(Agent::getId).toList();
         Map<UUID, List<AgentSkillSummary>> skillsByAgent = loadSkillSummaries(agentIds);
-        Map<UUID, List<AgentLlmResponse>> llmsByAgent = agentLlmService.listForAgents(agentIds);
+        Map<UUID, List<AgentLlmResponse>> llmsByAgent = agentLlmService.listForAgents(agents.getContent());
 
         return agents.map(agent -> {
             var team = agent.getAgenticTeamId() != null ? teamsById.get(agent.getAgenticTeamId()) : null;
@@ -143,7 +143,7 @@ public class AgentService {
         }
         var team = resolveTeam(agent.getAgenticTeamId());
         var skills = loadSkillSummaries(List.of(id)).getOrDefault(id, List.of());
-        var llms = agentLlmService.listForAgents(List.of(id)).getOrDefault(id, List.of());
+        var llms = agentLlmService.listForAgents(List.of(agent)).getOrDefault(id, List.of());
         return AgentResponse.from(agent, team, skills, llms);
     }
 
@@ -406,7 +406,7 @@ public class AgentService {
 
         var team = resolveTeam(agent.getAgenticTeamId());
         var skills = loadSkillSummaries(List.of(id)).getOrDefault(id, List.of());
-        var llms = agentLlmService.listForAgents(List.of(id)).getOrDefault(id, List.of());
+        var llms = agentLlmService.listForAgents(List.of(agent)).getOrDefault(id, List.of());
 
         log.info("Updated agent id={}", id);
         return AgentResponse.from(agent, team, skills, llms);

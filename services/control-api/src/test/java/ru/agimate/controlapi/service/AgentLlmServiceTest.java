@@ -15,6 +15,7 @@ import ru.agimate.controlapi.controller.manage.dto.llm.UpdateAgentLlmRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
@@ -40,6 +41,10 @@ import static org.mockito.Mockito.when;
 class AgentLlmServiceTest {
 
     private static final UUID AGENT_ID = UUID.randomUUID();
+
+    /** Платформенный фолбэк показывается только агентам, чей цикл крутим мы. */
+    private static final Agent GENERIC_AGENT = Agent.builder()
+            .id(AGENT_ID).userId(UUID.randomUUID()).type(AgentType.GENERIC).build();
 
     @Mock
     private AgentLlmRepository agentLlmRepository;
@@ -77,7 +82,7 @@ class AgentLlmServiceTest {
             when(llmProviderService.findUsablePlatformProvider())
                     .thenReturn(Optional.of(platformProvider()));
 
-            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(AGENT_ID));
+            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(GENERIC_AGENT));
 
             List<AgentLlmResponse> llms = result.get(AGENT_ID);
             assertEquals(1, llms.size());
@@ -108,7 +113,7 @@ class AgentLlmServiceTest {
                     .thenReturn(List.of(provider));
             when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.empty());
 
-            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(AGENT_ID));
+            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(GENERIC_AGENT));
 
             List<AgentLlmResponse> llms = result.get(AGENT_ID);
             assertEquals(1, llms.size());
@@ -123,10 +128,21 @@ class AgentLlmServiceTest {
                     .thenReturn(List.of());
             when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.empty());
 
-            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(AGENT_ID));
+            Map<UUID, List<AgentLlmResponse>> result = service.listForAgents(List.of(GENERIC_AGENT));
 
             assertTrue(result.isEmpty());
         }
+    }
+
+    @Test
+    @DisplayName("внешний агент без привязок — платформенная модель не подставляется")
+    void noPlatformFallbackForExternalAgent() {
+        Agent external = Agent.builder().id(AGENT_ID).userId(UUID.randomUUID()).type(AgentType.MCP).build();
+        when(agentLlmRepository.findAllByAgentIdInOrderByAgentIdAscPurposeAsc(List.of(AGENT_ID)))
+                .thenReturn(List.of());
+
+        assertTrue(service.listForAgents(List.of(external)).isEmpty(),
+                "модель у клиента — карточка не должна обещать платформенную");
     }
 
     @Nested

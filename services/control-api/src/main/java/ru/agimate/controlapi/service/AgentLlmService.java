@@ -14,6 +14,7 @@ import ru.agimate.controlapi.controller.manage.dto.llm.UpdateAgentLlmRequest;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentLlm;
 import ru.agimate.controlapi.database.entities.LlmProvider;
+import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
 import ru.agimate.controlapi.database.repositories.AgentLlmRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
@@ -41,7 +42,7 @@ public class AgentLlmService {
         Agent agent = requireOwnedAgent(agentId, userId);
         List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurpose(agent.getId());
         if (bindings.isEmpty()) {
-            return platformFallbackEntry();
+            return runsOnPlatformModels(agent) ? platformFallbackEntry() : List.of();
         }
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
         return bindings.stream()
@@ -49,10 +50,11 @@ public class AgentLlmService {
                 .toList();
     }
 
-    public Map<UUID, List<AgentLlmResponse>> listForAgents(List<UUID> agentIds) {
-        if (agentIds.isEmpty()) {
+    public Map<UUID, List<AgentLlmResponse>> listForAgents(List<Agent> agents) {
+        if (agents.isEmpty()) {
             return Map.of();
         }
+        List<UUID> agentIds = agents.stream().map(Agent::getId).toList();
         List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdInOrderByAgentIdAscPurposeAsc(agentIds);
         Map<UUID, LlmProvider> providersById = loadProviders(bindings);
 
@@ -64,11 +66,23 @@ public class AgentLlmService {
         // Agents with no bindings run through the platform fallback — we show the effective model.
         List<AgentLlmResponse> fallback = platformFallbackEntry();
         if (!fallback.isEmpty()) {
-            agentIds.stream()
+            agents.stream()
+                    .filter(AgentLlmService::runsOnPlatformModels)
+                    .map(Agent::getId)
                     .filter(id -> !result.containsKey(id))
                     .forEach(id -> result.put(id, fallback));
         }
         return result;
+    }
+
+    /**
+     * Whether the platform's own model is what this agent's loop would run on. Only ours is: an
+     * external brain comes with its own model and never asks us for credentials, so «runs on the
+     * platform model» would be a plain lie in its card. Explicit bindings are still shown for every
+     * type — they drive the tool-side purposes (media), which the platform executes itself.
+     */
+    private static boolean runsOnPlatformModels(Agent agent) {
+        return agent.getType() == AgentType.GENERIC;
     }
 
     /** Empty when the platform has no CHAT models declared — there is nothing to fall back to, so we show nothing. */
