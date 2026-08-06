@@ -86,6 +86,20 @@ class AgentAuthFilterTest {
     }
 
     @Test
+    @DisplayName("Authorization: bearer в любом регистре — схема регистронезависима")
+    void bearerSchemeIsCaseInsensitive() throws Exception {
+        when(keyAuthService.validateKey(KEY)).thenReturn(Optional.of(Agent.builder()
+                .id(UUID.randomUUID()).userId(UUID.randomUUID()).name("agent")
+                .type(AgentType.MCP).build()));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "bearer " + KEY);
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        assertNotNull(SecurityContextHolder.getContext().getAuthentication());
+    }
+
+    @Test
     @DisplayName("невалидный ключ → контекст пуст")
     void invalidKey() throws Exception {
         when(keyAuthService.validateKey(anyString())).thenReturn(Optional.empty());

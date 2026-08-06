@@ -11,10 +11,11 @@ import java.util.UUID;
 import java.util.function.LongSupplier;
 
 /**
- * A token-bucket limiter for inbound traffic from external sources, keyed by {@code connectionId} (for
- * devices {@code app.id == connection.id}, and for a webhook the connectionId in the path — a single
- * subject for every entry point). In memory (Caffeine): the limiter sits on the hot path, and a rejected
- * request must not cost a database round-trip. The state is per instance and is reset by a restart —
+ * A token-bucket limiter for inbound traffic from external sources, keyed by the subject of the entry
+ * point: a connection for device and webhook traffic (for devices {@code app.id == connection.id}, for a
+ * webhook the connectionId in the path), the agent for MCP calls — there the key, not a connection, is
+ * what arrives. In memory (Caffeine): the limiter sits on the hot path, and a rejected request must not
+ * cost a database round-trip. The state is per instance and is reset by a restart —
  * acceptable for flood protection; when replicas arrive it is replaced by a distributed counter behind
  * the same API.
  *

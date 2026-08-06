@@ -10,6 +10,10 @@ import java.util.regex.Pattern;
  * Naming of a new agent. A name is not a key — nothing breaks on a duplicate — but a wizard started
  * from the same preset three times leaves three identical rows in the list, and the user has no way
  * to tell them apart before opening each one.
+ *
+ * <p>Which is also why this is best-effort and not a constraint: two creations racing at the same
+ * instant can still end up with the same name. Uniqueness here is a courtesy to the eye, and paying
+ * for it with a unique index would make a duplicate name an error where it is merely untidy.
  */
 @UtilityClass
 public class AgentNames {

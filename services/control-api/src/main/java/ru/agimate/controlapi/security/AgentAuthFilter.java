@@ -77,7 +77,10 @@ public class AgentAuthFilter extends OncePerRequestFilter {
             return apiKey;
         }
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
-        return authorization != null && authorization.startsWith(BEARER_PREFIX)
+        // The scheme is case-insensitive (RFC 7235) — a client sending «bearer» is not a client sending
+        // a wrong key, and answering 401 to it would send its author looking in the wrong place.
+        return authorization != null
+                && authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())
                 ? authorization.substring(BEARER_PREFIX.length())
                 : null;
     }
