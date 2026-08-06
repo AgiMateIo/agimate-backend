@@ -39,7 +39,11 @@ public class AgentDeliveryService {
      * before a run is created: pushing is the only reason to create one.
      */
     public boolean supportsPush(Agent agent) {
-        AgentTransport transport = transports.get(agent.getType());
+        return supportsPush(agent.getType());
+    }
+
+    public boolean supportsPush(AgentType type) {
+        AgentTransport transport = transports.get(type);
         return transport != null && transport.supportsPush();
     }
 

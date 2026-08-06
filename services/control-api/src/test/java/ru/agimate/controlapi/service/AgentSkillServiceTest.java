@@ -175,6 +175,16 @@ class AgentSkillServiceTest {
         }
 
         @Test
+        @DisplayName("код, объявленный навыком дважды → одна строка, а не нарушение уникальности")
+        void duplicateCodeIsStoredOnce() {
+            skill("telegram", "telegram");
+
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID));
+
+            assertEquals(1, savedLinks().size(), "один инстанс — один ответ, второй ряд лёг бы на тот же ключ");
+        }
+
+        @Test
         @DisplayName("неизвестный коннектор навык не ломает — строки нет, статус неудовлетворён")
         void unknownConnectorIsSkipped() {
             skill("ghost");

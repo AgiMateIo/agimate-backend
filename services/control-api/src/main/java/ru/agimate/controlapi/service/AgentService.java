@@ -38,6 +38,7 @@ import ru.agimate.controlapi.database.repositories.AgentConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
+import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.AppRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
@@ -84,6 +85,8 @@ public class AgentService {
     private final AppRepository appRepository;
     private final AgentLlmService agentLlmService;
     private final ConnectorJobRepository connectorJobRepository;
+    private final ChannelRepository channelRepository;
+    private final AgentDeliveryService agentDeliveryService;
     private final SecretRepository secretRepository;
     private final SecretService secretService;
 
@@ -390,6 +393,7 @@ public class AgentService {
         AgentType type = command.type() != null
                 ? command.type() : agent.getType();
         validateWebhookFields(type, command.webhookUrl());
+        requireChannelsCanFollowTheType(agent, type);
 
         if (command.name() != null) {
             agent.setName(command.name());
@@ -439,6 +443,22 @@ public class AgentService {
             return null;
         }
         return agenticTeamRepository.findById(agenticTeamId).orElse(null);
+    }
+
+    /**
+     * Moving the brain to a transport we cannot push to leaves the agent's channels answering nobody:
+     * the chat still takes messages, the trigger still fires, and the reply never comes because there is
+     * no recipient. We refuse the move instead — closing someone's live chat as a side effect of an
+     * edit would be worse than the refusal.
+     */
+    private void requireChannelsCanFollowTheType(Agent agent, AgentType type) {
+        if (type == agent.getType() || agentDeliveryService.supportsPush(type)) {
+            return;
+        }
+        if (!channelRepository.findByAgentIdAndDeletedAtIsNullOrderByCreatedAtDesc(agent.getId()).isEmpty()) {
+            throw new BadRequestStatusException(
+                    "Agent of type " + type + " receives no messages: close its channels before switching");
+        }
     }
 
     private void validateWebhookFields(AgentType type, String webhookUrl) {

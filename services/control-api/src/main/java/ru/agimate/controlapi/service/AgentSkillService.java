@@ -28,6 +28,7 @@ import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService.ConnectorKind;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -271,7 +272,7 @@ public class AgentSkillService {
             Map<String, UUID> skillReferences = references.getOrDefault(agentSkill.getId(), Map.of());
             Map<String, List<UUID>> instancesByCode = new LinkedHashMap<>();
             boolean complete = true;
-            for (String code : skill.getConnectorCodes()) {
+            for (String code : declaredCodes(skill)) {
                 UUID referenced = skillReferences.get(code);
                 List<UUID> instances = referenced != null
                         ? List.of(referenced)
@@ -331,6 +332,15 @@ public class AgentSkillService {
         return counts;
     }
 
+    /**
+     * Codes the skill declares, without repeats. Nothing forbids a skill from listing the same connector
+     * twice, and one instance is one answer — a second row for the same code would only break the
+     * uniqueness of {@code (agent_skill_id, connector_code)} at flush time.
+     */
+    private static Collection<String> declaredCodes(Skill skill) {
+        return new LinkedHashSet<>(skill.getConnectorCodes());
+    }
+
     private static void requireDeclared(Skill skill, Map<String, UUID> requested) {
         for (String code : requested.keySet()) {
             if (!skill.getConnectorCodes().contains(code)) {
@@ -341,7 +351,7 @@ public class AgentSkillService {
 
     private void storeConnections(UUID agentSkillId, Skill skill, UUID userId, Map<String, UUID> requested) {
         List<AgentSkillConnection> rows = new ArrayList<>();
-        for (String code : skill.getConnectorCodes()) {
+        for (String code : declaredCodes(skill)) {
             resolveConnection(code, requested.get(code), userId).ifPresent(connectionId ->
                     rows.add(AgentSkillConnection.builder()
                             .agentSkillId(agentSkillId)
