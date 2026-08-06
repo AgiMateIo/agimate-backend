@@ -14,6 +14,7 @@ import ru.agimate.controlapi.controller.manage.dto.AgentPresetResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateAgentPresetRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateAgentPresetRequest;
 import ru.agimate.controlapi.database.entities.AgentPreset;
+import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
@@ -24,6 +25,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -146,7 +148,7 @@ class AgentPresetServiceTest {
             });
 
             AgentPresetResponse response = service.create(adminId, new CreateAgentPresetRequest(
-                    "new-role", "Роль", "desc", "Инструкции", List.of("AgiMate Time"), 5));
+                    "new-role", "Роль", "desc", "Инструкции", List.of("AgiMate Time"), null, 5));
 
             assertEquals("new-role", response.name());
             assertEquals(5, response.sortOrder());
@@ -161,7 +163,7 @@ class AgentPresetServiceTest {
                     .thenReturn(Optional.of(preset("personal-assistant", List.of())));
 
             assertThrows(ConflictStatusException.class, () -> service.create(adminId,
-                    new CreateAgentPresetRequest("personal-assistant", "n", "d", "i", List.of(), 0)));
+                    new CreateAgentPresetRequest("personal-assistant", "n", "d", "i", List.of(), null, 0)));
             verify(agentPresetRepository, never()).save(any());
         }
 
@@ -174,7 +176,7 @@ class AgentPresetServiceTest {
 
             BadRequestStatusException ex = assertThrows(BadRequestStatusException.class,
                     () -> service.create(adminId,
-                            new CreateAgentPresetRequest("r", "n", "d", "i", List.of("Ghost"), 0)));
+                            new CreateAgentPresetRequest("r", "n", "d", "i", List.of("Ghost"), null, 0)));
             assertTrue(ex.getMessage().contains("Ghost"));
             verify(agentPresetRepository, never()).save(any());
         }
@@ -187,7 +189,7 @@ class AgentPresetServiceTest {
             when(agentPresetRepository.save(any(AgentPreset.class))).thenAnswer(inv -> inv.getArgument(0));
 
             AgentPresetResponse response = service.update(adminId, existing.getId(),
-                    new UpdateAgentPresetRequest(null, null, null, null, null, false));
+                    new UpdateAgentPresetRequest(null, null, null, null, null, null, false));
 
             assertFalse(response.enabled());
             assertEquals("personal-assistant", response.name());
@@ -200,7 +202,7 @@ class AgentPresetServiceTest {
             when(agentPresetRepository.findById(id)).thenReturn(Optional.empty());
 
             assertThrows(NotFoundStatusException.class, () -> service.update(adminId, id,
-                    new UpdateAgentPresetRequest("n", null, null, null, null, null)));
+                    new UpdateAgentPresetRequest("n", null, null, null, null, null, null)));
         }
     }
 
@@ -229,7 +231,28 @@ class AgentPresetServiceTest {
             assertEquals("Помощник на каждый день", parsed.description());
             assertEquals(List.of("time", "persist-memory"), parsed.skillNames());
             assertEquals(0, parsed.sortOrder());
+            assertNull(parsed.agentType(), "тип не объявлен — визард спросит");
             assertEquals("Ты — личный ассистент.", parsed.instructions());
+        }
+
+        @Test
+        @DisplayName("agentType из frontmatter; опечатка в нём — ошибка, а не молчаливый null")
+        void parsesAgentType() {
+            String template = """
+                    ---
+                    name: external
+                    title: Внешний агент
+                    agentType: %s
+                    ---
+
+                    Тело.
+                    """;
+
+            assertEquals(AgentType.MCP, SystemPresetBootstrap.parsePreset(template.formatted("mcp")).agentType());
+
+            IllegalStateException e = assertThrows(IllegalStateException.class,
+                    () -> SystemPresetBootstrap.parsePreset(template.formatted("mpc")));
+            assertTrue(e.getMessage().contains("mpc"));
         }
 
         @Test

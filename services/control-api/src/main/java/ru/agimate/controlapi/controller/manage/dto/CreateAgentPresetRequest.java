@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.controlapi.database.enums.AgentType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
@@ -27,6 +28,9 @@ public record CreateAgentPresetRequest(
 
         @Schema(description = "System skill names the preset suggests to bind (must exist as system skills)")
         List<String> skillNames,
+
+        @Schema(description = "Type of the agent this preset creates; null — the wizard asks")
+        AgentType agentType,
 
         @Schema(description = "Gallery sort order (ascending)", defaultValue = "0")
         Integer sortOrder

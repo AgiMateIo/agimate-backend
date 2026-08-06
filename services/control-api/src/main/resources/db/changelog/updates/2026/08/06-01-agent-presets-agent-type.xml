@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Пресет умеет сказать, какого типа агента он создаёт: визард внешнего агента (без модели и
+         промпта, но с выбором доставки) — это другой набор шагов, и решать это должен пресет, а не
+         зашитый на фронте список кодов. NULL = тип спрашивается в визарде, так живут все прежние
+         пресеты; проверки допустимого значения нет — тип валидируется при создании агента, а не тут. -->
+    <changeSet id="agent-presets-agent-type" author="agimate">
+        <addColumn tableName="agent_presets">
+            <column name="agent_type" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

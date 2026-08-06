@@ -65,6 +65,7 @@ public class AgentPresetService {
                 .description(request.description())
                 .instructions(request.instructions())
                 .skillNames(new ArrayList<>(skillNames))
+                .agentType(request.agentType())
                 .sortOrder(request.resolveSortOrder())
                 .enabled(true)
                 .build();
@@ -94,6 +95,9 @@ public class AgentPresetService {
         if (request.skillNames() != null) {
             validateSkillNames(request.skillNames());
             preset.setSkillNames(new ArrayList<>(request.skillNames()));
+        }
+        if (request.agentType() != null) {
+            preset.setAgentType(request.agentType());
         }
         if (request.sortOrder() != null) {
             preset.setSortOrder(request.sortOrder());
@@ -147,6 +151,7 @@ public class AgentPresetService {
                 skills,
                 List.copyOf(connectorCodes),
                 List.copyOf(preset.getSkillNames()),
+                preset.getAgentType(),
                 preset.getSortOrder(),
                 preset.isEnabled());
     }

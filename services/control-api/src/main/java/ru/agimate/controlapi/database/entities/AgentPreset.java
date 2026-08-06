@@ -2,6 +2,8 @@ package ru.agimate.controlapi.database.entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -15,6 +17,7 @@ import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.controlapi.database.enums.AgentType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,6 +64,15 @@ public class AgentPreset extends BaseEntity {
     @Column(name = "skill_names", nullable = false, columnDefinition = "text[]")
     @Builder.Default
     private List<String> skillNames = new ArrayList<>();
+
+    /**
+     * Type of the agent this preset creates; {@code null} — the wizard asks. It is here rather than in
+     * the frontend because the preset is what knows whether it builds an external agent: that wizard
+     * asks for a delivery transport instead of a model and a prompt.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "agent_type", columnDefinition = "TEXT")
+    private AgentType agentType;
 
     @Column(name = "sort_order", nullable = false)
     @Builder.Default

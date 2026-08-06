@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.controller.manage.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.controlapi.database.enums.AgentType;
 
 import java.util.List;
 
@@ -22,6 +23,9 @@ public record UpdateAgentPresetRequest(
 
         @Schema(description = "System skill names the preset suggests to bind (replaces the list)")
         List<String> skillNames,
+
+        @Schema(description = "Type of the agent this preset creates; null — leave unchanged")
+        AgentType agentType,
 
         @Schema(description = "Gallery sort order (ascending)")
         Integer sortOrder,

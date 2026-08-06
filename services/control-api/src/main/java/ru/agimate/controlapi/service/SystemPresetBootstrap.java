@@ -8,6 +8,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.database.entities.AgentPreset;
+import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.service.seed.SeedContentLocator;
@@ -24,8 +25,9 @@ import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
  *
  * <p>A preset lives as a classpath resource ({@code resources/seed/presets/<lang>/<code>/PRESET.md}) —
  * the language is substituted by {@link SeedContentLocator}. The frontmatter carries
- * {@code name}/{@code title}/{@code description}/{@code skills} (names of system skills), and the body
- * is the blank for the agent's instructions. Seed-only-if-missing (see {@link SystemSkillBootstrap}):
+ * {@code name}/{@code title}/{@code description}/{@code skills} (names of system skills) and the
+ * optional {@code agentType} — the wizard asks for the type only when the preset does not declare it —
+ * and the body is the blank for the agent's instructions. Seed-only-if-missing (see {@link SystemSkillBootstrap}):
  * the row is looked up by {@code name} and created only when it does not exist yet — so edits through a
  * future admin UI are not wiped by the next deploy. It runs after the skills are seeded (see
  * {@code @Order}) so the {@code skills} references are checked against already-seeded system skills; an
@@ -86,6 +88,7 @@ public class SystemPresetBootstrap {
                     .description(parsed.description())
                     .instructions(parsed.instructions())
                     .skillNames(parsed.skillNames())
+                    .agentType(parsed.agentType())
                     .sortOrder(parsed.sortOrder())
                     .build());
             log.info("Seeded system preset '{}' id={} skills={}", preset.getName(), preset.getId(),
@@ -106,7 +109,7 @@ public class SystemPresetBootstrap {
 
     /** A parsed PRESET.md: the frontmatter fields and the instruction body. */
     record ParsedPreset(String name, String title, String description, List<String> skillNames,
-                        Integer sortOrder, String instructions) {}
+                        AgentType agentType, Integer sortOrder, String instructions) {}
 
     static ParsedPreset parsePreset(String content) {
         SkillFrontmatterParser.RawFrontmatter raw = SkillFrontmatterParser.parseRaw(content, "PRESET.md");
@@ -118,12 +121,25 @@ public class SystemPresetBootstrap {
                 ? String.valueOf(fields.get("description")).strip()
                 : null;
         List<String> skillNames = SkillFrontmatterParser.parseStringList(fields.get("skills"));
+        AgentType agentType = parseAgentType(fields.get("agentType"));
         Integer sortOrder = fields.get("sortOrder") instanceof Number n ? n.intValue() : 0;
 
         if (raw.body().isBlank()) {
             throw new IllegalStateException("PRESET.md body (agent instructions) is empty");
         }
-        return new ParsedPreset(name, title, description, skillNames, sortOrder, raw.body());
+        return new ParsedPreset(name, title, description, skillNames, agentType, sortOrder, raw.body());
+    }
+
+    /** Absent means «the wizard asks»; a typo must not silently degrade to that. */
+    private static AgentType parseAgentType(Object value) {
+        if (value == null || value.toString().isBlank()) {
+            return null;
+        }
+        try {
+            return AgentType.valueOf(value.toString().strip().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("PRESET.md frontmatter has unknown agentType '" + value + "'");
+        }
     }
 
     private static String requiredField(Map<String, Object> fields, String field) {
