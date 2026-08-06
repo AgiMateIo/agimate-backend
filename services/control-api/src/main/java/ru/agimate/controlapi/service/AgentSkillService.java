@@ -68,8 +68,7 @@ public class AgentSkillService {
                 : skillRepository.findByIdInNotDeleted(skillIds).stream()
                         .collect(Collectors.toMap(Skill::getId, s -> s));
 
-        SatisfactionContext context = satisfactionContext(agentId,
-                agentSkills.getContent().stream().map(AgentSkill::getId).toList());
+        SkillResolution resolution = resolveSkills(agentId);
 
         return agentSkills.map(as -> {
             Skill skill = skillMap.get(as.getSkillId());
@@ -77,7 +76,7 @@ public class AgentSkillService {
             boolean needsReinstall = skill != null
                     && (as.getInstalledSkillVersion() == null || skill.getVersion() > as.getInstalledSkillVersion());
             List<SkillConnectorStatus> connectors = skill == null ? List.of()
-                    : statuses(context, as.getId(), skill.getConnectorCodes());
+                    : statuses(resolution, as.getId(), skill.getConnectorCodes());
             return AgentSkillResponse.from(as, name, connectors, needsReinstall);
         });
     }
@@ -147,9 +146,9 @@ public class AgentSkillService {
 
         log.info("Bound skill {} to agent {} for user {}", skillId, agentId, userId);
 
-        SatisfactionContext context = satisfactionContext(agentId, List.of(agentSkill.getId()));
+        SkillResolution resolution = resolveSkills(agentId);
         return AgentSkillResponse.from(agentSkill, skill.getName(),
-                statuses(context, agentSkill.getId(), skill.getConnectorCodes()), false);
+                statuses(resolution, agentSkill.getId(), skill.getConnectorCodes()), false);
     }
 
     @Transactional
@@ -214,83 +213,120 @@ public class AgentSkillService {
         agentSkillConnectionRepository.deleteByAgentSkillId(agentSkill.getId());
         storeConnections(agentSkill.getId(), skill, userId, requested);
 
-        SatisfactionContext context = satisfactionContext(agentId, List.of(agentSkill.getId()));
+        SkillResolution resolution = resolveSkills(agentId);
         return AgentSkillResponse.from(agentSkill, skill.getName(),
-                statuses(context, agentSkill.getId(), skill.getConnectorCodes()), false);
+                statuses(resolution, agentSkill.getId(), skill.getConnectorCodes()), false);
     }
 
     /**
-     * The agent's <b>satisfied</b> skills and the instances each of them works with: skillId → connection
-     * ids. A skill is absent when any connector it declares has no reachable instance — it is not given
-     * to the agent at all, because its body would otherwise promise tools that are not there.
+     * The agent's skills resolved to the instances they point at — the one answer every reader takes
+     * its own view of: the run context (only complete skills, all their instances), the skill listing
+     * (per code, one representative) and the connection listing (how many skills point here). They used
+     * to resolve separately, and the counter, which read the reference rows alone, disagreed with a
+     * status that fell back to the code.
      *
-     * <p>The union of the values is the tool gate: only these instances reach the run context. A
-     * declared code with no reference of its own (a binding older than references) resolves to
-     * <b>every</b> bound instance of that code — exactly what the gate did when it worked by code, so
-     * nothing narrows behind the user's back.
+     * <p>A declared code with no reference of its own (a binding older than references) resolves to
+     * <b>every</b> bound instance of that code — exactly what the tool gate did when it worked by code.
      */
-    public Map<UUID, Set<UUID>> satisfiedSkillInstances(UUID agentId) {
+    private SkillResolution resolveSkills(UUID agentId) {
         List<AgentSkill> agentSkills = agentSkillRepository.findByAgentId(agentId);
         if (agentSkills.isEmpty()) {
-            return Map.of();
+            return new SkillResolution(List.of(), Set.of(), Map.of());
         }
         Map<UUID, Skill> skills = skillRepository
                 .findByIdInNotDeleted(agentSkills.stream().map(AgentSkill::getSkillId).collect(Collectors.toSet()))
                 .stream().collect(Collectors.toMap(Skill::getId, skill -> skill));
 
-        Set<UUID> boundIds = new HashSet<>();
-        Map<String, List<UUID>> byCode = new HashMap<>();
+        Map<UUID, Connection> connections = new LinkedHashMap<>();
+        Map<String, List<UUID>> boundByCode = new HashMap<>();
         for (Connection connection : connectionRepository.findActiveBoundToAgent(agentId)) {
-            boundIds.add(connection.getId());
-            byCode.computeIfAbsent(connection.getConnectorCode(), k -> new ArrayList<>()).add(connection.getId());
+            connections.put(connection.getId(), connection);
+            boundByCode.computeIfAbsent(connection.getConnectorCode(), k -> new ArrayList<>())
+                    .add(connection.getId());
         }
+        Set<UUID> boundIds = Set.copyOf(connections.keySet());
+
         Map<UUID, Map<String, UUID>> references = new HashMap<>();
+        Set<UUID> referencedIds = new HashSet<>();
         for (AgentSkillConnection link : agentSkillConnectionRepository.findByAgentSkillIdIn(
                 agentSkills.stream().map(AgentSkill::getId).toList())) {
             references.computeIfAbsent(link.getAgentSkillId(), k -> new HashMap<>())
                     .put(link.getConnectorCode(), link.getConnectionId());
+            referencedIds.add(link.getConnectionId());
+        }
+        // A referenced instance may be unbound: we still show which one the skill means, so it has to be
+        // loaded — «chosen but not open» is a different problem for the user than «nothing chosen».
+        referencedIds.removeAll(boundIds);
+        if (!referencedIds.isEmpty()) {
+            connectionRepository.findByIdInNotDeleted(List.copyOf(referencedIds))
+                    .forEach(connection -> connections.put(connection.getId(), connection));
         }
 
-        Map<UUID, Set<UUID>> satisfied = new LinkedHashMap<>();
+        List<ResolvedSkill> resolved = new ArrayList<>();
         for (AgentSkill agentSkill : agentSkills) {
             Skill skill = skills.get(agentSkill.getSkillId());
             if (skill == null) {
                 continue;
             }
             Map<String, UUID> skillReferences = references.getOrDefault(agentSkill.getId(), Map.of());
-            Set<UUID> instances = new LinkedHashSet<>();
+            Map<String, List<UUID>> instancesByCode = new LinkedHashMap<>();
             boolean complete = true;
             for (String code : skill.getConnectorCodes()) {
                 UUID referenced = skillReferences.get(code);
-                if (referenced != null) {
-                    if (!boundIds.contains(referenced)) {
-                        complete = false;
-                        break;
-                    }
-                    instances.add(referenced);
-                    continue;
-                }
-                List<UUID> byCodeIds = byCode.getOrDefault(code, List.of());
-                if (byCodeIds.isEmpty()) {
+                List<UUID> instances = referenced != null
+                        ? List.of(referenced)
+                        : boundByCode.getOrDefault(code, List.of());
+                instancesByCode.put(code, instances);
+                if (instances.isEmpty() || !boundIds.containsAll(instances)) {
                     complete = false;
-                    break;
                 }
-                instances.addAll(byCodeIds);
             }
-            if (complete) {
-                satisfied.put(agentSkill.getSkillId(), instances);
+            resolved.add(new ResolvedSkill(agentSkill.getId(), agentSkill.getSkillId(), instancesByCode, complete));
+        }
+        return new SkillResolution(resolved, boundIds, connections);
+    }
+
+    /** @see #resolveSkills */
+    private record ResolvedSkill(UUID agentSkillId, UUID skillId,
+                                 Map<String, List<UUID>> instancesByCode, boolean complete) {
+    }
+
+    /** @see #resolveSkills */
+    private record SkillResolution(List<ResolvedSkill> skills, Set<UUID> boundIds,
+                                   Map<UUID, Connection> connections) {
+    }
+
+    /**
+     * The agent's <b>satisfied</b> skills and the instances each works with: skillId → connection ids.
+     * A skill is absent when any connector it declares has no reachable instance — it is not given to
+     * the agent at all, because its body would otherwise promise tools that are not there. The union of
+     * the values is the tool gate.
+     */
+    public Map<UUID, Set<UUID>> satisfiedSkillInstances(UUID agentId) {
+        Map<UUID, Set<UUID>> satisfied = new LinkedHashMap<>();
+        for (ResolvedSkill skill : resolveSkills(agentId).skills()) {
+            if (skill.complete()) {
+                satisfied.put(skill.skillId(), skill.instancesByCode().values().stream()
+                        .flatMap(List::stream).collect(Collectors.toCollection(LinkedHashSet::new)));
             } else {
-                log.debug("Skill {} is not satisfied for agent {} — not delivered", agentSkill.getSkillId(), agentId);
+                log.debug("Skill {} is not satisfied for agent {} — not delivered", skill.skillId(), agentId);
             }
         }
         return satisfied;
     }
 
-    /** How many of the agent's skills point at each connection — the «used by» counter of the listing. */
+    /**
+     * How many of the agent's skills point at each connection — the «used by» counter of the listing.
+     * Unsatisfied skills count too: the number answers «what points here», and a skill that is broken
+     * for another reason still means this instance is not dead weight.
+     */
     public Map<UUID, Long> skillReferencesByConnection(UUID agentId) {
         Map<UUID, Long> counts = new HashMap<>();
-        for (Object[] row : agentSkillConnectionRepository.countByConnectionForAgent(agentId)) {
-            counts.put((UUID) row[0], (Long) row[1]);
+        for (ResolvedSkill skill : resolveSkills(agentId).skills()) {
+            skill.instancesByCode().values().stream()
+                    .flatMap(List::stream)
+                    .distinct()
+                    .forEach(connectionId -> counts.merge(connectionId, 1L, Long::sum));
         }
         return counts;
     }
@@ -354,67 +390,28 @@ public class AgentSkillService {
     }
 
     /**
-     * Everything needed to answer «is this skill satisfied» for one agent, read once: what the agent is
-     * bound to, and what its skills point at. Assembled per request rather than per skill so a page of
-     * skills costs two queries instead of two per row.
+     * The listing view of one skill's resolution: per declared code, the instance it means (one
+     * representative — the listing shows a choice, not a set) and whether the agent can reach it.
      */
-    private SatisfactionContext satisfactionContext(UUID agentId, List<UUID> agentSkillIds) {
-        Map<UUID, Connection> boundById = new LinkedHashMap<>();
-        Map<String, Connection> boundByCode = new LinkedHashMap<>();
-        for (Connection connection : connectionRepository.findActiveBoundToAgent(agentId)) {
-            boundById.put(connection.getId(), connection);
-            boundByCode.putIfAbsent(connection.getConnectorCode(), connection);
-        }
-
-        Map<UUID, Map<String, UUID>> referencesBySkill = new HashMap<>();
-        Set<UUID> referencedIds = new HashSet<>();
-        if (!agentSkillIds.isEmpty()) {
-            for (AgentSkillConnection link : agentSkillConnectionRepository.findByAgentSkillIdIn(agentSkillIds)) {
-                referencesBySkill
-                        .computeIfAbsent(link.getAgentSkillId(), k -> new HashMap<>())
-                        .put(link.getConnectorCode(), link.getConnectionId());
-                referencedIds.add(link.getConnectionId());
-            }
-        }
-        // A referenced instance may be unbound (or belong to another agent's screen): we still show which
-        // one the skill means, and mark it unsatisfied — «chosen but unavailable» is a different problem
-        // for the user than «nothing chosen».
-        Map<UUID, Connection> referencedById = new HashMap<>(boundById);
-        referencedIds.removeAll(boundById.keySet());
-        if (!referencedIds.isEmpty()) {
-            connectionRepository.findByIdInNotDeleted(List.copyOf(referencedIds))
-                    .forEach(c -> referencedById.put(c.getId(), c));
-        }
-        return new SatisfactionContext(boundById, boundByCode, referencesBySkill, referencedById);
-    }
-
-    /** @see #satisfactionContext */
-    private record SatisfactionContext(Map<UUID, Connection> boundById,
-                                       Map<String, Connection> boundByCode,
-                                       Map<UUID, Map<String, UUID>> referencesBySkill,
-                                       Map<UUID, Connection> referencedById) {
-    }
-
-    private List<SkillConnectorStatus> statuses(SatisfactionContext context, UUID agentSkillId,
+    private List<SkillConnectorStatus> statuses(SkillResolution resolution, UUID agentSkillId,
                                                 List<String> connectorCodes) {
-        Map<String, UUID> references = context.referencesBySkill().getOrDefault(agentSkillId, Map.of());
+        Map<String, List<UUID>> instancesByCode = resolution.skills().stream()
+                .filter(skill -> skill.agentSkillId().equals(agentSkillId))
+                .findFirst()
+                .map(ResolvedSkill::instancesByCode)
+                .orElse(Map.of());
+
         List<SkillConnectorStatus> statuses = new ArrayList<>();
         for (String code : connectorCodes) {
-            UUID referenced = references.get(code);
-            // No reference — a binding made before references existed: fall back to «any instance of that
-            // code», which is exactly what the tool gate still does. Transitional; it dies together with
-            // the gate moving from the code to the instance.
-            Connection connection = referenced != null
-                    ? context.referencedById().get(referenced)
-                    : context.boundByCode().get(code);
-            UUID connectionId = referenced != null ? referenced
-                    : (connection != null ? connection.getId() : null);
+            List<UUID> instances = instancesByCode.getOrDefault(code, List.of());
+            UUID connectionId = instances.isEmpty() ? null : instances.get(0);
+            Connection connection = connectionId == null ? null : resolution.connections().get(connectionId);
             statuses.add(new SkillConnectorStatus(
                     code,
                     connectionId,
                     connection != null ? displayName(connection) : null,
                     connectionBindingService.kindOf(code) == ConnectorKind.INTERNAL,
-                    connectionId != null && context.boundById().containsKey(connectionId)));
+                    connectionId != null && resolution.boundIds().contains(connectionId)));
         }
         return statuses;
     }

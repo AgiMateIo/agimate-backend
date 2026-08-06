@@ -103,6 +103,12 @@ class AgentSkillServiceTest {
                 .connectorCodes(List.of(connectorCodes))
                 .build();
         when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(skill));
+        // The status is read back through the same resolution the run context uses, and that one starts
+        // from the agent's skills — so the binding has to be visible to it.
+        when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(List.of(
+                AgentSkill.builder().id(AGENT_SKILL_ID).agentId(AGENT_ID)
+                        .userId(USER_ID).skillId(SKILL_ID).build()));
+        when(skillRepository.findByIdInNotDeleted(any())).thenReturn(List.of(skill));
     }
 
     private List<AgentSkillConnection> savedLinks() {
@@ -258,14 +264,6 @@ class AgentSkillServiceTest {
 
         private final UUID otherTelegramId = UUID.randomUUID();
 
-        private void agentHasSkill() {
-            when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(List.of(
-                    AgentSkill.builder().id(AGENT_SKILL_ID).agentId(AGENT_ID)
-                            .userId(USER_ID).skillId(SKILL_ID).build()));
-            when(skillRepository.findByIdInNotDeleted(any())).thenAnswer(invocation ->
-                    skillRepository.findByIdNotDeleted(SKILL_ID).map(List::of).orElse(List.of()));
-        }
-
         private void referenced(String code, UUID connectionId) {
             when(agentSkillConnectionRepository.findByAgentSkillIdIn(anyList())).thenReturn(List.of(
                     AgentSkillConnection.builder()
@@ -276,7 +274,6 @@ class AgentSkillServiceTest {
         @DisplayName("ссылка на непривязанный инстанс → навыка нет вовсе")
         void unsatisfiedSkillIsNotDelivered() {
             skill("telegram");
-            agentHasSkill();
             referenced("telegram", TELEGRAM_ID);
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
 
@@ -287,7 +284,6 @@ class AgentSkillServiceTest {
         @DisplayName("два телеграма привязаны, ссылка на один → в гейт уходит только он")
         void gateNarrowsToTheChosenInstance() {
             skill("telegram");
-            agentHasSkill();
             referenced("telegram", TELEGRAM_ID);
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
                     .thenReturn(List.of(telegram, connection(otherTelegramId, "telegram", "Личный")));
@@ -300,7 +296,6 @@ class AgentSkillServiceTest {
         @DisplayName("старая привязка без ссылки → в гейт уходят все инстансы кода, как было")
         void legacyKeepsEveryInstanceOfTheCode() {
             skill("telegram");
-            agentHasSkill();
             when(agentSkillConnectionRepository.findByAgentSkillIdIn(anyList())).thenReturn(List.of());
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
                     .thenReturn(List.of(telegram, connection(otherTelegramId, "telegram", "Личный")));
@@ -310,10 +305,22 @@ class AgentSkillServiceTest {
         }
 
         @Test
+        @DisplayName("счётчик у коннекшена и статус навыка отвечают одинаково — и на старой привязке")
+        void counterAgreesWithTheStatus() {
+            skill("telegram");
+            when(agentSkillConnectionRepository.findByAgentSkillIdIn(anyList())).thenReturn(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(telegram));
+
+            // Навык считает себя удовлетворённым по фолбэку «любой инстанс кода» — значит и коннекшен
+            // обязан видеть, что им пользуются: иначе он выглядит мёртвым и его предложат отвязать.
+            assertFalse(service.satisfiedSkillInstances(AGENT_ID).isEmpty());
+            assertEquals(Map.of(TELEGRAM_ID, 1L), service.skillReferencesByConnection(AGENT_ID));
+        }
+
+        @Test
         @DisplayName("хватает не всех коннекторов → навык не отдаётся целиком")
         void allOrNothing() {
             skill("telegram", "persist-memory");
-            agentHasSkill();
             referenced("telegram", TELEGRAM_ID);
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(telegram));
 
