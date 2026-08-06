@@ -14,7 +14,6 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillResponse;
-import ru.agimate.controlapi.controller.manage.dto.PolicyDiffResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillConnectorStatus;
 import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.AgentSkillConnection;
@@ -30,8 +29,10 @@ import ru.agimate.controlapi.service.connection.ConnectionBindingService.Connect
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -50,7 +51,6 @@ public class AgentSkillService {
     private final AgentRepository agentRepository;
     private final SkillRepository skillRepository;
     private final ConnectionRepository connectionRepository;
-    private final AgentSkillPolicyService agentSkillPolicyService;
     private final AgentSkillConnectionRepository agentSkillConnectionRepository;
     private final ConnectionBindingService connectionBindingService;
 
@@ -144,7 +144,6 @@ public class AgentSkillService {
         }
 
         storeConnections(agentSkill.getId(), skill, userId, requested);
-        agentSkillPolicyService.applyDiff(agentId, userId);
 
         log.info("Bound skill {} to agent {} for user {}", skillId, agentId, userId);
 
@@ -164,19 +163,21 @@ public class AgentSkillService {
             throw new NotFoundStatusException("Agent-skill binding not found");
         }
 
+        // Access is not revoked here: the skill never granted it. The connection stays bound until the
+        // user unbinds it — that is what «skills and connections are managed separately» means.
         agentSkillRepository.delete(agentSkill);
-        agentSkillPolicyService.applyDiff(agentId, userId);
 
         log.info("Unbound skill {} from agent {} for user {}", skillId, agentId, userId);
     }
 
+    /**
+     * Accept the current version of every skill the agent has: the body is read live at run time, so
+     * this only clears {@code needsReinstall} — «yes, I have seen what the author changed».
+     */
     @Transactional
-    public void syncPolicies(UUID agentId, UUID userId) {
+    public void markSkillsInstalled(UUID agentId, UUID userId) {
         verifyAgentOwnership(agentId, userId);
 
-        agentSkillPolicyService.applyDiff(agentId, userId);
-
-        // Update installedSkillVersion for all skills on this agent
         var agentSkills = agentSkillRepository.findByAgentId(agentId);
         var skillIds = agentSkills.stream().map(AgentSkill::getSkillId).collect(Collectors.toSet());
 
@@ -193,24 +194,7 @@ public class AgentSkillService {
         }
         agentSkillRepository.saveAll(agentSkills);
 
-        log.info("Synced policies for all skills on agent {} for user {}", agentId, userId);
-    }
-
-    public PolicyDiffResponse previewPolicyDiff(UUID agentId, UUID skillId, UUID userId, String action) {
-        verifyAgentOwnership(agentId, userId);
-
-        return switch (action) {
-            case "add" -> {
-                verifySkillAccessible(skillId, userId);
-                yield agentSkillPolicyService.previewAdd(agentId, skillId);
-            }
-            case "remove" -> {
-                verifySkillAccessible(skillId, userId);
-                yield agentSkillPolicyService.previewRemove(agentId, skillId);
-            }
-            case "sync" -> agentSkillPolicyService.previewSync(agentId);
-            default -> throw new IllegalArgumentException("Invalid action: " + action + ". Expected: add, remove, sync");
-        };
+        log.info("Marked skills installed at their current version on agent {} for user {}", agentId, userId);
     }
 
     /**
@@ -233,6 +217,73 @@ public class AgentSkillService {
         SatisfactionContext context = satisfactionContext(agentId, List.of(agentSkill.getId()));
         return AgentSkillResponse.from(agentSkill, skill.getName(),
                 statuses(context, agentSkill.getId(), skill.getConnectorCodes()), false);
+    }
+
+    /**
+     * The agent's <b>satisfied</b> skills and the instances each of them works with: skillId → connection
+     * ids. A skill is absent when any connector it declares has no reachable instance — it is not given
+     * to the agent at all, because its body would otherwise promise tools that are not there.
+     *
+     * <p>The union of the values is the tool gate: only these instances reach the run context. A
+     * declared code with no reference of its own (a binding older than references) resolves to
+     * <b>every</b> bound instance of that code — exactly what the gate did when it worked by code, so
+     * nothing narrows behind the user's back.
+     */
+    public Map<UUID, Set<UUID>> satisfiedSkillInstances(UUID agentId) {
+        List<AgentSkill> agentSkills = agentSkillRepository.findByAgentId(agentId);
+        if (agentSkills.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, Skill> skills = skillRepository
+                .findByIdInNotDeleted(agentSkills.stream().map(AgentSkill::getSkillId).collect(Collectors.toSet()))
+                .stream().collect(Collectors.toMap(Skill::getId, skill -> skill));
+
+        Set<UUID> boundIds = new HashSet<>();
+        Map<String, List<UUID>> byCode = new HashMap<>();
+        for (Connection connection : connectionRepository.findActiveBoundToAgent(agentId)) {
+            boundIds.add(connection.getId());
+            byCode.computeIfAbsent(connection.getConnectorCode(), k -> new ArrayList<>()).add(connection.getId());
+        }
+        Map<UUID, Map<String, UUID>> references = new HashMap<>();
+        for (AgentSkillConnection link : agentSkillConnectionRepository.findByAgentSkillIdIn(
+                agentSkills.stream().map(AgentSkill::getId).toList())) {
+            references.computeIfAbsent(link.getAgentSkillId(), k -> new HashMap<>())
+                    .put(link.getConnectorCode(), link.getConnectionId());
+        }
+
+        Map<UUID, Set<UUID>> satisfied = new LinkedHashMap<>();
+        for (AgentSkill agentSkill : agentSkills) {
+            Skill skill = skills.get(agentSkill.getSkillId());
+            if (skill == null) {
+                continue;
+            }
+            Map<String, UUID> skillReferences = references.getOrDefault(agentSkill.getId(), Map.of());
+            Set<UUID> instances = new LinkedHashSet<>();
+            boolean complete = true;
+            for (String code : skill.getConnectorCodes()) {
+                UUID referenced = skillReferences.get(code);
+                if (referenced != null) {
+                    if (!boundIds.contains(referenced)) {
+                        complete = false;
+                        break;
+                    }
+                    instances.add(referenced);
+                    continue;
+                }
+                List<UUID> byCodeIds = byCode.getOrDefault(code, List.of());
+                if (byCodeIds.isEmpty()) {
+                    complete = false;
+                    break;
+                }
+                instances.addAll(byCodeIds);
+            }
+            if (complete) {
+                satisfied.put(agentSkill.getSkillId(), instances);
+            } else {
+                log.debug("Skill {} is not satisfied for agent {} — not delivered", agentSkill.getSkillId(), agentId);
+            }
+        }
+        return satisfied;
     }
 
     /** How many of the agent's skills point at each connection — the «used by» counter of the listing. */
@@ -316,7 +367,7 @@ public class AgentSkillService {
         }
 
         Map<UUID, Map<String, UUID>> referencesBySkill = new HashMap<>();
-        Set<UUID> referencedIds = new java.util.HashSet<>();
+        Set<UUID> referencedIds = new HashSet<>();
         if (!agentSkillIds.isEmpty()) {
             for (AgentSkillConnection link : agentSkillConnectionRepository.findByAgentSkillIdIn(agentSkillIds)) {
                 referencesBySkill

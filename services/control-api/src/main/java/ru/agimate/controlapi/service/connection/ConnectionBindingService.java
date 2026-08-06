@@ -35,10 +35,10 @@ import java.util.stream.Collectors;
  * <p>Internal connectors (board/memory/time/media/webchat/acp): a connection is a mode row, <b>one per
  * user</b> ({@link #ensureModeConnection}, find-or-create by {@code (connector_code, user_id)}). The
  * data's owner is resolved by the connector's code at call time from {@code ConnectorEnv} (the rule is
- * the connector's knowledge, see docs/architecture/connectors.md). Access is granted to agents by the
- * skill sync ({@code AgentSkillPolicyService}) or by the channel services (webchat/acp) through
- * {@link #bindInternal}; managing internal connectors' bindings by hand through the manage API is
- * forbidden.
+ * the connector's knowledge, see docs/architecture/connectors.md). Access is granted the same way as
+ * for an external instance — by the user, through the manage API — except that the connector is named
+ * by code, because the mode row may not exist yet. The channel services (webchat/acp) also open one
+ * through {@link #bindInternal} when they create a channel.
  *
  * <p>External connectors (telegram/mcp/app): a connection is a concrete instance with credentials, and
  * binding is only ever to an existing id ({@link #ensureBindingToExisting}).
@@ -166,14 +166,27 @@ public class ConnectionBindingService {
         return views;
     }
 
-    /** Bind an external instance and return the view (binding + connection) — for the manage API's response. */
+    /** Open an existing instance to an agent and return the view (binding + connection). */
     @Transactional
     public AgentConnectionView bindAndView(UUID userId, UUID agentId, UUID connectionId) {
         requireOwnedAgent(userId, agentId);
-        Connection connection = requireExternalConnection(userId, connectionId);
+        return view(agentId, requireOwnedConnection(userId, connectionId));
+    }
+
+    /**
+     * Open an internal connector to an agent, naming it by code: its mode row may not exist yet, so its
+     * id is unknowable to the caller until something materialises it.
+     */
+    @Transactional
+    public AgentConnectionView bindInternalAndView(UUID userId, UUID agentId, String connectorCode) {
+        requireOwnedAgent(userId, agentId);
+        return view(agentId, ensureModeConnection(userId, connectorCode));
+    }
+
+    private AgentConnectionView view(UUID agentId, Connection connection) {
         AgentConnection binding = ensureBinding(agentId, connection.getId());
-        // requireExternalConnection has already refused an internal one.
-        return new AgentConnectionView(binding, connection, false);
+        return new AgentConnectionView(binding, connection,
+                kindOf(connection.getConnectorCode()) == ConnectorKind.INTERNAL);
     }
 
     private void requireOwnedAgent(UUID userId, UUID agentId) {
@@ -196,14 +209,13 @@ public class ConnectionBindingService {
     }
 
     /**
-     * Unbind an external instance from an agent. Internal connectors' bindings are managed by the skill
-     * sync and the channels — unbinding them by hand is forbidden (the next sync would resurrect it
-     * anyway).
+     * Close a connector for an agent. Any kind: skills no longer resurrect internal bindings, so the
+     * user's decision is the last word — the skills that pointed at this instance simply go unsatisfied.
      */
     @Transactional
     public void unbind(UUID userId, UUID agentId, UUID connectionId) {
         requireOwnedAgent(userId, agentId);
-        requireExternalConnection(userId, connectionId);
+        requireOwnedConnection(userId, connectionId);
         AgentConnection binding = agentConnectionRepository.findActiveBinding(agentId, connectionId)
                 .orElseThrow(() -> new NotFoundStatusException("Binding not found"));
         removeBinding(binding);
@@ -238,14 +250,9 @@ public class ConnectionBindingService {
         return kindOf(connectorCode) == ConnectorKind.INTERNAL;
     }
 
-    private Connection requireExternalConnection(UUID userId, UUID connectionId) {
-        Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
+    private Connection requireOwnedConnection(UUID userId, UUID connectionId) {
+        return connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
-        if (isInternal(connection.getConnectorCode())) {
-            throw new BadRequestStatusException(
-                    "Connector " + connection.getConnectorCode() + " is managed by skills");
-        }
-        return connection;
     }
 
     /**
@@ -262,10 +269,9 @@ public class ConnectionBindingService {
     }
 
     /**
-     * Unbind an agent from every instance (deleting an agent). Deliberately bypassing {@link #unbind}:
-     * the ban on internal connectors is a rule of the manage API («do not touch by hand, the skill sync
-     * will resurrect it»), not of the lifecycle, where everything is removed. Ownership is checked by
-     * the caller (the agent is already loaded).
+     * Unbind an agent from every instance (deleting an agent). Bypasses {@link #unbind} because there is
+     * nothing to check here: ownership is already established by the caller (the agent is loaded), and
+     * a lifecycle removal takes everything regardless of who granted it.
      */
     @Transactional
     public void detachAgent(UUID agentId) {

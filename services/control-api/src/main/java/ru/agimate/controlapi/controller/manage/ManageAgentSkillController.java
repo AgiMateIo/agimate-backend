@@ -11,7 +11,6 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateAgentSkillRequest;
-import ru.agimate.controlapi.controller.manage.dto.PolicyDiffResponse;
 import ru.agimate.controlapi.service.AgentSkillService;
 
 import java.util.Map;
@@ -39,7 +38,7 @@ public class ManageAgentSkillController {
         return SuccessResponse.ok(PageResponse.from(agentSkillService.getAgentSkills(agentId, userId, page, size)));
     }
 
-    @Operation(summary = "Bind an own or public skill to an agent (also binds the skill's connectors)")
+    @Operation(summary = "Bind a skill to an agent, declaring which instance it works with per connector")
     @PostMapping("/")
     public SuccessResponse<AgentSkillResponse> createAgentSkill(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -64,7 +63,7 @@ public class ManageAgentSkillController {
                 agentId, skillId, userId, connections == null ? Map.of() : connections));
     }
 
-    @Operation(summary = "Unbind a skill from an agent (connector bindings are add-only, not revoked)")
+    @Operation(summary = "Unbind a skill from an agent (the connections it used stay bound)")
     @DeleteMapping("/{skillId}")
     public SuccessResponse<Void> deleteAgentSkill(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -76,26 +75,14 @@ public class ManageAgentSkillController {
         return SuccessResponse.empty();
     }
 
-    @Operation(summary = "Preview policy changes for add, remove, or sync action")
-    @GetMapping("/{skillId}/policy-diff")
-    public SuccessResponse<PolicyDiffResponse> previewPolicyDiff(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID agentId,
-            @PathVariable UUID skillId,
-            @RequestParam String action
-    ) {
-        UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(agentSkillService.previewPolicyDiff(agentId, skillId, userId, action));
-    }
-
-    @Operation(summary = "Re-sync all skill-sourced policies for the agent")
-    @PostMapping("/sync-policies")
-    public SuccessResponse<Void> syncPolicies(
+    @Operation(summary = "Accept the current version of every skill on the agent (clears needsReinstall)")
+    @PostMapping("/refresh")
+    public SuccessResponse<Void> refreshSkillVersions(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId
     ) {
         UUID userId = UUID.fromString(principal.id());
-        agentSkillService.syncPolicies(agentId, userId);
+        agentSkillService.markSkillsInstalled(agentId, userId);
         return SuccessResponse.empty();
     }
 }

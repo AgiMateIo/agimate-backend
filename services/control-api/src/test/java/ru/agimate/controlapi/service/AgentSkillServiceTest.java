@@ -39,7 +39,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -63,8 +62,6 @@ class AgentSkillServiceTest {
     private SkillRepository skillRepository;
     @Mock
     private ConnectionRepository connectionRepository;
-    @Mock
-    private AgentSkillPolicyService agentSkillPolicyService;
     @Mock
     private AgentSkillConnectionRepository agentSkillConnectionRepository;
     @Mock
@@ -255,6 +252,76 @@ class AgentSkillServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("satisfiedSkillInstances — что доедет до агента")
+    class SatisfiedInstances {
+
+        private final UUID otherTelegramId = UUID.randomUUID();
+
+        private void agentHasSkill() {
+            when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(List.of(
+                    AgentSkill.builder().id(AGENT_SKILL_ID).agentId(AGENT_ID)
+                            .userId(USER_ID).skillId(SKILL_ID).build()));
+            when(skillRepository.findByIdInNotDeleted(any())).thenAnswer(invocation ->
+                    skillRepository.findByIdNotDeleted(SKILL_ID).map(List::of).orElse(List.of()));
+        }
+
+        private void referenced(String code, UUID connectionId) {
+            when(agentSkillConnectionRepository.findByAgentSkillIdIn(anyList())).thenReturn(List.of(
+                    AgentSkillConnection.builder()
+                            .agentSkillId(AGENT_SKILL_ID).connectorCode(code).connectionId(connectionId).build()));
+        }
+
+        @Test
+        @DisplayName("ссылка на непривязанный инстанс → навыка нет вовсе")
+        void unsatisfiedSkillIsNotDelivered() {
+            skill("telegram");
+            agentHasSkill();
+            referenced("telegram", TELEGRAM_ID);
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+
+            assertTrue(service.satisfiedSkillInstances(AGENT_ID).isEmpty());
+        }
+
+        @Test
+        @DisplayName("два телеграма привязаны, ссылка на один → в гейт уходит только он")
+        void gateNarrowsToTheChosenInstance() {
+            skill("telegram");
+            agentHasSkill();
+            referenced("telegram", TELEGRAM_ID);
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
+                    .thenReturn(List.of(telegram, connection(otherTelegramId, "telegram", "Личный")));
+
+            assertEquals(Map.of(SKILL_ID, java.util.Set.of(TELEGRAM_ID)),
+                    service.satisfiedSkillInstances(AGENT_ID));
+        }
+
+        @Test
+        @DisplayName("старая привязка без ссылки → в гейт уходят все инстансы кода, как было")
+        void legacyKeepsEveryInstanceOfTheCode() {
+            skill("telegram");
+            agentHasSkill();
+            when(agentSkillConnectionRepository.findByAgentSkillIdIn(anyList())).thenReturn(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
+                    .thenReturn(List.of(telegram, connection(otherTelegramId, "telegram", "Личный")));
+
+            assertEquals(Map.of(SKILL_ID, java.util.Set.of(TELEGRAM_ID, otherTelegramId)),
+                    service.satisfiedSkillInstances(AGENT_ID));
+        }
+
+        @Test
+        @DisplayName("хватает не всех коннекторов → навык не отдаётся целиком")
+        void allOrNothing() {
+            skill("telegram", "persist-memory");
+            agentHasSkill();
+            referenced("telegram", TELEGRAM_ID);
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of(telegram));
+
+            assertTrue(service.satisfiedSkillInstances(AGENT_ID).isEmpty(),
+                    "память не привязана — половина навыка не отдаётся");
+        }
+    }
+
     @Test
     @DisplayName("замена ссылок сносит прежние и не трогает привязки доступа")
     void replaceConnections() {
@@ -266,6 +333,5 @@ class AgentSkillServiceTest {
 
         verify(agentSkillConnectionRepository).deleteByAgentSkillId(AGENT_SKILL_ID);
         assertEquals(TELEGRAM_ID, savedLinks().get(0).getConnectionId());
-        verify(agentSkillPolicyService, never()).applyDiff(any(), any());
     }
 }

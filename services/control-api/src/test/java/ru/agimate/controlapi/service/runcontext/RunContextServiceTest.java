@@ -161,6 +161,11 @@ class RunContextServiceTest {
         when(agentSkillService.resolveSkillsById(anyList())).thenReturn(
                 skills.stream().collect(java.util.stream.Collectors.toMap(
                         AgentSkillWithConnectorsResponse::skillId, s -> s)));
+        // Every stubbed skill counts as satisfied and points at the connection of its code — the
+        // satisfaction rules themselves are tested in AgentSkillServiceTest.
+        when(agentSkillService.satisfiedSkillInstances(AGENT_ID)).thenReturn(
+                skills.stream().collect(java.util.stream.Collectors.toMap(
+                        AgentSkillWithConnectorsResponse::skillId, s -> java.util.Set.of(CONNECTION_ID))));
     }
 
     private Connection memoryConnection() {
@@ -445,7 +450,9 @@ class RunContextServiceTest {
             // Канал приносит тулы: handler contributesPromptTools, connectorCode == персист-мемори.
             ru.agimate.controlapi.database.entities.Channel channel =
                     ru.agimate.controlapi.database.entities.Channel.builder()
-                            .id(CHANNEL_ID).channelHandler("acp").connectorCode("persist-memory").build();
+                            .id(CHANNEL_ID).channelHandler("acp").connectorCode("persist-memory")
+                            // channels.connection_id is NOT NULL — the gate matches the instance, not the code
+                            .connectionId(CONNECTION_ID).build();
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
             ru.agimate.controlapi.service.channel.handler.ChannelHandler h =
                     mock(ru.agimate.controlapi.service.channel.handler.ChannelHandler.class);

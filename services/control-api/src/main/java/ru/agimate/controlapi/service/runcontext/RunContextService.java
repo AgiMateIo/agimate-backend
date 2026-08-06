@@ -167,14 +167,20 @@ public class RunContextService {
         // trigger has nothing to do with the event's connector (a task from the board may require media). The
         // bodies: in a dialogue all of them (skills define behaviour there too), in a trigger run they are
         // scoped by the event's connector.
-        List<AgentSkillWithConnectorsResponse> listed = listedSkills(agentId);
+        // Only satisfied skills reach the agent: a skill whose connector has no reachable instance would
+        // promise tools that are not in the context. The same map carries the instances themselves — the
+        // gate is «this connection», not «any connection of that code».
+        Map<UUID, Set<UUID>> satisfied = agentSkillService.satisfiedSkillInstances(agentId);
+        List<AgentSkillWithConnectorsResponse> listed = listedSkills(agentId).stream()
+                .filter(skill -> satisfied.containsKey(skill.skillId()))
+                .toList();
         List<AgentSkillWithConnectorsResponse> scoped = switch (spec.skillBodies()) {
             case ALL -> listed;
             case MATCHED -> matchedSkills(listed, trigger);
         };
-        Set<String> requiredConnectors = new LinkedHashSet<>();
+        Set<UUID> requiredConnections = new LinkedHashSet<>();
         if (effective.skillTools()) {
-            listed.forEach(s -> requiredConnectors.addAll(s.connectorCodes()));
+            listed.forEach(skill -> requiredConnections.addAll(satisfied.getOrDefault(skill.skillId(), Set.of())));
         }
 
         List<Connection> connections = connectionRepository.findActiveBoundToAgent(agentId);
@@ -185,13 +191,13 @@ public class RunContextService {
         // A channel that brings its own tools (the IDE connector) mixes the prompt channel's connector in past
         // the skill gate — «the channel brings tools», for as long as the conversation comes from that channel.
         // It returns that channel's connection so its tools are listed session-aware (session-scoped MCP from the IDE).
-        UUID sessionAwareConnectionId = addPromptChannelTools(promptChannelId, requiredConnectors);
+        UUID sessionAwareConnectionId = addPromptChannelTools(promptChannelId, requiredConnections);
         // ownConnectionTools: the event's connection (that one specifically, not every connection of its code —
         // INSTANCE) enters the selection past the skill gate.
         UUID ownConnectionId = effective.ownConnectionTools()
                 ? tryParseUuid(trigger.connectionId()) : null;
 
-        List<RunTool> tools = collectTools(connections, requiredConnectors, ownConnectionId,
+        List<RunTool> tools = collectTools(connections, requiredConnections, ownConnectionId,
                 sessionAwareConnectionId, promptSessionId);
 
         List<RunBlock> systemBlocks = new ArrayList<>();
@@ -610,7 +616,7 @@ public class RunContextService {
 
     /**
      * If the prompt channel brings its own tools ({@link ChannelHandler#contributesPromptTools}), its
-     * connector is added to {@code requiredConnectors} — {@link #collectTools} then picks up that
+     * connection is added to {@code requiredConnections} — {@link #collectTools} then picks up that
      * binding's tools regardless of the agent's skills.
      *
      * @return the connection of that channel (a session-aware listing), or {@code null}
@@ -639,13 +645,13 @@ public class RunContextService {
     // ===== Tools =====
 
     /**
-     * Tools of the connections whose connector is required by the scoped skills, plus
+     * Tools of the connections the scoped skills point at, plus
      * {@code ownConnectionId} (the event's connection under {@code ownConnectionTools} — addressed
      * directly, bypassing the skill gate). For {@code sessionAwareConnectionId} (the connection of a
      * prompt channel that brings tools) the STATIC listing gets an env carrying
      * {@code promptSessionId}, so the connector can return session-scoped tools (MCP from the IDE).
      */
-    private UUID addPromptChannelTools(UUID promptChannelId, Set<String> requiredConnectors) {
+    private UUID addPromptChannelTools(UUID promptChannelId, Set<UUID> requiredConnections) {
         if (promptChannelId == null) {
             return null;
         }
@@ -653,7 +659,7 @@ public class RunContextService {
                 .filter(channel -> channelHandlerRegistry.find(channel.getChannelHandler())
                         .filter(ChannelHandler::contributesPromptTools).isPresent())
                 .map(channel -> {
-                    requiredConnectors.add(channel.getConnectorCode());
+                    requiredConnections.add(channel.getConnectionId());
                     return channel.getConnectionId();
                 })
                 .orElse(null);
@@ -664,12 +670,12 @@ public class RunContextService {
      * instances → {@code full_code}; internal mode rows → {@code connector_code}. «Internal vs
      * external» is knowledge of the registry (the handler's type), not a field on the connection.
      */
-    private List<RunTool> collectTools(List<Connection> connections, Set<String> requiredConnectors,
+    private List<RunTool> collectTools(List<Connection> connections, Set<UUID> requiredConnections,
                                        UUID ownConnectionId, UUID sessionAwareConnectionId,
                                        UUID promptSessionId) {
         List<RunTool> tools = new ArrayList<>();
         for (Connection connection : connections) {
-            if (!requiredConnectors.contains(connection.getConnectorCode())
+            if (!requiredConnections.contains(connection.getId())
                     && !connection.getId().equals(ownConnectionId)) {
                 continue;
             }

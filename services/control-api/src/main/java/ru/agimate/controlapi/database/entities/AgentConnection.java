@@ -15,8 +15,10 @@ import java.util.UUID;
  * unavailable to the agent (even when the {@code connections} record exists). For internal
  * connectors a connection is a mode row, one per user: all of that user's agents using the connector
  * point at it, and the data owner is resolved by the connector's code from {@code ConnectorEnv}.
- * Bindings of internal connectors are managed by the skill sync ({@code AgentSkillPolicyService})
- * and by the channel services; external ones (telegram/mcp/app) are explicit.
+ * Every binding is the user's explicit decision — internal connectors included (they are addressed by
+ * code, their mode row is materialised on the spot). Skills do not create or remove bindings: they
+ * declare which instance they work with and go unsatisfied while it is not open. The exception is a
+ * channel (webchat/acp), which creates its binding together with itself.
  *
  * <p>Tools are allowed by default once a binding exists; {@link AgentConnectionPolicy} only refines
  * that (DENY of specific ones, an allow-list via a wildcard, {@code params_filter}).
