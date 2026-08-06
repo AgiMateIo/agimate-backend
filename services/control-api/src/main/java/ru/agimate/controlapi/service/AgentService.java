@@ -49,6 +49,7 @@ import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.secret.SecretService;
+import ru.agimate.controlapi.util.AgentNames;
 import ru.agimate.controlapi.util.AppKeyUtils;
 import ru.agimate.controlapi.util.GeneratedAppKey;
 
@@ -316,7 +317,7 @@ public class AgentService {
                 .keyHash(generatedKey.secretHash())
                 .keyId(generatedKey.keyId())
                 .userId(userId)
-                .name(command.name())
+                .name(AgentNames.unique(command.name(), agentRepository.findNamesByUserId(userId)))
                 .description(command.description())
                 .instructions(command.instructions())
                 .type(type)

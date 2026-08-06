@@ -52,6 +52,10 @@ public interface AgentRepository extends JpaRepository<Agent, UUID> {
             @Param("userId") UUID userId,
             @Param("connectionId") UUID connectionId);
 
+    /** Names of the user's active agents (deleted ones are hidden by @SQLRestriction) — for deduplicating a new name. */
+    @Query("SELECT a.name FROM Agent a WHERE a.userId = :userId")
+    List<String> findNamesByUserId(@Param("userId") UUID userId);
+
     List<Agent> findByUserIdAndAgenticTeamId(UUID userId, UUID agenticTeamId);
 
     Page<Agent> findByUserIdAndAgenticTeamId(UUID userId, UUID agenticTeamId, Pageable pageable);
