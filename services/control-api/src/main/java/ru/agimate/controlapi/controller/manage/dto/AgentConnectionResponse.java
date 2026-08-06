@@ -27,6 +27,9 @@ public record AgentConnectionResponse(
         @Schema(description = "Whether the connection is enabled")
         boolean enabled,
 
+        @Schema(description = "Binding of an internal connector: not removable here, its source of truth is the agent's skills")
+        boolean managedBySkills,
+
         LocalDateTime createdAt
 ) {
     public static AgentConnectionResponse from(AgentConnectionView view) {
@@ -38,6 +41,7 @@ public record AgentConnectionResponse(
                 c.getFullCode(),
                 c.getName(),
                 Boolean.TRUE.equals(c.getEnabled()),
+                view.managedBySkills(),
                 view.binding().getCreatedAt());
     }
 }

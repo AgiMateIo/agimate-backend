@@ -111,8 +111,14 @@ public class ConnectionBindingService {
                         "Mode connection missing right after materialization: " + connectorCode));
     }
 
-    /** A binding together with its connection — for the manage API (the list and the binding response). */
-    public record AgentConnectionView(AgentConnection binding, Connection connection) {}
+    /**
+     * A binding together with its connection — for the manage API (the list and the binding response).
+     *
+     * @param managedBySkills the binding belongs to an internal connector, so it is not removable here:
+     *                        skills are its source of truth. Computed rather than left to the caller —
+     *                        otherwise every client would have to keep its own list of internal codes.
+     */
+    public record AgentConnectionView(AgentConnection binding, Connection connection, boolean managedBySkills) {}
 
     /** An agent's active bindings with their connections (for the manage listing). */
     public List<AgentConnectionView> listForAgent(UUID userId, UUID agentId) {
@@ -126,7 +132,7 @@ public class ConnectionBindingService {
         for (AgentConnection b : bindings) {
             Connection c = byId.get(b.getConnectionId());
             if (c != null) {
-                views.add(new AgentConnectionView(b, c));
+                views.add(new AgentConnectionView(b, c, isInternal(c.getConnectorCode())));
             }
         }
         return views;
@@ -166,7 +172,8 @@ public class ConnectionBindingService {
         requireOwnedAgent(userId, agentId);
         Connection connection = requireExternalConnection(userId, connectionId);
         AgentConnection binding = ensureBinding(agentId, connection.getId());
-        return new AgentConnectionView(binding, connection);
+        // requireExternalConnection has already refused an internal one.
+        return new AgentConnectionView(binding, connection, false);
     }
 
     private void requireOwnedAgent(UUID userId, UUID agentId) {
@@ -213,13 +220,16 @@ public class ConnectionBindingService {
         invalidate(binding.getAgentId(), binding.getConnectionId());
     }
 
+    private boolean isInternal(String connectorCode) {
+        return connectorRegistry.findHandler(connectorCode)
+                .map(InternalConnectorHandler.class::isInstance)
+                .orElse(false);
+    }
+
     private Connection requireExternalConnection(UUID userId, UUID connectionId) {
         Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(connectionId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + connectionId));
-        boolean internal = connectorRegistry.findHandler(connection.getConnectorCode())
-                .map(InternalConnectorHandler.class::isInstance)
-                .orElse(false);
-        if (internal) {
+        if (isInternal(connection.getConnectorCode())) {
             throw new BadRequestStatusException(
                     "Connector " + connection.getConnectorCode() + " is managed by skills");
         }
