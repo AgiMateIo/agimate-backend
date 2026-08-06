@@ -53,7 +53,8 @@ public class SystemPresetBootstrap {
             "platform-admin",
             "home-accountant",
             "health-diary",
-            "coder");
+            "coder",
+            "external-agent");
 
     private final AgentPresetRepository agentPresetRepository;
     private final SkillRepository skillRepository;

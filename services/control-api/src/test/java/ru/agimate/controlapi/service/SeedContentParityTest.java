@@ -68,6 +68,7 @@ class SeedContentParityTest {
         assertEquals(base.name(), translated.name(), "name");
         assertEquals(base.skillNames(), translated.skillNames(), "skills (порядок тоже)");
         assertEquals(base.sortOrder(), translated.sortOrder(), "sortOrder — порядок галереи мастера");
+        assertEquals(base.agentType(), translated.agentType(), "agentType — какого агента создаёт пресет");
         assertNotEquals(base.instructions(), translated.instructions(),
                 "instructions совпали с " + BASE + " — файл скопирован, а не переведён");
     }
