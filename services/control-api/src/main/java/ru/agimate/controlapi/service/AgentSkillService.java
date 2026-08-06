@@ -8,6 +8,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
@@ -16,16 +17,24 @@ import ru.agimate.controlapi.controller.manage.dto.AgentSkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillConnectorStatus;
 import ru.agimate.controlapi.database.entities.AgentSkill;
+import ru.agimate.controlapi.database.entities.AgentSkillConnection;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
+import ru.agimate.controlapi.database.repositories.AgentSkillConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
+import ru.agimate.controlapi.service.connection.ConnectionBindingService;
+import ru.agimate.controlapi.service.connection.ConnectionBindingService.ConnectorKind;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -42,6 +51,8 @@ public class AgentSkillService {
     private final SkillRepository skillRepository;
     private final ConnectionRepository connectionRepository;
     private final AgentSkillPolicyService agentSkillPolicyService;
+    private final AgentSkillConnectionRepository agentSkillConnectionRepository;
+    private final ConnectionBindingService connectionBindingService;
 
     public Page<AgentSkillResponse> getAgentSkills(UUID agentId, UUID userId, int page, int size) {
         verifyAgentOwnership(agentId, userId);
@@ -57,7 +68,8 @@ public class AgentSkillService {
                 : skillRepository.findByIdInNotDeleted(skillIds).stream()
                         .collect(Collectors.toMap(Skill::getId, s -> s));
 
-        Map<String, UUID> agentConnections = agentConnectionsByCode(agentId);
+        SatisfactionContext context = satisfactionContext(agentId,
+                agentSkills.getContent().stream().map(AgentSkill::getId).toList());
 
         return agentSkills.map(as -> {
             Skill skill = skillMap.get(as.getSkillId());
@@ -65,9 +77,7 @@ public class AgentSkillService {
             boolean needsReinstall = skill != null
                     && (as.getInstalledSkillVersion() == null || skill.getVersion() > as.getInstalledSkillVersion());
             List<SkillConnectorStatus> connectors = skill == null ? List.of()
-                    : skill.getConnectorCodes().stream()
-                            .map(code -> new SkillConnectorStatus(code, agentConnections.get(code)))
-                            .toList();
+                    : statuses(context, as.getId(), skill.getConnectorCodes());
             return AgentSkillResponse.from(as, name, connectors, needsReinstall);
         });
     }
@@ -106,8 +116,19 @@ public class AgentSkillService {
 
     @Transactional
     public AgentSkillResponse create(UUID agentId, UUID skillId, UUID userId) {
+        return create(agentId, skillId, userId, Map.of());
+    }
+
+    /**
+     * Bind a skill, recording which instance it means for every connector it declares
+     * ({@code requested}: connector code → connection). The reference is not a grant — the tools open
+     * through {@code agent_connections} as before; this only fixes «which of the two telegrams».
+     */
+    @Transactional
+    public AgentSkillResponse create(UUID agentId, UUID skillId, UUID userId, Map<String, UUID> requested) {
         verifyAgentOwnership(agentId, userId);
         Skill skill = verifySkillAccessible(skillId, userId);
+        requireDeclared(skill, requested);
 
         AgentSkill agentSkill = AgentSkill.builder()
                 .userId(userId)
@@ -122,15 +143,14 @@ public class AgentSkillService {
             throw new ConflictStatusException("Skill is already bound to this agent");
         }
 
+        storeConnections(agentSkill.getId(), skill, userId, requested);
         agentSkillPolicyService.applyDiff(agentId, userId);
 
         log.info("Bound skill {} to agent {} for user {}", skillId, agentId, userId);
 
-        Map<String, UUID> agentConnections = agentConnectionsByCode(agentId);
-        List<SkillConnectorStatus> connectors = skill.getConnectorCodes().stream()
-                .map(code -> new SkillConnectorStatus(code, agentConnections.get(code)))
-                .toList();
-        return AgentSkillResponse.from(agentSkill, skill.getName(), connectors, false);
+        SatisfactionContext context = satisfactionContext(agentId, List.of(agentSkill.getId()));
+        return AgentSkillResponse.from(agentSkill, skill.getName(),
+                statuses(context, agentSkill.getId(), skill.getConnectorCodes()), false);
     }
 
     @Transactional
@@ -193,13 +213,164 @@ public class AgentSkillService {
         };
     }
 
-    /** The agent's active connections as connectorCode → connectionId (first one per code). */
-    private Map<String, UUID> agentConnectionsByCode(UUID agentId) {
-        Map<String, UUID> byCode = new HashMap<>();
-        for (Connection connection : connectionRepository.findActiveBoundToAgent(agentId)) {
-            byCode.putIfAbsent(connection.getConnectorCode(), connection.getId());
+    /**
+     * Replace the skill's instance references — «this skill now works with that telegram». Same rules
+     * as on binding; the set is replaced whole, so a code left out goes back to having no answer.
+     */
+    @Transactional
+    public AgentSkillResponse replaceConnections(UUID agentId, UUID skillId, UUID userId,
+                                                 Map<String, UUID> requested) {
+        verifyAgentOwnership(agentId, userId);
+        Skill skill = verifySkillAccessible(skillId, userId);
+        requireDeclared(skill, requested);
+
+        AgentSkill agentSkill = agentSkillRepository.findByAgentIdAndSkillId(agentId, skillId)
+                .orElseThrow(() -> new NotFoundStatusException("Skill is not bound to this agent"));
+
+        agentSkillConnectionRepository.deleteByAgentSkillId(agentSkill.getId());
+        storeConnections(agentSkill.getId(), skill, userId, requested);
+
+        SatisfactionContext context = satisfactionContext(agentId, List.of(agentSkill.getId()));
+        return AgentSkillResponse.from(agentSkill, skill.getName(),
+                statuses(context, agentSkill.getId(), skill.getConnectorCodes()), false);
+    }
+
+    /** How many of the agent's skills point at each connection — the «used by» counter of the listing. */
+    public Map<UUID, Long> skillReferencesByConnection(UUID agentId) {
+        Map<UUID, Long> counts = new HashMap<>();
+        for (Object[] row : agentSkillConnectionRepository.countByConnectionForAgent(agentId)) {
+            counts.put((UUID) row[0], (Long) row[1]);
         }
-        return byCode;
+        return counts;
+    }
+
+    private static void requireDeclared(Skill skill, Map<String, UUID> requested) {
+        for (String code : requested.keySet()) {
+            if (!skill.getConnectorCodes().contains(code)) {
+                throw new BadRequestStatusException("Connector " + code + " is not declared by the skill");
+            }
+        }
+    }
+
+    private void storeConnections(UUID agentSkillId, Skill skill, UUID userId, Map<String, UUID> requested) {
+        List<AgentSkillConnection> rows = new ArrayList<>();
+        for (String code : skill.getConnectorCodes()) {
+            resolveConnection(code, requested.get(code), userId).ifPresent(connectionId ->
+                    rows.add(AgentSkillConnection.builder()
+                            .agentSkillId(agentSkillId)
+                            .connectorCode(code)
+                            .connectionId(connectionId)
+                            .build()));
+        }
+        agentSkillConnectionRepository.saveAll(rows);
+    }
+
+    /**
+     * Which instance the skill means for one connector code. Internal: forced — one mode row per user,
+     * and the client cannot even learn its id before the first binding, so the server answers for it
+     * (a mismatching id sent anyway is an error, not a silent correction). External: the choice is
+     * required, there is no sane default among several accounts. Unknown code (a skill declaring a
+     * connector that no longer exists): no row at all — it reads as «not satisfied» rather than as a
+     * choice waiting to be made, and binding the skill must not fail because of it.
+     */
+    private Optional<UUID> resolveConnection(String code, UUID requested, UUID userId) {
+        return switch (connectionBindingService.kindOf(code)) {
+            case INTERNAL -> {
+                UUID modeConnectionId = connectionBindingService.ensureModeConnection(userId, code).getId();
+                if (requested != null && !requested.equals(modeConnectionId)) {
+                    throw new BadRequestStatusException(
+                            "Connector " + code + " has a single instance per user: " + modeConnectionId);
+                }
+                yield Optional.of(modeConnectionId);
+            }
+            case EXTERNAL -> {
+                if (requested == null) {
+                    throw new BadRequestStatusException("Choose the instance for connector " + code);
+                }
+                Connection connection = connectionRepository.findByIdAndUserIdNotDeleted(requested, userId)
+                        .orElseThrow(() -> new BadRequestStatusException("Connection not found: " + requested));
+                if (!connection.getConnectorCode().equals(code)) {
+                    throw new BadRequestStatusException(
+                            "Connection " + requested + " is not an instance of " + code);
+                }
+                yield Optional.of(connection.getId());
+            }
+            case UNKNOWN -> {
+                log.warn("Skill declares unknown connector '{}' — no instance can be chosen", code);
+                yield Optional.empty();
+            }
+        };
+    }
+
+    /**
+     * Everything needed to answer «is this skill satisfied» for one agent, read once: what the agent is
+     * bound to, and what its skills point at. Assembled per request rather than per skill so a page of
+     * skills costs two queries instead of two per row.
+     */
+    private SatisfactionContext satisfactionContext(UUID agentId, List<UUID> agentSkillIds) {
+        Map<UUID, Connection> boundById = new LinkedHashMap<>();
+        Map<String, Connection> boundByCode = new LinkedHashMap<>();
+        for (Connection connection : connectionRepository.findActiveBoundToAgent(agentId)) {
+            boundById.put(connection.getId(), connection);
+            boundByCode.putIfAbsent(connection.getConnectorCode(), connection);
+        }
+
+        Map<UUID, Map<String, UUID>> referencesBySkill = new HashMap<>();
+        Set<UUID> referencedIds = new java.util.HashSet<>();
+        if (!agentSkillIds.isEmpty()) {
+            for (AgentSkillConnection link : agentSkillConnectionRepository.findByAgentSkillIdIn(agentSkillIds)) {
+                referencesBySkill
+                        .computeIfAbsent(link.getAgentSkillId(), k -> new HashMap<>())
+                        .put(link.getConnectorCode(), link.getConnectionId());
+                referencedIds.add(link.getConnectionId());
+            }
+        }
+        // A referenced instance may be unbound (or belong to another agent's screen): we still show which
+        // one the skill means, and mark it unsatisfied — «chosen but unavailable» is a different problem
+        // for the user than «nothing chosen».
+        Map<UUID, Connection> referencedById = new HashMap<>(boundById);
+        referencedIds.removeAll(boundById.keySet());
+        if (!referencedIds.isEmpty()) {
+            connectionRepository.findByIdInNotDeleted(List.copyOf(referencedIds))
+                    .forEach(c -> referencedById.put(c.getId(), c));
+        }
+        return new SatisfactionContext(boundById, boundByCode, referencesBySkill, referencedById);
+    }
+
+    /** @see #satisfactionContext */
+    private record SatisfactionContext(Map<UUID, Connection> boundById,
+                                       Map<String, Connection> boundByCode,
+                                       Map<UUID, Map<String, UUID>> referencesBySkill,
+                                       Map<UUID, Connection> referencedById) {
+    }
+
+    private List<SkillConnectorStatus> statuses(SatisfactionContext context, UUID agentSkillId,
+                                                List<String> connectorCodes) {
+        Map<String, UUID> references = context.referencesBySkill().getOrDefault(agentSkillId, Map.of());
+        List<SkillConnectorStatus> statuses = new ArrayList<>();
+        for (String code : connectorCodes) {
+            UUID referenced = references.get(code);
+            // No reference — a binding made before references existed: fall back to «any instance of that
+            // code», which is exactly what the tool gate still does. Transitional; it dies together with
+            // the gate moving from the code to the instance.
+            Connection connection = referenced != null
+                    ? context.referencedById().get(referenced)
+                    : context.boundByCode().get(code);
+            UUID connectionId = referenced != null ? referenced
+                    : (connection != null ? connection.getId() : null);
+            statuses.add(new SkillConnectorStatus(
+                    code,
+                    connectionId,
+                    connection != null ? displayName(connection) : null,
+                    connectionBindingService.kindOf(code) == ConnectorKind.INTERNAL,
+                    connectionId != null && context.boundById().containsKey(connectionId)));
+        }
+        return statuses;
+    }
+
+    private static String displayName(Connection connection) {
+        return connection.getName() != null && !connection.getName().isBlank()
+                ? connection.getName() : connection.getFullCode();
     }
 
     private void verifyAgentOwnership(UUID agentId, UUID userId) {

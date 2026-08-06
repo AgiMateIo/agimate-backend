@@ -14,6 +14,7 @@ import ru.agimate.controlapi.controller.manage.dto.CreateAgentSkillRequest;
 import ru.agimate.controlapi.controller.manage.dto.PolicyDiffResponse;
 import ru.agimate.controlapi.service.AgentSkillService;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -46,7 +47,21 @@ public class ManageAgentSkillController {
             @Valid @RequestBody CreateAgentSkillRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(agentSkillService.create(agentId, request.skillId(), userId));
+        return SuccessResponse.ok(agentSkillService.create(
+                agentId, request.skillId(), userId, request.resolveConnections()));
+    }
+
+    @Operation(summary = "Replace the instances the skill works with (connector code → connection id)")
+    @PutMapping("/{skillId}/connections")
+    public SuccessResponse<AgentSkillResponse> replaceSkillConnections(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID agentId,
+            @PathVariable UUID skillId,
+            @RequestBody Map<String, UUID> connections
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentSkillService.replaceConnections(
+                agentId, skillId, userId, connections == null ? Map.of() : connections));
     }
 
     @Operation(summary = "Unbind a skill from an agent (connector bindings are add-only, not revoked)")

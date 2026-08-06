@@ -10,9 +10,11 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.AgentConnectionResponse;
 import ru.agimate.controlapi.controller.manage.dto.BindConnectionRequest;
+import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -31,6 +33,7 @@ public class ManageAgentConnectionController {
     public static final String PATH = "/manage/agents/{agentId}/connections";
 
     private final ConnectionBindingService bindingService;
+    private final AgentSkillService agentSkillService;
 
     @Operation(summary = "List connectors bound to an agent")
     @GetMapping("/")
@@ -38,8 +41,12 @@ public class ManageAgentConnectionController {
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @PathVariable UUID agentId) {
         UUID userId = UUID.fromString(principal.id());
+        // Two areas meet on one screen: the binding says «allowed», the skills say «used by» — the
+        // counter is what tells the user what an unbind would break.
+        Map<UUID, Long> usedBySkills = agentSkillService.skillReferencesByConnection(agentId);
         return SuccessResponse.ok(bindingService.listForAgent(userId, agentId).stream()
-                .map(AgentConnectionResponse::from)
+                .map(view -> AgentConnectionResponse.from(view,
+                        usedBySkills.getOrDefault(view.connection().getId(), 0L)))
                 .toList());
     }
 
@@ -50,8 +57,10 @@ public class ManageAgentConnectionController {
             @PathVariable UUID agentId,
             @Valid @RequestBody BindConnectionRequest request) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(AgentConnectionResponse.from(bindingService.bindAndView(
-                userId, agentId, request.connectionId())));
+        var view = bindingService.bindAndView(userId, agentId, request.connectionId());
+        long usedBySkills = agentSkillService.skillReferencesByConnection(agentId)
+                .getOrDefault(view.connection().getId(), 0L);
+        return SuccessResponse.ok(AgentConnectionResponse.from(view, usedBySkills));
     }
 
     @Operation(summary = "Unbind an external connection instance from an agent")

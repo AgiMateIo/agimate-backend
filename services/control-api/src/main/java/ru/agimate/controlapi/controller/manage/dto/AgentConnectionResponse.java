@@ -30,9 +30,12 @@ public record AgentConnectionResponse(
         @Schema(description = "Binding of an internal connector: not removable here, its source of truth is the agent's skills")
         boolean managedBySkills,
 
+        @Schema(description = "How many of the agent's skills work with this instance — what breaks if it is unbound")
+        long usedBySkills,
+
         LocalDateTime createdAt
 ) {
-    public static AgentConnectionResponse from(AgentConnectionView view) {
+    public static AgentConnectionResponse from(AgentConnectionView view, long usedBySkills) {
         Connection c = view.connection();
         return new AgentConnectionResponse(
                 view.binding().getId(),
@@ -42,6 +45,7 @@ public record AgentConnectionResponse(
                 c.getName(),
                 Boolean.TRUE.equals(c.getEnabled()),
                 view.managedBySkills(),
+                usedBySkills,
                 view.binding().getCreatedAt());
     }
 }

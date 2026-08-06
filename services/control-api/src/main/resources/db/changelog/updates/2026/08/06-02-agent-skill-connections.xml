@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Какой именно инстанс имеет в виду навык. Раньше вопрос не стоял: внутренние коннекторы
+         привязывались навыком сами (инстанс один на пользователя), а внешние навык привязать не мог
+         вовсе и молча не работали. Ссылка живёт на связке агент↔навык, а не на навыке: один и тот же
+         навык у двух агентов — это два разных телеграма. Строка тут НЕ даёт доступа: доступ по-прежнему
+         agent_connections, а это «навык работает вот с этим». -->
+    <changeSet id="agent-skill-connections" author="agimate">
+        <createTable tableName="agent_skill_connections">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="agent_skill_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_agent_skill_connections_agent_skill"
+                             references="agent_skills(id)" deleteCascade="true"/>
+            </column>
+            <column name="connector_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connection_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_agent_skill_connections_connection"
+                             references="connections(id)"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Один инстанс на объявленный код внутри одной привязки навыка: «этот навык у этого агента
+             работает с этим телеграмом», второго ответа быть не может. -->
+        <addUniqueConstraint tableName="agent_skill_connections"
+                             columnNames="agent_skill_id, connector_code"
+                             constraintName="uq_agent_skill_connections"/>
+
+        <!-- Обратный вопрос «сколько навыков агента ссылается на этот коннекшен» — счётчик в списке подключений. -->
+        <createIndex tableName="agent_skill_connections" indexName="idx_agent_skill_connections_connection">
+            <column name="connection_id"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

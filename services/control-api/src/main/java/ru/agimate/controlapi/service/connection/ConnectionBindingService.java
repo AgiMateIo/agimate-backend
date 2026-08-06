@@ -220,10 +220,22 @@ public class ConnectionBindingService {
         invalidate(binding.getAgentId(), binding.getConnectionId());
     }
 
-    private boolean isInternal(String connectorCode) {
+    /**
+     * What kind of connector a code names. {@code UNKNOWN} is a real case, not a defect guard: a skill
+     * may declare a connector that has since been removed from the build, and that must read as «no
+     * instance possible» rather than as an external one waiting to be chosen.
+     */
+    public ConnectorKind kindOf(String connectorCode) {
         return connectorRegistry.findHandler(connectorCode)
-                .map(InternalConnectorHandler.class::isInstance)
-                .orElse(false);
+                .map(handler -> handler instanceof InternalConnectorHandler
+                        ? ConnectorKind.INTERNAL : ConnectorKind.EXTERNAL)
+                .orElse(ConnectorKind.UNKNOWN);
+    }
+
+    public enum ConnectorKind { INTERNAL, EXTERNAL, UNKNOWN }
+
+    private boolean isInternal(String connectorCode) {
+        return kindOf(connectorCode) == ConnectorKind.INTERNAL;
     }
 
     private Connection requireExternalConnection(UUID userId, UUID connectionId) {

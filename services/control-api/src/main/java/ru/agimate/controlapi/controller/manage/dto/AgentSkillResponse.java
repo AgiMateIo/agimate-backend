@@ -22,8 +22,11 @@ public record AgentSkillResponse(
         @Schema(description = "Skill name")
         String skillName,
 
-        @Schema(description = "Connectors required by the skill and the agent's connection for each (null = not connected)")
+        @Schema(description = "Connectors required by the skill and the instance the skill means for each")
         List<SkillConnectorStatus> connectors,
+
+        @Schema(description = "Every declared connector is reachable; false — the skill will not be given to the agent")
+        boolean satisfied,
 
         @Schema(description = "Whether the skill version advanced since installation")
         boolean needsReinstall,
@@ -44,6 +47,7 @@ public record AgentSkillResponse(
                 agentSkill.getSkillId(),
                 skillName,
                 connectors,
+                connectors.stream().allMatch(SkillConnectorStatus::satisfied),
                 needsReinstall,
                 agentSkill.getCreatedAt(),
                 agentSkill.getUpdatedAt()
