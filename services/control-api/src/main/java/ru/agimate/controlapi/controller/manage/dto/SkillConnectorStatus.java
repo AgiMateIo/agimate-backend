@@ -8,10 +8,11 @@ import java.util.UUID;
  * One connector a skill declares, seen from a particular agent: which instance the skill means and
  * whether the agent can actually reach it.
  *
- * <p>{@link #connectionId} comes from the skill's own reference; for bindings made before references
- * existed it falls back to any active connection of that code — so an agent that works today does not
- * turn red for something the user never had a chance to choose. The fallback is transitional and goes
- * away once the tool gate moves from the code to the instance.
+ * <p>{@link #connectionId} comes from the skill's own reference, and where there is none — from any
+ * active connection of that code, so an agent does not turn red for something the user was never asked
+ * to choose. That is the standing rule, not a migration step: a code loses its reference whenever the
+ * skill's author adds a connector to a skill someone has already bound. Where several instances answer,
+ * the status shows the first while the gate lets all of them through.
  *
  * @param satisfied the instance is bound to the agent. {@code false} means the skill declares
  *                  something the agent cannot reach — its tools will not be in the context
