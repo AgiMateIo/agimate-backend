@@ -25,24 +25,28 @@ public interface LlmCallWorkflow {
      * for accounting ({@code null} when there is nothing to account) — the child only
      * <b>returns</b> them; the loop surfaces them and the run wiring reports them (the parent is
      * the sole writer of backend side-records, like {@code SaveMessage}/{@code SaveTurn}), so the
-     * child needs no {@code runId}. Adding fields here changes the checkpointed child-workflow
-     * result — deploy behind a drain.
+     * child needs no {@code runId}. {@code reasoning} is the turn's reasoning content for the ledger
+     * (null when the model did not reason) — it is deliberately kept off {@link AgentChatMessage},
+     * which is re-sent as the input of every following call and would checkpoint it again each time.
+     * Adding fields here changes the checkpointed child-workflow result — deploy behind a drain.
      */
     record Result(AgentChatMessage assistant, boolean failed, Integer statusCode, String message,
-                  boolean userFacing, String finishReason, String model, String callId, LlmUsage usage) {
+                  boolean userFacing, String finishReason, String model, String callId, LlmUsage usage,
+                  String reasoning) {
 
         public static Result ok(AgentChatMessage assistant, String finishReason, String model,
-                                String callId, LlmUsage usage) {
-            return new Result(assistant, false, null, null, false, finishReason, model, callId, usage);
+                                String callId, LlmUsage usage, String reasoning) {
+            return new Result(assistant, false, null, null, false, finishReason, model, callId, usage,
+                    reasoning);
         }
 
         public static Result failure(Integer statusCode, String message) {
-            return new Result(null, true, statusCode, message, false, null, null, null, null);
+            return new Result(null, true, statusCode, message, false, null, null, null, null, null);
         }
 
         /** Failure whose {@code message} is already user-facing (surfaced verbatim to the channel). */
         public static Result userError(String message) {
-            return new Result(null, true, null, message, true, null, null, null, null);
+            return new Result(null, true, null, message, true, null, null, null, null, null);
         }
     }
 }

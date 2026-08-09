@@ -68,11 +68,12 @@ class AgentRunTurnServiceTest {
             AgentRun run = run(AGENT_ID, SESSION_ID);
             when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));
             when(turnRepository.insertIgnoreConflict(eq(RUN_ID), eq(SESSION_ID), eq(AGENT_ID), eq(0),
-                    eq("ASSISTANT"), eq("preamble"), eq(true), argThat(j -> j != null && j.contains("weather")),
+                    eq("ASSISTANT"), eq("preamble"), eq(true), eq("сначала посмотрю погоду"),
+                    argThat(j -> j != null && j.contains("weather")),
                     isNull(), isNull(), isNull(), isNull())).thenReturn(1);
 
             AgentRunTurnService.SaveResult result = service.save(AGENT_ID, RUN_ID, 0, AgentTurnRole.ASSISTANT,
-                    "preamble", true,
+                    "preamble", true, "сначала посмотрю погоду",
                     List.of(new ToolTurnRecord.Call("c1", "weather", "{\"city\":\"Berlin\"}")),
                     List.of(), null, null, null);
 
@@ -85,14 +86,16 @@ class AgentRunTurnServiceTest {
             AgentRun run = run(AGENT_ID, null);
             when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));
             when(turnRepository.insertIgnoreConflict(eq(RUN_ID), isNull(), eq(AGENT_ID), eq(0),
-                    eq("ASSISTANT"), isNull(), eq(false), isNull(), isNull(), isNull(), isNull(), isNull()))
-                    .thenReturn(1);
+                    eq("ASSISTANT"), isNull(), eq(false), isNull(), isNull(), isNull(), isNull(), isNull(),
+                    isNull())).thenReturn(1);
 
-            service.save(AGENT_ID, RUN_ID, 0, AgentTurnRole.ASSISTANT, "", false,
+            service.save(AGENT_ID, RUN_ID, 0, AgentTurnRole.ASSISTANT, "", false, "",
                     List.of(), List.of(), null, null, null);
 
+            // пустое рассуждение — это «модель не рассуждала», а не пустая строка в колонке
             verify(turnRepository).insertIgnoreConflict(eq(RUN_ID), isNull(), eq(AGENT_ID), eq(0),
-                    eq("ASSISTANT"), isNull(), eq(false), isNull(), isNull(), isNull(), isNull(), isNull());
+                    eq("ASSISTANT"), isNull(), eq(false), isNull(), isNull(), isNull(), isNull(), isNull(),
+                    isNull());
         }
     }
 
@@ -102,15 +105,15 @@ class AgentRunTurnServiceTest {
         AgentRun run = run(AGENT_ID, SESSION_ID);
         when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));
         when(turnRepository.insertIgnoreConflict(eq(RUN_ID), eq(SESSION_ID), eq(AGENT_ID), eq(1),
-                eq("TOOL"), isNull(), eq(false), isNull(),
+                eq("TOOL"), isNull(), eq(false), isNull(), isNull(),
                 argThat(j -> j != null && j.contains("sunny")), isNull(), isNull(), isNull())).thenReturn(1);
 
-        service.save(AGENT_ID, RUN_ID, 1, AgentTurnRole.TOOL, null, false, List.of(),
+        service.save(AGENT_ID, RUN_ID, 1, AgentTurnRole.TOOL, null, false, null, List.of(),
                 List.of(new ToolTurnRecord.Result("c1", "weather", "{\"sky\":\"sunny\"}", false)),
                 null, null, null);
 
         verify(turnRepository).insertIgnoreConflict(eq(RUN_ID), eq(SESSION_ID), eq(AGENT_ID), eq(1),
-                eq("TOOL"), isNull(), eq(false), isNull(),
+                eq("TOOL"), isNull(), eq(false), isNull(), isNull(),
                 argThat(j -> j != null && j.contains("sunny")), isNull(), isNull(), isNull());
     }
 
@@ -120,11 +123,11 @@ class AgentRunTurnServiceTest {
         AgentRun run = run(AGENT_ID, SESSION_ID);
         when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));
         when(turnRepository.insertIgnoreConflict(eq(RUN_ID), eq(SESSION_ID), eq(AGENT_ID), eq(0),
-                eq("ASSISTANT"), eq("hi"), eq(false), isNull(), isNull(), isNull(), isNull(), isNull()))
-                .thenReturn(0);
+                eq("ASSISTANT"), eq("hi"), eq(false), isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull())).thenReturn(0);
 
         AgentRunTurnService.SaveResult result = service.save(AGENT_ID, RUN_ID, 0, AgentTurnRole.ASSISTANT,
-                "hi", false, List.of(), List.of(), null, null, null);
+                "hi", false, null, List.of(), List.of(), null, null, null);
 
         assertTrue(result.duplicate());
     }
@@ -135,7 +138,7 @@ class AgentRunTurnServiceTest {
         when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.empty());
 
         assertThrows(NotFoundStatusException.class, () -> service.save(AGENT_ID, RUN_ID, 0,
-                AgentTurnRole.ASSISTANT, "hi", false, List.of(), List.of(), null, null, null));
+                AgentTurnRole.ASSISTANT, "hi", false, null, List.of(), List.of(), null, null, null));
         verifyNoInteractions(turnRepository);
     }
 
@@ -146,7 +149,7 @@ class AgentRunTurnServiceTest {
         when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));
 
         assertThrows(BadRequestStatusException.class, () -> service.save(AGENT_ID, RUN_ID, 0,
-                AgentTurnRole.ASSISTANT, "hi", false, List.of(), List.of(), null, null, null));
+                AgentTurnRole.ASSISTANT, "hi", false, null, List.of(), List.of(), null, null, null));
         verifyNoInteractions(turnRepository);
     }
 }

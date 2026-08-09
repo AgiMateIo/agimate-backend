@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Рассуждение хода целиком, рядом с флагом thinking: до сих пор от reasoning_content провайдера
+         оставался один бит, и «почему агент так решил» было невосстановимо — ни в канальной проекции
+         (там только маркер «💭 thinking...»), ни в снимке промпта (он про вход рана, не про ходы).
+         NULL, а не '': модель могла не рассуждать вовсе, и это не то же самое, что пустое рассуждение.
+         Без капа, как tool_calls/tool_results рядом — таблица и заявлена как полноточная. -->
+    <changeSet id="agent-run-turns-thinking-text" author="agimate">
+        <addColumn tableName="agent_run_turns">
+            <column name="thinking_text" type="TEXT"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

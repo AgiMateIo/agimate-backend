@@ -79,7 +79,7 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
 
             AgentRunTurnService.SaveResult result = agentRunTurnService.save(
                     agentId, runId, request.getTurnIndex(), toDomain(request.getRole()),
-                    request.getText(), request.getThinking(),
+                    request.getText(), request.getThinking(), request.getThinkingText(),
                     request.getToolCallsList().stream()
                             .map(c -> new ToolTurnRecord.Call(c.getId(), c.getName(), c.getArgumentsJson()))
                             .toList(),

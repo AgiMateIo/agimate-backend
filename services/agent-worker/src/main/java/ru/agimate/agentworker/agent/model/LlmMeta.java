@@ -6,5 +6,10 @@ package ru.agimate.agentworker.agent.model;
  * only once — on the {@code llm_call} result, not multiplied across the re-fed history list.
  * Attached to the turn ledger for assistant turns; {@code null} for tool-result turns (no LLM call).
  * {@code callId} is the LLM child-workflow id — the join key to {@code llm_usage_log.call_id}.
+ *
+ * @param reasoning the model's reasoning content for this turn ({@code null} when it did not reason
+ *                  or the provider sent none). It rides here rather than on the message for the
+ *                  reason above: the message list is the input of every following {@code llm_call},
+ *                  so a field on it would be re-checkpointed once per remaining turn.
  */
-public record LlmMeta(String finishReason, String model, String callId) {}
+public record LlmMeta(String finishReason, String model, String callId, String reasoning) {}

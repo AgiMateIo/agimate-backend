@@ -70,9 +70,11 @@ enum TurnRole {
   TURN_ROLE_TOOL = 4;
 }
 
-// One turn of the canonical journal. The schema mirrors the worker's AgentChatMessage: assistant
-// carries text/thinking/tool_calls, tool carries tool_results only. finish_reason/model/call_id are
-// LLM-call telemetry (populated at stage 1b; when empty, write them as nullable).
+// One turn of the canonical journal. The schema mirrors the worker's AgentChatMessage: user carries
+// text alone (turn_index 0, the inbound turn as the model received it), assistant carries
+// text/thinking/tool_calls, tool carries tool_results only. SYSTEM is never sent — the system prompt
+// is kept once per run in agent_runs.prompt. finish_reason/model/call_id are LLM-call telemetry
+// (populated at stage 1b; when empty, write them as nullable).
 message SaveTurnRequest {
   string agent_id = 1;
   string run_id = 2;                   // agent_runs.id (= DBOS workflow id)
@@ -85,6 +87,9 @@ message SaveTurnRequest {
   string finish_reason = 9;            // 1b; empty = null
   string model = 10;                   // 1b; empty = null
   string call_id = 11;                 // 1b; links to llm_usage_log; empty = null
+  // The turn's reasoning content, uncapped; empty = the model did not reason (then thinking=false
+  // too — both come from the same provider field). Assistant turns only.
+  string thinking_text = 12;
 }
 
 message SaveTurnResponse {

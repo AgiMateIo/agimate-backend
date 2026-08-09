@@ -42,7 +42,7 @@ class TurnLogTest {
 
     private void stubOk() {
         when(client.saveTurn(anyString(), anyString(), anyInt(), any(), any(), anyBoolean(),
-                any(), any(), any(), any(), any()))
+                any(), any(), any(), any(), any(), any()))
                 .thenReturn(SaveTurnResponse.newBuilder().setDuplicate(false).build());
     }
 
@@ -56,7 +56,7 @@ class TurnLogTest {
                 List.of(new AgentChatMessage.ToolResult("c1", "weather", "{\"sky\":\"sunny\"}", false)));
     }
 
-    private static final LlmMeta META = new LlmMeta("tool_calls", "gpt-5-mini", "wf-llm-9");
+    private static final LlmMeta META = new LlmMeta("tool_calls", "gpt-5-mini", "wf-llm-9", "сначала посчитаю");
 
     @Test
     @DisplayName("assistant → TOOL_CALL-запись с вызовами + meta (finish/model/call); tool → TOOL_RESULT без meta")
@@ -76,7 +76,7 @@ class TurnLogTest {
         ArgumentCaptor<String> callId = ArgumentCaptor.forClass(String.class);
 
         verify(client, times(2)).saveTurn(eq("agent-1"), eq("run-1"), idx.capture(), role.capture(),
-                any(), anyBoolean(), calls.capture(), results.capture(),
+                any(), anyBoolean(), any(), calls.capture(), results.capture(),
                 finish.capture(), model.capture(), callId.capture());
 
         assertEquals(List.of(0, 1), idx.getAllValues());
@@ -94,36 +94,93 @@ class TurnLogTest {
     }
 
     @Test
-    @DisplayName("user/system не проецируются и не тратят индекс; следующий assistant получает 0")
-    void skipsUserAndSystem() {
+    @DisplayName("входящий ход → USER-запись без тулов и meta; assistant после него получает индекс 1")
+    void recordsInboundTurnFirst() {
         stubOk();
         TurnLog turns = turnLog();
 
-        turns.record(AgentChatMessage.user("hi"), null);
+        turns.record(AgentChatMessage.user("посчитай кэшбек"), null);
+        turns.record(assistant(), META);
+
+        ArgumentCaptor<Integer> idx = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<TurnRole> role = ArgumentCaptor.forClass(TurnRole.class);
+        ArgumentCaptor<String> text = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<List<ToolCallRec>> calls = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<String> callId = ArgumentCaptor.forClass(String.class);
+
+        verify(client, times(2)).saveTurn(anyString(), anyString(), idx.capture(), role.capture(),
+                text.capture(), anyBoolean(), any(), calls.capture(), any(), any(), any(),
+                callId.capture());
+
+        assertEquals(List.of(0, 1), idx.getAllValues());
+        assertEquals(List.of(TurnRole.TURN_ROLE_USER, TurnRole.TURN_ROLE_ASSISTANT), role.getAllValues());
+        assertEquals("посчитай кэшбек", text.getAllValues().get(0));
+        assertEquals(0, calls.getAllValues().get(0).size());
+        assertNull(callId.getAllValues().get(0));   // входящий ход не порождён LLM-вызовом
+    }
+
+    @Test
+    @DisplayName("system-промпт не проецируется и не тратит индекс: он есть в снимке промпта рана")
+    void skipsSystem() {
+        stubOk();
+        TurnLog turns = turnLog();
+
         turns.record(AgentChatMessage.system("sys"), null);
         turns.record(assistant(), META);
 
         ArgumentCaptor<Integer> idx = ArgumentCaptor.forClass(Integer.class);
         verify(client, times(1)).saveTurn(anyString(), anyString(), idx.capture(), any(), any(),
-                anyBoolean(), any(), any(), any(), any(), any());
+                anyBoolean(), any(), any(), any(), any(), any(), any());
         assertEquals(0, idx.getValue());
+    }
+
+    @Test
+    @DisplayName("thinking assistant-хода едет в запись как есть; tool-ход всегда false")
+    void passesThinkingThrough() {
+        stubOk();
+        TurnLog turns = turnLog();
+
+        turns.record(assistant(), META);                                             // thinking = true
+        turns.record(AgentChatMessage.assistant("без рассуждений", false, List.of()), META);
+        turns.record(tool(), null);
+
+        ArgumentCaptor<Boolean> thinking = ArgumentCaptor.forClass(Boolean.class);
+        verify(client, times(3)).saveTurn(anyString(), anyString(), anyInt(), any(), any(),
+                thinking.capture(), any(), any(), any(), any(), any(), any());
+        assertEquals(List.of(true, false, false), thinking.getAllValues());
+    }
+
+    @Test
+    @DisplayName("текст рассуждения берётся из meta, а не из сообщения; на tool-ходе его нет")
+    void passesThinkingTextFromMeta() {
+        stubOk();
+        TurnLog turns = turnLog();
+
+        turns.record(assistant(), META);
+        turns.record(tool(), null);
+
+        ArgumentCaptor<String> thinkingText = ArgumentCaptor.forClass(String.class);
+        verify(client, times(2)).saveTurn(anyString(), anyString(), anyInt(), any(), any(),
+                anyBoolean(), thinkingText.capture(), any(), any(), any(), any(), any());
+        assertEquals("сначала посчитаю", thinkingText.getAllValues().get(0));
+        assertNull(thinkingText.getAllValues().get(1));   // tool-ход не порождён LLM-вызовом
     }
 
     @Test
     @DisplayName("best-effort: сбой saveTurn не пробрасывается наружу")
     void swallowsFailure() {
         when(client.saveTurn(anyString(), anyString(), anyInt(), any(), any(), anyBoolean(),
-                any(), any(), any(), any(), any()))
+                any(), any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("control-api down"));
 
         assertDoesNotThrow(() -> turnLog().record(assistant(), META));
     }
 
     @Test
-    @DisplayName("пустой список сообщений роли USER не дергает клиента")
-    void userAloneNoClientCall() {
+    @DisplayName("один system-ход не дергает клиента вовсе")
+    void systemAloneNoClientCall() {
         TurnLog turns = turnLog();
-        turns.record(AgentChatMessage.user("hi"), null);
+        turns.record(AgentChatMessage.system("sys"), null);
         verifyNoInteractions(client);
     }
 }

@@ -23,7 +23,7 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 | `model/AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
 | `MessageCodec` | Typed channel-facing progress lines (`ProgressLine{type, text}`) for `SaveMessage`; history persistence is text-only since v2 (raw transcript lives in DBOS checkpoints). Also exposes shared `AgentChatMessage`→proto `tool_calls`/`tool_results` converters reused by the turn ledger. |
-| `workers/run/TurnLog` | Canonical full-fidelity turn ledger writer (`SaveTurn` → `agent_run_turns`): one record per assistant/tool `AgentChatMessage`, uncapped, all runs. Assistant turns also carry LLM provenance (`finish_reason`/`model`/`call_id`) via `LlmMeta` — `call_id` joins to `llm_usage_log`; tool turns leave it null. Plain idempotent call (not a durable step) — a turn is a projection of already-durable child-workflow results; replay dedupes on `(run_id, turn_index)`. Best-effort. |
+| `workers/run/TurnLog` | Canonical full-fidelity turn ledger writer (`SaveTurn` → `agent_run_turns`): one record per inbound/assistant/tool `AgentChatMessage`, uncapped, all runs. `turn_index` 0 is the inbound turn as the model received it (ephemeral prefix included), recorded by `AgentRunCore` before the loop; the system prompt is never a turn (it lives in `agent_runs.prompt`). Assistant turns also carry LLM provenance (`finish_reason`/`model`/`call_id`) and the reasoning text (`thinking_text`) via `LlmMeta` — `call_id` joins to `llm_usage_log`; tool turns leave both null. Plain idempotent call (not a durable step) — a turn is a projection of already-durable child-workflow results; replay dedupes on `(run_id, turn_index)`. Best-effort. |
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id, openWorld)`; `{namespace}.{name}` naming; schema parsing. |
 | `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). When the run has open-world tools it appends a system paragraph pinning tool output as data. |
 | `context/ContextMaterials` | The `GetRunContext` payload as fetched (ordered blocks + tools), consumed by `ContextBuilder`. |
@@ -67,18 +67,34 @@ of `SaveMessage` — the worker no longer routes channels. `PreparedContext` sta
 checkpoint (in-flight runs replay the serialized step result across deploys). See
 [agent-context-design.md](../architecture/agents-and-runs.md) for the context-assembly design.
 
+### Продолжать или закончить
+Решает `finish_reason` провайдера, а не форма сообщения: `TOOL_CALLS` — модель в середине работы,
+цикл идёт дальше; `STOP` — ход и есть ответ. Диалекты нормализуются в `LlmCallDispatcher` (на проводе
+OpenAI шлёт `tool_calls`, Spring AI отдаёт имя enum'а SDK — `TOOL_CALLS`), цикл видит уже готовый
+`Completion`. Чужое или отсутствующее значение (`end_turn`, `eos`, null) — `UNKNOWN`, и тогда решает
+форма сообщения, как было раньше: есть вызовы — продолжаем, нет — финал.
+
+`TOOL_CALLS` без единого распарсенного вызова (шлюз срезал, аргументы не разобрались) финалом не
+считается: ход остаётся в диалоге, модель переспрашивается, потолок ходов с мягкой посадкой закрывает
+вырожденный случай.
+
 ### Гварды цикла
 Ход без tool call'ов — ещё не финал. Два вырожденных «финала» перехватываются и не доезжают до
 пользователя:
 
 - **имитация вызова текстом** («🔧 name» или «[вызван инструмент …]») — модель написала вызов
   прозой вместо структурного, тул при этом не исполнился; идёт корректирующий user-ход, до 2 раз
-  за ран, дальше `ImitationLoopExhausted`;
+  за ран, дальше `ImitationLoopExhausted`. Сам имитирующий ход остаётся в диалоге и потому пишется
+  в `agent_run_turns`; в канал при этом не уходит ничего, кроме 💭-маркера, — текст хода без tool
+  call'ов не проецируется (`MessageCodec.progressLines`), так что сырая «🔧 …» строка пользователя
+  по-прежнему не достигает;
 - **пустой текст** — reasoning-модели за OpenAI-совместимым шлюзом иногда тратят всю генерацию на
   `reasoning_content` и возвращают пустой `content` с `finish_reason: stop` (наблюдалось на
   `deepseek-v4-flash`: 858 output-токенов, текста нет). Сбоем это не помечено ничем, поэтому без
   guard'а ран завершался «успешно», а пользователь видел тишину: пустой ANSWER бэк не доставляет
-  (`MessageLogService` режет blank), и в истории оставалась пустая строка. Пустой ход выбрасывается
+  (`MessageLogService` режет blank), и в истории оставалась пустая строка. Проверка стоит **до**
+  развилки по `finish_reason`: ход без текста и без вызовов пуст независимо от того, что заявил
+  провайдер. Пустой ход выбрасывается
   из диалога (сигнала для модели он не несёт, а пустой assistant-content строгие шлюзы отклоняют),
   добавляется нудж и модель переспрашивается — **один** раз: переспрос стоит пользователю ещё
   одного полного вызова. Дальше `EmptyAnswerExhausted` → нотис `notice.empty-answer`.

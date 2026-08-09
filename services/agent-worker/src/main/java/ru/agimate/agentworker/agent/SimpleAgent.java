@@ -33,7 +33,8 @@ import java.util.regex.Pattern;
  * {@value #MAX_IMITATION_CORRECTIONS} times per run) and the loop continues. If the model still
  * imitates a call once the corrections are exhausted, the run aborts with
  * {@link ru.agimate.agentworker.agent.error.ImitationLoopExhausted}, so a raw «🔧 …» line never
- * reaches the user as a final answer (corrective turns are ephemeral and are not projected).
+ * reaches the user as a final answer. The imitating turn itself is notified (it stays in the
+ * conversation, so the turn ledger keeps it); the corrective user turn is ephemeral and is not.
  *
  * <p>Guard: a tool-less turn with empty text is not a final answer either. Reasoning models behind
  * OpenAI-compatible gateways sometimes spend the whole generation on {@code reasoning_content} and
@@ -91,16 +92,32 @@ public class SimpleAgent {
     }
 
     /**
+     * How the model ended the turn, as the provider reported it — the loop's stop/continue signal.
+     * The raw {@code finish_reason} is mapped in the dispatcher (provider dialects stay there):
+     * {@code TOOL_CALLS} means the model is mid-work and the loop goes on, {@code STOP} means it is
+     * done. {@code UNKNOWN} covers an absent or unrecognised value — providers do send
+     * {@code end_turn}, {@code eos} and plain nulls — and there the structural fact decides, as it
+     * did before: a message carrying tool calls continues the loop, one without them is the answer.
+     */
+    public enum Completion {TOOL_CALLS, STOP, UNKNOWN}
+
+    /**
      * An LLM reply: the assistant message plus its provenance ({@code meta}) for the turn ledger,
-     * the call's token {@code usage} ({@code null} when nothing to account), and — for a truncated
-     * call — the terminal {@code incompleteReason} ({@code null} on a normal finish). The loop
-     * surfaces {@code usage} <b>before</b> acting on {@code incompleteReason}, so a truncated call's
-     * tokens are still accounted although the turn aborts.
+     * the call's token {@code usage} ({@code null} when nothing to account), the {@code completion}
+     * that decides whether the loop goes on, and — for a truncated call — the terminal
+     * {@code incompleteReason} ({@code null} on a normal finish). The loop surfaces {@code usage}
+     * <b>before</b> acting on {@code incompleteReason}, so a truncated call's tokens are still
+     * accounted although the turn aborts.
      */
     public record LlmReply(AgentChatMessage message, LlmMeta meta, LlmUsage usage,
-                           LlmResponseIncomplete.Reason incompleteReason) {
+                           LlmResponseIncomplete.Reason incompleteReason, Completion completion) {
+
+        public LlmReply {
+            completion = completion != null ? completion : Completion.UNKNOWN;
+        }
+
         public static LlmReply of(AgentChatMessage message) {
-            return new LlmReply(message, null, null, null);
+            return new LlmReply(message, null, null, null, Completion.UNKNOWN);
         }
     }
 
@@ -183,25 +200,35 @@ public class SimpleAgent {
             }
             AgentChatMessage assistant = reply.message();
             messages.add(assistant);
+            String text = assistant.text() != null ? assistant.text() : "";
 
-            if (!assistant.hasToolCalls()) {
-                String text = assistant.text() != null ? assistant.text() : "";
-                if (text.isBlank()) {
-                    if (emptyRetries < MAX_EMPTY_RETRIES) {
-                        emptyRetries++;
-                        log.warn("turn {}: empty reply, re-asking ({}/{})",
-                                turn, emptyRetries, MAX_EMPTY_RETRIES);
-                        // The empty turn is dropped rather than kept: it carries no signal for the model,
-                        // and re-sending empty assistant content is what strict gateways reject.
-                        messages.remove(messages.size() - 1);
-                        messages.add(AgentChatMessage.user(EMPTY_ANSWER_NUDGE));
-                        continue;
-                    }
-                    log.warn("turn {}: still empty after {} retry(-ies), aborting", turn, MAX_EMPTY_RETRIES);
-                    throw new EmptyAnswerExhausted("model returned no text after "
-                            + MAX_EMPTY_RETRIES + " retry(-ies)");
+            // Nothing to say and nothing to call — whatever finish_reason claims, the turn is empty.
+            // The check sits ahead of the stop/continue branch on purpose: a «tool calls» finish whose
+            // calls did not survive the gateway lands here too, and re-sending empty assistant content
+            // with no tool calls is exactly what strict gateways reject.
+            if (!assistant.hasToolCalls() && text.isBlank()) {
+                if (emptyRetries < MAX_EMPTY_RETRIES) {
+                    emptyRetries++;
+                    log.warn("turn {}: empty reply, re-asking ({}/{})",
+                            turn, emptyRetries, MAX_EMPTY_RETRIES);
+                    // The empty turn is dropped rather than kept: it carries no signal for the model.
+                    messages.remove(messages.size() - 1);
+                    messages.add(AgentChatMessage.user(EMPTY_ANSWER_NUDGE));
+                    continue;
                 }
+                log.warn("turn {}: still empty after {} retry(-ies), aborting", turn, MAX_EMPTY_RETRIES);
+                throw new EmptyAnswerExhausted("model returned no text after "
+                        + MAX_EMPTY_RETRIES + " retry(-ies)");
+            }
+
+            if (!continues(reply)) {
                 if (TOOL_TEXT_IMITATION.matcher(text).find()) {
+                    // The imitating turn stays in the conversation, so the ledger records it like any other:
+                    // a journal that hides turns the model went on to see cannot explain the run (and neither
+                    // can it explain the abort below). The channel is untouched — a tool-less assistant
+                    // message projects to nothing but its thinking marker, so the raw «🔧 …» line still
+                    // never reaches the user.
+                    notify(List.of(assistant), reply.meta());
                     if (corrections < MAX_IMITATION_CORRECTIONS) {
                         corrections++;
                         log.warn("turn {}: tool call imitated as text, correcting ({}/{})",
@@ -221,6 +248,17 @@ public class SimpleAgent {
                 return text;
             }
 
+            if (!assistant.hasToolCalls()) {
+                // TOOL_CALLS with nothing to dispatch: the model went for a tool and the call was lost
+                // (a gateway dropped it, arguments failed to parse). Not a final answer — we ask again
+                // and let the turn cap end it, rather than passing off half a turn as the result. The
+                // turn keeps its text (an empty one never reaches here), so the model sees its own
+                // attempt and can repeat it as a structural call.
+                log.warn("turn {}: finish_reason says tool calls, none parsed — re-asking", turn);
+                notify(List.of(assistant), reply.meta());
+                continue;
+            }
+
             // Two turn events: first the calls (delivered into the channel before execution), then — after
             // the dispatch — the results. Recording them as separate entries is precisely the point of v2.1a.
             notify(List.of(assistant), reply.meta());
@@ -232,6 +270,19 @@ public class SimpleAgent {
             notify(List.of(toolMsg), null);
         }
         throw new MaxTurnsExceeded("agent loop exceeded " + maxTurns + " turns without a final reply");
+    }
+
+    /**
+     * Does the turn continue? The provider's {@code finish_reason} decides: {@code TOOL_CALLS} — the
+     * model is mid-work, {@code STOP} — it is done and the message is the answer. Only when the
+     * provider said nothing recognisable does the message's own shape decide.
+     */
+    private static boolean continues(LlmReply reply) {
+        return switch (reply.completion()) {
+            case TOOL_CALLS -> true;
+            case STOP -> false;
+            case UNKNOWN -> reply.message().hasToolCalls();
+        };
     }
 
     private void notify(List<AgentChatMessage> newMessages, LlmMeta meta) {

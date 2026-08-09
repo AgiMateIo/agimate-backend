@@ -15,9 +15,15 @@ import java.util.UUID;
 
 /**
  * The canonical full-fidelity turn of a run: one record per worker AgentChatMessage
- * (assistant/tool), uncapped — unlike the capped channel projection {@link ChannelSessionMessage}.
- * Written for every run, including direct ones ({@code session_id} = null). Idempotency is
- * UNIQUE (run_id, turn_index).
+ * (inbound/assistant/tool), uncapped — unlike the capped channel projection
+ * {@link ChannelSessionMessage}. Written for every run, including direct ones ({@code session_id} =
+ * null), which is why the inbound turn belongs here: a direct run has no channel history, so this is
+ * the only row-shaped record of what was asked. Idempotency is UNIQUE (run_id, turn_index).
+ *
+ * <p>The USER row at {@code turn_index} 0 is the turn <b>as the model received it</b> — ephemeral
+ * blocks (memory notes) included, matching {@code agent_runs.prompt}. It is not a verbatim quote of
+ * the user; that lives in {@link ChannelSessionMessage} and {@code trigger_log.input}. SYSTEM turns
+ * are not written at all: static, large, and already in the run's prompt snapshot.
  */
 @Entity
 @Table(name = "agent_run_turns", uniqueConstraints =
@@ -59,6 +65,14 @@ public class AgentRunTurn extends BaseEntity {
     /** The assistant emitted reasoning on this turn (the 💭 marker). */
     @Column(name = "thinking", nullable = false)
     private boolean thinking;
+
+    /**
+     * The reasoning itself, uncapped; null when the model did not reason (then {@link #thinking} is
+     * false too — one provider field feeds both). Kept here only: the channel projection carries the
+     * marker, never the text.
+     */
+    @Column(name = "thinking_text", columnDefinition = "TEXT")
+    private String thinkingText;
 
     /** Tool calls of an assistant turn ({@code [{id,name,argumentsJson}]}); null otherwise. Uncapped. */
     @JdbcTypeCode(SqlTypes.JSON)

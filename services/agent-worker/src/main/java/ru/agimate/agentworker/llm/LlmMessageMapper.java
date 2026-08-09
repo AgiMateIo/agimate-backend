@@ -150,7 +150,12 @@ public class LlmMessageMapper {
         }
     }
 
-    /** Metadata key Spring AI's OpenAI module stores the provider's reasoning content under. */
+    /**
+     * Metadata key Spring AI's OpenAI module stores the provider's reasoning content under. Its own
+     * constant is private, so this is a copy of a contract nothing checks at compile time — hence the
+     * fallback in {@link #reasoning}: a rename on a Spring AI upgrade degrades to «found it under
+     * another reasoning-named key» instead of silently declaring that no model ever reasons.
+     */
     private static final String REASONING_CONTENT_KEY = "reasoningContent";
 
     /**
@@ -171,10 +176,34 @@ public class LlmMessageMapper {
         List<AgentChatMessage.ToolCall> toolCalls = out.getToolCalls().stream()
                 .map(tc -> new AgentChatMessage.ToolCall(tc.id(), tc.name(), tc.arguments()))
                 .toList();
-        // Reasoning models (DeepSeek, Ollama, ...) surface their thinking here; the flag drives
-        // the 💭 progress marker and the "thinking..." timeline projection.
-        boolean thinking = out.getMetadata().get(REASONING_CONTENT_KEY) instanceof String s && !s.isBlank();
-        return AgentChatMessage.assistant(out.getText(), thinking, toolCalls);
+        // Only the flag lives on the message (it drives the 💭 progress marker); the reasoning text
+        // itself travels on LlmMeta — see reasoning(ChatResponse).
+        return AgentChatMessage.assistant(out.getText(), reasoning(response) != null, toolCalls);
+    }
+
+    /**
+     * The model's reasoning content for this turn, or {@code null} when it did not reason (the
+     * common case: most providers return reasoning only when the request asks for it). Reasoning
+     * models — DeepSeek, Ollama and the gateways in front of them — surface it in the assistant
+     * metadata.
+     *
+     * <p>Spring AI always puts {@link #REASONING_CONTENT_KEY} there (an empty string when the
+     * provider sent none), so its presence settles the answer; only when the key is absent entirely
+     * do we scan for another reasoning-named string — that is the shape a rename upstream would take.
+     */
+    public String reasoning(ChatResponse response) {
+        Map<String, Object> metadata = response.getResult().getOutput().getMetadata();
+        Object exact = metadata.get(REASONING_CONTENT_KEY);
+        if (exact != null) {
+            return exact instanceof String s && !s.isBlank() ? s : null;
+        }
+        return metadata.entrySet().stream()
+                .filter(e -> e.getKey().toLowerCase().contains("reasoning"))
+                .map(Map.Entry::getValue)
+                .filter(v -> v instanceof String s && !s.isBlank())
+                .map(String.class::cast)
+                .findFirst()
+                .orElse(null);
     }
 
     /** Tool definitions as no-op callbacks (execution is manual; the callback body is never called). */

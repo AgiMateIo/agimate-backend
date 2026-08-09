@@ -22,10 +22,10 @@ public interface AgentRunTurnRepository extends JpaRepository<AgentRunTurn, UUID
     @Modifying
     @Query(value = """
             INSERT INTO agent_run_turns
-                (run_id, session_id, agent_id, turn_index, role, text, thinking,
+                (run_id, session_id, agent_id, turn_index, role, text, thinking, thinking_text,
                  tool_calls, tool_results, finish_reason, model, call_id, created_at, updated_at)
             VALUES
-                (:runId, :sessionId, :agentId, :turnIndex, :role, :text, :thinking,
+                (:runId, :sessionId, :agentId, :turnIndex, :role, :text, :thinking, :thinkingText,
                  CAST(:toolCalls AS jsonb), CAST(:toolResults AS jsonb), :finishReason, :model, :callId,
                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT (run_id, turn_index) DO NOTHING
@@ -37,6 +37,7 @@ public interface AgentRunTurnRepository extends JpaRepository<AgentRunTurn, UUID
                              @Param("role") String role,
                              @Param("text") String text,
                              @Param("thinking") boolean thinking,
+                             @Param("thinkingText") String thinkingText,
                              @Param("toolCalls") String toolCalls,
                              @Param("toolResults") String toolResults,
                              @Param("finishReason") String finishReason,

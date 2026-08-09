@@ -18,7 +18,7 @@ import java.util.UUID;
 
 /**
  * The canonical full-fidelity journal of a run's turns ({@code agent_run_turns}): one record per worker
- * AgentChatMessage (assistant/tool), uncapped — unlike the capped channel projection
+ * AgentChatMessage (inbound/assistant/tool), uncapped — unlike the capped channel projection
  * {@code channel_session_messages}. Written for every run, including direct ones
  * ({@code session_id} = null).
  *
@@ -38,7 +38,7 @@ public class AgentRunTurnService {
 
     @Transactional
     public SaveResult save(UUID agentId, UUID runId, int turnIndex, AgentTurnRole role, String text,
-                           boolean thinking, List<ToolTurnRecord.Call> toolCalls,
+                           boolean thinking, String thinkingText, List<ToolTurnRecord.Call> toolCalls,
                            List<ToolTurnRecord.Result> toolResults,
                            String finishReason, String model, String callId) {
         AgentRun run = agentRunRepository.findById(runId)
@@ -54,7 +54,7 @@ public class AgentRunTurnService {
 
         int inserted = turnRepository.insertIgnoreConflict(
                 runId, run.getSessionId(), agentId, turnIndex, role.name(),
-                emptyToNull(text), thinking, callsJson, resultsJson,
+                emptyToNull(text), thinking, emptyToNull(thinkingText), callsJson, resultsJson,
                 emptyToNull(finishReason), emptyToNull(model), emptyToNull(callId));
 
         boolean duplicate = inserted == 0;

@@ -12,7 +12,7 @@ import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import java.util.List;
 
 /**
- * Canonical full-fidelity turn ledger writer ({@code SaveTurn}): one record per assistant/tool
+ * Canonical full-fidelity turn ledger writer ({@code SaveTurn}): one record per inbound/assistant/tool
  * {@link AgentChatMessage}, uncapped. Created per run so it shares one {@code turn_index} counter.
  *
  * <p>Unlike {@link MessageLog}, these are <b>not</b> durable steps: a turn is a pure idempotent
@@ -20,7 +20,8 @@ import java.util.List;
  * re-derives and re-sends the same {@code (run_id, turn_index)} and the backend dedupes — no
  * checkpoint is added, so this needs no drain-before-deploy. Best-effort: a failed write is logged
  * and never fails the run (observability, not the decision loop). The {@code turn_index} advances
- * deterministically (only assistant/tool messages consume one), so replay reproduces it exactly.
+ * deterministically (the system prompt is the only message that consumes none), so replay reproduces
+ * it exactly.
  */
 @Slf4j
 public class TurnLog {
@@ -37,16 +38,23 @@ public class TurnLog {
     }
 
     /**
-     * Records an assistant or tool message; user/system messages are not projected in this phase.
-     * {@code meta} carries the LLM provenance for the assistant turn ({@code null} for tool turns).
+     * Records a user, assistant or tool message. {@code meta} carries the LLM provenance for the
+     * assistant turn ({@code null} for the inbound and tool turns — neither is produced by a model
+     * call).
+     *
+     * <p>The system prompt is the one message that stays out: it is static, large, and already kept
+     * once per run in {@code agent_runs.prompt} — a copy on every run would only inflate the table.
+     * The run's own inbound turn is recorded by the run wiring before the loop, so it takes index 0
+     * and the transcript reads as a dialogue rather than starting from the answer.
      */
     public void record(AgentChatMessage m, LlmMeta meta) {
         switch (m.role()) {
+            case USER -> send(TurnRole.TURN_ROLE_USER, m.text(), false, List.of(), List.of(), null);
             case ASSISTANT -> send(TurnRole.TURN_ROLE_ASSISTANT, m.text(), m.thinking(),
                     MessageCodec.toolCallRecs(m.toolCalls()), List.of(), meta);
             case TOOL -> send(TurnRole.TURN_ROLE_TOOL, null, false,
                     List.of(), MessageCodec.toolResultRecs(m.toolResults()), null);
-            case USER, SYSTEM -> { /* prompt/inbound is recorded separately; nothing is projected here */ }
+            case SYSTEM -> { /* the system prompt lives in the run's prompt snapshot, not per turn */ }
         }
     }
 
@@ -56,8 +64,11 @@ public class TurnLog {
         String finishReason = meta != null ? meta.finishReason() : null;
         String model = meta != null ? meta.model() : null;
         String callId = meta != null ? meta.callId() : null;
+        // The reasoning text rides on meta, not on the message: only the flag reaches the channel
+        // projection, the text goes to the ledger alone.
+        String thinkingText = meta != null ? meta.reasoning() : null;
         try {
-            boolean duplicate = client.saveTurn(agentId, runId, n, role, text, thinking,
+            boolean duplicate = client.saveTurn(agentId, runId, n, role, text, thinking, thinkingText,
                     calls, results, finishReason, model, callId).getDuplicate();
             if (duplicate) {
                 log.debug("saveTurn duplicate idx={} role={}", n, role);

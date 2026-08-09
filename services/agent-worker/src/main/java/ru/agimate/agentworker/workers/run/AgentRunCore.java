@@ -76,8 +76,8 @@ public class AgentRunCore {
     /**
      * Run the agent loop body: history and the user prompt come from {@code prepared}, per-turn
      * progress and the final answer are recorded via {@code messages} (the backend persists and
-     * delivers). Only the rendered user prompt is durable — ephemeral blocks (memory notes) are
-     * prepended to the model turn and are never part of the persisted dialogue.
+     * delivers). Ephemeral blocks (memory notes) are prepended to the model turn and stay out of the
+     * dialogue history that feeds later runs — the turn ledger and the prompt snapshot keep them.
      */
     public String run(String agentId, String runId, PreparedContext prepared, MessageLog messages,
                       String context) {
@@ -131,6 +131,11 @@ public class AgentRunCore {
 
         AgentRunner runner = new AgentRunner(llmDispatcher, toolDispatcher, registry.toolDefs(), maxTurns,
                 context, observer, templates);
+        // Turn 0 is the inbound one — as the model got it, ephemeral prefix included, the same text the
+        // prompt snapshot keeps. Without it the transcript of a direct run opens with the answer and the
+        // question exists nowhere but inside that snapshot's JSON (a direct run has no channel history).
+        // Not routed through the observer: the channel already showed the user their own message.
+        turns.record(modelRequest, null);
         String answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
         messages.answer(answer);
         return answer;
@@ -172,8 +177,10 @@ public class AgentRunCore {
 
     /**
      * Model-facing user turn: the ephemeral block (memory notes etc.) prepended before the user's
-     * message, if any — reference data goes ahead of the request the model must act on. The
-     * ephemeral text is never persisted; only {@code initialRequest} rides into history.
+     * message, if any — reference data goes ahead of the request the model must act on. The ephemeral
+     * text never rides into the dialogue history that feeds later runs; the observability records —
+     * the prompt snapshot and the turn ledger — do keep it, because both answer «what did the model
+     * see», and the notes are part of that.
      */
     private static AgentChatMessage withEphemeralPrefix(AgentChatMessage initialRequest, String prefix) {
         if (prefix == null || prefix.isBlank()) {

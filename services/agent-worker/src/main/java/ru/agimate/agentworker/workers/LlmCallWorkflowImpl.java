@@ -99,7 +99,8 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             ChatResponse response = callWithRetry(model, prompt);
             String callId = currentCallId();
             return Result.ok(mapper.fromResponse(response), mapper.finishReason(response),
-                    creds.getModel(), callId, buildUsage(response, creds, callId));
+                    creds.getModel(), callId, buildUsage(response, creds, callId),
+                    mapper.reasoning(response));
         } catch (Exception e) {
             OpenAIServiceException svc = findServiceException(e);
             if (svc != null) {

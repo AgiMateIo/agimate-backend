@@ -71,13 +71,15 @@ class SimpleAgentTest {
     @Test
     @DisplayName("meta вызова прокидывается в observer на assistant-ход; на tool-ход meta null")
     void metaReachesObserverForAssistantOnly() {
-        LlmMeta meta = new LlmMeta("tool_calls", "gpt-5-mini", "wf-llm-1");
+        LlmMeta meta = new LlmMeta("tool_calls", "gpt-5-mini", "wf-llm-1", null);
         AtomicInteger turn = new AtomicInteger();
         SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
                 ? new SimpleAgent.LlmReply(AgentChatMessage.assistant(null, false,
-                        List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))), meta, null, null)
+                        List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))), meta, null, null,
+                        SimpleAgent.Completion.TOOL_CALLS)
                 : new SimpleAgent.LlmReply(AgentChatMessage.assistant("final", false, List.of()),
-                        new LlmMeta("stop", "gpt-5-mini", "wf-llm-2"), null, null);
+                        new LlmMeta("stop", "gpt-5-mini", "wf-llm-2", null), null, null,
+                        SimpleAgent.Completion.STOP);
         SimpleAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id1", "t", "{}", false));
 
@@ -107,7 +109,8 @@ class SimpleAgentTest {
     void usageSurfacedToObserver() {
         LlmUsage usage = new LlmUsage("wf-1", "prov", "gpt-5-mini", 100, 20, 0, 0);
         SimpleAgent.LlmCaller llm = (msgs, defs) -> new SimpleAgent.LlmReply(
-                AgentChatMessage.assistant("done", false, List.of()), null, usage, null);
+                AgentChatMessage.assistant("done", false, List.of()), null, usage, null,
+                SimpleAgent.Completion.STOP);
         List<LlmUsage> got = new ArrayList<>();
         SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
             @Override
@@ -128,7 +131,7 @@ class SimpleAgentTest {
         LlmUsage usage = new LlmUsage("wf-1", "prov", "gpt-5-mini", 100, 20, 0, 0);
         SimpleAgent.LlmCaller llm = (msgs, defs) -> new SimpleAgent.LlmReply(
                 AgentChatMessage.assistant("обрезано", false, List.of()), null, usage,
-                LlmResponseIncomplete.Reason.LENGTH);
+                LlmResponseIncomplete.Reason.LENGTH, SimpleAgent.Completion.UNKNOWN);
         List<LlmUsage> got = new ArrayList<>();
         SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
             @Override
@@ -323,6 +326,147 @@ class SimpleAgentTest {
 
         assertEquals("final", agent.run(conv));
         assertTrue(conv.stream().noneMatch(m -> SimpleAgent.EMPTY_ANSWER_NUDGE.equals(m.text())));
+    }
+
+    @Test
+    @DisplayName("имитирующий ход уходит в observer со своей meta; корректирующий user-ход — нет")
+    void imitationTurnIsProjected() {
+        LlmMeta imitationMeta = new LlmMeta("stop", "deepseek-chat", "wf-llm-1", "прикинусь тулом");
+        AtomicInteger turn = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
+                ? new SimpleAgent.LlmReply(AgentChatMessage.assistant("🔧 t", true, List.of()),
+                        imitationMeta, null, null, SimpleAgent.Completion.STOP)
+                : new SimpleAgent.LlmReply(AgentChatMessage.assistant("готово", false, List.of()),
+                        new LlmMeta("stop", "deepseek-chat", "wf-llm-2", null), null, null,
+                        SimpleAgent.Completion.STOP);
+
+        List<AgentChatMessage> projected = new ArrayList<>();
+        List<LlmMeta> metas = new ArrayList<>();
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public void onMessages(List<AgentChatMessage> msgs, LlmMeta m) {
+                projected.addAll(msgs);
+                msgs.forEach(x -> metas.add(m));
+            }
+        };
+
+        assertEquals("готово", agent(llm, calls -> List.of(), observer, 10)
+                .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        // Имитация и финал — оба хода в журнале, коррекции (user) среди них нет.
+        assertEquals(List.of("🔧 t", "готово"), projected.stream().map(AgentChatMessage::text).toList());
+        assertTrue(projected.stream().allMatch(m -> m.role() == AgentChatMessage.Role.ASSISTANT));
+        assertTrue(projected.get(0).thinking());
+        assertEquals("wf-llm-1", metas.get(0).callId());
+    }
+
+    @Test
+    @DisplayName("исчерпание коррекций: последний имитирующий ход тоже попадает в журнал")
+    void lastImitationProjectedBeforeAbort() {
+        SimpleAgent.LlmCaller llm = (msgs, defs) ->
+                reply(AgentChatMessage.assistant("🔧 t", false, List.of()));
+        List<AgentChatMessage> projected = new ArrayList<>();
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public void onMessages(List<AgentChatMessage> msgs, LlmMeta m) {
+                projected.addAll(msgs);
+            }
+        };
+
+        assertThrows(ImitationLoopExhausted.class, () -> agent(llm, calls -> List.of(), observer, 10)
+                .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        // MAX_IMITATION_CORRECTIONS коррекций + ход, на котором ран оборвался.
+        assertEquals(SimpleAgent.MAX_IMITATION_CORRECTIONS + 1, projected.size());
+    }
+
+    @Test
+    @DisplayName("пустой ход выброшен из диалога — и в журнал не уходит")
+    void emptyTurnNotProjected() {
+        AtomicInteger turn = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
+                ? reply(AgentChatMessage.assistant("   ", false, List.of()))
+                : reply(AgentChatMessage.assistant("готово", false, List.of()));
+        List<AgentChatMessage> projected = new ArrayList<>();
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public void onMessages(List<AgentChatMessage> msgs, LlmMeta m) {
+                projected.addAll(msgs);
+            }
+        };
+
+        assertEquals("готово", agent(llm, calls -> List.of(), observer, 10)
+                .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        assertEquals(List.of("готово"), projected.stream().map(AgentChatMessage::text).toList());
+    }
+
+    @Test
+    @DisplayName("finish_reason STOP обрывает цикл, TOOL_CALLS — продолжает")
+    void completionDrivesTheLoop() {
+        AtomicInteger turn = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
+                ? new SimpleAgent.LlmReply(AgentChatMessage.assistant("сейчас гляну", false,
+                        List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))), null, null, null,
+                        SimpleAgent.Completion.TOOL_CALLS)
+                : new SimpleAgent.LlmReply(AgentChatMessage.assistant("готово", false, List.of()),
+                        null, null, null, SimpleAgent.Completion.STOP);
+        SimpleAgent.ToolDispatcher dispatcher = calls -> List.of(
+                new AgentChatMessage.ToolResult("id1", "t", "{}", false));
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        assertEquals("готово", agent(llm, dispatcher, null, 10).run(conv));
+        assertEquals(AgentChatMessage.Role.TOOL, conv.get(2).role());
+    }
+
+    @Test
+    @DisplayName("TOOL_CALLS без распарсенных вызовов финалом не считается — переспрос")
+    void toolCallsWithoutCallsIsNotFinal() {
+        AtomicInteger turn = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
+                ? new SimpleAgent.LlmReply(AgentChatMessage.assistant("сейчас вызову", false, List.of()),
+                        null, null, null, SimpleAgent.Completion.TOOL_CALLS)
+                : new SimpleAgent.LlmReply(AgentChatMessage.assistant("готово", false, List.of()),
+                        null, null, null, SimpleAgent.Completion.STOP);
+
+        assertEquals("готово", agent(llm, calls -> List.of(), null, 10)
+                .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        assertEquals(2, turn.get());   // потерянный вызов не принят за ответ: модель переспрошена
+    }
+
+    @Test
+    @DisplayName("TOOL_CALLS без вызовов и без текста → пустой ход выброшен, а не переслан модели")
+    void lostToolCallWithEmptyTextIsDropped() {
+        AtomicInteger turn = new AtomicInteger();
+        List<List<AgentChatMessage>> sent = new ArrayList<>();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> {
+            sent.add(List.copyOf(msgs));
+            return turn.getAndIncrement() == 0
+                    ? new SimpleAgent.LlmReply(AgentChatMessage.assistant("  ", false, List.of()),
+                            null, null, null, SimpleAgent.Completion.TOOL_CALLS)
+                    : new SimpleAgent.LlmReply(AgentChatMessage.assistant("готово", false, List.of()),
+                            null, null, null, SimpleAgent.Completion.STOP);
+        };
+
+        assertEquals("готово", agent(llm, calls -> List.of(), null, 10)
+                .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        // Во втором вызове пустого assistant-хода в контексте нет — строгие шлюзы такое отклоняют.
+        assertTrue(sent.get(1).stream().noneMatch(m -> m.role() == AgentChatMessage.Role.ASSISTANT));
+        assertEquals(SimpleAgent.EMPTY_ANSWER_NUDGE, sent.get(1).get(sent.get(1).size() - 1).text());
+    }
+
+    @Test
+    @DisplayName("UNKNOWN (провайдер не сказал или сказал своё) → решает форма сообщения")
+    void unknownFallsBackToMessageShape() {
+        AtomicInteger turn = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
+                ? reply(AgentChatMessage.assistant(null, false,
+                        List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))))
+                : reply(AgentChatMessage.assistant("final", false, List.of()));
+        SimpleAgent.ToolDispatcher dispatcher = calls -> List.of(
+                new AgentChatMessage.ToolResult("id1", "t", "{}", false));
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        // reply(...) не несёт completion → UNKNOWN: ход с вызовами продолжает цикл, без вызовов — финал.
+        assertEquals("final", agent(llm, dispatcher, null, 10).run(conv));
+        assertEquals(AgentChatMessage.Role.TOOL, conv.get(2).role());
     }
 
     @Test
