@@ -123,7 +123,7 @@ public class AgentRunCore {
         };
 
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
-        AgentChatMessage modelRequest = withEphemeralPrefix(initialRequest, prepared.ephemeralUserPrefix());
+        AgentChatMessage modelRequest = withEphemeralPrefix(prepared.ephemeralUserPrefix(), initialRequest);
 
         LlmCallDispatcher llmDispatcher = new LlmCallDispatcher(dbos, llm, llmQueue, agentId);
         ToolCallDispatcher toolDispatcher = new ToolCallDispatcher(dbos, tool, toolQueue, agentId,
@@ -135,7 +135,7 @@ public class AgentRunCore {
         // prompt snapshot keeps. Without it the transcript of a direct run opens with the answer and the
         // question exists nowhere but inside that snapshot's JSON (a direct run has no channel history).
         // Not routed through the observer: the channel already showed the user their own message.
-        turns.record(modelRequest, null);
+        turns.record(initialRequest, null);
         String answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
         messages.answer(answer);
         return answer;
@@ -182,7 +182,7 @@ public class AgentRunCore {
      * the prompt snapshot and the turn ledger — do keep it, because both answer «what did the model
      * see», and the notes are part of that.
      */
-    private static AgentChatMessage withEphemeralPrefix(AgentChatMessage initialRequest, String prefix) {
+    private static AgentChatMessage withEphemeralPrefix(String prefix, AgentChatMessage initialRequest) {
         if (prefix == null || prefix.isBlank()) {
             return initialRequest;
         }
