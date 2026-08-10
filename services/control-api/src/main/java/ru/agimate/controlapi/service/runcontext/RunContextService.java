@@ -64,7 +64,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * Assembly of a run's context for {@code GetRunContext}: the policy ({@link ContextSpec}) is chosen
@@ -99,14 +98,13 @@ public class RunContextService {
             + "invent file ids.";
 
     /**
-     * The rule for calling tools — added whenever the run has any tools. Weak models imitate a call as
-     * text («🔧 name»), copying the pattern out of history — such a «call» is never executed.
+     * The rule for calling tools — added whenever the run has any tools. Deliberately states the rule
+     * without quoting any imitation pattern: showing the model the exact text of a forbidden «call»
+     * hands it a template for the very thing being forbidden.
      */
     static final String TOOL_CALL_GUIDANCE =
-            "Call tools only through the structural tool-calling API. Never write a tool call as "
-            + "reply text: lines like \"🔧 name\" or \"[tool called ...]\" are markup for work that "
-            + "already happened, not a template for your reply; a \"call\" written as text does not "
-            + "execute.";
+            "Call tools only through the structural tool-calling API. A tool call written as reply "
+            + "text is never executed — the user just sees the text, and the work does not happen.";
 
     /**
      * The answer's attach convention — added only in DIALOGUE runs whose prompt channel supports
@@ -266,11 +264,11 @@ public class RunContextService {
      * the window {@link EffectiveContext#historyLimit()} ({@code 0} — no history), filtered by
      * {@link ContextSpec.HistoryDetail}.
      *
-     * <p>Tool turns (v2.1): for PROGRESS/TOOL_CALL with a {@code message_json} the structural
-     * {@code toolTurn} goes out — the worker restores native tool_use/tool_result from it; the textual
-     * 🔧 projection never reaches history (the model imitates it as text instead of making a real
-     * call). PROGRESS/TEXT of such a run is skipped — its preamble is already inside toolTurn. Legacy
-     * 🔧 lines with no message_json are sanitised into the statement «[вызван инструмент …]».
+     * <p>Tool turns (v2.1): for PROGRESS/TOOL_CALL the structural {@code toolTurn} from
+     * {@code message_json} goes out — the worker restores native tool_use/tool_result from it; the
+     * textual 🔧 projection never reaches history (the model imitates it as text instead of making a
+     * real call), so a row without a readable {@code message_json} is dropped rather than sent as
+     * text. PROGRESS/TEXT of such a run is skipped — its preamble is already inside toolTurn.
      */
     private List<RunHistoryMessage> history(UUID sessionId, EffectiveContext effective) {
         if (sessionId == null || effective.historyLimit() <= 0) {
@@ -319,16 +317,14 @@ public class RunContextService {
             return new RunHistoryMessage(kind, m.getMessage());
         }
         if (PROGRESS_TOOL_CALL.equals(m.getProgressType())) {
-            if (m.getMessageJson() != null) {
-                Optional<ToolTurnRecord> turn = JsonUtils.fromMap(m.getMessageJson(), ToolTurnRecord.class);
-                if (turn.isPresent()) {
-                    return new RunHistoryMessage(kind, m.getMessage(), capToolTurn(turn.get()));
-                }
-                log.warn("unreadable tool turn message_json run={} seq={} — falling back to text",
-                        m.getRunId(), m.getSeq());
+            Optional<ToolTurnRecord> turn = JsonUtils.fromMap(m.getMessageJson(), ToolTurnRecord.class);
+            if (turn.isPresent()) {
+                return new RunHistoryMessage(kind, m.getMessage(), capToolTurn(turn.get()));
             }
-            // A legacy «🔧 name» line: an imitated action → a statement about past work.
-            return new RunHistoryMessage(kind, sanitizeToolLines(m.getMessage()));
+            // Without the structural form there is nothing to hand over: the textual 🔧 projection is
+            // exactly what teaches the model to write calls out as text instead of making them.
+            log.warn("unreadable tool turn message_json run={} seq={} — dropping", m.getRunId(), m.getSeq());
+            return null;
         }
         if (PROGRESS_TOOL_RESULT.equals(m.getProgressType())) {
             // The results half of a turn (v2.1a): we hand the worker the structured form and it stitches it to the preceding calls row.
@@ -358,15 +354,6 @@ public class RunContextService {
             case NO_REASONING -> "THINKING".equals(m.getProgressType());
             case DIALOGUE_ONLY -> true;
         };
-    }
-
-    /** «🔧 name» → «[вызван инструмент name]»: the past tense cannot be «executed», so the imitation loses its point. */
-    static String sanitizeToolLines(String text) {
-        return text.lines()
-                .map(line -> line.startsWith("🔧 ")
-                        ? "[вызван инструмент " + line.substring("🔧 ".length()).strip() + "]"
-                        : line)
-                .collect(Collectors.joining("\n"));
     }
 
     /** Truncation of a tool turn's JSON fields down to the context budget {@value #TOOL_JSON_CONTEXT_CAP}. */

@@ -2,7 +2,6 @@ package ru.agimate.agentworker.agent;
 
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.agent.error.EmptyAnswerExhausted;
-import ru.agimate.agentworker.agent.error.ImitationLoopExhausted;
 import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
@@ -12,7 +11,6 @@ import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.model.ToolDef;
 
 import java.util.List;
-import java.util.regex.Pattern;
 
 /**
  * Minimal agent turn-loop over {@link AgentChatMessage}. Drives a model conversation manually so
@@ -26,17 +24,7 @@ import java.util.regex.Pattern;
  * turn (calls before dispatch, results after) are what let the backend record and deliver the tool
  * call the moment it is made, ahead of the — possibly slow — execution.
  *
- * <p>Guard: weak models (DeepSeek and others) sometimes write a tool call out as text («🔧 name»)
- * instead of making a structural one — without the guard such a «final answer» quietly ends the run
- * while the tool never executes. A reply with no tool calls but matching the imitation pattern is
- * not accepted: a corrective user turn is appended to the conversation (up to
- * {@value #MAX_IMITATION_CORRECTIONS} times per run) and the loop continues. If the model still
- * imitates a call once the corrections are exhausted, the run aborts with
- * {@link ru.agimate.agentworker.agent.error.ImitationLoopExhausted}, so a raw «🔧 …» line never
- * reaches the user as a final answer. The imitating turn itself is notified (it stays in the
- * conversation, so the turn ledger keeps it); the corrective user turn is ephemeral and is not.
- *
- * <p>Guard: a tool-less turn with empty text is not a final answer either. Reasoning models behind
+ * <p>Guard: a tool-less turn with empty text is not a final answer. Reasoning models behind
  * OpenAI-compatible gateways sometimes spend the whole generation on {@code reasoning_content} and
  * return an empty {@code content} with {@code finish_reason: stop} — nothing marks it as a failure,
  * so without the guard the run ends «successfully» and the user sees silence. The empty turn is
@@ -53,17 +41,6 @@ import java.util.regex.Pattern;
  */
 @Slf4j
 public class SimpleAgent {
-
-    /** Imitating a call as text: a «🔧 …» line (the channel projection) or «[вызван инструмент …]» (history). */
-    private static final Pattern TOOL_TEXT_IMITATION =
-            Pattern.compile("(?m)^\\s*(🔧|\\[вызван инструмент)");
-
-    static final int MAX_IMITATION_CORRECTIONS = 2;
-
-    static final String IMITATION_CORRECTION =
-            "Вызов инструмента, написанный текстом, не исполняется. Если нужно вызвать инструмент — "
-            + "сделай настоящий структурный tool call через API. Если вызов не нужен — ответь без "
-            + "строк вида «🔧 …».";
 
     /**
      * One retry, not several: an empty reply is a provider hiccup that a single re-ask usually
@@ -178,7 +155,6 @@ public class SimpleAgent {
      */
     public String run(List<AgentChatMessage> messages) {
         notifyStart(messages);
-        int corrections = 0;
         int emptyRetries = 0;
         // Soft landing only for a meaningful cap — a tiny maxTurns (tests, debugging) is left alone.
         boolean softLanding = maxTurns > WRAP_UP_TURNS;
@@ -222,27 +198,6 @@ public class SimpleAgent {
             }
 
             if (!continues(reply)) {
-                if (TOOL_TEXT_IMITATION.matcher(text).find()) {
-                    // The imitating turn stays in the conversation, so the ledger records it like any other:
-                    // a journal that hides turns the model went on to see cannot explain the run (and neither
-                    // can it explain the abort below). The channel is untouched — a tool-less assistant
-                    // message projects to nothing but its thinking marker, so the raw «🔧 …» line still
-                    // never reaches the user.
-                    notify(List.of(assistant), reply.meta());
-                    if (corrections < MAX_IMITATION_CORRECTIONS) {
-                        corrections++;
-                        log.warn("turn {}: tool call imitated as text, correcting ({}/{})",
-                                turn, corrections, MAX_IMITATION_CORRECTIONS);
-                        messages.add(AgentChatMessage.user(IMITATION_CORRECTION));
-                        continue;
-                    }
-                    // The corrections are exhausted and the model still imitates a call as text — this is no final answer.
-                    // We do not hand the raw «🔧 …» line to the user: a soft abort with a polite notice.
-                    log.warn("turn {}: still imitating tool call after {} corrections, aborting",
-                            turn, MAX_IMITATION_CORRECTIONS);
-                    throw new ImitationLoopExhausted("agent kept imitating tool calls as text after "
-                            + MAX_IMITATION_CORRECTIONS + " corrections");
-                }
                 notify(List.of(assistant), reply.meta());
                 log.info("turn {}: final answer ({} chars)", turn, text.length());
                 return text;

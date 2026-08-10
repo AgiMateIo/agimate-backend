@@ -512,8 +512,7 @@ class RunContextServiceTest {
             assertEquals(List.of(
                     new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "old question"),
                     new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "old answer"),
-                    // Легаси 🔧-строка без message_json санитизируется в констатацию.
-                    new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, "[вызван инструмент get_tasks]"),
+                    // TOOL_CALL без message_json выбрасывается: текстовая 🔧-строка в контекст не идёт.
                     new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "ok, done")),
                     view.history());
         }

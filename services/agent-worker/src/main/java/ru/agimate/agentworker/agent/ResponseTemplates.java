@@ -45,10 +45,6 @@ public class ResponseTemplates {
         return get("notice.empty-answer");
     }
 
-    public String imitationError() {
-        return get("notice.imitation-error");
-    }
-
     public String truncated() {
         return get("notice.truncated");
     }
