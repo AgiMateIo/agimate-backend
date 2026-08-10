@@ -51,8 +51,8 @@ public class ConnectorService {
         switch (connector.getExecutionKind()) {
             // In-proc: the handler's @Tool method; outbound calls (the telegram/mcp APIs) happen inside the tool service.
             case BACKEND -> toolExecutionService.executeTool(toolCallLog);
-            // The executor connects to us itself — the call is pushed into the device's channel.
-            case DEVICE -> pushToApp(toolCallLog);
+            // The executor connects to us itself — the call is pushed into the app's channel.
+            case APP -> pushToApp(toolCallLog);
             // The calling agent executes it (/tool/check + /tool/result) — dispatching here is the caller's bug.
             case LOOPBACK -> throw new BadRequestStatusException(
                     "Tools of connector '" + toolCallLog.getConnectorCode()
@@ -62,9 +62,9 @@ public class ConnectorService {
         }
     }
 
-    /** Delivery to an INBOUND executor: a push into the application's channel. */
+    /** Delivery to an APP executor: a push into the connected app's channel. */
     private void pushToApp(ToolCallLog toolCallLog) {
-        // connectionId = connections.id; the device is taken by connection.app_id.
+        // connectionId = connections.id; the app is taken by connection.app_id.
         Connection connection = connectionRepository
                 .findByIdNotDeleted(UUID.fromString(toolCallLog.getConnectionId()))
                 .orElseThrow(() -> new NotFoundStatusException("Connection not found: " + toolCallLog.getConnectionId()));

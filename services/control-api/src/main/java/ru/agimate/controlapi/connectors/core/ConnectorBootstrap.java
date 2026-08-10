@@ -45,8 +45,8 @@ public class ConnectorBootstrap {
 
     @EventListener(ApplicationReadyEvent.class)
     public void bootstrap() {
-        upsertStatic("app", "App", ConnectorTraits.device(),
-                "A device app: the agent calls tools on a connected computer or phone "
+        upsertStatic("app", "App", ConnectorTraits.app(),
+                "A connected app: the agent calls tools on a computer or phone that runs it "
                         + "— screenshots, files, local actions.");
         upsertStatic("claude-code", "Claude Code", ConnectorTraits.loopback(),
                 "Claude Code as the executor: the agent takes the calls and runs them in your environment.");
@@ -130,7 +130,7 @@ public class ConnectorBootstrap {
     /**
      * Fail-fast invariant of the derived «instance-bearing» axis: it is pinned down in two places —
      * the handler's type (which the code branches on) and the derivation
-     * {@link Connector#isInstanceBearing()} from credentials/DEVICE (the checks performed when a
+     * {@link Connector#isInstanceBearing()} from credentials/APP (the checks performed when a
      * connection is created). A divergence (an integration handler with no credential fields, say)
      * means the new connector was modelled wrongly — fail the startup rather than let the two
      * quietly drift apart.

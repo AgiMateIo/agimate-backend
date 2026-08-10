@@ -8,7 +8,7 @@ import ru.agimate.controlapi.database.enums.ExecutionKind;
  * Declared in {@code ConnectorHandler.traits()} and persisted into the {@code connectors} catalogue
  * by the bootstrap — the code is the source of truth. Other differences between connectors are not
  * declared: instance-bearing is derived ({@code Connector.isInstanceBearing()}: the user brings the
- * instance's identity — credentials or a device registration), and the data-owner rule
+ * instance's identity — credentials or an app registration), and the data-owner rule
  * (agent/team/user) is embodied in each connector's code and described in
  * {@code docs/architecture/connectors.md}.
  *
@@ -31,9 +31,9 @@ public record ConnectorTraits(
         return new ConnectorTraits(ExecutionKind.BACKEND, DefinitionBinding.DYNAMIC);
     }
 
-    /** A device (app): the device executes, the call is pushed, and tools are dynamic. */
-    public static ConnectorTraits device() {
-        return new ConnectorTraits(ExecutionKind.DEVICE, DefinitionBinding.DYNAMIC);
+    /** A connected app: the app executes, the call is pushed, and tools are dynamic. */
+    public static ConnectorTraits app() {
+        return new ConnectorTraits(ExecutionKind.APP, DefinitionBinding.DYNAMIC);
     }
 
     /** Loopback/agent-side (claude-code): the agent executes, control-api only authorises. */

@@ -65,9 +65,9 @@ public class AppService {
 
         Connector connector = connectorRepository.findById(connectorCode)
                 .orElseThrow(() -> new BadRequestStatusException("Unknown connector: " + connectorCode));
-        if (connector.getExecutionKind() != ExecutionKind.DEVICE) {
+        if (connector.getExecutionKind() != ExecutionKind.APP) {
             throw new BadRequestStatusException(
-                    "Connector '" + connectorCode + "' does not support device app instances");
+                    "Connector '" + connectorCode + "' does not support app instances");
         }
 
         GeneratedAppKey generatedKey = AppKeyUtils.generate(APP_KEY_PREFIX);

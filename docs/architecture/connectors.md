@@ -28,7 +28,7 @@ AAD = `entity + owner_id` (нельзя расшифровать, перенес
 (`Connector.applyTraits`):
 
 - `execution_kind` (BACKEND — in-proc `@Tool`-метод хендлера, включая коннекторы с внешними
-  HTTP-вызовами внутри тул-сервиса: telegram/mcp/media; DEVICE — push в канал устройства;
+  HTTP-вызовами внутри тул-сервиса: telegram/mcp/media; APP — push в канал подключённого приложения;
   LOOPBACK — исполняет вызывающий агент, цикл `/tool/check` + `/tool/result`). Читатель —
   `ConnectorService.pushToConnector`. Бывшая пара `execution_locus × transport_direction`
   кодировала эти же три случая; различие «наша инфра vs внешняя платформа» — информационное,
@@ -38,7 +38,7 @@ AAD = `entity + owner_id` (нельзя расшифровать, перенес
 
 **Выводимые оси не декларируются.** Экземплярность — «пользователь приносит идентичность
 экземпляра» — выводится в одной точке, `Connector.isInstanceBearing()` =
-`credentialFields != null || execution_kind = DEVICE`. В коде ось первично зафиксирована
+`credentialFields != null || execution_kind = APP`. В коде ось первично зафиксирована
 дизъюнктными типами хендлеров (`InternalConnectorHandler` / `IntegrationConnectorHandler`);
 согласованность двух фиксаций гарантирует fail-fast инвариант в `ConnectorBootstrap` (integration-
 хендлер без credential-полей роняет старт — это ошибка моделирования, а не конфигурации).

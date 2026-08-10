@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- DEVICE → APP в execution_kind: ось называет не устройство, а сторону, которая выполняет вызов —
+         подключённую снаружи программу (таблица apps, /app/*, pushToApp); телефон это или демон на
+         сервере, механике безразлично. Строки перезаписывает ConnectorBootstrap на старте, но он их
+         сначала читает: без этого UPDATE Hibernate упадёт на неизвестном значении енума раньше,
+         чем бутстрап успеет их починить. -->
+    <changeSet id="connectors-execution-kind-app" author="agimate">
+        <update tableName="connectors">
+            <column name="execution_kind" value="APP"/>
+            <where>execution_kind = 'DEVICE'</where>
+        </update>
+    </changeSet>
+
+</databaseChangeLog>

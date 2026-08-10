@@ -15,7 +15,7 @@
             </column>
             <column name="description" type="TEXT"/>
             <column name="credential_fields" type="JSONB"/>
-            <!-- BACKEND | DEVICE | LOOPBACK; synced from SPI capabilities() on bootstrap. -->
+            <!-- BACKEND | APP | LOOPBACK; synced from SPI capabilities() on bootstrap. -->
             <column name="execution_kind" type="TEXT"/>
             <column name="definition_binding" type="TEXT"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
