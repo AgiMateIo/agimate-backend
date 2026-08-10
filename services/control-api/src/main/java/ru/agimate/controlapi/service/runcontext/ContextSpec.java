@@ -15,8 +15,8 @@ public enum ContextSpec {
      * History without reasoning lines: «💭 thinking...» carries nothing, and in history it reads as
      * an utterance by the agent; tool turns stay as context of past work — structurally
      * (tool_turn → native tool_use/tool_result at the worker), not as text: the textual pattern
-     * «🔧 name» is something the model imitates instead of making a real call (legacy rows are
-     * sanitised).
+     * «🔧 name» is something the model imitates instead of making a real call (a row with no
+     * structural record is dropped rather than sent as that text).
      */
     DIALOGUE(SkillBodies.ALL, false, HistoryDetail.NO_REASONING),
 
