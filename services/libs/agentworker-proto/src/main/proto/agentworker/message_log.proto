@@ -52,9 +52,7 @@ message SaveMessageRequest {
   // Structural record of a tool turn (protocol v2.1), split across two rows (v2.1a): under
   // PROGRESS/TOOL_CALL only calls (text is the 🔧 channel projection, delivered right away, before
   // execution), under PROGRESS/TOOL_RESULT only results (text empty, history-only). Into the
-  // history of later runs the backend hands both back as a native tool_use/tool_result pair. An
-  // older backend ignores this field; the worker still understands legacy rows that carry calls and
-  // results in a single record.
+  // history of later runs the backend hands both back as a native tool_use/tool_result pair.
   ToolTurn tool_turn = 7;
 }
 
@@ -136,8 +134,8 @@ message ToolResultRec {
 message HistoryMessage {
   MessageKind kind = 1;
   string text = 2;
-  // Structural record of a tool turn. Newer runs deliver it as two adjacent records: first with
-  // calls (tool_use), then with results (tool_result) — the worker stitches them into a pair by
-  // order. Legacy runs send a single record with calls+results. Empty — an ordinary text row.
+  // Structural record of a tool turn, delivered as two adjacent records: first with calls
+  // (tool_use), then with results (tool_result) — the worker stitches them into a pair by order.
+  // Empty — an ordinary text row.
   ToolTurn tool_turn = 3;
 }

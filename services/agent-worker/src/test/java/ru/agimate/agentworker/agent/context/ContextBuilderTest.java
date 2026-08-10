@@ -203,37 +203,6 @@ class ContextBuilderTest {
     class HistoryMapping {
 
         @Test
-        @DisplayName("tool_turn разворачивается в нативную пару assistant(tool_calls) + tool(results)")
-        void toolTurnMapsToNativePair() {
-            HistoryMessage turn = HistoryMessage.newBuilder()
-                    .setKind(MessageKind.MESSAGE_KIND_PROGRESS)
-                    .setText("🔧 get_tasks")
-                    .setToolTurn(ToolTurn.newBuilder()
-                            .setText("смотрю доску")
-                            .addCalls(ToolCallRec.newBuilder()
-                                    .setId("c1").setName("board.get_tasks")
-                                    .setArgumentsJson("{\"boardId\":1}"))
-                            .addResults(ToolResultRec.newBuilder()
-                                    .setId("c1").setName("board.get_tasks")
-                                    .setOutputJson("{\"tasks\":[]}")))
-                    .build();
-
-            List<AgentChatMessage> mapped = ContextBuilder.mapHistory(List.of(turn));
-
-            assertEquals(2, mapped.size());
-            AgentChatMessage assistant = mapped.get(0);
-            assertEquals(AgentChatMessage.Role.ASSISTANT, assistant.role());
-            assertEquals("смотрю доску", assistant.text());
-            assertEquals("board.get_tasks", assistant.toolCalls().get(0).name());
-            assertEquals("{\"boardId\":1}", assistant.toolCalls().get(0).argumentsJson());
-            AgentChatMessage tool = mapped.get(1);
-            assertEquals(AgentChatMessage.Role.TOOL, tool.role());
-            assertEquals("{\"tasks\":[]}", tool.toolResults().get(0).contentJson());
-            // Текстовая 🔧-проекция в контекст не попадает.
-            assertTrue(mapped.stream().noneMatch(m -> m.text() != null && m.text().contains("🔧")));
-        }
-
-        @Test
         @DisplayName("вызов без записанного результата получает заглушку failed-результата")
         void missingResultStubbed() {
             HistoryMessage turn = HistoryMessage.newBuilder()
@@ -251,7 +220,7 @@ class ContextBuilderTest {
         }
 
         @Test
-        @DisplayName("v2.1a: раздельные calls- и results-записи сшиваются в нативную пару")
+        @DisplayName("раздельные calls- и results-записи сшиваются в нативную пару")
         void splitRowsMapToNativePair() {
             HistoryMessage calls = HistoryMessage.newBuilder()
                     .setKind(MessageKind.MESSAGE_KIND_PROGRESS)
@@ -278,6 +247,8 @@ class ContextBuilderTest {
             assertEquals("board.get_tasks", mapped.get(0).toolCalls().get(0).name());
             assertEquals(AgentChatMessage.Role.TOOL, mapped.get(1).role());
             assertEquals("{\"tasks\":[]}", mapped.get(1).toolResults().get(0).contentJson());
+            // Текстовая 🔧-проекция в контекст не попадает.
+            assertTrue(mapped.stream().noneMatch(m -> m.text() != null && m.text().contains("🔧")));
         }
 
         @Test

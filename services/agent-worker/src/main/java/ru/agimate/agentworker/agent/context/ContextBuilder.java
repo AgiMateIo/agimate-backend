@@ -103,11 +103,10 @@ public final class ContextBuilder {
      * {@code assistant(tool_calls)} + {@code tool(results)} — the model sees past calls through the
      * same channel it is required to call through, rather than as imitated text.
      *
-     * <p>Since v2.1a a turn arrives as two adjacent records: first calls (tool_use), then results
-     * (tool_result). The calls record consumes the following results record by look-ahead; legacy
-     * runs send calls+results in one record, which the same code handles without look-ahead. An
-     * orphaned results record (its calls half was cut off by the history window) is dropped — a
-     * {@code tool} with no preceding {@code tool_use} is rejected by providers.
+     * <p>A turn arrives as two adjacent records: first calls (tool_use), then results (tool_result);
+     * the calls record consumes the following results record by look-ahead. An orphaned results
+     * record (its calls half was cut off by the history window) is dropped — a {@code tool} with no
+     * preceding {@code tool_use} is rejected by providers.
      */
     static List<AgentChatMessage> mapHistory(List<HistoryMessage> history) {
         List<AgentChatMessage> mapped = new ArrayList<>(history.size());
@@ -115,9 +114,9 @@ public final class ContextBuilder {
             HistoryMessage m = history.get(i);
             ToolTurn turn = m.hasToolTurn() ? m.getToolTurn() : null;
             if (turn != null && turn.getCallsCount() > 0) {
-                List<ToolResultRec> results = turn.getResultsList();
-                // A split record (v2.1a): the results live in the next results-only entry.
-                if (results.isEmpty() && i + 1 < history.size()) {
+                // The calls record never carries its own results — they live in the next entry.
+                List<ToolResultRec> results = List.of();
+                if (i + 1 < history.size()) {
                     HistoryMessage next = history.get(i + 1);
                     if (next.hasToolTurn() && next.getToolTurn().getCallsCount() == 0
                             && next.getToolTurn().getResultsCount() > 0) {
