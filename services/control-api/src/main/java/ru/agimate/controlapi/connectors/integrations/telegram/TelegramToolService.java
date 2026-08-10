@@ -58,7 +58,7 @@ public class TelegramToolService {
     private final Set<String> webhookDeleted = ConcurrentHashMap.newKeySet();
 
     @Tool(name = "send_message", description = "Send a text message",
-            annotations = @ToolAnnotations(destructiveHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = true))
     public Map<String, Object> toolSendMessage(
             @ToolParam("Target chat ID") String chatId,
             @ToolParam("Message text") String text,
@@ -81,7 +81,7 @@ public class TelegramToolService {
     }
 
     @Tool(name = "send_photo", description = "Send a photo",
-            annotations = @ToolAnnotations(destructiveHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = true))
     public Map<String, Object> toolSendPhoto(
             @ToolParam("Target chat ID") String chatId,
             @ToolParam("Photo: URL, Telegram file_id, or agimate file id (agf_… from a tool result)")
@@ -94,7 +94,7 @@ public class TelegramToolService {
     }
 
     @Tool(name = "send_document", description = "Send a document (file)",
-            annotations = @ToolAnnotations(destructiveHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = true))
     public Map<String, Object> toolSendDocument(
             @ToolParam("Target chat ID") String chatId,
             @ToolParam("Document: URL, Telegram file_id, or agimate file id (agf_… from a tool result)")
@@ -108,7 +108,7 @@ public class TelegramToolService {
     }
 
     @Tool(name = "send_video", description = "Send a video",
-            annotations = @ToolAnnotations(destructiveHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = true))
     public Map<String, Object> toolSendVideo(
             @ToolParam("Target chat ID") String chatId,
             @ToolParam("Video: URL, Telegram file_id, or agimate file id (agf_… from a tool result)")
@@ -170,7 +170,8 @@ public class TelegramToolService {
     }
 
     // edit_message overwrites the previous text → destructiveHint=true (the default).
-    @Tool(name = "edit_message", description = "Edit a message")
+    @Tool(name = "edit_message", description = "Edit a message",
+            annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = true))
     public Map<String, Object> toolEditMessage(
             @ToolParam("Chat ID") String chatId,
             @ToolParam("Message ID to edit") String messageId,
@@ -182,7 +183,9 @@ public class TelegramToolService {
         return sendTelegramRequest("editMessageText", apiParams);
     }
 
-    @Tool(name = "delete_message", description = "Delete a message")
+    @Tool(name = "delete_message", description = "Delete a message",
+            annotations = @ToolAnnotations(destructiveHint = true, idempotentHint = true,
+                    openWorldHint = true))
     public Map<String, Object> toolDeleteMessage(
             @ToolParam("Chat ID") String chatId,
             @ToolParam("Message ID to delete") String messageId) {
@@ -193,7 +196,7 @@ public class TelegramToolService {
     }
 
     @Tool(name = "answer_callback_query", description = "Answer a callback query",
-            annotations = @ToolAnnotations(destructiveHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = true))
     public Map<String, Object> toolAnswerCallbackQuery(
             @ToolParam("Callback query ID") String callbackQueryId,
             @ToolParam(value = "Response text", required = false) String text) {

@@ -203,7 +203,7 @@ public class PlatformToolService {
             description = "Create a new agent. type defaults to GENERIC. Optionally bind skills at "
                     + "creation (their connectors are attached automatically). Returns the agent's ID; "
                     + "its access key is shown once in the platform UI",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public CreatedAgent createAgent(
             @ToolParam("Agent name") String name,
             @ToolParam(value = "Agent description", required = false) String description,
@@ -223,7 +223,7 @@ public class PlatformToolService {
     @Tool(name = "update_agent",
             description = "Update an agent's name, description, instructions and/or enabled flag. "
                     + "Omitted fields are left unchanged",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public AgentDetail updateAgent(
             @ToolParam("Agent public ID") String agentId,
             @ToolParam(value = "New name", required = false) String name,
@@ -251,7 +251,7 @@ public class PlatformToolService {
             description = "Create a skill from a full SKILL.md document (YAML frontmatter with name "
                     + "(stable code), title (display name), description, connectors + markdown body). "
                     + "isPublic defaults to false",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public SkillDetail createSkill(
             @ToolParam("Full SKILL.md content (frontmatter + body)") String skillMd,
             @ToolParam(value = "Publish to the shared catalog (default false)", required = false)
@@ -263,7 +263,7 @@ public class PlatformToolService {
 
     @Tool(name = "update_skill",
             description = "Replace a skill's SKILL.md content (bumps its version). Only your own skills",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public SkillDetail updateSkill(
             @ToolParam("Skill public ID") String skillId,
             @ToolParam("Full SKILL.md content (frontmatter + body)") String skillMd,
@@ -278,7 +278,7 @@ public class PlatformToolService {
     @Tool(name = "bind_skill",
             description = "Bind a skill to an agent. The skill's required connectors and access policies "
                     + "are attached automatically",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public OperationResult bindSkill(
             @ToolParam("Agent public ID") String agentId,
             @ToolParam("Skill public ID") String skillId) {
@@ -290,7 +290,7 @@ public class PlatformToolService {
     }
 
     @Tool(name = "unbind_skill", description = "Unbind a skill from an agent",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public OperationResult unbindSkill(
             @ToolParam("Agent public ID") String agentId,
             @ToolParam("Skill public ID") String skillId) {
@@ -321,7 +321,7 @@ public class PlatformToolService {
             description = "Start connecting an integration. Returns a setup link the user opens to enter "
                     + "credentials — secrets are never handled here. After the user finishes, call "
                     + "list_connections to get the new connection and bind_connection to attach it",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public ConnectionSetup createConnection(
             @ToolParam("Integration connector code (e.g. telegram, mcp)") String connectorCode,
             @ToolParam(value = "Optional display name for the connection", required = false) String name) {
@@ -344,7 +344,7 @@ public class PlatformToolService {
     @Tool(name = "bind_connection",
             description = "Bind an existing connection to an agent so the agent can use its tools. "
                     + "Only for integration connectors (create the connection first via create_connection)",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public OperationResult bindConnection(
             @ToolParam("Agent public ID") String agentId,
             @ToolParam("Connection ID (from list_connections)") String connectionId) {

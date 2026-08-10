@@ -60,7 +60,7 @@ public class AcpToolService {
     @Tool(name = "read_file",
             description = "Read a text file open in the user's IDE (including unsaved buffer changes). "
                     + "Absolute path. Optionally start at a 1-based line and limit the number of lines.",
-            annotations = @ToolAnnotations(readOnlyHint = true, destructiveHint = false, openWorldHint = true))
+            annotations = @ToolAnnotations(readOnlyHint = true, openWorldHint = true))
     public Map<String, Object> readFile(
             @ToolParam("Absolute path to the file") String path,
             @ToolParam(value = "1-based line to start from", required = false) Integer line,

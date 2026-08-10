@@ -68,7 +68,7 @@ public class TimeToolService {
             description = "Schedule a deferred task for yourself: you will be woken up with the given prompt "
                     + "once after a delay, repeatedly every N seconds, or on a cron schedule. "
                     + "Provide exactly one of: delaySeconds, intervalSeconds, cron.",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public Map<String, Object> schedule(
             @ToolParam("What you should be reminded to do when the task fires") String prompt,
             @ToolParam(value = "Run once after this many seconds from now", required = false) Long delaySeconds,
@@ -151,7 +151,7 @@ public class TimeToolService {
     }
 
     @Tool(name = "cancel_scheduled", description = "Cancel one of your scheduled tasks by id",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public Map<String, Object> cancelScheduled(
             @ToolParam("Id of the scheduled task (from time.schedule / time.scheduled_tasks)") String id) {
         ConnectorEnv ctx = ConnectorEnvHolder.current();

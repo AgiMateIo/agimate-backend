@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
+import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.JsonSchema;
@@ -91,6 +92,15 @@ class BaseConnectorHandlerTest {
             // хинты не заданы → пессимистичные дефолты MCP
             assertFalse(echo.annotations().readOnlyHint());
             assertTrue(echo.annotations().destructiveHint());
+        }
+
+        @Test
+        @DisplayName("read-only тул не отдаётся деструктивным, хотя дефолт хинта пессимистичен")
+        void readOnlyToolIsNotAdvertisedDestructive() {
+            ConnectorToolSpec readonly = handler.getTools().get("test.readonly");
+
+            assertTrue(readonly.annotations().readOnlyHint());
+            assertFalse(readonly.annotations().destructiveHint());
         }
 
         @Test
@@ -308,6 +318,12 @@ class BaseConnectorHandlerTest {
         @Tool(name = "test.fail", description = "Always fails")
         public Map<String, Object> fail() {
             throw new IllegalStateException("boom");
+        }
+
+        @Tool(name = "test.readonly", description = "Reads and changes nothing",
+                annotations = @ToolAnnotations(readOnlyHint = true))
+        public Map<String, Object> readonly() {
+            return Map.of();
         }
 
         @Tool(name = "test.periodic_task", description = "Periodic background task")

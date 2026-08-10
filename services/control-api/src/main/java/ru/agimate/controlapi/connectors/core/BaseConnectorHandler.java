@@ -90,8 +90,12 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
     }
 
     private static ToolAnnotationsSpec toAnnotationsSpec(ToolAnnotations a) {
+        // destructiveHint is meaningful only for a writing tool (MCP says so), and the annotation's
+        // default is the pessimistic true — so a read-only tool that never mentions it would advertise
+        // itself as destructive. Normalised here rather than restated on every read-only declaration.
         return new ToolAnnotationsSpec(
-                a.readOnlyHint(), a.destructiveHint(), a.idempotentHint(), a.openWorldHint());
+                a.readOnlyHint(), !a.readOnlyHint() && a.destructiveHint(),
+                a.idempotentHint(), a.openWorldHint());
     }
 
     private static Map<String, String> toMeta(ToolMeta[] toolMeta) {

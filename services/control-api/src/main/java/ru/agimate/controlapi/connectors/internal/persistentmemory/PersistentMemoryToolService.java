@@ -84,7 +84,7 @@ public class PersistentMemoryToolService {
 
     @Tool(name = "save_memory_note", description = "Append a note to your hot memory (a fact worth "
             + "remembering). Notes are later consolidated into your cold memory.",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public Map<String, Object> saveMemoryNote(
             @ToolParam("The fact/note to remember") String text,
             @ToolParam(value = "Session this note came from (optional, for tracing)", required = false)
@@ -101,7 +101,7 @@ public class PersistentMemoryToolService {
     @Tool(name = "update_memory", description = "Rewrite your consolidated (cold) memory. Pass the version "
             + "from get_memory (optimistic lock — on conflict re-read and retry). When consolidating, pass "
             + "consolidationId to atomically drop the notes you folded in.",
-            annotations = @ToolAnnotations(idempotentHint = false, openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = true, idempotentHint = false, openWorldHint = false))
     public Map<String, Object> updateMemory(
             @ToolParam("The full new content of your cold memory") String text,
             @ToolParam(value = "Expected current version from get_memory (required once memory exists)",

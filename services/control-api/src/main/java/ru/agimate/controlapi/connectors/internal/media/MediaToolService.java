@@ -54,7 +54,7 @@ public class MediaToolService {
                     + "geometry. Don't expect pixel-accuracy — verify the result at most once; if it "
                     + "isn't perfectly exact, deliver the best result you have and note the limitation "
                     + "instead of regenerating repeatedly.",
-            annotations = @ToolAnnotations(destructiveHint = false),
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = true),
             timeoutSeconds = GENERATION_TIMEOUT_SECONDS)
     public Map<String, Object> genImage(
             @ToolParam("Detailed description of the image to generate") String prompt) {
@@ -69,7 +69,7 @@ public class MediaToolService {
                     + "Returns a new file — the original is left untouched. Same diffusion-model "
                     + "limits as gen_image: exact text, symbols, and precise positions aren't "
                     + "guaranteed — don't re-edit repeatedly chasing precision the model can't deliver.",
-            annotations = @ToolAnnotations(destructiveHint = false),
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = true),
             timeoutSeconds = GENERATION_TIMEOUT_SECONDS)
     public Map<String, Object> editImage(
             @ToolParam("Source image file id (agf_…)") String fileId,
@@ -86,7 +86,7 @@ public class MediaToolService {
                     + "each. Returns a new file, sources untouched. Not every image model supports "
                     + "multiple references: if the result clearly ignores one of them, say so instead "
                     + "of retrying — one more attempt at most.",
-            annotations = @ToolAnnotations(destructiveHint = false),
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = true),
             timeoutSeconds = GENERATION_TIMEOUT_SECONDS)
     public Map<String, Object> combineImages(
             @ToolParam("Source image file ids (agf_…), in the order the prompt refers to them")
@@ -106,7 +106,7 @@ public class MediaToolService {
                     + "or answer a question about it. Use for files from history, screenshots or "
                     + "generated images. Not needed for an image already attached to the current "
                     + "message when you can see it directly.",
-            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true),
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = true),
             timeoutSeconds = VISION_TIMEOUT_SECONDS)
     public Map<String, Object> readImage(
             @ToolParam("Image file id (agf_…)") String fileId,

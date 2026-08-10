@@ -69,7 +69,7 @@ public class SheetsToolService {
                     + "number, text, date, bool; 'unit' is a measurement unit or an empty string. "
                     + "Declare a date column if the data has a time dimension — charts and period "
                     + "grouping rely on it.",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public SheetDetail createSheet(
             @ToolParam("Sheet machine name, latin snake_case (e.g. household_budget)") String name,
             @ToolParam("Human-readable sheet title, in the user's language (e.g. Household budget)") String title,
@@ -82,7 +82,7 @@ public class SheetsToolService {
     @Tool(name = "add_columns",
             description = "Add columns to an existing sheet. Prefer this over creating a second sheet "
                     + "when new data belongs to the same table — existing rows simply keep those cells empty.",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public SheetDetail addColumns(
             @ToolParam("Sheet name") String sheet,
             @ToolParam("Columns to add, same shape as in create_sheet") List<ColumnSpec> columns) {
@@ -103,7 +103,7 @@ public class SheetsToolService {
             description = "Append rows to a sheet. Each row is an object keyed by column name; omit a "
                     + "column to leave the cell empty. Send everything the user dictated in ONE call — "
                     + "up to 500 rows — instead of one call per row.",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public AddResult addRows(
             @ToolParam("Sheet name") String sheet,
             @ToolParam("Rows: [{\"date\":\"2026-07-24\",\"amount\":1200,\"category\":\"groceries\"}]")
@@ -114,7 +114,7 @@ public class SheetsToolService {
     @Tool(name = "update_rows",
             description = "Overwrite cells in the given rows. Row ids come from query. Only the columns "
                     + "you pass change; an empty value clears the cell.",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public OperationResult updateRows(
             @ToolParam("Sheet name") String sheet,
             @ToolParam("Row ids returned by query") List<String> ids,
@@ -175,7 +175,7 @@ public class SheetsToolService {
                     + "plotted series. You cannot see the image, so describe it using the returned "
                     + "summary, never from memory. Attach it to your reply with [[attach:agf_…]]. "
                     + "Pass 'aggregate' (e.g. sum) to group by x first — required for pie.",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public ChartResult renderChart(
             @ToolParam("Sheet name") String sheet,
             @ToolParam("X axis column: a date column for trends, a text column for categories") String x,
@@ -195,7 +195,7 @@ public class SheetsToolService {
     @Tool(name = "export",
             description = "Export a sheet as a real file the user can open or forward: csv (opens in "
                     + "Excel) or xlsx. Returns a file id — attach it with [[attach:agf_…]].",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public ExportResult export(
             @ToolParam("Sheet name") String sheet,
             @ToolParam(value = "Format: csv or xlsx (default csv)", required = false) String format,
@@ -222,7 +222,7 @@ public class SheetsToolService {
                     + "first row is treated as headers: each becomes a column whose title is the original "
                     + "header and whose type is inferred from the data. Use it when the user already "
                     + "keeps the data in a file instead of retyping it.",
-            annotations = @ToolAnnotations(openWorldHint = false),
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false),
             timeoutSeconds = IMPORT_TIMEOUT_SECONDS)
     public ImportResult importFile(
             @ToolParam("File id of the xlsx/csv the user sent (agf_…)") String fileId,

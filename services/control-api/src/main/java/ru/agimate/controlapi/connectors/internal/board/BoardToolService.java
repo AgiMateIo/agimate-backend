@@ -91,7 +91,7 @@ public class BoardToolService {
     }
 
     @Tool(name = "create_task", description = "Create a new task on the board",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public Map<String, Object> createTask(
             @ToolParam("Task type (EPIC, TASK, SUBTASK)") String type,
             @ToolParam("Task title") String title,
@@ -128,7 +128,7 @@ public class BoardToolService {
     @Tool(name = "edit_task",
             description = "Edit a task: title, description, assignee and/or status. Omitted fields "
                     + "stay unchanged; at least one is required",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public Map<String, Object> editTask(
             @ToolParam("Task public ID") String taskId,
             @ToolParam(value = "New title", required = false) String title,
@@ -165,7 +165,7 @@ public class BoardToolService {
     }
 
     @Tool(name = "create_comment", description = "Create a comment on a task",
-            annotations = @ToolAnnotations(openWorldHint = false))
+            annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public Map<String, Object> createComment(
             @ToolParam("Task public ID") String taskId,
             @ToolParam("Comment content") String content) {
