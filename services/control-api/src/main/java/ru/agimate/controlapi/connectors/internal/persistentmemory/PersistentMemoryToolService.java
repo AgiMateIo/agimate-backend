@@ -11,6 +11,7 @@ import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.database.entities.PersistentMemoryCold;
 import ru.agimate.controlapi.database.entities.PersistentMemoryHot;
+import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.ConnectorJobType;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -128,7 +129,10 @@ public class PersistentMemoryToolService {
         // that agent's personal space (save_memory_note resolves the scope from the env).
         for (UUID agentId : memoryService.boundAgents(connectionId)) {
             for (UUID sessionId : messageRepository.findSessionIdsByAgentSince(agentId, since)) {
+                // Only the dialogue: PROGRESS is the channel's own markup (💭, «🔧 name»), useless for a
+                // note and a template the model would learn to write calls out as text from.
                 List<Map<String, Object>> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId).stream()
+                        .filter(m -> m.getKind() != ChannelSessionMessageKind.PROGRESS)
                         .map(m -> {
                             Map<String, Object> view = new LinkedHashMap<>();
                             view.put("kind", m.getKind().name());
