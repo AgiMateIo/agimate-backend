@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -89,19 +90,54 @@ class SimpleAgentTest {
     }
 
     @Test
+    @DisplayName("отмена до диспатча: тулы не вызываются вовсе, но пара tool_use/tool_result закрыта")
+    void cancelledBeforeDispatchSkipsTheCalls() {
+        AtomicBoolean dispatched = new AtomicBoolean();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("сейчас отправлю", false,
+                List.of(new AgentChatMessage.ToolCall("c1", "telegram.send_message", "{}"))));
+        SimpleAgent.ToolDispatcher dispatcher = c -> {
+            dispatched.set(true);
+            return List.of();
+        };
+        // На первом шве отмены ещё нет, к моменту диспатча — уже да.
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            private int seen;
+
+            @Override
+            public boolean cancelRequested() {
+                return seen++ > 0;
+            }
+        };
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        RunCancelled stop = assertThrows(RunCancelled.class,
+                () -> agent(llm, dispatcher, observer, 10).run(conv));
+
+        assertFalse(dispatched.get());
+        assertTrue(stop.executedTools().isEmpty());
+        AgentChatMessage toolMsg = conv.get(conv.size() - 1);
+        assertEquals(AgentChatMessage.Role.TOOL, toolMsg.role());
+        assertEquals("c1", toolMsg.toolResults().get(0).id());
+        assertTrue(toolMsg.toolResults().get(0).failed());
+    }
+
+    @Test
     @DisplayName("квитанция: провалившийся тул в отчёт не идёт, повторы схлопываются")
     void receiptListsOnlySuccessfulToolsOnce() {
-        AtomicInteger turn = new AtomicInteger();
+        AtomicBoolean cancelled = new AtomicBoolean();
         SimpleAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant(null, false,
-                List.of(new AgentChatMessage.ToolCall("id" + turn.incrementAndGet(), "t", "{}"))));
-        SimpleAgent.ToolDispatcher dispatcher = c -> List.of(
-                new AgentChatMessage.ToolResult("a", "telegram.send_message", "{}", false),
-                new AgentChatMessage.ToolResult("b", "sheets.add_rows", null, true),
-                new AgentChatMessage.ToolResult("c", "telegram.send_message", "{}", false));
+                List.of(new AgentChatMessage.ToolCall("c1", "t", "{}"))));
+        SimpleAgent.ToolDispatcher dispatcher = c -> {
+            cancelled.set(true);
+            return List.of(
+                    new AgentChatMessage.ToolResult("a", "telegram.send_message", "{}", false),
+                    new AgentChatMessage.ToolResult("b", "sheets.add_rows", null, true),
+                    new AgentChatMessage.ToolResult("c", "telegram.send_message", "{}", false));
+        };
         SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
             @Override
             public boolean cancelRequested() {
-                return turn.get() > 0;
+                return cancelled.get();
             }
         };
 
@@ -110,6 +146,29 @@ class SimpleAgentTest {
                         .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
 
         assertEquals(List.of("telegram.send_message"), stop.executedTools());
+    }
+
+    @Test
+    @DisplayName("квитанция не тянет тулы из истории прошлых ранов")
+    void receiptIgnoresHistory() {
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("ответ", false, List.of()));
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public boolean cancelRequested() {
+                return true;
+            }
+        };
+        // Хвост прошлого рана приезжает воркеру в том же списке сообщений.
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(
+                AgentChatMessage.user("раньше"),
+                AgentChatMessage.toolResults(List.of(
+                        new AgentChatMessage.ToolResult("old", "board.create_task", "{}", false))),
+                AgentChatMessage.user("hi")));
+
+        RunCancelled stop = assertThrows(RunCancelled.class,
+                () -> agent(llm, c -> List.of(), observer, 10).run(conv));
+
+        assertTrue(stop.executedTools().isEmpty());
     }
 
     @Test

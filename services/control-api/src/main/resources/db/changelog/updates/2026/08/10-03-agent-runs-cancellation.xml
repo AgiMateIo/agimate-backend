@@ -5,12 +5,10 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <!-- Запрос отмены отделён от статуса намеренно: между нажатием и остановкой проходит текущий шаг
-         (ран узнаёт об отмене на шве — в ответе SaveMessage/GetToolResult), и всё это время он ещё
-         RUNNING. Один только статус заставил бы либо врать про мгновенность, либо вводить псевдо-статус
-         CANCELLING, который ничего не значит для очереди. Отсюда же и разрешение гонки «отмена против
-         финиша»: терминальный ANSWER с выставленным cancel_requested_at становится CANCELLED, без него
-         — DONE. cancelled_by всегда пользователь: агент отменять раны не умеет и уметь не должен. -->
+    <!-- Запрос отмены отделён от статуса: между нажатием и остановкой проходит текущий шаг, и всё это
+         время ран ещё RUNNING. Иначе пришлось бы либо врать про мгновенность, либо заводить статус
+         CANCELLING, ничего не значащий для очереди. Этим же полем разрешается гонка «отмена против
+         финиша»: терминальный ANSWER с ним становится CANCELLED, без него — DONE. -->
     <changeSet id="agent-runs-cancellation" author="agimate">
         <addColumn tableName="agent_runs">
             <column name="cancel_requested_at" type="TIMESTAMP"/>

@@ -100,10 +100,8 @@ public class ToolExecutionService {
      * (an open HTTP request) has to bound it itself.
      */
     public ToolResult executeAndRecord(ToolCallLog toolCallLog) {
-        // The one place cancellation actually bites. A call already inside the connector cannot be taken
-        // back, but a call still queued on the pool has done nothing yet — and when a turn dispatches
-        // several at once, most of them are still here. The refusal is recorded as an ordinary failed
-        // result, so the worker consumes it like any other and the tool log keeps the receipt.
+        // A call still queued on the pool has done nothing yet, unlike one already inside the connector.
+        // Refused as an ordinary failed result, so the worker reads it like any other.
         if (cancelled(toolCallLog)) {
             log.info("Tool '{}.{}' skipped: run {} was cancelled",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), toolCallLog.getRunId());

@@ -22,7 +22,7 @@ import ru.agimate.agentworker.grpc.ControlApiCallException;
 @Slf4j
 public class MessageLog {
 
-    /** What a SaveMessage answer tells the run — a plain record, since a durable step must not checkpoint proto. */
+    /** A durable step must not checkpoint proto, so the answer is reduced to its two flags. */
     private record SaveOutcome(boolean duplicate, boolean cancelled) {}
 
     private final DBOS dbos;
@@ -58,13 +58,9 @@ public class MessageLog {
     }
 
     /**
-     * Did the user ask this run to stop? Observed from the last SaveMessage answer, so it costs no
-     * call of its own — cancellation rides back on the writes the run makes anyway. The very first
-     * ack carries it too, which is how a run cancelled while it was still queued stops before doing
-     * any work at all.
-     *
-     * <p>Sticky on purpose: once seen it stays true. A replayed step returns its checkpointed value
-     * and would otherwise «un-cancel» the run halfway.
+     * Did the user ask this run to stop? Read off the writes the run makes anyway, the seq 0 ack
+     * included — which is how a run cancelled while queued stops before any work. Sticky: a replayed
+     * step returns its old checkpointed value and would otherwise «un-cancel» the run halfway.
      */
     public boolean isCancelRequested() {
         return cancelRequested;
@@ -72,7 +68,6 @@ public class MessageLog {
 
     private void send(MessageKind kind, ProgressType progressType, String text, ToolTurn toolTurn) {
         int n = seq++;
-        // Only the two flags are checkpointed, never the proto response itself.
         SaveOutcome outcome = dbos.runStep(
                 () -> {
                     var response = client.saveMessage(agentId, runId, n, kind, progressType, text, toolTurn);

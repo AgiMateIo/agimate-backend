@@ -109,9 +109,7 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
 
             GetToolResultResponse.Builder builder = GetToolResultResponse.newBuilder();
             if (logEntry.getFinishAt() == null && cancelRequested(request.getRunId())) {
-                // Stop the wait, not the call: a tool already in flight runs to the end and records its
-                // outcome. Only the loop is released, and it releases at once instead of sitting out a
-                // tool that may take minutes.
+                // Stops the wait, not the call: the tool runs on and records its outcome.
                 builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_CANCELLED);
             } else if (logEntry.getFinishAt() == null) {
                 builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_PENDING);

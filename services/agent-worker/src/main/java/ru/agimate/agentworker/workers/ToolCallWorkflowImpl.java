@@ -93,9 +93,7 @@ public class ToolCallWorkflowImpl implements ToolCallWorkflow {
                         + (err.isBlank() ? "no error message" : err));
             }
             if (result.getStatus() == ToolResultStatus.TOOL_RESULT_STATUS_CANCELLED) {
-                // The run was stopped; the wait ends here so the loop is not held by a tool that may take
-                // minutes. The call itself is not aborted — it finishes and records its outcome, which is
-                // why the message says «may still complete» rather than «was cancelled».
+                // Only the wait ends — the call keeps running, hence «may still complete» below.
                 throw new IllegalStateException("tool " + toolName + " (id=" + toolCallId
                         + ") was abandoned: the user stopped the run. The call was NOT cancelled and may"
                         + " still complete with its effects applied");

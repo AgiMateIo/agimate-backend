@@ -56,8 +56,7 @@ enum ToolResultStatus {
   TOOL_RESULT_STATUS_PENDING = 1;  // still executing — keep polling, this is not a failure
   TOOL_RESULT_STATUS_SUCCESS = 2;
   TOOL_RESULT_STATUS_ERROR = 3;
-  // The run was cancelled by the user: stop polling. Terminal, and it says nothing about the call
-  // itself — one already in flight is left to finish and record its outcome, because a request that
-  // reached Telegram cannot be taken back and the receipt is what the user will be asking about.
+  // The run was cancelled: stop polling. Says nothing about the call — one in flight is left to
+  // finish and record its outcome, since a request that reached Telegram cannot be taken back.
   TOOL_RESULT_STATUS_CANCELLED = 4;
 }

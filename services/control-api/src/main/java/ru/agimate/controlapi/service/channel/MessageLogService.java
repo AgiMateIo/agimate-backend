@@ -34,10 +34,7 @@ public class MessageLogService {
     private final MessageLogPersistence persistence;
     private final ChannelMessageOutboundService outboundService;
 
-    /**
-     * @param cancelled the user asked this run to stop; the worker reads it off this answer at its
-     *                  seam and does not start another turn
-     */
+    /** @param cancelled the user asked the run to stop; the worker reads it off this answer at its seam */
     public record SaveResult(boolean duplicate, boolean cancelled) {}
 
     public SaveResult save(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,

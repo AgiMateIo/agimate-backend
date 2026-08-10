@@ -17,15 +17,11 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Stopping a run at the user's request. Cancellation is cooperative: this service only records the
- * request, and the run learns about it at its next seam — the answer to {@code SaveMessage} (between
- * turns) or to {@code GetToolResult} (while a tool is running). Nothing is interrupted by force; a
- * tool already in flight finishes and records its outcome.
+ * Stopping a run at the user's request. Cooperative: this only records the request, and the run reads
+ * it off its next seam — the answer to {@code SaveMessage} or {@code GetToolResult}.
  *
- * <p><b>Only a human cancels.</b> Every entry point is a user-authenticated one under
- * {@code /manage/**} or the ACP session the same user holds; no connector tool reaches this service,
- * and none should. An agent able to stop runs is an agent able to silence another agent, and no ABAC
- * rule makes that safer.
+ * <p><b>Only a human cancels.</b> No connector tool reaches this service, and none should: an agent
+ * able to stop runs is an agent able to silence another agent, and no ABAC rule makes that safer.
  */
 @Slf4j
 @Service
@@ -38,26 +34,19 @@ public class RunCancellationService {
     private final ChannelRepository channelRepository;
 
     /**
-     * The outcome of asking a run to stop.
-     *
-     * @param status    the run's status at the moment of the request — {@code RUNNING}/{@code ENQUEUED}
-     *                  means the request was recorded, anything terminal means it arrived too late
-     * @param requested whether this call recorded the request; {@code false} both for an already
-     *                  finished run and for a repeat press, so the caller cannot tell them apart by
-     *                  this flag alone — that is what {@code status} is for
+     * @param status    the run's status when the request landed; the terminal one arrives later
+     * @param requested this call recorded the request — {@code false} for a repeat press as well as
+     *                  for a finished run, which {@code status} is there to tell apart
      */
     public record CancelResult(RunStatus status, boolean requested) {
 
-        /** Did the run finish on its own before the request landed? The user must be told, not shown a fake «stopped». */
+        /** Finished on its own first — the user must be told, not shown a fake «stopped». */
         public boolean alreadyFinished() {
             return status == RunStatus.DONE || status == RunStatus.FAILED;
         }
     }
 
-    /**
-     * Records a stop request for one run. Idempotent, and a terminal run wins: cancelling something
-     * that has already happened is not an error but a no-op reporting the actual state.
-     */
+    /** Idempotent, and a terminal run wins: cancelling what already happened is a no-op, not an error. */
     @Transactional
     public CancelResult cancelRun(UUID runId, UUID userId) {
         AgentRun run = ownedRun(runId, userId);
@@ -69,9 +58,8 @@ public class RunCancellationService {
     }
 
     /**
-     * The same for a whole conversation. The session is the queue's partition key, so runs pile up
-     * behind the one executing — stopping only the current one would let the next start a second
-     * later, which is never what the user meant by «stop».
+     * The same for a whole conversation: the session is the queue's partition, so runs pile up behind
+     * the one executing and stopping only that one would let the next start a second later.
      *
      * @return how many live runs the request was recorded for
      */
@@ -83,10 +71,7 @@ public class RunCancellationService {
         return updated;
     }
 
-    /**
-     * Ownership gate. A run of someone else's agent reads as absent rather than forbidden — the
-     * existence of other users' runs is not disclosed, as everywhere else on this boundary.
-     */
+    /** Someone else's run reads as absent, not forbidden: their existence is not disclosed. */
     private AgentRun ownedRun(UUID runId, UUID userId) {
         AgentRun run = agentRunRepository.findById(runId)
                 .orElseThrow(() -> new NotFoundStatusException("Run not found"));

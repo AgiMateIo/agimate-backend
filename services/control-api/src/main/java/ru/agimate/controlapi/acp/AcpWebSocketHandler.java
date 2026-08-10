@@ -261,10 +261,8 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
     }
 
     /**
-     * {@code session/cancel} stops the run for real and releases the client. Both halves matter and in
-     * this order: the request is what makes the run stop at its next seam, and the IDE is freed at once
-     * rather than sitting through the remaining turn. Cancellation failing (a session gone, someone
-     * else's) must not leave the client hanging — the release happens regardless.
+     * Stops the session's runs and releases the client. The release happens even if cancellation throws
+     * (a session gone, someone else's): a hanging IDE is worse than a run that keeps going.
      */
     private void handleSessionCancel(WebSocketSession session, JsonNode params) {
         UUID sessionId = sessionId(params);

@@ -146,9 +146,8 @@ public class AgentRunCore {
         try {
             answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
         } catch (RunCancelled e) {
-            // A stop is a normal ending, not a failure: the terminal record is an ANSWER, so it goes to
-            // the answer channel, marks the run's messages completed and therefore stays visible to the
-            // history of the next run. An interruption the following turn cannot see reads as amnesia.
+            // A stop ends the run with an ANSWER, not an ERROR: that is what marks the run completed, so
+            // the next run sees it was interrupted instead of suffering unexplained amnesia.
             answer = cancellationNotice(e);
             log.info("run cancelled by the user after {} executed tool(s)", e.executedTools().size());
         }
@@ -156,11 +155,7 @@ public class AgentRunCore {
         return answer;
     }
 
-    /**
-     * The receipt for a stopped run: what actually got done. Composed here rather than on the backend
-     * because only the loop knows which calls returned a result — and composed without another model
-     * call, since the user has just asked to stop waiting.
-     */
+    /** The receipt: composed here because only the loop knows what ran, and without a model call. */
     private String cancellationNotice(RunCancelled cancelled) {
         if (cancelled.executedTools().isEmpty()) {
             return templates.cancelled();

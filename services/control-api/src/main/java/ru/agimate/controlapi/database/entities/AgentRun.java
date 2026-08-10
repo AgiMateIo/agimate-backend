@@ -66,15 +66,14 @@ public class AgentRun extends BaseEntity {
     private RunStatus status = RunStatus.ENQUEUED;
 
     /**
-     * When the user asked the run to stop. Kept apart from {@link #status} because cancellation is a
-     * request, not a fact: the run learns about it at its next seam (the answer to SaveMessage /
-     * GetToolResult) and stays RUNNING until then. It is also what settles the «cancel against finish»
-     * race — a terminal ANSWER with this set lands as CANCELLED, without it as DONE.
+     * When the user asked the run to stop. Apart from {@link #status} because cancellation is a request,
+     * not a fact: the run stays RUNNING until it reaches a seam and reads it. Also settles the «cancel
+     * against finish» race — a terminal ANSWER with this set lands as CANCELLED, without it as DONE.
      */
     @Column(name = "cancel_requested_at")
     private LocalDateTime cancelRequestedAt;
 
-    /** The user who pressed stop — always a human: agents do not cancel runs, neither their own nor others'. */
+    /** Always a human: agents do not cancel runs, neither their own nor others'. */
     @Column(name = "cancelled_by")
     private UUID cancelledBy;
 

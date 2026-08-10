@@ -26,11 +26,10 @@ import java.util.List;
  * turn (calls before dispatch, results after) are what let the backend record and deliver the tool
  * call the moment it is made, ahead of the — possibly slow — execution.
  *
- * <p>Cancellation is cooperative and lands on the seam at the top of the loop: a turn already under
- * way is finished and recorded, and only the next one is declined ({@link RunCancelled}). Nothing is
- * interrupted mid-flight — a tool call that reached the outside world cannot be taken back, and a
- * torn turn would leave a {@code tool_use} with no {@code tool_result}, which no provider accepts on
- * the following run.
+ * <p>Cancellation is cooperative and checked twice: at the seam and again just before a dispatch, so
+ * a stop does not spend tool calls the user no longer wants. Calls already made are never interrupted;
+ * unmade ones get a synthetic result, since a {@code tool_use} with no {@code tool_result} is rejected
+ * by providers on the next run.
  *
  * <p>Guard: a tool-less turn with empty text is not a final answer. Reasoning models behind
  * OpenAI-compatible gateways sometimes spend the whole generation on {@code reasoning_content} and
@@ -115,6 +114,9 @@ public class SimpleAgent {
         List<AgentChatMessage.ToolResult> dispatchAll(List<AgentChatMessage.ToolCall> calls);
     }
 
+    /** Synthetic result for a call stopped before it was made. */
+    private static final String CANCELLED_RESULT_JSON = "{\"error\":\"cancelled by the user\"}";
+
     /**
      * Observer of the run's loop events — the run wiring projects each into a backend side-record,
      * so the loop stays pure and the parent stays the sole writer. Default no-ops let a caller (or
@@ -139,11 +141,7 @@ public class SimpleAgent {
          */
         default void onUsage(LlmUsage usage) {}
 
-        /**
-         * Has the user asked this run to stop? Asked at the seam — after a turn is fully recorded and
-         * before the next model call. The wiring answers from what the backend already told it on the
-         * calls it makes anyway (the SaveMessage reply), so this costs no extra round trip.
-         */
+        /** Has the user asked this run to stop? The wiring knows from answers it already receives — no extra call. */
         default boolean cancelRequested() {
             return false;
         }
@@ -173,16 +171,16 @@ public class SimpleAgent {
     public String run(List<AgentChatMessage> messages) {
         notifyStart(messages);
         int emptyRetries = 0;
+        // Tools of *this* run that returned a result — the receipt for a stop. Collected as we go
+        // rather than scanned off `messages`: that list opens with the history of earlier runs.
+        LinkedHashSet<String> executed = new LinkedHashSet<>();
         // Soft landing only for a meaningful cap — a tiny maxTurns (tests, debugging) is left alone.
         boolean softLanding = maxTurns > WRAP_UP_TURNS;
         for (int turn = 1; turn <= maxTurns; turn++) {
-            // The seam: the message list is whole (every tool call answered), so this is both the only
-            // point where the run can be left in a loadable state and the moment the next request would
-            // be assembled. Checking here is what makes the policy «drain» — a tool turn already
-            // dispatched finishes and is recorded, and only then does the loop decline to go on.
+            // The seam: the message list is whole here, so the run can be left loadable.
             if (observer.cancelRequested()) {
-                log.info("turn {}: cancelled by the user — stopping at the seam", turn);
-                throw new RunCancelled(executedTools(messages));
+                log.info("turn {}: cancelled — stopping at the seam", turn);
+                throw new RunCancelled(List.copyOf(executed));
             }
             if (softLanding && turn == maxTurns - WRAP_UP_TURNS + 1) {
                 // An ephemeral turn (no notify): it is projected neither into history nor into the channel, like an imitation correction.
@@ -242,12 +240,22 @@ public class SimpleAgent {
             // Two turn events: first the calls (delivered into the channel before execution), then — after
             // the dispatch — the results. Recording them as separate entries is precisely the point of v2.1a.
             notify(List.of(assistant), reply.meta());
+            // The cheapest place to stop: the model has decided to call, but nothing has been sent yet.
+            // Later the effect is out in the world and irreversible.
+            if (observer.cancelRequested()) {
+                log.info("turn {}: cancelled — {} call(s) not made", turn, assistant.toolCalls().size());
+                recordResults(messages, cancelledResults(assistant.toolCalls()));
+                throw new RunCancelled(List.copyOf(executed));
+            }
             log.info("turn {}: dispatching {} tool call(s): {}", turn, assistant.toolCalls().size(),
                     assistant.toolCalls().stream().map(AgentChatMessage.ToolCall::name).toList());
             List<AgentChatMessage.ToolResult> results = toolDispatcher.dispatchAll(assistant.toolCalls());
-            AgentChatMessage toolMsg = AgentChatMessage.toolResults(results);
-            messages.add(toolMsg);
-            notify(List.of(toolMsg), null);
+            recordResults(messages, results);
+            for (AgentChatMessage.ToolResult result : results) {
+                if (!result.failed() && result.name() != null) {
+                    executed.add(result.name());
+                }
+            }
         }
         throw new MaxTurnsExceeded("agent loop exceeded " + maxTurns + " turns without a final reply");
     }
@@ -265,24 +273,17 @@ public class SimpleAgent {
         };
     }
 
-    /**
-     * Tools of this run that produced a result: the receipt for a user who stopped mid-work. Failed
-     * ones are left out — «I did A and B» must not include what did not happen. Order is the order of
-     * execution, duplicates collapse: two searches read as one action to a human.
-     */
-    private static List<String> executedTools(List<AgentChatMessage> messages) {
-        LinkedHashSet<String> names = new LinkedHashSet<>();
-        for (AgentChatMessage message : messages) {
-            if (message.toolResults() == null) {
-                continue;
-            }
-            for (AgentChatMessage.ToolResult result : message.toolResults()) {
-                if (!result.failed() && result.name() != null) {
-                    names.add(result.name());
-                }
-            }
-        }
-        return List.copyOf(names);
+    private void recordResults(List<AgentChatMessage> messages, List<AgentChatMessage.ToolResult> results) {
+        AgentChatMessage toolMsg = AgentChatMessage.toolResults(results);
+        messages.add(toolMsg);
+        notify(List.of(toolMsg), null);
+    }
+
+    /** Answers every call without making it — the pair the next run needs, minus the side effects. */
+    private static List<AgentChatMessage.ToolResult> cancelledResults(List<AgentChatMessage.ToolCall> calls) {
+        return calls.stream()
+                .map(c -> new AgentChatMessage.ToolResult(c.id(), c.name(), CANCELLED_RESULT_JSON, true))
+                .toList();
     }
 
     private void notify(List<AgentChatMessage> newMessages, LlmMeta meta) {

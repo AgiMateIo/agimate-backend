@@ -48,8 +48,7 @@ public class RunActivityService {
         if (swept > 0) {
             log.warn("swept {} stale RUNNING run(s) older than {}", swept, STALE_AFTER);
         }
-        // A run asked to stop and then gone silent never reached a seam to see the request. It is
-        // cancelled rather than failed: the user's intent explains the outcome, the silence does not.
+        // Asked to stop, then gone silent: the user's intent explains the outcome better than the silence.
         int cancelled = agentRunRepository.cancelStaleRequested(cutoff);
         if (cancelled > 0) {
             log.warn("swept {} stale run(s) with cancellation requested", cancelled);

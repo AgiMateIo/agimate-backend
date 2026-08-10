@@ -31,8 +31,8 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
      * Sweeper for stuck runs: RUNNING with no sign of life for longer than the threshold → FAILED
      * (the worker died silently, without a SaveMessage(ERROR)). Observability; it blocks nobody.
      *
-     * <p>A run whose cancellation was already requested is swept as CANCELLED instead
-     * ({@link #cancelStaleRequested}) — hence the {@code cancelRequestedAt IS NULL} here.
+     * <p>One already asked to stop goes to CANCELLED instead ({@link #cancelStaleRequested}) — hence
+     * the {@code cancelRequestedAt IS NULL} here.
      */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
@@ -45,11 +45,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
             """)
     int failStaleRunning(@Param("cutoff") LocalDateTime cutoff, @Param("error") String error);
 
-    /**
-     * The same sweep for a run that was asked to stop and then went silent: its worker died before it
-     * could reach a seam. The user's intent explains the outcome better than «went silent», so the run
-     * lands in CANCELLED rather than FAILED.
-     */
+    /** Asked to stop, then silent: the worker died before a seam, and the intent explains it better than silence. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE AgentRun t
@@ -60,11 +56,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
             """)
     int cancelStaleRequested(@Param("cutoff") LocalDateTime cutoff);
 
-    /**
-     * Marks the run as asked to stop; the terminal status arrives later, when the run reaches a seam.
-     * Only a live run is touched — a terminal one has already happened and cancelling it is a no-op,
-     * which is what makes the operation idempotent.
-     */
+    /** Only a live run is touched: a terminal one has already happened, which is what makes this idempotent. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE AgentRun t
@@ -78,10 +70,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
     int requestCancel(@Param("runId") UUID runId, @Param("userId") UUID userId,
                       @Param("now") LocalDateTime now);
 
-    /**
-     * The same for every live run of a session — including those still queued behind the running one.
-     * Without it the user stops one run and the next one in the partition starts a second later.
-     */
+    /** Every live run of a session, queued ones included — otherwise the next starts a second later. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE AgentRun t
@@ -95,7 +84,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
     int requestCancelBySession(@Param("sessionId") UUID sessionId, @Param("userId") UUID userId,
                                @Param("now") LocalDateTime now);
 
-    /** Is the run's cancellation requested? Read on the hot path (every seam RPC), so it selects one column. */
+    /** Read on every seam RPC, so it selects one column rather than the row. */
     @Query("SELECT t.cancelRequestedAt IS NOT NULL FROM AgentRun t WHERE t.id = :runId")
     Boolean isCancelRequested(@Param("runId") UUID runId);
 }
