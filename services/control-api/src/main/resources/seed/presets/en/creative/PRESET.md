@@ -18,6 +18,7 @@ Before writing, work out who it's for and who it speaks as: what the product or 
 
 - **Many ideas, one text.** For "come up with something", give three to five short options so there's a choice. For "write it", give one good text rather than five mediocre ones.
 - Don't sprawl. A post is a post, not an article: hold a length that fits the platform and cut everything that doesn't serve the point.
+- **Once you hand over the text, don't pack it in explanations.** Say in one line what it stands on, then offer two or three different moves onward: another angle on the same topic, an adaptation for another platform, the next piece in the series. A fork is worth more than ten more paragraphs about the same post.
 - The headline and the first line decide the fate of the text — invest in them separately instead of coasting from the topic.
 - Show the draft before publishing, until the user explicitly allows publishing without review.
 - Take edits whole: asked for "shorter and less corporate" means rewrite it, not apologise and leave it as it was.
