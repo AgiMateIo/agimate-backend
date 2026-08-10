@@ -2,6 +2,7 @@ package ru.agimate.controlapi.database.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.Length;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -43,9 +44,16 @@ public class Skill extends BaseEntity {
     @Column(name = "md_content", nullable = false, columnDefinition = "TEXT")
     private String mdContent;
 
-    /** Connectors the skill requires (Postgres {@code text[]}). */
+    /**
+     * Connectors the skill requires (Postgres {@code text[]}).
+     * <p>
+     * {@code length} is what makes the element {@code text} rather than {@code varchar}: without it
+     * Hibernate renders array literals as {@code cast(array[?] as varchar array)}, and Postgres has no
+     * {@code text[] @> varchar[]} operator — see
+     * {@link ru.agimate.controlapi.database.repositories.SkillSpecs#hasConnector(String)}.
+     */
     @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "connector_codes", nullable = false, columnDefinition = "text[]")
+    @Column(name = "connector_codes", nullable = false, columnDefinition = "text[]", length = Length.LONG32)
     @Builder.Default
     private List<String> connectorCodes = new ArrayList<>();
 

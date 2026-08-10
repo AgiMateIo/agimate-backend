@@ -12,6 +12,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.Length;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -59,9 +60,12 @@ public class AgentPreset extends BaseEntity {
     @Column(name = "instructions", nullable = false, columnDefinition = "TEXT")
     private String instructions;
 
-    /** Names of the preset's system skills; resolved by (SYSTEM_USER_ID, name) when listing. */
+    /**
+     * Names of the preset's system skills; resolved by (SYSTEM_USER_ID, name) when listing.
+     * {@code length} keeps the element type {@code text} — see {@link Skill#getConnectorCodes()}.
+     */
     @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "skill_names", nullable = false, columnDefinition = "text[]")
+    @Column(name = "skill_names", nullable = false, columnDefinition = "text[]", length = Length.LONG32)
     @Builder.Default
     private List<String> skillNames = new ArrayList<>();
 
