@@ -34,6 +34,7 @@ import ru.agimate.controlapi.controller.manage.ManageChannelController;
 import ru.agimate.controlapi.controller.manage.ManageFilesController;
 import ru.agimate.controlapi.controller.manage.ManageAppsController;
 import ru.agimate.controlapi.controller.manage.ManageToolCallLogsController;
+import ru.agimate.controlapi.controller.manage.ManageRunController;
 import ru.agimate.controlapi.controller.manage.ManageTriggerLogsController;
 import ru.agimate.controlapi.controller.manage.ManageAgentConnectionPolicyController;
 import ru.agimate.controlapi.controller.manage.ManageConnectorController;
@@ -114,34 +115,42 @@ public class SecurityConfig {
         };
     }
 
+    /**
+     * Paths of the user-JWT chain. A list rather than a plain {@code /manage/**}: sub-resource
+     * controllers ride on their parent's prefix, and a forgotten entry answers 403 to the rightful
+     * owner — fail-closed but baffling. {@code ManagePathsSecurityTest} keeps the list complete.
+     */
+    static final String[] JWT_CHAIN_PATHS = {
+            ManageAppsController.PATH + "/**",
+            ManageTriggerLogsController.PATH + "/**",
+            ManageRunController.PATH + "/**",
+            ManageToolCallLogsController.PATH + "/**",
+            ManageAgentController.PATH + "/**",
+            ManageAgentPresetController.PATH + "/**",
+            ManageAgentSkillController.PATH + "/**",
+            ManageAgentConnectionPolicyController.PATH + "/**",
+            ManageAgenticTeamController.PATH + "/**",
+            ManageWebhookDeliveryLogsController.PATH + "/**",
+            ManageConnectionController.PATH + "/**",
+            ManageBoardController.PATH + "/**",
+            ManageSkillController.PATH + "/**",
+            ManageConnectorController.PATH + "/**",
+            ManageConnectorJobController.PATH + "/**",
+            ManageCentrifugoTokenController.PATH + "/**",
+            ManageLlmProviderController.PATH + "/**",
+            ManageLlmUsageController.PATH + "/**",
+            ManageChannelController.PATH + "/**",
+            ManageWebchatController.PATH + "/**",
+            ManageFilesController.PATH + "/**",
+            // The whole admin area by prefix, not per controller: adding one there must not require
+            // an edit here, or the next admin endpoint ships ungated.
+            ManageAdminPaths.PREFIX + "/**"
+    };
+
     @Bean
     @Order(1)
     public SecurityFilterChain jwtSecurityFilterChain(HttpSecurity http) throws Exception {
-        http.securityMatcher(
-                ManageAppsController.PATH + "/**",
-                ManageTriggerLogsController.PATH + "/**",
-                ManageToolCallLogsController.PATH + "/**",
-                ManageAgentController.PATH + "/**",
-                ManageAgentPresetController.PATH + "/**",
-                ManageAgentSkillController.PATH + "/**",
-                ManageAgentConnectionPolicyController.PATH + "/**",
-                ManageAgenticTeamController.PATH + "/**",
-                ManageWebhookDeliveryLogsController.PATH + "/**",
-                ManageConnectionController.PATH + "/**",
-                ManageBoardController.PATH + "/**",
-                ManageSkillController.PATH + "/**",
-                ManageConnectorController.PATH + "/**",
-                ManageConnectorJobController.PATH + "/**",
-                ManageCentrifugoTokenController.PATH + "/**",
-                ManageLlmProviderController.PATH + "/**",
-                ManageLlmUsageController.PATH + "/**",
-                ManageChannelController.PATH + "/**",
-                ManageWebchatController.PATH + "/**",
-                ManageFilesController.PATH + "/**",
-                // The whole admin area by prefix, not per controller: adding one there must not require
-                // an edit here, or the next admin endpoint ships ungated.
-                ManageAdminPaths.PREFIX + "/**"
-        );
+        http.securityMatcher(JWT_CHAIN_PATHS);
 
         applyCommonSecurityConfig(http);
 
