@@ -58,6 +58,11 @@ message SaveMessageRequest {
 
 message SaveMessageResponse {
   bool duplicate = 1;           // (run_id, seq) already written — a retry
+  // The user asked this run to stop. Cancellation rides back on the calls the worker already makes,
+  // so there is no push channel: the loop reads this at its seam (between turns) and stops before the
+  // next model call. The very first ack (seq 0) carries it too, which is how a run cancelled while it
+  // was still queued never starts at all.
+  bool cancelled = 2;
 }
 
 enum TurnRole {

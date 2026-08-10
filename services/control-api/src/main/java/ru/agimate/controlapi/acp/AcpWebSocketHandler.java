@@ -22,6 +22,7 @@ import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.security.AgentPrincipal;
+import ru.agimate.controlapi.service.trigger.RunCancellationService;
 import ru.agimate.controlapi.service.acp.AcpService;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
 import ru.agimate.controlapi.service.channel.handler.AcpChannelHandler;
@@ -41,9 +42,9 @@ import java.util.UUID;
  *
  * <p>The answer to {@code session/prompt} is asynchronous: the rpc id is registered in
  * {@link AcpSessionRegistry}, and the answer goes out from {@link AcpChannelHandler} on the ANSWER or
- * ERROR projection of SaveMessage. {@code session/cancel} is soft: it releases the client with
- * stopReason=cancelled, while the run finishes on the server and its answer stays in the session's
- * history.
+ * ERROR projection of SaveMessage. {@code session/cancel} stops the session's runs (they halt at
+ * their next seam) and releases the client with stopReason=cancelled straight away, without waiting
+ * for the turn already in progress to unwind.
  *
  * <p>Authentication happens at the handshake ({@link AcpHandshakeInterceptor}), so the ACP method
  * {@code authenticate} is not needed ({@code authMethods: []}).
@@ -69,6 +70,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
 
     private final AcpService acpService;
     private final AcpSessionRegistry sessionRegistry;
+    private final RunCancellationService runCancellationService;
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
@@ -118,8 +120,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
                 case "session/new" -> handleSessionNew(session, client, id, params);
                 case "session/load" -> handleSessionLoad(session, client, id, params);
                 case "session/prompt" -> handleSessionPrompt(session, client, id, params);
-                case "session/cancel" -> sessionRegistry.completePrompt(
-                        sessionId(params), AcpSessionRegistry.STOP_CANCELLED);
+                case "session/cancel" -> handleSessionCancel(session, params);
                 case "_agimate/restore" -> handleRestore(session, client, params);
                 default -> {
                     if (id != null) {
@@ -257,6 +258,22 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
             log.warn("ACP prompt failed for session {}: {}", sessionId, e.getMessage());
             sessionRegistry.failPrompt(sessionId, errorCode(e), e.getMessage());
         }
+    }
+
+    /**
+     * {@code session/cancel} stops the run for real and releases the client. Both halves matter and in
+     * this order: the request is what makes the run stop at its next seam, and the IDE is freed at once
+     * rather than sitting through the remaining turn. Cancellation failing (a session gone, someone
+     * else's) must not leave the client hanging — the release happens regardless.
+     */
+    private void handleSessionCancel(WebSocketSession session, JsonNode params) {
+        UUID sessionId = sessionId(params);
+        try {
+            runCancellationService.cancelSession(sessionId, principal(session).userId());
+        } catch (Exception e) {
+            log.warn("ACP cancel failed for session {}: {}", sessionId, e.getMessage());
+        }
+        sessionRegistry.completePrompt(sessionId, AcpSessionRegistry.STOP_CANCELLED);
     }
 
     /** The MVP accepts text blocks only; any other content type is invalid params. */

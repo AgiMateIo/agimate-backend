@@ -15,7 +15,9 @@ import org.springframework.web.socket.WebSocketSession;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.security.AgentPrincipal;
+import ru.agimate.controlapi.service.trigger.RunCancellationService;
 import ru.agimate.controlapi.service.acp.AcpService;
 import ru.agimate.controlapi.service.acp.AcpSessionRegistry;
 
@@ -50,6 +52,8 @@ class AcpWebSocketHandlerTest {
     @Mock
     private AcpSessionRegistry sessionRegistry;
     @Mock
+    private RunCancellationService runCancellationService;
+    @Mock
     private WebSocketSession wsSession;
 
     private AcpWebSocketHandler handler;
@@ -58,7 +62,7 @@ class AcpWebSocketHandlerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        handler = new AcpWebSocketHandler(acpService, sessionRegistry);
+        handler = new AcpWebSocketHandler(acpService, sessionRegistry, runCancellationService);
         attributes.put(AcpHandshakeInterceptor.ATTR_PRINCIPAL, new AgentPrincipal("key", AGENT_ID, USER_ID));
         when(wsSession.getAttributes()).thenReturn(attributes);
         lenient().when(wsSession.getId()).thenReturn("ws-1");
@@ -221,16 +225,32 @@ class AcpWebSocketHandlerTest {
     class Misc {
 
         @Test
-        @DisplayName("session/cancel мягко завершает pending со stopReason=cancelled")
-        void cancelReleasesPrompt() {
+        @DisplayName("session/cancel останавливает раны сессии и отпускает pending со stopReason=cancelled")
+        void cancelStopsRunsAndReleasesPrompt() {
+            receive(cancelFrame());
+
+            verify(runCancellationService).cancelSession(SESSION_ID, USER_ID);
+            verify(sessionRegistry).completePrompt(SESSION_ID, AcpSessionRegistry.STOP_CANCELLED);
+            assertTrue(sent.isEmpty());
+        }
+
+        @Test
+        @DisplayName("отмена упала — клиента всё равно отпускаем, иначе IDE висит навсегда")
+        void cancelReleasesPromptEvenWhenCancellationFails() {
+            doThrow(new NotFoundStatusException("gone"))
+                    .when(runCancellationService).cancelSession(SESSION_ID, USER_ID);
+
+            receive(cancelFrame());
+
+            verify(sessionRegistry).completePrompt(SESSION_ID, AcpSessionRegistry.STOP_CANCELLED);
+        }
+
+        private Map<String, Object> cancelFrame() {
             Map<String, Object> frame = new HashMap<>();
             frame.put("jsonrpc", "2.0");
             frame.put("method", "session/cancel");
             frame.put("params", Map.of("sessionId", SESSION_ID.toString()));
-            receive(frame);
-
-            verify(sessionRegistry).completePrompt(SESSION_ID, AcpSessionRegistry.STOP_CANCELLED);
-            assertTrue(sent.isEmpty());
+            return frame;
         }
 
         @Test

@@ -5,11 +5,13 @@ import ru.agimate.agentworker.agent.error.EmptyAnswerExhausted;
 import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
+import ru.agimate.agentworker.agent.error.RunCancelled;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.model.ToolDef;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
@@ -23,6 +25,12 @@ import java.util.List;
  * message, notify it separately, and continue — up to {@code maxTurns}. The two notifies per tool
  * turn (calls before dispatch, results after) are what let the backend record and deliver the tool
  * call the moment it is made, ahead of the — possibly slow — execution.
+ *
+ * <p>Cancellation is cooperative and lands on the seam at the top of the loop: a turn already under
+ * way is finished and recorded, and only the next one is declined ({@link RunCancelled}). Nothing is
+ * interrupted mid-flight — a tool call that reached the outside world cannot be taken back, and a
+ * torn turn would leave a {@code tool_use} with no {@code tool_result}, which no provider accepts on
+ * the following run.
  *
  * <p>Guard: a tool-less turn with empty text is not a final answer. Reasoning models behind
  * OpenAI-compatible gateways sometimes spend the whole generation on {@code reasoning_content} and
@@ -131,6 +139,15 @@ public class SimpleAgent {
          */
         default void onUsage(LlmUsage usage) {}
 
+        /**
+         * Has the user asked this run to stop? Asked at the seam — after a turn is fully recorded and
+         * before the next model call. The wiring answers from what the backend already told it on the
+         * calls it makes anyway (the SaveMessage reply), so this costs no extra round trip.
+         */
+        default boolean cancelRequested() {
+            return false;
+        }
+
         RunObserver NOOP = new RunObserver() {};
     }
 
@@ -159,6 +176,14 @@ public class SimpleAgent {
         // Soft landing only for a meaningful cap — a tiny maxTurns (tests, debugging) is left alone.
         boolean softLanding = maxTurns > WRAP_UP_TURNS;
         for (int turn = 1; turn <= maxTurns; turn++) {
+            // The seam: the message list is whole (every tool call answered), so this is both the only
+            // point where the run can be left in a loadable state and the moment the next request would
+            // be assembled. Checking here is what makes the policy «drain» — a tool turn already
+            // dispatched finishes and is recorded, and only then does the loop decline to go on.
+            if (observer.cancelRequested()) {
+                log.info("turn {}: cancelled by the user — stopping at the seam", turn);
+                throw new RunCancelled(executedTools(messages));
+            }
             if (softLanding && turn == maxTurns - WRAP_UP_TURNS + 1) {
                 // An ephemeral turn (no notify): it is projected neither into history nor into the channel, like an imitation correction.
                 log.info("turn {}/{}: injecting wrap-up notice", turn, maxTurns);
@@ -238,6 +263,26 @@ public class SimpleAgent {
             case STOP -> false;
             case UNKNOWN -> reply.message().hasToolCalls();
         };
+    }
+
+    /**
+     * Tools of this run that produced a result: the receipt for a user who stopped mid-work. Failed
+     * ones are left out — «I did A and B» must not include what did not happen. Order is the order of
+     * execution, duplicates collapse: two searches read as one action to a human.
+     */
+    private static List<String> executedTools(List<AgentChatMessage> messages) {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        for (AgentChatMessage message : messages) {
+            if (message.toolResults() == null) {
+                continue;
+            }
+            for (AgentChatMessage.ToolResult result : message.toolResults()) {
+                if (!result.failed() && result.name() != null) {
+                    names.add(result.name());
+                }
+            }
+        }
+        return List.copyOf(names);
     }
 
     private void notify(List<AgentChatMessage> newMessages, LlmMeta meta) {

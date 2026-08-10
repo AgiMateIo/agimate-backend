@@ -22,11 +22,15 @@ import ru.agimate.agentworker.grpc.ControlApiCallException;
 @Slf4j
 public class MessageLog {
 
+    /** What a SaveMessage answer tells the run — a plain record, since a durable step must not checkpoint proto. */
+    private record SaveOutcome(boolean duplicate, boolean cancelled) {}
+
     private final DBOS dbos;
     private final AgentWorkerClient client;
     private final String agentId;
     private final String runId;
     private int seq = 0;
+    private boolean cancelRequested;
 
     public MessageLog(DBOS dbos, AgentWorkerClient client, String agentId, String runId) {
         this.dbos = dbos;
@@ -53,13 +57,31 @@ public class MessageLog {
         send(MessageKind.MESSAGE_KIND_ERROR, ProgressType.PROGRESS_TYPE_UNSPECIFIED, text, null);
     }
 
+    /**
+     * Did the user ask this run to stop? Observed from the last SaveMessage answer, so it costs no
+     * call of its own — cancellation rides back on the writes the run makes anyway. The very first
+     * ack carries it too, which is how a run cancelled while it was still queued stops before doing
+     * any work at all.
+     *
+     * <p>Sticky on purpose: once seen it stays true. A replayed step returns its checkpointed value
+     * and would otherwise «un-cancel» the run halfway.
+     */
+    public boolean isCancelRequested() {
+        return cancelRequested;
+    }
+
     private void send(MessageKind kind, ProgressType progressType, String text, ToolTurn toolTurn) {
         int n = seq++;
-        boolean duplicate = dbos.runStep(
-                () -> client.saveMessage(agentId, runId, n, kind, progressType, text, toolTurn)
-                        .getDuplicate(),
+        // Only the two flags are checkpointed, never the proto response itself.
+        SaveOutcome outcome = dbos.runStep(
+                () -> {
+                    var response = client.saveMessage(agentId, runId, n, kind, progressType, text, toolTurn);
+                    return new SaveOutcome(response.getDuplicate(), response.getCancelled());
+                },
                 new StepOptions("save_message").withMaxAttempts(3)
                         .withShouldRetry(ControlApiCallException::retriableInStep));
+        cancelRequested |= outcome.cancelled();
+        boolean duplicate = outcome.duplicate();
         if (duplicate) {
             log.debug("saveMessage duplicate seq={} kind={}", n, kind);
         }

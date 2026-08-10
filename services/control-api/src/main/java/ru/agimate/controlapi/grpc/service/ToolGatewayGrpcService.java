@@ -55,6 +55,18 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         }
     }
 
+    /** Has the user asked this run to stop? An empty or non-UUID run_id (a call outside a run) — no. */
+    private boolean cancelRequested(String runId) {
+        if (runId.isEmpty()) {
+            return false;
+        }
+        try {
+            return Boolean.TRUE.equals(agentRunRepository.isCancelRequested(UUID.fromString(runId)));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
     /** A run's RPC is its sign of life; the protocol semantics belong on the protocol layer. */
     private void touchRun(String runId) {
         if (!runId.isEmpty()) {
@@ -96,7 +108,12 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
             ToolCallLog logEntry = agentToolCallService.getToolCallLog(agentId, request.getToolCallId());
 
             GetToolResultResponse.Builder builder = GetToolResultResponse.newBuilder();
-            if (logEntry.getFinishAt() == null) {
+            if (logEntry.getFinishAt() == null && cancelRequested(request.getRunId())) {
+                // Stop the wait, not the call: a tool already in flight runs to the end and records its
+                // outcome. Only the loop is released, and it releases at once instead of sitting out a
+                // tool that may take minutes.
+                builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_CANCELLED);
+            } else if (logEntry.getFinishAt() == null) {
                 builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_PENDING);
             } else if (logEntry.getError() != null) {
                 builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_ERROR)

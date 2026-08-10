@@ -56,14 +56,27 @@ public class AgentRun extends BaseEntity {
 
     /**
      * Run lifecycle — a projection of the run's {@code SaveMessage} stream (INBOUND → RUNNING,
-     * ANSWER → DONE, ERROR → FAILED), observability only. Single-writer-per-session is enforced
-     * by the partitioned {@code agent_exec} queue (a contract requirement on the transport),
+     * ANSWER → DONE or CANCELLED, ERROR → FAILED), observability only. Single-writer-per-session is
+     * enforced by the partitioned {@code agent_exec} queue (a contract requirement on the transport),
      * not by this column.
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, columnDefinition = "TEXT")
     @Builder.Default
     private RunStatus status = RunStatus.ENQUEUED;
+
+    /**
+     * When the user asked the run to stop. Kept apart from {@link #status} because cancellation is a
+     * request, not a fact: the run learns about it at its next seam (the answer to SaveMessage /
+     * GetToolResult) and stays RUNNING until then. It is also what settles the «cancel against finish»
+     * race — a terminal ANSWER with this set lands as CANCELLED, without it as DONE.
+     */
+    @Column(name = "cancel_requested_at")
+    private LocalDateTime cancelRequestedAt;
+
+    /** The user who pressed stop — always a human: agents do not cancel runs, neither their own nor others'. */
+    @Column(name = "cancelled_by")
+    private UUID cancelledBy;
 
     /**
      * The run's latest sign of life: extended by its own RPCs (SaveMessage, GetLlmCredentials,

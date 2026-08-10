@@ -60,6 +60,7 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
 
             responseObserver.onNext(SaveMessageResponse.newBuilder()
                     .setDuplicate(result.duplicate())
+                    .setCancelled(result.cancelled())
                     .build());
             responseObserver.onCompleted();
         } catch (Exception e) {

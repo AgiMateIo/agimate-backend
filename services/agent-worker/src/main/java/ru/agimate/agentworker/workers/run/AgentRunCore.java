@@ -9,6 +9,7 @@ import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
+import ru.agimate.agentworker.agent.error.RunCancelled;
 import ru.agimate.agentworker.agent.AgentRunner;
 import ru.agimate.agentworker.agent.MessageCodec;
 import ru.agimate.agentworker.agent.ResponseTemplates;
@@ -120,6 +121,11 @@ public class AgentRunCore {
             public void onUsage(LlmUsage usage) {
                 reportUsage(agentId, runId, usage);
             }
+
+            @Override
+            public boolean cancelRequested() {
+                return messages.isCancelRequested();
+            }
         };
 
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
@@ -136,9 +142,31 @@ public class AgentRunCore {
         // question exists nowhere but inside that snapshot's JSON (a direct run has no channel history).
         // Not routed through the observer: the channel already showed the user their own message.
         turns.record(initialRequest, null);
-        String answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
+        String answer;
+        try {
+            answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
+        } catch (RunCancelled e) {
+            // A stop is a normal ending, not a failure: the terminal record is an ANSWER, so it goes to
+            // the answer channel, marks the run's messages completed and therefore stays visible to the
+            // history of the next run. An interruption the following turn cannot see reads as amnesia.
+            answer = cancellationNotice(e);
+            log.info("run cancelled by the user after {} executed tool(s)", e.executedTools().size());
+        }
         messages.answer(answer);
         return answer;
+    }
+
+    /**
+     * The receipt for a stopped run: what actually got done. Composed here rather than on the backend
+     * because only the loop knows which calls returned a result — and composed without another model
+     * call, since the user has just asked to stop waiting.
+     */
+    private String cancellationNotice(RunCancelled cancelled) {
+        if (cancelled.executedTools().isEmpty()) {
+            return templates.cancelled();
+        }
+        return templates.cancelled() + " " + templates.cancelledDidRun()
+                + " " + String.join(", ", cancelled.executedTools());
     }
 
     /**

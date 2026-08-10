@@ -43,10 +43,16 @@ public class RunActivityService {
     @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void sweepStaleRunning() {
-        int swept = agentRunRepository.failStaleRunning(
-                LocalDateTime.now().minus(STALE_AFTER), STALE_ERROR);
+        LocalDateTime cutoff = LocalDateTime.now().minus(STALE_AFTER);
+        int swept = agentRunRepository.failStaleRunning(cutoff, STALE_ERROR);
         if (swept > 0) {
             log.warn("swept {} stale RUNNING run(s) older than {}", swept, STALE_AFTER);
+        }
+        // A run asked to stop and then gone silent never reached a seam to see the request. It is
+        // cancelled rather than failed: the user's intent explains the outcome, the silence does not.
+        int cancelled = agentRunRepository.cancelStaleRequested(cutoff);
+        if (cancelled > 0) {
+            log.warn("swept {} stale run(s) with cancellation requested", cancelled);
         }
     }
 }

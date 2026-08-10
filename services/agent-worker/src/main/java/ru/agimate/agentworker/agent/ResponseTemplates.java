@@ -45,6 +45,16 @@ public class ResponseTemplates {
         return get("notice.empty-answer");
     }
 
+    /** The run was stopped by the user — an ordinary ending, so it goes out as the answer, not as an error. */
+    public String cancelled() {
+        return get("notice.cancelled");
+    }
+
+    /** Lead-in for the receipt: what the agent had managed to do before the stop. */
+    public String cancelledDidRun() {
+        return get("notice.cancelled-did-run");
+    }
+
     public String truncated() {
         return get("notice.truncated");
     }

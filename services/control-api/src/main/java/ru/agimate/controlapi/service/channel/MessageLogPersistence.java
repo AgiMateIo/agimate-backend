@@ -44,7 +44,11 @@ public class MessageLogPersistence {
     private final ChannelSessionMessageRepository messageRepository;
     private final InboundTextResolver inboundTextResolver;
 
-    public record Persisted(boolean duplicate, Channels channels) {}
+    /**
+     * @param cancelRequested the user asked this run to stop — rides back to the worker in the
+     *                        SaveMessage answer, which is how the loop learns about it at its seam
+     */
+    public record Persisted(boolean duplicate, Channels channels, boolean cancelRequested) {}
 
     /** Cap on a single JSON (arguments or result) in {@code message_json} — it protects a history row from gigantic outputs. */
     static final int TOOL_JSON_WRITE_CAP = 32 * 1024;
@@ -98,7 +102,7 @@ public class MessageLogPersistence {
         if (duplicate) {
             log.debug("saveMessage duplicate run={} seq={} kind={}", triggerId, seq, kind);
         }
-        return new Persisted(duplicate, channels);
+        return new Persisted(duplicate, channels, run.getCancelRequestedAt() != null);
     }
 
     /**
@@ -106,6 +110,10 @@ public class MessageLogPersistence {
      * keeps the order): INBOUND → RUNNING, ANSWER → DONE, ERROR → FAILED. A terminal status is never
      * rolled back (an INBOUND replay after the finish), and any event is a sign of life
      * ({@code last_activity_at} for the stuck-run sweeper).
+     *
+     * <p>The terminal ANSWER of a run whose cancellation was requested lands in CANCELLED instead —
+     * and this is also where the «cancel against finish» race is settled: the request has to be
+     * recorded before the answer arrives, otherwise the run simply finished first and says so.
      */
     private static void projectStatus(AgentRun run, ChannelSessionMessageKind kind) {
         RunStatus status = run.getStatus();
@@ -116,7 +124,8 @@ public class MessageLogPersistence {
         }
         switch (kind) {
             case INBOUND -> run.setStatus(RunStatus.RUNNING);
-            case ANSWER -> run.setStatus(RunStatus.DONE);
+            case ANSWER -> run.setStatus(run.getCancelRequestedAt() != null
+                    ? RunStatus.CANCELLED : RunStatus.DONE);
             case ERROR -> run.setStatus(RunStatus.FAILED);
             default -> { }
         }

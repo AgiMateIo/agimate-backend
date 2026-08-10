@@ -34,14 +34,18 @@ public class MessageLogService {
     private final MessageLogPersistence persistence;
     private final ChannelMessageOutboundService outboundService;
 
-    public record SaveResult(boolean duplicate) {}
+    /**
+     * @param cancelled the user asked this run to stop; the worker reads it off this answer at its
+     *                  seam and does not start another turn
+     */
+    public record SaveResult(boolean duplicate, boolean cancelled) {}
 
     public SaveResult save(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,
                            String progressType, String text, ToolTurnRecord toolTurn) {
         MessageLogPersistence.Persisted persisted = persistence.persist(
                 agentId, triggerId, seq, kind, progressType, text, toolTurn);
         deliverBestEffort(triggerId, agentId, persisted.channels(), kind, progressType, text, seq);
-        return new SaveResult(persisted.duplicate());
+        return new SaveResult(persisted.duplicate(), persisted.cancelRequested());
     }
 
     private void deliverBestEffort(UUID runId, UUID agentId, Channels channels,

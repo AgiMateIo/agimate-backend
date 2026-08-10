@@ -17,6 +17,7 @@ import ru.agimate.controlapi.database.entities.ChannelSession;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
+import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.dto.ToolResult;
@@ -52,6 +53,7 @@ public class ToolExecutionService {
 
     private final ConnectorRegistry connectorRegistry;
     private final ConnectionRepository connectionRepository;
+    private final AgentRunRepository agentRunRepository;
     private final ChannelSessionRepository channelSessionRepository;
     private final ConnectorEnvFactory envFactory;
     private final ToolCallLogService toolCallLogService;
@@ -98,6 +100,15 @@ public class ToolExecutionService {
      * (an open HTTP request) has to bound it itself.
      */
     public ToolResult executeAndRecord(ToolCallLog toolCallLog) {
+        // The one place cancellation actually bites. A call already inside the connector cannot be taken
+        // back, but a call still queued on the pool has done nothing yet — and when a turn dispatches
+        // several at once, most of them are still here. The refusal is recorded as an ordinary failed
+        // result, so the worker consumes it like any other and the tool log keeps the receipt.
+        if (cancelled(toolCallLog)) {
+            log.info("Tool '{}.{}' skipped: run {} was cancelled",
+                    toolCallLog.getConnectorCode(), toolCallLog.getName(), toolCallLog.getRunId());
+            return record(toolCallLog, null, "Cancelled: the user stopped the run before this call started");
+        }
         try {
             ConnectorHandler handler = connectorRegistry.getHandler(toolCallLog.getConnectorCode());
             ToolProvider toolProvider = ConnectorRegistry.capability(handler, ToolProvider.class);
@@ -125,6 +136,12 @@ public class ToolExecutionService {
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), e);
             return record(toolCallLog, null, "Tool execution failed");
         }
+    }
+
+    /** Outside a run ({@code run_id} null — an MCP call, a channel reply) there is nothing to cancel. */
+    private boolean cancelled(ToolCallLog toolCallLog) {
+        return toolCallLog.getRunId() != null
+                && Boolean.TRUE.equals(agentRunRepository.isCancelRequested(toolCallLog.getRunId()));
     }
 
     private ConnectorEnv buildEnv(ConnectorHandler handler, ToolCallLog toolCallLog) {

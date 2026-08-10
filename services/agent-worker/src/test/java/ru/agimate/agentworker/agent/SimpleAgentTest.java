@@ -3,6 +3,7 @@ package ru.agimate.agentworker.agent;
 import ru.agimate.agentworker.agent.error.EmptyAnswerExhausted;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
+import ru.agimate.agentworker.agent.error.RunCancelled;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,6 +31,85 @@ class SimpleAgentTest {
 
     private static SimpleAgent.LlmReply reply(AgentChatMessage message) {
         return SimpleAgent.LlmReply.of(message);
+    }
+
+    @Test
+    @DisplayName("отмена: цикл встаёт на шве, не начав следующий ход")
+    void cancelledAtTheSeam() {
+        AtomicInteger calls = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> {
+            calls.incrementAndGet();
+            return reply(AgentChatMessage.assistant("не должно случиться", false, List.of()));
+        };
+        SimpleAgent.RunObserver cancelled = new SimpleAgent.RunObserver() {
+            @Override
+            public boolean cancelRequested() {
+                return true;
+            }
+        };
+
+        assertThrows(RunCancelled.class, () -> agent(llm, c -> List.of(), cancelled, 10)
+                .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        assertEquals(0, calls.get());
+    }
+
+    @Test
+    @DisplayName("drain: тул-ход текущего хода доводится и записывается, встаём только на следующем шве")
+    void toolTurnDrainsBeforeStopping() {
+        AtomicInteger turn = new AtomicInteger();
+        AtomicBoolean cancelled = new AtomicBoolean();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("вызываю", false,
+                List.of(new AgentChatMessage.ToolCall("id" + turn.incrementAndGet(), "board.create_task", "{}"))));
+        // Отмена «нажата», пока тул исполняется.
+        SimpleAgent.ToolDispatcher dispatcher = c -> {
+            cancelled.set(true);
+            return List.of(new AgentChatMessage.ToolResult(c.get(0).id(), c.get(0).name(), "{}", false));
+        };
+        List<AgentChatMessage> projected = new ArrayList<>();
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public void onMessages(List<AgentChatMessage> msgs, LlmMeta meta) {
+                projected.addAll(msgs);
+            }
+
+            @Override
+            public boolean cancelRequested() {
+                return cancelled.get();
+            }
+        };
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        RunCancelled stop = assertThrows(RunCancelled.class,
+                () -> agent(llm, dispatcher, observer, 10).run(conv));
+
+        // Ход дошёл до конца: вызовы и результаты — обе записи, ни одного tool_use без ответа.
+        assertEquals(2, projected.size());
+        assertEquals(AgentChatMessage.Role.TOOL, projected.get(1).role());
+        assertEquals(List.of("board.create_task"), stop.executedTools());
+    }
+
+    @Test
+    @DisplayName("квитанция: провалившийся тул в отчёт не идёт, повторы схлопываются")
+    void receiptListsOnlySuccessfulToolsOnce() {
+        AtomicInteger turn = new AtomicInteger();
+        SimpleAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant(null, false,
+                List.of(new AgentChatMessage.ToolCall("id" + turn.incrementAndGet(), "t", "{}"))));
+        SimpleAgent.ToolDispatcher dispatcher = c -> List.of(
+                new AgentChatMessage.ToolResult("a", "telegram.send_message", "{}", false),
+                new AgentChatMessage.ToolResult("b", "sheets.add_rows", null, true),
+                new AgentChatMessage.ToolResult("c", "telegram.send_message", "{}", false));
+        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+            @Override
+            public boolean cancelRequested() {
+                return turn.get() > 0;
+            }
+        };
+
+        RunCancelled stop = assertThrows(RunCancelled.class,
+                () -> agent(llm, dispatcher, observer, 10)
+                        .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+
+        assertEquals(List.of("telegram.send_message"), stop.executedTools());
     }
 
     @Test

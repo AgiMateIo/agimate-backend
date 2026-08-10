@@ -21,6 +21,7 @@ import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -320,6 +321,59 @@ class MessageLogServiceTest {
 
             assertEquals(RunStatus.ENQUEUED, run.getStatus());
             assertNotNull(run.getLastActivityAt());
+        }
+    }
+
+    @Nested
+    @DisplayName("отмена")
+    class Cancellation {
+
+        @Test
+        @DisplayName("терминальный ANSWER при запрошенной отмене → CANCELLED, не DONE")
+        void answerAfterCancelRequestLandsCancelled() {
+            AgentRun run = run(SESSION_ID, dialogueChannels());
+            run.setStatus(RunStatus.RUNNING);
+            run.setCancelRequestedAt(LocalDateTime.now());
+
+            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.ANSWER, null, "остановлено", null);
+
+            assertEquals(RunStatus.CANCELLED, run.getStatus());
+            // Сообщения рана всё равно помечаются завершёнными — иначе отменённый ран не увидит история.
+            verify(messageRepository).markRunCompleted(TRIGGER_ID);
+        }
+
+        @Test
+        @DisplayName("ран успел закончиться сам → DONE, гонка разрешается по факту")
+        void answerWithoutCancelRequestLandsDone() {
+            AgentRun run = run(SESSION_ID, dialogueChannels());
+            run.setStatus(RunStatus.RUNNING);
+
+            service.save(AGENT_ID, TRIGGER_ID, 3, ChannelSessionMessageKind.ANSWER, null, "готово", null);
+
+            assertEquals(RunStatus.DONE, run.getStatus());
+        }
+
+        @Test
+        @DisplayName("флаг отмены уезжает воркеру в ответе SaveMessage — это и есть весь транспорт сигнала")
+        void cancellationRidesBackOnTheAnswer() {
+            AgentRun run = run(SESSION_ID, dialogueChannels());
+            run.setCancelRequestedAt(LocalDateTime.now());
+
+            MessageLogService.SaveResult result = service.save(AGENT_ID, TRIGGER_ID, 0,
+                    ChannelSessionMessageKind.INBOUND, null, "", null);
+
+            assertTrue(result.cancelled());
+        }
+
+        @Test
+        @DisplayName("без запроса отмены флаг не поднят")
+        void noFlagWithoutRequest() {
+            run(SESSION_ID, dialogueChannels());
+
+            MessageLogService.SaveResult result = service.save(AGENT_ID, TRIGGER_ID, 0,
+                    ChannelSessionMessageKind.INBOUND, null, "", null);
+
+            assertFalse(result.cancelled());
         }
     }
 

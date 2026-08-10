@@ -17,6 +17,10 @@ public enum RunStatus {
     DONE,
     /** Reported an ERROR, or went silent and was swept as stale. */
     FAILED,
-    /** Legacy (steering-era pre-emption); kept for old rows, never written anymore. */
+    /**
+     * Stopped at the user's request. Reached from a terminal record that arrives with
+     * {@code cancel_requested_at} already set, or from the stale sweeper — a run whose worker died
+     * after the request is better explained by the user's intent than by «went silent».
+     */
     CANCELLED
 }
