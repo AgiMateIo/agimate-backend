@@ -25,7 +25,7 @@ import java.util.UUID;
  * Listing of triggers — the parallel of
  * {@link ru.agimate.controlapi.service.tool.ToolDefinitionService} for triggers. The catalogue returns
  * only the type-declared specs of a connector type; an instance returns the union of the type-declared
- * ones with the dynamic triggers from {@code connection_triggers} (device apps), because different
+ * ones with the dynamic triggers from {@code connection_triggers} (connected apps), because different
  * instances of one connector may expose different sets.
  *
  * <p>The sources are merged directly (a union, not a switch on {@code definitionBinding}):

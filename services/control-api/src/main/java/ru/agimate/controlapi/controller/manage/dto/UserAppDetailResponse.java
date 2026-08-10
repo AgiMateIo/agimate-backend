@@ -29,10 +29,10 @@ public record UserAppDetailResponse(
         @Schema(description = "Whether a device is connected to this app")
         boolean connected,
 
-        @Schema(description = "Device triggers")
+        @Schema(description = "Triggers declared by the app")
         Map<String, Object> triggers,
 
-        @Schema(description = "Device tools")
+        @Schema(description = "Tools declared by the app")
         Map<String, Object> tools
 ) {
     public static UserAppDetailResponse from(App app) {

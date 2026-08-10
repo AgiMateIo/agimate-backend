@@ -1,6 +1,6 @@
 # Каналы Centrifugo
 
-Real-time delivery to devices and agents. Channels are namespaced (`app`, `agent`, `user`,
+Real-time delivery to connected apps and agents. Channels are namespaced (`app`, `agent`, `user`,
 `webchat` — see `ops/centrifugo/config.yaml`); all of them are server-side only, clients may
 neither subscribe nor publish on their own.
 
@@ -16,7 +16,7 @@ Client connection and subscription tokens are ES256 JWTs signed by control-api w
 
 | Неймспейс | Назначение | История |
 |---|---|---|
-| `app` | Push тул-вызовов в устройства | 100 публикаций, 24 ч |
+| `app` | Push тул-вызовов в подключённые приложения | 100 публикаций, 24 ч |
 | `agent` | Доставка результатов и событий агентам | 100 публикаций, 10 мин |
 | `user` | Пользовательские уведомления (`allow_tags_filter`) | 100 публикаций, 10 мин |
 | `webchat` | Веб-чат, с восстановлением при реконнекте | 100 публикаций, 24 ч |

@@ -14,7 +14,7 @@ import java.util.Map;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Request to push tool use to device")
+@Schema(description = "Request to push a tool call to a connected app")
 public class ToolCallRequest implements IToolCall {
 
     @NotNull(message = "Request id is required")
@@ -42,7 +42,7 @@ public class ToolCallRequest implements IToolCall {
     @Schema(description = "Agent session identifier")
     private String agentSessionId;
 
-    @Schema(description = "Initiating agent run id (agent_runs.id); null for device/app-originated calls")
+    @Schema(description = "Initiating agent run id (agent_runs.id); null for app-originated calls")
     private String runId;
 
 }

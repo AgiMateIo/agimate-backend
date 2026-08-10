@@ -17,7 +17,7 @@ import java.util.Optional;
  * The universal data-driven handler: it reproduces the previous behaviour of channels from
  * {@code config}.
  *
- * <p>It covers dynamic connectors (e.g. {@code app}, where triggers and tools are defined per device),
+ * <p>It covers dynamic connectors (e.g. {@code app}, where triggers and tools are defined by the app itself),
  * for which a code handler cannot be written. The mapping is given by settings:
  * <ul>
  *   <li>{@code triggers} — the list of trigger names;</li>

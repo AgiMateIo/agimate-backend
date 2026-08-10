@@ -11,8 +11,8 @@ import java.util.UUID;
 /**
  * The single registry of connector instances. {@code id} is the {@code connectionId} across all
  * downstream tables (channels, policies, trigger_logs, tool_call_logs, connector_jobs). It subsumes
- * {@code integration_credentials}; {@code apps} is referenced through {@link #appId} (device and
- * auth data are not duplicated).
+ * {@code integration_credentials}; {@code apps} is referenced through {@link #appId} (app auth and
+ * device linking are not duplicated).
  *
  * <p>{@code full_code = connector_code + "_" + sub_code} — the stable client-facing handle and the
  * prefix of the tool namespace (mcp_context7.resolve-library-id); for a static singleton it equals
@@ -69,7 +69,7 @@ public class Connection extends BaseEntity {
     @Column(name = "secret_id")
     private UUID secretId;
 
-    /** APP type: a reference into {@code apps} (device auth and linking are not duplicated). */
+    /** APP type: a reference into {@code apps} (app auth and device linking are not duplicated). */
     @Column(name = "app_id")
     private UUID appId;
 

@@ -162,7 +162,7 @@ public class ManageConnectionController {
     }
 
     @Operation(summary = "List triggers of a connection: type-declared specs merged with "
-            + "dynamic instance triggers (device-apps)")
+            + "dynamic instance triggers (connected apps)")
     @GetMapping("/{connectionId}/triggers/")
     public SuccessResponse<List<TriggerSpecificationResponse>> listTriggers(
             @AuthenticationPrincipal AgimateUserPrincipal principal,

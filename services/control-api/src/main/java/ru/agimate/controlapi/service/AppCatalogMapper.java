@@ -10,7 +10,7 @@ import ru.agimate.controlapi.database.entities.ConnectionTrigger;
 import java.util.UUID;
 
 /**
- * A device's catalogue (device link) → rows in {@code connection_tools}/{@code connection_triggers}.
+ * An app's catalogue (app link) → rows in {@code connection_tools}/{@code connection_triggers}.
  * The descriptor's format is aligned with MCP {@code tools/list[]} (cf. {@code McpToolMapper}): the same
  * fields {@code title}/{@code description}/{@code inputSchema}/{@code outputSchema}/{@code annotations}
  * are kept as raw JSON text — a lossless round-trip of an arbitrary JSON Schema, and the same cache row
@@ -18,7 +18,7 @@ import java.util.UUID;
  * not «short-changed» relative to MCP and the internal connectors.
  *
  * <p>The differences from MCP: the name arrives as the map's key (rather than a field of the object),
- * and the shorthand {@code params: string[]} is supported — for a simple device that would rather not
+ * and the shorthand {@code params: string[]} is supported — for a simple app that would rather not
  * write a full JSON Schema: the list of names expands into a minimal {@code object} schema (types are
  * unknown → «any»). {@code inputSchema} always takes precedence over {@code params}.
  */

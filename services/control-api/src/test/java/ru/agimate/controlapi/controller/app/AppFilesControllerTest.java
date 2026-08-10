@@ -94,7 +94,7 @@ class AppFilesControllerTest {
         assertEquals(USER_ID, spec.getValue().userId());
         assertEquals("image/png", spec.getValue().mime());
         assertEquals("shot.png", spec.getValue().name());
-        // Устройство грузит под своим ключом, вне рана — инициатор здесь неизвестен.
+        // The app uploads under its own key, outside any run — the initiator is unknown here.
         assertNull(spec.getValue().agentId());
         assertEquals(FileIds.external(stored.getId()), response.getResponse().id());
         assertEquals("image/png", response.getResponse().mime());

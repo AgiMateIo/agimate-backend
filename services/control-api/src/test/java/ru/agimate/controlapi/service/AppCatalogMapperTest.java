@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("AppCatalogMapper — device catalog → connection_tools/triggers")
+@DisplayName("AppCatalogMapper — app catalog → connection_tools/triggers")
 class AppCatalogMapperTest {
 
     private static final UUID CONNECTION_ID = UUID.randomUUID();

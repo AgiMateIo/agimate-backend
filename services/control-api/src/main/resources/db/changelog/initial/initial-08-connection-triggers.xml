@@ -5,7 +5,7 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <!-- Triggers of a dynamic connector instance (device apps); informational, params_schema is
+    <!-- Triggers of a dynamic connector instance (connected apps); informational, params_schema is
          raw JSON text. -->
     <changeSet id="create-connection-triggers" author="agimate">
         <createTable tableName="connection_triggers">

@@ -24,8 +24,8 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * The file layer for device apps (docs/connectors/files.md): uploading binary tool results
- * (screenshots and the like) and downloading files delivered to the device. The file's owner is the
+ * The file layer for connected apps (docs/connectors/files.md): uploading binary tool results
+ * (screenshots and the like) and downloading files delivered to the app. The file's owner is the
  * application's user; foreign fileIds do not resolve.
  */
 @Slf4j
@@ -58,7 +58,7 @@ public class AppFilesController {
 
         StoredFile stored;
         try (InputStream content = file.getInputStream()) {
-            // No agentId: the device uploads under its own key, outside the run whose tool call asked
+            // No agentId: the app uploads under its own key, outside the run whose tool call asked
             // for the file — the initiator is not recoverable here.
             stored = fileStorageService.store(NewFile.builder()
                     .userId(app.getUserId())
@@ -80,7 +80,7 @@ public class AppFilesController {
     ) {
         var app = appService.getApp(principal);
         FileStorageService.FileContent content = fileStorageService.open(app.getUserId(), fileId);
-        // Devices do not care about the headers — always an attachment (no inline rendering), and no cache is needed.
+        // Apps do not care about the headers — always an attachment (no inline rendering), and no cache is needed.
         return FileHttpResponses.serve(content, false, null);
     }
 }

@@ -164,6 +164,6 @@ control-api ──Centrifugo (паттерн apps/devices, EXTERNAL)──► ho
   внешнего агента).
 - `controller/webhook/ConnectionWebhookController.java` — шаблон публичного inbound-эндпоинта
   (пуш-вебхуки формы A, каркас формы C).
-- `database/enums/ExecutionLocus.java` (EXTERNAL → Centrifugo device push) — транспортная канва host-app.
+- `database/enums/ExecutionKind.java` (`APP` → Centrifugo push в приложение) — транспортная канва host-app.
 - Полная карта точек расширения и брифинг по спеке A2A — в истории исследования; ключевые выводы
   перенесены сюда.

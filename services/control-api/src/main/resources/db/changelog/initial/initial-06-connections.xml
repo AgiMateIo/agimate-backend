@@ -32,7 +32,7 @@
             <column name="secret_id" type="UUID">
                 <constraints foreignKeyName="fk_connections_secret" references="secrets(id)"/>
             </column>
-            <!-- APP instances: device auth/linking lives in apps, not duplicated here. -->
+            <!-- APP instances: app auth and device linking live in apps, not duplicated here. -->
             <column name="app_id" type="UUID">
                 <constraints foreignKeyName="fk_connections_app" references="apps(id)"/>
             </column>

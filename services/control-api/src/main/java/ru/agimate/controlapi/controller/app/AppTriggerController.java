@@ -30,8 +30,8 @@ public class AppTriggerController {
     private final InboundRateLimiter rateLimiter;
 
     @Operation(
-            summary = "Submit trigger from device",
-            description = "Receives trigger event from device and publishes it for processing by webhook subscribers"
+            summary = "Submit trigger from app",
+            description = "Receives trigger event from an app and publishes it for processing by webhook subscribers"
     )
     @PostMapping("/new")
     public SuccessResponse<String> submitTrigger(

@@ -35,7 +35,7 @@ public class StoredFile extends BaseEntity {
     /**
      * The agent that produced the file — provenance, never an access check: files are shared across
      * the agents of one user by design (board comments, sheet cells). {@code null} where the producer
-     * is unknown — ingest of an inbound message, an upload from a device or the webchat UI.
+     * is unknown — ingest of an inbound message, an upload from an app or the webchat UI.
      */
     @Column(name = "agent_id", updatable = false)
     private UUID agentId;

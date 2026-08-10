@@ -97,8 +97,8 @@ classloader-болью горячей выгрузки), конфликты за
 self-hosted и доверенных партнёров; для маркетплейса «любой разработчик» в SaaS — нет.
 
 **Вариант B: коннектор как внешний сервис (remote connector protocol).** Половина уже есть:
-MCP-коннектор (динамические тулы per-instance из `connection_tools`) и apps (DELEGATED×INBOUND,
-push в канал устройства). Обобщение: манифест регистрации (code, traits, ConfigSchema,
+MCP-коннектор (динамические тулы per-instance из `connection_tools`) и apps (`execution_kind = APP`,
+push в канал приложения). Обобщение: манифест регистрации (code, traits, ConfigSchema,
 tools/triggers/jobs/prompt blocks — те же MCP-совместимые схемы, что уже хранятся сырым JSON) +
 вызовы `executeTool`/`executeJob` по HTTP/gRPC к плагину + эмиссия триггеров плагином через наш
 webhook-вход. Даёт изоляцию, независимый деплой/версии, любой язык разработки и честную границу

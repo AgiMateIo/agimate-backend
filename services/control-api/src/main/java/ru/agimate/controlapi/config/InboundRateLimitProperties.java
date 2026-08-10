@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * Limits on inbound traffic from external sources (device apps and webhooks), per connection. A
+ * Limits on inbound traffic from external sources (connected apps and webhooks), per connection. A
  * value {@code <= 0} disables the limit for that scope.
  */
 @Component

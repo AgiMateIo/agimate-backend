@@ -32,7 +32,7 @@ public class AppCentrifugoTokenController {
 
     @Operation(
             summary = "Get Centrifugo subscription token",
-            description = "Returns a JWT subscription token for the device's tools channel"
+            description = "Returns a JWT subscription token for the app's tools channel"
     )
     @PostMapping("/token")
     public SuccessResponse<CentrifugoTokenResponse> getSubscriptionToken(

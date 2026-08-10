@@ -5,7 +5,7 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <!-- Tools of a dynamic connector instance (MCP servers, device apps), discovered at runtime and
+    <!-- Tools of a dynamic connector instance (MCP servers, connected apps), discovered at runtime and
          cached here. Schemas are raw JSON text to keep arbitrary JSON Schema intact; static
          connectors expose tools by reflection instead. -->
     <changeSet id="create-connection-tools" author="agimate">

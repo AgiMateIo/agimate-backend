@@ -270,7 +270,7 @@ JARs are created in `services/{service}/build/libs/`.
 
 ## Running Centrifugo
 
-Centrifugo is used for real-time messaging to devices.
+Centrifugo is used for real-time messaging to connected apps.
 
 ### Local Development
 
@@ -309,7 +309,7 @@ Key configuration options in `config.yaml`:
 
 | Namespace | Pattern                                    | Description                        |
 |-----------|--------------------------------------------|------------------------------------|
-| `app`     | `app:{appId}`                              | Tool-call push to device apps      |
+| `app`     | `app:{appId}`                              | Tool-call push to connected apps   |
 | `agent`   | `agent:{apiKeyPubId}`                      | Agent events (tool results, triggers) |
 | `user`    | `user:{userId}`                            | User events for the management UI  |
 | `webchat` | `webchat:{sessionId}`                      | Webchat session messages (history+recovery enabled) |

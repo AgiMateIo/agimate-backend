@@ -33,7 +33,7 @@ public class AgentToolCallController {
 
     @Operation(
             summary = "Check tool_call permission",
-            description = "Checks if a tool use request is authorized without pushing to device",
+            description = "Checks if a tool use request is authorized without pushing it to the app",
             security = @SecurityRequirement(name = "ApiKey")
     )
     @PostMapping("/check")
@@ -47,8 +47,8 @@ public class AgentToolCallController {
     }
 
     @Operation(
-            summary = "Push tool_call to device",
-            description = "Sends a tool use request to a specific device via Centrifugo",
+            summary = "Push tool_call to app",
+            description = "Sends a tool call to a specific app via Centrifugo",
             security = @SecurityRequirement(name = "ApiKey")
     )
     @PostMapping("/call")

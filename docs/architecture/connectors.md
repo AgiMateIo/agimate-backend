@@ -6,7 +6,8 @@
 
 Подключённый экземпляр любого коннектора — строка `connections` (`id` = `connection_id` во всём
 downstream: channels, ABAC-политики, trigger/tool-логи, `connector_jobs`). Сворачивает прежний
-`integration_credentials`; на `apps` ссылается через `app_id` (device-auth/linking не дублируются).
+`integration_credentials`; на `apps` ссылается через `app_id` (app-авторизация и привязка устройства
+не дублируются).
 
 - `connector_code` (тип, FK→`connectors`) + `sub_code` (дискриминатор экземпляра: telegram-username,
   MCP-host, app-имя) → `full_code = connector_code + "_" + sub_code` (`mcp_context7`) — стабильный
@@ -19,7 +20,7 @@ downstream: channels, ABAC-политики, trigger/tool-логи, `connector_j
 **Секреты** (`secrets`) — envelope-шифрование (`connectors/core/secret`). На каждый секрет случайный
 DEK шифрует данные (AES-256-GCM); DEK шифруется KEK (один источник, `app.secrets.encryption-key`) с
 AAD = `entity + owner_id` (нельзя расшифровать, перенеся строку на другого владельца). Outbound-креды
-коннектора лежат в `secrets`, адресуются `connections.secret_id`; inbound-verifier устройства
+коннектора лежат в `secrets`, адресуются `connections.secret_id`; inbound-verifier приложения
 (`apps.key_*`) — невозвратный, в `secrets` не кладётся.
 
 **Traits** — type-level дескриптор на `connectors`: **только функциональные оси** — те, на которых
@@ -68,8 +69,8 @@ webchat/acp, экземпляр у telegram/mcp), либо отсутствуе�
 
 1. *Оставь в env только userId и явные адреса вызова — что сломается?* Сломается → есть правило
    вывода владельца (AGENT/TEAM), зафиксируй его в коде и class-javadoc. Не сломается → правила нет.
-2. *Пользователь приносит идентичность экземпляра (креды/устройство)?* Да → integration/device:
-   экземпляры, явный bind. Нет → internal: строка-режим, доступ выдают скиллы.
+2. *Пользователь приносит идентичность экземпляра (креды/регистрация приложения)?* Да →
+   integration/app: экземпляры, явный bind. Нет → internal: строка-режим, доступ выдают скиллы.
 
 | | владелец: агент | владелец: команда | правила нет |
 |---|---|---|---|
@@ -80,7 +81,7 @@ webchat/acp, экземпляр у telegram/mcp), либо отсутствуе�
 (память); явный адрес в вызове — это канальный слой (webchat/acp: session → channel → agent);
 использование `env.agentId` per-call (логи, снапшот инициатора) — есть у всех и осью не является.
 
-**Динамические тулы/триггеры** экземпляра (MCP-серверы, device-apps) — `connection_tools` /
+**Динамические тулы/триггеры** экземпляра (MCP-серверы, подключённые приложения) — `connection_tools` /
 `connection_triggers` (обобщают прежний `mcp_tool` + `apps.tools/triggers` JSONB; схемы сырым
 JSON-текстом для фиделити). Статические коннекторы тулы отдают рефлексией, в этих таблицах не
 материализуются.
@@ -184,7 +185,7 @@ PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
   `0` — без неё). Меняют объём контекста, не доверие.
 
 Источник директив — **только код** (`TriggerProvider.getTriggers()` через registry): динамические
-декларации (`connection_triggers` устройств/MCP) и payload события в резолве не участвуют —
+декларации (`connection_triggers` приложений/MCP) и payload события в резолве не участвуют —
 незнакомый триггер получает базовый пресет (default-safe). Потребители: `time.due`
 (PROMPT+guidance+ownConnectionTools), memory-триггеры (`skillTools=false`, `ownConnectionTools=true`,
 `historyLimit=0` — материал уже в `data`, тела подошедших скиллов остаются: memory-скилл и есть

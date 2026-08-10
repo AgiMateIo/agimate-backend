@@ -53,7 +53,7 @@ spring:
     analytics-enabled: false
   servlet:
     multipart:
-      # Аплоад файлов device-apps (/app/files); содержательный лимит — app.files.max-file-size-bytes
+      # Аплоад файлов подключённых приложений (/app/files); содержательный лимит — app.files.max-file-size-bytes
       # (50 MB), здесь чуть выше, чтобы отказ был доменным (400), а не транспортным.
       max-file-size: 51MB
       max-request-size: 52MB

@@ -13,7 +13,7 @@ import java.util.UUID;
  * @param userId   the owner and the access boundary
  * @param agentId  the agent that produced the file — provenance only; {@code null} where the
  *                 producer is genuinely unknown (ingest of an inbound message, an upload from a
- *                 device or the webchat UI). Never an access check: see the migration's comment
+ *                 app or the webchat UI). Never an access check: see the migration's comment
  * @param origin   provenance of the producer: {@code connector_code:connection} / tool / channel
  * @param name     the file name as the producer knew it; {@code null} when there is none (path
  *                 parts, control characters and quotes are stripped — the value reaches a

@@ -162,14 +162,14 @@ public class AppService {
     }
 
     /**
-     * A trigger must have been declared by the device at link time (the {@code connection_triggers}
+     * A trigger must have been declared by the app at link time (the {@code connection_triggers}
      * catalogue is the instance's source of truth): an undeclared name is a breach of contract, not an
-     * event to route. For devices {@code connectionId == app.id}.
+     * event to route. For apps {@code connectionId == app.id}.
      */
     public void requireDeclaredTrigger(App app, String triggerName) {
         if (!connectionTriggerRepository.existsActiveByConnectionIdAndName(app.getId(), triggerName)) {
             throw new BadRequestStatusException(
-                    "Trigger '" + triggerName + "' is not declared by this device");
+                    "Trigger '" + triggerName + "' is not declared by this app");
         }
     }
 
@@ -249,7 +249,7 @@ public class AppService {
             app.setTriggers(linkDeviceRequest.triggers());
             app.setTools(linkDeviceRequest.tools());
             App saved = appRepository.save(app);
-            syncDeviceCatalog(saved.getId(), linkDeviceRequest);
+            syncAppCatalog(saved.getId(), linkDeviceRequest);
             return saved;
         }
 
@@ -265,19 +265,19 @@ public class AppService {
         app.setTriggers(linkDeviceRequest.triggers());
         app.setTools(linkDeviceRequest.tools());
         app = appRepository.save(app);
-        syncDeviceCatalog(app.getId(), linkDeviceRequest);
+        syncAppCatalog(app.getId(), linkDeviceRequest);
         log.info("Linked device {} to app {}", linkDeviceRequest.deviceId(), app.getId());
 
         return app;
     }
 
     /**
-     * Mirrors the device's set of tools and triggers into the normalised
+     * Mirrors the app's set of tools and triggers into the normalised
      * {@code connection_tools}/{@code connection_triggers} (for checking the tools and triggers available
-     * in channels and policies). A full replacement: the device's discovered set is the instance's only
+     * in channels and policies). A full replacement: the app's discovered set is the instance's only
      * source of truth.
      */
-    private void syncDeviceCatalog(UUID connectionId, LinkDeviceRequest request) {
+    private void syncAppCatalog(UUID connectionId, LinkDeviceRequest request) {
         connectionToolRepository.deleteByConnectionId(connectionId);
         connectionTriggerRepository.deleteByConnectionId(connectionId);
 

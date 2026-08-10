@@ -46,9 +46,9 @@ public class AppToolsController {
 
         var app = appService.getApp(principal);
 
-        var toolCallLog = toolCallLogService.recordOutputFromDevice(app, toolResultRequest);
+        var toolCallLog = toolCallLogService.recordOutputFromApp(app, toolResultRequest);
 
-        // The device sent the result under the log's PK; we deliver it to the agent under its external_id — the
+        // The app sent the result under the log's PK; we deliver it to the agent under its external_id — the
         // agent (and the worker's gRPC polling) correlate calls in their own identifier space.
         var agentResult = new ToolResult(
                 toolCallLog.getExternalId(),

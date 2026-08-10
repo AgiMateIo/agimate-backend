@@ -10,8 +10,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * A tool of a dynamic connector instance (MCP server, device app). Generalises the former
- * {@code mcp_tool} cache: the set is discovered at runtime ({@code tools/list} / device link) and
+ * A tool of a dynamic connector instance (MCP server, connected app). Generalises the former
+ * {@code mcp_tool} cache: the set is discovered at runtime ({@code tools/list} / app link) and
  * cached here so the worker and the policy UI can see the list without reaching the source on the
  * hot path.
  *

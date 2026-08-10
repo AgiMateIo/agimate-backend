@@ -16,7 +16,7 @@
             <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <!-- Initiating run; feeds ConnectorEnv.runId. Nullable — device/app calls have no run. -->
+            <!-- Initiating run; feeds ConnectorEnv.runId. Nullable — app-originated calls have no run. -->
             <column name="run_id" type="UUID"/>
             <column name="connector_code" type="TEXT"/>
             <column name="connection_id" type="TEXT"/>

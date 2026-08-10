@@ -89,13 +89,13 @@ public class ToolCallLogService {
     }
 
     /**
-     * Record a tool call's result that arrived from a device (app). The device correlates by the log's PK
+     * Record a tool call's result that arrived from an app. The app correlates by the log's PK
      * ({@code tool_call_logs.id}, globally unique) — so the result is unambiguously tied to its log even
      * when several agents share one app (their {@code external_id}s may coincide). Ownership is checked
      * by {@code connectionId == app.id}.
      */
     @Transactional
-    public ToolCallLog recordOutputFromDevice(App app, IToolResult toolResult) {
+    public ToolCallLog recordOutputFromApp(App app, IToolResult toolResult) {
         UUID logId;
         try {
             logId = UUID.fromString(toolResult.getId());
@@ -107,7 +107,7 @@ public class ToolCallLogService {
                 .orElseThrow(() -> new NotFoundStatusException("ToolCallLog", toolResult.getId()));
 
         if (!app.getId().toString().equals(toolCallLog.getConnectionId())) {
-            throw new ForbiddenStatusException("Incorrect device");
+            throw new ForbiddenStatusException("Incorrect app");
         }
 
         toolCallLog.applyResult(toolResult);

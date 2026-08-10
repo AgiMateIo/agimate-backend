@@ -15,7 +15,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 
 | Mechanism | Header | Scope |
 |-----------|--------|-------|
-| **Connector Auth** | `X-App-Auth-Key: <key>` | `/app/**` — device/connector endpoints |
+| **Connector Auth** | `X-App-Auth-Key: <key>` | `/app/**` — connected-app endpoints |
 | **API Key** | `X-Api-Key: <key>` | `/agent/**` — agent API endpoints |
 | **JWT** | `Authorization: Bearer <jwt>` | `/manage/**` — management endpoints (`/manage/admin/**` — ADMIN only, see [Админский раздел](#админский-раздел-manageadmin)) |
 | **Public** | — | `/`, `/webhook/**`, `/actuator/health` |
@@ -31,7 +31,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `APP_CONTENT_LANGUAGE`  | System content language of the installation: `ru` (default) or `en`. See [architecture/content-language.md](../architecture/content-language.md) |
 | `APP_SECRETS_ENCRYPTION_KEY` | KEK for the envelope-encrypted `secrets` store (AES-256, Base64, 32 bytes). Required outside `local`/`test` profiles — startup fails without it |
 | `APP_INTEGRATION_WEBHOOK_BASE_URL` | Public URL for webhook callbacks |
-| `INBOUND_RATE_LIMIT_ENABLED` | Inbound rate limiting for device/webhook traffic (default `true`) |
+| `INBOUND_RATE_LIMIT_ENABLED` | Inbound rate limiting for app/webhook traffic (default `true`) |
 | `INBOUND_RATE_LIMIT_TRIGGERS_PER_MINUTE` | Trigger events per minute per connection — `/app/trigger/new` + `/webhook/*` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_TOOL_RESULTS_PER_MINUTE` | Tool results per minute per connection — `/app/tools/result` (default `120`, `<=0` disables) |
 | `INBOUND_RATE_LIMIT_FILE_UPLOADS_PER_MINUTE` | File uploads per minute per connection — `/app/files` (default `30`, `<=0` disables) |
@@ -41,9 +41,9 @@ Control API for connector registration, tool delivery, trigger submission, and A
 
 ## Inbound Rate Limiting
 
-Trigger and tool-result ingestion from external sources is rate-limited per connection (token bucket, in-memory, burst = the per-minute limit). The key is `connectionId` — for device apps `app.id == connection.id`, for webhooks it is the path parameter, so all inbound surfaces share one mechanism:
+Trigger and tool-result ingestion from external sources is rate-limited per connection (token bucket, in-memory, burst = the per-minute limit). The key is `connectionId` — for connected apps `app.id == connection.id`, for webhooks it is the path parameter, so all inbound surfaces share one mechanism:
 
-- `/app/trigger/new`, `/app/tools/result` — over-limit requests get **429** `{ "error": { "message": "..." } }`; the device should back off.
+- `/app/trigger/new`, `/app/tools/result` — over-limit requests get **429** `{ "error": { "message": "..." } }`; the app should back off.
 - `/webhook/{connectionId}` — over-limit requests are dropped silently with **200** `ok` (the source is unauthenticated, and webhook platforms endlessly retry non-2xx responses). The drop is logged.
 
 ## API reference
@@ -137,14 +137,14 @@ user-api, а control-api видит только `user_id` в своих счё�
 ## Tool invocation
 
 A tool call never executes inside the request that asked for it — the caller gets an id and the
-result arrives asynchronously. This is what lets a tool run on a device the platform does not
-control, and it is why every tool call has a log row:
+result arrives asynchronously. This is what lets a tool run inside an app on a machine the platform
+does not control, and it is why every tool call has a log row:
 
 1. The agent asks control-api to invoke a tool on a connection.
 2. control-api authorizes it against ABAC (`ConnectionAccessEvaluator`, `PolicyKind.TOOL`),
    writes a `tool_call_logs` row and returns its id.
 3. Execution is dispatched by connector kind — internal connectors run in-process, integrations
-   call the platform API, device connectors get a Centrifugo push.
+   call the platform API, `APP` connectors get a Centrifugo push.
 4. The executor reports the result back; the log row is completed and the result is delivered to
    the agent over its channel.
 
@@ -153,7 +153,7 @@ Backend-side jobs follow the same shape through `connector_jobs`, claimed with
 
 ## Inbound triggers
 
-Inbound events — a device trigger, a platform webhook, a message in a channel — converge on one
+Inbound events — an app trigger, a platform webhook, a message in a channel — converge on one
 path: `TriggerRouterService` decides **which** agents get the event (bindings plus ABAC with
 `PolicyKind.TRIGGER` and an optional `params_filter`), and the channel decides **how** the
 conversation is conducted (message extraction, chat filtering, reply). Policy and channel are

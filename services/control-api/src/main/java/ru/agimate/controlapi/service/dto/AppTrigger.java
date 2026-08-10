@@ -5,8 +5,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
 
 /**
- * A device's trigger for the manage UI. {@code paramsSchema} is the raw JSON Schema of the event's
- * payload ({@code null} when the device did not send it); {@code params} is a derived list of names for
+ * An app's trigger for the manage UI. {@code paramsSchema} is the raw JSON Schema of the event's
+ * payload ({@code null} when the app did not send it); {@code params} is a derived list of names for
  * simple display.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
