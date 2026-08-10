@@ -166,12 +166,15 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
             if (result instanceof Map<?, ?> map) {
                 return (Map<String, Object>) map;
             }
-            // A record return is expanded into a flat Map (camelCase keys = the component names) so the runtime
-            // output matches the outputSchema from ToolSchemaReflector; otherwise it is the legacy {result} wrapper.
+            // A record return is expanded into a flat Map (camelCase keys = the component names) so the
+            // runtime output matches the outputSchema from ToolSchemaReflector. Anything else has no
+            // shape the reflector would agree with — a scalar return is described as a scalar there,
+            // so wrapping it here would contradict the declared schema.
             if (result.getClass().isRecord()) {
                 return JsonUtils.objectToMap(result);
             }
-            return Map.of("result", result);
+            throw new ConnectorException("Tool " + method.getName() + " must return a Map, a record or void, got "
+                    + result.getClass().getSimpleName());
         } catch (InvocationTargetException e) {
             if (e.getCause() instanceof RuntimeException re) {
                 throw re;
