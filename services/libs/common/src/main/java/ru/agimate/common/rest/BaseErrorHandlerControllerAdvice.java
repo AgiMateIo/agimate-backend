@@ -6,10 +6,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Path;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.validator.internal.engine.path.PathImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -230,16 +230,26 @@ public class BaseErrorHandlerControllerAdvice {
         log.info("Constraint violation on {} {}: {}", request.getMethod(), request.getRequestURL(), ex.getMessage());
         Map<String, String> errors = new HashMap<>();
         for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
-            String property;
-            final var propertyPath = violation.getPropertyPath();
-            if (propertyPath instanceof PathImpl) {
-                property = ((PathImpl) propertyPath).getLeafNode().getName();
-            } else {
-                property = propertyPath.toString();
-            }
-            errors.put(property, violation.getMessage());
+            errors.put(leafName(violation.getPropertyPath()), violation.getMessage());
         }
         return new ErrorResponse("Bad request", errors);
+    }
+
+    /**
+     * Last named segment of a violation path — {@code createUser.dto.email} reports as {@code email},
+     * which is what the client binds to a form field. Walks the portable {@link Path} iterator rather
+     * than Hibernate Validator's {@code PathImpl}: that one is internal and moved in 9.1.
+     *
+     * @return the full path when no segment carries a name (cross-parameter constraints)
+     */
+    private static String leafName(Path path) {
+        String leaf = null;
+        for (Path.Node node : path) {
+            if (node.getName() != null) {
+                leaf = node.getName();
+            }
+        }
+        return leaf != null ? leaf : path.toString();
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
