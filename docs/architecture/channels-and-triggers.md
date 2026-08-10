@@ -1,305 +1,220 @@
-# Channels & Triggers — Agent Integration Guide
+# Каналы и роутинг триггеров
 
-> Документ для разработчика воркера / агента. Описывает что изменилось в triggers-пайплайне после введения сущности **Channel** и какие новые возможности появились на gRPC.
+Два слоя, которые легко перепутать: **ABAC решает «кому»** уходит триггер, **канал решает «как»**
+строится взаимодействие с пользователем — откуда взять текст, куда отдать ответ, в какой сессии всё
+это лежит. Маршрут определяется наличием активного канала, а не политикой.
 
----
-
-## 1. Что появилось
-
-Бэкенд научился отличать **диалоговые триггеры** (сообщение от пользователя в мессенджере) от обычных сервисных триггеров и группировать их в сессии. Управляется это через сущность `Channel`, которую конечный пользователь создаёт через `/manage/channels/` UI.
-
-Для агента это значит две вещи:
-
-1. **Payload триггера** иногда обогащается полями `_channel_id` и `_channel_session_id` — это сигнал, что триггер диалоговый и у агента есть «обратный канал» для ответа.
-2. **Новый gRPC-сервис `ChannelGateway`** даёт агенту способ перечислить доступные каналы и отправить ответ пользователю одной RPC — backend сам разворачивает это в tool-call с подстановкой параметров.
-
-Старые сервисные триггеры (`sensor.door.open`, `inventory.low_stock` и т.п.) продолжают работать без изменений.
+Ниже — как триггер доходит до агента и как ответ возвращается обратно. Протокол воркера (что именно
+он спрашивает у бэка на старте рана) — в [`../contracts/worker-protocol.md`](../contracts/worker-protocol.md).
 
 ---
 
-## 2. Маршрутизация триггера — что меняется
+## 1. Две сущности
 
-Цепочка: connector присылает trigger → `TriggerRouterService` → `AgentConnectionPolicy` (`kind=TRIGGER`) → доставка агенту. В ней есть два дополнительных шага:
+**`Channel`** — как агент общается с пользователем через конкретный инстанс коннектора. Бизнес-ключ
+`(agent_id, connector_code, connection_id)` уникален **среди активных** — партиальный индекс
+`WHERE deleted_at IS NULL` (JPA `@UniqueConstraint` партиальность не выражает, поэтому на сущности
+только комментарий). Поля, определяющие поведение:
 
-1. **Filter check**. У политики есть поле `params_filter` (JSONB, пути типа `data.message.chat_id` → ожидаемое значение), которое `TriggerRouterService` сверяет с `trigger.data` через `InputFilterEvaluator`. Если фильтр задан и не сматчился — этой policy для этого триггера как будто нет. Это позволяет одному и тому же триггеру `telegram.trigger.message.new` маршрутизироваться к разным агентам в зависимости от `chat_id`.
-2. **Channel inbound pipeline**. Если у выбранной ALLOW-policy есть `channel_id`, backend:
-   - находит/создаёт активную `ChannelSession` (sliding window 12h);
-   - извлекает текст по `channel.trigger_message_field` (dot-path в `trigger.data`);
-   - сохраняет `ChannelSessionMessage(direction=IN, message=…)`;
-   - вкладывает в payload агенту поля `_channel_id` и `_channel_session_id` (см. §3).
-
-После этих шагов триггер доставляется агенту одним из транспортов (`CENTRIFUGO`, `WEBHOOK`, `GENERIC`/DBOS) — путь зависит от `Agent.type`, обогащение payload одинаковое во всех.
-
-Агенты типа `MCP` в получатели не попадают вовсе: у stateless MCP нет канала «сервер → клиент», доставлять некуда. Отсеиваются они в `findRecipients` до ABAC — по `AgentTransport.supportsPush()`, а не по списку типов, — так что ран для них не создаётся и слот воркера не тратится. Привязка коннекшена к такому агенту открывает его тулы, но не его внимание.
-
----
-
-## 3. Формат payload триггера
-
-### 3.1 GENERIC (DBOS) — `AgentEvent`
-
-```jsonc
-{
-  "eventId": "<triggerLog.pubId>:<agent.pubId>",
-  "agentId": "018f...",
-  "eventType": "telegram.trigger.message.new",     // connectorCode + "." + triggerName
-  "occurredAt": "2026-05-11T12:00:00Z",
-  "data": {
-    // оригинальный trigger.data, как пришёл от коннектора
-    "data": { "message": { "chat_id": 12345, "text": "Привет" } },
-
-    // ⬇️ ДОБАВЛЯЮТСЯ ТОЛЬКО ЕСЛИ ТРИГГЕР ПРИШЁЛ ЧЕРЕЗ CHANNEL
-    "_channel_id": "018f-...",          // pubId канала
-    "_channel_session_id": "018f-..."   // pubId активной сессии
-  }
-}
-```
-
-### 3.2 CENTRIFUGO — `Trigger` (канал `agent:{agentPubId}`, type=`trigger`)
-
-```jsonc
-{
-  "connectorCode": "telegram",
-  "connectionId": "018f-...",                  // pubId инстанса (App / IntegrationCredentials)
-  "id": "<triggerLog.externalId>",
-  "name": "trigger.message.new",
-  "data": {
-    "data": { "message": { "chat_id": 12345, "text": "Привет" } },
-    "_channel_id": "018f-...",
-    "_channel_session_id": "018f-..."
-  },
-  "occurredAt": "2026-05-11T12:00:00"
-}
-```
-
-### 3.3 WEBHOOK
-
-```jsonc
-{
-  "type": "trigger",
-  "payload": { /* тот же Trigger из §3.2 */ }
-}
-```
-
-### 3.4 Правила использования полей `_channel_*`
-
-- **Если оба поля присутствуют** — это диалоговый триггер. Агент должен:
-  - сохранять `_channel_session_id` как идентификатор разговора в своём workflow state (используется для отправки ответа);
-  - использовать `data.data.message...` (или что там кладёт connector) для извлечения текста сообщения. Backend уже сохранил его в session, но самому агенту payload приходит как есть.
-- **Если полей нет** — это обычный сервисный триггер. Логика прежняя: реагировать как реагировал, отвечать как реагировал (`ToolGateway.ExecuteTool` напрямую).
-- **Никогда не отправляйте этим триггерам ответ через `ToolGateway`** напрямую — у вас, скорее всего, нет права на нужный reply-tool. Используйте `ChannelGateway.SendChannelMessage` (см. §4).
-- Поля `_channel_*` — **строки UUID**, не объекты.
-
----
-
-## 4. Новый gRPC сервис `ChannelGateway`
-
-Аутентификация — worker-pool Bearer-токен через `WorkerPoolAuthInterceptor`, см. [`../contracts/worker-protocol.md`](../contracts/worker-protocol.md).
-
-```proto
-service ChannelGateway {
-  rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse);
-  rpc SendChannelMessage(SendChannelMessageRequest) returns (SendChannelMessageResponse);
-}
-```
-
-### 4.1 `ListChannels`
-
-```proto
-message ListChannelsRequest {
-  string agent_id = 1;     // pubId агента
-}
-message ChannelDescriptor {
-  string channel_id = 1;             // pubId канала
-  string name = 2;
-  string connector_code = 3;         // коннектор, к которому привязан канал
-  string connection_id = 4;   // connections.id канала (= connections.id)
-}
-message ListChannelsResponse {
-  repeated ChannelDescriptor channels = 1;
-}
-```
-
-Возвращает все каналы агента (soft-deleted исключены). Использовать когда:
-- агент хочет **инициировать** диалог сам (не в ответ на триггер) — например, послать proactive-сообщение в Telegram-чат, привязанный к каналу;
-- агент хочет узнать «есть ли у меня вообще обратный канал в Telegram прежде, чем я попытаюсь что-то ответить».
-
-Если триггер уже пришёл с `_channel_id` — отдельный вызов `ListChannels` не нужен, `channel_id` есть в payload.
-
-### 4.2 `SendChannelMessage`
-
-```proto
-// Вложение мультимодального сообщения (Фаза 1 — не используется).
-message Part {
-  string type = 1;
-  string storage_ref = 2;
-  string mime = 3;
-  int64 size = 4;
-  string meta_json = 5;        // произвольные метаданные как JSON-объект
-}
-// Контент ответа без адресации/корреляции — зеркало InboundMessage.
-message OutboundMessage {
-  string text = 1;             // текст ответа
-  repeated Part parts = 2;     // вложения (Фаза 1: пусто)
-}
-message SendChannelMessageRequest {
-  string agent_id = 1;
-  string channel_id = 2;       // pubId канала из payload или ListChannels
-  string session_id = 3;       // pubId сессии; пусто = найти активную или создать новую
-  string message_id = 4;       // для идемпотентности; пусто = control-api сгенерирует
-  OutboundMessage message = 5; // контент ответа
-  string stream = 6;           // роль потока: "progress" | "answer" | "error"; пусто = answer
-}
-message SendChannelMessageResponse {
-  string session_id = 1;       // pubId сессии (особенно полезно, если session_id был пуст)
-  string message_id = 2;       // эффективный message_id (присланный или сгенерированный)
-}
-```
-
-Что делает backend под капотом, **за один вызов**:
-
-1. Валидирует, что `channel_id` принадлежит `agent_id`.
-2. Резолвит сессию: если `session_id` указан — берёт её; иначе `findOrCreateActive(channel)` со sliding-window 12h.
-3. Извлекает `trigger_input` из последнего IN-сообщения этой сессии — нужен для подстановки `{trigger.*}` плейсхолдеров.
-4. Рендерит `channel.reply_tool_params` (см. §5).
-5. Сохраняет `ChannelSessionMessage(direction=OUT, message=text)` и обновляет `session.last_message_at`.
-6. Создаёт `ToolCallLog` с `accessEffect=ALLOW` (канал — уже авторизованный путь, ABAC не оценивается).
-7. Вызывает `ConnectorService.pushToConnector(...)` — для INTEGRATION выполняется сразу, для APP уходит в Centrifugo на устройство, и т.д.
-
-### 4.3 Идемпотентность
-
-`message_id` уникален в паре `(agent_pub_id, message_id)` в БД. Повторный вызов с тем же `message_id`:
-- сохраняет новое OUT-сообщение в сессии (БД не препятствует, но это побочный эффект);
-- **переиспользует существующий `ToolCallLog`** — повторного tool-call в connector не будет.
-
-Это поведение защитит от ретраев на сетевых сбоях, **но не делает SendChannelMessage полностью idempotent** в отношении session messages. Если ваш workflow рестартится — генерируйте детерминированный `message_id` (например, hash от `(session_id, agent_step_id)`), чтобы хотя бы не дублировать tool-вызов.
-
-### 4.4 Маппинг ошибок (gRPC Status)
-
-| Status | Когда |
+| Поле | Что делает |
 |---|---|
-| `INVALID_ARGUMENT` | `agent_id` / `channel_id` пустой, не UUID; `session_id` указан, но не UUID |
-| `NOT_FOUND` | Канал не существует, soft-deleted, или принадлежит другому агенту; сессия с указанным `session_id` не найдена либо принадлежит другому каналу |
-| `PERMISSION_DENIED` | Зарезервировано (сейчас не выбрасывается — авторизация через владение каналом) |
-| `ABORTED` | Конфликт `message_id` с другим input (общая логика ToolCallLog) |
-| `INTERNAL` | Всё остальное |
+| `channel_handler` | имя бина `ChannelHandler` — код поведения (`generic`, `telegram`, `webchat`, `acp`) |
+| `config` | JSONB-настройки конкретного канала: reply-цель, шаблоны, `messageField` |
+| `input_filter` | фильтрация чатов на слое «как»: не сматчился — доставка по этому каналу пропускается |
+
+**`ChannelSession`** — разговор. Скользящее окно `SESSION_TTL` = 12 часов (`ChannelSessionService`):
+`findOrCreateActive` отдаёт последнюю активную либо заводит новую. Канал, который выбирает сессию сам
+(webchat — фронт называет её явно), ходит через `createNew`/`findOpen` мимо эвристики. Сообщения
+сессии — `channel_session_messages`, канальная проекция «как видел пользователь».
 
 ---
 
-## 5. Подстановка плейсхолдеров (что увидит connector)
+## 2. Путь триггера: три фазы
 
-`channel.reply_tool_params` — JSON-шаблон, который пользователь задал при создании канала. Backend проходит по нему рекурсивно (Map → List → скаляры) и подставляет:
+`TriggerRouterService` разделён по фазам намеренно — «кто», «как» и «запись+доставка» разъезжаются по
+разным причинам и тестируются отдельно.
 
-| Плейсхолдер | Значение |
-|---|---|
-| `{text}` | значение `message.text` из `SendChannelMessageRequest` |
-| `{trigger.<dot.path>}` | поле из `triggerInput` **последнего IN-сообщения сессии** (= оригинальный `trigger.data`) |
+### findRecipients — кто
 
-**Сохранение типа**: если строка целиком состоит из одного плейсхолдера (`"{trigger.data.message.chat_id}"`), результат имеет тип исходного значения (number, boolean, null, object). Если плейсхолдер вкраплён в строку (`"Re: {text}"`) — интерполяция как string.
+1. агенты с активным биндингом к `connectionId` триггера (`AgentConnection` — гейт доступности);
+2. сужение по `TriggerAudience` из `TriggerContext`: исключается актор, при непустых `targets`
+   остаются только они;
+3. отсев агентов без push-транспорта — `AgentTransport.supportsPush()`. MCP отваливается здесь, **до
+   ABAC**: у stateless MCP нет канала «сервер → клиент», ран для него никто не получит, а слот
+   воркера потратит. Привязка коннекшена к такому агенту открывает его тулы, но не его внимание;
+4. ABAC: `AgentConnectionPolicy` с `kind=TRIGGER`, модель **дефолт-allow** — при наличии биндинга
+   триггер разрешён, пока правило не скажет обратного. Прецеденс: точное `name` > binding-wide
+   (`name IS NULL`) > дефолт. `params_filter` победившего правила сверяется с `trigger.data` через
+   `InputFilterEvaluator`.
 
-Пример канала на Telegram:
+Канал в этой фазе не участвует вовсе.
 
-```json
-"reply_tool_params": {
-  "chat_id": "{trigger.data.message.chat_id}",
-  "text": "{text}",
-  "parse_mode": "HTML"
+### planRoutes — как
+
+Для каждого получателя `ChannelRouteResolver.resolve` отдаёт одно из трёх: `DIRECT` (канала нет),
+`CHANNEL` (канал и извлечённое сообщение), `SKIP` (канал есть, но триггер отфильтрован).
+
+Канал ищется двумя путями:
+
+- **объявленный** — продюсер положил prompt-канал в `TriggerContext.channels` (так делают webchat,
+  ACP, внутренние коннекторы). Берётся, только если канал принадлежит этому агенту;
+- **резолв по триплету** `(agent, connector_code, connection_id)` — обычный входящий вебхук.
+
+Дальше по порядку: `input_filter` канала → `handler.handleInput(config, trigger)` → сессия.
+`handleInput` возвращает `Optional<InboundMessage>`, и **пустой Optional означает «этот триггер не для
+этого канала»** — доставка пропускается. Извлечение текста делает control-api для **всех** хендлеров
+(`generic` при отсутствии значения по `messageField` падает в JSON всего `trigger.data`), так что
+воркеру уезжает готовый `InboundMessage`, а не путь до поля.
+
+Сессия: объявленная продюсером, если она открыта и принадлежит каналу, иначе `findOrCreateActive` по
+TTL-эвристике.
+
+Роли в `Channels`: `prompt` — всегда канал входящего; `progress` — тот же канал, если хендлер
+объявил `deliverProgress` (webchat, ACP); `answer` не заполняется — доставка сама падает в `prompt`.
+
+**Проактивный случай.** Prompt-канала нет, но продюсер объявил `progress`/`answer` — так выглядит
+напоминание `time.due`: входящего сообщения не было, а отвечать есть куда. Тогда сессия
+переразрешается (объявленная, если ещё открыта, иначе активная канала) — симметрично фолбэку
+исходящей доставки, чтобы история, партиция очереди и строка рана указывали туда же, куда реально
+уйдёт сообщение.
+
+### dispatch — запись и доставка
+
+Создаётся `AgentRun` со снапшотом маршрута:
+
+- `channels` — чтобы `GetRunContext` и доставка `SaveMessage` читали роли отсюда, а не резолвили
+  канал заново;
+- `sessionId` — **ключ single-writer/истории**, вычисляется здесь один раз: сессия prompt-канала,
+  иначе answer-канала, иначе `null`. Правило живёт только на этой стороне, воркер получает готовое
+  значение.
+
+Ран сохраняется **до** доставки: сгенерированный БД `id` и есть канонический `run_id` (он же DBOS
+workflow id), на него опирается и доставка, и реестр ранов. Падение доставки одному получателю не
+роняет остальных — каждый маршрут в своём try.
+
+---
+
+## 3. sessionId и очередь
+
+`DbosTransport` кладёт ран в партиционированную очередь `agent_exec` с
+`partitionKey = sessionId ?: runId`. Отсюда два следствия:
+
+- раны одной сессии исполняются строго по одному — **single-writer-per-session это свойство
+  транспорта**, а не блокировка в коде;
+- прямой ран (канала нет) получает собственную партицию по `runId` и идёт параллельно всему.
+
+Занятая сессия означает, что следующий триггер ждёт очереди, а не отменяет текущий ран.
+
+---
+
+## 4. Что уезжает воркеру
+
+```jsonc
+{
+  "agentId": "018f…",
+  "runId":   "018f…",          // == DBOS workflow id == agent_runs.id
+  "type":    "trigger",
+  "sessionId": "018f…",        // отсутствует у прямого рана
+  "channels": { "prompt": {"channelId": "…", "sessionId": "…"} },
+  "inbound":  { "text": "Привет", "parts": [] },
+  "payload":  { /* … */ }
 }
 ```
 
-При IN-сообщении `{"data":{"message":{"chat_id":12345,"text":"Привет"}}}` и вызове `SendChannelMessage(text="Здорово!")` backend выполнит `telegram.sendMessage({"chat_id": 12345, "text": "Здорово!", "parse_mode": "HTML"})`.
-
-Агенту **не нужно знать формат reply-tool'а** — это полностью инкапсулировано каналом.
-
----
-
-## 6. Как применить на стороне агента
-
-### 6.1 ReAct-loop psevdo-code
-
-```python
-def on_trigger(event: AgentEvent) -> None:
-    data = event.data
-    channel_session_id = data.get("_channel_session_id")
-    channel_id = data.get("_channel_id")
-
-    if channel_session_id:
-        # Диалоговый триггер: пользователь нам пишет.
-        user_text = pluck(data, "data.message.text")   # путь зависит от connector
-        save_to_workflow_state(channel_id=channel_id, session_id=channel_session_id)
-
-        reply = run_react_loop(prompt=user_text, conversation_history=...)
-
-        channel_gateway.SendChannelMessage(
-            agent_id=event.agentId,
-            channel_id=channel_id,
-            session_id=channel_session_id,
-            text=reply,
-            message_id=stable_id_for(workflow_id, step="final_reply"),
-        )
-    else:
-        # Сервисный триггер: реагируем как раньше — напрямую через ToolGateway.
-        run_react_loop_with_tool_call(event)
-```
-
-### 6.2 Что хранить в DBOS workflow state
-
-Минимум на каждый диалоговый workflow:
-- `channel_id`, `channel_session_id` — чтобы ответить позже (например, после долгого tool-call'а);
-- история сообщений ReAct-loop приходит из `GetRunContext.history` — см. [`../contracts/worker-protocol.md`](../contracts/worker-protocol.md).
-
-`SendChannelMessage` можно вызывать **многократно** в рамках одной сессии (split на несколько коротких ответов / стриминг). Каждый вызов добавит OUT-сообщение в сессию и пошлёт tool-call.
-
-### 6.3 Inactive session
-
-Backend не присылает уведомление о закрытии сессии (12h TTL или явное `closedAt`). Если агент решит отправить ответ позже, чем через 12h после последнего IN — `SendChannelMessage(session_id=<old>)` вернёт `NOT_FOUND` (сессия закрыта или истекла). Тогда:
-- либо вызвать с **пустым `session_id`** — backend создаст новую сессию;
-- либо принять, что разговор закончен, и завершить workflow.
-
-Рекомендация: при срабатывании long-running tool в диалоговом workflow проверять, что от первого IN прошло < 12h, и при необходимости попросить пользователя «напомнить позже».
-
-### 6.4 Initiating dialog (proactive)
-
-Чтобы агент сам начал разговор без предыдущего триггера:
-
-1. `ListChannels(agent_id)` — найти подходящий канал.
-2. `SendChannelMessage(channel_id, session_id="", text=...)` — backend создаст новую сессию.
-
-⚠️ В этой ситуации `{trigger.*}` плейсхолдеры **резолвятся в null**, поскольку IN-сообщений в сессии ещё нет. Если `reply_tool_params` зависит от `{trigger.data.message.chat_id}` — отправка упадёт уже в connector с ошибкой (например, Telegram вернёт 400 «chat_id is required»). На стороне канала это известно как ограничение; будущая версия (когда появится) даст способ передать chat_id в `SendChannelMessage` явно.
+Поля с `null` вырезаны (`@JsonInclude(NON_NULL)`), у прямого триггера остаются только `agentId`,
+`runId`, `type` и payload. Payload намеренно тонкий: системный промпт, тулы, историю и остальной
+контекст воркер забирает одним `GetRunContext(agent_id, run_id)`.
 
 ---
 
-## 7. Конфигурация на стороне UI — что увидит пользователь
+## 5. Обратный путь: `SaveMessage` → канал
 
-Просто чтобы понимать контекст. Пользователь в UI создаёт канал, заполняя:
+Воркер — единственный писатель истории; **доставка в канал это проекция записи**, а не отдельный
+вызов. `MessageLogService` не транзакционен намеренно: сначала `MessageLogPersistence` коммитит
+историю, потом, вне транзакции, идёт best-effort доставка. Упавшая доставка не откатывает историю, а
+крах между коммитом и доставкой ничего не теряет — шаг воркера повторится, запись дедуплицируется по
+`(run_id, seq)`, доставка — по детерминированному `message_id` от `(run_id, seq)`.
 
-- какому агенту канал принадлежит,
-- `channelHandler` (например `generic`), `connectorCode` + `connectionId` источника,
-- `config` обработчика — для `generic`: список `triggers`, `messageField` (dot-path до текста), reply-цель (`replyConnectionId`/`replyToolName`) и `replyToolParams` (шаблон),
-- опциональный `inputFilter` (фильтр по полям `trigger.data`).
+Цепочки ролей:
 
-Подробнее — OpenAPI, раздел `/control/manage/channels`.
+| kind | куда |
+|---|---|
+| `PROGRESS` | `progress` |
+| `ANSWER` | `answer`, иначе `prompt` |
+| `ERROR` | `progress`, иначе `answer`, иначе `prompt` |
+| `INBOUND` | никуда — это ack «агент получил» |
 
-С точки зрения агента эти настройки прозрачны — он видит результат через payload триггера и через поведение `SendChannelMessage`.
+Пустой текст не доставляется; события без канала остаются в истории и в строке рана.
+
+Дальше `ChannelMessageOutboundService`:
+
+1. резолвит сессию (указанную либо активную), сверяет владение каналом;
+2. достаёт `replyContext` — `trigger_input` последнего входящего сообщения сессии (это `trigger.data`
+   исходного события, записанный на INBOUND-строке);
+3. разбирает attach-маркеры `[[attach:agf_…]]` в `parts`; хендлеру без
+   `supportsOutboundAttachments` вложения не отдаются, и несёт их только `answer` — маркер в
+   progress-тексте анонсирует будущий ответ, а доставка в обоих местах продублировала бы файл;
+4. зовёт `handler.handleOutput`, который **либо** доставляет сам (webchat, ACP — push в живое
+   соединение) и возвращает пустой список, **либо** возвращает `ToolCallRequest`'ы. Их исполняет
+   вызывающая сторона через обычный tool-calling — то есть с идемпотентностью и ABAC. Побочных
+   эффектов внутри хендлера нет намеренно: это рвёт цикл бинов с входящим роутером и держит диспатч
+   вне транзакций.
 
 ---
 
-## 8. Чек-лист миграции существующего агента
+## 6. Хендлеры
 
-1. **Триггер-handler** — добавить ветку «если есть `_channel_session_id` — это диалог»:
-   - извлекать текст сообщения из `data` по тому пути, который оговорён с пользователем (обычно `data.message.text` для Telegram);
-   - запоминать `channel_id` и `session_id` в state workflow.
-2. **Ответы пользователю** — заменить попытки `ToolGateway.ExecuteTool(telegram.sendMessage, ...)` на `ChannelGateway.SendChannelMessage(channel_id, session_id, text)`. Удалить из кода жёстко-зашитые `chat_id` — backend подставит сам через `{trigger.*}`.
-3. **gRPC stubs** — перегенерировать из новых proto (`channel_gateway.proto`). Идентичные настройки auth interceptor'а, что и для `ToolGateway`.
-4. **State retention** — убедиться, что `channel_id` и `session_id` сериализуются в DBOS workflow state.
-5. **Идемпотентность** — генерировать стабильный `message_id` для финального ответа (например, `f"{workflow_id}:reply:{step_n}"`).
-6. **Тесты** — добавить fixture для триггера с полями `_channel_id` / `_channel_session_id` и проверить, что workflow вызывает `SendChannelMessage`, а не tool'у пишет напрямую.
+| Хендлер | Чем отличается |
+|---|---|
+| `generic` | data-driven: всё поведение из `config`. Покрывает динамические коннекторы (`app`), где триггеры и тулы объявляет устройство и хендлер в коде написать нельзя |
+| `telegram` | `supportsOutboundAttachments` — ответ может нести файлы |
+| `webchat` | `deliverProgress` + `supportsOutboundAttachments`: промежуточный вывод стримится в чат |
+| `acp` | `deliverProgress` + `contributesPromptTools` — канал приносит в контекст тулы своего коннектора мимо гейта скиллов: пока разговор идёт из IDE, агент получает fs/terminal без ручной настройки навыка |
+
+Хендлер объявляет `listOfTriggers`/`listOfTools`, чтобы создание канала могло сгенерировать
+соответствующие правила `AgentConnectionPolicy`, и `getConfigFields` — JSON Schema для формы в UI.
+Внутри слоя бросается только `ConnectorException`.
 
 ---
 
-## 9. Что осталось за рамками этой итерации
+## 7. `generic`: конфиг и плейсхолдеры
 
-- **Streaming reply**. Сейчас `SendChannelMessage` — единичный unary call. Если LLM генерирует длинный ответ кусками, агент может звать `SendChannelMessage` несколько раз — каждый кусок попадёт OUT в сессию и в connector отдельным сообщением. Серверного агрегатора пока нет.
-- **Proactive с динамическим `chat_id`**. См. §6.4 — на текущей версии proactive-сценарий работает только если `replyToolParams` не зависит от данных IN-сообщения.
-- **Уведомления о новом IN в той же сессии (multi-turn)**. Backend просто шлёт следующий триггер с тем же `_channel_session_id` — workflow должен сам понимать, что это продолжение разговора (либо завести нового instance, либо использовать DBOS message-передачу в существующий instance).
-- **Канал-инициатор ChannelGateway-вызовов**. Сейчас ничто на стороне agent runtime не блокирует «не тот» `agent_id` в RPC: проверяется только что `channel_id` принадлежит указанному `agent_id`. Если воркер исполняет нескольких агентов в одном worker pool, ответственность за «звать с правильным agent_id» — на воркере.
+| Ключ | Значение |
+|---|---|
+| `triggers` | имена триггеров коннектора, которые слушает канал |
+| `messageField` | dot-path внутри `trigger.data` до текста сообщения |
+| `replyConnectionId` / `replyToolName` | reply-цель; коннектор выводится из connectionId и может отличаться от канального |
+| `replyToolParams` | шаблон параметров тула с плейсхолдерами |
+
+`PlaceholderRenderer` рекурсивно проходит шаблон (Map → List → скаляры) и подставляет:
+
+- `{text}` — текст ответа агента;
+- `{trigger.<dot.path>}` — поле из `trigger_input` последнего входящего сообщения сессии (пути
+  считаются от `trigger.data`).
+
+**Тип сохраняется**, если строка состоит из одного плейсхолдера целиком: `"{trigger.message.chat_id}"`
+даст число. Вкраплённый плейсхолдер (`"Re: {text}"`) интерполируется в строку. Нерезолвнутый — пустая
+строка либо `null`.
+
+Проактивная отправка в сессию без входящих сообщений оставит все `{trigger.*}` пустыми: reply-тул
+упадёт уже в коннекторе, если шаблон зависит от данных входящего события. Это известное ограничение
+модели, а не баг рендерера.
+
+---
+
+## 8. Известные ограничения
+
+- **Аудитория только из `TriggerContext`.** Заполнить её может лишь тот, кто поднял триггер внутри
+  процесса (доска, time, память, webchat, ACP). У вебхука снаружи контекста нет — сужать некем, и
+  выбор получателей целиком на ABAC. Сама пара «актор + targets» взята из модели доски и другим
+  видам триггеров может не подойти.
+- **Роль `answer` не заполняется** — доставка падает в `prompt`. Отдельный канал ответа появится
+  тогда, когда появится сценарий, где он нужен.
+- **`ChannelInfo.messageId`** зарезервирован под треды и реплаи, сейчас не заполняется.
+
+## Смежное
+
+- ABAC и биндинги — [`connectors.md`](connectors.md)
+- Протокол воркера, `GetRunContext`, журнал — [`../contracts/worker-protocol.md`](../contracts/worker-protocol.md)
+- ACP как зеркало webchat-канала — [`../contracts/acp.md`](../contracts/acp.md)
+- Схемы запросов и ответов `/control/manage/channels` — OpenAPI, не дублируются здесь

@@ -158,7 +158,7 @@ path: `TriggerRouterService` decides **which** agents get the event (bindings pl
 `PolicyKind.TRIGGER` and an optional `params_filter`), and the channel decides **how** the
 conversation is conducted (message extraction, chat filtering, reply). Policy and channel are
 deliberately separate layers; see
-[agent-channels-integration.md](../architecture/channels-and-triggers.md).
+[channels-and-triggers.md](../architecture/channels-and-triggers.md).
 
 ## Database
 
