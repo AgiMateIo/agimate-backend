@@ -62,6 +62,14 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
         // same step moves the run's status to RUNNING (the projection of the SaveMessage stream).
         messages.inbound();
 
+        // Cancelled while it was still queued: nothing has happened yet, so there is nothing to report.
+        // Leaving before prepare_context also saves a full GetRunContext, and — more visibly — keeps the
+        // channel from collecting one «stopped» line per run standing in the partition.
+        if (messages.isCancelRequested()) {
+            log.info("run cancelled before it started");
+            return;
+        }
+
         PreparedContext prepared = core.prepareContext(message.agentId(), message.runId());
         core.run(message.agentId(), message.runId(), prepared, messages,
                 "for agent_id=" + message.agentId() + " run=" + message.runId());

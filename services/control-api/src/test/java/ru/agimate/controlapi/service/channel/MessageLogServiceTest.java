@@ -343,6 +343,17 @@ class MessageLogServiceTest {
         }
 
         @Test
+        @DisplayName("отменённый в очереди ран терминален уже на своём ack — дальше записей не будет")
+        void queuedRunIsTerminalAtItsAck() {
+            AgentRun run = run(SESSION_ID, dialogueChannels());
+            run.setCancelRequestedAt(LocalDateTime.now());
+
+            service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "", null);
+
+            assertEquals(RunStatus.CANCELLED, run.getStatus());
+        }
+
+        @Test
         @DisplayName("ран успел закончиться сам → DONE, гонка разрешается по факту")
         void answerWithoutCancelRequestLandsDone() {
             AgentRun run = run(SESSION_ID, dialogueChannels());

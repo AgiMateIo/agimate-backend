@@ -118,10 +118,12 @@ public class MessageLogPersistence {
         if (terminal) {
             return;
         }
+        boolean cancelled = run.getCancelRequestedAt() != null;
         switch (kind) {
-            case INBOUND -> run.setStatus(RunStatus.RUNNING);
-            case ANSWER -> run.setStatus(run.getCancelRequestedAt() != null
-                    ? RunStatus.CANCELLED : RunStatus.DONE);
+            // A run cancelled while queued is terminal at its own ack: it leaves before doing anything,
+            // so no later record would come to settle its status.
+            case INBOUND -> run.setStatus(cancelled ? RunStatus.CANCELLED : RunStatus.RUNNING);
+            case ANSWER -> run.setStatus(cancelled ? RunStatus.CANCELLED : RunStatus.DONE);
             case ERROR -> run.setStatus(RunStatus.FAILED);
             default -> { }
         }
