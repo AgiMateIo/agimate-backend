@@ -54,32 +54,32 @@ public class TurnLog {
      */
     public void record(AgentChatMessage m, LlmMeta meta) {
         switch (m.role()) {
-            case USER -> send(TurnRole.TURN_ROLE_USER, m.text(), false, List.of(), List.of(), null);
-            case ASSISTANT -> send(TurnRole.TURN_ROLE_ASSISTANT, m.text(), m.thinking(),
+            case USER -> send(TurnRole.TURN_ROLE_USER, m.text(), List.of(), List.of(), null);
+            case ASSISTANT -> send(TurnRole.TURN_ROLE_ASSISTANT, m.text(),
                     MessageCodec.toolCallRecs(m.toolCalls()), List.of(), meta);
-            case TOOL -> send(TurnRole.TURN_ROLE_TOOL, null, false,
+            case TOOL -> send(TurnRole.TURN_ROLE_TOOL, null,
                     List.of(), MessageCodec.toolResultRecs(m.toolResults()), null);
             case SYSTEM -> { /* the system prompt lives in the run's prompt snapshot, not per turn */ }
         }
     }
 
-    private void send(TurnRole role, String text, boolean thinking,
+    private void send(TurnRole role, String text,
                       List<ToolCallRec> calls, List<ToolResultRec> results, LlmMeta meta) {
         int n = turnIndex++;
         String finishReason = meta != null ? meta.finishReason() : null;
         String model = meta != null ? meta.model() : null;
         String callId = meta != null ? meta.callId() : null;
-        // The reasoning text rides on meta, not on the message: only the flag reaches the channel
-        // projection, the text goes to the ledger alone.
+        // The reasoning rides on meta, not on the message: the channel projection gets only the 💭
+        // marker (from AgentChatMessage.thinking), the text goes to the ledger alone.
         String thinkingText = meta != null ? meta.reasoning() : null;
         try {
-            boolean duplicate = client.saveTurn(agentId, runId, n, role, text, thinking, thinkingText,
+            boolean duplicate = client.saveTurn(agentId, runId, n, role, text, thinkingText,
                     calls, results, finishReason, model, callId).getDuplicate();
             if (duplicate) {
                 log.debug("saveTurn duplicate idx={} role={}", n, role);
             }
         } catch (Exception e) {
-            // The turn journal is observability, not a decision loop: a failure does not fail the run, and a replay backfills it.
+            // Losing the answer over a ledger write is the worse trade: the backend catches the hole.
             log.warn("saveTurn best-effort failed idx={} role={}: {}", n, role, e.getMessage());
         }
     }

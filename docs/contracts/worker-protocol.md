@@ -181,13 +181,14 @@ XML-тегом у рендерера, пустой `name` — сырой тек�
 
 ### `SaveTurn`
 
-По строке на ход: `USER` несёт только `text`, `ASSISTANT` — `text`/`thinking`/`thinking_text`/
+По строке на ход: `USER` несёт только `text`, `ASSISTANT` — `text`/`thinking_text`/
 `tool_calls`, `TOOL` — только `tool_results`. Пишется для всех ранов, включая direct.
 Идемпотентность — UNIQUE `(run_id, turn_index)`.
 
-`thinking_text` — рассуждение модели целиком, без капа; `thinking` — производный от него флаг (он же
-даёт «💭 thinking...» в канале, но текста туда не уходит никогда). Едет на `LlmMeta`, а не на
-сообщении: почему именно так — [../decisions/reasoning-content.md](../decisions/reasoning-content.md).
+`thinking_text` — рассуждение модели целиком, без капа; отдельного флага «рассуждала ли» нет, это
+и есть непустота текста (воркер получает их из одного поля провайдера). Маркер «💭 thinking...» в
+канале живёт своим путём — `progress_type=THINKING`, текста туда не уходит никогда. Рассуждение едет
+на `LlmMeta`, а не на сообщении: почему так — [../decisions/reasoning-content.md](../decisions/reasoning-content.md).
 
 `turn_index` 0 — **входящий ход без эфемерного префикса**: memory-заметки уходят модели и в снимок
 `agent_runs.prompt`, но не в журнал — из журнала собирается история следующих ранов, и сегодняшние

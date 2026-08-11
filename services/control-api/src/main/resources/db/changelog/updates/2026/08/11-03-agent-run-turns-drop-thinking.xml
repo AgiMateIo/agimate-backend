@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Флаг был ровно тем же фактом, что и `thinking_text IS NOT NULL`: воркер вычислял его как
+         `reasoning(response) != null` — одно поле провайдера, одна строка кода, — а прочитать его
+         никто не читал. Две колонки, обязанные совпадать, это только возможность разойтись: хватило
+         бы будущего капа на текст рассуждений, чтобы флаг начал утверждать неправду. Маркер 💭 в
+         канале живёт на своём пути (progress_type=THINKING) и от этой колонки не зависел. -->
+    <changeSet id="agent-run-turns-drop-thinking" author="agimate">
+        <dropColumn tableName="agent_run_turns" columnName="thinking"/>
+    </changeSet>
+
+</databaseChangeLog>

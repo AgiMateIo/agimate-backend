@@ -20,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -41,7 +40,7 @@ class TurnLogTest {
     }
 
     private void stubOk() {
-        when(client.saveTurn(anyString(), anyString(), anyInt(), any(), any(), anyBoolean(),
+        when(client.saveTurn(anyString(), anyString(), anyInt(), any(), any(),
                 any(), any(), any(), any(), any(), any()))
                 .thenReturn(SaveTurnResponse.newBuilder().setDuplicate(false).build());
     }
@@ -76,7 +75,7 @@ class TurnLogTest {
         ArgumentCaptor<String> callId = ArgumentCaptor.forClass(String.class);
 
         verify(client, times(2)).saveTurn(eq("agent-1"), eq("run-1"), idx.capture(), role.capture(),
-                any(), anyBoolean(), any(), calls.capture(), results.capture(),
+                any(), any(), calls.capture(), results.capture(),
                 finish.capture(), model.capture(), callId.capture());
 
         assertEquals(List.of(0, 1), idx.getAllValues());
@@ -109,7 +108,7 @@ class TurnLogTest {
         ArgumentCaptor<String> callId = ArgumentCaptor.forClass(String.class);
 
         verify(client, times(2)).saveTurn(anyString(), anyString(), idx.capture(), role.capture(),
-                text.capture(), anyBoolean(), any(), calls.capture(), any(), any(), any(),
+                text.capture(), any(), calls.capture(), any(), any(), any(),
                 callId.capture());
 
         assertEquals(List.of(0, 1), idx.getAllValues());
@@ -130,24 +129,8 @@ class TurnLogTest {
 
         ArgumentCaptor<Integer> idx = ArgumentCaptor.forClass(Integer.class);
         verify(client, times(1)).saveTurn(anyString(), anyString(), idx.capture(), any(), any(),
-                anyBoolean(), any(), any(), any(), any(), any(), any());
+                any(), any(), any(), any(), any(), any());
         assertEquals(0, idx.getValue());
-    }
-
-    @Test
-    @DisplayName("thinking assistant-хода едет в запись как есть; tool-ход всегда false")
-    void passesThinkingThrough() {
-        stubOk();
-        TurnLog turns = turnLog();
-
-        turns.record(assistant(), META);                                             // thinking = true
-        turns.record(AgentChatMessage.assistant("без рассуждений", false, List.of()), META);
-        turns.record(tool(), null);
-
-        ArgumentCaptor<Boolean> thinking = ArgumentCaptor.forClass(Boolean.class);
-        verify(client, times(3)).saveTurn(anyString(), anyString(), anyInt(), any(), any(),
-                thinking.capture(), any(), any(), any(), any(), any(), any());
-        assertEquals(List.of(true, false, false), thinking.getAllValues());
     }
 
     @Test
@@ -161,7 +144,7 @@ class TurnLogTest {
 
         ArgumentCaptor<String> thinkingText = ArgumentCaptor.forClass(String.class);
         verify(client, times(2)).saveTurn(anyString(), anyString(), anyInt(), any(), any(),
-                anyBoolean(), thinkingText.capture(), any(), any(), any(), any(), any());
+                thinkingText.capture(), any(), any(), any(), any(), any());
         assertEquals("сначала посчитаю", thinkingText.getAllValues().get(0));
         assertNull(thinkingText.getAllValues().get(1));   // tool-ход не порождён LLM-вызовом
     }
@@ -169,7 +152,7 @@ class TurnLogTest {
     @Test
     @DisplayName("best-effort: сбой saveTurn не пробрасывается наружу")
     void swallowsFailure() {
-        when(client.saveTurn(anyString(), anyString(), anyInt(), any(), any(), anyBoolean(),
+        when(client.saveTurn(anyString(), anyString(), anyInt(), any(), any(),
                 any(), any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("control-api down"));
 

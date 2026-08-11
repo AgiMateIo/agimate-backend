@@ -226,7 +226,7 @@ public class AgentWorkerClient {
      * (stage 1b).
      */
     public SaveTurnResponse saveTurn(String agentId, String runId, int turnIndex, TurnRole role,
-                                     String text, boolean thinking, String thinkingText,
+                                     String text, String thinkingText,
                                      List<ToolCallRec> toolCalls,
                                      List<ToolResultRec> toolResults, String finishReason,
                                      String model, String callId) {
@@ -237,7 +237,6 @@ public class AgentWorkerClient {
                     .setTurnIndex(turnIndex)
                     .setRole(role)
                     .setText(text == null ? "" : text)
-                    .setThinking(thinking)
                     .setThinkingText(thinkingText == null ? "" : thinkingText)
                     .addAllToolCalls(toolCalls)
                     .addAllToolResults(toolResults)

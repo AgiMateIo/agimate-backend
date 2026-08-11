@@ -64,14 +64,10 @@ public class AgentRunTurn extends BaseEntity {
     @Column(name = "text", columnDefinition = "TEXT")
     private String text;
 
-    /** The assistant emitted reasoning on this turn (the 💭 marker). */
-    @Column(name = "thinking", nullable = false)
-    private boolean thinking;
-
     /**
-     * The reasoning itself, uncapped; null when the model did not reason (then {@link #thinking} is
-     * false too — one provider field feeds both). Kept here only: the channel projection carries the
-     * marker, never the text.
+     * The model's reasoning, uncapped; null when it did not reason. Kept here only: the channel
+     * projection carries the 💭 marker, never the text — and no flag rides along, because «did it
+     * reason» is this column being non-null.
      */
     @Column(name = "thinking_text", columnDefinition = "TEXT")
     private String thinkingText;

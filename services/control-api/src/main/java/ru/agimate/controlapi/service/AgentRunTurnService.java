@@ -43,7 +43,7 @@ public class AgentRunTurnService {
 
     @Transactional
     public SaveResult save(UUID agentId, UUID runId, int turnIndex, AgentTurnRole role, String text,
-                           boolean thinking, String thinkingText, List<ToolTurnRecord.Call> toolCalls,
+                           String thinkingText, List<ToolTurnRecord.Call> toolCalls,
                            List<ToolTurnRecord.Result> toolResults,
                            String finishReason, String model, String callId) {
         AgentRun run = agentRunRepository.findById(runId)
@@ -59,7 +59,7 @@ public class AgentRunTurnService {
 
         int inserted = turnRepository.insertIgnoreConflict(
                 runId, run.getSessionId(), agentId, turnIndex, role.name(),
-                emptyToNull(text), thinking, emptyToNull(thinkingText), callsJson, resultsJson,
+                emptyToNull(text), emptyToNull(thinkingText), callsJson, resultsJson,
                 emptyToNull(finishReason), emptyToNull(model), emptyToNull(callId));
 
         boolean duplicate = inserted == 0;

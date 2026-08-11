@@ -177,7 +177,6 @@ class RunHistoryAssemblerTest {
         void reasoningNeverTravels() {
             UUID runId = UUID.randomUUID();
             AgentRunTurn thinking = turn(runId, 1, AgentTurnRole.ASSISTANT, "ответ");
-            thinking.setThinking(true);
             thinking.setThinkingText("длинная цепочка рассуждений");
             stubRuns(List.of(runId), List.of(turn(runId, 0, AgentTurnRole.USER, "вопрос"), thinking));
 
