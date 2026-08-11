@@ -13,8 +13,11 @@ import ru.agimate.controlapi.database.enums.PolicyKind;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
+import ru.agimate.controlapi.service.channel.ChannelMessageOutboundService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
+import ru.agimate.controlapi.service.seed.ChannelTexts;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +34,9 @@ public class TriggerRouterService {
     private final AgentRepository agentRepository;
     private final AgentDeliveryService agentDeliveryService;
     private final ChannelRouteResolver channelRouteResolver;
+    private final RunCancellationService runCancellationService;
+    private final ChannelMessageOutboundService outboundService;
+    private final ChannelTexts channelTexts;
 
     private final AgentRunRepository agentRunRepository;
 
@@ -120,7 +126,10 @@ public class TriggerRouterService {
             ChannelResolution resolution = channelRouteResolver.resolve(agent, trigger);
             switch (resolution.kind()) {
                 case DIRECT -> routes.add(TriggerRoute.direct(agent));
-                case CHANNEL -> routes.add(new TriggerRoute(agent, resolution.channels(), resolution.message()));
+                case CHANNEL -> routes.add(new TriggerRoute(agent, resolution.kind(),
+                        resolution.channels(), resolution.message()));
+                case CANCEL -> routes.add(new TriggerRoute(agent, resolution.kind(),
+                        resolution.channels(), null));
                 case SKIP -> log.debug("Channel filtered out trigger '{}' for agent {}",
                         trigger.name(), agent.getId());
             }
@@ -143,6 +152,10 @@ public class TriggerRouterService {
 
         for (TriggerRoute route : routes) {
             try {
+                if (route.kind() == ChannelResolution.Kind.CANCEL) {
+                    stopConversation(triggerLog, route);
+                    continue;
+                }
                 AgentRun agentRun = AgentRun.builder()
                         .triggerLog(triggerLog)
                         .agent(route.agent())
@@ -164,14 +177,35 @@ public class TriggerRouterService {
         }
     }
 
+    /**
+     * The stop command: no run, no history row, no worker slot — it was addressed to the platform, not
+     * to the agent. A reply goes out only when nothing was stopped; otherwise the stopped run's own
+     * «stopped, managed to run …» is the answer, and it carries more than an acknowledgement would.
+     */
+    private void stopConversation(TriggerLog triggerLog, TriggerRoute route) {
+        UUID sessionId = route.sessionId();
+        int cancelled = sessionId != null
+                ? runCancellationService.cancelSessionFromChannel(sessionId, triggerLog.getUserId())
+                : 0;
+        if (cancelled > 0) {
+            return;
+        }
+        ChannelInfo prompt = route.channels().prompt();
+        outboundService.send(route.agent().getId(), prompt.channelId(), sessionId,
+                OutboundMessage.text(channelTexts.get(ChannelTexts.NOTHING_TO_STOP,
+                        "Nothing to stop: the agent is not working right now.")),
+                triggerLog.getId() + ":nothing-to-stop", "answer", null);
+    }
+
     private static TriggerAudience audienceOf(Trigger trigger) {
         return trigger.context() != null ? trigger.context().audience() : null;
     }
 
     /** A permitted route to an agent: {@code channels}/{@code message} == null for direct (non-channel) delivery. */
-    private record TriggerRoute(Agent agent, Channels channels, InboundMessage message) {
+    private record TriggerRoute(Agent agent, ChannelResolution.Kind kind, Channels channels,
+                                InboundMessage message) {
         private static TriggerRoute direct(Agent agent) {
-            return new TriggerRoute(agent, null, null);
+            return new TriggerRoute(agent, ChannelResolution.Kind.DIRECT, null, null);
         }
 
         /**

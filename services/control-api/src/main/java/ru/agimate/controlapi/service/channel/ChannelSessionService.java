@@ -41,12 +41,14 @@ public class ChannelSessionService {
 
     @Transactional
     public ChannelSession findOrCreateActive(Channel channel, String firstMessageHint) {
-        LocalDateTime threshold = LocalDateTime.now().minus(SESSION_TTL);
-        List<ChannelSession> active = channelSessionRepository.findActive(channel.getId(), threshold);
-        if (!active.isEmpty()) {
-            return active.get(0);
-        }
-        return createNew(channel, firstMessageHint);
+        return findActive(channel).orElseGet(() -> createNew(channel, firstMessageHint));
+    }
+
+    /** The live session, if the channel has one — for callers that must not conjure one (the stop command). */
+    public Optional<ChannelSession> findActive(Channel channel) {
+        List<ChannelSession> active = channelSessionRepository.findActive(
+                channel.getId(), LocalDateTime.now().minus(SESSION_TTL));
+        return active.isEmpty() ? Optional.empty() : Optional.of(active.get(0));
     }
 
     /** Always a new session, bypassing the TTL heuristic — for channels that choose the session explicitly (webchat). */

@@ -28,6 +28,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ChannelRouteResolver {
 
+    /**
+     * The command that stops the conversation, matched against the whole extracted text. Recognised
+     * here rather than in a handler, so every text channel gets it — the connector that needs it most
+     * (Telegram) has no other wire back to the platform, but nothing about it is Telegram-specific.
+     */
+    static final String DEFAULT_STOP_COMMAND = "/stop";
+    /** Per-channel override in {@code channels.config}; an empty value switches the command off. */
+    static final String STOP_COMMAND_KEY = "stopCommand";
+
     private final ChannelRepository channelRepository;
     private final ChannelSessionService channelSessionService;
     private final ChannelHandlerRegistry channelHandlerRegistry;
@@ -141,6 +150,13 @@ public class ChannelRouteResolver {
         if (inbound.isEmpty()) {
             return ChannelResolution.skip();
         }
+        if (isStopCommand(channel, inbound.get())) {
+            // The live session only: a stop must not conjure a conversation to have something to stop.
+            UUID sessionId = channelSessionService.findActive(channel)
+                    .map(ChannelSession::getId).orElse(null);
+            return ChannelResolution.cancel(
+                    Channels.ofPrompt(new ChannelInfo(channel.getId(), sessionId, null)));
+        }
 
         ChannelSession session = resolveSession(channel, trigger);
         ChannelInfo info = new ChannelInfo(channel.getId(), session.getId(), null);
@@ -150,6 +166,22 @@ public class ChannelRouteResolver {
                 ? new Channels(info, info, null)
                 : Channels.ofPrompt(info);
         return ChannelResolution.channel(channels, inbound.get());
+    }
+
+    /**
+     * Exact match on the trimmed text, never a prefix: eating a message the agent was meant to answer
+     * is worse than missing a stop, and «/stop the printer» is a request, not a command.
+     */
+    private static boolean isStopCommand(Channel channel, InboundMessage inbound) {
+        String command = stopCommand(channel);
+        return !command.isEmpty()
+                && inbound.text() != null
+                && command.equalsIgnoreCase(inbound.text().strip());
+    }
+
+    private static String stopCommand(Channel channel) {
+        Object configured = channel.getConfig() != null ? channel.getConfig().get(STOP_COMMAND_KEY) : null;
+        return configured != null ? configured.toString().strip() : DEFAULT_STOP_COMMAND;
     }
 
     /**

@@ -71,6 +71,23 @@ public class RunCancellationService {
         return updated;
     }
 
+    /**
+     * The same stop, asked for from inside the conversation — the {@code /stop} command in a channel.
+     * There is no ownership check and cannot be: the sender is a Telegram account, not a platform user,
+     * so the request is recorded on behalf of the channel's owner.
+     *
+     * <p>That widens «only the owner cancels» to «whoever can write into this chat cancels», and the
+     * widening is deliberate: someone able to message the agent can already make it act and spend
+     * money, so stopping it is the smaller power. The caller must have resolved the channel already —
+     * that is what stands in for the gate.
+     */
+    @Transactional
+    public int cancelSessionFromChannel(UUID sessionId, UUID ownerUserId) {
+        int updated = agentRunRepository.requestCancelBySession(sessionId, ownerUserId, LocalDateTime.now());
+        log.info("cancel requested for {} run(s) of session {} from the channel", updated, sessionId);
+        return updated;
+    }
+
     /** Someone else's run reads as absent, not forbidden: their existence is not disclosed. */
     private AgentRun ownedRun(UUID runId, UUID userId) {
         AgentRun run = agentRunRepository.findById(runId)

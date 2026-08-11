@@ -78,6 +78,86 @@ class ChannelRouteResolverTest {
     }
 
     @Nested
+    @DisplayName("стоп-команда")
+    class StopCommand {
+
+        private final UUID activeSessionId = UUID.randomUUID();
+
+        private Trigger textTrigger() {
+            return Trigger.fromSource("webchat", IDENTITY, "message_received", "evt-1",
+                    Map.of("text", "/stop"), null);
+        }
+
+        private void stubInbound(String text) {
+            when(channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
+                    AGENT_ID, "webchat", CONNECTION_ID)).thenReturn(Optional.of(channel));
+            when(channelHandlerRegistry.find("webchat")).thenReturn(Optional.of(handler));
+            when(handler.handleInput(any(ChannelConfig.class), any(Trigger.class)))
+                    .thenReturn(Optional.of(InboundMessage.text(text)));
+        }
+
+        @Test
+        @DisplayName("«/stop» → CANCEL с живой сессией, рана не будет")
+        void stopResolvesToCancel() {
+            stubInbound("/stop");
+            when(channelSessionService.findActive(channel))
+                    .thenReturn(Optional.of(session(activeSessionId, CHANNEL_ID)));
+
+            ChannelResolution resolution = resolver.resolve(agent, textTrigger());
+
+            assertEquals(ChannelResolution.Kind.CANCEL, resolution.kind());
+            assertEquals(activeSessionId, resolution.channels().prompt().sessionId());
+            assertNull(resolution.message());
+            // Сессию не заводим: останавливать в несуществующем разговоре нечего.
+            verify(channelSessionService, never()).findOrCreateActive(any(), any());
+        }
+
+        @Test
+        @DisplayName("живой сессии нет → всё равно CANCEL, но без неё")
+        void stopWithoutActiveSession() {
+            stubInbound("  /STOP  ");
+            when(channelSessionService.findActive(channel)).thenReturn(Optional.empty());
+
+            ChannelResolution resolution = resolver.resolve(agent, textTrigger());
+
+            assertEquals(ChannelResolution.Kind.CANCEL, resolution.kind());
+            assertNull(resolution.channels().prompt().sessionId());
+        }
+
+        @Test
+        @DisplayName("совпадение точное: «/stop the printer» — обычное сообщение")
+        void prefixIsNotACommand() {
+            stubInbound("/stop the printer");
+            when(channelSessionService.findOrCreateActive(any(), any()))
+                    .thenReturn(session(activeSessionId, CHANNEL_ID));
+
+            assertEquals(ChannelResolution.Kind.CHANNEL, resolver.resolve(agent, textTrigger()).kind());
+        }
+
+        @Test
+        @DisplayName("пустой stopCommand в конфиге выключает команду")
+        void emptyConfigDisablesTheCommand() {
+            channel.setConfig(Map.of(ChannelRouteResolver.STOP_COMMAND_KEY, ""));
+            stubInbound("/stop");
+            when(channelSessionService.findOrCreateActive(any(), any()))
+                    .thenReturn(session(activeSessionId, CHANNEL_ID));
+
+            assertEquals(ChannelResolution.Kind.CHANNEL, resolver.resolve(agent, textTrigger()).kind());
+        }
+
+        @Test
+        @DisplayName("переопределённая команда распознаётся вместо дефолтной")
+        void configuredCommandWins() {
+            channel.setConfig(Map.of(ChannelRouteResolver.STOP_COMMAND_KEY, "/хватит"));
+            stubInbound("/хватит");
+            when(channelSessionService.findActive(channel))
+                    .thenReturn(Optional.of(session(activeSessionId, CHANNEL_ID)));
+
+            assertEquals(ChannelResolution.Kind.CANCEL, resolver.resolve(agent, textTrigger()).kind());
+        }
+    }
+
+    @Nested
     @DisplayName("declared sessionId в prompt-ChannelInfo")
     class DeclaredSession {
 
