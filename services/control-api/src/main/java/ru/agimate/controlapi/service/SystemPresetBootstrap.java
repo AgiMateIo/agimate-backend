@@ -53,6 +53,7 @@ public class SystemPresetBootstrap {
             "platform-admin",
             "home-accountant",
             "health-diary",
+            "language-tutor",
             "coder",
             "external-agent");
 
