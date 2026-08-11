@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Колонка не несла информации и вдобавок вводила в заблуждение. По аутентифицированному пути
+         в ней всегда оказывался владелец агента — гейт владения другого не пропускает; из канала
+         («/stop» в чате) туда писался владелец канала, хотя нажал кто-то из участников чата, и кто
+         именно, мы не знаем. То есть значение читалось как «этот человек остановил ран», не будучи
+         этим. Вопрос «кто нажал» вернётся вместе с моделью совместного доступа, и тогда у него будет
+         настоящий ответ. -->
+    <changeSet id="agent-runs-drop-cancelled-by" author="agimate">
+        <dropColumn tableName="agent_runs" columnName="cancelled_by"/>
+    </changeSet>
+
+</databaseChangeLog>

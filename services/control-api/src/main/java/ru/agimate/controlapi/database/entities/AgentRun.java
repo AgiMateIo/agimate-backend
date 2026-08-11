@@ -73,10 +73,6 @@ public class AgentRun extends BaseEntity {
     @Column(name = "cancel_requested_at")
     private LocalDateTime cancelRequestedAt;
 
-    /** Always a human: agents do not cancel runs, neither their own nor others'. */
-    @Column(name = "cancelled_by")
-    private UUID cancelledBy;
-
     /**
      * The run's latest sign of life: extended by its own RPCs (SaveMessage, GetLlmCredentials,
      * ExecuteToolAsync/GetToolResult). A RUNNING run idle for longer than the threshold is collected

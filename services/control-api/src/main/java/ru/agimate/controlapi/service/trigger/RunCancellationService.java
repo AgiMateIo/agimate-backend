@@ -50,7 +50,7 @@ public class RunCancellationService {
     @Transactional
     public CancelResult cancelRun(UUID runId, UUID userId) {
         AgentRun run = ownedRun(runId, userId);
-        int updated = agentRunRepository.requestCancel(runId, userId, LocalDateTime.now());
+        int updated = agentRunRepository.requestCancel(runId, LocalDateTime.now());
         if (updated > 0) {
             log.info("cancel requested for run {} by user {}", runId, userId);
         }
@@ -66,15 +66,16 @@ public class RunCancellationService {
     @Transactional
     public int cancelSession(UUID sessionId, UUID userId) {
         requireOwnedSession(sessionId, userId);
-        int updated = agentRunRepository.requestCancelBySession(sessionId, userId, LocalDateTime.now());
+        int updated = agentRunRepository.requestCancelBySession(sessionId, LocalDateTime.now());
         log.info("cancel requested for {} run(s) of session {} by user {}", updated, sessionId, userId);
         return updated;
     }
 
     /**
      * The same stop, asked for from inside the conversation — the {@code /stop} command in a channel.
-     * There is no ownership check and cannot be: the sender is a Telegram account, not a platform user,
-     * so the request is recorded on behalf of the channel's owner.
+     * There is no ownership check and cannot be: the sender is a messenger account, not a platform
+     * user, and who exactly pressed stop in a group chat is not something we know — which is why
+     * nothing about the actor is recorded either.
      *
      * <p>That widens «only the owner cancels» to «whoever can write into this chat cancels», and the
      * widening is deliberate: someone able to message the agent can already make it act and spend
@@ -82,8 +83,8 @@ public class RunCancellationService {
      * that is what stands in for the gate.
      */
     @Transactional
-    public int cancelSessionFromChannel(UUID sessionId, UUID ownerUserId) {
-        int updated = agentRunRepository.requestCancelBySession(sessionId, ownerUserId, LocalDateTime.now());
+    public int cancelSessionFromChannel(UUID sessionId) {
+        int updated = agentRunRepository.requestCancelBySession(sessionId, LocalDateTime.now());
         log.info("cancel requested for {} run(s) of session {} from the channel", updated, sessionId);
         return updated;
     }

@@ -60,29 +60,25 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE AgentRun t
-            SET t.cancelRequestedAt = :now,
-                t.cancelledBy = :userId
+            SET t.cancelRequestedAt = :now
             WHERE t.id = :runId
               AND t.cancelRequestedAt IS NULL
               AND t.status IN (ru.agimate.controlapi.database.enums.RunStatus.ENQUEUED,
                                ru.agimate.controlapi.database.enums.RunStatus.RUNNING)
             """)
-    int requestCancel(@Param("runId") UUID runId, @Param("userId") UUID userId,
-                      @Param("now") LocalDateTime now);
+    int requestCancel(@Param("runId") UUID runId, @Param("now") LocalDateTime now);
 
     /** Every live run of a session, queued ones included — otherwise the next starts a second later. */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE AgentRun t
-            SET t.cancelRequestedAt = :now,
-                t.cancelledBy = :userId
+            SET t.cancelRequestedAt = :now
             WHERE t.sessionId = :sessionId
               AND t.cancelRequestedAt IS NULL
               AND t.status IN (ru.agimate.controlapi.database.enums.RunStatus.ENQUEUED,
                                ru.agimate.controlapi.database.enums.RunStatus.RUNNING)
             """)
-    int requestCancelBySession(@Param("sessionId") UUID sessionId, @Param("userId") UUID userId,
-                               @Param("now") LocalDateTime now);
+    int requestCancelBySession(@Param("sessionId") UUID sessionId, @Param("now") LocalDateTime now);
 
     /** Read on every seam RPC, so it selects one column rather than the row. */
     @Query("SELECT t.cancelRequestedAt IS NOT NULL FROM AgentRun t WHERE t.id = :runId")

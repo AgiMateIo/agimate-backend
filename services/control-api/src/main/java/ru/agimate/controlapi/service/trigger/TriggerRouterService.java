@@ -185,7 +185,7 @@ public class TriggerRouterService {
     private void stopConversation(TriggerLog triggerLog, TriggerRoute route) {
         UUID sessionId = route.sessionId();
         int cancelled = sessionId != null
-                ? runCancellationService.cancelSessionFromChannel(sessionId, triggerLog.getUserId())
+                ? runCancellationService.cancelSessionFromChannel(sessionId)
                 : 0;
         if (cancelled > 0) {
             return;

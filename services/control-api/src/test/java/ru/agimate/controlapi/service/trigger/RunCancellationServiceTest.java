@@ -70,7 +70,7 @@ class RunCancellationServiceTest {
         @DisplayName("живой ран: запрос записан, статус отдаётся текущий — терминальный придёт позже")
         void recordsRequestForLiveRun() {
             when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run(RunStatus.RUNNING, USER_ID)));
-            when(agentRunRepository.requestCancel(eq(RUN_ID), eq(USER_ID), any())).thenReturn(1);
+            when(agentRunRepository.requestCancel(eq(RUN_ID), any())).thenReturn(1);
 
             RunCancellationService.CancelResult result = service.cancelRun(RUN_ID, USER_ID);
 
@@ -83,7 +83,7 @@ class RunCancellationServiceTest {
         @DisplayName("ран уже закончился: не ошибка, а честный ответ «не успели»")
         void finishedRunIsNoOp() {
             when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run(RunStatus.DONE, USER_ID)));
-            when(agentRunRepository.requestCancel(eq(RUN_ID), eq(USER_ID), any())).thenReturn(0);
+            when(agentRunRepository.requestCancel(eq(RUN_ID), any())).thenReturn(0);
 
             RunCancellationService.CancelResult result = service.cancelRun(RUN_ID, USER_ID);
 
@@ -95,7 +95,7 @@ class RunCancellationServiceTest {
         @DisplayName("повторное нажатие идемпотентно — второй записи не появляется")
         void repeatPressIsIdempotent() {
             when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run(RunStatus.RUNNING, USER_ID)));
-            when(agentRunRepository.requestCancel(eq(RUN_ID), eq(USER_ID), any())).thenReturn(0);
+            when(agentRunRepository.requestCancel(eq(RUN_ID), any())).thenReturn(0);
 
             RunCancellationService.CancelResult result = service.cancelRun(RUN_ID, USER_ID);
 
@@ -110,7 +110,7 @@ class RunCancellationServiceTest {
             when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run(RunStatus.RUNNING, OTHER_USER)));
 
             assertThrows(NotFoundStatusException.class, () -> service.cancelRun(RUN_ID, USER_ID));
-            verify(agentRunRepository, never()).requestCancel(any(), any(), any());
+            verify(agentRunRepository, never()).requestCancel(any(), any());
         }
 
         @Test
@@ -138,7 +138,7 @@ class RunCancellationServiceTest {
         @DisplayName("гасит и работающий ран, и стоящие за ним в очереди")
         void cancelsEveryLiveRunOfTheSession() {
             stubSession(USER_ID);
-            when(agentRunRepository.requestCancelBySession(eq(SESSION_ID), eq(USER_ID), any())).thenReturn(3);
+            when(agentRunRepository.requestCancelBySession(eq(SESSION_ID), any())).thenReturn(3);
 
             assertEquals(3, service.cancelSession(SESSION_ID, USER_ID));
         }
@@ -149,7 +149,7 @@ class RunCancellationServiceTest {
             stubSession(OTHER_USER);
 
             assertThrows(NotFoundStatusException.class, () -> service.cancelSession(SESSION_ID, USER_ID));
-            verify(agentRunRepository, never()).requestCancelBySession(any(), any(), any());
+            verify(agentRunRepository, never()).requestCancelBySession(any(), any());
         }
     }
 }

@@ -115,7 +115,7 @@ class TriggerRouterServiceTest {
             UUID sessionId = UUID.randomUUID();
             boundGenericAgent();
             stubCancelRoute(sessionId);
-            when(runCancellationService.cancelSessionFromChannel(eq(sessionId), eq(USER))).thenReturn(1);
+            when(runCancellationService.cancelSessionFromChannel(sessionId)).thenReturn(1);
 
             routerService.routeTrigger(USER, trigger);
 
@@ -129,7 +129,7 @@ class TriggerRouterServiceTest {
             UUID sessionId = UUID.randomUUID();
             boundGenericAgent();
             stubCancelRoute(sessionId);
-            when(runCancellationService.cancelSessionFromChannel(eq(sessionId), eq(USER))).thenReturn(2);
+            when(runCancellationService.cancelSessionFromChannel(sessionId)).thenReturn(2);
 
             routerService.routeTrigger(USER, trigger);
 
@@ -142,7 +142,7 @@ class TriggerRouterServiceTest {
             UUID sessionId = UUID.randomUUID();
             boundGenericAgent();
             stubCancelRoute(sessionId);
-            when(runCancellationService.cancelSessionFromChannel(eq(sessionId), eq(USER))).thenReturn(0);
+            when(runCancellationService.cancelSessionFromChannel(sessionId)).thenReturn(0);
 
             routerService.routeTrigger(USER, trigger);
 
@@ -157,7 +157,7 @@ class TriggerRouterServiceTest {
 
             routerService.routeTrigger(USER, trigger);
 
-            verify(runCancellationService, never()).cancelSessionFromChannel(any(), any());
+            verify(runCancellationService, never()).cancelSessionFromChannel(any());
             verify(outboundService).send(any(), any(), isNull(), any(), any(), eq("answer"), isNull());
         }
     }
