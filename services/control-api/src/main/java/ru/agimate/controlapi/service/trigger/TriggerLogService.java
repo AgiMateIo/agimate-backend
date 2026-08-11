@@ -30,16 +30,6 @@ public class TriggerLogService {
                 .map(TriggerLogResponse::from);
     }
 
-    public Page<AgentRunResponse> getAgentRuns(UUID userId, UUID agentId, String connectorCode,
-                                                         String connectionId, String name, RunStatus status,
-                                                         int page, int size) {
-        return triggerLogRepository.findAgentRunsWithFilters(
-                        userId, agentId,
-                        blankToNull(connectorCode), blankToNull(connectionId), blankToNull(name), status,
-                        PageRequest.of(page, size))
-                .map(AgentRunResponse::from);
-    }
-
     private static String blankToNull(String value) {
         return (value == null || value.isBlank()) ? null : value.trim();
     }

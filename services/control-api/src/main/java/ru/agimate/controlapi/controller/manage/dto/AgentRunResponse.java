@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
 
-@Schema(description = "Trigger delivered to an agent + that agent's run")
+@Schema(description = "A run of an agent + the trigger event that produced it")
 public record AgentRunResponse(
         @Schema(description = "Run ID (agent_runs.id)")
         UUID id,
@@ -48,6 +48,10 @@ public record AgentRunResponse(
         @Schema(description = "Channel session this run writes to (null for non-channel runs)")
         UUID sessionId,
 
+        @Schema(description = "Whether the run's turn ledger is intact. False means the transcript has "
+                + "a hole, and the run is left out of the history later runs are given")
+        boolean turnsIntact,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "Last run activity timestamp")
         LocalDateTime lastActivityAt,
@@ -70,6 +74,7 @@ public record AgentRunResponse(
                 p.getResult(),
                 p.getError(),
                 p.getSessionId(),
+                p.getTurnsIntact(),
                 p.getLastActivityAt(),
                 p.getCreatedAt()
         );

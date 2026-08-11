@@ -213,9 +213,8 @@ Wrap-up отдельным LLM-вызовом не делаем: пользов�
 
 Вне полосы:
 
-- `POST /manage/runs/{runId}/cancel` — конкретный ран; берётся из листинга
-  `/manage/trigger-logs/agent-runs/`. Это единственный способ остановить прямой ран: у него нет ни
-  канала, ни сессии;
+- `POST /manage/runs/{runId}/cancel` — конкретный ран; берётся из листинга `GET /manage/runs/`.
+  Это единственный способ остановить прямой ран: у него нет ни канала, ни сессии;
 - `POST /manage/runs/sessions/{sessionId}/cancel` — весь разговор; им пользуется webchat, потому что
   `runId` фронту не отдаётся, да и человек имеет в виду разговор;
 - **ACP** `session/cancel` перестаёт быть мягким и зовёт то же самое; javadoc `AcpWebSocketHandler`

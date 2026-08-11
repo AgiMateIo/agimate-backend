@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.database.repositories;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -8,6 +9,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.database.entities.AgentRun;
+import ru.agimate.controlapi.database.enums.RunStatus;
+import ru.agimate.controlapi.database.projections.AgentRunProjection;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -85,6 +88,41 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
     /** Read on every seam RPC, so it selects one column rather than the row. */
     @Query("SELECT t.cancelRequestedAt IS NOT NULL FROM AgentRun t WHERE t.id = :runId")
     Boolean isCancelRequested(@Param("runId") UUID runId);
+
+    /**
+     * Listing for the runs view: a run joined to the event that produced it. Every filter is
+     * optional — {@code agentId} included, so the same query serves «this agent's runs», «this
+     * session's runs» and «who handled this event». {@code name} is a case-insensitive substring
+     * over the trigger's name. {@code userId} is not a filter but the ownership gate.
+     */
+    @Query("""
+            SELECT a.id AS id, tl.id AS triggerLogId, tl.connectorCode AS connectorCode,
+                   tl.connectionId AS connectionId, tl.externalId AS externalId, tl.name AS name,
+                   tl.occurredAt AS occurredAt, tl.input AS input,
+                   a.status AS status, a.result AS result, a.error AS error,
+                   a.sessionId AS sessionId, a.turnsIntact AS turnsIntact,
+                   a.lastActivityAt AS lastActivityAt, a.createdAt AS createdAt
+            FROM AgentRun a
+            JOIN a.triggerLog tl
+            WHERE tl.userId = :userId
+            AND (:agentId IS NULL OR a.agent.id = :agentId)
+            AND (:sessionId IS NULL OR a.sessionId = :sessionId)
+            AND (:triggerLogId IS NULL OR tl.id = :triggerLogId)
+            AND (:connectorCode IS NULL OR tl.connectorCode = :connectorCode)
+            AND (:connectionId IS NULL OR tl.connectionId = :connectionId)
+            AND (:name IS NULL OR LOWER(tl.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))
+            AND (:status IS NULL OR a.status = :status)
+            ORDER BY a.createdAt DESC
+            """)
+    Page<AgentRunProjection> findRunsWithFilters(@Param("userId") UUID userId,
+                                                @Param("agentId") UUID agentId,
+                                                @Param("sessionId") UUID sessionId,
+                                                @Param("triggerLogId") UUID triggerLogId,
+                                                @Param("connectorCode") String connectorCode,
+                                                @Param("connectionId") String connectionId,
+                                                @Param("name") String name,
+                                                @Param("status") RunStatus status,
+                                                Pageable pageable);
 
     /**
      * The session's finished runs, newest first — the window of history is counted in these. Two

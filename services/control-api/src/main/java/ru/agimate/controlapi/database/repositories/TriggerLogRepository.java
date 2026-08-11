@@ -6,8 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import ru.agimate.controlapi.database.entities.TriggerLog;
-import ru.agimate.controlapi.database.enums.RunStatus;
-import ru.agimate.controlapi.database.projections.AgentRunProjection;
 import ru.agimate.controlapi.database.projections.TriggerLogWithAgentsCountProjection;
 
 import java.time.LocalDateTime;
@@ -26,31 +24,6 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
             AND (:connectorCode IS NULL OR t.connectorCode = :connectorCode)
             """)
     Page<TriggerLogWithAgentsCountProjection> findByUserIdWithFilters(UUID userId, String connectorCode, Pageable pageable);
-
-    /**
-     * Per-agent listing: trigger runs for a particular agent ({@code agent_runs} ⋈
-     * {@code trigger_logs}). {@code status} is the run's {@link RunStatus} (a real column).
-     * {@code name} is a case-insensitive substring search over the trigger's name.
-     */
-    @Query("""
-            SELECT a.id AS id, tl.id AS triggerLogId, tl.connectorCode AS connectorCode,
-                   tl.connectionId AS connectionId, tl.externalId AS externalId, tl.name AS name,
-                   tl.occurredAt AS occurredAt, tl.input AS input,
-                   a.status AS status, a.result AS result, a.error AS error,
-                   a.sessionId AS sessionId, a.lastActivityAt AS lastActivityAt, a.createdAt AS createdAt
-            FROM AgentRun a
-            JOIN a.triggerLog tl
-            WHERE tl.userId = :userId
-            AND a.agent.id = :agentId
-            AND (:connectorCode IS NULL OR tl.connectorCode = :connectorCode)
-            AND (:connectionId IS NULL OR tl.connectionId = :connectionId)
-            AND (:name IS NULL OR LOWER(tl.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))
-            AND (:status IS NULL OR a.status = :status)
-            ORDER BY a.createdAt DESC
-            """)
-    Page<AgentRunProjection> findAgentRunsWithFilters(UUID userId, UUID agentId,
-                                                                String connectorCode, String connectionId,
-                                                                String name, RunStatus status, Pageable pageable);
 
     @Query(value = """
             SELECT tl.* FROM trigger_logs tl

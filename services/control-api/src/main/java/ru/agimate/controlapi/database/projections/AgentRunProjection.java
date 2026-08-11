@@ -7,9 +7,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * A row of the per-agent trigger listing: the trigger event (from {@code trigger_logs}) plus that
- * event's run for a particular agent (from {@code agent_runs}). {@code id} is the run's id
- * ({@code agent_runs.id}, i.e. run_id).
+ * A row of the runs listing: the trigger event (from {@code trigger_logs}) plus the run it produced
+ * (from {@code agent_runs}). {@code id} is the run's id ({@code agent_runs.id}, i.e. run_id).
  */
 public interface AgentRunProjection {
     UUID getId();
@@ -24,6 +23,7 @@ public interface AgentRunProjection {
     String getResult();
     String getError();
     UUID getSessionId();
+    boolean getTurnsIntact();
     LocalDateTime getLastActivityAt();
     LocalDateTime getCreatedAt();
 }

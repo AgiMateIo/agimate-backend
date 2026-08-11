@@ -1,5 +1,7 @@
 package ru.agimate.controlapi.database.repositories;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -45,6 +47,9 @@ public interface AgentRunTurnRepository extends JpaRepository<AgentRunTurn, UUID
                              @Param("callId") String callId);
 
     List<AgentRunTurn> findByRunIdOrderByTurnIndexAsc(UUID runId);
+
+    /** The transcript for the UI: newest turn first, a page at a time. */
+    Page<AgentRunTurn> findByRunIdOrderByTurnIndexDesc(UUID runId, Pageable pageable);
 
     /** History of a session: the turns of the runs picked by the window, in the ledger's own order. */
     List<AgentRunTurn> findByRunIdInOrderByRunIdAscTurnIndexAsc(List<UUID> runIds);

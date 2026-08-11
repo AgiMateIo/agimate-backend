@@ -15,6 +15,7 @@ import ru.agimate.controlapi.controller.manage.dto.IssueProbeResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentRunResponse;
 import ru.agimate.controlapi.controller.manage.dto.TriggerLogResponse;
 import ru.agimate.controlapi.database.enums.RunStatus;
+import ru.agimate.controlapi.service.AgentRunQueryService;
 import ru.agimate.controlapi.service.trigger.TriggerLogProbeService;
 import ru.agimate.controlapi.service.trigger.TriggerLogService;
 
@@ -31,6 +32,7 @@ public class ManageTriggerLogsController {
 
     private final TriggerLogService triggerLogService;
     private final TriggerLogProbeService triggerLogProbeService;
+    private final AgentRunQueryService runQueryService;
 
     @Operation(
             summary = "List trigger logs",
@@ -47,11 +49,17 @@ public class ManageTriggerLogsController {
         return SuccessResponse.ok(PageResponse.from(triggerLogService.getTriggerLogs(userId, connectorCode, page, size)));
     }
 
+    /**
+     * The runs listing used to live here because it was born as a join view on trigger logs. Its
+     * resource is the run, so it moved to {@code GET /manage/runs/} — same rows, same shape, plus
+     * filtering by session and an optional agent. Kept working while the UI moves over; delete it
+     * once nothing calls it.
+     */
+    @Deprecated(forRemoval = true)
     @Operation(
             summary = "List trigger runs for an agent",
-            description = "Returns triggers delivered to the given agent and that agent's run of each "
-                    + "(agent_runs joined to trigger_logs), scoped to the current user. "
-                    + "Optional filters: connectorCode, connectionId, name (substring), status."
+            description = "Deprecated — use GET /manage/runs/?agentId=... instead.",
+            deprecated = true
     )
     @GetMapping("/agent-runs/")
     public SuccessResponse<PageResponse<AgentRunResponse>> getAgentRuns(
@@ -65,8 +73,8 @@ public class ManageTriggerLogsController {
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(PageResponse.from(triggerLogService.getAgentRuns(
-                userId, agentId, connectorCode, connectionId, name, status, page, size)));
+        return SuccessResponse.ok(PageResponse.from(runQueryService.listRuns(
+                userId, agentId, null, null, connectorCode, connectionId, name, status, page, size)));
     }
 
     @Operation(
