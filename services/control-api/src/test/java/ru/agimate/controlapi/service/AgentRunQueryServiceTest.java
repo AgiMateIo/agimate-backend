@@ -23,6 +23,7 @@ import ru.agimate.controlapi.controller.manage.dto.AgentRunTurnResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.entities.AgentRunTurn;
+import ru.agimate.controlapi.database.entities.LlmUsageLog;
 import ru.agimate.controlapi.database.enums.AgentTurnRole;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
@@ -213,6 +214,55 @@ class AgentRunQueryServiceTest {
             assertEquals(3, turns.get(0).turnIndex());
             assertEquals("длинная цепочка рассуждений", turns.get(0).thinkingText());
             assertEquals("wf-llm-9", turns.get(0).callId());
+        }
+
+        @Test
+        @DisplayName("расход хода подтягивается по call_id одним запросом на страницу")
+        void spendPerTurn() {
+            when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run(USER_ID)));
+            AgentRunTurn assistant = AgentRunTurn.builder()
+                    .runId(RUN_ID).turnIndex(1).role(AgentTurnRole.ASSISTANT).text("ответ")
+                    .callId("wf-llm-9").build();
+            AgentRunTurn tool = AgentRunTurn.builder()
+                    .runId(RUN_ID).turnIndex(0).role(AgentTurnRole.TOOL).build();
+            when(turnRepository.findByRunIdOrderByTurnIndexDesc(eq(RUN_ID), any()))
+                    .thenReturn(new PageImpl<>(List.of(assistant, tool)));
+            when(usageLogRepository.findByCallIdIn(List.of("wf-llm-9"))).thenReturn(List.of(
+                    LlmUsageLog.builder().callId("wf-llm-9").inputTokens(900).outputTokens(120)
+                            .cacheReadTokens(600).build()));
+
+            List<AgentRunTurnResponse> turns = service.listTurns(RUN_ID, USER_ID, 0, 50).getContent();
+
+            assertEquals(1020, turns.get(0).usage().totalTokens());
+            assertEquals(600, turns.get(0).usage().cacheReadTokens());
+            // Ход без вызова модели — null, а не нули: «бесплатно» и «вызова не было» это разные вещи.
+            assertNull(turns.get(1).usage());
+        }
+
+        @Test
+        @DisplayName("вызова модели не было ни на одном ходе — за расходом не идём")
+        void noCallsNoUsageQuery() {
+            when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run(USER_ID)));
+            when(turnRepository.findByRunIdOrderByTurnIndexDesc(eq(RUN_ID), any()))
+                    .thenReturn(new PageImpl<>(List.of(AgentRunTurn.builder()
+                            .runId(RUN_ID).turnIndex(0).role(AgentTurnRole.USER).text("вопрос").build())));
+
+            service.listTurns(RUN_ID, USER_ID, 0, 50);
+
+            verify(usageLogRepository, never()).findByCallIdIn(any());
+        }
+
+        @Test
+        @DisplayName("отчёт о расходе потерялся — null, а не нули: это «неизвестно», а не «даром»")
+        void lostUsageReportIsNull() {
+            when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run(USER_ID)));
+            when(turnRepository.findByRunIdOrderByTurnIndexDesc(eq(RUN_ID), any()))
+                    .thenReturn(new PageImpl<>(List.of(AgentRunTurn.builder()
+                            .runId(RUN_ID).turnIndex(1).role(AgentTurnRole.ASSISTANT).text("ответ")
+                            .callId("wf-llm-lost").build())));
+            when(usageLogRepository.findByCallIdIn(List.of("wf-llm-lost"))).thenReturn(List.of());
+
+            assertNull(service.listTurns(RUN_ID, USER_ID, 0, 50).getContent().get(0).usage());
         }
 
         @Test

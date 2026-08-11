@@ -40,11 +40,16 @@ public record AgentRunTurnResponse(
         @Schema(description = "Id of this turn's LLM call — the join key to the usage log")
         String callId,
 
+        @Schema(description = "What this turn spent on the model. Null when there was no call at all "
+                + "(a user or tool turn) and when the call's usage report was lost — that report is "
+                + "best-effort, and zeros would claim the turn was free rather than unknown")
+        TurnUsageResponse usage,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the turn was recorded")
         LocalDateTime createdAt
 ) {
-    public static AgentRunTurnResponse from(AgentRunTurn turn) {
+    public static AgentRunTurnResponse from(AgentRunTurn turn, TurnUsageResponse usage) {
         return new AgentRunTurnResponse(
                 turn.getTurnIndex(),
                 turn.getRole(),
@@ -55,6 +60,7 @@ public record AgentRunTurnResponse(
                 turn.getFinishReason(),
                 turn.getModel(),
                 turn.getCallId(),
+                usage,
                 turn.getCreatedAt()
         );
     }

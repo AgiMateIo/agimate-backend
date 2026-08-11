@@ -13,7 +13,10 @@ import ru.agimate.controlapi.controller.manage.dto.AgentRunPromptResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentRunResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentRunTurnResponse;
 import ru.agimate.controlapi.controller.manage.dto.RunUsageResponse;
+import ru.agimate.controlapi.controller.manage.dto.TurnUsageResponse;
 import ru.agimate.controlapi.database.entities.AgentRun;
+import ru.agimate.controlapi.database.entities.AgentRunTurn;
+import ru.agimate.controlapi.database.entities.LlmUsageLog;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
@@ -23,6 +26,7 @@ import ru.agimate.controlapi.database.projections.RunUsageProjection;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -86,14 +90,32 @@ public class AgentRunQueryService {
     }
 
     /**
-     * The run's transcript, newest turn first. Uncapped: this view exists to answer «what actually
-     * happened», which is the one question a truncated tool output cannot answer — the caps belong to
-     * the context assembly, not here.
+     * The run's transcript, newest turn first, each assistant turn with what it spent. Uncapped: this
+     * view exists to answer «what actually happened», which is the one question a truncated tool
+     * output cannot answer — the caps belong to the context assembly, not here.
      */
     public Page<AgentRunTurnResponse> listTurns(UUID runId, UUID userId, int page, int size) {
         AgentRun run = ownedRun(runId, userId);
-        return turnRepository.findByRunIdOrderByTurnIndexDesc(run.getId(), PageRequest.of(page, size))
-                .map(AgentRunTurnResponse::from);
+        Page<AgentRunTurn> turns = turnRepository.findByRunIdOrderByTurnIndexDesc(
+                run.getId(), PageRequest.of(page, size));
+        Map<String, TurnUsageResponse> usage = turnUsage(turns);
+        // The null check is not defensive: a user or tool turn has no call id, and an immutable map
+        // throws on a null key rather than answering «absent».
+        return turns.map(turn -> AgentRunTurnResponse.from(turn,
+                turn.getCallId() == null ? null : usage.get(turn.getCallId())));
+    }
+
+    /** Spend of a page of turns in one query — a turn carries the id of the call that produced it. */
+    private Map<String, TurnUsageResponse> turnUsage(Page<AgentRunTurn> turns) {
+        List<String> callIds = turns.stream()
+                .map(AgentRunTurn::getCallId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (callIds.isEmpty()) {
+            return Map.of();
+        }
+        return usageLogRepository.findByCallIdIn(callIds).stream()
+                .collect(Collectors.toMap(LlmUsageLog::getCallId, TurnUsageResponse::from));
     }
 
     /**

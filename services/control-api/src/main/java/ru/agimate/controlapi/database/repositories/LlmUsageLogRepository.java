@@ -58,4 +58,7 @@ public interface LlmUsageLogRepository extends JpaRepository<LlmUsageLog, UUID> 
             GROUP BY u.runId
             """)
     List<RunUsageProjection> sumByRunIds(@Param("runIds") Collection<UUID> runIds);
+
+    /** Per-turn spend: a turn carries the id of the LLM call that produced it. */
+    List<LlmUsageLog> findByCallIdIn(Collection<String> callIds);
 }
