@@ -18,10 +18,15 @@ import java.util.List;
  * <p>Unlike {@link MessageLog}, these are <b>not</b> durable steps: a turn is a pure idempotent
  * projection of already-durable data (the LLM/tool child-workflow results), so a DBOS replay
  * re-derives and re-sends the same {@code (run_id, turn_index)} and the backend dedupes — no
- * checkpoint is added, so this needs no drain-before-deploy. Best-effort: a failed write is logged
- * and never fails the run (observability, not the decision loop). The {@code turn_index} advances
+ * checkpoint is added, so this needs no drain-before-deploy. The {@code turn_index} advances
  * deterministically (the system prompt is the only message that consumes none), so replay reproduces
  * it exactly.
+ *
+ * <p>The write stays best-effort — a failure is logged and never fails the run — but the ledger is no
+ * longer only observability: the backend assembles the history of later runs from it. A lost turn is
+ * therefore not a cosmetic hole; it is caught on the backend when the run finishes (the contiguity of
+ * {@code turn_index} and the pairing of the last turn), and a run that fails the check is left out of
+ * history whole rather than handed over broken.
  */
 @Slf4j
 public class TurnLog {

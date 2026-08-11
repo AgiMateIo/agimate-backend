@@ -131,9 +131,9 @@ message ToolResultRec {
   bool failed = 4;
 }
 
-// History «as the user saw it» — for RunContext.history. The backend has already filtered by
-// completed=true and historyDetail; the worker maps kind onto a role (INBOUND → user, everything
-// else → assistant) and tool_turn onto a native assistant(tool_calls) + tool(results) pair.
+// History — for RunContext.history. The backend has already picked the runs and the parts; the
+// worker maps kind onto a role (INBOUND → user, everything else → assistant) and tool_turn onto a
+// native assistant(tool_calls) + tool(results) pair.
 message HistoryMessage {
   MessageKind kind = 1;
   string text = 2;

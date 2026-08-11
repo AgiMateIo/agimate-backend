@@ -137,9 +137,9 @@ public class AgentRunCore {
 
         AgentRunner runner = new AgentRunner(llmDispatcher, toolDispatcher, registry.toolDefs(), maxTurns,
                 context, observer, templates);
-        // Turn 0 is the inbound one — as the model got it, ephemeral prefix included, the same text the
-        // prompt snapshot keeps. Without it the transcript of a direct run opens with the answer and the
-        // question exists nowhere but inside that snapshot's JSON (a direct run has no channel history).
+        // Turn 0 is the inbound one, without the ephemeral prefix — the persistent part of the turn.
+        // Without it the transcript of a direct run opens with the answer and the question exists
+        // nowhere but inside the prompt snapshot's JSON (a direct run has no channel history).
         // Not routed through the observer: the channel already showed the user their own message.
         turns.record(initialRequest, null);
         String answer;
@@ -200,10 +200,10 @@ public class AgentRunCore {
 
     /**
      * Model-facing user turn: the ephemeral block (memory notes etc.) prepended before the user's
-     * message, if any — reference data goes ahead of the request the model must act on. The ephemeral
-     * text never rides into the dialogue history that feeds later runs; the observability records —
-     * the prompt snapshot and the turn ledger — do keep it, because both answer «what did the model
-     * see», and the notes are part of that.
+     * message, if any — reference data goes ahead of the request the model must act on. The prefix
+     * reaches the model and the prompt snapshot ({@code agent_runs.prompt}), which answers «what did
+     * the model see». The turn ledger keeps the message without it: later runs read the ledger back as
+     * history, and today's notes must not settle into tomorrow's context.
      */
     private static AgentChatMessage withEphemeralPrefix(String prefix, AgentChatMessage initialRequest) {
         if (prefix == null || prefix.isBlank()) {

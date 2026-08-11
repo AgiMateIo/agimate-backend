@@ -11,12 +11,14 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentRun;
+import ru.agimate.controlapi.database.entities.AgentRunTurn;
 import ru.agimate.controlapi.database.enums.AgentTurnRole;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,6 +30,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -151,5 +154,52 @@ class AgentRunTurnServiceTest {
         assertThrows(BadRequestStatusException.class, () -> service.save(AGENT_ID, RUN_ID, 0,
                 AgentTurnRole.ASSISTANT, "hi", false, null, List.of(), List.of(), null, null, null));
         verifyNoInteractions(turnRepository);
+    }
+
+    @Nested
+    @DisplayName("isLedgerIntact — проверка журнала при завершении рана")
+    class LedgerIntact {
+
+        private void stubLast(AgentTurnRole role, int index, List<Map<String, Object>> calls) {
+            AgentRunTurn last = AgentRunTurn.builder()
+                    .runId(RUN_ID).turnIndex(index).role(role).toolCalls(calls).build();
+            when(turnRepository.findFirstByRunIdOrderByTurnIndexDesc(RUN_ID)).thenReturn(Optional.of(last));
+        }
+
+        @Test
+        @DisplayName("непрерывный журнал, закрытый ответом — годен")
+        void contiguousLedger() {
+            stubLast(AgentTurnRole.ASSISTANT, 3, null);
+            when(turnRepository.countByRunId(RUN_ID)).thenReturn(4L);
+
+            assertTrue(service.isLedgerIntact(RUN_ID));
+        }
+
+        @Test
+        @DisplayName("дыра видна арифметикой: ходов меньше, чем индекс последнего")
+        void gapInLedger() {
+            stubLast(AgentTurnRole.ASSISTANT, 5, null);
+            when(turnRepository.countByRunId(RUN_ID)).thenReturn(4L);
+
+            assertFalse(service.isLedgerIntact(RUN_ID));
+        }
+
+        @Test
+        @DisplayName("последний ход — неотвеченный вызов тула: пара разорвана, журнал непригоден")
+        void unansweredTailCall() {
+            stubLast(AgentTurnRole.ASSISTANT, 2, List.of(Map.of("id", "c1", "name", "t")));
+            when(turnRepository.countByRunId(RUN_ID)).thenReturn(3L);
+
+            assertFalse(service.isLedgerIntact(RUN_ID));
+        }
+
+        @Test
+        @DisplayName("журнала нет вовсе — воспроизводить нечего, но и ломать нечего")
+        void emptyLedger() {
+            when(turnRepository.findFirstByRunIdOrderByTurnIndexDesc(RUN_ID)).thenReturn(Optional.empty());
+
+            assertTrue(service.isLedgerIntact(RUN_ID));
+            verify(turnRepository, never()).countByRunId(RUN_ID);
+        }
     }
 }

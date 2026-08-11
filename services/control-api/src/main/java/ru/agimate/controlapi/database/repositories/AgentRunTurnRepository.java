@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.AgentRunTurn;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -45,4 +46,12 @@ public interface AgentRunTurnRepository extends JpaRepository<AgentRunTurn, UUID
                              @Param("callId") String callId);
 
     List<AgentRunTurn> findByRunIdOrderByTurnIndexAsc(UUID runId);
+
+    /** History of a session: the turns of the runs picked by the window, in the ledger's own order. */
+    List<AgentRunTurn> findByRunIdInOrderByRunIdAscTurnIndexAsc(List<UUID> runIds);
+
+    long countByRunId(UUID runId);
+
+    /** The last turn of a run — its {@code turn_index} closes the contiguity check, its role the pairing one. */
+    Optional<AgentRunTurn> findFirstByRunIdOrderByTurnIndexDesc(UUID runId);
 }

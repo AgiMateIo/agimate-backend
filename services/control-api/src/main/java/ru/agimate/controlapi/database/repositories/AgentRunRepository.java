@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.database.repositories;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.database.entities.AgentRun;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
@@ -83,4 +85,20 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
     /** Read on every seam RPC, so it selects one column rather than the row. */
     @Query("SELECT t.cancelRequestedAt IS NOT NULL FROM AgentRun t WHERE t.id = :runId")
     Boolean isCancelRequested(@Param("runId") UUID runId);
+
+    /**
+     * The session's finished runs, newest first — the window of history is counted in these. Two
+     * conditions, two different facts: a terminal status means the run is over (an unfinished one has
+     * no business in the history of the next), {@code turnsIntact} that its turn ledger can be
+     * replayed. FAILED stays out: its transcript breaks off mid-air.
+     */
+    @Query("""
+            SELECT t.id FROM AgentRun t
+            WHERE t.sessionId = :sessionId
+              AND t.turnsIntact = true
+              AND t.status IN (ru.agimate.controlapi.database.enums.RunStatus.DONE,
+                               ru.agimate.controlapi.database.enums.RunStatus.CANCELLED)
+            ORDER BY t.createdAt DESC
+            """)
+    List<UUID> findHistoryRunIds(@Param("sessionId") UUID sessionId, Pageable pageable);
 }

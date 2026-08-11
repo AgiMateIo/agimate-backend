@@ -4,12 +4,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
@@ -26,18 +24,15 @@ import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsRespon
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.AgenticTeam;
-import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Skill;
 import ru.agimate.controlapi.database.entities.AgentRun;
-import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
-import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
@@ -45,7 +40,6 @@ import ru.agimate.controlapi.database.repositories.SkillRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.channel.InboundTextResolver;
-import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
@@ -138,7 +132,7 @@ public class RunContextService {
     private final ChannelRepository channelRepository;
     private final ChannelHandlerRegistry channelHandlerRegistry;
     private final InboundTextResolver inboundTextResolver;
-    private final ChannelSessionMessageRepository messageRepository;
+    private final RunHistoryAssembler historyAssembler;
     private final PromptTexts promptTexts;
 
     public RunContextView build(UUID agentId, UUID triggerId) {
@@ -241,139 +235,13 @@ public class RunContextService {
             userBlocks.add(triggerMainBlock(effective, trigger));
         }
 
-        List<RunHistoryMessage> history = history(run.getSessionId(), effective);
+        List<RunHistoryMessage> history = historyAssembler.assemble(
+                run.getSessionId(), effective.historyLimit(), effective.historyParts());
         log.debug("run context agent={} trigger={} spec={} blocks={}/{} tools={} history={} parts={}",
                 agentId, triggerId, spec, systemBlocks.size(), userBlocks.size(), tools.size(),
                 history.size(), inboundParts.size());
         return new RunContextView(List.copyOf(systemBlocks), List.copyOf(userBlocks), tools, history,
                 inboundParts);
-    }
-
-    // ===== History =====
-
-    /** Cap on a single JSON of a tool turn (arguments or result) in the context — budget beats completeness. */
-    static final int TOOL_JSON_CONTEXT_CAP = 4 * 1024;
-
-    private static final String PROGRESS_TOOL_CALL = "TOOL_CALL";
-    private static final String PROGRESS_TOOL_RESULT = "TOOL_RESULT";
-    private static final String PROGRESS_TEXT = "TEXT";
-
-    /**
-     * The session's history «as the user saw it»: completed runs only ({@code completed=true} — which
-     * is why the current run's messages, its inbound ack included, never appear here), the tail within
-     * the window {@link EffectiveContext#historyLimit()} ({@code 0} — no history), filtered by
-     * {@link ContextSpec.HistoryDetail}.
-     *
-     * <p>Tool turns (v2.1): for PROGRESS/TOOL_CALL the structural {@code toolTurn} from
-     * {@code message_json} goes out — the worker restores native tool_use/tool_result from it; the
-     * textual 🔧 projection never reaches history (the model imitates it as text instead of making a
-     * real call), so a row without a readable {@code message_json} is dropped rather than sent as
-     * text. PROGRESS/TEXT of such a run is skipped — its preamble is already inside toolTurn.
-     */
-    private List<RunHistoryMessage> history(UUID sessionId, EffectiveContext effective) {
-        if (sessionId == null || effective.historyLimit() <= 0) {
-            return List.of();
-        }
-        ContextSpec.HistoryDetail detail = effective.historyDetail();
-        List<ChannelSessionMessage> tail = messageRepository
-                .findBySessionIdAndCompletedTrueOrderByIdDesc(
-                        sessionId, PageRequest.of(0, effective.historyLimit()));
-        Set<UUID> structuredRuns = structuredToolRuns(tail);
-        List<RunHistoryMessage> history = new ArrayList<>(tail.size());
-        for (int i = tail.size() - 1; i >= 0; i--) {
-            ChannelSessionMessage m = tail.get(i);
-            // A TOOL_RESULT row (v2.1a) carries its results in message_json with empty text — do not skip it.
-            if ((m.getMessage() == null || m.getMessage().isBlank()) && !hasStructuredResults(m)) {
-                continue;
-            }
-            ChannelSessionMessageKind kind = m.getKind();
-            if (kind == ChannelSessionMessageKind.PROGRESS && excludedProgress(m, detail)) {
-                continue;
-            }
-            RunHistoryMessage mapped = toHistoryMessage(m, kind, structuredRuns);
-            if (mapped != null) {
-                history.add(mapped);
-            }
-        }
-        return history;
-    }
-
-    /** Runs in the window whose tool turns are recorded structurally — their PROGRESS/TEXT duplicates toolTurn.text. */
-    private static Set<UUID> structuredToolRuns(List<ChannelSessionMessage> tail) {
-        Set<UUID> runs = new LinkedHashSet<>();
-        for (ChannelSessionMessage m : tail) {
-            if (m.getKind() == ChannelSessionMessageKind.PROGRESS
-                    && PROGRESS_TOOL_CALL.equals(m.getProgressType())
-                    && m.getMessageJson() != null) {
-                runs.add(m.getRunId());
-            }
-        }
-        return runs;
-    }
-
-    private static RunHistoryMessage toHistoryMessage(ChannelSessionMessage m, ChannelSessionMessageKind kind,
-                                                      Set<UUID> structuredRuns) {
-        if (kind != ChannelSessionMessageKind.PROGRESS) {
-            return new RunHistoryMessage(kind, m.getMessage());
-        }
-        if (PROGRESS_TOOL_CALL.equals(m.getProgressType())) {
-            Optional<ToolTurnRecord> turn = JsonUtils.fromMap(m.getMessageJson(), ToolTurnRecord.class);
-            if (turn.isPresent()) {
-                return new RunHistoryMessage(kind, m.getMessage(), capToolTurn(turn.get()));
-            }
-            // Without the structural form there is nothing to hand over: the textual 🔧 projection is
-            // exactly what teaches the model to write calls out as text instead of making them.
-            log.warn("unreadable tool turn message_json run={} seq={} — dropping", m.getRunId(), m.getSeq());
-            return null;
-        }
-        if (PROGRESS_TOOL_RESULT.equals(m.getProgressType())) {
-            // The results half of a turn (v2.1a): we hand the worker the structured form and it stitches it to the preceding calls row.
-            Optional<ToolTurnRecord> turn = JsonUtils.fromMap(m.getMessageJson(), ToolTurnRecord.class);
-            if (turn.isPresent()) {
-                return new RunHistoryMessage(kind, "", capToolTurn(turn.get()));
-            }
-            log.warn("unreadable tool result message_json run={} seq={} — dropping", m.getRunId(), m.getSeq());
-            return null;
-        }
-        if (PROGRESS_TEXT.equals(m.getProgressType()) && structuredRuns.contains(m.getRunId())) {
-            return null; // the preamble is already inside toolTurn.text
-        }
-        return new RunHistoryMessage(kind, m.getMessage());
-    }
-
-    /** A TOOL_RESULT row (v2.1a) with a stored message_json — the results half of a turn, with empty text. */
-    private static boolean hasStructuredResults(ChannelSessionMessage m) {
-        return m.getKind() == ChannelSessionMessageKind.PROGRESS
-                && PROGRESS_TOOL_RESULT.equals(m.getProgressType())
-                && m.getMessageJson() != null;
-    }
-
-    private static boolean excludedProgress(ChannelSessionMessage m, ContextSpec.HistoryDetail detail) {
-        return switch (detail) {
-            case FULL -> false;
-            case NO_REASONING -> "THINKING".equals(m.getProgressType());
-            case DIALOGUE_ONLY -> true;
-        };
-    }
-
-    /** Truncation of a tool turn's JSON fields down to the context budget {@value #TOOL_JSON_CONTEXT_CAP}. */
-    private static ToolTurnRecord capToolTurn(ToolTurnRecord turn) {
-        return new ToolTurnRecord(
-                turn.text(),
-                turn.calls().stream()
-                        .map(c -> new ToolTurnRecord.Call(c.id(), c.name(), capJson(c.argumentsJson())))
-                        .toList(),
-                turn.results().stream()
-                        .map(r -> new ToolTurnRecord.Result(r.id(), r.name(), capJson(r.outputJson()),
-                                r.failed()))
-                        .toList());
-    }
-
-    private static String capJson(String json) {
-        if (json == null || json.length() <= TOOL_JSON_CONTEXT_CAP) {
-            return json;
-        }
-        return json.substring(0, TOOL_JSON_CONTEXT_CAP) + "…[truncated]";
     }
 
     // ===== Skills =====

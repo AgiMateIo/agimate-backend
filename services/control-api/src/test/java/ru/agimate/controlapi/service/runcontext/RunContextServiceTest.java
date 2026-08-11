@@ -24,7 +24,6 @@ import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsRespon
 import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSkill;
-import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.TriggerLog;
@@ -34,7 +33,6 @@ import ru.agimate.controlapi.database.enums.DefinitionBinding;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
-import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
@@ -85,7 +83,7 @@ class RunContextServiceTest {
     @Mock private ConnectorRepository connectorRepository;
     @Mock private ConnectionToolRepository connectionToolRepository;
     @Mock private InboundTextResolver inboundTextResolver;
-    @Mock private ChannelSessionMessageRepository messageRepository;
+    @Mock private RunHistoryAssembler historyAssembler;
     @Mock private ru.agimate.controlapi.database.repositories.ChannelRepository channelRepository;
     @Mock private ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry channelHandlerRegistry;
 
@@ -112,7 +110,7 @@ class RunContextServiceTest {
                 agenticTeamRepository, agentSkillRepository, agentSkillService, skillRepository,
                 connectionRepository, connectorRepository, connectionToolRepository,
                 registry, new ConnectorEnvFactory(null, null), channelRepository, channelHandlerRegistry,
-                inboundTextResolver, messageRepository,
+                inboundTextResolver, historyAssembler,
                 // Язык-первоисточник: переводов нет, блоки промпта совпадают с константами в коде.
                 new PromptTexts(new ContentProperties()));
     }
@@ -353,8 +351,8 @@ class RunContextServiceTest {
             RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
 
             assertTrue(view.history().isEmpty());
-            org.mockito.Mockito.verify(messageRepository, org.mockito.Mockito.never())
-                    .findBySessionIdAndCompletedTrueOrderByIdDesc(any(), any());
+            org.mockito.Mockito.verify(historyAssembler)
+                    .assemble(SESSION_ID, 0, ContextSpec.SYSTEM_TRIGGER.historyParts());
         }
     }
 
@@ -477,157 +475,22 @@ class RunContextServiceTest {
     @DisplayName("История")
     class History {
 
-        private ChannelSessionMessage msg(ChannelSessionMessageKind kind, String text, String progressType) {
-            ChannelSessionMessage m = new ChannelSessionMessage();
-            m.setSessionId(SESSION_ID);
-            m.setAgentId(AGENT_ID);
-            m.setRunId(UUID.randomUUID());
-            m.setKind(kind);
-            m.setMessage(text);
-            m.setProgressType(progressType);
-            m.setCompleted(true);
-            return m;
-        }
-
         @Test
-        @DisplayName("хвост разворачивается в хронологию, thinking-строки отфильтрованы (NO_REASONING)")
-        void mapsHistory() {
+        @DisplayName("окно и части истории уходят сборщику, его ответ — в контекст")
+        void delegatesToAssembler() {
             Agent agent = agent();
             AgentRun run = run(agent, triggerLog("time", "due"), null);
             run.setSessionId(SESSION_ID);
             stubRun(run);
             stubSkills(List.of());
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
-            // Репозиторий отдаёт хвост новыми-первыми; сервис разворачивает в хронологию.
-            when(messageRepository.findBySessionIdAndCompletedTrueOrderByIdDesc(eq(SESSION_ID), any()))
-                    .thenReturn(List.of(
-                            msg(ChannelSessionMessageKind.ANSWER, "ok, done", null),
-                            msg(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks", "TOOL_CALL"),
-                            msg(ChannelSessionMessageKind.PROGRESS, "💭 thinking...", "THINKING"),
-                            msg(ChannelSessionMessageKind.ANSWER, "old answer", null),
-                            msg(ChannelSessionMessageKind.INBOUND, "old question", null)));
+            RunHistoryMessage answer = new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "old answer");
+            when(historyAssembler.assemble(SESSION_ID, EffectiveContext.DEFAULT_HISTORY_LIMIT,
+                    ContextSpec.SYSTEM_TRIGGER.historyParts())).thenReturn(List.of(answer));
 
-            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
-
-            assertEquals(List.of(
-                    new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "old question"),
-                    new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "old answer"),
-                    // TOOL_CALL без message_json выбрасывается: текстовая 🔧-строка в контекст не идёт.
-                    new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "ok, done")),
-                    view.history());
+            assertEquals(List.of(answer), service.build(AGENT_ID, TRIGGER_ID).history());
         }
 
-        @Test
-        @DisplayName("tool_turn из message_json уходит структурно; TEXT-преамбула того же рана скипается")
-        void structuredToolTurn() {
-            Agent agent = agent();
-            AgentRun run = run(agent, triggerLog("time", "due"), null);
-            run.setSessionId(SESSION_ID);
-            stubRun(run);
-            stubSkills(List.of());
-            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
-
-            UUID toolRunId = UUID.randomUUID();
-            ChannelSessionMessage toolMsg = msg(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks", "TOOL_CALL");
-            toolMsg.setRunId(toolRunId);
-            toolMsg.setMessageJson(Map.of(
-                    "text", "смотрю доску",
-                    "calls", List.of(Map.of("id", "c1", "name", "board.get_tasks",
-                            "argumentsJson", "{\"boardId\":1}")),
-                    "results", List.of(Map.of("id", "c1", "name", "board.get_tasks",
-                            "outputJson", "{\"tasks\":[]}", "failed", false))));
-            ChannelSessionMessage preamble = msg(ChannelSessionMessageKind.PROGRESS, "смотрю доску", "TEXT");
-            preamble.setRunId(toolRunId);
-            ChannelSessionMessage answer = msg(ChannelSessionMessageKind.ANSWER, "готово", null);
-            answer.setRunId(toolRunId);
-            when(messageRepository.findBySessionIdAndCompletedTrueOrderByIdDesc(eq(SESSION_ID), any()))
-                    .thenReturn(List.of(answer, toolMsg, preamble)); // новые первыми
-
-            List<RunHistoryMessage> history = service.build(AGENT_ID, TRIGGER_ID).history();
-
-            assertEquals(2, history.size()); // TEXT-преамбула скипнута
-            RunHistoryMessage turn = history.get(0);
-            assertEquals("смотрю доску", turn.toolTurn().text());
-            assertEquals("board.get_tasks", turn.toolTurn().calls().get(0).name());
-            assertEquals("{\"tasks\":[]}", turn.toolTurn().results().get(0).outputJson());
-            assertEquals("готово", history.get(1).text());
-        }
-
-        @Test
-        @DisplayName("v2.1a: раздельные TOOL_CALL (calls) и TOOL_RESULT (results, пустой текст) отдаются двумя записями")
-        void splitToolRows() {
-            Agent agent = agent();
-            AgentRun run = run(agent, triggerLog("time", "due"), null);
-            run.setSessionId(SESSION_ID);
-            stubRun(run);
-            stubSkills(List.of());
-            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
-
-            UUID toolRunId = UUID.randomUUID();
-            ChannelSessionMessage callsMsg = msg(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks", "TOOL_CALL");
-            callsMsg.setRunId(toolRunId);
-            callsMsg.setMessageJson(Map.of(
-                    "text", "смотрю доску",
-                    "calls", List.of(Map.of("id", "c1", "name", "board.get_tasks",
-                            "argumentsJson", "{\"boardId\":1}")),
-                    "results", List.of()));
-            // results-строка: пустой текст, results в message_json — не должна быть скипнута blank-гардом.
-            ChannelSessionMessage resultsMsg = msg(ChannelSessionMessageKind.PROGRESS, "", "TOOL_RESULT");
-            resultsMsg.setRunId(toolRunId);
-            resultsMsg.setMessageJson(Map.of(
-                    "calls", List.of(),
-                    "results", List.of(Map.of("id", "c1", "name", "board.get_tasks",
-                            "outputJson", "{\"tasks\":[]}", "failed", false))));
-            when(messageRepository.findBySessionIdAndCompletedTrueOrderByIdDesc(eq(SESSION_ID), any()))
-                    .thenReturn(List.of(resultsMsg, callsMsg)); // новые первыми → развернётся calls, затем results
-
-            List<RunHistoryMessage> history = service.build(AGENT_ID, TRIGGER_ID).history();
-
-            assertEquals(2, history.size());
-            RunHistoryMessage calls = history.get(0);
-            assertEquals("смотрю доску", calls.toolTurn().text());
-            assertEquals("board.get_tasks", calls.toolTurn().calls().get(0).name());
-            assertTrue(calls.toolTurn().results().isEmpty());
-            RunHistoryMessage results = history.get(1);
-            assertEquals("", results.text());
-            assertTrue(results.toolTurn().calls().isEmpty());
-            assertEquals("{\"tasks\":[]}", results.toolTurn().results().get(0).outputJson());
-        }
-
-        @Test
-        @DisplayName("гигантский output tool_turn режется до контекстного бюджета")
-        void toolTurnOutputCapped() {
-            Agent agent = agent();
-            AgentRun run = run(agent, triggerLog("time", "due"), null);
-            run.setSessionId(SESSION_ID);
-            stubRun(run);
-            stubSkills(List.of());
-            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
-
-            String huge = "x".repeat(RunContextService.TOOL_JSON_CONTEXT_CAP + 100);
-            ChannelSessionMessage toolMsg = msg(ChannelSessionMessageKind.PROGRESS, "🔧 t", "TOOL_CALL");
-            toolMsg.setMessageJson(Map.of(
-                    "calls", List.of(Map.of("id", "c1", "name", "t", "argumentsJson", "{}")),
-                    "results", List.of(Map.of("id", "c1", "name", "t", "outputJson", huge, "failed", false))));
-            when(messageRepository.findBySessionIdAndCompletedTrueOrderByIdDesc(eq(SESSION_ID), any()))
-                    .thenReturn(List.of(toolMsg));
-
-            List<RunHistoryMessage> history = service.build(AGENT_ID, TRIGGER_ID).history();
-
-            String output = history.get(0).toolTurn().results().get(0).outputJson();
-            assertTrue(output.endsWith("…[truncated]"));
-            assertTrue(output.length() < huge.length());
-        }
-
-        @Test
-        @DisplayName("без сессии история пуста")
-        void noSessionNoHistory() {
-            stubRun(run(agent(), triggerLog("time", "due"), null));
-            stubSkills(List.of());
-            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
-
-            assertTrue(service.build(AGENT_ID, TRIGGER_ID).history().isEmpty());
-        }
     }
 
     @Nested

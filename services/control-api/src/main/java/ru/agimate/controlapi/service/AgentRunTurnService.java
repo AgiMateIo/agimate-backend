@@ -8,6 +8,7 @@ import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.AgentRun;
+import ru.agimate.controlapi.database.entities.AgentRunTurn;
 import ru.agimate.controlapi.database.enums.AgentTurnRole;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
@@ -25,6 +26,10 @@ import java.util.UUID;
  * <p>Idempotency is UNIQUE {@code (run_id, turn_index)} through ON CONFLICT DO NOTHING: the worker
  * sends SaveTurn as an ordinary (non-durable) call, and a replay or retry repeats the same pair with no
  * duplicate.
+ *
+ * <p>The ledger is also what the history of later runs is assembled from
+ * ({@code RunHistoryAssembler}), which is why {@link #isLedgerIntact} exists: the write is
+ * best-effort, and a hole must be found once, when the run finishes, rather than on every assembly.
  */
 @Slf4j
 @Service
@@ -62,6 +67,36 @@ public class AgentRunTurnService {
             log.debug("saveTurn duplicate run={} turn={} role={}", runId, turnIndex, role);
         }
         return new SaveResult(duplicate);
+    }
+
+    /**
+     * Whether the run's ledger can be replayed as the history of a later run. Called once, when the
+     * run finishes — {@code SaveTurn} is best-effort, and a hole here becomes a {@code tool_use} with
+     * no {@code tool_result} in someone else's context, which providers reject whole.
+     *
+     * <p>Two checks, both off the unique key. Contiguity: {@code turn_index} advances
+     * deterministically, so a gap shows up as {@code count != last + 1}. Pairing: the last turn must
+     * not be an assistant that called tools and never got its answer — that happens when a run dies
+     * between the call and the result.
+     */
+    @Transactional(readOnly = true)
+    public boolean isLedgerIntact(UUID runId) {
+        AgentRunTurn last = turnRepository.findFirstByRunIdOrderByTurnIndexDesc(runId).orElse(null);
+        if (last == null) {
+            // No ledger at all: nothing to replay, and nothing broken either.
+            return true;
+        }
+        long count = turnRepository.countByRunId(runId);
+        if (count != last.getTurnIndex() + 1) {
+            log.warn("turn ledger has a gap run={} turns={} last={}", runId, count, last.getTurnIndex());
+            return false;
+        }
+        if (last.getRole() == AgentTurnRole.ASSISTANT && last.getToolCalls() != null
+                && !last.getToolCalls().isEmpty()) {
+            log.warn("turn ledger ends on an unanswered tool call run={} last={}", runId, last.getTurnIndex());
+            return false;
+        }
+        return true;
     }
 
     private static String emptyToNull(String s) {

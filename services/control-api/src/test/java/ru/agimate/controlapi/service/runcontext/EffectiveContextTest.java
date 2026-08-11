@@ -19,7 +19,7 @@ class EffectiveContextTest {
 
         assertEquals(ContextSpec.SkillBodies.MATCHED, e.skillBodies());
         assertTrue(e.triggerGuidance());
-        assertEquals(ContextSpec.HistoryDetail.NO_REASONING, e.historyDetail());
+        assertEquals(ContextSpec.SYSTEM_TRIGGER.historyParts(), e.historyParts());
         assertEquals(EffectiveContext.DEFAULT_HISTORY_LIMIT, e.historyLimit());
         assertTrue(e.skillTools());
         assertFalse(e.ownConnectionTools());

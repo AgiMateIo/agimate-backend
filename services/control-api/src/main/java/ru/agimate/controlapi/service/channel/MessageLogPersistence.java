@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
+import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
@@ -43,6 +44,7 @@ public class MessageLogPersistence {
     private final AgentRunRepository agentRunRepository;
     private final ChannelSessionMessageRepository messageRepository;
     private final InboundTextResolver inboundTextResolver;
+    private final AgentRunTurnService turnService;
 
     /** @param cancelRequested rides back to the worker in the SaveMessage answer — the whole cancel transport */
     public record Persisted(boolean duplicate, Channels channels, boolean cancelRequested) {}
@@ -66,6 +68,9 @@ public class MessageLogPersistence {
         // delivery. The run is managed (findById within this TX) → dirty checking flushes it at commit.
         if (kind == ChannelSessionMessageKind.ANSWER) {
             run.setResult(text);
+            // The run is over, so its turn ledger is final — the one moment where checking it costs two
+            // queries instead of repeating the work on every later assembly of history.
+            run.setTurnsIntact(turnService.isLedgerIntact(triggerId));
         } else if (kind == ChannelSessionMessageKind.ERROR) {
             run.setError(text);
         }

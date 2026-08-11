@@ -16,14 +16,16 @@ import java.util.UUID;
 /**
  * The canonical full-fidelity turn of a run: one record per worker AgentChatMessage
  * (inbound/assistant/tool), uncapped — unlike the capped channel projection
- * {@link ChannelSessionMessage}. Written for every run, including direct ones ({@code session_id} =
- * null), which is why the inbound turn belongs here: a direct run has no channel history, so this is
- * the only row-shaped record of what was asked. Idempotency is UNIQUE (run_id, turn_index).
+ * {@link ChannelSessionMessage}. This is the record the history of later runs is assembled from: the
+ * projection answers «what did the user see», this one «what was actually said». Written for every
+ * run, including direct ones ({@code session_id} = null), which is why the inbound turn belongs here:
+ * a direct run has no channel history, so this is the only row-shaped record of what was asked.
+ * Idempotency is UNIQUE (run_id, turn_index).
  *
- * <p>The USER row at {@code turn_index} 0 is the turn <b>as the model received it</b> — ephemeral
- * blocks (memory notes) included, matching {@code agent_runs.prompt}. It is not a verbatim quote of
- * the user; that lives in {@link ChannelSessionMessage} and {@code trigger_log.input}. SYSTEM turns
- * are not written at all: static, large, and already in the run's prompt snapshot.
+ * <p>The USER row at {@code turn_index} 0 is the <b>persistent</b> part of the turn: the ephemeral
+ * blocks (memory notes) that were prepended for the model alone stay out, and live in
+ * {@code agent_runs.prompt} — that is the record of what the model saw, this one is the record of the
+ * dialogue. SYSTEM turns are not written at all: static, large, and already in the prompt snapshot.
  */
 @Entity
 @Table(name = "agent_run_turns", uniqueConstraints =

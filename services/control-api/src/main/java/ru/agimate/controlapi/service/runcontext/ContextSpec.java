@@ -1,5 +1,7 @@
 package ru.agimate.controlapi.service.runcontext;
 
+import java.util.Set;
+
 /**
  * Policy for assembling a run's context (the worker's former ContextProfile, moved to the backend).
  * The preset is chosen by the trigger's route: a prompt channel exists → {@link #DIALOGUE},
@@ -12,20 +14,15 @@ public enum ContextSpec {
      * A dialogue with the user: the bodies and tools of all the agent's skills — skills define
      * behaviour in a dialogue too (media iteration discipline, memory note rules), not only in
      * trigger runs; the bodies are stable and friendly to the prompt cache.
-     * History without reasoning lines: «💭 thinking...» carries nothing, and in history it reads as
-     * an utterance by the agent; tool turns stay as context of past work — structurally
-     * (tool_turn → native tool_use/tool_result at the worker), not as text: the textual pattern
-     * «🔧 name» is something the model imitates instead of making a real call (a row with no
-     * structural record is dropped rather than sent as that text).
      */
-    DIALOGUE(SkillBodies.ALL, false, HistoryDetail.NO_REASONING),
+    DIALOGUE(SkillBodies.ALL, false, Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS)),
 
     /**
      * Autonomous handling of an event: bodies only of the skills that matched the trigger (they are
      * the instruction for handling the event), tools from every skill, plus the trigger-guidance
      * block.
      */
-    SYSTEM_TRIGGER(SkillBodies.MATCHED, true, HistoryDetail.NO_REASONING);
+    SYSTEM_TRIGGER(SkillBodies.MATCHED, true, Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS));
 
     /** Which skill bodies are injected into the system prompt. */
     public enum SkillBodies {
@@ -35,24 +32,30 @@ public enum ContextSpec {
         MATCHED
     }
 
-    /** Level of detail of the history the next run sees (a filter by kind/progress_type). */
-    public enum HistoryDetail {
-        /** Every message, as the user saw it (thinking and tool lines included). */
-        FULL,
-        /** Without reasoning lines (PROGRESS with progress_type=THINKING). */
-        NO_REASONING,
-        /** INBOUND/ANSWER/ERROR only — no intermediate steps. */
-        DIALOGUE_ONLY
+    /**
+     * A part of a past run that the next one gets to see. A set rather than a scale: «everything but
+     * reasoning» only reads as a level if you already know what «everything» contains.
+     */
+    public enum HistoryPart {
+        /** The exchange itself: the user's message and the model's answer. */
+        DIALOG,
+        /** Tool calls and their results — handed over structurally, as a native tool_use/tool_result pair. */
+        TOOLS,
+        /**
+         * The model's reasoning. No preset selects it: a provider will not accept replayed reasoning
+         * without the signatures it issued, and we do not keep those.
+         */
+        REASONING
     }
 
     private final SkillBodies skillBodies;
     private final boolean triggerGuidance;
-    private final HistoryDetail historyDetail;
+    private final Set<HistoryPart> historyParts;
 
-    ContextSpec(SkillBodies skillBodies, boolean triggerGuidance, HistoryDetail historyDetail) {
+    ContextSpec(SkillBodies skillBodies, boolean triggerGuidance, Set<HistoryPart> historyParts) {
         this.skillBodies = skillBodies;
         this.triggerGuidance = triggerGuidance;
-        this.historyDetail = historyDetail;
+        this.historyParts = historyParts;
     }
 
     public SkillBodies skillBodies() {
@@ -63,7 +66,7 @@ public enum ContextSpec {
         return triggerGuidance;
     }
 
-    public HistoryDetail historyDetail() {
-        return historyDetail;
+    public Set<HistoryPart> historyParts() {
+        return historyParts;
     }
 }

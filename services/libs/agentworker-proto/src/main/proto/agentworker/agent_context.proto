@@ -50,8 +50,9 @@ message RunContext {
   repeated PromptBlock user_blocks = 2;
   // Already scoped by skills and past the ABAC gate on bindings.
   repeated ConnectorToolSpec tools = 3;
-  // Session history «as the user saw it»: completed runs only (completed=true), filtered by the
-  // ContextSpec preset's historyDetail, windowed on the backend. Empty for direct runs.
+  // Session history, assembled on the backend from the canonical turn ledger (agent_run_turns):
+  // finished runs whose ledger is intact, a window counted in runs, filtered by the ContextSpec
+  // preset's history parts. Empty for direct runs.
   repeated HistoryMessage history = 4;
   // Attachments of this run's dialogue inbound — references only; the worker pulls the bytes with
   // GetFile. Empty outside a DIALOGUE context and against an older control-api (rolling deploy) —

@@ -103,4 +103,15 @@ public class AgentRun extends BaseEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "prompt", columnDefinition = "JSONB")
     private JsonNode prompt;
+
+    /**
+     * Whether this run's turn ledger ({@code agent_run_turns}) can be replayed as history. Checked
+     * once, when the run finishes, because {@code SaveTurn} is best-effort: a lost turn leaves a
+     * {@code tool_use} with no {@code tool_result}, and providers reject such a request whole rather
+     * than degrade. Orthogonal to {@link #status}: the status says the run finished, this says its
+     * record is usable — history needs both.
+     */
+    @Column(name = "turns_intact", nullable = false)
+    @Builder.Default
+    private boolean turnsIntact = true;
 }

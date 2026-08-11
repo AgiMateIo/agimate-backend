@@ -15,6 +15,7 @@ import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
+import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
@@ -59,13 +60,14 @@ class MessageLogServiceTest {
     @Mock private ChannelSessionMessageRepository messageRepository;
     @Mock private ChannelMessageOutboundService outboundService;
     @Mock private InboundTextResolver inboundTextResolver;
+    @Mock private AgentRunTurnService turnService;
 
     private MessageLogService service;
 
     @BeforeEach
     void setUp() {
         service = new MessageLogService(
-                new MessageLogPersistence(agentRunRepository, messageRepository, inboundTextResolver),
+                new MessageLogPersistence(agentRunRepository, messageRepository, inboundTextResolver, turnService),
                 outboundService);
     }
 
@@ -139,6 +141,19 @@ class MessageLogServiceTest {
 
             verify(messageRepository).markRunCompleted(TRIGGER_ID);
             assertEquals("done", run.getResult());
+        }
+
+        @Test
+        @DisplayName("ANSWER: журнал ходов проверяется один раз, результат остаётся на ране")
+        void answerStampsLedgerVerdict() {
+            AgentRun run = run(SESSION_ID, dialogueChannels());
+            when(messageRepository.insertIgnoreConflict(any(), any(), any(), anyInt(),
+                    anyString(), isNull(), anyString(), isNull(), isNull())).thenReturn(1);
+            when(turnService.isLedgerIntact(TRIGGER_ID)).thenReturn(false);
+
+            service.save(AGENT_ID, TRIGGER_ID, 5, ChannelSessionMessageKind.ANSWER, null, "done", null);
+
+            assertFalse(run.isTurnsIntact());
         }
 
         @Test
