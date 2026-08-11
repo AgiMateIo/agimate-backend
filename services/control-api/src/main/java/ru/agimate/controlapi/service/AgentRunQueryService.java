@@ -12,17 +12,22 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.controller.manage.dto.AgentRunPromptResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentRunResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentRunTurnResponse;
+import ru.agimate.controlapi.controller.manage.dto.RunUsageResponse;
 import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
+import ru.agimate.controlapi.database.repositories.LlmUsageLogRepository;
+import ru.agimate.controlapi.database.projections.AgentRunProjection;
+import ru.agimate.controlapi.database.projections.RunUsageProjection;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
- * Read side of runs for the UI: the listing, one run's transcript and its starting prompt. The
+ * Read side of runs for the UI: the listing, one run, its transcript and its starting prompt. The
  * writers stay where they are — {@link AgentRunTurnService} owns the ledger, {@link
  * AgentRunPromptService} the snapshot; this class exists so that all three reads share one ownership
  * gate instead of three copies of it.
@@ -39,16 +44,32 @@ public class AgentRunQueryService {
 
     private final AgentRunRepository agentRunRepository;
     private final AgentRunTurnRepository turnRepository;
+    private final LlmUsageLogRepository usageLogRepository;
 
     /** Every filter is optional; {@code userId} is not — it is the ownership gate, not a filter. */
     public Page<AgentRunResponse> listRuns(UUID userId, UUID agentId, UUID sessionId, UUID triggerLogId,
                                            String connectorCode, String connectionId, String name,
                                            RunStatus status, int page, int size) {
-        return agentRunRepository.findRunsWithFilters(
-                        userId, null, agentId, sessionId, triggerLogId,
-                        blankToNull(connectorCode), blankToNull(connectionId), blankToNull(name), status,
-                        PageRequest.of(page, size))
-                .map(AgentRunResponse::from);
+        return withUsage(agentRunRepository.findRunsWithFilters(
+                userId, null, agentId, sessionId, triggerLogId,
+                blankToNull(connectorCode), blankToNull(connectionId), blankToNull(name), status,
+                PageRequest.of(page, size)));
+    }
+
+    /**
+     * Token spend for a whole page in one query. Not a correlated aggregate inside the listing: that
+     * projection selects the trigger's JSONB payload, and Postgres has no equality operator for
+     * {@code jsonb}, so it cannot carry a GROUP BY.
+     */
+    private Page<AgentRunResponse> withUsage(Page<AgentRunProjection> runs) {
+        if (runs.isEmpty()) {
+            return runs.map(run -> AgentRunResponse.from(run, RunUsageResponse.NONE));
+        }
+        Map<UUID, RunUsageResponse> usage = usageLogRepository
+                .sumByRunIds(runs.stream().map(AgentRunProjection::getId).toList()).stream()
+                .collect(Collectors.toMap(RunUsageProjection::getRunId, RunUsageResponse::from));
+        return runs.map(run -> AgentRunResponse.from(
+                run, usage.getOrDefault(run.getId(), RunUsageResponse.NONE)));
     }
 
     /**
@@ -57,11 +78,10 @@ public class AgentRunQueryService {
      * another, a second projection would quietly stop matching.
      */
     public AgentRunResponse getRun(UUID runId, UUID userId) {
-        return agentRunRepository.findRunsWithFilters(
-                        userId, runId, null, null, null, null, null, null, null, PageRequest.of(0, 1))
+        return withUsage(agentRunRepository.findRunsWithFilters(
+                        userId, runId, null, null, null, null, null, null, null, PageRequest.of(0, 1)))
                 .stream()
                 .findFirst()
-                .map(AgentRunResponse::from)
                 .orElseThrow(() -> new NotFoundStatusException("Run not found: " + runId));
     }
 

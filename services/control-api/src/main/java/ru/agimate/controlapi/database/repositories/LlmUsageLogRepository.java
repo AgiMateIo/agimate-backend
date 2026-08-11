@@ -6,7 +6,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.LlmUsageLog;
+import ru.agimate.controlapi.database.projections.RunUsageProjection;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -36,4 +39,23 @@ public interface LlmUsageLogRepository extends JpaRepository<LlmUsageLog, UUID> 
                               @Param("outputTokens") int outputTokens,
                               @Param("cacheReadTokens") Integer cacheReadTokens,
                               @Param("cacheWriteTokens") Integer cacheWriteTokens);
+
+    /**
+     * Token spend of the given runs. A page of the runs listing is enriched with one call of this
+     * rather than a correlated aggregate per row — and it has to be a separate query anyway: the
+     * listing selects the trigger's JSONB payload, and Postgres has no equality operator for
+     * {@code jsonb}, so that projection cannot carry a GROUP BY.
+     */
+    @Query("""
+            SELECT u.runId AS runId,
+                   COALESCE(SUM(u.inputTokens), 0) AS inputTokens,
+                   COALESCE(SUM(u.outputTokens), 0) AS outputTokens,
+                   COALESCE(SUM(u.cacheReadTokens), 0) AS cacheReadTokens,
+                   COALESCE(SUM(u.cacheWriteTokens), 0) AS cacheWriteTokens,
+                   COUNT(u) AS calls
+            FROM LlmUsageLog u
+            WHERE u.runId IN :runIds
+            GROUP BY u.runId
+            """)
+    List<RunUsageProjection> sumByRunIds(@Param("runIds") Collection<UUID> runIds);
 }

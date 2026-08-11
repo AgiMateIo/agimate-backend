@@ -15,6 +15,10 @@ import org.springframework.data.domain.Pageable;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.controller.manage.dto.AgentRunPromptResponse;
+import ru.agimate.controlapi.controller.manage.dto.AgentRunResponse;
+import ru.agimate.controlapi.controller.manage.dto.RunUsageResponse;
+import ru.agimate.controlapi.database.projections.AgentRunProjection;
+import ru.agimate.controlapi.database.projections.RunUsageProjection;
 import ru.agimate.controlapi.controller.manage.dto.AgentRunTurnResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentRun;
@@ -22,6 +26,7 @@ import ru.agimate.controlapi.database.entities.AgentRunTurn;
 import ru.agimate.controlapi.database.enums.AgentTurnRole;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
+import ru.agimate.controlapi.database.repositories.LlmUsageLogRepository;
 
 import java.util.List;
 import java.util.Map;
@@ -34,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,12 +56,13 @@ class AgentRunQueryServiceTest {
 
     @Mock private AgentRunRepository agentRunRepository;
     @Mock private AgentRunTurnRepository turnRepository;
+    @Mock private LlmUsageLogRepository usageLogRepository;
 
     private AgentRunQueryService service;
 
     @BeforeEach
     void setUp() {
-        service = new AgentRunQueryService(agentRunRepository, turnRepository);
+        service = new AgentRunQueryService(agentRunRepository, turnRepository, usageLogRepository);
     }
 
     private AgentRun run(UUID ownerId) {
@@ -95,6 +103,73 @@ class AgentRunQueryServiceTest {
                     any(), any(), any(), pageable.capture());
             assertEquals(2, pageable.getValue().getPageNumber());
             assertEquals(5, pageable.getValue().getPageSize());
+        }
+    }
+
+    @Nested
+    @DisplayName("Расход токенов")
+    class Usage {
+
+        private AgentRunProjection projection(UUID runId) {
+            AgentRunProjection p = mock(AgentRunProjection.class);
+            lenient().when(p.getId()).thenReturn(runId);
+            return p;
+        }
+
+        private RunUsageProjection usage(UUID runId, long input, long output, long calls) {
+            RunUsageProjection u = mock(RunUsageProjection.class);
+            when(u.getRunId()).thenReturn(runId);
+            lenient().when(u.getInputTokens()).thenReturn(input);
+            lenient().when(u.getOutputTokens()).thenReturn(output);
+            lenient().when(u.getCalls()).thenReturn(calls);
+            return u;
+        }
+
+        @Test
+        @DisplayName("расход собирается одним запросом на всю страницу, а не построчно")
+        void oneQueryPerPage() {
+            UUID first = UUID.randomUUID();
+            UUID second = UUID.randomUUID();
+            // Моки строятся до стабов: вложенный when() внутри thenReturn ломает незавершённое стабание.
+            List<AgentRunProjection> page = List.of(projection(first), projection(second));
+            List<RunUsageProjection> spend = List.of(usage(first, 1200, 300, 2));
+            when(agentRunRepository.findRunsWithFilters(any(), any(), any(), any(), any(), any(), any(),
+                    any(), any(), any())).thenReturn(new PageImpl<>(page));
+            when(usageLogRepository.sumByRunIds(List.of(first, second))).thenReturn(spend);
+
+            List<AgentRunResponse> runs =
+                    service.listRuns(USER_ID, null, null, null, null, null, null, null, 0, 20).getContent();
+
+            assertEquals(1500, runs.get(0).usage().totalTokens());
+            assertEquals(2, runs.get(0).usage().calls());
+            // Ран без вызовов модели — нули, а не null: клиенту одна форма на оба случая.
+            assertEquals(0, runs.get(1).usage().totalTokens());
+            verify(usageLogRepository).sumByRunIds(List.of(first, second));
+        }
+
+        @Test
+        @DisplayName("кэш-счётчики не входят в total — провайдеры выставляют их отдельной строкой")
+        void cacheTokensStayOutOfTotal() {
+            RunUsageProjection u = mock(RunUsageProjection.class);
+            when(u.getInputTokens()).thenReturn(100L);
+            when(u.getOutputTokens()).thenReturn(50L);
+            when(u.getCacheReadTokens()).thenReturn(900L);
+
+            RunUsageResponse response = RunUsageResponse.from(u);
+
+            assertEquals(150, response.totalTokens());
+            assertEquals(900, response.cacheReadTokens());
+        }
+
+        @Test
+        @DisplayName("пустая страница — за расходом не идём вовсе")
+        void emptyPageSkipsTheQuery() {
+            when(agentRunRepository.findRunsWithFilters(any(), any(), any(), any(), any(), any(), any(),
+                    any(), any(), any())).thenReturn(Page.empty());
+
+            service.listRuns(USER_ID, null, null, null, null, null, null, null, 0, 20);
+
+            verify(usageLogRepository, never()).sumByRunIds(any());
         }
     }
 

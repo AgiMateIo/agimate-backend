@@ -59,6 +59,9 @@ public record AgentRunResponse(
                 + "reached the loop, or one older than the feature")
         boolean hasPrompt,
 
+        @Schema(description = "What the run spent on the model; zeros for a run that never called it")
+        RunUsageResponse usage,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "Last run activity timestamp")
         LocalDateTime lastActivityAt,
@@ -67,7 +70,7 @@ public record AgentRunResponse(
         @Schema(description = "When the agent received the trigger")
         LocalDateTime createdAt
 ) {
-    public static AgentRunResponse from(AgentRunProjection p) {
+    public static AgentRunResponse from(AgentRunProjection p, RunUsageResponse usage) {
         return new AgentRunResponse(
                 p.getId(),
                 p.getTriggerLogId(),
@@ -84,6 +87,7 @@ public record AgentRunResponse(
                 p.getTurnsIntact(),
                 p.getTurnsCount(),
                 p.getHasPrompt(),
+                usage,
                 p.getLastActivityAt(),
                 p.getCreatedAt()
         );
