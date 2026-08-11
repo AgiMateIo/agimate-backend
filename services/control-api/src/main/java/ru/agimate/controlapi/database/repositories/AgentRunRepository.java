@@ -94,6 +94,10 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
      * optional — {@code agentId} included, so the same query serves «this agent's runs», «this
      * session's runs» and «who handled this event». {@code name} is a case-insensitive substring
      * over the trigger's name. {@code userId} is not a filter but the ownership gate.
+     *
+     * <p>{@code runId} is here so that reading one run is this same query narrowed to a key, rather
+     * than a second copy of the projection: a row of the listing and a run's details are the same
+     * fields, and two copies would drift the first time one of them gains another.
      */
     @Query("""
             SELECT a.id AS id, tl.id AS triggerLogId, tl.connectorCode AS connectorCode,
@@ -101,10 +105,13 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
                    tl.occurredAt AS occurredAt, tl.input AS input,
                    a.status AS status, a.result AS result, a.error AS error,
                    a.sessionId AS sessionId, a.turnsIntact AS turnsIntact,
+                   (SELECT COUNT(t) FROM AgentRunTurn t WHERE t.runId = a.id) AS turnsCount,
+                   CASE WHEN a.prompt IS NULL THEN false ELSE true END AS hasPrompt,
                    a.lastActivityAt AS lastActivityAt, a.createdAt AS createdAt
             FROM AgentRun a
             JOIN a.triggerLog tl
             WHERE tl.userId = :userId
+            AND (:runId IS NULL OR a.id = :runId)
             AND (:agentId IS NULL OR a.agent.id = :agentId)
             AND (:sessionId IS NULL OR a.sessionId = :sessionId)
             AND (:triggerLogId IS NULL OR tl.id = :triggerLogId)
@@ -115,6 +122,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
             ORDER BY a.createdAt DESC
             """)
     Page<AgentRunProjection> findRunsWithFilters(@Param("userId") UUID userId,
+                                                @Param("runId") UUID runId,
                                                 @Param("agentId") UUID agentId,
                                                 @Param("sessionId") UUID sessionId,
                                                 @Param("triggerLogId") UUID triggerLogId,

@@ -52,6 +52,13 @@ public record AgentRunResponse(
                 + "a hole, and the run is left out of the history later runs are given")
         boolean turnsIntact,
 
+        @Schema(description = "How many turns the run recorded — the size of its transcript")
+        long turnsCount,
+
+        @Schema(description = "Whether the run's input snapshot was taken; false for a run that never "
+                + "reached the loop, or one older than the feature")
+        boolean hasPrompt,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "Last run activity timestamp")
         LocalDateTime lastActivityAt,
@@ -75,6 +82,8 @@ public record AgentRunResponse(
                 p.getError(),
                 p.getSessionId(),
                 p.getTurnsIntact(),
+                p.getTurnsCount(),
+                p.getHasPrompt(),
                 p.getLastActivityAt(),
                 p.getCreatedAt()
         );

@@ -24,6 +24,8 @@ public interface AgentRunProjection {
     String getError();
     UUID getSessionId();
     boolean getTurnsIntact();
+    long getTurnsCount();
+    boolean getHasPrompt();
     LocalDateTime getLastActivityAt();
     LocalDateTime getCreatedAt();
 }

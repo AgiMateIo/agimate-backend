@@ -65,6 +65,16 @@ public class ManageRunController {
                 connectorCode, connectionId, name, status, page, size)));
     }
 
+    @Operation(summary = "Get one run",
+            description = "The same row the listing returns, by id. Someone else's run reads as absent.")
+    @GetMapping("/{runId}")
+    public SuccessResponse<AgentRunResponse> getRun(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID runId
+    ) {
+        return SuccessResponse.ok(runQueryService.getRun(runId, UUID.fromString(principal.id())));
+    }
+
     @Operation(summary = "List a run's turns",
             description = "The run's transcript from the canonical ledger, newest turn first. Content "
                     + "is uncapped — tool outputs and the model's reasoning come in full.")

@@ -45,10 +45,24 @@ public class AgentRunQueryService {
                                            String connectorCode, String connectionId, String name,
                                            RunStatus status, int page, int size) {
         return agentRunRepository.findRunsWithFilters(
-                        userId, agentId, sessionId, triggerLogId,
+                        userId, null, agentId, sessionId, triggerLogId,
                         blankToNull(connectorCode), blankToNull(connectionId), blankToNull(name), status,
                         PageRequest.of(page, size))
                 .map(AgentRunResponse::from);
+    }
+
+    /**
+     * One run — the same row the listing returns, narrowed to a key. Deliberately the same query: the
+     * details of a run and a row of the listing are the same fields, and the day one of them gains
+     * another, a second projection would quietly stop matching.
+     */
+    public AgentRunResponse getRun(UUID runId, UUID userId) {
+        return agentRunRepository.findRunsWithFilters(
+                        userId, runId, null, null, null, null, null, null, null, PageRequest.of(0, 1))
+                .stream()
+                .findFirst()
+                .map(AgentRunResponse::from)
+                .orElseThrow(() -> new NotFoundStatusException("Run not found: " + runId));
     }
 
     /**
