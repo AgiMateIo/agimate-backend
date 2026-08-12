@@ -18,5 +18,11 @@ public enum RunStatus {
     /** Reported an ERROR, or went silent and was swept as stale. */
     FAILED,
     /** Stopped at the user's request: a terminal record with {@code cancel_requested_at} set, or the sweeper. */
-    CANCELLED
+    CANCELLED,
+    /**
+     * Absorbed by another run of the session (steering): its inbound was claimed and answered by
+     * {@code main_run_id}, so this run stood aside at its own start. Terminal; set only at the
+     * run's seq 0 ack — like the others, a projection of the SaveMessage stream.
+     */
+    STEERED
 }

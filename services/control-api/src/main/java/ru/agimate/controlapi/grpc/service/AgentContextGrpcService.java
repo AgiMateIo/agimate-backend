@@ -18,22 +18,29 @@ import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
 import ru.agimate.controlapi.service.runcontext.RunContextService;
 import ru.agimate.controlapi.service.runcontext.RunContextView;
 import ru.agimate.controlapi.service.trigger.RunActivityService;
+import ru.agimate.controlapi.service.trigger.SteeringService;
 import ru.agimate.controlapi.storage.FileStorageService;
 import ru.agimate.controlapi.storage.StoredFileNotFoundException;
 import ru.agimate.agentworker.AgentContextGrpc;
+import ru.agimate.agentworker.ClaimSteeringRequest;
+import ru.agimate.agentworker.ClaimSteeringResponse;
 import ru.agimate.agentworker.FileChunk;
 import ru.agimate.agentworker.GetFileRequest;
 import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetRunContextRequest;
 import ru.agimate.agentworker.LlmCredentials;
+import ru.agimate.agentworker.MarkSteeredRequest;
+import ru.agimate.agentworker.MarkSteeredResponse;
 import ru.agimate.agentworker.ReportLlmUsageRequest;
 import ru.agimate.agentworker.ReportLlmUsageResponse;
 import ru.agimate.agentworker.RunContext;
+import ru.agimate.agentworker.SteeringMessage;
 
 import com.google.protobuf.ByteString;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -46,8 +53,9 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
  * The worker protocol's surface: {@code GetRunContext} (the whole run context in one call, assembled by
  * {@link RunContextService}), {@code GetLlmCredentials} (separate: the GetRunContext result is
  * checkpointed by the worker, and api_key must never enter a checkpoint), {@code GetFile} (the contents
- * of an inbound attachment in chunks — like api_key, pulled inline and never checkpointed) and
- * {@code ReportLlmUsage} (token usage accounting).
+ * of an inbound attachment in chunks — like api_key, pulled inline and never checkpointed),
+ * {@code ReportLlmUsage} (token usage accounting) and the steering pair
+ * {@code ClaimSteering}/{@code MarkSteered} (the loop seam absorbing queued messages of the session).
  *
  * <p>Transactions are on the methods, NOT on the class: {@code ReportLlmUsage} writes, and a class-level
  * {@code readOnly = true} would wrap its INSERTs in a read-only transaction (the service's inner
@@ -60,6 +68,7 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
 
     private final RunContextService runContextService;
     private final RunActivityService runActivityService;
+    private final SteeringService steeringService;
     private final LlmCredentialsResolver llmCredentialsResolver;
     private final AgentRepository agentRepository;
     private final LlmUsageService llmUsageService;
@@ -92,6 +101,57 @@ public class AgentContextGrpcService extends AgentContextGrpc.AgentContextImplBa
         } catch (Exception e) {
             handleError(e, responseObserver, "GetRunContext pool=" + poolId
                     + " agent=" + request.getAgentId() + " run=" + request.getRunId());
+        }
+    }
+
+    /**
+     * Steering claim from the running run's seam: atomically takes the younger ENQUEUED runs of the
+     * session ({@link SteeringService#claim}) and hands their inbound messages over. Not a durable
+     * step on the worker — best-effort and idempotent for the same main. No {@code @Transactional}
+     * here: the service owns its writing transaction.
+     */
+    @Override
+    public void claimSteering(ClaimSteeringRequest request, StreamObserver<ClaimSteeringResponse> responseObserver) {
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            UUID runId = parseUuid(request.getRunId(), "run_id");
+            runActivityService.touch(runId);
+
+            List<SteeringService.SteeringInbound> claimed = steeringService.claim(agentId, runId);
+
+            ClaimSteeringResponse.Builder builder = ClaimSteeringResponse.newBuilder();
+            for (SteeringService.SteeringInbound inbound : claimed) {
+                SteeringMessage.Builder message = SteeringMessage.newBuilder()
+                        .setRunId(inbound.runId().toString())
+                        .setText(nullToEmpty(inbound.text()));
+                inbound.parts().forEach(p -> message.addParts(RunContextMapper.toProto(p)));
+                builder.addMessages(message);
+            }
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            handleError(e, responseObserver, "ClaimSteering agent=" + request.getAgentId()
+                    + " run=" + request.getRunId());
+        }
+    }
+
+    /** Absorption confirmed: the model has seen the claimed messages — {@link SteeringService#markSteered}. */
+    @Override
+    public void markSteered(MarkSteeredRequest request, StreamObserver<MarkSteeredResponse> responseObserver) {
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            UUID runId = parseUuid(request.getRunId(), "run_id");
+            List<UUID> steeredRunIds = request.getSteeredRunIdsList().stream()
+                    .map(id -> parseUuid(id, "steered_run_ids"))
+                    .toList();
+
+            int confirmed = steeringService.markSteered(agentId, runId, steeredRunIds);
+
+            responseObserver.onNext(MarkSteeredResponse.newBuilder().setConfirmed(confirmed).build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            handleError(e, responseObserver, "MarkSteered agent=" + request.getAgentId()
+                    + " run=" + request.getRunId());
         }
     }
 

@@ -87,6 +87,7 @@ class AgentContextGrpcServiceTest {
     private final AgentContextGrpcService service = new AgentContextGrpcService(
             runContextService,
             mock(ru.agimate.controlapi.service.trigger.RunActivityService.class),
+            mock(ru.agimate.controlapi.service.trigger.SteeringService.class),
             llmCredentialsResolver,
             agentRepository,
             llmUsageService,

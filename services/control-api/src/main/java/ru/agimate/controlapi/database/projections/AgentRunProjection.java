@@ -23,6 +23,7 @@ public interface AgentRunProjection {
     String getResult();
     String getError();
     UUID getSessionId();
+    UUID getMainRunId();
     boolean getTurnsIntact();
     long getTurnsCount();
     boolean getHasPrompt();

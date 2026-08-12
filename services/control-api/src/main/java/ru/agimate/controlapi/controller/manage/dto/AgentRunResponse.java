@@ -48,6 +48,10 @@ public record AgentRunResponse(
         @Schema(description = "Channel session this run writes to (null for non-channel runs)")
         UUID sessionId,
 
+        @Schema(description = "For a STEERED run — the run that absorbed and answered its message; "
+                + "null otherwise. A steered run has no turns, prompt or result of its own")
+        UUID mainRunId,
+
         @Schema(description = "Whether the run's turn ledger is intact. False means the transcript has "
                 + "a hole, and the run is left out of the history later runs are given")
         boolean turnsIntact,
@@ -84,6 +88,7 @@ public record AgentRunResponse(
                 p.getResult(),
                 p.getError(),
                 p.getSessionId(),
+                p.getMainRunId(),
                 p.getTurnsIntact(),
                 p.getTurnsCount(),
                 p.getHasPrompt(),

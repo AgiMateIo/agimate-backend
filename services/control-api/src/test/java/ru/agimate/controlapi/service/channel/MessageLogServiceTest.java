@@ -403,6 +403,97 @@ class MessageLogServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("стиринг (решение на seq 0)")
+    class Steering {
+
+        private final UUID mainRunId = UUID.randomUUID();
+
+        private AgentRun steeredRun(RunStatus mainStatus, boolean confirmed) {
+            AgentRun run = run(SESSION_ID, dialogueChannels());
+            run.setMainRunId(mainRunId);
+            if (confirmed) {
+                run.setSteeredAt(LocalDateTime.now());
+            }
+            if (mainStatus != null) {
+                when(agentRunRepository.findStatusById(mainRunId)).thenReturn(Optional.of(mainStatus));
+            }
+            return run;
+        }
+
+        @Test
+        @DisplayName("поглощение подтверждено, main DONE → STEERED, флаг уезжает воркеру")
+        void confirmedWithDoneMainStandsAside() {
+            AgentRun run = steeredRun(RunStatus.DONE, true);
+
+            MessageLogService.SaveResult result = service.save(AGENT_ID, TRIGGER_ID, 0,
+                    ChannelSessionMessageKind.INBOUND, null, "", null);
+
+            assertTrue(result.steered());
+            assertEquals(RunStatus.STEERED, run.getStatus());
+        }
+
+        @Test
+        @DisplayName("main CANCELLED — стоп накрыл и поглощённое сообщение → STEERED")
+        void confirmedWithCancelledMainStandsAside() {
+            AgentRun run = steeredRun(RunStatus.CANCELLED, true);
+
+            MessageLogService.SaveResult result = service.save(AGENT_ID, TRIGGER_ID, 0,
+                    ChannelSessionMessageKind.INBOUND, null, "", null);
+
+            assertTrue(result.steered());
+            assertEquals(RunStatus.STEERED, run.getStatus());
+        }
+
+        @Test
+        @DisplayName("main FAILED — ответа не было, ран работает как обычно")
+        void failedMainMeansTheRunExecutes() {
+            AgentRun run = steeredRun(RunStatus.FAILED, true);
+
+            MessageLogService.SaveResult result = service.save(AGENT_ID, TRIGGER_ID, 0,
+                    ChannelSessionMessageKind.INBOUND, null, "", null);
+
+            assertFalse(result.steered());
+            assertEquals(RunStatus.RUNNING, run.getStatus());
+        }
+
+        @Test
+        @DisplayName("захват без подтверждения (ответ ClaimSteering потерян) → ран работает, сообщение не теряется")
+        void unconfirmedClaimMeansTheRunExecutes() {
+            AgentRun run = steeredRun(null, false);
+
+            MessageLogService.SaveResult result = service.save(AGENT_ID, TRIGGER_ID, 0,
+                    ChannelSessionMessageKind.INBOUND, null, "", null);
+
+            assertFalse(result.steered());
+            assertEquals(RunStatus.RUNNING, run.getStatus());
+        }
+
+        @Test
+        @DisplayName("отмена сильнее стиринга: оба факта → CANCELLED")
+        void cancellationWinsOverSteering() {
+            AgentRun run = steeredRun(RunStatus.DONE, true);
+            run.setCancelRequestedAt(LocalDateTime.now());
+
+            MessageLogService.SaveResult result = service.save(AGENT_ID, TRIGGER_ID, 0,
+                    ChannelSessionMessageKind.INBOUND, null, "", null);
+
+            assertTrue(result.cancelled());
+            assertEquals(RunStatus.CANCELLED, run.getStatus());
+        }
+
+        @Test
+        @DisplayName("STEERED терминален: реплей ack'а статус не откатывает")
+        void steeredIsSticky() {
+            AgentRun run = run(SESSION_ID, dialogueChannels());
+            run.setStatus(RunStatus.STEERED);
+
+            service.save(AGENT_ID, TRIGGER_ID, 0, ChannelSessionMessageKind.INBOUND, null, "", null);
+
+            assertEquals(RunStatus.STEERED, run.getStatus());
+        }
+    }
+
     @Test
     @DisplayName("ран чужого агента → BadRequest")
     void foreignRun() {

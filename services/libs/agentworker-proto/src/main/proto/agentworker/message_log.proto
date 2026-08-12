@@ -61,6 +61,12 @@ message SaveMessageResponse {
   // The user asked this run to stop. Rides back on calls the worker already makes, so there is no
   // push channel; the seq 0 ack carries it too, which is how a run cancelled while queued never starts.
   bool cancelled = 2;
+  // This run's message was absorbed by another run of the session (steering): claimed by it,
+  // confirmed seen by the model, and that run finished DONE or CANCELLED — so this run stands
+  // aside. Meaningful on the seq 0 ack (a claimed run reaches the front of the partition only
+  // after its main is terminal); an unconfirmed claim or a FAILED main answers false and the run
+  // executes normally. Cancellation wins over steering when both are set.
+  bool steered = 3;
 }
 
 enum TurnRole {

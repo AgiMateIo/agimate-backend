@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Стиринг: бегущий ран забирает себе входящие сообщения младших ENQUEUED-ранов своей сессии.
+         Забранный ран из очереди DBOS не вынимается — когда очередь до него доходит, он на своём
+         seq-0 ack узнаёт, что его сообщение уже обработано, и тихо выходит (STEERED).
+
+         Два факта вместо одного, потому что захват и поглощение — разные события с разными отказами:
+         main_run_id ставится при захвате (ClaimSteering), steered_at — когда модель фактически
+         увидела сообщение (MarkSteered, после вернувшегося LLM-вызова). Потерянный ответ захвата
+         оставляет steered_at пустым — ран отработает сам (сообщение не теряется); потерянное
+         подтверждение даёт дубль ответа, но не потерю. В сторону ран встаёт только при обоих фактах
+         и терминальном main в DONE/CANCELLED. -->
+    <changeSet id="agent-runs-steering" author="agimate">
+        <addColumn tableName="agent_runs">
+            <column name="main_run_id" type="UUID">
+                <constraints nullable="true"
+                             foreignKeyName="fk_agent_runs_main_run"
+                             references="agent_runs(id)"/>
+            </column>
+            <column name="steered_at" type="TIMESTAMP">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <createIndex tableName="agent_runs" indexName="idx_agent_runs_main_run">
+            <column name="main_run_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!-- Статус — TEXT с check-перечислением (initial-16), а не enum-тип: новый статус — это пересоздание
+         констрейнта. STEERED — терминальный исход забранного рана: его сообщение поглотил и отработал
+         main_run_id. -->
+    <changeSet id="agent-runs-status-steered" author="agimate">
+        <sql>
+            ALTER TABLE agent_runs DROP CONSTRAINT chk_agent_runs_status;
+            ALTER TABLE agent_runs
+                ADD CONSTRAINT chk_agent_runs_status
+                CHECK (status IN ('ENQUEUED', 'RUNNING', 'DONE', 'FAILED', 'CANCELLED', 'STEERED'));
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

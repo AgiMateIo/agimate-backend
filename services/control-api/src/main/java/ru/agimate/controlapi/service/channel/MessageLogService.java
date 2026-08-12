@@ -34,15 +34,19 @@ public class MessageLogService {
     private final MessageLogPersistence persistence;
     private final ChannelMessageOutboundService outboundService;
 
-    /** @param cancelled the user asked the run to stop; the worker reads it off this answer at its seam */
-    public record SaveResult(boolean duplicate, boolean cancelled) {}
+    /**
+     * @param cancelled the user asked the run to stop; the worker reads it off this answer at its seam
+     * @param steered   the run's inbound was absorbed by another run of the session; carried by the
+     *                  seq 0 ack, on which the worker leaves quietly
+     */
+    public record SaveResult(boolean duplicate, boolean cancelled, boolean steered) {}
 
     public SaveResult save(UUID agentId, UUID triggerId, int seq, ChannelSessionMessageKind kind,
                            String progressType, String text, ToolTurnRecord toolTurn) {
         MessageLogPersistence.Persisted persisted = persistence.persist(
                 agentId, triggerId, seq, kind, progressType, text, toolTurn);
         deliverBestEffort(triggerId, agentId, persisted.channels(), kind, progressType, text, seq);
-        return new SaveResult(persisted.duplicate(), persisted.cancelRequested());
+        return new SaveResult(persisted.duplicate(), persisted.cancelRequested(), persisted.steered());
     }
 
     private void deliverBestEffort(UUID runId, UUID agentId, Channels channels,

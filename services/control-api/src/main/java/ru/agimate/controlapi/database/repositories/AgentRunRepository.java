@@ -13,7 +13,9 @@ import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.projections.AgentRunProjection;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
@@ -89,6 +91,48 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
     @Query("SELECT t.cancelRequestedAt IS NOT NULL FROM AgentRun t WHERE t.id = :runId")
     Boolean isCancelRequested(@Param("runId") UUID runId);
 
+    /** One column for the steering decision at the claimed run's own ack — the main's outcome. */
+    @Query("SELECT t.status FROM AgentRun t WHERE t.id = :runId")
+    Optional<RunStatus> findStatusById(@Param("runId") UUID runId);
+
+    /**
+     * Steering claim: the ENQUEUED runs of the main's session that are strictly younger than the
+     * main, oldest first. Native — JPQL has no row comparison, and {@code (created_at, id)} is the
+     * queue's execution order ({@code id} is a uuidv7, the tiebreak within one timestamp). An older
+     * ENQUEUED run is never taken: absorbing it would reorder the conversation. Re-claim by the same
+     * main is allowed on purpose ({@code main_run_id = :mainRunId}): a replayed seam re-fetches what
+     * is still claimed and unconfirmed instead of finding nothing; a claim left by a dead main keeps
+     * other mains out, and the run simply executes when its turn comes. A run already asked to stop
+     * is not absorbed — the user cancelled that message, answering it would override the stop.
+     */
+    @Query(value = """
+            SELECT * FROM agent_runs
+            WHERE session_id = :sessionId
+              AND agent_id = :agentId
+              AND status = 'ENQUEUED'
+              AND cancel_requested_at IS NULL
+              AND (main_run_id IS NULL OR main_run_id = :mainRunId)
+              AND (created_at, id) > (:mainCreatedAt, :mainRunId)
+            ORDER BY created_at, id
+            """, nativeQuery = true)
+    List<AgentRun> findSteerable(@Param("sessionId") UUID sessionId,
+                                 @Param("agentId") UUID agentId,
+                                 @Param("mainRunId") UUID mainRunId,
+                                 @Param("mainCreatedAt") LocalDateTime mainCreatedAt);
+
+    /** Absorption confirmed: only rows this main actually claimed, idempotently (a replay re-stamps nothing). */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE AgentRun t
+            SET t.steeredAt = :now
+            WHERE t.id IN :runIds
+              AND t.mainRunId = :mainRunId
+              AND t.steeredAt IS NULL
+            """)
+    int markSteered(@Param("runIds") Collection<UUID> runIds,
+                    @Param("mainRunId") UUID mainRunId,
+                    @Param("now") LocalDateTime now);
+
     /**
      * Listing for the runs view: a run joined to the event that produced it. Every filter is
      * optional — {@code agentId} included, so the same query serves «this agent's runs», «this
@@ -104,7 +148,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
                    tl.connectionId AS connectionId, tl.externalId AS externalId, tl.name AS name,
                    tl.occurredAt AS occurredAt, tl.input AS input,
                    a.status AS status, a.result AS result, a.error AS error,
-                   a.sessionId AS sessionId, a.turnsIntact AS turnsIntact,
+                   a.sessionId AS sessionId, a.mainRunId AS mainRunId, a.turnsIntact AS turnsIntact,
                    (SELECT COUNT(t) FROM AgentRunTurn t WHERE t.runId = a.id) AS turnsCount,
                    CASE WHEN a.prompt IS NULL THEN false ELSE true END AS hasPrompt,
                    a.lastActivityAt AS lastActivityAt, a.createdAt AS createdAt

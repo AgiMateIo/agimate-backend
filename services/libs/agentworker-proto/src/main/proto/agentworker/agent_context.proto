@@ -24,6 +24,19 @@ service AgentContext {
   // inline during llm_call and never enters a DBOS checkpoint; RunContext carries references only
   // (FilePart). Ownership gate by agent_id: file.user_id == agent.user_id, otherwise NOT_FOUND.
   rpc GetFile(GetFileRequest) returns (stream FileChunk);
+  // Steering: the running run claims the ENQUEUED runs of its session that are younger than
+  // itself, atomically (agent_runs.main_run_id = run_id), and receives their inbound messages to
+  // absorb mid-loop. Polled at the loop seam, best-effort and not a durable step; idempotent for
+  // the same main — a replay or retry re-fetches whatever is still claimed and unconfirmed.
+  // Empty response: nothing queued (or the run has no session). The claim alone proves nothing —
+  // absorption is confirmed separately (MarkSteered), so a claim whose response is lost degrades
+  // into the claimed run executing normally, never into a lost message.
+  rpc ClaimSteering(ClaimSteeringRequest) returns (ClaimSteeringResponse);
+  // Confirmation that the model has actually seen the claimed messages (the LLM call after the
+  // absorption returned) — sets agent_runs.steered_at. Split from the claim on purpose: the run
+  // stands aside at its own start only when both facts hold (claimed AND confirmed AND the main
+  // finished DONE/CANCELLED). Lost confirmation degrades into a duplicate answer, not a loss.
+  rpc MarkSteered(MarkSteeredRequest) returns (MarkSteeredResponse);
 }
 
 message GetRunContextRequest {
@@ -83,6 +96,33 @@ message FileChunk {
   bytes data = 1;
   string mime = 2;
   int64 total_size = 3;
+}
+
+message ClaimSteeringRequest {
+  string agent_id = 1;
+  string run_id = 2;   // the running (main) run doing the claiming
+}
+
+message ClaimSteeringResponse {
+  repeated SteeringMessage messages = 1;  // oldest first — conversation order
+}
+
+// One claimed run's inbound, ready to absorb: the canonical text (the same handleInput extraction
+// as at dispatch, or a compact JSON of the event) plus attachment references.
+message SteeringMessage {
+  string run_id = 1;             // the claimed run (agent_runs.id)
+  string text = 2;
+  repeated FilePart parts = 3;
+}
+
+message MarkSteeredRequest {
+  string agent_id = 1;
+  string run_id = 2;                  // the main run confirming
+  repeated string steered_run_ids = 3;
+}
+
+message MarkSteeredResponse {
+  int32 confirmed = 1;  // rows actually stamped; fewer than asked means a replay re-confirmed
 }
 
 message GetLlmCredentialsRequest {

@@ -74,9 +74,28 @@ public class AgentRun extends BaseEntity {
     private LocalDateTime cancelRequestedAt;
 
     /**
+     * Steering claim: the running run of this session that took this run's inbound to absorb
+     * mid-loop ({@code ClaimSteering}). A claim alone proves nothing — see {@link #steeredAt}.
+     * The run itself stays in the DBOS queue throughout; nothing here re-enqueues or removes it.
+     */
+    @Column(name = "main_run_id")
+    private UUID mainRunId;
+
+    /**
+     * When the main run confirmed the model actually saw this run's inbound ({@code MarkSteered},
+     * sent after the LLM call following the absorption). Apart from {@link #mainRunId} because claim
+     * and absorption fail differently: a lost claim response leaves this null and the run executes
+     * normally (no message is ever lost); a lost confirmation costs a duplicate answer. The run
+     * stands aside (→ {@code STEERED}) at its own seq 0 only when this is set <b>and</b> the main
+     * finished DONE/CANCELLED — a FAILED main never answered the user, so the run executes.
+     */
+    @Column(name = "steered_at")
+    private LocalDateTime steeredAt;
+
+    /**
      * The run's latest sign of life: extended by its own RPCs (SaveMessage, GetLlmCredentials,
-     * ExecuteToolAsync/GetToolResult). A RUNNING run idle for longer than the threshold is collected
-     * by the background sweeper ({@code RunActivityService}).
+     * ExecuteToolAsync/GetToolResult, ClaimSteering). A RUNNING run idle for longer than the threshold
+     * is collected by the background sweeper ({@code RunActivityService}).
      */
     @Column(name = "last_activity_at")
     private LocalDateTime lastActivityAt;

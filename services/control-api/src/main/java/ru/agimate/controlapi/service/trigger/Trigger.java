@@ -1,9 +1,11 @@
 package ru.agimate.controlapi.service.trigger;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.entities.TriggerLog;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -22,6 +24,19 @@ public record Trigger(
     /** A copy of the trigger with {@code data} replaced (ingest materialisation of media: raw descriptors → parts). */
     public Trigger withData(Map<String, Object> newData) {
         return new Trigger(connectorCode, connectionId, name, id, newData, occurredAt, context);
+    }
+
+    /**
+     * Compact JSON of the event ({@code connectorCode}/{@code name}/{@code data}) — the fallback
+     * presentation when no channel text can be extracted. Shared by the canonical inbound of the
+     * message log and by steering.
+     */
+    public String compactJson() {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("connectorCode", connectorCode);
+        event.put("name", name);
+        event.put("data", data);
+        return JsonUtils.writeValueAsString(event);
     }
 
     public static Trigger createBasic(String connectorCode, String connectionId, String name, Map<String, Object> data) {
