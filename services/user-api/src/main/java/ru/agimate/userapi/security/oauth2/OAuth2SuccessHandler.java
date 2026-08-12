@@ -10,21 +10,23 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.common.security.jwt.JwtService;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.userapi.config.OAuthProperties;
-import ru.agimate.userapi.database.entities.OAuthProviderType;
 import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.entities.UserOAuthAccount;
 import ru.agimate.userapi.database.repositories.UserOAuthAccountRepository;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
+import ru.agimate.userapi.security.oauth2.providers.OAuthUserAdapter;
+import ru.agimate.userapi.security.oauth2.providers.OAuthUserAdapters;
+import ru.agimate.userapi.security.oauth2.providers.OAuthUserInfo;
 import ru.agimate.userapi.service.UserService;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -38,6 +40,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final UserOAuthAccountRepository userOAuthAccountRepository;
     private final UserService userService;
     private final OAuthProperties oAuthProperties;
+    private final OAuthUserAdapters adapters;
 
 
     @Override
@@ -50,12 +53,14 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             }
 
             redirectToFrontend(request, response, authentication);
+        } catch (OAuthLoginException ex) {
+            // The provider did its part, so this is not an authentication failure — it is an account
+            // we cannot open, and the person needs to read why.
+            log.warn("OAuth login rejected: {}", ex.getMessage());
+            writeError(response, HttpServletResponse.SC_BAD_REQUEST, ex.getMessage());
         } catch (Exception ex) {
             logger.error("Error in OAuth2SuccessHandler.onAuthenticationSuccess", ex);
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.setContentType("application/json");
-            response.getWriter().write(JsonUtils.writeValueAsString(new ErrorResponse("Authentication processing failed")));
-            response.getWriter().flush();
+            writeError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Authentication processing failed");
         }
     }
 
@@ -83,6 +88,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         response.getWriter().flush();
     }
 
+    private void writeError(HttpServletResponse response, int status, String message) throws IOException {
+        response.setStatus(status);
+        response.setContentType("application/json");
+        response.getWriter().write(JsonUtils.writeValueAsString(new ErrorResponse(message)));
+        response.getWriter().flush();
+    }
+
     private String getRedirectToCookieValue(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
@@ -106,34 +118,29 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     }
 
     public UserEntity createOrGetUserFromOAuth(OAuth2User oAuth2User, String registrationId) {
-        Map<String, Object> attributes = oAuth2User.getAttributes();
-
-        String providerUserId = extractProviderUserId(attributes, registrationId);
-
-        OAuthProviderType providerType = OAuthProviderType.fromString(registrationId);
+        OAuthUserAdapter adapter = adapters.require(registrationId);
+        OAuthUserInfo userInfo = adapter.extract(oAuth2User);
 
         Optional<UserOAuthAccount> existingAccount = userOAuthAccountRepository
-                .findByOauthProviderAndProviderUserIdWithUser(providerType, providerUserId);
+                .findByOauthProviderAndProviderUserIdWithUser(adapter.providerType(), userInfo.providerUserId());
 
         if (existingAccount.isPresent()) {
             return existingAccount.get().getUserEntity();
         }
 
-        String email = extractEmail(attributes, registrationId);
-        String firstName = extractFirstName(attributes, registrationId);
-        String lastName = extractLastName(attributes, registrationId);
-        String displayName = extractDisplayName(attributes, registrationId);
+        String email = requireEmail(userInfo, registrationId);
+        String displayName = StringUtils.hasText(userInfo.displayName()) ? userInfo.displayName() : email;
 
         UserEntity userEntity = userService.findByEmail(email)
-                .orElseGet(() -> userService.createUser(email, firstName, lastName, displayName));
+                .orElseGet(() -> userService.createUser(email, userInfo.firstName(), userInfo.lastName(), displayName));
 
         UserOAuthAccount oAuthAccount = UserOAuthAccount.builder()
                 .userEntity(userEntity)
-                .firstName(firstName)
-                .lastName(lastName)
+                .firstName(userInfo.firstName())
+                .lastName(userInfo.lastName())
                 .email(email)
-                .oauthProvider(providerType)
-                .providerUserId(providerUserId)
+                .oauthProvider(adapter.providerType())
+                .providerUserId(userInfo.providerUserId())
                 .build();
 
         userOAuthAccountRepository.save(oAuthAccount);
@@ -141,44 +148,19 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         return userEntity;
     }
 
-    private String extractProviderUserId(Map<String, Object> attributes, String registrationId) {
-        return switch (registrationId.toLowerCase()) {
-            case "google" -> attributes.get("sub").toString();
-            case "yandex" -> attributes.get("id").toString();
-            default -> throw new IllegalArgumentException("Unsupported OAuth provider: " + registrationId);
-        };
-    }
-
-    private String extractEmail(Map<String, Object> attributes, String registrationId) {
-        return switch (registrationId.toLowerCase()) {
-            case "google" -> attributes.get("email").toString();
-            case "yandex" -> attributes.get("default_email").toString();
-            default -> throw new IllegalArgumentException("Unsupported OAuth provider: " + registrationId);
-        };
-    }
-
-    private String extractFirstName(Map<String, Object> attributes, String registrationId) {
-        return switch (registrationId.toLowerCase()) {
-            case "google" -> attributes.get("given_name") != null ? attributes.get("given_name").toString() : null;
-            case "yandex" -> attributes.get("first_name") != null ? attributes.get("first_name").toString() : null;
-            default -> null;
-        };
-    }
-
-    private String extractLastName(Map<String, Object> attributes, String registrationId) {
-        return switch (registrationId.toLowerCase()) {
-            case "google" -> attributes.get("family_name") != null ? attributes.get("family_name").toString() : null;
-            case "yandex" -> attributes.get("last_name") != null ? attributes.get("last_name").toString() : null;
-            default -> null;
-        };
-    }
-
-    private String extractDisplayName(Map<String, Object> attributes, String registrationId) {
-        String email = extractEmail(attributes, registrationId);
-        return switch (registrationId.toLowerCase()) {
-            case "google" -> attributes.get("name") != null ? attributes.get("name").toString() : email;
-            case "yandex" -> attributes.get("display_name") != null ? attributes.get("display_name").toString() : email;
-            default -> email;
-        };
+    /**
+     * The email is what ties a new sign-in to an account that already exists here, so an address the
+     * provider does not vouch for would hand over somebody else's account to whoever claimed it.
+     */
+    private String requireEmail(OAuthUserInfo userInfo, String registrationId) {
+        if (!StringUtils.hasText(userInfo.email())) {
+            throw new OAuthLoginException(("No email address came from %s. Add one to your %s account, "
+                    + "or sign in through another provider.").formatted(registrationId, registrationId));
+        }
+        if (!userInfo.emailVerified()) {
+            throw new OAuthLoginException(("The email address of your %s account is not confirmed. "
+                    + "Confirm it there, or sign in through another provider.").formatted(registrationId));
+        }
+        return userInfo.email();
     }
 }
