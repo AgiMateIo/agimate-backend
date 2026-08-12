@@ -27,7 +27,7 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id, openWorld)`; `{namespace}.{name}` naming; schema parsing. |
 | `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). When the run has open-world tools it appends a system paragraph pinning tool output as data. |
 | `context/ContextMaterials` | The `GetRunContext` payload as fetched (ordered blocks + tools), consumed by `ContextBuilder`. |
-| `AgiMateAgent` | The manual turn-loop (LLM call + tool dispatch injected). Loop events go out through one injected `RunObserver` — `onStart` (turn-1 prompt snapshot), `onMessages` (each turn), `onUsage` (per-call tokens); default no-ops, wired by `AgentRunCore`. |
+| `AgiMateAgent` | The manual turn-loop (LLM call + tool dispatch injected). Loop events go out through one injected `RunObserver` — `onStart` (turn-1 prompt snapshot), `onMessages` (each turn), `onUsage` (per-call tokens), `pollSteering` (seam absorption of the session's queued messages; resets the turn budget, max 5 resets per run); default no-ops, wired by `AgentRunCore`. |
 | `AgentRunner` | Assemble the message list, map terminal failures to `AgentRunAborted`. |
 
 ### `llm/` — Spring AI (OpenAI)
