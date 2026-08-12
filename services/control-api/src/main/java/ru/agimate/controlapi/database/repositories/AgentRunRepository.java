@@ -148,7 +148,8 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
                    tl.connectionId AS connectionId, tl.externalId AS externalId, tl.name AS name,
                    tl.occurredAt AS occurredAt, tl.input AS input,
                    a.status AS status, a.result AS result, a.error AS error,
-                   a.sessionId AS sessionId, a.mainRunId AS mainRunId, a.turnsIntact AS turnsIntact,
+                   a.sessionId AS sessionId, a.mainRunId AS mainRunId, a.steeredAt AS steeredAt,
+                   a.turnsIntact AS turnsIntact,
                    (SELECT COUNT(t) FROM AgentRunTurn t WHERE t.runId = a.id) AS turnsCount,
                    CASE WHEN a.prompt IS NULL THEN false ELSE true END AS hasPrompt,
                    a.lastActivityAt AS lastActivityAt, a.createdAt AS createdAt

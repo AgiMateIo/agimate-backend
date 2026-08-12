@@ -52,6 +52,12 @@ public record AgentRunResponse(
                 + "null otherwise. A steered run has no turns, prompt or result of its own")
         UUID mainRunId,
 
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+        @Schema(description = "When the absorbing run confirmed the model saw this run's message; "
+                + "set before the run turns STEERED — an ENQUEUED run with this field is already "
+                + "being handled by mainRunId")
+        LocalDateTime steeredAt,
+
         @Schema(description = "Whether the run's turn ledger is intact. False means the transcript has "
                 + "a hole, and the run is left out of the history later runs are given")
         boolean turnsIntact,
@@ -89,6 +95,7 @@ public record AgentRunResponse(
                 p.getError(),
                 p.getSessionId(),
                 p.getMainRunId(),
+                p.getSteeredAt(),
                 p.getTurnsIntact(),
                 p.getTurnsCount(),
                 p.getHasPrompt(),
