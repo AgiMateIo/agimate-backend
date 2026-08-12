@@ -55,7 +55,7 @@ public class AppToolsController {
                 toolCallLog.getConnectorCode(),
                 toolCallLog.getOutput(),
                 toolCallLog.getError());
-        agentDeliveryService.deliverToolResult(toolCallLog.getAgentId(), agentResult);
+        agentDeliveryService.deliverToolResult(toolCallLog, agentResult);
 
         return SuccessResponse.empty();
     }

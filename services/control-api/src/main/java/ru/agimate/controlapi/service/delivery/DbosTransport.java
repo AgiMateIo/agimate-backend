@@ -65,7 +65,12 @@ public class DbosTransport implements AgentTransport {
                 partitionKey);
     }
 
-    /** No push is needed: the worker collects a tool's result itself, by polling {@code GetToolResult} over gRPC. */
+    /**
+     * No push is needed: the worker collects a tool's result itself, by polling
+     * {@code GetToolResult} over gRPC. A call the worker stopped waiting for does not get here at
+     * all — {@code AgentDeliveryService} turns a detached completion into a {@code tool_completed}
+     * trigger before reaching the transport.
+     */
     @Override
     public void deliverToolResult(Agent agent, IToolResult toolResult) {
         log.debug("tool result '{}' for agent '{}' awaits the worker's GetToolResult poll",

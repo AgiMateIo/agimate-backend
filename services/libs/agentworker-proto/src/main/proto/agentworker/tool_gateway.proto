@@ -15,6 +15,12 @@ service ToolGateway {
   rpc ExecuteToolAsync(ExecuteToolRequest) returns (ExecuteToolAsyncAck);
   // Polls for the result by the tool_call_id returned in the ack.
   rpc GetToolResult(GetToolResultRequest) returns (GetToolResultResponse);
+  // The worker stops waiting for a slow call: from now on the backend owns the result and delivers
+  // it back as a trigger (a new run in the call's session). The response settles the race with a
+  // call that finished meanwhile: DETACHED — detached, the interim goes to the model; SUCCESS/ERROR —
+  // already finished, here is the result, no trigger will fire. Idempotent for replays: once
+  // detached, always DETACHED.
+  rpc DetachTool(DetachToolRequest) returns (DetachToolResponse);
 }
 
 message ExecuteToolRequest {
@@ -51,6 +57,20 @@ message GetToolResultResponse {
   string error = 3;       // populated on ERROR only; the text reaches the model as the tool's result
 }
 
+message DetachToolRequest {
+  string agent_id = 1;
+  string tool_call_id = 2;
+  // The run the call originates from: like a poll, a detach is a sign of life for the run.
+  string run_id = 3;
+}
+
+// Same shape as GetToolResultResponse on purpose: a lost race comes back as the plain result.
+message DetachToolResponse {
+  ToolResultStatus status = 1;  // DETACHED, or SUCCESS/ERROR when the call finished first
+  bytes output_json = 2;
+  string error = 3;
+}
+
 enum ToolResultStatus {
   TOOL_RESULT_STATUS_UNSPECIFIED = 0;
   TOOL_RESULT_STATUS_PENDING = 1;  // still executing — keep polling, this is not a failure
@@ -59,4 +79,8 @@ enum ToolResultStatus {
   // The run was cancelled: stop polling. Says nothing about the call — one in flight is left to
   // finish and record its outcome, since a request that reached Telegram cannot be taken back.
   TOOL_RESULT_STATUS_CANCELLED = 4;
+  // The call was detached: the result belongs to the trigger delivery, the worker writes the
+  // interim marker. Terminal for the poll loop and stable across replays — GetToolResult keeps
+  // answering DETACHED even after the call finishes, so a replayed seam records the same outcome.
+  TOOL_RESULT_STATUS_DETACHED = 5;
 }

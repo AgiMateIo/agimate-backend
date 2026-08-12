@@ -12,7 +12,10 @@ import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.grpc.auth.WorkerPoolContextHolder;
 import ru.agimate.controlapi.grpc.mapper.ToolGatewayMapper;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
+import ru.agimate.controlapi.service.tool.ToolCallLogService;
 import ru.agimate.controlapi.service.trigger.RunActivityService;
+import ru.agimate.agentworker.DetachToolRequest;
+import ru.agimate.agentworker.DetachToolResponse;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.ExecuteToolRequest;
 import ru.agimate.agentworker.GetToolResultRequest;
@@ -32,6 +35,7 @@ import static ru.agimate.controlapi.grpc.support.GrpcSupport.parseUuid;
 public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase {
 
     private final AgentToolCallService agentToolCallService;
+    private final ToolCallLogService toolCallLogService;
     private final AgentRunRepository agentRunRepository;
     private final RunActivityService runActivityService;
 
@@ -108,7 +112,12 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
             ToolCallLog logEntry = agentToolCallService.getToolCallLog(agentId, request.getToolCallId());
 
             GetToolResultResponse.Builder builder = GetToolResultResponse.newBuilder();
-            if (logEntry.getFinishAt() == null && cancelRequested(request.getRunId())) {
+            if (logEntry.getDetachedAt() != null) {
+                // First, before every other branch: once detached the result belongs to the trigger
+                // delivery, and a replayed poll must record the same interim — never the result, and
+                // never CANCELLED.
+                builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_DETACHED);
+            } else if (logEntry.getFinishAt() == null && cancelRequested(request.getRunId())) {
                 // Stops the wait, not the call: the tool runs on and records its outcome.
                 builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_CANCELLED);
             } else if (logEntry.getFinishAt() == null) {
@@ -127,6 +136,41 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
             responseObserver.onCompleted();
         } catch (Exception e) {
             handleError(e, responseObserver, "GetToolResult pool=" + poolId
+                    + " toolCallId=" + request.getToolCallId());
+        }
+    }
+
+    @Override
+    public void detachTool(DetachToolRequest request, StreamObserver<DetachToolResponse> responseObserver) {
+        String poolId = WorkerPoolContextHolder.current().poolId();
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            touchRun(request.getRunId());
+            if (request.getToolCallId().isEmpty()) {
+                throw Status.INVALID_ARGUMENT.withDescription("tool_call_id is required").asRuntimeException();
+            }
+            ToolCallLog logEntry = toolCallLogService.detach(agentId, request.getToolCallId());
+
+            DetachToolResponse.Builder builder = DetachToolResponse.newBuilder();
+            if (logEntry.getDetachedAt() != null) {
+                builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_DETACHED);
+            } else if (logEntry.getError() != null) {
+                // Finished before the stamp landed — the lost race comes back as the plain result.
+                builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_ERROR)
+                        .setError(logEntry.getError());
+            } else {
+                builder.setStatus(ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS);
+                if (logEntry.getOutput() != null) {
+                    builder.setOutputJson(ByteString.copyFrom(
+                            logEntry.getOutput().getBytes(StandardCharsets.UTF_8)));
+                }
+            }
+            log.info("ToolGateway.DetachTool pool={} agent={} toolCallId={} -> {}",
+                    poolId, agentId, request.getToolCallId(), builder.getStatus());
+            responseObserver.onNext(builder.build());
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            handleError(e, responseObserver, "DetachTool pool=" + poolId
                     + " toolCallId=" + request.getToolCallId());
         }
     }

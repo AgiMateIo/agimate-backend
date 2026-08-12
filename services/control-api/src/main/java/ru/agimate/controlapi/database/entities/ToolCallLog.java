@@ -67,6 +67,17 @@ public class ToolCallLog extends BaseEntity {
     @Column(name = "finish_at")
     private LocalDateTime finishAt;
 
+    /**
+     * The worker stopped waiting: from this moment the result belongs to the trigger delivery, and
+     * {@code GetToolResult} answers DETACHED forever — even after the call finishes.
+     */
+    @Column(name = "detached_at")
+    private LocalDateTime detachedAt;
+
+    /** Detached delivery claimed exactly once; the delivery run is found via {@code trigger_logs.external_id} = this row's id. */
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
+
     @Column(name = "output", columnDefinition = "TEXT")
     private String output;
 

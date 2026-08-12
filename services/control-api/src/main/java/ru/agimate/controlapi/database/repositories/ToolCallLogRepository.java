@@ -3,10 +3,13 @@ package ru.agimate.controlapi.database.repositories;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import ru.agimate.controlapi.abac.AccessEffect;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -15,6 +18,42 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
     Optional<ToolCallLog> findByExternalId(String externalId);
 
     Optional<ToolCallLog> findByExternalIdAndAgentId(String externalId, UUID agentId);
+
+    /**
+     * The detach stamp — the ownership flip of the call's result. Guarded on both facts: a call that
+     * finished first must come back as a plain result (no trigger will fire for it), and a repeated
+     * detach must not move the timestamp. 0 rows updated → re-read the row and look which guard held.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE ToolCallLog t
+            SET t.detachedAt = :now
+            WHERE t.agentId = :agentId
+              AND t.externalId = :externalId
+              AND t.finishAt IS NULL
+              AND t.detachedAt IS NULL
+            """)
+    int markDetached(@Param("agentId") UUID agentId,
+                     @Param("externalId") String externalId,
+                     @Param("now") LocalDateTime now);
+
+    /**
+     * Claims the detached delivery, exactly once: the winner creates the delivery run in the same
+     * transaction (a rollback releases the claim). Guards against a duplicate result post from an
+     * app producing a second run — and a second answer to the user.
+     *
+     * <p>No {@code clearAutomatically} on purpose: this runs mid-transaction, after the caller has
+     * loaded the parent run — clearing would detach it and snap its lazy {@code agent} proxy. The
+     * claim's truth is the returned row count, nothing is re-read after it.
+     */
+    @Modifying
+    @Query("""
+            UPDATE ToolCallLog t
+            SET t.deliveredAt = :now
+            WHERE t.id = :id
+              AND t.deliveredAt IS NULL
+            """)
+    int claimDelivery(@Param("id") UUID id, @Param("now") LocalDateTime now);
 
     /**
      * {@code status} is a string {@link ru.agimate.controlapi.controller.manage.dto.ToolCallStatus}

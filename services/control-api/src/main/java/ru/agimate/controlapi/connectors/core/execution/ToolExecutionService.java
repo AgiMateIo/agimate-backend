@@ -65,7 +65,7 @@ public class ToolExecutionService {
     public void executeTool(ToolCallLog toolCallLog) {
         ToolResult result = executeAndRecord(toolCallLog);
         if (toolCallLog.getAgentId() != null) {
-            agentDeliveryService.deliverToolResult(toolCallLog.getAgentId(), result);
+            agentDeliveryService.deliverToolResult(toolCallLog, result);
         }
     }
 

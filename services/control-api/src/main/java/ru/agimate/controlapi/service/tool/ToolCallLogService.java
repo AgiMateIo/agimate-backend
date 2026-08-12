@@ -21,6 +21,7 @@ import ru.agimate.controlapi.database.repositories.ToolCallLogRepository;
 import ru.agimate.controlapi.service.dto.IToolResult;
 import ru.agimate.controlapi.service.dto.IToolCall;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -120,6 +121,21 @@ public class ToolCallLogService {
 
         toolCallLog.applyResult(toolResult);
         return toolCallLogRepository.save(toolCallLog);
+    }
+
+    /**
+     * The worker stops waiting for the call: stamps {@code detached_at} unless the call finished
+     * first. Returns the row after the attempt — the caller reads the outcome off it:
+     * {@code detachedAt != null} means detached (fresh or an idempotent replay), otherwise
+     * {@code finishAt} is set and the result is handed back instead. The guarded UPDATE plus the
+     * row lock it takes settle the race with a concurrent {@code recordOutput}; both fields are
+     * monotonic, so the re-read cannot contradict the stamp.
+     */
+    @Transactional
+    public ToolCallLog detach(UUID agentId, String externalId) {
+        toolCallLogRepository.markDetached(agentId, externalId, LocalDateTime.now());
+        return toolCallLogRepository.findByExternalIdAndAgentId(externalId, agentId)
+                .orElseThrow(() -> new NotFoundStatusException("ToolCallLog", externalId));
     }
 
     @Transactional
