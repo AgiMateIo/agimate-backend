@@ -177,7 +177,7 @@ class ContextBuilderTest {
                     List.of(trusted("", "hello")),
                     List.of(openWorld), List.of(), List.of()));
 
-            assertTrue(prepared.systemPrompt().endsWith(ContextBuilder.TOOL_OUTPUT_GUIDANCE));
+            assertTrue(prepared.systemPrompt().contains(ContextBuilder.TOOL_OUTPUT_GUIDANCE));
         }
 
         @Test
@@ -195,6 +195,28 @@ class ContextBuilderTest {
                     List.of(closedWorld), List.of(), List.of()));
 
             assertFalse(prepared.systemPrompt().contains(ContextBuilder.TOOL_OUTPUT_GUIDANCE));
+        }
+
+        @Test
+        @DisplayName("любой тул добавляет guidance о детаче; без тулов его нет")
+        void detachedGuidanceFollowsToolPresence() {
+            ConnectorToolSpec tool = ConnectorToolSpec.newBuilder()
+                    .setName("get_tasks")
+                    .setConnectorCode("board")
+                    .setNamespace("board")
+                    .setConnectionId("conn-1")
+                    .build();
+            PreparedContext withTool = ContextBuilder.build(new ContextMaterials(
+                    List.of(trusted("agent", "- id: a-1")),
+                    List.of(trusted("", "hello")),
+                    List.of(tool), List.of(), List.of()));
+            PreparedContext withoutTools = ContextBuilder.build(new ContextMaterials(
+                    List.of(trusted("agent", "- id: a-1")),
+                    List.of(trusted("", "hello")),
+                    List.of(), List.of(), List.of()));
+
+            assertTrue(withTool.systemPrompt().endsWith(ContextBuilder.DETACHED_TOOL_GUIDANCE));
+            assertFalse(withoutTools.systemPrompt().contains(ContextBuilder.DETACHED_TOOL_GUIDANCE));
         }
     }
 

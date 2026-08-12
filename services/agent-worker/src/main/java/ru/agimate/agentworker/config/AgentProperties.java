@@ -96,6 +96,13 @@ public class AgentProperties {
          * the DBOS checkpoints (tool outcome + each {@code llm_call} child input).
          */
         private int maxOutputChars = 64_000;
+        /**
+         * How long a tool call is waited on before it is detached ({@code DetachTool}): the model
+         * gets a task handle instead of the result, and the result comes back later as a
+         * {@code tool_completed} trigger. Zero or negative disables detaching — the whole poll
+         * budget applies, as before the feature.
+         */
+        private Duration detachAfter = Duration.ofSeconds(10);
     }
 
     /**

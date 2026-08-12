@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.AgentContextGrpc;
 import ru.agimate.agentworker.ClaimSteeringRequest;
 import ru.agimate.agentworker.ClaimSteeringResponse;
+import ru.agimate.agentworker.DetachToolRequest;
+import ru.agimate.agentworker.DetachToolResponse;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
 import ru.agimate.agentworker.MarkSteeredRequest;
 import ru.agimate.agentworker.MarkSteeredResponse;
@@ -306,6 +308,17 @@ public class AgentWorkerClient {
     public GetToolResultResponse getToolResult(String agentId, String toolCallId, String runId) {
         return call("GetToolResult", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .getToolResult(GetToolResultRequest.newBuilder()
+                        .setAgentId(agentId).setToolCallId(toolCallId).setRunId(runId).build()));
+    }
+
+    /**
+     * Stop waiting for a slow call and hand the result's ownership to the backend (trigger
+     * delivery). The response settles the race: DETACHED, or the plain result of a call that
+     * finished first.
+     */
+    public DetachToolResponse detachTool(String agentId, String toolCallId, String runId) {
+        return call("DetachTool", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+                .detachTool(DetachToolRequest.newBuilder()
                         .setAgentId(agentId).setToolCallId(toolCallId).setRunId(runId).build()));
     }
 
