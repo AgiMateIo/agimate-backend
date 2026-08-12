@@ -42,7 +42,8 @@ public class UserOAuthAccount extends BaseEntity {
     @Column(name = "provider_user_id", nullable = false, columnDefinition = "TEXT")
     private String providerUserId;
 
-    @Column(name = "email", nullable = false, unique = true, columnDefinition = "TEXT")
+    // Not unique: the same person may arrive through several providers with the same mailbox.
+    @Column(name = "email", nullable = false, columnDefinition = "TEXT")
     private String email;
 
     @Column(name = "first_name", columnDefinition = "TEXT")
