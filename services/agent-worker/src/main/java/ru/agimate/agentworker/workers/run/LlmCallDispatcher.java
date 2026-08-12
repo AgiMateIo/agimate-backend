@@ -4,7 +4,7 @@ import dev.dbos.transact.DBOS;
 import dev.dbos.transact.StartWorkflowOptions;
 import dev.dbos.transact.workflow.Queue;
 import dev.dbos.transact.workflow.WorkflowHandle;
-import ru.agimate.agentworker.agent.SimpleAgent;
+import ru.agimate.agentworker.agent.AgiMateAgent;
 import ru.agimate.agentworker.agent.error.LlmCallError;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
@@ -15,12 +15,12 @@ import ru.agimate.agentworker.workers.LlmCallWorkflow;
 import java.util.List;
 
 /**
- * Per-run {@link SimpleAgent.LlmCaller}: enqueues each model request as a child workflow on the
+ * Per-run {@link AgiMateAgent.LlmCaller}: enqueues each model request as a child workflow on the
  * llm queue and awaits it. Pure data-returner — holds no persistence/output state and writes no
  * backend records: token usage and the terminal incomplete-reason ride up on the {@link
- * SimpleAgent.LlmReply}; the loop surfaces usage and the run wiring reports it.
+ * AgiMateAgent.LlmReply}; the loop surfaces usage and the run wiring reports it.
  */
-class LlmCallDispatcher implements SimpleAgent.LlmCaller {
+class LlmCallDispatcher implements AgiMateAgent.LlmCaller {
 
     private final DBOS dbos;
     private final LlmCallWorkflow llm;
@@ -35,7 +35,7 @@ class LlmCallDispatcher implements SimpleAgent.LlmCaller {
     }
 
     @Override
-    public SimpleAgent.LlmReply call(List<AgentChatMessage> messages, List<ToolDef> toolDefs) {
+    public AgiMateAgent.LlmReply call(List<AgentChatMessage> messages, List<ToolDef> toolDefs) {
         WorkflowHandle<LlmCallWorkflow.Result, ? extends Exception> handle =
                 dbos.startWorkflow(() -> llm.llmCall(messages, toolDefs, agentId), new StartWorkflowOptions(llmQueue));
         LlmCallWorkflow.Result result = WorkflowHandles.await(handle);
@@ -48,7 +48,7 @@ class LlmCallDispatcher implements SimpleAgent.LlmCaller {
         }
         LlmMeta meta = new LlmMeta(result.finishReason(), result.model(), result.callId(),
                 result.reasoning());
-        return new SimpleAgent.LlmReply(result.assistant(), meta, result.usage(),
+        return new AgiMateAgent.LlmReply(result.assistant(), meta, result.usage(),
                 incompleteReason(result.finishReason()), completion(result.finishReason()));
     }
 
@@ -59,14 +59,14 @@ class LlmCallDispatcher implements SimpleAgent.LlmCaller {
      * {@code end_turn}, {@code eos}, absent — is {@code UNKNOWN}, and the loop falls back to the
      * shape of the message.
      */
-    static SimpleAgent.Completion completion(String finishReason) {
+    static AgiMateAgent.Completion completion(String finishReason) {
         if (finishReason == null) {
-            return SimpleAgent.Completion.UNKNOWN;
+            return AgiMateAgent.Completion.UNKNOWN;
         }
         return switch (finishReason.trim().toLowerCase()) {
-            case "tool_calls", "toolcalls", "function_call" -> SimpleAgent.Completion.TOOL_CALLS;
-            case "stop" -> SimpleAgent.Completion.STOP;
-            default -> SimpleAgent.Completion.UNKNOWN;
+            case "tool_calls", "toolcalls", "function_call" -> AgiMateAgent.Completion.TOOL_CALLS;
+            case "stop" -> AgiMateAgent.Completion.STOP;
+            default -> AgiMateAgent.Completion.UNKNOWN;
         };
     }
 

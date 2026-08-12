@@ -7,7 +7,7 @@ import dev.dbos.transact.StartWorkflowOptions;
 import dev.dbos.transact.workflow.Queue;
 import dev.dbos.transact.workflow.WorkflowHandle;
 import lombok.extern.slf4j.Slf4j;
-import ru.agimate.agentworker.agent.SimpleAgent;
+import ru.agimate.agentworker.agent.AgiMateAgent;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
@@ -20,13 +20,13 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Per-run {@link SimpleAgent.ToolDispatcher}: enqueues every tool call in deterministic order first,
+ * Per-run {@link AgiMateAgent.ToolDispatcher}: enqueues every tool call in deterministic order first,
  * then awaits them, so they run concurrently on the tool queue while the enqueue order stays stable
  * across DBOS replays. Never throws for a tool failure — a failed call comes back as a failed
  * {@link AgentChatMessage.ToolResult}. Holds no persistence/output state.
  */
 @Slf4j
-class ToolCallDispatcher implements SimpleAgent.ToolDispatcher {
+class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 

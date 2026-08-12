@@ -29,7 +29,7 @@ class AgentRunnerTest {
         return new ResponseTemplates(ms, props);
     }
 
-    private static AgentRunner runner(SimpleAgent.LlmCaller llm, int maxTurns) {
+    private static AgentRunner runner(AgiMateAgent.LlmCaller llm, int maxTurns) {
         return new AgentRunner(llm, calls -> List.of(), List.of(), maxTurns, "for test", null, TEMPLATES);
     }
 
@@ -40,7 +40,7 @@ class AgentRunnerTest {
     @Test
     @DisplayName("max turns → AgentRunAborted with the max-turns notice")
     void maxTurns() {
-        SimpleAgent.LlmCaller loops = (msgs, defs) -> SimpleAgent.LlmReply.of(
+        AgiMateAgent.LlmCaller loops = (msgs, defs) -> AgiMateAgent.LlmReply.of(
                 AgentChatMessage.assistant(null, false,
                         List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
         AgentRunAborted ex = assertThrows(AgentRunAborted.class, () -> runOnce(runner(loops, 2)));
@@ -87,7 +87,7 @@ class AgentRunnerTest {
     @Test
     @DisplayName("пустой ответ модели → AgentRunAborted с нотисом, а не пустой финал")
     void emptyAnswer() {
-        SimpleAgent.LlmCaller empty = (msgs, defs) -> SimpleAgent.LlmReply.of(
+        AgiMateAgent.LlmCaller empty = (msgs, defs) -> AgiMateAgent.LlmReply.of(
                 AgentChatMessage.assistant("", false, List.of()));
         AgentRunAborted ex = assertThrows(AgentRunAborted.class, () -> runOnce(runner(empty, 5)));
         assertEquals(TEMPLATES.emptyAnswer(), ex.userNotice());
@@ -97,6 +97,6 @@ class AgentRunnerTest {
     @DisplayName("happy path returns the final answer")
     void happy() {
         assertEquals("ok", runOnce(runner(
-                (m, d) -> SimpleAgent.LlmReply.of(AgentChatMessage.assistant("ok", false, List.of())), 5)));
+                (m, d) -> AgiMateAgent.LlmReply.of(AgentChatMessage.assistant("ok", false, List.of())), 5)));
     }
 }

@@ -4,7 +4,7 @@
 начатое. Принято и реализовано в августе 2026.
 
 Реализация: `RunCancellationService` + `ManageRunController` (запрос), `MessageLogPersistence`
-(проекция статуса), `ToolGatewayGrpcService`/`ToolExecutionService` (тулы), `SimpleAgent` +
+(проекция статуса), `ToolGatewayGrpcService`/`ToolExecutionService` (тулы), `AgiMateAgent` +
 `MessageLog` + `AgentRunCore` (цикл воркера). Текущее поведение протокола —
 [../contracts/worker-protocol.md](../contracts/worker-protocol.md), раздел «Отмена».
 

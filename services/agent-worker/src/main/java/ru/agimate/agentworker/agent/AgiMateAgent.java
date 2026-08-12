@@ -47,7 +47,7 @@ import java.util.List;
  * possible only if the model fails to answer even on the tool-less turn.
  */
 @Slf4j
-public class SimpleAgent {
+public class AgiMateAgent {
 
     /**
      * One retry, not several: an empty reply is a provider hiccup that a single re-ask usually
@@ -155,7 +155,7 @@ public class SimpleAgent {
     private final int maxTurns;
     private final RunObserver observer;
 
-    public SimpleAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, List<ToolDef> toolDefs,
+    public AgiMateAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, List<ToolDef> toolDefs,
                        int maxTurns, RunObserver observer) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;

@@ -13,7 +13,7 @@ import ru.agimate.agentworker.agent.error.RunCancelled;
 import ru.agimate.agentworker.agent.AgentRunner;
 import ru.agimate.agentworker.agent.MessageCodec;
 import ru.agimate.agentworker.agent.ResponseTemplates;
-import ru.agimate.agentworker.agent.SimpleAgent;
+import ru.agimate.agentworker.agent.AgiMateAgent;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
@@ -96,7 +96,7 @@ public class AgentRunCore {
         //    TOOL_CALL (plus the preamble/thinking), then the tool results → a separate TOOL_RESULT entry;
         //    the backend assembles the history of later runs out of that pair into native tool_use/tool_result.
         //  • onUsage — token usage accounting, best-effort, idempotent by call_id (a replay deduplicates).
-        SimpleAgent.RunObserver observer = new SimpleAgent.RunObserver() {
+        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
             @Override
             public void onStart(List<AgentChatMessage> startMessages) {
                 reportPrompt(agentId, runId, startMessages);

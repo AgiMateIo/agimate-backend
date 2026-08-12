@@ -12,24 +12,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Assembles the message list and drives {@link SimpleAgent} to a final answer, mapping the loop's
+ * Assembles the message list and drives {@link AgiMateAgent} to a final answer, mapping the loop's
  * expected terminal failures (max turns, LLM HTTP/API errors) to a single {@link AgentRunAborted}
  * the workflow reports in one place. Infra errors propagate for DBOS to retry. Pure glue — the
  * LLM/tool callables, the per-turn persistence hook, and the failure {@code context} are injected.
  */
 public class AgentRunner {
 
-    private final SimpleAgent.LlmCaller llmCaller;
-    private final SimpleAgent.ToolDispatcher toolDispatcher;
+    private final AgiMateAgent.LlmCaller llmCaller;
+    private final AgiMateAgent.ToolDispatcher toolDispatcher;
     private final List<ToolDef> toolDefs;
     private final int maxTurns;
     private final String context;
-    private final SimpleAgent.RunObserver observer;
+    private final AgiMateAgent.RunObserver observer;
     private final ResponseTemplates templates;
 
-    public AgentRunner(SimpleAgent.LlmCaller llmCaller, SimpleAgent.ToolDispatcher toolDispatcher,
+    public AgentRunner(AgiMateAgent.LlmCaller llmCaller, AgiMateAgent.ToolDispatcher toolDispatcher,
                        List<ToolDef> toolDefs, int maxTurns, String context,
-                       SimpleAgent.RunObserver observer, ResponseTemplates templates) {
+                       AgiMateAgent.RunObserver observer, ResponseTemplates templates) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;
@@ -51,7 +51,7 @@ public class AgentRunner {
         messages.addAll(history);
         messages.add(initialRequest);
 
-        SimpleAgent agent = new SimpleAgent(llmCaller, toolDispatcher, toolDefs, maxTurns, observer);
+        AgiMateAgent agent = new AgiMateAgent(llmCaller, toolDispatcher, toolDefs, maxTurns, observer);
         try {
             return agent.run(messages);
         } catch (MaxTurnsExceeded e) {

@@ -2,7 +2,7 @@ package ru.agimate.agentworker.workers.run;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import ru.agimate.agentworker.agent.SimpleAgent;
+import ru.agimate.agentworker.agent.AgiMateAgent;
 import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,19 +35,19 @@ class LlmCallDispatcherTest {
     @Test
     @DisplayName("completion: TOOL_CALLS/STOP в любом регистре, включая имя enum'а из SDK")
     void mapsCompletion() {
-        assertEquals(SimpleAgent.Completion.TOOL_CALLS, LlmCallDispatcher.completion("tool_calls"));
-        assertEquals(SimpleAgent.Completion.TOOL_CALLS, LlmCallDispatcher.completion("TOOL_CALLS"));
-        assertEquals(SimpleAgent.Completion.TOOL_CALLS, LlmCallDispatcher.completion(" function_call "));
-        assertEquals(SimpleAgent.Completion.STOP, LlmCallDispatcher.completion("stop"));
-        assertEquals(SimpleAgent.Completion.STOP, LlmCallDispatcher.completion("STOP"));
+        assertEquals(AgiMateAgent.Completion.TOOL_CALLS, LlmCallDispatcher.completion("tool_calls"));
+        assertEquals(AgiMateAgent.Completion.TOOL_CALLS, LlmCallDispatcher.completion("TOOL_CALLS"));
+        assertEquals(AgiMateAgent.Completion.TOOL_CALLS, LlmCallDispatcher.completion(" function_call "));
+        assertEquals(AgiMateAgent.Completion.STOP, LlmCallDispatcher.completion("stop"));
+        assertEquals(AgiMateAgent.Completion.STOP, LlmCallDispatcher.completion("STOP"));
     }
 
     @Test
     @DisplayName("completion: чужой диалект и отсутствие значения → UNKNOWN (решает форма сообщения)")
     void unknownCompletion() {
-        assertEquals(SimpleAgent.Completion.UNKNOWN, LlmCallDispatcher.completion("end_turn"));
-        assertEquals(SimpleAgent.Completion.UNKNOWN, LlmCallDispatcher.completion("eos"));
-        assertEquals(SimpleAgent.Completion.UNKNOWN, LlmCallDispatcher.completion(""));
-        assertEquals(SimpleAgent.Completion.UNKNOWN, LlmCallDispatcher.completion(null));
+        assertEquals(AgiMateAgent.Completion.UNKNOWN, LlmCallDispatcher.completion("end_turn"));
+        assertEquals(AgiMateAgent.Completion.UNKNOWN, LlmCallDispatcher.completion("eos"));
+        assertEquals(AgiMateAgent.Completion.UNKNOWN, LlmCallDispatcher.completion(""));
+        assertEquals(AgiMateAgent.Completion.UNKNOWN, LlmCallDispatcher.completion(null));
     }
 }
