@@ -100,10 +100,13 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
      * main, oldest first. Native — JPQL has no row comparison, and {@code (created_at, id)} is the
      * queue's execution order ({@code id} is a uuidv7, the tiebreak within one timestamp). An older
      * ENQUEUED run is never taken: absorbing it would reorder the conversation. Re-claim by the same
-     * main is allowed on purpose ({@code main_run_id = :mainRunId}): a replayed seam re-fetches what
-     * is still claimed and unconfirmed instead of finding nothing; a claim left by a dead main keeps
-     * other mains out, and the run simply executes when its turn comes. A run already asked to stop
-     * is not absorbed — the user cancelled that message, answering it would override the stop.
+     * main is allowed for the <b>unconfirmed</b> only ({@code main_run_id = :mainRunId AND
+     * steered_at IS NULL}): a replayed seam re-fetches what a crash may have kept out of the model's
+     * sight, while a confirmed row never comes back — the claimed run stays ENQUEUED until the main
+     * finishes, so without the {@code steered_at} guard every later seam would absorb the same
+     * message again. A claim left by a dead main keeps other mains out, and the run simply executes
+     * when its turn comes. A run already asked to stop is not absorbed — the user cancelled that
+     * message, answering it would override the stop.
      */
     @Query(value = """
             SELECT * FROM agent_runs
@@ -111,6 +114,7 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
               AND agent_id = :agentId
               AND status = 'ENQUEUED'
               AND cancel_requested_at IS NULL
+              AND steered_at IS NULL
               AND (main_run_id IS NULL OR main_run_id = :mainRunId)
               AND (created_at, id) > (:mainCreatedAt, :mainRunId)
             ORDER BY created_at, id
