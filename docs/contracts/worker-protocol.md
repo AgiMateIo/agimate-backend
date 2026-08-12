@@ -39,7 +39,7 @@ single-writer-per-session, поэтому отдельного регистра�
 | `WorkerControl` | `HealthCheck`, `SendMessage` |
 | `AgentContext` | `GetRunContext`, `GetLlmCredentials`, `GetFile`, `ReportLlmUsage`, `ClaimSteering`, `MarkSteered` |
 | `MessageLog` | `SaveMessage`, `SaveTurn`, `SavePrompt` |
-| `ToolGateway` | `ExecuteToolAsync`, `GetToolResult` |
+| `ToolGateway` | `ExecuteToolAsync`, `GetToolResult`, `DetachTool` |
 
 ## Аутентификация
 
@@ -230,6 +230,28 @@ gRPC-тред, результат воркер забирает поллинго
 | `PERMISSION_DENIED` | ABAC запретил. Это **валидный результат тула**, а не сетевая ошибка — воркер отдаёт его модели как tool response |
 | `ABORTED` | Тот же `tool_call_id` переиспользован с другим входом |
 | `INVALID_ARGUMENT` | Нет `tool_call_id`/`connector_code`/`tool_name` либо не парсится UUID |
+
+### Отложенные тулы
+
+Вызов, не уложившийся в grace воркера (`agent.tool.detach-after`, дефолт 10 с), **отцепляется**:
+воркер шлёт `DetachTool`, отдаёт модели interim-результат
+`{"status":"detached","task_id":<tool_call_id>,...}` и продолжает цикл, а бэкенд по завершении
+вызова доставляет результат триггером `tool_completed` — новым раном той же сессии с каналами
+родителя без prompt (`SYSTEM_TRIGGER`-контекст). Бегущий main заберёт его стирингом, свободная
+сессия отработает обычным раном; модель связывает результат с вызовом по `task_id` в истории.
+
+`DetachTool` закрывает гонку формой ответа: `DETACHED` — отцепили, доставка за бэкендом;
+`SUCCESS`/`ERROR` — вызов успел завершиться, воркер получает обычный результат, триггера не будет.
+Штамп `detached_at` — видимая и необратимая смена владельца: после него `GetToolResult` навсегда
+отвечает `DETACHED` (даже завершившемуся вызову и раньше ветки отмены), поэтому реплей упавшего
+шва записывает тот же interim, а не второй экземпляр результата. Упавший `DetachTool` — блокирующий
+фолбэк до старого бюджета: медленно, но ничего не теряется; деплой поэтому развязан
+(сначала control-api, потом воркер).
+
+Доставка гейтится на бэке: `cancel_requested_at` рана-родителя гасит её (результат остаётся в
+`tool_call_logs`), `delivered_at` страхует «ровно один ран» от повторного поста результата app'ом,
+агент без push-транспорта (MCP) доставки не получает. Вывод в данных триггера капится (~20К симв.).
+Подробнее — [../decisions/detached-tools.md](../decisions/detached-tools.md).
 
 ### Откуда берутся тулы
 

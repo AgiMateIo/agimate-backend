@@ -41,7 +41,7 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 |---|---|---|
 | `AgentRunWorkflow.runAgent` | `agent_exec` | **Entry point + run stage**: enqueued directly by control-api (`workflow_id == runId`, partitioned by session, concurrency=1 → one writer per session); drives `AgentRunCore` (the run body is uniform — dialogue vs trigger is server-side policy). |
 | `LlmCallWorkflow.llmCall` | `llm_calls` | One model request; credentials fetched inline (never checkpointed). Returns token usage on its `Result` — the child only counts; the loop surfaces it and the run wiring emits `ReportLlmUsage`. |
-| `ToolCallWorkflow.toolCall` | `tool_calls` | One backend tool call (`ExecuteToolAsync` + poll `GetToolResult`); never raises. |
+| `ToolCallWorkflow.toolCall` | `tool_calls` | One backend tool call (`ExecuteToolAsync` + poll `GetToolResult`); never raises. A call still pending at `detach-after` is detached (`DetachTool`): the model gets an interim task handle, the result returns later as a `tool_completed` trigger. |
 
 The package root is what DBOS sees: the three workflow pairs and `Queues`. The run-body machinery lives in `workers/run`:
 `AgentRunCore` holds the invariant run body — a `prepare_context` step
@@ -110,8 +110,9 @@ serialization is `PORTABLE`. control-api enqueues the run-stage workflow directl
 очередь (concurrency=1 → один исполняющийся ран на сессию) — единственный механизм
 single-writer'а и контрактное требование к транспорту; регистрационного хэндшейка
 (RegisterRun/ReleaseRun) нет. Жизненный цикл рана — серверная проекция потока `SaveMessage`;
-признак жизни — RPC рана (молча умерший ран добирает серверный сборщик). Steering
-(steer/interrupt в живой ран) удалён — вернётся отдельным дизайном, если понадобится.
+признак жизни — RPC рана (молча умерший ран добирает серверный сборщик). Стиринг — захват
+сообщений младших ранов сессии на шве цикла (`ClaimSteering`/`MarkSteered`), см.
+[worker-protocol.md](../contracts/worker-protocol.md), раздел «Стиринг».
 
 ## Configuration
 Bound from `application.yaml` under `agent.*`; every value is overridable via env (relaxed
@@ -119,7 +120,10 @@ binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example
 `grpc` (target/tls/auth-token), `agent` (id/workflow-id), `concurrency` (agent-runs/llm/tool),
 `session` (run-ttl-seconds), `tool` (poll-timeout — дефолтный бюджет ожидания результата тул-вызова;
 спек тула может заявить свой `timeout_seconds` (кламп 30 мин) — тогда он побеждает; таймаут
-не отменяет джобу на бэке, модель получает явное «could still complete»; max-output-chars — потолок
+не отменяет джобу на бэке, модель получает явное «could still complete»; detach-after — grace
+ожидания до детача (дефолт 10 с, ≤0 выключает): не уложившийся вызов отцепляется, модель получает
+task handle, результат приедет триггером `tool_completed`; бюджеты остаются потолком блокирующего
+фолбэка при недоступном `DetachTool`; max-output-chars — потолок
 вывода одного тула: гигантский вывод раздувает контекст всех последующих turns и DBOS-чекпоинты,
 поэтому обрезается с явной пометкой ещё внутри durable-шага), `response` (`language` —
 язык пользовательских нотисов), `dbos` (system database — must match control-api's;
