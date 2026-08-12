@@ -6,6 +6,12 @@ GET http://localhost:8080/user-api/user/me
 ### authrization throuth google
 GET http://localhost:8080/user-api/oauth2/authorization/google
 
+### authorization through github
+GET http://localhost:8080/user-api/oauth2/authorization/github
+
+### authorization through vk id
+GET http://localhost:8080/user-api/oauth2/authorization/vk
+
 
 ### get me with jwt
 GET http://localhost:8080/user-api/user/me

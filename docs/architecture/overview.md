@@ -25,7 +25,7 @@ graph TB
     end
 
     Centrifugo[Centrifugo]
-    OAuth[OAuth: Google, Yandex]
+    OAuth[OAuth: Google, Yandex, GitHub, VK ID]
     LLM[LLM-провайдеры]
 
     Web --> UserAPI
@@ -44,7 +44,7 @@ graph TB
 
 ## Сервисы
 
-**user-api** — вход в систему: OAuth2 (Google, Yandex), выпуск и обновление JWT, профили. Про
+**user-api** — вход в систему: OAuth2 (Google, Yandex, GitHub, VK ID), выпуск и обновление JWT, профили. Про
 агентов не знает ничего.
 
 **control-api** — предметная область целиком: агенты, скиллы, коннекторы, подключения, каналы,

@@ -9,9 +9,15 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AccessTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.OAuth2AuthorizationCodeGrantRequest;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
+import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
@@ -45,6 +51,9 @@ public class SecurityConfig {
     private final OAuth2FailureHandler oAuth2FailureHandler;
     private final SecretKey oauth2CookieEncryptionKey;
     private final OAuthProperties oAuthProperties;
+    private final OAuth2AuthorizationRequestResolver oAuth2AuthorizationRequestResolver;
+    private final OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient;
+    private final OAuth2UserService<OAuth2UserRequest, OAuth2User> oAuth2UserService;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -120,7 +129,12 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 -> oauth2
                         .authorizationEndpoint(authorization -> authorization
                                 .authorizationRequestRepository(authorizationRequestRepository())
+                                .authorizationRequestResolver(oAuth2AuthorizationRequestResolver)
                         )
+                        .tokenEndpoint(token -> token.accessTokenResponseClient(accessTokenResponseClient))
+                        // Applies to the plain OAuth2 providers; Google is OpenID Connect and keeps
+                        // the default OidcUserService.
+                        .userInfoEndpoint(userInfo -> userInfo.userService(oAuth2UserService))
                         .successHandler(oAuth2SuccessHandler)
                         .failureHandler(oAuth2FailureHandler)
                 )

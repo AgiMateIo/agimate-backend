@@ -13,8 +13,10 @@ spring:
     oauth2:
       client:
         registration:
-          # Spring refuses to start on an empty client-id, so an unconfigured provider gets a
-          # placeholder here: the service boots, only the login through it fails.
+          # The __…__ markers are the renderer's own; the values come from the
+          # SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_* variables of services/.env.
+          # An empty client-id means the provider is not offered: user-api drops such a registration
+          # before Spring validates it, so the service starts and only that button stays dead.
           google:
             client-id: "__GOOGLE_CLIENT_ID__"
             client-secret: "__GOOGLE_CLIENT_SECRET__"
@@ -22,6 +24,12 @@ spring:
             client-id: "__YANDEX_CLIENT_ID__"
             client-secret: "__YANDEX_CLIENT_SECRET__"
             redirect-uri: "__APP_OAUTH_FRONTEND_REDIRECT_URL__/redirect"
+          github:
+            client-id: "__GITHUB_CLIENT_ID__"
+            client-secret: "__GITHUB_CLIENT_SECRET__"
+          # VK ID takes no client secret: the code exchange is authenticated with PKCE.
+          vk:
+            client-id: "__VK_CLIENT_ID__"
 
 # Signs the tokens control-api verifies with the public half of this pair.
 jwt:

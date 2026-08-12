@@ -56,7 +56,13 @@ CENTRIFUGO_ADMIN_PASSWORD CENTRIFUGO_ADMIN_SECRET
 APP_SECRETS_ENCRYPTION_KEY APP_OAUTH_COOKIE_ENCRYPTION_KEY APP_FILES_URL_SECRET
 APP_OAUTH_COOKIE_DOMAIN APP_OAUTH_FRONTEND_REDIRECT_URL
 APP_CONTENT_LANGUAGE APP_INTEGRATION_TELEGRAM_MODE APP_INTEGRATION_WEBHOOK_BASE_URL
-GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET YANDEX_CLIENT_ID YANDEX_CLIENT_SECRET
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_ID
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_SECRET
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_ID
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_SECRET
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_VK_CLIENT_ID
 WORKER_POOLS_AUTHKEYS_0 AGENT_GRPC_AUTHTOKEN"
 
 value_of() {
@@ -134,14 +140,22 @@ if [ ! -f "$ENV_FILE" ]; then
     import_value APP_OAUTH_COOKIE_ENCRYPTION_KEY "app.oauth.cookie-encryption-key" "$USER_API_LOCAL"
     import_value APP_OAUTH_COOKIE_DOMAIN "app.oauth.cookie-domain" "$USER_API_LOCAL"
     import_value APP_OAUTH_FRONTEND_REDIRECT_URL "app.oauth.frontend-redirect-url" "$USER_API_LOCAL"
-    import_value GOOGLE_CLIENT_ID \
+    # The .env names are the Spring property paths themselves (relaxed binding), so each of these
+    # is its own yaml path with the dots turned into underscores.
+    import_value SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID \
         "spring.security.oauth2.client.registration.google.client-id" "$USER_API_LOCAL"
-    import_value GOOGLE_CLIENT_SECRET \
+    import_value SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET \
         "spring.security.oauth2.client.registration.google.client-secret" "$USER_API_LOCAL"
-    import_value YANDEX_CLIENT_ID \
+    import_value SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_ID \
         "spring.security.oauth2.client.registration.yandex.client-id" "$USER_API_LOCAL"
-    import_value YANDEX_CLIENT_SECRET \
+    import_value SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_SECRET \
         "spring.security.oauth2.client.registration.yandex.client-secret" "$USER_API_LOCAL"
+    import_value SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_ID \
+        "spring.security.oauth2.client.registration.github.client-id" "$USER_API_LOCAL"
+    import_value SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_SECRET \
+        "spring.security.oauth2.client.registration.github.client-secret" "$USER_API_LOCAL"
+    import_value SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_VK_CLIENT_ID \
+        "spring.security.oauth2.client.registration.vk.client-id" "$USER_API_LOCAL"
 
     import_value CENTRIFUGO_APIKEY "centrifugo.api-key" "$CONTROL_API_LOCAL"
     import_value CENTRIFUGO_PRIVATEKEY "centrifugo.privateKey" "$CONTROL_API_LOCAL"
@@ -260,27 +274,33 @@ if [ -z "$CENTRIFUGO_PUBLICURL" ]; then
     CENTRIFUGO_PUBLICURL="$(ask "Centrifugo public URL" "ws://localhost:9000")"
 fi
 
-# Spring refuses to start on an empty client-id, so a skipped provider gets a placeholder: the
-# service boots and only the login through that provider fails.
-OAUTH_PLACEHOLDER="dev-placeholder"
+# A provider left empty is simply not offered: user-api drops the registration before Spring
+# validates it, so the service starts either way and no fake credentials are needed.
+OAUTH_REGISTRATION_PREFIX="SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION"
 
-if [ -z "$GOOGLE_CLIENT_ID" ]; then
-    GOOGLE_CLIENT_ID="$(ask "Google OAuth client id (empty = skip, login will not work)" "")"
-    [ -z "$GOOGLE_CLIENT_ID" ] || GOOGLE_CLIENT_SECRET="$(ask "Google OAuth client secret" "")"
-fi
-if [ -z "$YANDEX_CLIENT_ID" ]; then
-    YANDEX_CLIENT_ID="$(ask "Yandex OAuth client id (empty = skip)" "")"
-    [ -z "$YANDEX_CLIENT_ID" ] || YANDEX_CLIENT_SECRET="$(ask "Yandex OAuth client secret" "")"
-fi
+# Asks for the credentials of one provider, unless its id is already known.
+# $1 — registration id in upper case, $2 — human name, $3 — "secret" when the provider needs one.
+ask_oauth_provider() {
+    local id_var="${OAUTH_REGISTRATION_PREFIX}_$1_CLIENT_ID"
+    local secret_var="${OAUTH_REGISTRATION_PREFIX}_$1_CLIENT_SECRET"
+    local current
+    eval "current=\$$id_var"
+    [ -n "$current" ] && return 0
+
+    printf -v "$id_var" '%s' "$(ask "$2 client id (empty = provider not offered)" "")"
+    eval "current=\$$id_var"
+    if [ -n "$current" ] && [ "$3" = "secret" ]; then
+        printf -v "$secret_var" '%s' "$(ask "$2 client secret" "")"
+    fi
+    [ -n "$current" ] || OAUTH_CONFIGURED=false
+}
 
 OAUTH_CONFIGURED=true
-for name in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET YANDEX_CLIENT_ID YANDEX_CLIENT_SECRET; do
-    eval "current=\$$name"
-    if [ -z "$current" ] || [ "$current" = "$OAUTH_PLACEHOLDER" ]; then
-        printf -v "$name" '%s' "$OAUTH_PLACEHOLDER"
-        OAUTH_CONFIGURED=false
-    fi
-done
+ask_oauth_provider GOOGLE "Google OAuth" secret
+ask_oauth_provider YANDEX "Yandex OAuth" secret
+ask_oauth_provider GITHUB "GitHub OAuth" secret
+# VK ID authenticates the code exchange with PKCE and takes no secret at all.
+ask_oauth_provider VK "VK ID app"
 
 # --- services/.env ------------------------------------------------------------------------------
 
@@ -308,12 +328,15 @@ APP_SECRETS_ENCRYPTION_KEY=$APP_SECRETS_ENCRYPTION_KEY
 APP_OAUTH_COOKIE_ENCRYPTION_KEY=$APP_OAUTH_COOKIE_ENCRYPTION_KEY
 APP_FILES_URL_SECRET=$APP_FILES_URL_SECRET
 
-# OAuth2 providers for user-api. "$OAUTH_PLACEHOLDER" = not configured; Spring needs a non-empty
-# client id to start at all, so replace these with real credentials to make the login work.
-GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
-GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
-YANDEX_CLIENT_ID=$YANDEX_CLIENT_ID
-YANDEX_CLIENT_SECRET=$YANDEX_CLIENT_SECRET
+# OAuth2 providers for user-api. The names are the Spring property paths (relaxed binding), so
+# nothing maps them by hand. Empty = the provider is not offered; the service starts without it.
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID=$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET=$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_ID=$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_ID
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_SECRET=$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_SECRET
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_ID=$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_ID
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_SECRET=$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_SECRET
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_VK_CLIENT_ID=$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_VK_CLIENT_ID
 APP_OAUTH_COOKIE_DOMAIN=$APP_OAUTH_COOKIE_DOMAIN
 APP_OAUTH_FRONTEND_REDIRECT_URL=$APP_OAUTH_FRONTEND_REDIRECT_URL
 
@@ -357,10 +380,13 @@ render() {
         -e "s|__APP_OAUTH_FRONTEND_REDIRECT_URL__|$(esc "$APP_OAUTH_FRONTEND_REDIRECT_URL")|g" \
         -e "s|__APP_CONTENT_LANGUAGE__|$(esc "$APP_CONTENT_LANGUAGE")|g" \
         -e "s|__APP_INTEGRATION_WEBHOOK_BASE_URL__|$(esc "$APP_INTEGRATION_WEBHOOK_BASE_URL")|g" \
-        -e "s|__GOOGLE_CLIENT_ID__|$(esc "$GOOGLE_CLIENT_ID")|g" \
-        -e "s|__GOOGLE_CLIENT_SECRET__|$(esc "$GOOGLE_CLIENT_SECRET")|g" \
-        -e "s|__YANDEX_CLIENT_ID__|$(esc "$YANDEX_CLIENT_ID")|g" \
-        -e "s|__YANDEX_CLIENT_SECRET__|$(esc "$YANDEX_CLIENT_SECRET")|g" \
+        -e "s|__GOOGLE_CLIENT_ID__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID")|g" \
+        -e "s|__GOOGLE_CLIENT_SECRET__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET")|g" \
+        -e "s|__YANDEX_CLIENT_ID__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_ID")|g" \
+        -e "s|__YANDEX_CLIENT_SECRET__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_SECRET")|g" \
+        -e "s|__GITHUB_CLIENT_ID__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_ID")|g" \
+        -e "s|__GITHUB_CLIENT_SECRET__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_SECRET")|g" \
+        -e "s|__VK_CLIENT_ID__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_VK_CLIENT_ID")|g" \
         -e "s|__WORKER_POOLS_AUTHKEYS_0__|$(esc "$WORKER_POOLS_AUTHKEYS_0")|g" \
         -e "s|__AGENT_GRPC_AUTHTOKEN__|$(esc "$AGENT_GRPC_AUTHTOKEN")|g" \
         "$template" > "$target"
@@ -400,9 +426,9 @@ done
 
 echo
 if [ "$OAUTH_CONFIGURED" = false ]; then
-    echo "! OAuth is not fully configured — the skipped providers got placeholder credentials."
-    echo "  The services start, but logging in through them does not work. Fill the real values"
-    echo "  into services/.env and re-run with --force."
+    echo "! Some OAuth providers were skipped — user-api starts without them, and their buttons"
+    echo "  simply do not work. To add one later, fill its credentials into services/.env"
+    echo "  (SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_<PROVIDER>_CLIENT_ID) and re-run --force."
     echo
 fi
 echo "Next:"

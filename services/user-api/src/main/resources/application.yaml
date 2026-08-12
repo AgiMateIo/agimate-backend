@@ -60,27 +60,47 @@ spring:
   security:
     oauth2:
       client:
+        # Credentials are never written here: they come from the environment under these very
+        # property names, e.g. SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID.
+        # A provider without a client id is switched off (OAuth2RegistrationsConfig) — that is how
+        # an installation offers only some of them, and the service still starts.
         registration:
           google:
-            client-id: ${GOOGLE_CLIENT_ID:}
-            client-secret: ${GOOGLE_CLIENT_SECRET:}
             scope: openid, profile, email
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             client-name: Google
           yandex:
-            client-id: ${YANDEX_CLIENT_ID:}
-            client-secret: ${YANDEX_CLIENT_SECRET:}
             scope: login:email, login:info, login:avatar
             redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             client-name: Yandex
             authorization-grant-type: authorization_code
+          github:
+            # user:email buys the /user/emails call: the profile itself carries the public address
+            # only, and most accounts hide it.
+            scope: read:user, user:email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            client-name: GitHub
+          vk:
+            # VK ID is a public client: it takes no secret and authenticates the exchange with PKCE,
+            # which the resolver applies by itself once the method is `none`.
+            client-authentication-method: none
+            scope: vkid.personal_info, email
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            client-name: VK ID
+            authorization-grant-type: authorization_code
         provider:
           yandex:
-
             authorization-uri: https://oauth.yandex.ru/authorize
             token-uri: https://oauth.yandex.ru/token
             user-info-uri: https://login.yandex.ru/info
             user-name-attribute: id
+          vk:
+            authorization-uri: https://id.vk.com/authorize
+            token-uri: https://id.vk.com/oauth2/auth
+            user-info-uri: https://id.vk.com/oauth2/user_info
+            # VK ID wants the token in the body, not in an Authorization header
+            user-info-authentication-method: form
+            user-name-attribute: user_id
 
 
 micrometer:
