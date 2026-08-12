@@ -7,7 +7,11 @@ import io.grpc.StatusRuntimeException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.AgentContextGrpc;
+import ru.agimate.agentworker.ClaimSteeringRequest;
+import ru.agimate.agentworker.ClaimSteeringResponse;
 import ru.agimate.agentworker.ExecuteToolAsyncAck;
+import ru.agimate.agentworker.MarkSteeredRequest;
+import ru.agimate.agentworker.MarkSteeredResponse;
 import ru.agimate.agentworker.ExecuteToolRequest;
 import ru.agimate.agentworker.FileChunk;
 import ru.agimate.agentworker.GetFileRequest;
@@ -144,6 +148,21 @@ public class AgentWorkerClient {
     public LlmCredentials getLlmCredentials(String agentId) {
         return call("GetLlmCredentials", () -> ctx().getLlmCredentials(GetLlmCredentialsRequest.newBuilder()
                 .setWorkflowId(workflowId()).setAgentId(agentId).build()));
+    }
+
+    /**
+     * Steering claim at the loop seam: atomically takes the session's younger queued messages to
+     * absorb. Best-effort at the call site and never a durable step; idempotent for the same run.
+     */
+    public ClaimSteeringResponse claimSteering(String agentId, String runId) {
+        return call("ClaimSteering", () -> ctx().claimSteering(ClaimSteeringRequest.newBuilder()
+                .setAgentId(agentId).setRunId(runId).build()));
+    }
+
+    /** Confirms the model has seen the claimed messages; idempotent (stamped rows stay stamped). */
+    public MarkSteeredResponse markSteered(String agentId, String runId, List<String> steeredRunIds) {
+        return call("MarkSteered", () -> ctx().markSteered(MarkSteeredRequest.newBuilder()
+                .setAgentId(agentId).setRunId(runId).addAllSteeredRunIds(steeredRunIds).build()));
     }
 
     /** Deadline for the file content stream — longer than the unary timeout: a file can be large. */

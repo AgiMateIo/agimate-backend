@@ -70,6 +70,15 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
             return;
         }
 
+        // Absorbed by an earlier run of the session (steering): the message was answered before this
+        // workflow ever reached the front of the partition — leave as quietly as a queued cancellation.
+        // The backend answers steered=true only when the absorption was confirmed AND the main finished
+        // DONE/CANCELLED, so a failed main never silences the message.
+        if (messages.isSteered()) {
+            log.info("run steered into an earlier run of the session");
+            return;
+        }
+
         PreparedContext prepared = core.prepareContext(message.agentId(), message.runId());
         core.run(message.agentId(), message.runId(), prepared, messages,
                 "for agent_id=" + message.agentId() + " run=" + message.runId());

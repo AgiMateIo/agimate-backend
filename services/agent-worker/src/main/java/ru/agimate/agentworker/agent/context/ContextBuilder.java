@@ -89,7 +89,7 @@ public final class ContextBuilder {
     }
 
     /** proto {@code FilePart} → the worker's {@link FilePartRef} (references only; bytes come via GetFile). */
-    static List<FilePartRef> mapParts(List<FilePart> parts) {
+    public static List<FilePartRef> mapParts(List<FilePart> parts) {
         List<FilePartRef> refs = new ArrayList<>(parts.size());
         for (FilePart p : parts) {
             refs.add(new FilePartRef(p.getFileId(), p.getType(), p.getMime(), p.getSize(), p.getName()));

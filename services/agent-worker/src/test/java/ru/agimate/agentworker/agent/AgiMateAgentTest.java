@@ -514,4 +514,155 @@ class AgiMateAgentTest {
         assertEquals("final", agent(llm, dispatcher, null, 10).run(conv));
         assertEquals(AgentChatMessage.Role.TOOL, conv.get(2).role());
     }
+
+    // ===== Стиринг =====
+
+    @Test
+    @DisplayName("стиринг: сообщение с шва дописывается в диалог и уходит в следующий вызов модели")
+    void steeringAbsorbedAtSeam() {
+        List<List<AgentChatMessage>> sent = new ArrayList<>();
+        AtomicInteger turn = new AtomicInteger();
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
+            sent.add(List.copyOf(msgs));
+            return turn.getAndIncrement() == 0
+                    ? reply(AgentChatMessage.assistant(null, false,
+                            List.of(new AgentChatMessage.ToolCall("id1", "t", "{}"))))
+                    : reply(AgentChatMessage.assistant("учёл", false, List.of()));
+        };
+        AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
+                new AgentChatMessage.ToolResult("id1", "t", "{}", false));
+        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+            private int polls;
+
+            @Override
+            public List<AgentChatMessage> pollSteering() {
+                return ++polls == 2 ? List.of(AgentChatMessage.user("новое сообщение")) : List.of();
+            }
+        };
+
+        assertEquals("учёл", agent(llm, dispatcher, observer, 10)
+                .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        // Второй вызов модели видит поглощённое сообщение последним — после результатов тулов.
+        List<AgentChatMessage> second = sent.get(1);
+        assertEquals("новое сообщение", second.get(second.size() - 1).text());
+        assertEquals(AgentChatMessage.Role.USER, second.get(second.size() - 1).role());
+    }
+
+    @Test
+    @DisplayName("стиринг: сброс бюджета продлевает ран за исходный кап, wrap-up снимается и перевзводится")
+    void steeringResetsTheTurnBudget() {
+        List<List<AgentChatMessage>> sent = new ArrayList<>();
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
+            sent.add(List.copyOf(msgs));
+            return defs.isEmpty()
+                    ? reply(AgentChatMessage.assistant("вот что успел", false, List.of()))
+                    : reply(AgentChatMessage.assistant(null, false,
+                            List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
+        };
+        AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
+                new AgentChatMessage.ToolResult("id", "t", "{}", false));
+        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+            private int polls;
+
+            @Override
+            public List<AgentChatMessage> pollSteering() {
+                // Шов 4 — wrap-up уже инжектирован (на ходе 3 при maxTurns=4).
+                return ++polls == 4 ? List.of(AgentChatMessage.user("ещё задача")) : List.of();
+            }
+        };
+        AgiMateAgent agent = new AgiMateAgent(llm, dispatcher,
+                List.of(new ToolDef("t", "tool", "{}")), 4, observer);
+        List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
+
+        assertEquals("вот что успел", agent.run(conv));
+        // 3 хода с тулами + после сброса ещё 3 + безтуловый финал: исходный кап в 4 хода пройден.
+        assertEquals(7, sent.size());
+        // Вызов сразу после поглощения: старого wrap-up-нотиса в контексте нет, сообщение — есть.
+        List<AgentChatMessage> afterAbsorb = sent.get(3);
+        assertTrue(afterAbsorb.stream().noneMatch(m -> AgiMateAgent.WRAP_UP_NOTICE.equals(m.text())));
+        assertEquals("ещё задача", afterAbsorb.get(afterAbsorb.size() - 1).text());
+        // Перевзведённый нотис инжектирован заново — в диалоге он ровно один.
+        assertEquals(1, conv.stream()
+                .filter(m -> AgiMateAgent.WRAP_UP_NOTICE.equals(m.text()))
+                .count());
+    }
+
+    @Test
+    @DisplayName("стиринг: потолок сбросов — дальше шов не опрашивается и ран завершается")
+    void steeringResetsAreCapped() {
+        AtomicInteger llmCalls = new AtomicInteger();
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
+            llmCalls.incrementAndGet();
+            return reply(AgentChatMessage.assistant(null, false,
+                    List.of(new AgentChatMessage.ToolCall("id", "t", "{}"))));
+        };
+        AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
+                new AgentChatMessage.ToolResult("id", "t", "{}", false));
+        AtomicInteger polls = new AtomicInteger();
+        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+            @Override
+            public List<AgentChatMessage> pollSteering() {
+                polls.incrementAndGet();
+                return List.of(AgentChatMessage.user("ещё"));
+            }
+        };
+        // maxTurns=2 → мягкой посадки нет; каждый опрос приносит сообщение и сбрасывает бюджет.
+        AgiMateAgent agent = agent(llm, dispatcher, observer, 2);
+
+        assertThrows(MaxTurnsExceeded.class,
+                () -> agent.run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        // Ровно MAX_STEERING_RESETS поглощений; после потолка шов молчит и кап добивает ран.
+        assertEquals(AgiMateAgent.MAX_STEERING_RESETS, polls.get());
+        // Каждый сброс оставляет бюджету один ход (turn=1 → 2), после потолка — последний ход капа.
+        assertEquals(AgiMateAgent.MAX_STEERING_RESETS + 1, llmCalls.get());
+    }
+
+    @Test
+    @DisplayName("стиринг: отмена первее — стоп не поглощает новую работу")
+    void cancellationWinsOverSteering() {
+        AtomicBoolean polled = new AtomicBoolean();
+        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+            @Override
+            public boolean cancelRequested() {
+                return true;
+            }
+
+            @Override
+            public List<AgentChatMessage> pollSteering() {
+                polled.set(true);
+                return List.of(AgentChatMessage.user("не должно поглотиться"));
+            }
+        };
+
+        assertThrows(RunCancelled.class,
+                () -> agent((msgs, defs) -> reply(AgentChatMessage.assistant("нет", false, List.of())),
+                        c -> List.of(), observer, 10)
+                        .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        assertFalse(polled.get());
+    }
+
+    @Test
+    @DisplayName("стиринг: поглощение на первом шве попадает в снимок промпта (onStart после опроса)")
+    void firstSeamAbsorptionLandsInTheSnapshot() {
+        List<AgentChatMessage> snapshot = new ArrayList<>();
+        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+            private int polls;
+
+            @Override
+            public void onStart(List<AgentChatMessage> messages) {
+                snapshot.addAll(messages);
+            }
+
+            @Override
+            public List<AgentChatMessage> pollSteering() {
+                return ++polls == 1 ? List.of(AgentChatMessage.user("ждало в очереди")) : List.of();
+            }
+        };
+        AgiMateAgent.LlmCaller llm = (msgs, defs) ->
+                reply(AgentChatMessage.assistant("готово", false, List.of()));
+
+        assertEquals("готово", agent(llm, c -> List.of(), observer, 10)
+                .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
+        assertEquals("ждало в очереди", snapshot.get(snapshot.size() - 1).text());
+    }
 }

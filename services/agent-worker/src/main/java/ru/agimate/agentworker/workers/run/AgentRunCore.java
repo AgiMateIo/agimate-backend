@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.dbos.transact.DBOS;
 import dev.dbos.transact.workflow.Queue;
 import lombok.extern.slf4j.Slf4j;
+import ru.agimate.agentworker.SteeringMessage;
 import ru.agimate.agentworker.WorkerMessageType;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
@@ -20,6 +21,7 @@ import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.workers.LlmCallWorkflow;
 import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -96,6 +98,15 @@ public class AgentRunCore {
         //    TOOL_CALL (plus the preamble/thinking), then the tool results → a separate TOOL_RESULT entry;
         //    the backend assembles the history of later runs out of that pair into native tool_use/tool_result.
         //  • onUsage — token usage accounting, best-effort, idempotent by call_id (a replay deduplicates).
+        //  • pollSteering — the seam absorbing the session's queued messages; the claim, the ledger
+        //    record and the confirmation all live here, so the loop stays pure.
+
+        // Steered runs claimed but not yet confirmed seen by the model. Confirmation is deliberately
+        // late (the first assistant turn after the absorption — the LLM call has returned by then): a
+        // claim whose response is lost leaves the claimed run to execute itself, a lost confirmation
+        // costs at worst a duplicate answer — both degrade away from losing the message.
+        List<String> unconfirmedSteered = new ArrayList<>();
+
         AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
             @Override
             public void onStart(List<AgentChatMessage> startMessages) {
@@ -104,6 +115,10 @@ public class AgentRunCore {
 
             @Override
             public void onMessages(List<AgentChatMessage> newMsgs, LlmMeta meta) {
+                if (!unconfirmedSteered.isEmpty()
+                        && newMsgs.stream().anyMatch(m -> m.role() == AgentChatMessage.Role.ASSISTANT)) {
+                    confirmSteered();
+                }
                 for (AgentChatMessage m : newMsgs) {
                     turns.record(m, meta);
                     if (m.role() == AgentChatMessage.Role.ASSISTANT) {
@@ -125,6 +140,40 @@ public class AgentRunCore {
             @Override
             public boolean cancelRequested() {
                 return messages.isCancelRequested();
+            }
+
+            @Override
+            public List<AgentChatMessage> pollSteering() {
+                List<SteeringMessage> claimed;
+                try {
+                    claimed = client.claimSteering(agentId, runId).getMessagesList();
+                } catch (Exception e) {
+                    // Best-effort by design: the claimed run (if any) will simply execute itself.
+                    log.warn("steering claim failed (best-effort): {}", e.getMessage());
+                    return List.of();
+                }
+                List<AgentChatMessage> absorbed = new ArrayList<>(claimed.size());
+                for (SteeringMessage m : claimed) {
+                    AgentChatMessage bare = AgentChatMessage.user(
+                            m.getText(), ContextBuilder.mapParts(m.getPartsList()));
+                    // The ledger keeps the message itself; the framing is ephemeral, like the prefix
+                    // of the initial request — today's presentation must not settle into history.
+                    turns.record(bare, null);
+                    absorbed.add(withSteeredFraming(bare));
+                    unconfirmedSteered.add(m.getRunId());
+                }
+                return absorbed;
+            }
+
+            private void confirmSteered() {
+                try {
+                    client.markSteered(agentId, runId, List.copyOf(unconfirmedSteered));
+                    unconfirmedSteered.clear();
+                } catch (Exception e) {
+                    // Kept in the list: the next assistant turn retries. Worst case is a duplicate
+                    // answer after this run finishes — the safe direction.
+                    log.warn("steering confirmation failed (best-effort): {}", e.getMessage());
+                }
             }
         };
 
@@ -196,6 +245,20 @@ public class AgentRunCore {
         } catch (Exception e) {
             log.warn("prompt snapshot report failed (best-effort): {}", e.getMessage());
         }
+    }
+
+    /** How an absorbed message is presented to the model: arrived mid-run, not part of the original request. */
+    static final String STEERED_PREFIX =
+            "Пока ты работал, от пользователя пришло новое сообщение. Учти его в текущей работе:";
+
+    /**
+     * Model-facing framing of a steered message — ephemeral for the same reason as
+     * {@link #withEphemeralPrefix}: the ledger records the message itself, and «this arrived while
+     * you were working» is true only today.
+     */
+    private static AgentChatMessage withSteeredFraming(AgentChatMessage bare) {
+        String base = bare.text() != null ? bare.text() : "";
+        return AgentChatMessage.user(STEERED_PREFIX + "\n\n" + base, bare.parts());
     }
 
     /**

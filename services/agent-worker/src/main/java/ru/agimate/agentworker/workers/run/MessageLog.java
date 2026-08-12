@@ -22,8 +22,8 @@ import ru.agimate.agentworker.grpc.ControlApiCallException;
 @Slf4j
 public class MessageLog {
 
-    /** A durable step must not checkpoint proto, so the answer is reduced to its two flags. */
-    private record SaveOutcome(boolean duplicate, boolean cancelled) {}
+    /** A durable step must not checkpoint proto, so the answer is reduced to its flags. */
+    private record SaveOutcome(boolean duplicate, boolean cancelled, boolean steered) {}
 
     private final DBOS dbos;
     private final AgentWorkerClient client;
@@ -31,6 +31,7 @@ public class MessageLog {
     private final String runId;
     private int seq = 0;
     private boolean cancelRequested;
+    private boolean steered;
 
     public MessageLog(DBOS dbos, AgentWorkerClient client, String agentId, String runId) {
         this.dbos = dbos;
@@ -66,16 +67,27 @@ public class MessageLog {
         return cancelRequested;
     }
 
+    /**
+     * Was this run's message absorbed by an earlier run of the session (steering)? Carried by the
+     * seq 0 ack — the only write a stood-aside run ever makes — and sticky for the same reason as
+     * cancellation: a replayed step must not «un-steer» the run.
+     */
+    public boolean isSteered() {
+        return steered;
+    }
+
     private void send(MessageKind kind, ProgressType progressType, String text, ToolTurn toolTurn) {
         int n = seq++;
         SaveOutcome outcome = dbos.runStep(
                 () -> {
                     var response = client.saveMessage(agentId, runId, n, kind, progressType, text, toolTurn);
-                    return new SaveOutcome(response.getDuplicate(), response.getCancelled());
+                    return new SaveOutcome(response.getDuplicate(), response.getCancelled(),
+                            response.getSteered());
                 },
                 new StepOptions("save_message").withMaxAttempts(3)
                         .withShouldRetry(ControlApiCallException::retriableInStep));
         cancelRequested |= outcome.cancelled();
+        steered |= outcome.steered();
         boolean duplicate = outcome.duplicate();
         if (duplicate) {
             log.debug("saveMessage duplicate seq={} kind={}", n, kind);

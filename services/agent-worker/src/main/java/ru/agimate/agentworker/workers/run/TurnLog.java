@@ -19,8 +19,10 @@ import java.util.List;
  * projection of already-durable data (the LLM/tool child-workflow results), so a DBOS replay
  * re-derives and re-sends the same {@code (run_id, turn_index)} and the backend dedupes — no
  * checkpoint is added, so this needs no drain-before-deploy. The {@code turn_index} advances
- * deterministically (the system prompt is the only message that consumes none), so replay reproduces
- * it exactly.
+ * deterministically (the system prompt is the only message that consumes none), so replay normally
+ * reproduces it exactly. Steering is the accepted exception: the seam poll is not durable either,
+ * so a replay may absorb a message at a different seam than the original — the backend's
+ * first-write-wins dedupe then keeps the original transcript.
  *
  * <p>The write stays best-effort — a failure is logged and never fails the run — but the ledger is no
  * longer only observability: the backend assembles the history of later runs from it. A lost turn is

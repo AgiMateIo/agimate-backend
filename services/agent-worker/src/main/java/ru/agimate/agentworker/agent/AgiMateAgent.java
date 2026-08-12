@@ -31,6 +31,13 @@ import java.util.List;
  * unmade ones get a synthetic result, since a {@code tool_use} with no {@code tool_result} is rejected
  * by providers on the next run.
  *
+ * <p>Steering is polled at the seam only (after the cancel check — a stop wins): messages of the
+ * session that arrived mid-run are appended to the conversation instead of waiting out the queue,
+ * the turn budget resets and the wrap-up notice, if already injected, is withdrawn — new work and
+ * «finish now» must not coexist. Resets are capped at {@value #MAX_STEERING_RESETS} per run; the
+ * dispatch seam does not steer — a {@code tool_use} must be followed by its results, a user message
+ * cannot sit between them.
+ *
  * <p>Guard: a tool-less turn with empty text is not a final answer. Reasoning models behind
  * OpenAI-compatible gateways sometimes spend the whole generation on {@code reasoning_content} and
  * return an empty {@code content} with {@code finish_reason: stop} — nothing marks it as a failure,
@@ -62,6 +69,14 @@ public class AgiMateAgent {
 
     /** How many turns before the cap the wrap-up notice is injected; the last turn runs without tools. */
     static final int WRAP_UP_TURNS = 2;
+
+    /**
+     * How many times an absorption may reset the turn budget. Each reset also re-arms the soft
+     * landing, so without a cap a busy session would keep one run alive — and RUNNING — forever,
+     * with nothing but a manual stop to end it. Past the cap the seam stops polling; queued
+     * messages simply run on their own after this run finishes.
+     */
+    static final int MAX_STEERING_RESETS = 5;
 
     static final String WRAP_UP_NOTICE =
             "Бюджет шагов рана почти исчерпан: осталось не более двух ходов. Заверши работу сейчас — "
@@ -146,6 +161,16 @@ public class AgiMateAgent {
             return false;
         }
 
+        /**
+         * Messages of the session that arrived while the run was working (steering), ready to
+         * append to the conversation — framed, oldest first; empty when nothing is pending. Called
+         * at the seam only. The implementation owns the whole exchange: claiming, recording the
+         * turns, and confirming once the model has seen them.
+         */
+        default List<AgentChatMessage> pollSteering() {
+            return List.of();
+        }
+
         RunObserver NOOP = new RunObserver() {};
     }
 
@@ -169,8 +194,11 @@ public class AgiMateAgent {
      * Throws {@link MaxTurnsExceeded} if no final reply is produced.
      */
     public String run(List<AgentChatMessage> messages) {
-        notifyStart(messages);
         int emptyRetries = 0;
+        int steeringResets = 0;
+        boolean started = false;
+        // The injected wrap-up notice, tracked so an absorption can pull it back out of the list.
+        AgentChatMessage wrapUpNotice = null;
         // Tools of *this* run that returned a result — the receipt for a stop. Collected as we go
         // rather than scanned off `messages`: that list opens with the history of earlier runs.
         LinkedHashSet<String> executed = new LinkedHashSet<>();
@@ -178,14 +206,41 @@ public class AgiMateAgent {
         boolean softLanding = maxTurns > WRAP_UP_TURNS;
         for (int turn = 1; turn <= maxTurns; turn++) {
             // The seam: the message list is whole here, so the run can be left loadable.
+            // Cancellation is checked first — a stop must not absorb new work on its way out.
             if (observer.cancelRequested()) {
                 log.info("turn {}: cancelled — stopping at the seam", turn);
                 throw new RunCancelled(List.copyOf(executed));
             }
+            // Steering: messages that arrived in the session while this run was working. Absorbing
+            // one resets the turn budget — the new message deserves the full allowance — and re-arms
+            // the soft landing, so the wrap-up notice (which contradicts fresh work) is pulled out
+            // and re-injected later if needed. The reset cap keeps a chatty session from making the
+            // run immortal: past it, messages stay queued and run on their own.
+            if (steeringResets < MAX_STEERING_RESETS) {
+                List<AgentChatMessage> absorbed = observer.pollSteering();
+                if (!absorbed.isEmpty()) {
+                    steeringResets++;
+                    messages.addAll(absorbed);
+                    if (wrapUpNotice != null) {
+                        messages.remove(wrapUpNotice);
+                        wrapUpNotice = null;
+                    }
+                    log.info("turn {}: absorbed {} steered message(s), turn budget reset ({}/{})",
+                            turn, absorbed.size(), steeringResets, MAX_STEERING_RESETS);
+                    turn = 1;
+                }
+            }
+            // After the first seam's poll, so messages steered in while the run sat queued land in
+            // the snapshot: it must be exactly what the first LLM call sees.
+            if (!started) {
+                notifyStart(messages);
+                started = true;
+            }
             if (softLanding && turn == maxTurns - WRAP_UP_TURNS + 1) {
                 // An ephemeral turn (no notify): it is projected neither into history nor into the channel, like an imitation correction.
                 log.info("turn {}/{}: injecting wrap-up notice", turn, maxTurns);
-                messages.add(AgentChatMessage.user(WRAP_UP_NOTICE));
+                wrapUpNotice = AgentChatMessage.user(WRAP_UP_NOTICE);
+                messages.add(wrapUpNotice);
             }
             boolean toolless = softLanding && turn == maxTurns;
             log.info("turn {}/{}: requesting LLM{}", turn, maxTurns, toolless ? " (tool-less final)" : "");
