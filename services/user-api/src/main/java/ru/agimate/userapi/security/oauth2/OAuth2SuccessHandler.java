@@ -165,7 +165,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
      * reason to turn a registration away.
      */
     private UUID resolveReferrer(String referralCode) {
-        if (!StringUtils.hasText(referralCode)) {
+        if (!CookieOAuth2AuthorizationRequestRepository.isValidRefCode(referralCode)) {
             return null;
         }
         return userService.findByReferralCode(referralCode)

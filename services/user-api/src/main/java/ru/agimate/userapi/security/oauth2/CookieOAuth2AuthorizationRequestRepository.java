@@ -29,10 +29,6 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
     public static final String OAUTH2_REF_COOKIE_NAME = "oauth2_ref";
     public static final int COOKIE_EXPIRE_SECONDS = 900; // 15 minutes
 
-    /**
-     * Unlike {@code redirect_to}, a referral code is never checked against a whitelist later on, so
-     * this is the only thing standing between a query parameter and a response header.
-     */
     private static final Pattern REF_PATTERN = Pattern.compile("^[A-Za-z0-9]{1,16}$");
 
     private final SecretKey encryptionKey;
@@ -73,9 +69,19 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         }
 
         String ref = request.getParameter("ref");
-        if (ref != null && REF_PATTERN.matcher(ref).matches()) {
+        if (isValidRefCode(ref)) {
             addCookie(response, OAUTH2_REF_COOKIE_NAME, ref, COOKIE_EXPIRE_SECONDS);
         }
+    }
+
+    /**
+     * The shape of a referral code, checked on both sides of the round trip. Unlike
+     * {@code redirect_to}, nothing validates it further down, and the cookie it travels in belongs to
+     * the client — so writing it into a response header and reading it back off a request are two
+     * separate places that both need this, not one.
+     */
+    public static boolean isValidRefCode(String value) {
+        return value != null && REF_PATTERN.matcher(value).matches();
     }
 
     @Override

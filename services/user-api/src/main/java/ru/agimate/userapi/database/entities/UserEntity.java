@@ -38,7 +38,7 @@ public class UserEntity extends BaseEntity {
     private UserRole role = UserRole.GUEST;
 
     /** The code this user hands out; everyone has one, whether or not they ever invite anybody. */
-    @Column(name = "referral_code", nullable = false, unique = true, columnDefinition = "TEXT")
+    @Column(name = "referral_code", nullable = false, columnDefinition = "TEXT")
     private String referralCode;
 
     /**

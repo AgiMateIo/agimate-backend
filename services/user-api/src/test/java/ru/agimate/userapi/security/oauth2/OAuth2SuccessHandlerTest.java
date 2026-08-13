@@ -207,6 +207,21 @@ class OAuth2SuccessHandlerTest {
         }
 
         @Test
+        @DisplayName("подделанная cookie отбрасывается — cookie принадлежит клиенту, не нам")
+        void ignoresForgedCookieValue() {
+            UserEntity created = existingUser();
+            provides(userInfo(EMAIL, true, "ivan"));
+            noBinding();
+            when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
+            when(userService.createUser(EMAIL, "Иван", "Петров", "ivan", null)).thenReturn(created);
+
+            assertSame(created, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID,
+                    "K7M2\r\nSet-Cookie: evil=1"));
+
+            verify(userService, never()).findByReferralCode(any());
+        }
+
+        @Test
         @DisplayName("найденного по почте не переатрибутируем — код даже не резолвится")
         void doesNotReattributeUserFoundByEmail() {
             UserEntity user = existingUser();
