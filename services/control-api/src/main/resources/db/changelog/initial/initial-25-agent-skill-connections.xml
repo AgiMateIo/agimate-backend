@@ -5,12 +5,10 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <!-- Какой именно инстанс имеет в виду навык. Раньше вопрос не стоял: внутренние коннекторы
-         привязывались навыком сами (инстанс один на пользователя), а внешние навык привязать не мог
-         вовсе и молча не работали. Ссылка живёт на связке агент↔навык, а не на навыке: один и тот же
-         навык у двух агентов — это два разных телеграма. Строка тут НЕ даёт доступа: доступ по-прежнему
-         agent_connections, а это «навык работает вот с этим». -->
-    <changeSet id="agent-skill-connections" author="agimate">
+    <!-- Which instance exactly the skill means. The reference lives on the agent↔skill binding, not
+         on the skill: the same skill on two agents is two different telegrams. A row here does NOT
+         grant access — access is still agent_connections; this is «the skill works with that one». -->
+    <changeSet id="create-agent-skill-connections-table" author="agimate">
         <createTable tableName="agent_skill_connections">
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
@@ -36,13 +34,14 @@
             </column>
         </createTable>
 
-        <!-- Один инстанс на объявленный код внутри одной привязки навыка: «этот навык у этого агента
-             работает с этим телеграмом», второго ответа быть не может. -->
+        <!-- One instance per declared code within one skill binding: «this skill on this agent works
+             with this telegram», there can be no second answer. -->
         <addUniqueConstraint tableName="agent_skill_connections"
                              columnNames="agent_skill_id, connector_code"
                              constraintName="uq_agent_skill_connections"/>
 
-        <!-- Обратный вопрос «сколько навыков агента ссылается на этот коннекшен» — счётчик в списке подключений. -->
+        <!-- The reverse question — how many of the agent's skills point at this connection — is a
+             counter in the connection listing. -->
         <createIndex tableName="agent_skill_connections" indexName="idx_agent_skill_connections_connection">
             <column name="connection_id"/>
         </createIndex>

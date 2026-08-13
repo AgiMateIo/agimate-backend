@@ -6,7 +6,8 @@
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
     <!-- Canonical full-fidelity turn log: one row per worker AgentChatMessage, uncapped (unlike the
-         channel projection). Written for every run, including direct ones (session_id NULL).
+         channel projection). Written for every run; session_id is copied from the run, which always
+         has one, and is denormalised here so the history window does not join back.
          Idempotency via (run_id, turn_index) — SaveTurn is a plain, non-durable call. -->
     <changeSet id="create-agent-run-turns-table" author="agimate">
         <createTable tableName="agent_run_turns">
@@ -16,7 +17,9 @@
             <column name="run_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="session_id" type="UUID"/>
+            <column name="session_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
             <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
@@ -27,9 +30,10 @@
                 <constraints nullable="false"/>
             </column>
             <column name="text" type="TEXT"/>
-            <column name="thinking" type="BOOLEAN" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
+            <!-- The whole reasoning of the turn. NULL, not '': the model may not have reasoned at
+                 all, and that is not the same as an empty reasoning. Uncapped, like tool_calls and
+                 tool_results next to it — the table is declared full-fidelity. -->
+            <column name="thinking_text" type="TEXT"/>
             <column name="tool_calls" type="JSONB"/>
             <column name="tool_results" type="JSONB"/>
             <column name="finish_reason" type="TEXT"/>

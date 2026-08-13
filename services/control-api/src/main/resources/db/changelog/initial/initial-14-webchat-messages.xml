@@ -53,7 +53,7 @@
         <addForeignKeyConstraint baseTableName="webchat_messages"
                                  baseColumnNames="session_id"
                                  constraintName="fk_webchat_messages_session"
-                                 referencedTableName="channel_sessions"
+                                 referencedTableName="agent_sessions"
                                  referencedColumnNames="id"
                                  onDelete="CASCADE"/>
         <addForeignKeyConstraint baseTableName="webchat_messages"

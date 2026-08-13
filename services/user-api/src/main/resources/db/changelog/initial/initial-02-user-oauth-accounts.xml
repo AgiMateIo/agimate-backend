@@ -5,6 +5,9 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
+    <!-- Identity here is (oauth_provider, provider_user_id), and email is deliberately not unique:
+         one person signing in through a second provider with the same mailbox gets a second row.
+         One account per address is still enforced by users.email. -->
     <changeSet id="create-user-oauth-accounts-table" author="Eugene Smith">
         <createTable tableName="user_oauth_accounts">
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
@@ -20,7 +23,7 @@
                 <constraints nullable="false"/>
             </column>
             <column name="email" type="TEXT">
-                <constraints nullable="false" unique="true"/>
+                <constraints nullable="false"/>
             </column>
             <column name="first_name" type="TEXT"/>
             <column name="last_name" type="TEXT"/>

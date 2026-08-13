@@ -27,9 +27,23 @@
             <column name="api_key_mask" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <!-- Required for the platform provider (fallback for agents without an agent_llms
-                 binding), optional for user-owned ones. -->
-            <column name="default_model" type="TEXT"/>
+            <!-- An allowlist per purpose ({"CHAT": ["m1","m2"], "VISION": []}), not a hint: the
+                 resolver picks the first live model of the list and never searches the registry by
+                 modality on its own. An ordered list rather than a single default model, because one
+                 model could only ever answer for chat, and picking a vision or image model implicitly
+                 meant guessing which of the provider's models the user is willing to pay for. A
+                 missing key and an empty list are different: no key = not configured yet, [] = the
+                 purpose is switched off deliberately; both are reported to the user instead of being
+                 worked around. -->
+            <column name="purpose_priority" type="JSONB"/>
+            <!-- Which dialect the provider is asked for a picture in. NULL = the default
+                 (CHAT_MODALITIES, the OpenRouter convention we started from). It cannot be derived
+                 from provider_type: OpenRouter and Polza are both OPENAI_COMPATIBLE, yet Polza
+                 answers chat/completions for an image model either with a bare 500 or with 200, no
+                 picture and a full charge — measured, see docs/decisions/media-transport.md. Nor can
+                 it be derived from the model: the same model id is reached over different dialects
+                 depending on who serves it. -->
+            <column name="media_transport" type="TEXT"/>
             <!-- Extra chat/completions body params (OpenRouter routing, transforms), merged with the
                  per-model extra_body (model wins). Not a secret. -->
             <column name="extra_body" type="JSONB"/>
@@ -45,13 +59,10 @@
             </column>
         </createTable>
 
+        <!-- Its index also serves the listing by user_id — no separate one on that column. -->
         <addUniqueConstraint tableName="llm_providers"
                              columnNames="user_id, name"
                              constraintName="uq_llm_providers_user_name"/>
-
-        <createIndex tableName="llm_providers" indexName="idx_llm_providers_user_id">
-            <column name="user_id"/>
-        </createIndex>
     </changeSet>
 
 </databaseChangeLog>

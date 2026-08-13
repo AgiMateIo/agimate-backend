@@ -46,8 +46,8 @@ public class AgentRunTurn extends BaseEntity {
     @Column(name = "run_id", nullable = false)
     private UUID runId;
 
-    /** Denormalised continuity key (currently the channel's session, null for direct runs); AgentSession is deferred. */
-    @Column(name = "session_id")
+    /** Denormalised from the run, which always has a session: the history window reads turns without joining back. */
+    @Column(name = "session_id", nullable = false)
     private UUID sessionId;
 
     @Column(name = "agent_id", nullable = false)

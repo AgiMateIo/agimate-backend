@@ -29,6 +29,12 @@
             <column name="skill_names" type="text[]" defaultValueComputed="'{}'::text[]">
                 <constraints nullable="false"/>
             </column>
+            <!-- The preset can say what kind of agent it creates: the external-agent wizard (no model
+                 and no prompt, but a delivery choice) is a different set of steps, and the preset
+                 should decide that, not a list of codes hardcoded in the frontend. NULL = the type is
+                 asked in the wizard. No check of the allowed values — the type is validated when the
+                 agent is created, not here. -->
+            <column name="agent_type" type="TEXT"/>
             <column name="sort_order" type="INTEGER" defaultValueNumeric="0">
                 <constraints nullable="false"/>
             </column>

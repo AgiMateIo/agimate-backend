@@ -33,6 +33,8 @@
             </column>
         </createTable>
 
+        <!-- One trigger per name per instance among active rows; a re-discovered trigger reuses the
+             row rather than colliding with its soft-deleted predecessor. -->
         <sql>
             CREATE UNIQUE INDEX uq_connection_triggers_connection_name
                 ON connection_triggers (connection_id, name)

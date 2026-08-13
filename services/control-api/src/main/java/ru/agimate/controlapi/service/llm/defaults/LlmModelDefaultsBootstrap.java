@@ -19,9 +19,9 @@ import java.util.stream.Collectors;
  * Seeding of the curated capability fallback ({@code llm_model_defaults}) from
  * {@code seed/llm-models.yaml} at application start.
  *
- * <p>It used to be an INSERT block inside the initial changelog with {@code ON CONFLICT DO NOTHING},
- * which meant a refreshed snapshot never reached an installation that had already been seeded — the
- * data would age in place and only a data migration could move it. Here the file owns the content:
+ * <p>The migration only creates the table and never fills it. Seeding rows from the changelog would
+ * mean a refreshed snapshot never reaches an installation that had already been seeded — the data
+ * would age in place and only a data migration could move it. Here the file owns the content:
  * refreshing the snapshot is a deploy. Overwriting is safe because nothing writes this table at
  * runtime and the fallback is applied per field — a value discovered from the provider always wins,
  * so a changed row cannot break a working provider's registry.

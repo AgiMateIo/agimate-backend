@@ -8,12 +8,10 @@
     <!-- Curated capability fallback for providers whose /models returns bare ids without metadata.
          Applied per field on refresh, discovered values win; a missing row means unknown.
 
-         The table is created empty. The rows used to be an INSERT block here (ON CONFLICT DO
-         NOTHING), which froze the snapshot at whatever an installation was first seeded with; they
-         now come from resources/seed/llm-models.yaml, upserted on every start by
-         LlmModelDefaultsBootstrap, so refreshing the snapshot is a deploy. The old changeset stays
-         recorded in DATABASECHANGELOG on databases that ran it — its rows are simply overwritten by
-         the first start on the new build. -->
+         The table is created empty on purpose. The rows come from resources/seed/llm-models.yaml,
+         upserted on every start by LlmModelDefaultsBootstrap, so refreshing the snapshot is a deploy.
+         Seeding them from here would instead freeze the snapshot at whatever an installation was
+         first created with. -->
     <changeSet id="create-llm-model-defaults-table" author="agimate">
         <createTable tableName="llm_model_defaults">
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">

@@ -18,10 +18,9 @@ import java.util.UUID;
  * prefix of the tool namespace (mcp_context7.resolve-library-id); for a static singleton it equals
  * {@code connector_code}.
  *
- * <p>Uniqueness among active rows: {@code (connector_code, user_id, sub_code)} and
- * {@code (full_code, user_id)} — partial unique indexes {@code WHERE deleted_at IS NULL} (see the
- * migration {@code initial-24-connections.xml}). JPA {@code @UniqueConstraint} cannot express a
- * partial one, so it is not declared.
+ * <p>Uniqueness among active rows: {@code (connector_code, user_id, exclusive_sub_code)} and
+ * {@code (full_code, user_id)} — partial unique indexes {@code WHERE deleted_at IS NULL}. JPA
+ * {@code @UniqueConstraint} cannot express a partial one, so neither is declared here.
  */
 @Entity
 @Table(name = "connections")

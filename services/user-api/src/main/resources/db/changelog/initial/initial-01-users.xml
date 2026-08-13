@@ -5,6 +5,10 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
+    <!-- referred_by is a snapshot of the moment the account was created and never changes afterwards
+         — an existing user following somebody's link must not be re-attributed, and that rule lives
+         in the code, not in this DDL. referral_code is handed to every user whether or not they ever
+         invite anybody, which is what makes NOT NULL possible. -->
     <changeSet id="create-users-table" author="Eugene Smith">
         <createTable tableName="users">
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
@@ -19,6 +23,10 @@
             <column name="role" type="TEXT" defaultValue="GUEST">
                 <constraints nullable="false"/>
             </column>
+            <column name="referral_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="referred_by" type="UUID"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
@@ -26,6 +34,17 @@
                 <constraints nullable="false"/>
             </column>
         </createTable>
+
+        <addUniqueConstraint tableName="users" columnNames="referral_code"
+                             constraintName="uq_users_referral_code"/>
+
+        <addForeignKeyConstraint baseTableName="users" baseColumnNames="referred_by"
+                                 referencedTableName="users" referencedColumnNames="id"
+                                 constraintName="fk_users_referred_by"/>
+
+        <createIndex tableName="users" indexName="idx_users_referred_by">
+            <column name="referred_by"/>
+        </createIndex>
     </changeSet>
 
 </databaseChangeLog>

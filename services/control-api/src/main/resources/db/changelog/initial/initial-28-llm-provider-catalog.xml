@@ -5,24 +5,21 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
          http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
 
-    <changeSet id="create-llm-provider-catalog" author="agimate">
-        <comment>
-            Prefill for the «add a provider» form: the known gateways with the two facts a user cannot
-            possibly guess — base_url and the media dialect (see docs/decisions/media-transport.md).
-            The rows are seeded from resources/seed/llm-providers.yaml on every start.
+    <!-- Prefill for the «add a provider» form: the known gateways with the two facts a user cannot
+         possibly guess — base_url and the media dialect (see docs/decisions/media-transport.md). The
+         rows are seeded from resources/seed/llm-providers.yaml on every start.
 
-            Ownership is split, and this is the whole point of the table: the seed owns the content
-            (an upsert by code overwrites name/base_url/purpose_priority/… so a stale model id is
-            fixed by a deploy rather than by a data migration), the installation owns `enabled` —
-            it is never written by the seed, so a recommendation switched off here stays off across
-            upgrades. A row whose code is absent from the seed (an on-prem corporate gateway) is not
-            touched at all: the bootstrap iterates the file, not the table.
+         Ownership is split, and this is the whole point of the table: the seed owns the content (an
+         upsert by code overwrites name/base_url/purpose_priority/… so a stale model id is fixed by a
+         deploy rather than by a data migration), the installation owns `enabled` — it is never
+         written by the seed, so a recommendation switched off here stays off across upgrades. A row
+         whose code is absent from the seed (an on-prem corporate gateway) is not touched at all: the
+         bootstrap iterates the file, not the table.
 
-            The catalogue never participates in resolution at call time. It fills a form; the source
-            of truth for a working provider stays the llm_providers row — hence no unique constraint
-            or foreign key tying the two together.
-        </comment>
-
+         The catalogue never participates in resolution at call time. It fills a form; the source of
+         truth for a working provider stays the llm_providers row — hence no unique constraint or
+         foreign key tying the two together. -->
+    <changeSet id="create-llm-provider-catalog-table" author="agimate">
         <createTable tableName="llm_provider_catalog">
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>

@@ -19,9 +19,6 @@
             <column name="llm_provider_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="name" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
             <column name="model" type="TEXT">
                 <constraints nullable="false"/>
             </column>
@@ -38,9 +35,11 @@
             </column>
         </createTable>
 
+        <!-- One model per purpose per agent — the binding has no other identity, and a second row
+             for the same purpose would make model selection a coin toss. -->
         <addUniqueConstraint tableName="agent_llms"
-                             columnNames="agent_id, name"
-                             constraintName="uq_agent_llms_agent_name"/>
+                             columnNames="agent_id, purpose"
+                             constraintName="uq_agent_llms_agent_purpose"/>
 
         <addForeignKeyConstraint baseTableName="agent_llms"
                                  baseColumnNames="agent_id"

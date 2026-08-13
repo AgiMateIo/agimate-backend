@@ -83,6 +83,11 @@
         <addUniqueConstraint tableName="llm_usage_counters"
                              columnNames="llm_provider_id, subject_kind, subject_id, win, window_start"
                              constraintName="uq_llm_usage_counters_key"/>
+
+        <!-- The run-cost aggregate above is read by the runs view — one query per listing page. -->
+        <createIndex tableName="llm_usage_log" indexName="idx_llm_usage_log_run">
+            <column name="run_id"/>
+        </createIndex>
     </changeSet>
 
 </databaseChangeLog>

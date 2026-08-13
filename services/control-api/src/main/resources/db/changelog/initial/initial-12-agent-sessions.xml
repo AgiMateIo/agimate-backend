@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Every run has a session, and the session is the ordering key of the agent_exec queue
+         (docs/decisions/agent-sessions.md) — it is not an artifact of a channel, hence
+         last_activity_at rather than last_message_at: a connection session has no messages at all,
+         its activity is brought by triggers.
+
+         scope is an explicit discriminator instead of «guess from which columns are filled»: it
+         stands in the predicate of the unique index and in the check, so both read as intent.
+         connector_code and connection_id are filled for channel sessions too — the channel carries
+         them NOT NULL anyway, and per-connector history would otherwise need a join on channels. -->
+    <changeSet id="create-agent-sessions-table" author="agimate">
+        <createTable tableName="agent_sessions">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="scope" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connector_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connection_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Set for CHANNEL sessions only; the check below ties it to the scope. -->
+            <column name="channel_id" type="UUID"/>
+            <column name="title" type="TEXT"/>
+            <column name="last_activity_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="closed_at" type="TIMESTAMP"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <addForeignKeyConstraint baseTableName="agent_sessions"
+                                 baseColumnNames="channel_id"
+                                 constraintName="fk_agent_sessions_channel"
+                                 referencedTableName="channels"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <addForeignKeyConstraint baseTableName="agent_sessions"
+                                 baseColumnNames="agent_id"
+                                 constraintName="fk_agent_sessions_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <sql>
+            ALTER TABLE agent_sessions
+                ADD CONSTRAINT chk_agent_sessions_scope
+                CHECK (scope IN ('CHANNEL', 'CONNECTION'));
+
+            ALTER TABLE agent_sessions
+                ADD CONSTRAINT chk_agent_sessions_channel
+                CHECK ((scope = 'CHANNEL') = (channel_id IS NOT NULL));
+        </sql>
+
+        <!-- Only CONNECTION sessions are unique per live row. One channel legitimately has many live
+             sessions — that is how webchat keeps its list of conversations — and connection_id is
+             filled for them too, so without scope in the predicate this index would kill the second
+             webchat conversation. -->
+        <sql>
+            CREATE UNIQUE INDEX uq_agent_sessions_connection_live
+                ON agent_sessions (agent_id, connection_id)
+                WHERE closed_at IS NULL AND scope = 'CONNECTION';
+        </sql>
+
+        <!-- Serves both «the sessions of this channel» and their ordering by recency — a separate
+             index on channel_id alone would be a prefix of this one. -->
+        <createIndex tableName="agent_sessions" indexName="idx_agent_sessions_channel_active">
+            <column name="channel_id"/>
+            <column name="last_activity_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

@@ -29,6 +29,27 @@
             <column name="input" type="JSONB"/>
             <column name="agent_session_id" type="TEXT"/>
             <column name="access_effect" type="TEXT"/>
+            <!-- Detached tools: the worker waits no longer than the grace threshold, then lets go
+                 (DetachTool) and the result reaches the agent as a tool_completed trigger — a new run
+                 of the same session. MCP tasks reuse the same row (taskId = external_id).
+
+                 detached_at is a visible and irreversible change of owner: after it GetToolResult
+                 answers DETACHED forever (even for a finished call), and the backend knows delivery
+                 is on it. Set by a guarded UPDATE with finish_at IS NULL — a late detach gets the
+                 ready result instead of the stamp.
+
+                 delivered_at is «delivered exactly once»: a claim-first guarded UPDATE before the
+                 delivering run is created. Without it a repeated result post from an app would spawn
+                 a second run and a second answer to the user.
+
+                 cancel_requested_at is the cooperative tasks/cancel. Also set only while the call is
+                 unfinished, so by construction the stamp means «cancelled while running»: a finished
+                 row carrying it reads as cancelled, and cancelling an already finished task touches
+                 0 rows. The execution itself is not interrupted — an interrupt in the middle of
+                 somebody else's API would leave an unknown state on that side. -->
+            <column name="detached_at" type="TIMESTAMP"/>
+            <column name="delivered_at" type="TIMESTAMP"/>
+            <column name="cancel_requested_at" type="TIMESTAMP"/>
             <column name="finish_at" type="TIMESTAMP"/>
             <column name="output" type="TEXT"/>
             <column name="error" type="TEXT"/>
@@ -40,16 +61,13 @@
             </column>
         </createTable>
 
+        <!-- Its index also serves the per-agent listing — no separate one on agent_id. -->
         <addUniqueConstraint tableName="tool_call_logs"
                              columnNames="agent_id, external_id"
                              constraintName="uq_tool_call_logs_agent_id_external_id"/>
 
         <createIndex tableName="tool_call_logs" indexName="idx_tool_call_logs_user_id">
             <column name="user_id"/>
-        </createIndex>
-
-        <createIndex tableName="tool_call_logs" indexName="idx_tool_call_logs_agent_id">
-            <column name="agent_id"/>
         </createIndex>
 
         <createIndex tableName="tool_call_logs" indexName="idx_tool_call_logs_created_at">

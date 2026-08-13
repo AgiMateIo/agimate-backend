@@ -27,7 +27,12 @@
             <column name="destination" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="session_id" type="UUID"/>
+            <!-- A run is only ever born from a trigger, and a trigger always has a connector and a
+                 connection, so the session always exists — an invariant in the schema rather than
+                 an agreement. -->
+            <column name="session_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
             <column name="status" type="TEXT" defaultValue="ENQUEUED">
                 <constraints nullable="false"/>
             </column>
@@ -37,6 +42,30 @@
             <column name="prompt" type="JSONB"/>
             <column name="result" type="TEXT"/>
             <column name="error" type="TEXT"/>
+            <!-- The cancellation request is kept apart from the status: the current step runs to its
+                 end between the click and the stop, and all that time the run is still RUNNING.
+                 Otherwise we would either lie about instant cancellation or invent a CANCELLING
+                 status that means nothing to the queue. The same field settles the «cancel against
+                 finish» race: a terminal ANSWER becomes CANCELLED with it, DONE without it. -->
+            <column name="cancel_requested_at" type="TIMESTAMP"/>
+            <!-- History for the next run is assembled from agent_run_turns, and SaveTurn is
+                 best-effort: a lost turn leaves a tool_use without its tool_result, and the provider
+                 rejects such a request whole. The journal is checked once, when the run finishes
+                 (turn_index continuity and pairing of the last turn), and the verdict stays here. -->
+            <column name="turns_intact" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Steering: a running run takes over the incoming messages of younger ENQUEUED runs of
+                 its session. Two facts rather than one, because the claim and the absorption are
+                 different events with different failures: main_run_id is set on the claim
+                 (ClaimSteering), steered_at when the model actually saw the message (MarkSteered,
+                 after the LLM call returned). A lost claim response leaves steered_at empty — the
+                 run works on its own and the message is not lost; a lost confirmation gives a
+                 duplicate answer, but not a loss. -->
+            <column name="main_run_id" type="UUID">
+                <constraints foreignKeyName="fk_agent_runs_main_run" references="agent_runs(id)"/>
+            </column>
+            <column name="steered_at" type="TIMESTAMP"/>
             <column name="last_activity_at" type="TIMESTAMP"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
@@ -50,16 +79,30 @@
                              columnNames="trigger_log_id, agent_id"
                              constraintName="uq_agent_runs_log_id_agent_id"/>
 
+        <!-- TEXT with a check enumeration rather than an enum type — a new status is a recreation of
+             this constraint. STEERED is the terminal outcome of a claimed run: main_run_id absorbed
+             and answered its message. -->
         <sql>
             ALTER TABLE agent_runs
                 ADD CONSTRAINT chk_agent_runs_status
-                CHECK (status IN ('ENQUEUED', 'RUNNING', 'DONE', 'FAILED', 'CANCELLED'));
+                CHECK (status IN ('ENQUEUED', 'RUNNING', 'DONE', 'FAILED', 'CANCELLED', 'STEERED'));
         </sql>
 
         <!-- Per-agent listing; the (trigger_log_id, agent_id) unique does not cover this access. -->
         <createIndex tableName="agent_runs" indexName="idx_agent_runs_agent_id_created_at">
             <column name="agent_id"/>
             <column name="created_at" descending="true"/>
+        </createIndex>
+
+        <!-- The history window — the last N runs of a session. Turns are then selected by
+             run_id IN (...), which uq_agent_run_turns_run_turn already serves. -->
+        <createIndex tableName="agent_runs" indexName="idx_agent_runs_session_created">
+            <column name="session_id"/>
+            <column name="created_at"/>
+        </createIndex>
+
+        <createIndex tableName="agent_runs" indexName="idx_agent_runs_main_run">
+            <column name="main_run_id"/>
         </createIndex>
     </changeSet>
 

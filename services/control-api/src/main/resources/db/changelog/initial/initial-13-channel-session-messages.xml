@@ -51,7 +51,7 @@
         <addForeignKeyConstraint baseTableName="channel_session_messages"
                                  baseColumnNames="session_id"
                                  constraintName="fk_channel_session_messages_session"
-                                 referencedTableName="channel_sessions"
+                                 referencedTableName="agent_sessions"
                                  referencedColumnNames="id"
                                  onDelete="CASCADE"/>
 
