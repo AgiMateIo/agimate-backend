@@ -79,6 +79,7 @@
 | | |
 |---|---|
 | [uuid-primary-keys.md](decisions/uuid-primary-keys.md) | Переход на UUIDv7 в первичных ключах |
+| [schema-conventions.md](decisions/schema-conventions.md) | Имена индексов и ограничений, комментарии в changelog'ах, сворачивание `updates/` в `initial/` |
 | [media-transport.md](decisions/media-transport.md) | Как выбирается диалект провайдера при генерации изображений |
 | [acp-comparison.md](decisions/acp-comparison.md) | Agent Communication Protocol против нашей архитектуры |
 | [mcp-oauth.md](decisions/mcp-oauth.md) | OAuth в MCP-коннекторе: discovery по 401, CIMD вместо DCR, состояние на коннекции |
