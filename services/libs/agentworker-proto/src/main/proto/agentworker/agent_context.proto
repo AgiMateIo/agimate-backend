@@ -28,7 +28,7 @@ service AgentContext {
   // itself, atomically (agent_runs.main_run_id = run_id), and receives their inbound messages to
   // absorb mid-loop. Polled at the loop seam, best-effort and not a durable step; idempotent for
   // the same main — a replay or retry re-fetches whatever is still claimed and unconfirmed.
-  // Empty response: nothing queued (or the run has no session). The claim alone proves nothing —
+  // Empty response: nothing queued. The claim alone proves nothing —
   // absorption is confirmed separately (MarkSteered), so a claim whose response is lost degrades
   // into the claimed run executing normally, never into a lost message.
   rpc ClaimSteering(ClaimSteeringRequest) returns (ClaimSteeringResponse);

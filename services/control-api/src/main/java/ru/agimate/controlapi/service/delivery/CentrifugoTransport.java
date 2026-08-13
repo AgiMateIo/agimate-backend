@@ -30,7 +30,7 @@ public class CentrifugoTransport implements AgentTransport {
         Agent agent = agentRun.getAgent();
         String agentId = agent.getId().toString();
         String type = channels != null ? "channel_message" : "trigger";
-        String sessionId = agentRun.getSessionId() != null ? agentRun.getSessionId().toString() : null;
+        String sessionId = agentRun.getSessionId().toString();
         AgentMessage<Trigger> message = new AgentMessage<>(
                 agentId, agentRun.getId().toString(), type, sessionId, channels, inbound, trigger);
         centrifugoService.publish(agentChannel(agent), message);

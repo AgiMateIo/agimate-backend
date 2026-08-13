@@ -211,9 +211,11 @@ class MessageLogServiceTest {
         }
 
         @Test
-        @DisplayName("direct-ран: ANSWER → result, ERROR → error, истории и доставки нет")
-        void directRun() {
-            AgentRun run = run(null, null);
+        @DisplayName("ран без каналов: ANSWER → result, ERROR → error; сессия есть, но проекции нет")
+        void runWithoutChannels() {
+            // Сессия коннекшена у такого рана есть всегда — признак «канальный» даёт снапшот каналов,
+            // а не её наличие; иначе события коннекторов поехали бы в историю чата.
+            AgentRun run = run(SESSION_ID, null);
 
             service.save(AGENT_ID, TRIGGER_ID, 1, ChannelSessionMessageKind.ANSWER, null, "done", null);
             assertEquals("done", run.getResult());

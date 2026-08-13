@@ -2,7 +2,7 @@ package ru.agimate.controlapi.service.session;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.database.entities.AgentSession;
@@ -21,7 +21,7 @@ import java.util.UUID;
  * run, then the channel's, and only then this one.
  */
 @Slf4j
-@Component
+@Service
 @RequiredArgsConstructor
 public class AgentSessionResolver {
 

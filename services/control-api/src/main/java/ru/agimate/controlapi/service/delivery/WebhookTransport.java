@@ -62,7 +62,7 @@ public class WebhookTransport implements AgentTransport {
                 agent.getId().toString(),
                 agentRun.getId().toString(),
                 type,
-                agentRun.getSessionId() != null ? agentRun.getSessionId().toString() : null,
+                agentRun.getSessionId().toString(),
                 channels,
                 inbound,
                 trigger);
