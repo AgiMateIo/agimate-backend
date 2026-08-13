@@ -1,3 +1,8 @@
+---
+status: deferred
+created: 2026-07-19
+---
+
 # Terminal-коннектор + sandbox-runner (control-api) — дизайн
 
 Даёт агенту инструмент **исполнять bash в серверной песочнице** и рабочий каталог (workspace),

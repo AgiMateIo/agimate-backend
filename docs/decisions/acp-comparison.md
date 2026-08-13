@@ -1,3 +1,8 @@
+---
+status: analysis
+created: 2026-06-29
+---
+
 # ACP vs AgiMate backend — что взять, что у нас иначе, что у нас лучше
 
 Разбор [Agent Communication Protocol](https://agentcommunicationprotocol.dev/) применительно к нашей
@@ -26,12 +31,12 @@ discovery). Брать стоит не «протокол», а отдельны
   У нас сейчас любой `агент→пользователь` через канал **завершает** workflow, ответ юзера прилетает
   новым триггером и сшивается по `sessionId` — то есть мы рвём и пересобираем ReAct-состояние на
   каждый ход. Для уточняющего вопроса посреди задачи дешевле `DBOS.recv` на том же workflow.
-  → Прямой вход в открытый вопрос §6 про **conversation state**.
+  → См. «Что из этого стало»: вопрос про историю закрыт иначе, сам приём не понадобился.
 - **Словарь run-статусов, особенно `awaiting` и `cancelling`.** ACP:
   `created → in-progress → awaiting → (cancelling) → completed/failed`. Наш `ReportStatus`
   (`started/step_completed/waiting_signal/completed/failed`) близок, но `WorkflowReporting` **не
-  реализован** (§5.7). `cancelling` — готовый ответ на открытый вопрос §6 про **cancellation**
-  (отмена = состояние дренажа in-flight tool-вызова, а не мгновенная смерть).
+  реализован**. `cancelling` предлагался как ответ на **cancellation** (отмена = состояние дренажа
+  in-flight tool-вызова, а не мгновенная смерть); отмену сделали без него.
 - **MessagePart с `content_type` (MIME) как форма для мультимодальности.** ACP Message = упорядоченный
   список частей, каждая со своим MIME. У нас `ChannelHandler.handleInput` вытаскивает текст (generic —
   JSON от `trigger.data`). Пока агенты текстовые — YAGNI. **Когда** прилетит картинка/файл/аудио —
@@ -42,7 +47,7 @@ discovery). Брать стоит не «протокол», а отдельны
 | ACP | У нас | Комментарий |
 |---|---|---|
 | Sync/Async/Streaming как REST-паттерны на `/runs` (poll или SSE) | DBOS durable workflow (async = дефолт) + 4 паттерна на уровне *тулы* (sync/stream/batch/async) поверх gRPC | ACP-async = poll/SSE; наш = DBOS-signal, **polling сознательно запрещён**. Наш путь durable, переживает краш. |
-| Sessions: история на сервере по `session_id` поверх stateless REST | `AgentRun.sessionId` (single-writer-per-session из prompt-канала) | Ключ у нас чище — не клиентский, а enforced single-writer. Где живёт сама история — открытый §6; ACP отвечает «server-side store». |
+| Sessions: история на сервере по `session_id` поверх stateless REST | `AgentRun.sessionId` (single-writer-per-session из prompt-канала) | Ключ у нас чище — не клиентский, а enforced single-writer. Где живёт сама история — решено: журнал ходов `agent_run_turns` ([history-from-turn-ledger.md](history-from-turn-ledger.md)). |
 | Discovery: адресация по имени, manifest-роутинг, offline-discovery через OCI | Воркер получает `agent_id` в DBOS-payload и тянет `AgentSpec` по id (versioned) | Платформа и так знает всех агентов. OCI/offline — нерелевантно, мы не пакуем агентов в артефакты. |
 | Transport: REST/HTTP, no-SDK, curl-friendly | gRPC/TLS/HTTP2 на worker-плоскости | Разные приоритеты. При этом user-facing surface у нас **тоже REST** (user-api/control-api app) — просто разнесли плоскости. |
 
@@ -66,13 +71,20 @@ discovery). Брать стоит не «протокол», а отдельны
 **Не берём осознанно:** offline/OCI-discovery, name-based сетевой discovery, и особенно **polling за
 async-результатом** (ACP допускает — мы правильно отвергли, регрессировать нельзя).
 
-## Практический выхлоп (в открытые вопросы §6 worker-спеки)
+## Что из этого стало
 
-- **Cancellation** → ввести статус `cancelling` как явное состояние дренажа in-flight tool-вызова.
-- **Conversation state** → рассмотреть `await/resume` через `DBOS.recv` на том же workflow для
-  уточняющих вопросов (сохраняет ReAct-состояние; межтриггерный кейс — отдельно).
-- **WorkflowReporting** (когда дойдёт) → принять ACP-словарь run-статусов как референс, добавив
-  `awaiting`.
+Разбор был написан в июне 2026 и адресован в раздел открытых вопросов worker-спеки, которого больше
+нет. Два пункта из трёх закрылись — и не так, как здесь предлагалось:
+
+- **Cancellation** → сделана в августе 2026 **без статуса `cancelling`**: отмена кооперативна и
+  проверяется на швах цикла, а дренаж оказался свойством тул-хода, а не рана
+  ([run-cancellation.md](run-cancellation.md)).
+- **Conversation state** → история переехала на канонический журнал ходов, а не на `DBOS.recv`
+  ([history-from-turn-ledger.md](history-from-turn-ledger.md)); дописать бегущему рану удалось
+  стирингом ([steering.md](steering.md)). `await/resume` на том же воркфлоу так и не понадобился —
+  вернуться к нему стоит, если появится тул, которому нужен ответ пользователя посреди задачи.
+- **WorkflowReporting** — по-прежнему не реализован, и это единственный живой пункт разбора: когда
+  дойдёт, словарь run-статусов ACP остаётся бесплатным референсом.
 
 ## Источники
 

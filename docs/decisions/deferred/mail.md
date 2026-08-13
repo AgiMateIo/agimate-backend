@@ -1,3 +1,8 @@
+---
+status: deferred
+created: 2026-06-02
+---
+
 # Mail connector (отложено)
 
 Заметки по проектированию интеграции `mail` (тип `INTEGRATION`) для отправки и чтения писем через SMTP+IMAP.

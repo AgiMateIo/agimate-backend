@@ -1,3 +1,9 @@
+---
+status: implemented
+created: 2026-08-13
+implemented: 2026-08-13
+---
+
 # MCP-таски: долгий вызов отвечает хэндлом таска
 
 Решение о реализации расширения `io.modelcontextprotocol/tasks` (ревизия 2026-07-28) на нашем
