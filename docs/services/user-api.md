@@ -124,6 +124,32 @@ Supports OAuth2 login from multiple frontend domains (e.g. `agimate.ru` and `agi
 
 For `refresh` and `logout` endpoints, the cookie domain is resolved from the request's `Host` header by matching against `allowed-redirect-urls`.
 
+## Реферальные ссылки
+
+Код есть у каждого пользователя (`users.referral_code`), а у каждого пришедшего по ссылке —
+пригласивший (`users.referred_by`). Решение и отвергнутые варианты — [Реферальные
+ссылки](../decisions/referrals.md).
+
+**Контракт с фронтом.** Код добавляется к authorization-URL рядом с `redirect_to`:
+
+```
+GET /user/oauth2/authorization/google?redirect_to=https://www.agimate.ru/login&ref=K7M2QX9F
+```
+
+Дальше он на время круга к провайдеру ложится в cookie `oauth2_ref` (15 минут, как и
+`oauth2_redirect_to`) и читается уже на колбэке. Довезти код с лендинга до кнопки «Войти» — задача
+клиента: бэкенд видит его только в момент старта OAuth, а не в момент клика по ссылке. Значение
+фильтруется до записи в cookie (`[A-Za-z0-9]{1,16}`) — в отличие от `redirect_to`, позже его никто
+не проверяет.
+
+Свой код отдаёт `GET /user/referral` вместе с числом приведённых. Путь намеренно лежит вне
+`/user/**`, который пускает и `GUEST`, поэтому цепочка требует `USER` — аккаунт, ждущий одобрения,
+приглашать не может.
+
+**Атрибуция ставится один раз, при создании аккаунта.** Вход существующего пользователя по чужой
+ссылке ничего не меняет, поэтому ссылка приводит только новых людей. Роль она при этом не меняет:
+приглашённый заводится как `GUEST` и одобряется администратором.
+
 **Production example:**
 ```
 APP_OAUTH_ALLOWED_REDIRECT_URLS=https://www.agimate.ru/login,https://www.agimate.io/login

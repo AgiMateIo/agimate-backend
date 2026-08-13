@@ -11,7 +11,7 @@ import ru.agimate.common.security.UserRole;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users", uniqueConstraints = @UniqueConstraint(columnNames = "referral_code"))
 @Getter
 @Setter
 public class UserEntity extends BaseEntity {
@@ -36,6 +36,17 @@ public class UserEntity extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, columnDefinition = "TEXT")
     private UserRole role = UserRole.GUEST;
+
+    /** The code this user hands out; everyone has one, whether or not they ever invite anybody. */
+    @Column(name = "referral_code", nullable = false, unique = true, columnDefinition = "TEXT")
+    private String referralCode;
+
+    /**
+     * Who invited this user — a snapshot of the moment the account was created. Signing in again
+     * through somebody else's link does not change it, so a link can only ever bring new people.
+     */
+    @Column(name = "referred_by")
+    private UUID referredBy;
 
     // Constructors
     public UserEntity() {}

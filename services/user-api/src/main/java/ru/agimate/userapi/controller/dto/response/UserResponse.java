@@ -27,6 +27,9 @@ public record UserResponse(
         @Schema(description = "User role — drives access to admin-only features", example = "USER")
         UserRole role,
 
+        @Schema(description = "Who invited this user; absent for everyone who came on their own")
+        UUID referredBy,
+
         @Schema(description = "User creation timestamp")
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
         LocalDateTime createdAt,

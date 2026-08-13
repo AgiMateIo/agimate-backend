@@ -14,6 +14,7 @@ import ru.agimate.common.security.UserRole;
 import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.repositories.UserRepository;
 import ru.agimate.userapi.database.repositories.UserSpecs;
+import ru.agimate.userapi.util.ReferralCodes;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -25,6 +26,7 @@ import java.util.UUID;
 public class UserService {
 
     private static final int MAX_PAGE_SIZE = 100;
+    private static final int REFERRAL_CODE_ATTEMPTS = 3;
 
     private final UserRepository userRepository;
 
@@ -36,10 +38,42 @@ public class UserService {
         return userRepository.findById(id);
     }
 
+    public Optional<UserEntity> findByReferralCode(String referralCode) {
+        return userRepository.findByReferralCode(referralCode);
+    }
+
+    public long countInvited(UUID referrerId) {
+        return userRepository.countByReferredBy(referrerId);
+    }
+
+    /**
+     * @param referredBy who invited them, or null — set here and never again, so that following
+     *                   somebody's link later cannot re-attribute an account that already exists
+     */
     @Transactional
-    public UserEntity createUser(String email, String firstName, String lastName, String displayName) {
+    public UserEntity createUser(String email, String firstName, String lastName, String displayName,
+                                 UUID referredBy) {
         UserEntity userEntity = new UserEntity(email, firstName, lastName, displayName);
+        userEntity.setReferralCode(freeReferralCode());
+        userEntity.setReferredBy(referredBy);
         return userRepository.save(userEntity);
+    }
+
+    /**
+     * Taken is checked before the insert instead of catching the constraint violation after it: a
+     * failed statement marks the PostgreSQL transaction as aborted, and retrying inside it is no
+     * longer possible. Two concurrent signups drawing the same code out of 2^40 remain possible in
+     * theory and would surface as a failed registration.
+     */
+    private String freeReferralCode() {
+        for (int attempt = 0; attempt < REFERRAL_CODE_ATTEMPTS; attempt++) {
+            String code = ReferralCodes.generate();
+            if (!userRepository.existsByReferralCode(code)) {
+                return code;
+            }
+        }
+        throw new IllegalStateException(
+                "No free referral code in " + REFERRAL_CODE_ATTEMPTS + " attempts");
     }
 
     @Transactional

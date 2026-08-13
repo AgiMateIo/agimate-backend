@@ -70,7 +70,10 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String registrationId = getRegistrationId(authentication);
 
-        UserEntity userEntity = createOrGetUserFromOAuth(oAuth2User, registrationId);
+        String referralCode = getCookieValue(request,
+                CookieOAuth2AuthorizationRequestRepository.OAUTH2_REF_COOKIE_NAME);
+
+        UserEntity userEntity = createOrGetUserFromOAuth(oAuth2User, registrationId, referralCode);
 
         // Generate JWT tokens
         AgimateUserPrincipal agimateUserPrincipal = AgimateUserPrincipal.fromUser(
@@ -79,7 +82,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         String refreshTokenId = UUID.randomUUID().toString();
         String refreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, refreshTokenId);
 
-        String redirectToUrl = getRedirectToCookieValue(request);
+        String redirectToUrl = getCookieValue(request,
+                CookieOAuth2AuthorizationRequestRepository.OAUTH2_REDIRECT_TO_COOKIE_NAME);
         OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRedirectUrl(redirectToUrl);
 
         refreshTokenService.setHttpOnlyRefreshTokenCookie(response, refreshToken,
@@ -95,13 +99,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         response.getWriter().flush();
     }
 
-    private String getRedirectToCookieValue(HttpServletRequest request) {
+    private String getCookieValue(HttpServletRequest request, String name) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
             return null;
         }
         return Arrays.stream(cookies)
-                .filter(c -> CookieOAuth2AuthorizationRequestRepository.OAUTH2_REDIRECT_TO_COOKIE_NAME.equals(c.getName()))
+                .filter(c -> name.equals(c.getName()))
                 .findFirst()
                 .map(Cookie::getValue)
                 .orElse(null);
@@ -117,7 +121,12 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         throw new IllegalStateException("Unable to determine OAuth2 registration ID from authentication");
     }
 
-    public UserEntity createOrGetUserFromOAuth(OAuth2User oAuth2User, String registrationId) {
+    /**
+     * @param referralCode the code the visitor arrived with, or null; it is honoured only when this
+     *                     call ends up creating an account
+     */
+    public UserEntity createOrGetUserFromOAuth(OAuth2User oAuth2User, String registrationId,
+                                               String referralCode) {
         OAuthUserAdapter adapter = adapters.require(registrationId);
         OAuthUserInfo userInfo = adapter.extract(oAuth2User);
 
@@ -132,7 +141,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         String displayName = StringUtils.hasText(userInfo.displayName()) ? userInfo.displayName() : email;
 
         UserEntity userEntity = userService.findByEmail(email)
-                .orElseGet(() -> userService.createUser(email, userInfo.firstName(), userInfo.lastName(), displayName));
+                .orElseGet(() -> userService.createUser(email, userInfo.firstName(), userInfo.lastName(),
+                        displayName, resolveReferrer(referralCode)));
 
         UserOAuthAccount oAuthAccount = UserOAuthAccount.builder()
                 .userEntity(userEntity)
@@ -146,6 +156,24 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         userOAuthAccountRepository.save(oAuthAccount);
 
         return userEntity;
+    }
+
+    /**
+     * Resolved inside the creating branch alone: a link can only ever bring new people, so an
+     * account that already exists keeps whoever brought it here in the first place. An unknown code
+     * is a typo in a link or a campaign that outlived its owner — it is logged and dropped, never a
+     * reason to turn a registration away.
+     */
+    private UUID resolveReferrer(String referralCode) {
+        if (!StringUtils.hasText(referralCode)) {
+            return null;
+        }
+        return userService.findByReferralCode(referralCode)
+                .map(UserEntity::getId)
+                .orElseGet(() -> {
+                    log.warn("Unknown referral code on signup: {}", referralCode);
+                    return null;
+                });
     }
 
     /**

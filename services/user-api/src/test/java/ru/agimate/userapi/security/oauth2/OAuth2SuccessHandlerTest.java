@@ -23,6 +23,7 @@ import ru.agimate.userapi.security.oauth2.providers.OAuthUserInfo;
 import ru.agimate.userapi.service.UserService;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -93,7 +94,7 @@ class OAuth2SuccessHandlerTest {
             when(userOAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(
                     OAuthProviderType.GITHUB, PROVIDER_USER_ID)).thenReturn(Optional.of(account));
 
-            assertSame(user, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID));
+            assertSame(user, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID, null));
 
             verifyNoInteractions(userService);
             verify(userOAuthAccountRepository, never()).save(any());
@@ -117,14 +118,14 @@ class OAuth2SuccessHandlerTest {
             provides(userInfo(EMAIL, true, "ivan"));
             when(userService.findByEmail(EMAIL)).thenReturn(Optional.of(user));
 
-            assertSame(user, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID));
+            assertSame(user, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID, null));
 
             ArgumentCaptor<UserOAuthAccount> captor = ArgumentCaptor.forClass(UserOAuthAccount.class);
             verify(userOAuthAccountRepository).save(captor.capture());
             assertSame(user, captor.getValue().getUserEntity());
             assertEquals(OAuthProviderType.GITHUB, captor.getValue().getOauthProvider());
             assertEquals(EMAIL, captor.getValue().getEmail());
-            verify(userService, never()).createUser(anyString(), any(), any(), any());
+            verify(userService, never()).createUser(anyString(), any(), any(), any(), any());
         }
 
         @Test
@@ -133,9 +134,9 @@ class OAuth2SuccessHandlerTest {
             UserEntity created = existingUser();
             provides(userInfo(EMAIL, true, null));
             when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
-            when(userService.createUser(EMAIL, "Иван", "Петров", EMAIL)).thenReturn(created);
+            when(userService.createUser(EMAIL, "Иван", "Петров", EMAIL, null)).thenReturn(created);
 
-            assertSame(created, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID));
+            assertSame(created, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID, null));
 
             verify(userOAuthAccountRepository).save(any());
         }
@@ -146,7 +147,7 @@ class OAuth2SuccessHandlerTest {
             provides(userInfo(null, true, "ivan"));
 
             assertThrows(OAuthLoginException.class,
-                    () -> handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID));
+                    () -> handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID, null));
 
             verifyNoInteractions(userService);
             verify(userOAuthAccountRepository, never()).save(any());
@@ -158,10 +159,79 @@ class OAuth2SuccessHandlerTest {
             provides(userInfo(EMAIL, false, "ivan"));
 
             assertThrows(OAuthLoginException.class,
-                    () -> handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID));
+                    () -> handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID, null));
 
             verifyNoInteractions(userService);
             verify(userOAuthAccountRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("реферальный код")
+    class Referral {
+
+        private static final String CODE = "K7M2QX9F";
+
+        private void noBinding() {
+            when(userOAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(
+                    OAuthProviderType.GITHUB, PROVIDER_USER_ID)).thenReturn(Optional.empty());
+        }
+
+        @Test
+        @DisplayName("новому пользователю проставляется пригласивший")
+        void attributesNewUser() {
+            UUID referrerId = UUID.randomUUID();
+            UserEntity referrer = existingUser();
+            referrer.setId(referrerId);
+            UserEntity created = existingUser();
+            provides(userInfo(EMAIL, true, "ivan"));
+            noBinding();
+            when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
+            when(userService.findByReferralCode(CODE)).thenReturn(Optional.of(referrer));
+            when(userService.createUser(EMAIL, "Иван", "Петров", "ivan", referrerId)).thenReturn(created);
+
+            assertSame(created, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID, CODE));
+        }
+
+        @Test
+        @DisplayName("неизвестный код регистрацию не ломает — пользователь заводится без пригласившего")
+        void unknownCodeStillRegisters() {
+            UserEntity created = existingUser();
+            provides(userInfo(EMAIL, true, "ivan"));
+            noBinding();
+            when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
+            when(userService.findByReferralCode(CODE)).thenReturn(Optional.empty());
+            when(userService.createUser(EMAIL, "Иван", "Петров", "ivan", null)).thenReturn(created);
+
+            assertSame(created, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID, CODE));
+        }
+
+        @Test
+        @DisplayName("найденного по почте не переатрибутируем — код даже не резолвится")
+        void doesNotReattributeUserFoundByEmail() {
+            UserEntity user = existingUser();
+            provides(userInfo(EMAIL, true, "ivan"));
+            noBinding();
+            when(userService.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+
+            assertSame(user, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID, CODE));
+
+            verify(userService, never()).findByReferralCode(any());
+            verify(userService, never()).createUser(anyString(), any(), any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("у известной привязки код игнорируется целиком")
+        void ignoresCodeForBoundAccount() {
+            UserEntity user = existingUser();
+            UserOAuthAccount account = UserOAuthAccount.builder().userEntity(user).build();
+            provides(userInfo(EMAIL, true, "ivan"));
+            when(userOAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(
+                    OAuthProviderType.GITHUB, PROVIDER_USER_ID)).thenReturn(Optional.of(account));
+
+            assertSame(user, handler.createOrGetUserFromOAuth(principal, REGISTRATION_ID, CODE));
+
+            verifyNoInteractions(userService);
         }
     }
 }

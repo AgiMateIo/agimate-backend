@@ -24,14 +24,16 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("UserService — админский листинг и смена роли")
+@DisplayName("UserService — заведение пользователя, админский листинг и смена роли")
 class UserServiceTest {
 
     private static final UUID ACTOR_ID = UUID.randomUUID();
@@ -48,6 +50,35 @@ class UserServiceTest {
         entity.setId(id);
         entity.setRole(role);
         return entity;
+    }
+
+    @Nested
+    @DisplayName("createUser")
+    class CreateUser {
+
+        @Test
+        @DisplayName("занятый код отбрасывается — пользователь получает следующий свободный")
+        void retriesUntilReferralCodeIsFree() {
+            when(userRepository.existsByReferralCode(any())).thenReturn(true, false);
+            when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            UserEntity created = service.createUser("new@example.com", "New", "User", "new", null);
+
+            assertNotNull(created.getReferralCode());
+            verify(userRepository, times(2)).existsByReferralCode(any());
+        }
+
+        @Test
+        @DisplayName("пригласивший сохраняется тем, кем пришёл")
+        void keepsReferrer() {
+            UUID referrer = UUID.randomUUID();
+            when(userRepository.existsByReferralCode(any())).thenReturn(false);
+            when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            UserEntity created = service.createUser("new@example.com", "New", "User", "new", referrer);
+
+            assertEquals(referrer, created.getReferredBy());
+        }
     }
 
     @Nested

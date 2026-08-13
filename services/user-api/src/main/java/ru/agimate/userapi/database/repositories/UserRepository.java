@@ -11,4 +11,10 @@ import java.util.UUID;
 @Repository
 public interface UserRepository extends JpaRepository<UserEntity, UUID>, JpaSpecificationExecutor<UserEntity> {
     Optional<UserEntity> findByEmail(String email);
+
+    Optional<UserEntity> findByReferralCode(String referralCode);
+
+    boolean existsByReferralCode(String referralCode);
+
+    long countByReferredBy(UUID referrerId);
 }

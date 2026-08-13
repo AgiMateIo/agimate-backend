@@ -11,6 +11,7 @@ import ru.agimate.common.util.JsonUtils;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 
 /**
  * Cookie-based implementation of AuthorizationRequestRepository for stateless OAuth2 flow.
@@ -25,7 +26,14 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
 
     public static final String OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME = "oauth2_auth_request";
     public static final String OAUTH2_REDIRECT_TO_COOKIE_NAME = "oauth2_redirect_to";
+    public static final String OAUTH2_REF_COOKIE_NAME = "oauth2_ref";
     public static final int COOKIE_EXPIRE_SECONDS = 900; // 15 minutes
+
+    /**
+     * Unlike {@code redirect_to}, a referral code is never checked against a whitelist later on, so
+     * this is the only thing standing between a query parameter and a response header.
+     */
+    private static final Pattern REF_PATTERN = Pattern.compile("^[A-Za-z0-9]{1,16}$");
 
     private final SecretKey encryptionKey;
     private final boolean cookieSecure;
@@ -63,6 +71,11 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         if (redirectTo != null && !redirectTo.isBlank()) {
             addCookie(response, OAUTH2_REDIRECT_TO_COOKIE_NAME, redirectTo, COOKIE_EXPIRE_SECONDS);
         }
+
+        String ref = request.getParameter("ref");
+        if (ref != null && REF_PATTERN.matcher(ref).matches()) {
+            addCookie(response, OAUTH2_REF_COOKIE_NAME, ref, COOKIE_EXPIRE_SECONDS);
+        }
     }
 
     @Override
@@ -73,6 +86,7 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
             deleteCookie(request, response, OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME);
         }
         deleteCookie(request, response, OAUTH2_REDIRECT_TO_COOKIE_NAME);
+        deleteCookie(request, response, OAUTH2_REF_COOKIE_NAME);
         return authorizationRequest;
     }
 
