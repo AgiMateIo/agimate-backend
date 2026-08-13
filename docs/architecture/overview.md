@@ -74,7 +74,7 @@ gRPC-протокол воркеров на `:9091` и ACP-эндпоинт дл
 
 | База | Владелец | Что внутри |
 |---|---|---|
-| `am_user_db` | user-api | `users`, `user_oauth_accounts`, `waitlist_entries` |
+| `am_user_db` | user-api | `users`, `user_oauth_accounts` |
 | `am_control_db` | control-api | Вся предметная область — [состав по областям](../services/control-api.md) |
 | `dbos` | DBOS | Системная база очередей и чекпоинтов. **Общая** для control-api (producer) и agent-worker (consumer): если они смотрят в разные, у очереди просто нет потребителя |
 

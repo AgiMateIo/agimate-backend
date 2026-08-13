@@ -1,6 +1,6 @@
 # user-api
 
-Authentication service handling OAuth2 login, JWT token management, API key management, and waitlist.
+Authentication service handling OAuth2 login, JWT token management, and API key management.
 
 ## Configuration
 
@@ -142,6 +142,5 @@ APP_OAUTH_COOKIE_DOMAIN=agimate.ru
 - `users` — User accounts
 - `user_oauth_accounts` — OAuth2 provider links
 - `service_api_keys` — API keys for connector/agent access
-- `waitlist_entries` — Waitlist registrations
 
 Migrations: `services/user-api/src/main/resources/db/changelog/`

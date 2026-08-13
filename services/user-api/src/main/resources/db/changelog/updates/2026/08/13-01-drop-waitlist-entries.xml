@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <changeSet id="drop-waitlist-entries" author="Eugene Smith">
+        <comment>
+            The landing form is gone, but the gate it fronted is not: a new account is still created
+            as GUEST and an admin still grants USER. Only the lead list goes away — the collected
+            rows were exported before this ran, and nothing in the code read them.
+        </comment>
+        <dropTable tableName="waitlist_entries"/>
+    </changeSet>
+
+</databaseChangeLog>

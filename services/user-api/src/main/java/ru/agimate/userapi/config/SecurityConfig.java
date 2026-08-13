@@ -114,7 +114,7 @@ public class SecurityConfig {
                                 .accessDeniedHandler(accessDeniedHandler()) // For authorization failures
                 )
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/", "/oauth2/**", "/waitlist/**").permitAll()
+                        .requestMatchers("/", "/oauth2/**").permitAll()
                         .requestMatchers("/docs/**").permitAll()
                         // Management port 8088 runs this very chain, so permitAll here decides what is
                         // public there. Health and its liveness/readiness groups only — never the rest.
