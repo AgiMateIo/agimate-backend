@@ -1,6 +1,6 @@
 # user-api
 
-Authentication service handling OAuth2 login, JWT token management, and API key management.
+Authentication service handling OAuth2 login, JWT token management, and user profiles.
 
 ## Configuration
 
@@ -157,16 +157,13 @@ APP_OAUTH_FRONTEND_REDIRECT_URL=https://www.agimate.ru/login
 APP_OAUTH_COOKIE_DOMAIN=agimate.ru
 ```
 
-## gRPC Endpoints
-
-| RPC              | Description                       | Port |
-|------------------|-----------------------------------|------|
-| IntrospectApiKey | Validate API key, return user info | 9090 |
-
 ## Database Tables
 
 - `users` — User accounts
 - `user_oauth_accounts` — OAuth2 provider links
-- `service_api_keys` — API keys for connector/agent access
 
 Migrations: `services/user-api/src/main/resources/db/changelog/`
+
+Ключей приложений здесь нет — они живут в control-api (`apps.key_hash`, формат — [Формат ключа
+AGM](../contracts/api-keys.md)), и наружу user-api не отдаёт ничего, кроме HTTP: gRPC-сервера у него
+нет.
