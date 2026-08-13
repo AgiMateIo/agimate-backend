@@ -16,7 +16,7 @@ import java.util.UUID;
  *
  * <p>Two invariants live in the schema and cannot be expressed here. The check
  * {@code (scope = 'CHANNEL') = (channel_id IS NOT NULL)}, and the partial unique index
- * {@code uq_agent_sessions_connection_live} — at most one live session per {@code (agent_id,
+ * {@code uq_agent_sessions_agent_id_connection_id_live} — at most one live session per {@code (agent_id,
  * connection_id)} among {@code CONNECTION} rows. There is deliberately no such index for
  * {@code CHANNEL}: a channel legitimately has many live sessions.
  */

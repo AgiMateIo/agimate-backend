@@ -38,18 +38,18 @@
         <addForeignKeyConstraint
                 baseTableName="user_oauth_accounts"
                 baseColumnNames="user_id"
-                constraintName="fk_user_oauth_accounts_user_id"
+                constraintName="fk_user_oauth_accounts_user"
                 referencedTableName="users"
                 referencedColumnNames="id"
                 onDelete="CASCADE"/>
 
-        <createIndex tableName="user_oauth_accounts" indexName="idx_oauth_accounts_user_id">
+        <createIndex tableName="user_oauth_accounts" indexName="idx_user_oauth_accounts_user_id">
             <column name="user_id"/>
         </createIndex>
 
         <addUniqueConstraint tableName="user_oauth_accounts"
                              columnNames="oauth_provider, provider_user_id"
-                             constraintName="unq_oauth_accounts_provider_user"/>
+                             constraintName="uq_user_oauth_accounts_oauth_provider_provider_user_id"/>
     </changeSet>
 
 </databaseChangeLog>

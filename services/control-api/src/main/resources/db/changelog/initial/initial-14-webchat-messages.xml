@@ -48,7 +48,7 @@
         <!-- Delivery idempotency: message_id is deterministic, so a DBOS replay does not duplicate rows. -->
         <addUniqueConstraint tableName="webchat_messages"
                              columnNames="session_id, message_id"
-                             constraintName="uq_webchat_messages_session_message"/>
+                             constraintName="uq_webchat_messages_session_id_message_id"/>
 
         <addForeignKeyConstraint baseTableName="webchat_messages"
                                  baseColumnNames="session_id"
@@ -64,7 +64,7 @@
                                  onDelete="CASCADE"/>
 
         <!-- Time-ordered history paging; the (session_id, message_id) unique does not cover it. -->
-        <createIndex tableName="webchat_messages" indexName="idx_webchat_messages_session_created">
+        <createIndex tableName="webchat_messages" indexName="idx_webchat_messages_session_id_created_at">
             <column name="session_id"/>
             <column name="created_at"/>
         </createIndex>

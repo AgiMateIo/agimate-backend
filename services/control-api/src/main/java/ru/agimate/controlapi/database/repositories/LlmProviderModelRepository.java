@@ -11,7 +11,7 @@ import java.util.UUID;
 @Repository
 public interface LlmProviderModelRepository extends JpaRepository<LlmProviderModel, UUID> {
 
-    List<LlmProviderModel> findAllByProviderIdOrderByModel(UUID providerId);
+    List<LlmProviderModel> findAllByLlmProviderIdOrderByModel(UUID providerId);
 
-    Optional<LlmProviderModel> findByProviderIdAndModel(UUID providerId, String model);
+    Optional<LlmProviderModel> findByLlmProviderIdAndModel(UUID providerId, String model);
 }

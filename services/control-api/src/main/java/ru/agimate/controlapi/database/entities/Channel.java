@@ -15,7 +15,7 @@ import java.util.UUID;
 /**
  * A channel of interaction between an agent and a user (how the dialogue is built). The business key
  * {@code (agent_id, connector_code, connection_id)} is unique among active channels — enforced by
- * the partial index {@code uq_channels_agent_connector_connection_active}
+ * the partial index {@code uq_channels_agent_id_connector_code_connection_id_active}
  * ({@code WHERE deleted_at IS NULL}). JPA {@code @UniqueConstraint} cannot express a partial
  * condition, so it is not duplicated here.
  */

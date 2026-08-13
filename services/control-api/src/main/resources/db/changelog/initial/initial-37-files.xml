@@ -54,7 +54,7 @@
         </createTable>
 
         <!-- daily quota: sum(size) per owner over the window -->
-        <createIndex tableName="files" indexName="idx_files_user_created">
+        <createIndex tableName="files" indexName="idx_files_user_id_created_at">
             <column name="user_id"/>
             <column name="created_at"/>
         </createIndex>

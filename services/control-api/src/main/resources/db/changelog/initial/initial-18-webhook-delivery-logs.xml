@@ -10,7 +10,7 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="trigger_log_agent_id" type="UUID">
+            <column name="agent_run_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_webhook_delivery_logs_agent_run"
                              references="agent_runs(id)"/>
@@ -36,8 +36,8 @@
             </column>
         </createTable>
 
-        <createIndex tableName="webhook_delivery_logs" indexName="idx_webhook_delivery_logs_trigger_log_agent_id">
-            <column name="trigger_log_agent_id"/>
+        <createIndex tableName="webhook_delivery_logs" indexName="idx_webhook_delivery_logs_agent_run_id">
+            <column name="agent_run_id"/>
         </createIndex>
 
         <createIndex tableName="webhook_delivery_logs" indexName="idx_webhook_delivery_logs_delivered_at">

@@ -69,7 +69,7 @@
 
         <addUniqueConstraint tableName="agent_run_turns"
                              columnNames="run_id, turn_index"
-                             constraintName="uq_agent_run_turns_run_turn"/>
+                             constraintName="uq_agent_run_turns_run_id_turn_index"/>
     </changeSet>
 
 </databaseChangeLog>

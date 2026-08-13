@@ -19,7 +19,7 @@
                 <constraints nullable="false"/>
             </column>
             <column name="parent_task_id" type="UUID">
-                <constraints foreignKeyName="fk_board_tasks_parent"
+                <constraints foreignKeyName="fk_board_tasks_parent_task"
                              references="board_tasks(id)"/>
             </column>
             <column name="type" type="TEXT">

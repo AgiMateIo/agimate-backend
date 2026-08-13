@@ -227,7 +227,7 @@ public class LlmCredentialsResolver {
             return Optional.empty();
         }
         Map<String, LlmProviderModel> registry = llmProviderModelRepository
-                .findAllByProviderIdOrderByModel(provider.getId()).stream()
+                .findAllByLlmProviderIdOrderByModel(provider.getId()).stream()
                 .collect(Collectors.toMap(LlmProviderModel::getModel, Function.identity()));
         return declared.stream()
                 .map(model -> new Pick(model, registry.get(model)))
@@ -238,7 +238,7 @@ public class LlmCredentialsResolver {
     /** The bound model plus its registry row — the binding names one model, so it is a direct lookup. */
     private Pick boundPick(LlmProvider provider, AgentLlm binding) {
         return new Pick(binding.getModel(), llmProviderModelRepository
-                .findByProviderIdAndModel(provider.getId(), binding.getModel())
+                .findByLlmProviderIdAndModel(provider.getId(), binding.getModel())
                 .orElse(null));
     }
 

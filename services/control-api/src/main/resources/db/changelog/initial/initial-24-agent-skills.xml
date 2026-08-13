@@ -34,7 +34,7 @@
 
         <addUniqueConstraint tableName="agent_skills"
                              columnNames="agent_id, skill_id"
-                             constraintName="uq_agent_skills_agent_skill"/>
+                             constraintName="uq_agent_skills_agent_id_skill_id"/>
 
         <createIndex tableName="agent_skills" indexName="idx_agent_skills_user_id">
             <column name="user_id"/>

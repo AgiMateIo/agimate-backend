@@ -28,7 +28,7 @@ import java.util.UUID;
  * call's arguments, for {@code TRIGGER} the parameters of the incoming event.
  *
  * <p>Uniqueness among active rows: {@code (agent_connection_id, kind, COALESCE(name,'')) WHERE
- * deleted_at IS NULL} — the partial unique index {@code uq_agent_connection_policies_active} (via
+ * deleted_at IS NULL} — the partial unique index {@code uq_agent_connection_policies_agent_connection_kind_name_active} (via
  * {@code COALESCE}, because NULLs are distinct in Postgres uniqueness).
  */
 @Entity

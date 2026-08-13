@@ -23,8 +23,8 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "llm_provider_models", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_llm_provider_models_provider_model",
-                columnNames = {"provider_id", "model"})
+        @UniqueConstraint(name = "uq_llm_provider_models_llm_provider_id_model",
+                columnNames = {"llm_provider_id", "model"})
 })
 @Getter
 @Setter
@@ -39,8 +39,8 @@ public class LlmProviderModel extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "provider_id", nullable = false)
-    private UUID providerId;
+    @Column(name = "llm_provider_id", nullable = false)
+    private UUID llmProviderId;
 
     /** The model's identifier at the provider (e.g. {@code moonshotai/kimi-k2.5}). */
     @Column(name = "model", nullable = false, columnDefinition = "TEXT")

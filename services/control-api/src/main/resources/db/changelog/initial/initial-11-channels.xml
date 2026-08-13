@@ -53,7 +53,7 @@
         <!-- One active channel per (agent, connector, connection) — the trigger route key. Partial
              index so a soft-deleted channel does not block re-creation. -->
         <sql>
-            CREATE UNIQUE INDEX uq_channels_agent_connector_connection_active
+            CREATE UNIQUE INDEX uq_channels_agent_id_connector_code_connection_id_active
                 ON channels (agent_id, connector_code, connection_id)
                 WHERE deleted_at IS NULL;
         </sql>

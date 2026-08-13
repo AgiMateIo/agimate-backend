@@ -62,7 +62,7 @@
         <!-- The business key holds only for declarative jobs: AGENT jobs share one name (time.fire)
              and must not collide, hence the kind = 'SYSTEM' predicate. -->
         <sql>
-            CREATE UNIQUE INDEX uq_connector_jobs_connection
+            CREATE UNIQUE INDEX uq_connector_jobs_connector_code_connection_id_name_system
                 ON connector_jobs (connector_code, connection_id, name)
                 WHERE kind = 'SYSTEM';
         </sql>
@@ -70,13 +70,13 @@
         <!-- Pickup filters on (status, next_run_at, lease_until) and orders by next_run_at;
              COMPLETED and paused rows never take part. -->
         <sql>
-            CREATE INDEX idx_connector_jobs_ready
+            CREATE INDEX idx_connector_jobs_next_run_at_lease_until_ready
                 ON connector_jobs (next_run_at NULLS FIRST, lease_until)
                 WHERE status &lt;&gt; 'COMPLETED' AND paused_at IS NULL;
         </sql>
 
         <!-- For list/cancel of a single agent's jobs. -->
-        <createIndex tableName="connector_jobs" indexName="idx_connector_jobs_agent">
+        <createIndex tableName="connector_jobs" indexName="idx_connector_jobs_agent_id">
             <column name="agent_id"/>
         </createIndex>
     </changeSet>

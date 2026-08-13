@@ -28,7 +28,7 @@ public class WebhookDeliveryLog extends BaseEntity {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "trigger_log_agent_id", nullable = false)
+    @JoinColumn(name = "agent_run_id", nullable = false)
     private AgentRun agentRun;
 
     @Column(name = "request_url", nullable = false, columnDefinition = "TEXT")

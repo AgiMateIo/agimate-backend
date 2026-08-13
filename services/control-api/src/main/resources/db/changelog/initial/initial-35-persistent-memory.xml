@@ -16,7 +16,7 @@
             </column>
             <!-- One cold file per scope — the business key. -->
             <column name="scope_id" type="UUID">
-                <constraints nullable="false" unique="true" uniqueConstraintName="uq_persistent_memory_cold_scope"/>
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_persistent_memory_cold_scope_id"/>
             </column>
             <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
@@ -65,7 +65,7 @@
         </createTable>
 
         <!-- Both note reads and the consolidation claim filter by scope_id. -->
-        <createIndex tableName="persistent_memory_hot" indexName="idx_persistent_memory_hot_scope">
+        <createIndex tableName="persistent_memory_hot" indexName="idx_persistent_memory_hot_scope_id">
             <column name="scope_id"/>
         </createIndex>
     </changeSet>

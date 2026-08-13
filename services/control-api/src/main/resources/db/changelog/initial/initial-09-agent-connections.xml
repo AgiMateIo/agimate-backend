@@ -32,7 +32,7 @@
 
         <!-- One active binding per (agent, connection). -->
         <sql>
-            CREATE UNIQUE INDEX uq_agent_connections_active
+            CREATE UNIQUE INDEX uq_agent_connections_agent_id_connection_id_active
                 ON agent_connections (agent_id, connection_id)
                 WHERE deleted_at IS NULL;
         </sql>

@@ -15,6 +15,7 @@
             </column>
             <column name="agentic_team_id" type="UUID">
                 <constraints nullable="false" unique="true"
+                             uniqueConstraintName="uq_boards_agentic_team_id"
                              foreignKeyName="fk_boards_agentic_team"
                              references="agentic_teams(id)"/>
             </column>

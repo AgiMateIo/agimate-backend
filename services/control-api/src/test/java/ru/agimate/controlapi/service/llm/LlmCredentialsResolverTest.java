@@ -83,7 +83,7 @@ class LlmCredentialsResolverTest {
     }
 
     private void stubRegistry(LlmProvider provider, LlmProviderModel... models) {
-        when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
+        when(llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(provider.getId()))
                 .thenReturn(List.of(models));
     }
 
@@ -110,7 +110,7 @@ class LlmCredentialsResolverTest {
                     .thenReturn(Optional.of(binding));
             when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
             when(llmProviderService.decryptApiKey(bound)).thenReturn("sk-key");
-            when(llmProviderModelRepository.findByProviderIdAndModel(bound.getId(),
+            when(llmProviderModelRepository.findByLlmProviderIdAndModel(bound.getId(),
                     "google/gemini-2.5-flash-image")).thenReturn(Optional.empty());
 
             ResolvedLlm resolved = resolver.resolveForCapability(agentId, userId, LlmPurpose.IMAGE);
@@ -137,7 +137,7 @@ class LlmCredentialsResolverTest {
                     .thenReturn(Optional.of(binding));
             when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
             when(llmProviderService.decryptApiKey(bound)).thenReturn("sk-key");
-            when(llmProviderModelRepository.findByProviderIdAndModel(bound.getId(), "deepseek/deepseek-v4-flash"))
+            when(llmProviderModelRepository.findByLlmProviderIdAndModel(bound.getId(), "deepseek/deepseek-v4-flash"))
                     .thenReturn(Optional.of(model("deepseek/deepseek-v4-flash",
                             List.of("text", "image"), List.of("text"), LlmProviderModelStatus.AVAILABLE)));
 
@@ -181,7 +181,7 @@ class LlmCredentialsResolverTest {
             when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.VISION))
                     .thenReturn(Optional.of(binding));
             when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
-            when(llmProviderModelRepository.findByProviderIdAndModel(bound.getId(), "retired-vision"))
+            when(llmProviderModelRepository.findByLlmProviderIdAndModel(bound.getId(), "retired-vision"))
                     .thenReturn(Optional.of(model("retired-vision", List.of("text", "image"),
                             List.of("text"), LlmProviderModelStatus.UNAVAILABLE)));
 
@@ -208,7 +208,7 @@ class LlmCredentialsResolverTest {
             when(agentLlmRepository.findByAgentIdAndPurpose(agentId, LlmPurpose.CHAT))
                     .thenReturn(Optional.of(binding));
             when(llmProviderRepository.findById(bound.getId())).thenReturn(Optional.of(bound));
-            when(llmProviderModelRepository.findByProviderIdAndModel(bound.getId(), "retired-chat"))
+            when(llmProviderModelRepository.findByLlmProviderIdAndModel(bound.getId(), "retired-chat"))
                     .thenReturn(Optional.of(model("retired-chat", List.of("text"), List.of("text"),
                             LlmProviderModelStatus.UNAVAILABLE)));
 

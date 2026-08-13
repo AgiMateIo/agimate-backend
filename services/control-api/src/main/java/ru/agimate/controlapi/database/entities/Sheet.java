@@ -24,7 +24,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "sheets", uniqueConstraints =
-        @UniqueConstraint(name = "uq_sheets_scope_name", columnNames = {"scope_id", "name"}))
+        @UniqueConstraint(name = "uq_sheets_scope_id_name", columnNames = {"scope_id", "name"}))
 @Getter
 @Setter
 @Builder

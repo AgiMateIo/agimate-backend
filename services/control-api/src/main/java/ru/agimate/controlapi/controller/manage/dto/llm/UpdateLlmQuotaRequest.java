@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotNull;
 
 /**
  * Editing an existing quota's limit. {@code subjectKind}/{@code window} do not change — they are the
- * quota's business key ({@code uq_llm_quotas_key}); changing the subject or the window means a
+ * quota's business key ({@code uq_llm_quotas_llm_provider_id_subject_kind_win}); changing the subject or the window means a
  * different quota (delete+create).
  */
 @Schema(description = "Update a quota's token limit")

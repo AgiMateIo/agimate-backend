@@ -38,11 +38,11 @@
              with this telegram», there can be no second answer. -->
         <addUniqueConstraint tableName="agent_skill_connections"
                              columnNames="agent_skill_id, connector_code"
-                             constraintName="uq_agent_skill_connections"/>
+                             constraintName="uq_agent_skill_connections_agent_skill_id_connector_code"/>
 
         <!-- The reverse question — how many of the agent's skills point at this connection — is a
              counter in the connection listing. -->
-        <createIndex tableName="agent_skill_connections" indexName="idx_agent_skill_connections_connection">
+        <createIndex tableName="agent_skill_connections" indexName="idx_agent_skill_connections_connection_id">
             <column name="connection_id"/>
         </createIndex>
     </changeSet>

@@ -31,7 +31,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "webchat_messages", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_webchat_messages_session_message",
+        @UniqueConstraint(name = "uq_webchat_messages_session_id_message_id",
                 columnNames = {"session_id", "message_id"})
 })
 @Getter

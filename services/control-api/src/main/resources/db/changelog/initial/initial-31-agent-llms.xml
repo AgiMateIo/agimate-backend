@@ -39,7 +39,7 @@
              for the same purpose would make model selection a coin toss. -->
         <addUniqueConstraint tableName="agent_llms"
                              columnNames="agent_id, purpose"
-                             constraintName="uq_agent_llms_agent_purpose"/>
+                             constraintName="uq_agent_llms_agent_id_purpose"/>
 
         <addForeignKeyConstraint baseTableName="agent_llms"
                                  baseColumnNames="agent_id"

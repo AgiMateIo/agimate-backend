@@ -36,7 +36,7 @@ public interface AgentSessionRepository extends JpaRepository<AgentSession, UUID
             @Param("threshold") LocalDateTime threshold
     );
 
-    /** The live session of a connection; at most one exists — {@code uq_agent_sessions_connection_live}. */
+    /** The live session of a connection; at most one exists — {@code uq_agent_sessions_agent_id_connection_id_live}. */
     @Query("""
             SELECT s FROM AgentSession s
             WHERE s.scope = ru.agimate.controlapi.database.enums.AgentSessionScope.CONNECTION

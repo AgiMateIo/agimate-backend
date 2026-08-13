@@ -14,7 +14,7 @@
             </column>
             <column name="agent_connection_id" type="UUID">
                 <constraints nullable="false"
-                             foreignKeyName="fk_agent_connection_policies_binding"
+                             foreignKeyName="fk_agent_connection_policies_agent_connection"
                              references="agent_connections(id)" deleteCascade="true"/>
             </column>
             <column name="kind" type="TEXT">
@@ -46,12 +46,12 @@
 
         <!-- One active rule per (binding, kind, name); COALESCE because NULLs are distinct. -->
         <sql>
-            CREATE UNIQUE INDEX uq_agent_connection_policies_active
+            CREATE UNIQUE INDEX uq_agent_connection_policies_agent_connection_kind_name_active
                 ON agent_connection_policies (agent_connection_id, kind, COALESCE(name, ''))
                 WHERE deleted_at IS NULL;
         </sql>
 
-        <createIndex tableName="agent_connection_policies" indexName="idx_agent_connection_policies_binding">
+        <createIndex tableName="agent_connection_policies" indexName="idx_agent_connection_policies_agent_connection_id">
             <column name="agent_connection_id"/>
         </createIndex>
     </changeSet>

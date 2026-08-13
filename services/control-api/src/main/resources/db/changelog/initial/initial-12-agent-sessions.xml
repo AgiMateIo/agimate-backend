@@ -69,7 +69,7 @@
                 CHECK (scope IN ('CHANNEL', 'CONNECTION'));
 
             ALTER TABLE agent_sessions
-                ADD CONSTRAINT chk_agent_sessions_channel
+                ADD CONSTRAINT chk_agent_sessions_scope_channel_id
                 CHECK ((scope = 'CHANNEL') = (channel_id IS NOT NULL));
         </sql>
 
@@ -78,14 +78,14 @@
              filled for them too, so without scope in the predicate this index would kill the second
              webchat conversation. -->
         <sql>
-            CREATE UNIQUE INDEX uq_agent_sessions_connection_live
+            CREATE UNIQUE INDEX uq_agent_sessions_agent_id_connection_id_live
                 ON agent_sessions (agent_id, connection_id)
                 WHERE closed_at IS NULL AND scope = 'CONNECTION';
         </sql>
 
         <!-- Serves both «the sessions of this channel» and their ordering by recency — a separate
              index on channel_id alone would be a prefix of this one. -->
-        <createIndex tableName="agent_sessions" indexName="idx_agent_sessions_channel_active">
+        <createIndex tableName="agent_sessions" indexName="idx_agent_sessions_channel_id_last_activity_at">
             <column name="channel_id"/>
             <column name="last_activity_at" descending="true"/>
         </createIndex>

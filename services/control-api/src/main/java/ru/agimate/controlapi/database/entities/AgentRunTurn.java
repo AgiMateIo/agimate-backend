@@ -29,7 +29,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "agent_run_turns", uniqueConstraints =
-        @UniqueConstraint(name = "uq_agent_run_turns_run_turn", columnNames = {"run_id", "turn_index"}))
+        @UniqueConstraint(name = "uq_agent_run_turns_run_id_turn_index", columnNames = {"run_id", "turn_index"}))
 @Getter
 @Setter
 @Builder

@@ -38,7 +38,7 @@
 
         <!-- One tool per name per instance among active rows. -->
         <sql>
-            CREATE UNIQUE INDEX uq_connection_tools_connection_name
+            CREATE UNIQUE INDEX uq_connection_tools_connection_id_name_active
                 ON connection_tools (connection_id, name)
                 WHERE deleted_at IS NULL;
         </sql>

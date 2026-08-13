@@ -283,7 +283,7 @@ public class LlmProviderService {
     private void upsertModels(LlmProvider provider, List<LlmModelInfo> discovered) {
         LocalDateTime now = LocalDateTime.now();
         Map<String, LlmProviderModel> existing = llmProviderModelRepository
-                .findAllByProviderIdOrderByModel(provider.getId()).stream()
+                .findAllByLlmProviderIdOrderByModel(provider.getId()).stream()
                 .collect(Collectors.toMap(LlmProviderModel::getModel, Function.identity()));
         Map<String, LlmModelDefaults> defaults = llmModelDefaultsRepository
                 .findByModelIn(discovered.stream().map(LlmModelInfo::id).toList()).stream()
@@ -298,7 +298,7 @@ public class LlmProviderService {
             LlmProviderModel row = existing.get(info.id());
             if (row == null) {
                 row = LlmProviderModel.builder()
-                        .providerId(provider.getId())
+                        .llmProviderId(provider.getId())
                         .model(info.id())
                         .firstSeenAt(now)
                         .build();
@@ -360,7 +360,7 @@ public class LlmProviderService {
 
     /** The provider's model registry (sorted by model). */
     public List<LlmProviderModelResponse> listModels(UUID providerId) {
-        return llmProviderModelRepository.findAllByProviderIdOrderByModel(providerId).stream()
+        return llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(providerId).stream()
                 .map(LlmProviderModelResponse::from)
                 .toList();
     }
@@ -379,9 +379,9 @@ public class LlmProviderService {
         LlmProvider provider = requireOwnedOrPlatformAdmin(id, userId, admin);
         validateExtraBody(request.extraBody());
         LlmProviderModel row = llmProviderModelRepository
-                .findByProviderIdAndModel(provider.getId(), request.model())
+                .findByLlmProviderIdAndModel(provider.getId(), request.model())
                 .orElseGet(() -> LlmProviderModel.builder()
-                        .providerId(provider.getId())
+                        .llmProviderId(provider.getId())
                         .model(request.model())
                         .status(LlmProviderModelStatus.UNAVAILABLE)
                         .build());
@@ -432,7 +432,7 @@ public class LlmProviderService {
             return;
         }
         List<LlmProviderModel> registry = llmProviderModelRepository
-                .findAllByProviderIdOrderByModel(provider.getId());
+                .findAllByLlmProviderIdOrderByModel(provider.getId());
         if (registry.isEmpty()) {
             log.warn("LLM provider {} has an empty model registry — skipping model validation for {}",
                     provider.getId(), models);

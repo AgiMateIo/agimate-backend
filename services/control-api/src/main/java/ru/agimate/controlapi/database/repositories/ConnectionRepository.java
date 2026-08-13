@@ -78,7 +78,7 @@ public interface ConnectionRepository extends JpaRepository<Connection, UUID> {
 
     /**
      * Atomic materialisation of a mode row: an INSERT that silently loses the race on the partial
-     * index {@code uq_connections_full_code_user}. Returns 1 when this call created the row (the
+     * index {@code uq_connections_full_code_user_id_active}. Returns 1 when this call created the row (the
      * signal to emit a {@code ConnectorCreatedEvent}), 0 when a concurrent winner got there first
      * (its row becomes visible to the next SELECT after its commit). Native and via ON CONFLICT
      * deliberately: Hibernate defers the INSERT until flush, so a uniqueness violation would surface

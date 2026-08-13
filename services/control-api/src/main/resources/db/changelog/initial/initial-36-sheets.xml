@@ -42,14 +42,14 @@
 
         <addForeignKeyConstraint baseTableName="sheets"
                                  baseColumnNames="scope_id"
-                                 constraintName="fk_sheets_scope_agent"
+                                 constraintName="fk_sheets_scope"
                                  referencedTableName="agents"
                                  referencedColumnNames="id"
                                  onDelete="CASCADE"/>
 
         <addUniqueConstraint tableName="sheets"
                              columnNames="scope_id, name"
-                             constraintName="uq_sheets_scope_name"/>
+                             constraintName="uq_sheets_scope_id_name"/>
     </changeSet>
 
     <changeSet id="create-sheet-rows-table" author="agimate">

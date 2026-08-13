@@ -24,7 +24,7 @@ import java.util.UUID;
  * that (DENY of specific ones, an allow-list via a wildcard, {@code params_filter}).
  *
  * <p>Uniqueness among active rows: {@code (agent_id, connection_id) WHERE deleted_at IS NULL} — the
- * partial unique index {@code uq_agent_connections_active} (JPA {@code @UniqueConstraint} cannot
+ * partial unique index {@code uq_agent_connections_agent_id_connection_id_active} (JPA {@code @UniqueConstraint} cannot
  * express a partial one).
  */
 @Entity

@@ -251,7 +251,7 @@ class LlmProviderServiceTest {
         void rejectsModelOutsideRegistry() {
             LlmProvider platform = existingProvider(true);
             when(llmProviderRepository.findById(platform.getId())).thenReturn(Optional.of(platform));
-            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(platform.getId()))
+            when(llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(platform.getId()))
                     .thenReturn(List.of(LlmProviderModel.builder().model("gemini-flash").build()));
 
             assertThrows(ru.agimate.common.rest.error.BadRequestStatusException.class,
@@ -318,7 +318,7 @@ class LlmProviderServiceTest {
             when(modelDiscoveryService.discover(eq(provider), any())).thenReturn(List.of(
                     new LlmModelInfo("moonshotai/kimi-k2.5", "Kimi K2.5", 262144, 8192,
                             List.of("text", "image"), List.of("text"), List.of("tools"), null)));
-            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
+            when(llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(provider.getId()))
                     .thenReturn(List.of());
             when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -343,7 +343,7 @@ class LlmProviderServiceTest {
             // Провайдер отдал только id + context, модальности/output не знает.
             when(modelDiscoveryService.discover(eq(provider), any())).thenReturn(List.of(
                     new LlmModelInfo("whisper-1", null, 4096, null, null, null, null, null)));
-            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
+            when(llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(provider.getId()))
                     .thenReturn(List.of());
             when(llmModelDefaultsRepository.findByModelIn(List.of("whisper-1"))).thenReturn(List.of(
                     LlmModelDefaults.builder()
@@ -369,11 +369,11 @@ class LlmProviderServiceTest {
         void marksDisappearedUnavailable() {
             mockProviderWithKey();
             LlmProviderModel gone = LlmProviderModel.builder()
-                    .providerId(provider.getId()).model("old-model")
+                    .llmProviderId(provider.getId()).model("old-model")
                     .status(LlmProviderModelStatus.AVAILABLE).build();
             when(modelDiscoveryService.discover(eq(provider), any()))
                     .thenReturn(List.of(new LlmModelInfo("new-model", null)));
-            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
+            when(llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(provider.getId()))
                     .thenReturn(List.of(gone));
             when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -389,13 +389,13 @@ class LlmProviderServiceTest {
         void revivesManualRow() {
             mockProviderWithKey();
             LlmProviderModel manual = LlmProviderModel.builder()
-                    .providerId(provider.getId()).model("moonshotai/kimi-k2.5")
+                    .llmProviderId(provider.getId()).model("moonshotai/kimi-k2.5")
                     .status(LlmProviderModelStatus.UNAVAILABLE)
                     .extraBody(Map.of("provider", Map.of("only", List.of("moonshotai"))))
                     .build();
             when(modelDiscoveryService.discover(eq(provider), any()))
                     .thenReturn(List.of(new LlmModelInfo("moonshotai/kimi-k2.5", null)));
-            when(llmProviderModelRepository.findAllByProviderIdOrderByModel(provider.getId()))
+            when(llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(provider.getId()))
                     .thenReturn(List.of(manual));
             when(llmProviderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -431,7 +431,7 @@ class LlmProviderServiceTest {
         void createsRowForUnlistedModel() {
             LlmProvider provider = existingProvider(true);
             when(llmProviderRepository.findById(provider.getId())).thenReturn(Optional.of(provider));
-            when(llmProviderModelRepository.findByProviderIdAndModel(provider.getId(), "x/y"))
+            when(llmProviderModelRepository.findByLlmProviderIdAndModel(provider.getId(), "x/y"))
                     .thenReturn(Optional.empty());
             when(llmProviderModelRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 

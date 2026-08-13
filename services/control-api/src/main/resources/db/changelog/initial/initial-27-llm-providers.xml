@@ -62,7 +62,7 @@
         <!-- Its index also serves the listing by user_id — no separate one on that column. -->
         <addUniqueConstraint tableName="llm_providers"
                              columnNames="user_id, name"
-                             constraintName="uq_llm_providers_user_name"/>
+                             constraintName="uq_llm_providers_user_id_name"/>
     </changeSet>
 
 </databaseChangeLog>

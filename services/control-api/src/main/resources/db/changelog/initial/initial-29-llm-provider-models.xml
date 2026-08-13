@@ -14,7 +14,7 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="provider_id" type="UUID">
+            <column name="llm_provider_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="model" type="TEXT">
@@ -43,12 +43,12 @@
         </createTable>
 
         <addUniqueConstraint tableName="llm_provider_models"
-                             columnNames="provider_id, model"
-                             constraintName="uq_llm_provider_models_provider_model"/>
+                             columnNames="llm_provider_id, model"
+                             constraintName="uq_llm_provider_models_llm_provider_id_model"/>
 
         <addForeignKeyConstraint baseTableName="llm_provider_models"
-                                 baseColumnNames="provider_id"
-                                 constraintName="fk_llm_provider_models_provider"
+                                 baseColumnNames="llm_provider_id"
+                                 constraintName="fk_llm_provider_models_llm_provider"
                                  referencedTableName="llm_providers"
                                  referencedColumnNames="id"
                                  onDelete="CASCADE"/>

@@ -34,11 +34,11 @@
 
         <addUniqueConstraint tableName="llm_quotas"
                              columnNames="llm_provider_id, subject_kind, win"
-                             constraintName="uq_llm_quotas_key"/>
+                             constraintName="uq_llm_quotas_llm_provider_id_subject_kind_win"/>
 
         <addForeignKeyConstraint baseTableName="llm_quotas"
                                  baseColumnNames="llm_provider_id"
-                                 constraintName="fk_llm_quotas_provider"
+                                 constraintName="fk_llm_quotas_llm_provider"
                                  referencedTableName="llm_providers"
                                  referencedColumnNames="id"
                                  onDelete="CASCADE"/>

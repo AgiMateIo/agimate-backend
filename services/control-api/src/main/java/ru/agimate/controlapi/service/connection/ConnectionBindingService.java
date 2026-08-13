@@ -90,7 +90,7 @@ public class ConnectionBindingService {
 
     /**
      * Materialisation of a mode row. A race between concurrent creations is settled by the database
-     * ({@code INSERT … ON CONFLICT DO NOTHING} on {@code uq_connections_full_code_user}): the loser
+     * ({@code INSERT … ON CONFLICT DO NOTHING} on {@code uq_connections_full_code_user_id_active}): the loser
      * waits for the winner's commit and re-reads its row — with no exception and without poisoning the
      * current transaction.
      */

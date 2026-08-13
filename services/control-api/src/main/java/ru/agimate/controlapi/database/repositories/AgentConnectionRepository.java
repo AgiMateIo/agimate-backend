@@ -38,7 +38,7 @@ public interface AgentConnectionRepository extends JpaRepository<AgentConnection
 
     /**
      * Idempotent binding: an INSERT that silently loses the race on the partial index
-     * {@code uq_agent_connections_active} (see the rationale on
+     * {@code uq_agent_connections_agent_id_connection_id_active} (see the rationale on
      * {@code ConnectionRepository.insertModeConnectionIfAbsent}). {@code id} and the timestamps come
      * from database defaults ({@code uuidv7()}, {@code CURRENT_TIMESTAMP}).
      */

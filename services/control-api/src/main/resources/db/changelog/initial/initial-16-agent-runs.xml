@@ -77,7 +77,7 @@
 
         <addUniqueConstraint tableName="agent_runs"
                              columnNames="trigger_log_id, agent_id"
-                             constraintName="uq_agent_runs_log_id_agent_id"/>
+                             constraintName="uq_agent_runs_trigger_log_id_agent_id"/>
 
         <!-- TEXT with a check enumeration rather than an enum type — a new status is a recreation of
              this constraint. STEERED is the terminal outcome of a claimed run: main_run_id absorbed
@@ -95,13 +95,13 @@
         </createIndex>
 
         <!-- The history window — the last N runs of a session. Turns are then selected by
-             run_id IN (...), which uq_agent_run_turns_run_turn already serves. -->
-        <createIndex tableName="agent_runs" indexName="idx_agent_runs_session_created">
+             run_id IN (...), which uq_agent_run_turns_run_id_turn_index already serves. -->
+        <createIndex tableName="agent_runs" indexName="idx_agent_runs_session_id_created_at">
             <column name="session_id"/>
             <column name="created_at"/>
         </createIndex>
 
-        <createIndex tableName="agent_runs" indexName="idx_agent_runs_main_run">
+        <createIndex tableName="agent_runs" indexName="idx_agent_runs_main_run_id">
             <column name="main_run_id"/>
         </createIndex>
     </changeSet>

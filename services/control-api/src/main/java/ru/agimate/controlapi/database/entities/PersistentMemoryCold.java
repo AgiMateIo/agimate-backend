@@ -15,7 +15,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "persistent_memory_cold", uniqueConstraints = @UniqueConstraint(
-        name = "uq_persistent_memory_cold_scope", columnNames = "scope_id"))
+        name = "uq_persistent_memory_cold_scope_id", columnNames = "scope_id"))
 @Getter
 @Setter
 @Builder

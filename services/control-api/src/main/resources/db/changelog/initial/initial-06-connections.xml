@@ -15,7 +15,7 @@
             </column>
             <column name="connector_code" type="TEXT">
                 <constraints nullable="false"
-                             foreignKeyName="fk_connections_connectors"
+                             foreignKeyName="fk_connections_connector_code"
                              references="connectors(code)"/>
             </column>
             <!-- Instance discriminator: mcp — from URL; telegram — username; app — from apps. -->
@@ -74,13 +74,13 @@
              «connector_code <> 'mcp'» inside the index — rots on the second multi-instance
              connector; a check in application code loses the race between two parallel creates. -->
         <sql>
-            CREATE UNIQUE INDEX uq_connections_connector_user_exclusive
+            CREATE UNIQUE INDEX uq_connections_connector_code_user_id_exclusive_sub_code_active
                 ON connections (connector_code, user_id, exclusive_sub_code)
                 WHERE deleted_at IS NULL;
         </sql>
         <!-- Handle uniqueness among the user's active rows. -->
         <sql>
-            CREATE UNIQUE INDEX uq_connections_full_code_user
+            CREATE UNIQUE INDEX uq_connections_full_code_user_id_active
                 ON connections (full_code, user_id)
                 WHERE deleted_at IS NULL;
         </sql>

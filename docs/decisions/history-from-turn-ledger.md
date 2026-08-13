@@ -122,7 +122,7 @@ Javadoc `AgentRunTurn` утверждал, что ход 0 — это репли
 - индекс `(session_id, created_at)` — выбор последних N ранов сессии.
 
 Индекс на `agent_run_turns` не нужен: ходы выбираются по `run_id IN (...)`, что обслуживает
-существующий `uq_agent_run_turns_run_turn`. Колонка `session_id` в журнале остаётся
+существующий `uq_agent_run_turns_run_id_turn_index`. Колонка `session_id` в журнале остаётся
 денормализованным ключом для отладки, как и было записано в сущности.
 
 Гейт истории — `status IN (DONE, CANCELLED) AND turns_intact`: две ортогональные вещи в двух

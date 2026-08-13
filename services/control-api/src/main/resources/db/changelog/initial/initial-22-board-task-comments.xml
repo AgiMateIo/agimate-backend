@@ -12,7 +12,7 @@
             </column>
             <column name="board_task_id" type="UUID">
                 <constraints nullable="false"
-                             foreignKeyName="fk_board_task_comments_task"
+                             foreignKeyName="fk_board_task_comments_board_task"
                              references="board_tasks(id)"/>
             </column>
             <column name="user_id" type="UUID">
@@ -34,7 +34,7 @@
             </column>
         </createTable>
 
-        <createIndex tableName="board_task_comments" indexName="idx_board_task_comments_task_id">
+        <createIndex tableName="board_task_comments" indexName="idx_board_task_comments_board_task_id">
             <column name="board_task_id"/>
         </createIndex>
 

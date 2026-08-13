@@ -64,17 +64,17 @@
 
         <addUniqueConstraint tableName="channel_session_messages"
                              columnNames="run_id, seq"
-                             constraintName="uq_channel_session_messages_run_seq"/>
+                             constraintName="uq_channel_session_messages_run_id_seq"/>
 
-        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_session_id">
+        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_session_id_created_at">
             <column name="session_id"/>
             <column name="created_at"/>
         </createIndex>
-        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_agent_created_at">
+        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_agent_id_created_at">
             <column name="agent_id"/>
             <column name="created_at"/>
         </createIndex>
-        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_session_run">
+        <createIndex tableName="channel_session_messages" indexName="idx_channel_session_messages_session_id_run_id">
             <column name="session_id"/>
             <column name="run_id"/>
         </createIndex>

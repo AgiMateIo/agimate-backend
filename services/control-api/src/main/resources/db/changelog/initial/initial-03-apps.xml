@@ -12,7 +12,7 @@
             </column>
             <column name="connector_code" type="TEXT">
                 <constraints nullable="false"
-                             foreignKeyName="fk_apps_connectors"
+                             foreignKeyName="fk_apps_connector_code"
                              references="connectors(code)"/>
             </column>
             <column name="user_id" type="UUID">
@@ -48,7 +48,7 @@
             <column name="user_id"/>
         </createIndex>
 
-        <createIndex tableName="apps" indexName="idx_apps_key_id_active">
+        <createIndex tableName="apps" indexName="idx_apps_key_id_enabled_deleted_at">
             <column name="key_id"/>
             <column name="enabled"/>
             <column name="deleted_at"/>
