@@ -196,4 +196,12 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
             ORDER BY t.createdAt DESC
             """)
     List<UUID> findHistoryRunIds(@Param("sessionId") UUID sessionId, Pageable pageable);
+
+    /** Runs of a session still waiting for their turn — the backlog behind a queue partition. */
+    @Query("""
+            SELECT COUNT(t) FROM AgentRun t
+            WHERE t.sessionId = :sessionId
+              AND t.status = ru.agimate.controlapi.database.enums.RunStatus.ENQUEUED
+            """)
+    long countEnqueuedBySession(@Param("sessionId") UUID sessionId);
 }

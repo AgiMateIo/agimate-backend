@@ -82,7 +82,9 @@ public class MessageLogPersistence {
         }
 
         Channels channels = ChannelsCodec.fromMap(run.getChannels());
-        UUID sessionId = run.getSessionId();
+        // The channel's session, not the run's: every run has a session now, but this table is the
+        // projection of a conversation, and a trigger run has no conversation to project into.
+        UUID sessionId = Channels.sessionIdOf(channels);
         boolean duplicate = false;
 
         // A channel run: those same ANSWER/ERROR are additionally projected into channel_session_messages

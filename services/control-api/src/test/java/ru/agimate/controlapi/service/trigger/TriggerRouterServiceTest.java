@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -20,6 +21,7 @@ import ru.agimate.controlapi.database.enums.PolicyKind;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
+import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 
 import java.time.Instant;
 import java.util.List;
@@ -33,6 +35,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -62,6 +65,8 @@ class TriggerRouterServiceTest {
     private ru.agimate.controlapi.service.channel.ChannelMessageOutboundService outboundService;
     @Mock
     private ru.agimate.controlapi.service.seed.ChannelTexts channelTexts;
+    @Mock
+    private ru.agimate.controlapi.service.session.AgentSessionResolver sessionResolver;
 
     @InjectMocks
     private TriggerRouterService routerService;
@@ -74,6 +79,7 @@ class TriggerRouterServiceTest {
         TriggerLog triggerLog = TriggerLog.builder()
                 .userId(USER)
                 .connectorCode("telegram")
+                .connectionId(CONNECTION.toString())
                 .name("message")
                 .build();
         triggerLog.setId(UUID.randomUUID());
@@ -159,6 +165,44 @@ class TriggerRouterServiceTest {
 
             verify(runCancellationService, never()).cancelSessionFromChannel(any());
             verify(outboundService).send(any(), any(), isNull(), any(), any(), eq("answer"), isNull());
+        }
+    }
+
+    @Nested
+    @DisplayName("сессия рана")
+    class RunSession {
+
+        @Test
+        @DisplayName("канала нет → сессия коннекшена, её и получает ран")
+        void connectionSessionForChannellessRoute() {
+            UUID connectionSession = UUID.randomUUID();
+            Agent agent = boundGenericAgent();
+            when(sessionResolver.forConnection(agent.getId(), USER, "telegram", CONNECTION))
+                    .thenReturn(connectionSession);
+
+            routerService.routeTrigger(USER, trigger);
+
+            ArgumentCaptor<AgentRun> saved = ArgumentCaptor.forClass(AgentRun.class);
+            verify(agentRunRepository).save(saved.capture());
+            assertEquals(connectionSession, saved.getValue().getSessionId());
+        }
+
+        @Test
+        @DisplayName("канал есть → его сессия, резолвер коннекшена не зовётся")
+        void channelSessionWins() {
+            UUID channelSession = UUID.randomUUID();
+            boundGenericAgent();
+            when(channelRouteResolver.resolve(any(), any())).thenAnswer(invocation ->
+                    ChannelResolution.channel(
+                            Channels.ofPrompt(new ChannelInfo(UUID.randomUUID(), channelSession, null)),
+                            new InboundMessage("привет", List.of())));
+
+            routerService.routeTrigger(USER, trigger);
+
+            ArgumentCaptor<AgentRun> saved = ArgumentCaptor.forClass(AgentRun.class);
+            verify(agentRunRepository).save(saved.capture());
+            assertEquals(channelSession, saved.getValue().getSessionId());
+            verifyNoInteractions(sessionResolver);
         }
     }
 

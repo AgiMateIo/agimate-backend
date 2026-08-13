@@ -49,14 +49,12 @@ public class SteeringService {
     /**
      * Claim everything currently steerable into {@code mainRunId} and return the messages, oldest
      * first. Idempotent for the same main: a replayed seam re-fetches what is still claimed and
-     * unconfirmed. Empty for a run without a session — there is nothing to steer within.
+     * unconfirmed. Works for trigger runs too — their session is the connection's, and what gets
+     * absorbed is the event itself ({@code inboundOf} falls back to the trigger's compact JSON).
      */
     @Transactional
     public List<SteeringInbound> claim(UUID agentId, UUID mainRunId) {
         AgentRun main = ownedRun(agentId, mainRunId);
-        if (main.getSessionId() == null) {
-            return List.of();
-        }
         List<AgentRun> claimable = agentRunRepository.findSteerable(
                 main.getSessionId(), agentId, mainRunId, main.getCreatedAt());
         List<SteeringInbound> result = new ArrayList<>(claimable.size());

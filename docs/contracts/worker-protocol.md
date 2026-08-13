@@ -27,7 +27,7 @@ Proto-файлы: `services/libs/agentworker-proto/src/main/proto/agentworker/`.
 | gRPC | поверх TLS (HTTP/2), порт `9091` (`grpc.server.port`) |
 | Инициатор | только воркер; server-push и bidi-стримы не используются — их роль выполняет DBOS |
 | Plaintext | допустим лишь локально (`grpc.server.security.enabled=false`) |
-| Доставка ранов | DBOS: durable enqueue в очередь `agent_exec`, партиционированную по `session_id` |
+| Доставка ранов | DBOS: durable enqueue в очередь `agent_exec`, партиционированную по `session_id` — он есть у **любого** рана: канальная сессия, иначе сессия коннекшена ([decisions/agent-sessions.md](../decisions/agent-sessions.md)) |
 
 Партиционирование очереди — **контрактное требование**, а не деталь: оно даёт
 single-writer-per-session, поэтому отдельного регистрационного хэндшейка у ранов нет.
@@ -116,7 +116,7 @@ full key → убрать старый authkey.
 | `system_blocks` | Упорядоченные `PromptBlock`, стабильные первыми — ради prompt-cache: agent → инструкции → блоки `PromptBlockProvider`-коннекторов → team → листинг скиллов → тела скиллов → trigger guidance |
 | `user_blocks` | User-ход: блоки коннекторов (`ephemeral=true` — в историю не попадают) + основной промпт последним. Диалоговый текст `trusted`, событие триггера `trusted=false` — воркер оборачивает как недоверенные данные |
 | `tools` | `ConnectorToolSpec`, уже отскоупленные binding-гейтом и скиллами |
-| `history` | Сессионная история из журнала ходов (`agent_run_turns`): завершённые раны с целым журналом, окно в 20 ранов, набор частей из пресета |
+| `history` | История **канальной** сессии из журнала ходов (`agent_run_turns`): завершённые раны с целым журналом, окно в 20 ранов, набор частей из пресета. У рана без канала история пуста — сессия коннекшена в контекст не тянется ([decisions/agent-sessions.md](../decisions/agent-sessions.md)) |
 | `inbound_parts` | Ссылки на вложения текущего рана (`agf_`), без байтов — безопасно для чекпоинта |
 
 `PromptBlock{name, source, content, attrs, trusted, ephemeral}`: `name`/`attrs` становятся

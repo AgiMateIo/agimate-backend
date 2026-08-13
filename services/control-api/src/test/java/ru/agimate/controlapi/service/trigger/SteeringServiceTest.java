@@ -130,12 +130,17 @@ class SteeringServiceTest {
     }
 
     @Test
-    @DisplayName("ран без сессии — стирить не во что, репозиторий не опрашивается")
-    void claimWithoutSessionIsEmpty() {
-        mainRun(null);
+    @DisplayName("триггерный ран стирится наравне с канальным — по сессии коннекшена")
+    void claimWorksForConnectionSession() {
+        mainRun(SESSION_ID);
+        AgentRun queued = queuedRun(null); // событие коннектора: снапшота каналов нет вовсе
+        when(agentRunRepository.findSteerable(eq(SESSION_ID), eq(AGENT_ID), eq(MAIN_RUN_ID), any()))
+                .thenReturn(List.of(queued));
 
-        assertTrue(service().claim(AGENT_ID, MAIN_RUN_ID).isEmpty());
-        verify(agentRunRepository, never()).findSteerable(any(), any(), any(), any());
+        List<SteeringService.SteeringInbound> claimed = service().claim(AGENT_ID, MAIN_RUN_ID);
+
+        assertEquals(1, claimed.size());
+        assertEquals(MAIN_RUN_ID, queued.getMainRunId());
     }
 
     @Test

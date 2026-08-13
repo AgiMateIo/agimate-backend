@@ -42,11 +42,9 @@ public class DbosTransport implements AgentTransport {
         WorkerRunMessage message = new WorkerRunMessage(agentId, runId);
 
         // The run stage is enqueued straight away (there is no router): workflow_id == runId, and the partition
-        // is the session (single-writer-per-session is a contractual property of the queue; a direct run with no
-        // session gets its own partition, by runId). Delivery is deduplicated by workflow_id.
-        String partitionKey = agentRun.getSessionId() != null
-                ? agentRun.getSessionId().toString()
-                : runId;
+        // is the session — single-writer-per-session is a contractual property of the queue, and every run has
+        // a session now (the channel's or the connection's). Delivery is deduplicated by workflow_id.
+        String partitionKey = agentRun.getSessionId().toString();
         DBOSClient.EnqueueOptions options = new DBOSClient.EnqueueOptions(
                 WorkerProtocol.RUN_WORKFLOW,
                 WorkerProtocol.RUN_CLASS,

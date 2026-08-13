@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- У каждого рана есть сессия, и она же партиция очереди agent_exec. Историческим ранам её
+         надо выдать, иначе NOT NULL не встанет.
+
+         Незавершённые до-релизные раны помечаются FAILED, а не получают сессию: их воркфлоу в DBOS
+         принадлежит прошлой версии протокола, и оживлять их в подобранной задним числом сессии —
+         значит собрать им историю чужого потока. Терминальные получают закрытую заглушку на
+         (agent_id, connection_id): закрытая не участвует в резолве, поэтому новый ран в неё не
+         сядет и историю прошлых ранов не увидит. -->
+    <changeSet id="agent-runs-session-backfill" author="agimate">
+        <sql>
+            UPDATE agent_runs
+            SET status = 'FAILED',
+                error = COALESCE(error, 'Interrupted by the agent_sessions migration'),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE session_id IS NULL
+              AND status IN ('ENQUEUED', 'RUNNING');
+
+            INSERT INTO agent_sessions
+                (scope, agent_id, user_id, connector_code, connection_id, title,
+                 last_activity_at, closed_at, created_at, updated_at)
+            SELECT DISTINCT ON (r.agent_id, tl.connection_id)
+                   'CONNECTION', r.agent_id, tl.user_id, tl.connector_code, tl.connection_id::uuid,
+                   'Runs before the session migration',
+                   MAX(r.created_at) OVER (PARTITION BY r.agent_id, tl.connection_id),
+                   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+            FROM agent_runs r
+            JOIN trigger_logs tl ON tl.id = r.trigger_log_id
+            WHERE r.session_id IS NULL;
+
+            UPDATE agent_runs r
+            SET session_id = s.id,
+                updated_at = CURRENT_TIMESTAMP
+            FROM trigger_logs tl, agent_sessions s
+            WHERE tl.id = r.trigger_log_id
+              AND r.session_id IS NULL
+              AND s.scope = 'CONNECTION'
+              AND s.closed_at IS NOT NULL
+              AND s.agent_id = r.agent_id
+              AND s.connection_id = tl.connection_id::uuid;
+        </sql>
+    </changeSet>
+
+    <!-- Инвариант в схеме, а не в договорённости: ран рождается только из триггера, а у триггера
+         всегда есть коннектор и коннекшен, поэтому сессия у рана есть всегда. -->
+    <changeSet id="agent-runs-session-not-null" author="agimate">
+        <addNotNullConstraint tableName="agent_runs" columnName="session_id" columnDataType="UUID"/>
+    </changeSet>
+
+</databaseChangeLog>

@@ -235,8 +235,11 @@ public class RunContextService {
             userBlocks.add(triggerMainBlock(effective, trigger));
         }
 
+        // The channel's session, not the run's: a trigger run has one too now, but «the agent
+        // remembers the previous events of its connection» is a separate decision, and it is not
+        // this one (docs/decisions/agent-sessions.md, historyScope).
         List<RunHistoryMessage> history = historyAssembler.assemble(
-                run.getSessionId(), effective.historyLimit(), effective.historyParts());
+                Channels.sessionIdOf(channels), effective.historyLimit(), effective.historyParts());
         log.debug("run context agent={} trigger={} spec={} blocks={}/{} tools={} history={} parts={}",
                 agentId, triggerId, spec, systemBlocks.size(), userBlocks.size(), tools.size(),
                 history.size(), inboundParts.size());

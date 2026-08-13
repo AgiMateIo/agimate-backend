@@ -48,10 +48,12 @@ public class AgentRun extends BaseEntity {
     private String error;
 
     /**
-     * Channel session this run writes to, or {@code null} for non-channel runs
-     * (e.g. WEBHOOK/CENTRIFUGO delivery). Set by the backend at trigger routing.
+     * The session this run belongs to — the queue partition key and the single-writer scope. Resolved
+     * at trigger routing: the parent's session for a run born of a run, then the channel's, then the
+     * connection's. Never empty; whether the run has a <i>channel</i> is a different question, and it
+     * is answered by {@code Channels.sessionIdOf(channels)}.
      */
-    @Column(name = "session_id")
+    @Column(name = "session_id", nullable = false)
     private UUID sessionId;
 
     /**

@@ -18,6 +18,7 @@ import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.seed.ChannelTexts;
+import ru.agimate.controlapi.service.session.AgentSessionResolver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class TriggerRouterService {
 
+    /** Runs waiting in one session before the backlog is worth a line in the log. */
+    private static final int QUEUE_DEPTH_WARN = 20;
+
     private final TriggerLogService triggerLogService;
     private final TriggerLogProbeService triggerLogProbeService;
     private final ConnectionAccessEvaluator accessEvaluator;
@@ -37,6 +41,7 @@ public class TriggerRouterService {
     private final RunCancellationService runCancellationService;
     private final ChannelMessageOutboundService outboundService;
     private final ChannelTexts channelTexts;
+    private final AgentSessionResolver sessionResolver;
 
     private final AgentRunRepository agentRunRepository;
 
@@ -139,7 +144,7 @@ public class TriggerRouterService {
 
     /**
      * Persistence and delivery. It works with {@link TriggerLog}/{@link AgentRun}; the run's
-     * {@code sessionId} is resolved here once (the prompt channel, otherwise the answer one) and
+     * {@code sessionId} is resolved here once (the channel's, otherwise the connection's) and
      * travels to the worker as the explicit field {@code AgentMessage.sessionId} — the rule is defined
      * on this side alone. A delivery failure for one recipient must not bring the others down — so we
      * isolate per route.
@@ -149,6 +154,8 @@ public class TriggerRouterService {
             log.warn("Ignored trigger {} - {}", triggerLog.getConnectorCode(), triggerLog.getName());
             return;
         }
+        // Guaranteed to parse: a trigger whose connection is not a UUID never reaches a recipient.
+        UUID connectionId = tryParseUuid(triggerLog.getConnectionId());
 
         for (TriggerRoute route : routes) {
             try {
@@ -160,7 +167,7 @@ public class TriggerRouterService {
                         .triggerLog(triggerLog)
                         .agent(route.agent())
                         .destination(route.agent().getType().name())
-                        .sessionId(route.sessionId())
+                        .sessionId(runSessionId(triggerLog, route, connectionId))
                         // A snapshot of the route: GetRunContext (the profile and the inbound message) and
                         // SaveMessage delivery (stage 3) read the channels from here rather than re-resolving them.
                         .channels(ChannelsCodec.toMap(route.channels()))
@@ -168,12 +175,42 @@ public class TriggerRouterService {
                 // Persist before delivery so the DB-generated id (the canonical run_id == DBOS
                 // workflow id) is populated; delivery and the run registry rely on this id.
                 agentRun = agentRunRepository.save(agentRun);
+                if (route.sessionId() == null) {
+                    warnIfQueueDeep(agentRun.getSessionId());
+                }
 
                 agentDeliveryService.deliverTrigger(agentRun, trigger, route.channels(), route.message());
             } catch (Exception e) {
                 log.error("Failed to dispatch trigger '{}' to agent {}: {}",
                         trigger.name(), route.agent().getId(), e.getMessage(), e);
             }
+        }
+    }
+
+    /**
+     * The run's session: the channel's when the route has one, otherwise the connection's. A run born
+     * of another run keeps its parent's session and does not come through here
+     * ({@code DetachedToolResultDelivery} sets it directly).
+     */
+    private UUID runSessionId(TriggerLog triggerLog, TriggerRoute route, UUID connectionId) {
+        UUID channelSessionId = route.sessionId();
+        return channelSessionId != null
+                ? channelSessionId
+                : sessionResolver.forConnection(route.agent().getId(), triggerLog.getUserId(),
+                        triggerLog.getConnectorCode(), connectionId);
+    }
+
+    /**
+     * A connection's events now execute one after another, so a storm queues instead of running in
+     * parallel and steering absorbs at most a few batches per run. The depth is only counted for
+     * connection sessions — a conversation is paced by the human in it — and only to be seen in the
+     * logs before it becomes an incident.
+     */
+    private void warnIfQueueDeep(UUID sessionId) {
+        long enqueued = agentRunRepository.countEnqueuedBySession(sessionId);
+        if (enqueued >= QUEUE_DEPTH_WARN) {
+            log.warn("session {} has {} runs waiting: events arrive faster than the agent answers",
+                    sessionId, enqueued);
         }
     }
 
@@ -209,18 +246,12 @@ public class TriggerRouterService {
         }
 
         /**
-         * The run's single-writer/history key: the prompt channel's session, otherwise the answer
-         * channel's; null for direct delivery. The only place this rule is defined — the worker
-         * receives the finished value in {@code AgentMessage.sessionId}.
+         * The route's channel session, or null when the trigger came without a channel. Not the
+         * run's session any more — see {@code runSessionId} — but still what the stop command
+         * cancels by: it was addressed to the conversation, not to the agent's background work.
          */
         private UUID sessionId() {
-            if (channels == null) {
-                return null;
-            }
-            if (channels.prompt() != null && channels.prompt().sessionId() != null) {
-                return channels.prompt().sessionId();
-            }
-            return channels.answer() != null ? channels.answer().sessionId() : null;
+            return Channels.sessionIdOf(channels);
         }
     }
 }

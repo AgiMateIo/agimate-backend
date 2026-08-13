@@ -341,7 +341,8 @@ class RunContextServiceTest {
         @Test
         @DisplayName("historyLimit=0 — история не загружается даже при живой сессии")
         void historyLimitZero() {
-            AgentRun run = run(agent(), triggerLog("time", "due", Map.of("prompt", "п")), null);
+            Channels answerOnly = new Channels(null, null, new ChannelInfo(CHANNEL_ID, SESSION_ID, null));
+            AgentRun run = run(agent(), triggerLog("time", "due", Map.of("prompt", "п")), answerOnly);
             run.setSessionId(SESSION_ID);
             stubRun(run);
             stubSkills(List.of());
@@ -479,7 +480,8 @@ class RunContextServiceTest {
         @DisplayName("окно и части истории уходят сборщику, его ответ — в контекст")
         void delegatesToAssembler() {
             Agent agent = agent();
-            AgentRun run = run(agent, triggerLog("time", "due"), null);
+            Channels answerOnly = new Channels(null, null, new ChannelInfo(CHANNEL_ID, SESSION_ID, null));
+            AgentRun run = run(agent, triggerLog("time", "due"), answerOnly);
             run.setSessionId(SESSION_ID);
             stubRun(run);
             stubSkills(List.of());
@@ -491,6 +493,20 @@ class RunContextServiceTest {
             assertEquals(List.of(answer), service.build(AGENT_ID, TRIGGER_ID).history());
         }
 
+        @Test
+        @DisplayName("у рана без каналов истории нет: сессия коннекшена в контекст не тянется")
+        void connectionSessionCarriesNoHistory() {
+            AgentRun run = run(agent(), triggerLog("board", "task_changed"), null);
+            run.setSessionId(SESSION_ID);
+            stubRun(run);
+            stubSkills(List.of());
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
+
+            assertTrue(service.build(AGENT_ID, TRIGGER_ID).history().isEmpty());
+            org.mockito.Mockito.verify(historyAssembler)
+                    .assemble(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.anyInt(),
+                            org.mockito.ArgumentMatchers.any());
+        }
     }
 
     @Nested
