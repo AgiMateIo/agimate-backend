@@ -36,7 +36,7 @@ IDE (Zed) ──stdio NDJSON──► clients/acp-bridge ──wss + X-Api-Key�
 | Живые соединения + pending prompt | `service/acp/AcpSessionRegistry` |
 | JSON-RPC поверх WS | `acp/AcpWebSocketHandler`, `config/AcpWebSocketConfig` |
 
-ACP-сессия ↔ `channel_sessions.id` (single-writer-per-session очереди `agent_exec` совпадает с
+ACP-сессия ↔ `agent_sessions.id` (single-writer-per-session очереди `agent_exec` совпадает с
 ACP-требованием «один активный prompt на сессию»). Вход — штатный триггер-пайплайн
 (`message_received` коннектора `acp` → `TriggerRouterService`), выход — проекция SaveMessage:
 `MessageLogService.deliver` → `AcpChannelHandler.handleOutput` → JSON-RPC фрейм в живое соединение.
@@ -46,7 +46,7 @@ ACP-требованием «один активный prompt на сессию�
 | Метод | Поведение |
 |---|---|
 | `initialize` | `{protocolVersion: 1, agentCapabilities: {loadSession: true}, authMethods: []}` |
-| `session/new` | binding+канал find-or-create, новая `channel_sessions`-строка → `{sessionId}`; `cwd` кладётся в registry как корень сессии, `mcpServers` мост забирает себе (наверх идёт `_agimateMcp`) |
+| `session/new` | binding+канал find-or-create, новая `agent_sessions`-строка → `{sessionId}`; `cwd` кладётся в registry как корень сессии, `mcpServers` мост забирает себе (наверх идёт `_agimateMcp`) |
 | `session/load` | реплей истории из `channel_session_messages` нотификациями `session/update` (INBOUND → `user_message_chunk`, ANSWER → `agent_message_chunk`), PROGRESS не реплеится; `cwd` — как в `session/new` |
 | `session/prompt` | text-блоки склеиваются → триггер-пайплайн; ответ асинхронный: rpc-id висит в registry до ANSWER (`{stopReason: "end_turn"}`) или ERROR (JSON-RPC error `-32000`) |
 | `session/cancel` | мягкий: отпускает клиента (`stopReason: "cancelled"`), ран доработает, ответ останется в истории |

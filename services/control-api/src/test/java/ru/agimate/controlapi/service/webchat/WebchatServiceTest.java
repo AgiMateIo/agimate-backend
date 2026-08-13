@@ -17,7 +17,7 @@ import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSessionRespons
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Channel;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
@@ -26,7 +26,7 @@ import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.channel.ChannelService;
-import ru.agimate.controlapi.service.channel.ChannelSessionService;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
@@ -67,7 +67,7 @@ class WebchatServiceTest {
     @Mock
     private ChannelService channelService;
     @Mock
-    private ChannelSessionService channelSessionService;
+    private AgentSessionService agentSessionService;
     @Mock
     private ConnectionBindingService connectionBindingService;
     @Mock
@@ -89,12 +89,12 @@ class WebchatServiceTest {
 
     private Agent agent;
     private Channel channel;
-    private ChannelSession session;
+    private AgentSession session;
 
     @BeforeEach
     void setUp() {
         webchatService = new WebchatService(agentRepository, channelRepository, channelService,
-                channelSessionService, connectionBindingService, triggerRouterService,
+                agentSessionService, connectionBindingService, triggerRouterService,
                 webchatMessagePublisher, webchatMessageRepository, centrifugoService,
                 signedFileUrlService, fileStorageService, rateLimiter);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).name("Assistant").build();
@@ -105,7 +105,7 @@ class WebchatServiceTest {
                 .connectorCode("webchat")
                 .connectionId(CONNECTION_ID)
                 .build();
-        session = ChannelSession.builder().id(SESSION_ID).channelId(CHANNEL_ID).build();
+        session = AgentSession.builder().id(SESSION_ID).channelId(CHANNEL_ID).build();
     }
 
     private AgentConnection binding() {
@@ -124,7 +124,7 @@ class WebchatServiceTest {
                     .thenReturn(binding());
             when(channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
                     AGENT_ID, "webchat", CONNECTION_ID)).thenReturn(Optional.of(channel));
-            when(channelSessionService.createNew(channel, null)).thenReturn(session);
+            when(agentSessionService.createNew(channel, null)).thenReturn(session);
 
             WebchatSessionResponse response = webchatService.startSession(USER_ID, AGENT_ID);
 
@@ -142,7 +142,7 @@ class WebchatServiceTest {
             when(channelRepository.findByAgentIdAndConnectorCodeAndConnectionIdAndDeletedAtIsNull(
                     AGENT_ID, "webchat", CONNECTION_ID)).thenReturn(Optional.empty());
             when(channelService.create(eq(USER_ID), any())).thenReturn(channel);
-            when(channelSessionService.createNew(channel, null)).thenReturn(session);
+            when(agentSessionService.createNew(channel, null)).thenReturn(session);
 
             webchatService.startSession(USER_ID, AGENT_ID);
 
@@ -161,7 +161,7 @@ class WebchatServiceTest {
     class Send {
 
         private void stubOwnedSession() {
-            when(channelSessionService.getById(SESSION_ID)).thenReturn(session);
+            when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
             when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
         }
 
@@ -175,7 +175,7 @@ class WebchatServiceTest {
 
             verify(webchatMessagePublisher).record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
                     WebchatMessageDirection.USER, null, response.messageId(), "привет", List.of());
-            verify(channelSessionService).setTitleIfEmpty(session, "привет");
+            verify(agentSessionService).setTitleIfEmpty(session, "привет");
 
             ArgumentCaptor<Trigger> captor = ArgumentCaptor.forClass(Trigger.class);
             verify(triggerRouterService).routeTrigger(eq(USER_ID), captor.capture());
@@ -293,7 +293,7 @@ class WebchatServiceTest {
         @Test
         @DisplayName("проверяет владение сессией и делегирует выпуск токенов на канал webchat:{sessionId}")
         void issuesTokens() {
-            when(channelSessionService.getById(SESSION_ID)).thenReturn(session);
+            when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
             when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
             CentrifugoTokenResponse expected = new CentrifugoTokenResponse(
                     "conn", "sub", "webchat:" + SESSION_ID, "wss://c.example/connection/websocket");
@@ -315,7 +315,7 @@ class WebchatServiceTest {
         void listsAcrossAgents() {
             when(channelRepository.findByUserIdAndConnectorCodeAndDeletedAtIsNull(USER_ID, "webchat"))
                     .thenReturn(List.of(channel));
-            when(channelSessionService.listByChannelIds(List.of(CHANNEL_ID)))
+            when(agentSessionService.listByChannelIds(List.of(CHANNEL_ID)))
                     .thenReturn(List.of(session));
 
             List<WebchatSessionResponse> sessions = webchatService.listSessions(USER_ID, null);

@@ -87,10 +87,10 @@ Synapse**. Значит:
 [channels-and-triggers.md](../../architecture/channels-and-triggers.md) («у вебхука снаружи контекста
 нет»): Matrix — первый вебхук, который свою аудиторию знает.
 
-**3. Сессия сейчас одна на канал по TTL.** `ChannelSession` внешнего ключа не имеет,
+**3. Сессия сейчас одна на канал по TTL.** `AgentSession` внешнего ключа не имеет,
 `findOrCreateActive` берёт последнюю живую за 12 часов. Для агента в пяти комнатах это смешанная
 история **и**, что хуже, общий `sessionId` — то есть общий ключ партиции очереди `agent_exec`: пять
-независимых разговоров выстроятся в один поток. Нужен `channel_sessions.external_key` (для Matrix —
+независимых разговоров выстроятся в один поток. Нужен `agent_sessions.external_key` (для Matrix —
 `roomId` или `roomId#threadId`) и резолв «по ключу, иначе TTL». Телеграм выигрывает от этого ровно
 так же (сейчас все его чаты в одном канале сливаются), а `ChannelInfo.messageId`, зарезервированный
 «под треды и реплаи», наконец получает потребителя.
@@ -217,7 +217,7 @@ Element Web это уважает, Element Android — нет (известны�
    выдавать людям аккаунты тем же AS (`POST /_matrix/client/v3/login` с
    `type: m.login.application_service`): кнопка в UI выдаёт токен, Element логинится без пароля.
    Альтернатива — делать user-api полноценным OIDC-провайдером, это работа не на день.
-3. **Чиним ли `channel_sessions.external_key` сразу?** Я за: иначе Matrix придётся переделывать через
+3. **Чиним ли `agent_sessions.external_key` сразу?** Я за: иначе Matrix придётся переделывать через
    месяц, а телеграм так и останется со слипшимися чатами.
 4. **Добавляем ли `onChannelCreated`/`onChannelDeleted` в `ChannelHandler`** или провижининг живёт в
    `validateConfig` (не живёт).
@@ -238,7 +238,7 @@ Element Web это уважает, Element Android — нет (известны�
 - `connectors/integrations/telegram/TelegramToolService.java` — тулы, `@Job` long-poll.
 - `connectors/integrations/telegram/TelegramMediaService.java` — материализация входящих медиа в `parts`.
 - `service/channel/handler/TelegramChannelHandler.java` — образец канального хендлера с вложениями.
-- `service/channel/ChannelSessionService.java` — TTL-эвристика сессий (пункт 3 выше).
+- `service/session/AgentSessionService.java` — TTL-эвристика сессий (пункт 3 выше).
 - `controller/webhook/ConnectionWebhookController.java` — generic-путь входящего вебхука.
 - `service/trigger/TriggerContext.java`, `TriggerAudience.java` — сужение аудитории (пункт 2 выше).
 - `ops/compose.yaml`, `ops/dev-init.sh`, `ops/caddy/Caddyfile` — локальный стек.

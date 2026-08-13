@@ -170,7 +170,7 @@ Migrations: `services/control-api/src/main/resources/db/changelog/`.
 | Agents | `agents`, `agent_presets`, `agent_skills`, `agent_llms`, `agentic_teams`, `skills` |
 | Runs | `agent_runs`, `agent_run_turns`, `trigger_logs`, `tool_call_logs`, `webhook_delivery_logs` |
 | Connections | `connectors`, `connections`, `connection_tools`, `connection_triggers`, `agent_connections`, `agent_connection_policies`, `connector_jobs` |
-| Channels | `channels`, `channel_sessions`, `channel_session_messages`, `webchat_messages` |
+| Channels | `channels`, `agent_sessions`, `channel_session_messages`, `webchat_messages` |
 | Apps and files | `apps`, `files`, `secrets` |
 | LLM | `llm_providers`, `llm_provider_models`, `llm_model_defaults`, `llm_provider_catalog`, `llm_quotas`, `llm_usage_counters`, `llm_usage_log` |
 | Connector data | `persistent_memory_hot`, `persistent_memory_cold`, `sheets`, `sheet_rows`, `boards`, `board_tasks`, `board_task_comments` |

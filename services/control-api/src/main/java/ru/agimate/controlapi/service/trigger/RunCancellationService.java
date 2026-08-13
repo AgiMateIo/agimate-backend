@@ -7,11 +7,11 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.entities.Channel;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
-import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
+import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -30,7 +30,7 @@ import java.util.UUID;
 public class RunCancellationService {
 
     private final AgentRunRepository agentRunRepository;
-    private final ChannelSessionRepository channelSessionRepository;
+    private final AgentSessionRepository agentSessionRepository;
     private final ChannelRepository channelRepository;
 
     /**
@@ -100,7 +100,7 @@ public class RunCancellationService {
     }
 
     private void requireOwnedSession(UUID sessionId, UUID userId) {
-        ChannelSession session = channelSessionRepository.findById(sessionId)
+        AgentSession session = agentSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new NotFoundStatusException("Channel session not found"));
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(session.getChannelId())
                 .orElseThrow(() -> new NotFoundStatusException("Channel session not found"));

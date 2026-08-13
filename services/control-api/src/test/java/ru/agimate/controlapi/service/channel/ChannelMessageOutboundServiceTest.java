@@ -12,10 +12,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.Channel;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
-import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
+import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
@@ -48,9 +49,9 @@ class ChannelMessageOutboundServiceTest {
     private static final UUID CONNECTION_ID = UUID.randomUUID();
 
     @Mock private ChannelRepository channelRepository;
-    @Mock private ChannelSessionRepository channelSessionRepository;
+    @Mock private AgentSessionRepository agentSessionRepository;
     @Mock private ChannelSessionMessageRepository channelSessionMessageRepository;
-    @Mock private ChannelSessionService channelSessionService;
+    @Mock private AgentSessionService agentSessionService;
     @Mock private ChannelHandlerRegistry channelHandlerRegistry;
     @Mock private AgentToolCallService agentToolCallService;
     @Mock private OutboundAttachmentParser attachmentParser;
@@ -59,7 +60,7 @@ class ChannelMessageOutboundServiceTest {
     @InjectMocks private ChannelMessageOutboundService service;
 
     private Channel channel;
-    private ChannelSession session;
+    private AgentSession session;
 
     @BeforeEach
     void setUp() {
@@ -73,13 +74,13 @@ class ChannelMessageOutboundServiceTest {
                 .connectionId(CONNECTION_ID)
                 .config(Map.of())
                 .build();
-        session = ChannelSession.builder().id(SESSION_ID).channelId(CHANNEL_ID).build();
+        session = AgentSession.builder().id(SESSION_ID).channelId(CHANNEL_ID).build();
     }
 
     private void stubHappyPath(OutboundMessage outbound, List<ToolCallRequest> requests) {
         when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
         when(channelHandlerRegistry.find("telegram")).thenReturn(Optional.of(handler));
-        when(channelSessionService.findOrCreateActive(channel, null)).thenReturn(session);
+        when(agentSessionService.findOrCreateActive(channel, null)).thenReturn(session);
         when(channelSessionMessageRepository
                 .findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(SESSION_ID))
                 .thenReturn(Optional.empty());
@@ -139,7 +140,7 @@ class ChannelMessageOutboundServiceTest {
                     List.of(new Part("image", "agf_" + UUID.randomUUID(), "image/png", 5, Map.of())));
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
             when(channelHandlerRegistry.find("telegram")).thenReturn(Optional.of(handler));
-            when(channelSessionService.findOrCreateActive(channel, null)).thenReturn(session);
+            when(agentSessionService.findOrCreateActive(channel, null)).thenReturn(session);
             when(channelSessionMessageRepository
                     .findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(SESSION_ID))
                     .thenReturn(Optional.empty());

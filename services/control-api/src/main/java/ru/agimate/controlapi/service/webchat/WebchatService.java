@@ -22,7 +22,7 @@ import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSessionRespons
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Channel;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.entities.WebchatMessage;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
@@ -31,7 +31,7 @@ import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.channel.ChannelService;
-import ru.agimate.controlapi.service.channel.ChannelSessionService;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
@@ -75,7 +75,7 @@ public class WebchatService {
     private final AgentRepository agentRepository;
     private final ChannelRepository channelRepository;
     private final ChannelService channelService;
-    private final ChannelSessionService channelSessionService;
+    private final AgentSessionService agentSessionService;
     private final ConnectionBindingService connectionBindingService;
     private final TriggerRouterService triggerRouterService;
     private final WebchatMessagePublisher webchatMessagePublisher;
@@ -107,7 +107,7 @@ public class WebchatService {
                         Map.of(),
                         null)));
 
-        ChannelSession session = channelSessionService.createNew(channel, null);
+        AgentSession session = agentSessionService.createNew(channel, null);
         return WebchatSessionResponse.from(session, agentId);
     }
 
@@ -124,7 +124,7 @@ public class WebchatService {
         }
         Map<UUID, Channel> byId = channels.stream()
                 .collect(Collectors.toMap(Channel::getId, Function.identity()));
-        return channelSessionService.listByChannelIds(List.copyOf(byId.keySet())).stream()
+        return agentSessionService.listByChannelIds(List.copyOf(byId.keySet())).stream()
                 .map(s -> WebchatSessionResponse.from(s, byId.get(s.getChannelId()).getAgentId()))
                 .toList();
     }
@@ -179,12 +179,12 @@ public class WebchatService {
             throw new BadRequestStatusException("Message text or attachments required");
         }
 
-        ChannelSession session = ctx.session();
+        AgentSession session = ctx.session();
         Channel channel = ctx.channel();
         String messageId = UUID.randomUUID().toString();
 
-        channelSessionService.setTitleIfEmpty(session, request.text());
-        channelSessionService.bumpLastMessageAt(session);
+        agentSessionService.setTitleIfEmpty(session, request.text());
+        agentSessionService.bumpLastActivityAt(session);
         webchatMessagePublisher.record(userId, channel.getAgentId(), channel.getId(), session.getId(),
                 WebchatMessageDirection.USER, null, messageId, request.text(), parts);
 
@@ -268,7 +268,7 @@ public class WebchatService {
     @Transactional
     public WebchatSessionResponse closeSession(UUID userId, UUID sessionId) {
         SessionContext ctx = requireOwnedWebchatSession(userId, sessionId);
-        ChannelSession closed = channelSessionService.close(sessionId);
+        AgentSession closed = agentSessionService.close(sessionId);
         return WebchatSessionResponse.from(closed, ctx.channel().getAgentId());
     }
 
@@ -290,7 +290,7 @@ public class WebchatService {
     }
 
     private SessionContext requireOwnedWebchatSession(UUID userId, UUID sessionId) {
-        ChannelSession session = channelSessionService.getById(sessionId);
+        AgentSession session = agentSessionService.getById(sessionId);
         Channel channel = channelRepository.findById(session.getChannelId())
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
         if (!channel.getUserId().equals(userId)) {
@@ -302,5 +302,5 @@ public class WebchatService {
         return new SessionContext(session, channel);
     }
 
-    private record SessionContext(ChannelSession session, Channel channel) {}
+    private record SessionContext(AgentSession session, Channel channel) {}
 }

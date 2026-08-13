@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Сессия перестаёт быть артефактом канала: у каждого рана она есть и служит ключом
+         упорядочивания (docs/decisions/agent-sessions.md). Переименование, а не новая таблица, —
+         id сохраняются, и все ссылки на session_id (agent_runs, agent_run_turns,
+         channel_session_messages, webchat_messages, persistent_memory_hot, connector_jobs)
+         продолжают указывать на те же строки. last_message_at → last_activity_at: у сессии
+         коннекшена сообщений нет вовсе, активность приносит триггер. -->
+    <changeSet id="agent-sessions-rename" author="agimate">
+        <renameTable oldTableName="channel_sessions" newTableName="agent_sessions"/>
+        <renameColumn tableName="agent_sessions"
+                      oldColumnName="last_message_at"
+                      newColumnName="last_activity_at"
+                      columnDataType="TIMESTAMP"/>
+        <sql>
+            ALTER INDEX channel_sessions_pkey RENAME TO agent_sessions_pkey;
+            ALTER INDEX idx_channel_sessions_channel_id RENAME TO idx_agent_sessions_channel_id;
+            ALTER INDEX idx_channel_sessions_channel_active RENAME TO idx_agent_sessions_channel_active;
+            ALTER TABLE agent_sessions RENAME CONSTRAINT fk_channel_sessions_channel TO fk_agent_sessions_channel;
+        </sql>
+    </changeSet>
+
+    <!-- scope — явный дискриминатор вместо «догадайся по тому, какие колонки заполнены»: он же стоит
+         в предикате уникального индекса и в check, поэтому оба читаются как намерение.
+
+         Уникальность живой сессии только у CONNECTION. У CHANNEL живых сессий одного канала легально
+         много — вебчат так ведёт список разговоров, — а connection_id заполнен и у них, поэтому без
+         scope в предикате индекс убил бы второй разговор в вебчате.
+
+         connector_code и connection_id заполняются и для канальных сессий: канал их всё равно несёт
+         NOT NULL, а история по коннектору (следующая фаза) иначе требовала бы джойна на channels. -->
+    <changeSet id="agent-sessions-scope" author="agimate">
+        <addColumn tableName="agent_sessions">
+            <column name="scope" type="TEXT"/>
+            <column name="agent_id" type="UUID"/>
+            <column name="user_id" type="UUID"/>
+            <column name="connector_code" type="TEXT"/>
+            <column name="connection_id" type="UUID"/>
+        </addColumn>
+
+        <!-- Джойн без фильтра deleted_at: канал удаляется мягко, и сессия закрытого канала обязана
+             получить свои значения, иначе NOT NULL ниже не встанет. -->
+        <sql>
+            UPDATE agent_sessions s
+            SET scope = 'CHANNEL',
+                agent_id = c.agent_id,
+                user_id = c.user_id,
+                connector_code = c.connector_code,
+                connection_id = c.connection_id
+            FROM channels c
+            WHERE c.id = s.channel_id;
+        </sql>
+
+        <addNotNullConstraint tableName="agent_sessions" columnName="scope" columnDataType="TEXT"/>
+        <addNotNullConstraint tableName="agent_sessions" columnName="agent_id" columnDataType="UUID"/>
+        <addNotNullConstraint tableName="agent_sessions" columnName="user_id" columnDataType="UUID"/>
+        <addNotNullConstraint tableName="agent_sessions" columnName="connector_code" columnDataType="TEXT"/>
+        <addNotNullConstraint tableName="agent_sessions" columnName="connection_id" columnDataType="UUID"/>
+        <dropNotNullConstraint tableName="agent_sessions" columnName="channel_id" columnDataType="UUID"/>
+
+        <addForeignKeyConstraint baseTableName="agent_sessions"
+                                 baseColumnNames="agent_id"
+                                 constraintName="fk_agent_sessions_agent"
+                                 referencedTableName="agents"
+                                 referencedColumnNames="id"
+                                 onDelete="CASCADE"/>
+
+        <sql>
+            ALTER TABLE agent_sessions
+                ADD CONSTRAINT chk_agent_sessions_scope
+                CHECK (scope IN ('CHANNEL', 'CONNECTION'));
+
+            ALTER TABLE agent_sessions
+                ADD CONSTRAINT chk_agent_sessions_channel
+                CHECK ((scope = 'CHANNEL') = (channel_id IS NOT NULL));
+
+            CREATE UNIQUE INDEX uq_agent_sessions_connection_live
+                ON agent_sessions (agent_id, connection_id)
+                WHERE closed_at IS NULL AND scope = 'CONNECTION';
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

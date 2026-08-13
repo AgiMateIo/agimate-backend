@@ -18,7 +18,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.config.AcpWebSocketConfig;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.ConnectionToolMapper;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.security.AgentPrincipal;
@@ -163,8 +163,8 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
     private void handleSessionNew(WebSocketSession session, AcpSessionRegistry.Client client,
                                   JsonNode id, JsonNode params) {
         AgentPrincipal principal = principal(session);
-        ChannelSession channelSession = acpService.startSession(principal.userId(), principal.agentId());
-        UUID sessionId = channelSession.getId();
+        AgentSession agentSession = acpService.startSession(principal.userId(), principal.agentId());
+        UUID sessionId = agentSession.getId();
         sessionRegistry.attach(sessionId, client, capabilities(session), cwd(params));
         storeMcpTools(sessionId, params.path(ATTR_MCP_FIELD));
         client.send(resultFrame(id, Map.of("sessionId", sessionId.toString())));

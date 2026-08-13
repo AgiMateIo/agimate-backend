@@ -14,7 +14,7 @@ import org.springframework.web.socket.WebSocketMessage;
 import org.springframework.web.socket.WebSocketSession;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.security.AgentPrincipal;
 import ru.agimate.controlapi.service.trigger.RunCancellationService;
@@ -119,9 +119,9 @@ class AcpWebSocketHandlerTest {
                     "fs", Map.of("readTextFile", true, "writeTextFile", true),
                     "terminal", true))));
 
-            ChannelSession channelSession = mock(ChannelSession.class);
-            when(channelSession.getId()).thenReturn(SESSION_ID);
-            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(channelSession);
+            AgentSession session = mock(AgentSession.class);
+            when(session.getId()).thenReturn(SESSION_ID);
+            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(session);
             receive(request("r1", "session/new", Map.of()));
 
             ArgumentCaptor<AcpSessionRegistry.ClientCapabilities> caps =
@@ -141,9 +141,9 @@ class AcpWebSocketHandlerTest {
         @DisplayName("создаёт сессию от принципала ключа, привязывает её и возвращает sessionId")
         @SuppressWarnings("unchecked")
         void createsSession() {
-            ChannelSession channelSession = mock(ChannelSession.class);
-            when(channelSession.getId()).thenReturn(SESSION_ID);
-            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(channelSession);
+            AgentSession session = mock(AgentSession.class);
+            when(session.getId()).thenReturn(SESSION_ID);
+            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(session);
 
             receive(request("r1", "session/new", Map.of("cwd", "/tmp")));
 
@@ -155,9 +155,9 @@ class AcpWebSocketHandlerTest {
         @Test
         @DisplayName("cwd клиента доходит до реестра — иначе команды пойдут в дефолт клиента, не в проект")
         void cwdFlowsToAttach() {
-            ChannelSession channelSession = mock(ChannelSession.class);
-            when(channelSession.getId()).thenReturn(SESSION_ID);
-            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(channelSession);
+            AgentSession session = mock(AgentSession.class);
+            when(session.getId()).thenReturn(SESSION_ID);
+            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(session);
 
             receive(request("r1", "session/new", Map.of("cwd", "/home/u/project")));
 
@@ -167,9 +167,9 @@ class AcpWebSocketHandlerTest {
         @Test
         @DisplayName("относительный cwd трактуется как «не прислали» — подставлять его хуже, чем ничего")
         void relativeCwdIgnored() {
-            ChannelSession channelSession = mock(ChannelSession.class);
-            when(channelSession.getId()).thenReturn(SESSION_ID);
-            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(channelSession);
+            AgentSession session = mock(AgentSession.class);
+            when(session.getId()).thenReturn(SESSION_ID);
+            when(acpService.startSession(USER_ID, AGENT_ID)).thenReturn(session);
 
             receive(request("r1", "session/new", Map.of("cwd", "project")));
 

@@ -15,10 +15,10 @@ import ru.agimate.controlapi.controller.manage.dto.channel.ChannelSessionRespons
 import ru.agimate.controlapi.controller.manage.dto.channel.CreateChannelRequest;
 import ru.agimate.controlapi.controller.manage.dto.channel.UpdateChannelRequest;
 import ru.agimate.controlapi.database.entities.Channel;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.service.channel.ChannelService;
-import ru.agimate.controlapi.service.channel.ChannelSessionService;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 
 import java.util.List;
 import java.util.UUID;
@@ -32,7 +32,7 @@ public class ManageChannelController {
     public static final String PATH = "/manage/channels";
 
     private final ChannelService channelService;
-    private final ChannelSessionService channelSessionService;
+    private final AgentSessionService agentSessionService;
     private final ChannelSessionMessageRepository channelSessionMessageRepository;
 
     @Operation(summary = "List channels for the current user (optionally filtered by agent)")
@@ -120,7 +120,7 @@ public class ManageChannelController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         Channel channel = channelService.getById(userId, id);
-        List<ChannelSessionResponse> response = channelSessionService.listByChannelId(channel.getId()).stream()
+        List<ChannelSessionResponse> response = agentSessionService.listByChannelId(channel.getId()).stream()
                 .map(ChannelSessionResponse::from)
                 .toList();
         return SuccessResponse.ok(response);
@@ -133,7 +133,7 @@ public class ManageChannelController {
             @PathVariable UUID sessionId
     ) {
         UUID userId = UUID.fromString(principal.id());
-        ChannelSession session = channelSessionService.getById(sessionId);
+        AgentSession session = agentSessionService.getById(sessionId);
         channelService.getByIdForUser(userId, session.getChannelId());
         List<ChannelSessionMessageResponse> response = channelSessionMessageRepository
                 .findBySessionIdOrderByCreatedAtAsc(session.getId())
@@ -151,9 +151,9 @@ public class ManageChannelController {
             @PathVariable UUID sessionId
     ) {
         UUID userId = UUID.fromString(principal.id());
-        ChannelSession session = channelSessionService.getById(sessionId);
+        AgentSession session = agentSessionService.getById(sessionId);
         channelService.getByIdForUser(userId, session.getChannelId());
-        ChannelSession closed = channelSessionService.close(sessionId);
+        AgentSession closed = agentSessionService.close(sessionId);
         return SuccessResponse.ok(ChannelSessionResponse.from(closed));
     }
 }

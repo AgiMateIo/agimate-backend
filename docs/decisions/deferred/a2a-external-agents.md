@@ -85,7 +85,7 @@ created: 2026-08-02
 «тело»: каналы (Telegram/webchat), триггеры, историю, trigger-политики.
 
 - Схема: `AgentType.A2A`; у агента — URL AgentCard + `secret_id` (исходящие креды).
-- `service/delivery/A2aTransport`: триггер → `SendMessage`; маппинги `channel_sessions.id ↔ contextId`,
+- `service/delivery/A2aTransport`: триггер → `SendMessage`; маппинги `agent_sessions.id ↔ contextId`,
   `run ↔ taskId` (маленькая таблица или колонки).
 - Проекция ответа в штатный поток message-log: WORKING → PROGRESS, artifacts/ответ → ANSWER,
   FAILED → ERROR → существующий `ChannelHandler.handleOutput`. Канальный слой без изменений.
@@ -99,7 +99,7 @@ created: 2026-08-02
 
 Стратегически интересно (вызов из чужих оркестраторов, канал дистрибуции), но дорого и преждевременно:
 
-- Маппинг напрашивается: `Task` ↔ `TriggerLogAgent` (run), `contextId` ↔ `channel_sessions.id`,
+- Маппинг напрашивается: `Task` ↔ `TriggerLogAgent` (run), `contextId` ↔ `agent_sessions.id`,
   состояния ↔ проекция SaveMessage (INBOUND→WORKING, ANSWER→COMPLETED, ERROR→FAILED).
   ChannelHandler `a2a-server` + блокирующий `SendMessage` через pending-future (паттерн `AcpSessionRegistry`).
 - Мультиагентность решается штатно: карта/эндпоинт по пути с agentId или `tenant`-роутинг;

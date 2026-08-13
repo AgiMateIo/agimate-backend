@@ -13,10 +13,10 @@ import ru.agimate.controlapi.connectors.core.ConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.IntegrationConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ToolProvider;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.ToolCallLog;
-import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
+import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
@@ -54,7 +54,7 @@ public class ToolExecutionService {
     private final ConnectorRegistry connectorRegistry;
     private final ConnectionRepository connectionRepository;
     private final AgentRunRepository agentRunRepository;
-    private final ChannelSessionRepository channelSessionRepository;
+    private final AgentSessionRepository agentSessionRepository;
     private final ConnectorEnvFactory envFactory;
     private final ToolCallLogService toolCallLogService;
     private final AgentDeliveryService agentDeliveryService;
@@ -184,8 +184,8 @@ public class ToolExecutionService {
         if (sessionId == null) {
             return null;
         }
-        return channelSessionRepository.findById(sessionId)
-                .map(ChannelSession::getChannelId)
+        return agentSessionRepository.findById(sessionId)
+                .map(AgentSession::getChannelId)
                 .orElse(null);
     }
 

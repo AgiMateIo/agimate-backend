@@ -1,7 +1,7 @@
 package ru.agimate.controlapi.controller.manage.dto.channel;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -14,11 +14,11 @@ public record ChannelSessionResponse(
         LocalDateTime closedAt,
         LocalDateTime createdAt
 ) {
-    public static ChannelSessionResponse from(ChannelSession s) {
+    public static ChannelSessionResponse from(AgentSession s) {
         return new ChannelSessionResponse(
                 s.getId(),
                 s.getTitle(),
-                s.getLastMessageAt(),
+                s.getLastActivityAt(),
                 s.getClosedAt(),
                 s.getCreatedAt()
         );

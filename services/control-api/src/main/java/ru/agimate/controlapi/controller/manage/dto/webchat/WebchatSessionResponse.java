@@ -1,7 +1,7 @@
 package ru.agimate.controlapi.controller.manage.dto.webchat;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -30,13 +30,13 @@ public record WebchatSessionResponse(
         LocalDateTime createdAt
 ) {
 
-    public static WebchatSessionResponse from(ChannelSession session, UUID agentId) {
+    public static WebchatSessionResponse from(AgentSession session, UUID agentId) {
         return new WebchatSessionResponse(
                 session.getId(),
                 session.getChannelId(),
                 agentId,
                 session.getTitle(),
-                session.getLastMessageAt(),
+                session.getLastActivityAt(),
                 session.getClosedAt(),
                 session.getCreatedAt());
     }

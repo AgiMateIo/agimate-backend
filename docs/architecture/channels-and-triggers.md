@@ -22,10 +22,15 @@
 | `config` | JSONB-настройки конкретного канала: reply-цель, шаблоны, `messageField` |
 | `input_filter` | фильтрация чатов на слое «как»: не сматчился — доставка по этому каналу пропускается |
 
-**`ChannelSession`** — разговор. Скользящее окно `SESSION_TTL` = 12 часов (`ChannelSessionService`):
-`findOrCreateActive` отдаёт последнюю активную либо заводит новую. Канал, который выбирает сессию сам
-(webchat — фронт называет её явно), ходит через `createNew`/`findOpen` мимо эвристики. Сообщения
-сессии — `channel_session_messages`, канальная проекция «как видел пользователь».
+**`AgentSession`** со `scope = CHANNEL` — разговор. Скользящее окно `SESSION_TTL` = 12 часов
+(`AgentSessionService`): `findOrCreateActive` отдаёт последнюю активную либо заводит новую. Канал,
+который выбирает сессию сам (webchat — фронт называет её явно), ходит через `createNew`/`findOpen`
+мимо эвристики. Сообщения сессии — `channel_session_messages`, канальная проекция «как видел
+пользователь».
+
+Таблица `agent_sessions` общая: у сессии есть и второй scope, `CONNECTION`, — им адресуется поток
+событий коннекшена, у которого канала нет вовсе. См.
+[decisions/agent-sessions.md](../decisions/agent-sessions.md).
 
 ---
 

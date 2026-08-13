@@ -7,12 +7,13 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
 import ru.agimate.controlapi.database.entities.Channel;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
-import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
+import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
@@ -29,14 +30,14 @@ import java.util.UUID;
 public class ChannelMessageOutboundService {
 
     private final ChannelRepository channelRepository;
-    private final ChannelSessionRepository channelSessionRepository;
+    private final AgentSessionRepository agentSessionRepository;
     private final ChannelSessionMessageRepository channelSessionMessageRepository;
-    private final ChannelSessionService channelSessionService;
+    private final AgentSessionService agentSessionService;
     private final ChannelHandlerRegistry channelHandlerRegistry;
     private final AgentToolCallService agentToolCallService;
     private final OutboundAttachmentParser attachmentParser;
 
-    public record OutboundResult(ChannelSession session, String messageId) {}
+    public record OutboundResult(AgentSession session, String messageId) {}
 
     /**
      * Deliberately NOT {@code @Transactional}: every step commits its own transaction (creating the
@@ -58,7 +59,7 @@ public class ChannelMessageOutboundService {
                 .orElseThrow(() -> new NotFoundStatusException(
                         "Channel handler not found: " + channel.getChannelHandler()));
 
-        ChannelSession session = resolveSession(channel, sessionIdOrNull);
+        AgentSession session = resolveSession(channel, sessionIdOrNull);
         Map<String, Object> replyContext = lookupLastInboundTrigger(session);
 
         // The attach convention: [[attach:agf_…]] markers from the text → parts (the owner is the channel's user).
@@ -119,19 +120,19 @@ public class ChannelMessageOutboundService {
         }
     }
 
-    private ChannelSession resolveSession(Channel channel, UUID sessionIdOrNull) {
+    private AgentSession resolveSession(Channel channel, UUID sessionIdOrNull) {
         if (sessionIdOrNull != null) {
-            ChannelSession session = channelSessionRepository.findById(sessionIdOrNull)
+            AgentSession session = agentSessionRepository.findById(sessionIdOrNull)
                     .orElseThrow(() -> new NotFoundStatusException("Channel session not found"));
             if (!session.getChannelId().equals(channel.getId())) {
                 throw new NotFoundStatusException("Channel session does not belong to this channel");
             }
             return session;
         }
-        return channelSessionService.findOrCreateActive(channel, null);
+        return agentSessionService.findOrCreateActive(channel, null);
     }
 
-    private Map<String, Object> lookupLastInboundTrigger(ChannelSession session) {
+    private Map<String, Object> lookupLastInboundTrigger(AgentSession session) {
         return channelSessionMessageRepository
                 .findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(session.getId())
                 .map(ChannelSessionMessage::getTriggerInput)

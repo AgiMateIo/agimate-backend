@@ -12,7 +12,7 @@ OpenAPI, `/control/manage/webchat`), исходящие доставляются
   агента сворачивает connection.
 - **Канал per-agent** — `(agentId, "webchat", connectionId)`, handler `webchat`, создаётся лениво
   при первой сессии с агентом (`ChannelService.create` — с валидацией и binding'ом источника).
-- **Сессии = `channel_sessions`** (тот же single-writer/steering/history-контур, что и у Telegram),
+- **Сессии = `agent_sessions`** (тот же single-writer/steering/history-контур, что и у Telegram),
   но выбираются **явно**: фронт создаёт новую сессию в любой момент (`createNew`, минуя
   12h-TTL-эвристику), а `sessionId` едет в триггере declared prompt-`ChannelInfo` —
   `ChannelRouteResolver` использует объявленную открытую сессию вместо `findOrCreateActive`.

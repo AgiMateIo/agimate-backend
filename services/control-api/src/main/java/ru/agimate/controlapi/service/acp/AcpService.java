@@ -10,13 +10,13 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Channel;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.service.channel.ChannelService;
-import ru.agimate.controlapi.service.channel.ChannelSessionService;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.channel.handler.AcpChannelHandler;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
@@ -52,14 +52,14 @@ public class AcpService {
     private final AgentRepository agentRepository;
     private final ChannelRepository channelRepository;
     private final ChannelService channelService;
-    private final ChannelSessionService channelSessionService;
+    private final AgentSessionService agentSessionService;
     private final ChannelSessionMessageRepository channelSessionMessageRepository;
     private final ConnectionBindingService connectionBindingService;
     private final TriggerRouterService triggerRouterService;
 
     /** A new ACP session; the binding and the channel are materialised lazily (find-or-create). */
     @Transactional
-    public ChannelSession startSession(UUID userId, UUID agentId) {
+    public AgentSession startSession(UUID userId, UUID agentId) {
         Agent agent = requireOwnedAgent(userId, agentId);
         AgentConnection binding = connectionBindingService.bindInternal(
                 userId, agentId, AcpChannelHandler.CONNECTOR_CODE);
@@ -76,7 +76,7 @@ public class AcpService {
                         Map.of(),
                         null)));
 
-        return channelSessionService.createNew(channel, null);
+        return agentSessionService.createNew(channel, null);
     }
 
     /** The session's history for a {@code session/load} replay, oldest first. Checks ownership. */
@@ -106,12 +106,12 @@ public class AcpService {
             throw new BadRequestStatusException("ACP session is closed");
         }
 
-        ChannelSession session = ctx.session();
+        AgentSession session = ctx.session();
         Channel channel = ctx.channel();
         String messageId = UUID.randomUUID().toString();
 
-        channelSessionService.setTitleIfEmpty(session, text);
-        channelSessionService.bumpLastMessageAt(session);
+        agentSessionService.setTitleIfEmpty(session, text);
+        agentSessionService.bumpLastActivityAt(session);
 
         Trigger trigger = Trigger.createDirected(
                 AcpChannelHandler.CONNECTOR_CODE,
@@ -140,7 +140,7 @@ public class AcpService {
 
     /** The session must belong to the user, to the ACP channel and to the agent of this connection's key. */
     private SessionContext requireOwnedAcpSession(UUID userId, UUID agentId, UUID sessionId) {
-        ChannelSession session = channelSessionService.getById(sessionId);
+        AgentSession session = agentSessionService.getById(sessionId);
         Channel channel = channelRepository.findById(session.getChannelId())
                 .orElseThrow(() -> new NotFoundStatusException("Channel not found"));
         if (!channel.getUserId().equals(userId) || !channel.getAgentId().equals(agentId)) {
@@ -152,5 +152,5 @@ public class AcpService {
         return new SessionContext(session, channel);
     }
 
-    private record SessionContext(ChannelSession session, Channel channel) {}
+    private record SessionContext(AgentSession session, Channel channel) {}
 }

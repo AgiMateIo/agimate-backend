@@ -11,11 +11,11 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.entities.Channel;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.enums.RunStatus;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
-import ru.agimate.controlapi.database.repositories.ChannelSessionRepository;
+import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -42,14 +42,14 @@ class RunCancellationServiceTest {
     private static final UUID OTHER_USER = UUID.randomUUID();
 
     @Mock private AgentRunRepository agentRunRepository;
-    @Mock private ChannelSessionRepository channelSessionRepository;
+    @Mock private AgentSessionRepository agentSessionRepository;
     @Mock private ChannelRepository channelRepository;
 
     private RunCancellationService service;
 
     @BeforeEach
     void setUp() {
-        service = new RunCancellationService(agentRunRepository, channelSessionRepository, channelRepository);
+        service = new RunCancellationService(agentRunRepository, agentSessionRepository, channelRepository);
     }
 
     private AgentRun run(RunStatus status, UUID ownerId) {
@@ -127,9 +127,9 @@ class RunCancellationServiceTest {
     class CancelSession {
 
         private void stubSession(UUID ownerId) {
-            ChannelSession session = ChannelSession.builder().channelId(CHANNEL_ID).build();
+            AgentSession session = AgentSession.builder().channelId(CHANNEL_ID).build();
             session.setId(SESSION_ID);
-            when(channelSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
+            when(agentSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID))
                     .thenReturn(Optional.of(Channel.builder().id(CHANNEL_ID).userId(ownerId).build()));
         }

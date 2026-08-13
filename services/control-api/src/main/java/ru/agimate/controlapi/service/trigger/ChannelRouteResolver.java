@@ -5,9 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.Channel;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
-import ru.agimate.controlapi.service.channel.ChannelSessionService;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
@@ -38,7 +38,7 @@ public class ChannelRouteResolver {
     static final String STOP_COMMAND_KEY = "stopCommand";
 
     private final ChannelRepository channelRepository;
-    private final ChannelSessionService channelSessionService;
+    private final AgentSessionService agentSessionService;
     private final ChannelHandlerRegistry channelHandlerRegistry;
 
     ChannelResolution resolve(Agent agent, Trigger trigger) {
@@ -91,13 +91,13 @@ public class ChannelRouteResolver {
     /** The producer's snapshot session while it is open; otherwise the channel's active or new session, by the TTL heuristic. */
     private UUID resolveProactiveSessionId(Channel channel, UUID declaredSessionId) {
         if (declaredSessionId != null) {
-            if (channelSessionService.findOpen(declaredSessionId, channel.getId()).isPresent()) {
+            if (agentSessionService.findOpen(declaredSessionId, channel.getId()).isPresent()) {
                 return declaredSessionId;
             }
             log.debug("Declared proactive session {} not open for channel {} - using active session",
                     declaredSessionId, channel.getId());
         }
-        return channelSessionService.findOrCreateActive(channel, null).getId();
+        return agentSessionService.findOrCreateActive(channel, null).getId();
     }
 
     /**
@@ -152,13 +152,13 @@ public class ChannelRouteResolver {
         }
         if (isStopCommand(channel, inbound.get())) {
             // The live session only: a stop must not conjure a conversation to have something to stop.
-            UUID sessionId = channelSessionService.findActive(channel)
-                    .map(ChannelSession::getId).orElse(null);
+            UUID sessionId = agentSessionService.findActive(channel)
+                    .map(AgentSession::getId).orElse(null);
             return ChannelResolution.cancel(
                     Channels.ofPrompt(new ChannelInfo(channel.getId(), sessionId, null)));
         }
 
-        ChannelSession session = resolveSession(channel, trigger);
+        AgentSession session = resolveSession(channel, trigger);
         ChannelInfo info = new ChannelInfo(channel.getId(), session.getId(), null);
         // The progress role goes to the same channel when the handler delivers intermediate output (webchat);
         // answer is left unset — the worker falls back to prompt on its own.
@@ -189,17 +189,17 @@ public class ChannelRouteResolver {
      * {@link ChannelInfo} (webchat — the frontend chooses the session explicitly), if it is open and
      * belongs to the channel; otherwise the active or a new one, by the TTL heuristic.
      */
-    private ChannelSession resolveSession(Channel channel, Trigger trigger) {
+    private AgentSession resolveSession(Channel channel, Trigger trigger) {
         UUID declaredSessionId = declaredPromptSessionId(trigger);
         if (declaredSessionId != null) {
-            Optional<ChannelSession> declared = channelSessionService.findOpen(declaredSessionId, channel.getId());
+            Optional<AgentSession> declared = agentSessionService.findOpen(declaredSessionId, channel.getId());
             if (declared.isPresent()) {
                 return declared.get();
             }
             log.warn("Declared session {} not open for channel {} - falling back to active session",
                     declaredSessionId, channel.getId());
         }
-        return channelSessionService.findOrCreateActive(channel, null);
+        return agentSessionService.findOrCreateActive(channel, null);
     }
 
     private static UUID declaredPromptChannelId(Trigger trigger) {

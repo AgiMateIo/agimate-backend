@@ -9,9 +9,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.Channel;
-import ru.agimate.controlapi.database.entities.ChannelSession;
+import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
-import ru.agimate.controlapi.service.channel.ChannelSessionService;
+import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.ChannelConfig;
@@ -40,7 +40,7 @@ class ChannelRouteResolverTest {
     @Mock
     private ChannelRepository channelRepository;
     @Mock
-    private ChannelSessionService channelSessionService;
+    private AgentSessionService agentSessionService;
     @Mock
     private ChannelHandlerRegistry channelHandlerRegistry;
     @Mock
@@ -52,7 +52,7 @@ class ChannelRouteResolverTest {
 
     @BeforeEach
     void setUp() {
-        resolver = new ChannelRouteResolver(channelRepository, channelSessionService, channelHandlerRegistry);
+        resolver = new ChannelRouteResolver(channelRepository, agentSessionService, channelHandlerRegistry);
         agent = Agent.builder().id(AGENT_ID).build();
         channel = Channel.builder()
                 .id(CHANNEL_ID)
@@ -71,8 +71,8 @@ class ChannelRouteResolverTest {
                 .thenReturn(Optional.of(InboundMessage.text("hi")));
     }
 
-    private static ChannelSession session(UUID id, UUID channelId) {
-        ChannelSession s = ChannelSession.builder().channelId(channelId).build();
+    private static AgentSession session(UUID id, UUID channelId) {
+        AgentSession s = AgentSession.builder().channelId(channelId).build();
         s.setId(id);
         return s;
     }
@@ -100,7 +100,7 @@ class ChannelRouteResolverTest {
         @DisplayName("«/stop» → CANCEL с живой сессией, рана не будет")
         void stopResolvesToCancel() {
             stubInbound("/stop");
-            when(channelSessionService.findActive(channel))
+            when(agentSessionService.findActive(channel))
                     .thenReturn(Optional.of(session(activeSessionId, CHANNEL_ID)));
 
             ChannelResolution resolution = resolver.resolve(agent, textTrigger());
@@ -109,14 +109,14 @@ class ChannelRouteResolverTest {
             assertEquals(activeSessionId, resolution.channels().prompt().sessionId());
             assertNull(resolution.message());
             // Сессию не заводим: останавливать в несуществующем разговоре нечего.
-            verify(channelSessionService, never()).findOrCreateActive(any(), any());
+            verify(agentSessionService, never()).findOrCreateActive(any(), any());
         }
 
         @Test
         @DisplayName("живой сессии нет → всё равно CANCEL, но без неё")
         void stopWithoutActiveSession() {
             stubInbound("  /STOP  ");
-            when(channelSessionService.findActive(channel)).thenReturn(Optional.empty());
+            when(agentSessionService.findActive(channel)).thenReturn(Optional.empty());
 
             ChannelResolution resolution = resolver.resolve(agent, textTrigger());
 
@@ -128,7 +128,7 @@ class ChannelRouteResolverTest {
         @DisplayName("совпадение точное: «/stop the printer» — обычное сообщение")
         void prefixIsNotACommand() {
             stubInbound("/stop the printer");
-            when(channelSessionService.findOrCreateActive(any(), any()))
+            when(agentSessionService.findOrCreateActive(any(), any()))
                     .thenReturn(session(activeSessionId, CHANNEL_ID));
 
             assertEquals(ChannelResolution.Kind.CHANNEL, resolver.resolve(agent, textTrigger()).kind());
@@ -139,7 +139,7 @@ class ChannelRouteResolverTest {
         void emptyConfigDisablesTheCommand() {
             channel.setConfig(Map.of(ChannelRouteResolver.STOP_COMMAND_KEY, ""));
             stubInbound("/stop");
-            when(channelSessionService.findOrCreateActive(any(), any()))
+            when(agentSessionService.findOrCreateActive(any(), any()))
                     .thenReturn(session(activeSessionId, CHANNEL_ID));
 
             assertEquals(ChannelResolution.Kind.CHANNEL, resolver.resolve(agent, textTrigger()).kind());
@@ -150,7 +150,7 @@ class ChannelRouteResolverTest {
         void configuredCommandWins() {
             channel.setConfig(Map.of(ChannelRouteResolver.STOP_COMMAND_KEY, "/хватит"));
             stubInbound("/хватит");
-            when(channelSessionService.findActive(channel))
+            when(agentSessionService.findActive(channel))
                     .thenReturn(Optional.of(session(activeSessionId, CHANNEL_ID)));
 
             assertEquals(ChannelResolution.Kind.CANCEL, resolver.resolve(agent, textTrigger()).kind());
@@ -177,14 +177,14 @@ class ChannelRouteResolverTest {
             when(channelHandlerRegistry.find("webchat")).thenReturn(Optional.of(handler));
             when(handler.handleInput(any(ChannelConfig.class), any(Trigger.class)))
                     .thenReturn(Optional.of(InboundMessage.text("hi")));
-            when(channelSessionService.findOpen(declaredSessionId, CHANNEL_ID))
+            when(agentSessionService.findOpen(declaredSessionId, CHANNEL_ID))
                     .thenReturn(Optional.of(session(declaredSessionId, CHANNEL_ID)));
 
             ChannelResolution resolution = resolver.resolve(agent, triggerWithDeclaredSession());
 
             assertEquals(ChannelResolution.Kind.CHANNEL, resolution.kind());
             assertEquals(declaredSessionId, resolution.channels().prompt().sessionId());
-            verify(channelSessionService, never()).findOrCreateActive(any(), any());
+            verify(agentSessionService, never()).findOrCreateActive(any(), any());
         }
 
         @Test
@@ -195,8 +195,8 @@ class ChannelRouteResolverTest {
             when(channelHandlerRegistry.find("webchat")).thenReturn(Optional.of(handler));
             when(handler.handleInput(any(ChannelConfig.class), any(Trigger.class)))
                     .thenReturn(Optional.of(InboundMessage.text("hi")));
-            when(channelSessionService.findOpen(declaredSessionId, CHANNEL_ID)).thenReturn(Optional.empty());
-            when(channelSessionService.findOrCreateActive(channel, null))
+            when(agentSessionService.findOpen(declaredSessionId, CHANNEL_ID)).thenReturn(Optional.empty());
+            when(agentSessionService.findOrCreateActive(channel, null))
                     .thenReturn(session(fallbackSessionId, CHANNEL_ID));
 
             ChannelResolution resolution = resolver.resolve(agent, triggerWithDeclaredSession());
@@ -221,7 +221,7 @@ class ChannelRouteResolverTest {
         @DisplayName("открытая снапшот-сессия используется как есть")
         void openSnapshotSessionKept() {
             when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
-            when(channelSessionService.findOpen(snapshotSessionId, CHANNEL_ID))
+            when(agentSessionService.findOpen(snapshotSessionId, CHANNEL_ID))
                     .thenReturn(Optional.of(session(snapshotSessionId, CHANNEL_ID)));
 
             ChannelResolution resolution = resolver.resolve(agent, proactiveTrigger(snapshotSessionId));
@@ -231,7 +231,7 @@ class ChannelRouteResolverTest {
             assertNull(resolution.channels().prompt());
             assertEquals(snapshotSessionId, resolution.channels().progress().sessionId());
             assertEquals(snapshotSessionId, resolution.channels().answer().sessionId());
-            verify(channelSessionService, never()).findOrCreateActive(any(), any());
+            verify(agentSessionService, never()).findOrCreateActive(any(), any());
         }
 
         @Test
@@ -239,9 +239,9 @@ class ChannelRouteResolverTest {
         void closedSnapshotFallsBackToActive() {
             UUID activeSessionId = UUID.randomUUID();
             when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
-            when(channelSessionService.findOpen(snapshotSessionId, CHANNEL_ID))
+            when(agentSessionService.findOpen(snapshotSessionId, CHANNEL_ID))
                     .thenReturn(Optional.empty());
-            when(channelSessionService.findOrCreateActive(channel, null))
+            when(agentSessionService.findOrCreateActive(channel, null))
                     .thenReturn(session(activeSessionId, CHANNEL_ID));
 
             ChannelResolution resolution = resolver.resolve(agent, proactiveTrigger(snapshotSessionId));
@@ -255,7 +255,7 @@ class ChannelRouteResolverTest {
         void noSnapshotResolvesActive() {
             UUID activeSessionId = UUID.randomUUID();
             when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
-            when(channelSessionService.findOrCreateActive(channel, null))
+            when(agentSessionService.findOrCreateActive(channel, null))
                     .thenReturn(session(activeSessionId, CHANNEL_ID));
 
             ChannelResolution resolution = resolver.resolve(agent, proactiveTrigger(null));
@@ -294,7 +294,7 @@ class ChannelRouteResolverTest {
             stubChannelLookupByTriple();
             UUID sessionId = UUID.randomUUID();
             when(handler.deliverProgress(any(ChannelConfig.class))).thenReturn(true);
-            when(channelSessionService.findOrCreateActive(channel, null))
+            when(agentSessionService.findOrCreateActive(channel, null))
                     .thenReturn(session(sessionId, CHANNEL_ID));
 
             ChannelResolution resolution = resolver.resolve(agent, trigger);
@@ -309,7 +309,7 @@ class ChannelRouteResolverTest {
         void progressAbsent() {
             stubChannelLookupByTriple();
             when(handler.deliverProgress(any(ChannelConfig.class))).thenReturn(false);
-            when(channelSessionService.findOrCreateActive(channel, null))
+            when(agentSessionService.findOrCreateActive(channel, null))
                     .thenReturn(session(UUID.randomUUID(), CHANNEL_ID));
 
             ChannelResolution resolution = resolver.resolve(agent, trigger);
