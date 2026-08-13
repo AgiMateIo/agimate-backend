@@ -23,4 +23,10 @@ public class InboundRateLimitProperties {
     private int fileUploadsPerMinute = 30;
     /** MCP tool calls ({@code /mcp}) per minute per agent — there the key, not a connection, is the entry point. */
     private int mcpCallsPerMinute = 120;
+    /**
+     * MCP task polls ({@code tasks/get} and friends) per minute per agent. Sized from the live-task
+     * cap at the suggested poll interval (10 tasks × 12 polls/min), doubled — an honest client must
+     * hit its own interval before this limit.
+     */
+    private int mcpTaskPollsPerMinute = 240;
 }

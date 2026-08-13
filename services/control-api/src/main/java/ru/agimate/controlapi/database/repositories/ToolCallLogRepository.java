@@ -56,6 +56,34 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
     int claimDelivery(@Param("id") UUID id, @Param("now") LocalDateTime now);
 
     /**
+     * Cooperative cancel of an MCP task: the stamp lands only while the call still runs, so a
+     * stamped row that later finishes reads as "cancelled". Cancelling a finished task is 0 rows
+     * and the task stays completed — the spec allows a terminal status other than cancelled.
+     */
+    @Modifying
+    @Query("""
+            UPDATE ToolCallLog t
+            SET t.cancelRequestedAt = :now, t.updatedAt = :now
+            WHERE t.id = :id
+              AND t.finishAt IS NULL
+              AND t.cancelRequestedAt IS NULL
+            """)
+    int markCancelRequested(@Param("id") UUID id, @Param("now") LocalDateTime now);
+
+    /**
+     * Live MCP tasks of the agent: detached, unfinished, younger than {@code cutoff} — an expired
+     * orphan (a restart killed the execution mid-flight) must not eat the cap forever.
+     */
+    @Query("""
+            SELECT COUNT(t) FROM ToolCallLog t
+            WHERE t.agentId = :agentId
+              AND t.detachedAt IS NOT NULL
+              AND t.finishAt IS NULL
+              AND t.createdAt > :cutoff
+            """)
+    long countLiveDetached(@Param("agentId") UUID agentId, @Param("cutoff") LocalDateTime cutoff);
+
+    /**
      * {@code status} is a string {@link ru.agimate.controlapi.controller.manage.dto.ToolCallStatus}
      * ({@code SUCCESS}/{@code ERROR}/{@code PENDING}), derived from {@code finish_at}/{@code error}.
      * {@code name} is a case-insensitive substring search over the tool's name.

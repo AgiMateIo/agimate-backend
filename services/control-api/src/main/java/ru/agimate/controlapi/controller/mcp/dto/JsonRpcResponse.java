@@ -23,4 +23,8 @@ public record JsonRpcResponse(
     public static JsonRpcResponse error(Object id, int code, String message) {
         return new JsonRpcResponse(VERSION, id, null, new JsonRpcError(code, message));
     }
+
+    public static JsonRpcResponse error(Object id, int code, String message, Object data) {
+        return new JsonRpcResponse(VERSION, id, null, new JsonRpcError(code, message, data));
+    }
 }

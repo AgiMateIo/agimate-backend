@@ -70,26 +70,37 @@ public class ToolExecutionService {
     }
 
     /**
+     * Outcome of {@link #executeWithTimeout}: the budget either saw the result or ran out first.
+     * A budget running out is not an error — the caller decides what a still-running call means
+     * (a task handle, a timeout answer).
+     */
+    public sealed interface WaitOutcome {
+        record Completed(ToolResult result) implements WaitOutcome {}
+        /** The execution continues and will record its outcome in the log; the caller stopped waiting. */
+        record StillRunning() implements WaitOutcome {}
+    }
+
+    /**
      * Runs the tool on the executor and waits at most {@code timeout} — for a caller holding an open
      * request. On timeout the execution is not cancelled: it runs to the end and records its outcome
      * in the log, the caller simply stops waiting.
      */
-    public ToolResult executeWithTimeout(ToolCallLog toolCallLog, Duration timeout) {
+    public WaitOutcome executeWithTimeout(ToolCallLog toolCallLog, Duration timeout) {
         Future<ToolResult> execution = toolExecutor.submit(() -> executeAndRecord(toolCallLog));
         try {
-            return execution.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            return new WaitOutcome.Completed(execution.get(timeout.toMillis(), TimeUnit.MILLISECONDS));
         } catch (TimeoutException e) {
-            log.warn("Tool '{}.{}' did not finish in {}s — the caller stops waiting",
+            log.info("Tool '{}.{}' did not finish in {}s — the caller stops waiting",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), timeout.toSeconds());
-            return error(toolCallLog, "Tool execution timed out after " + timeout.toSeconds() + "s");
+            return new WaitOutcome.StillRunning();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return error(toolCallLog, "Tool execution was interrupted");
+            return new WaitOutcome.Completed(error(toolCallLog, "Tool execution was interrupted"));
         } catch (ExecutionException e) {
-            // executeAndRecord turns failures into an error result, so getting here means the pool itself broke
+            // executeAndRecord turns failures into an error result, so getting here means the executor itself broke
             log.error("Tool '{}.{}' failed outside execution",
                     toolCallLog.getConnectorCode(), toolCallLog.getName(), e.getCause());
-            return error(toolCallLog, "Tool execution failed");
+            return new WaitOutcome.Completed(error(toolCallLog, "Tool execution failed"));
         }
     }
 

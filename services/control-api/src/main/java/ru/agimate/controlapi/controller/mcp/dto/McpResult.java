@@ -12,7 +12,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * and without the annotation Jackson would leave the field out of the JSON.
  */
 public sealed interface McpResult
-        permits EmptyResult, InitializeResult, DiscoverResult, ToolsListResult, ToolCallResult {
+        permits EmptyResult, InitializeResult, DiscoverResult, ToolsListResult, ToolCallResult,
+                TaskResult {
 
     @JsonProperty("resultType")
     default String resultType() {

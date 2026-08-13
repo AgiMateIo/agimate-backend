@@ -78,6 +78,14 @@ public class ToolCallLog extends BaseEntity {
     @Column(name = "delivered_at")
     private LocalDateTime deliveredAt;
 
+    /**
+     * Cooperative cancel of an MCP task. Stamped only while the call still runs (guarded UPDATE
+     * against {@code finish_at}), so its presence on a finished row means "cancelled" and the
+     * result is withheld from the client.
+     */
+    @Column(name = "cancel_requested_at")
+    private LocalDateTime cancelRequestedAt;
+
     @Column(name = "output", columnDefinition = "TEXT")
     private String output;
 

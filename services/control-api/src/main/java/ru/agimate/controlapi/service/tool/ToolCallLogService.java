@@ -38,6 +38,21 @@ public class ToolCallLogService {
         return toolCallLogRepository.findByExternalIdAndAgentId(externalId, agentId);
     }
 
+    /** Live detached calls of the agent, younger than {@code cutoff} — the MCP task cap reads this. */
+    public long countLiveDetached(UUID agentId, LocalDateTime cutoff) {
+        return toolCallLogRepository.countLiveDetached(agentId, cutoff);
+    }
+
+    /**
+     * Cooperative cancel: the stamp lands only while the call runs. {@code false} — the call had
+     * already finished (or cancel was already requested); the caller acks either way, cancellation
+     * promises nothing.
+     */
+    @Transactional
+    public boolean requestCancel(UUID id) {
+        return toolCallLogRepository.markCancelRequested(id, LocalDateTime.now()) > 0;
+    }
+
     @Transactional
     public ToolCallLog createLog(Agent agent, IToolCall toolCall, String agentSessionId,
                                 String runId, AccessEffect effect, String error) {
