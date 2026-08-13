@@ -27,7 +27,7 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             UPDATE ToolCallLog t
-            SET t.detachedAt = :now
+            SET t.detachedAt = :now, t.updatedAt = :now
             WHERE t.agentId = :agentId
               AND t.externalId = :externalId
               AND t.finishAt IS NULL
@@ -49,7 +49,7 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
     @Modifying
     @Query("""
             UPDATE ToolCallLog t
-            SET t.deliveredAt = :now
+            SET t.deliveredAt = :now, t.updatedAt = :now
             WHERE t.id = :id
               AND t.deliveredAt IS NULL
             """)

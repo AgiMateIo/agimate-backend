@@ -20,6 +20,12 @@ import java.time.LocalDateTime;
  * </ul>
  * <p>
  * These fields are managed by Hibernate and do not require manual setting.
+ * <p>
+ * The clock authority is the JVM: Hibernate generates both stamps and sends them in the
+ * INSERT/UPDATE, so the database {@code DEFAULT}s are a safety net for raw-SQL inserts, not the
+ * source. Postgres cannot auto-update {@code updated_at} on UPDATE at all, which leaves one rule
+ * for bulk JPQL: a {@code @Modifying} UPDATE bypasses these generators and must set
+ * {@code updatedAt} explicitly, alongside its business stamp.
  */
 @Getter
 @Setter
