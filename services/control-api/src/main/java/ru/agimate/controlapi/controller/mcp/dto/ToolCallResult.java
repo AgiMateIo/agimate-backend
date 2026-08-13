@@ -19,7 +19,7 @@ public record ToolCallResult(
         List<ToolContent> content,
         Map<String, Object> structuredContent,
         Boolean isError
-) {
+) implements McpResult {
 
     public static ToolCallResult text(String text, Map<String, Object> structuredContent) {
         return new ToolCallResult(List.of(ToolContent.text(text)), structuredContent, null);

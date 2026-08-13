@@ -15,6 +15,8 @@ import ru.agimate.common.rest.error.TooManyRequestsStatusException;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.JsonSchema;
 import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
+import ru.agimate.controlapi.controller.mcp.dto.DiscoverResult;
+import ru.agimate.controlapi.controller.mcp.dto.EmptyResult;
 import ru.agimate.controlapi.controller.mcp.dto.InitializeResult;
 import ru.agimate.controlapi.controller.mcp.dto.JsonRpcError;
 import ru.agimate.controlapi.controller.mcp.dto.JsonRpcRequest;
@@ -31,11 +33,13 @@ import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
 import ru.agimate.controlapi.service.tool.AgentToolCallService;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -116,6 +120,22 @@ class McpServiceTest {
                     new JsonRpcRequest("2.0", null, "notifications/initialized", null));
 
             assertTrue(response.isEmpty());
+        }
+
+        @Test
+        @DisplayName("server/discover отдаёт ревизии, капабилити и serverInfo в _meta")
+        void serverDiscover() {
+            DiscoverResult result = (DiscoverResult) call("server/discover", Map.of()).result();
+
+            assertEquals(List.of("2026-07-28"), result.supportedVersions());
+            assertTrue(result.capabilities().containsKey("tools"));
+            assertNotNull(result.meta().get("io.modelcontextprotocol/serverInfo"));
+        }
+
+        @Test
+        @DisplayName("ping — пустой результат, а не голая мапа")
+        void ping() {
+            assertInstanceOf(EmptyResult.class, call("ping", Map.of()).result());
         }
 
         @Test

@@ -10,6 +10,8 @@ import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.execution.ToolExecutionService;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
+import ru.agimate.controlapi.controller.mcp.dto.DiscoverResult;
+import ru.agimate.controlapi.controller.mcp.dto.EmptyResult;
 import ru.agimate.controlapi.controller.mcp.dto.InitializeResult;
 import ru.agimate.controlapi.controller.mcp.dto.JsonRpcError;
 import ru.agimate.controlapi.controller.mcp.dto.JsonRpcRequest;
@@ -31,7 +33,8 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * The MCP surface over an agent's tools: {@code initialize}, {@code tools/list}, {@code tools/call}.
+ * The MCP surface over an agent's tools: {@code server/discover}, {@code tools/list},
+ * {@code tools/call} — plus {@code initialize}, kept beyond the revision.
  *
  * <p>Only the {@code 2026-07-28} revision is served, and only its stateless shape — no sessions, no
  * SSE, no tasks, no prompts or resources. That is what keeps this a dispatcher over one request:
@@ -46,6 +49,8 @@ public class McpService {
 
     private static final String SERVER_NAME = "agimate";
     private static final String SERVER_VERSION = "1";
+
+    private static final Map<String, Object> CAPABILITIES = Map.of("tools", Map.of());
 
     /**
      * How long a {@code tools/call} waits. Client-side budgets are of this order, and a connector
@@ -71,7 +76,8 @@ public class McpService {
 
         return Optional.of(switch (request.method()) {
             case "initialize" -> JsonRpcResponse.ok(request.id(), initialize());
-            case "ping" -> JsonRpcResponse.ok(request.id(), Map.of());
+            case "server/discover" -> JsonRpcResponse.ok(request.id(), discover());
+            case "ping" -> JsonRpcResponse.ok(request.id(), EmptyResult.INSTANCE);
             case "tools/list" -> JsonRpcResponse.ok(request.id(), listTools(principal));
             case "tools/call" -> callTool(principal, request);
             default -> JsonRpcResponse.error(request.id(), JsonRpcError.METHOD_NOT_FOUND,
@@ -80,14 +86,25 @@ public class McpService {
     }
 
     /**
-     * The client's requested version is not negotiated down: this server speaks one revision and says
-     * which, leaving the client to decide whether it can talk to it.
+     * Kept beyond the revision: {@code 2026-07-28} replaced the handshake with
+     * {@link #discover() server/discover}, but live clients still open with {@code initialize}.
+     * The requested version is not negotiated down: this server speaks one revision and says which,
+     * leaving the client to decide whether it can talk to it.
      */
     private InitializeResult initialize() {
         return new InitializeResult(
                 PROTOCOL_VERSION,
-                Map.of("tools", Map.of()),
+                CAPABILITIES,
                 new InitializeResult.ServerInfo(SERVER_NAME, SERVER_VERSION));
+    }
+
+    /** Server identity has no field of its own in the revision — it rides {@code _meta}. */
+    private DiscoverResult discover() {
+        return new DiscoverResult(
+                List.of(PROTOCOL_VERSION),
+                CAPABILITIES,
+                Map.of("io.modelcontextprotocol/serverInfo",
+                        Map.of("name", SERVER_NAME, "version", SERVER_VERSION)));
     }
 
     private ToolsListResult listTools(AgentPrincipal principal) {

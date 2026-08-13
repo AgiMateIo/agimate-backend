@@ -10,7 +10,7 @@ public record InitializeResult(
         String protocolVersion,
         Map<String, Object> capabilities,
         ServerInfo serverInfo
-) {
+) implements McpResult {
 
     public record ServerInfo(String name, String version) {}
 }
