@@ -2,8 +2,8 @@ package ru.agimate.controlapi.connectors.core.execution;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
@@ -58,8 +58,8 @@ public class ToolExecutionService {
     private final ConnectorEnvFactory envFactory;
     private final ToolCallLogService toolCallLogService;
     private final AgentDeliveryService agentDeliveryService;
-    /** The pool {@link #executeTool} runs on — a bounded wait needs a thread other than the caller's. */
-    private final ThreadPoolTaskExecutor toolExecutor;
+    /** The executor {@link #executeTool} runs on — a bounded wait needs a thread other than the caller's. */
+    private final AsyncTaskExecutor toolExecutor;
 
     @Async("toolExecutor")
     public void executeTool(ToolCallLog toolCallLog) {
@@ -70,10 +70,9 @@ public class ToolExecutionService {
     }
 
     /**
-     * Runs the tool on the pool and waits at most {@code timeout} — for a caller holding an open
+     * Runs the tool on the executor and waits at most {@code timeout} — for a caller holding an open
      * request. On timeout the execution is not cancelled: it runs to the end and records its outcome
-     * in the log, the caller simply stops waiting. Under pool overflow {@code CallerRunsPolicy}
-     * executes the tool on the calling thread, and the wait is then whatever the connector takes.
+     * in the log, the caller simply stops waiting.
      */
     public ToolResult executeWithTimeout(ToolCallLog toolCallLog, Duration timeout) {
         Future<ToolResult> execution = toolExecutor.submit(() -> executeAndRecord(toolCallLog));

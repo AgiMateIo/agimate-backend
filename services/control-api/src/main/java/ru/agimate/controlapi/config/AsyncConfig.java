@@ -2,28 +2,30 @@ package ru.agimate.controlapi.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.scheduling.annotation.EnableAsync;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-
-import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
 @EnableAsync
 public class AsyncConfig {
 
     /**
-     * Execution pool for connector tools ({@code ExecuteToolAsync} must not hold a gRPC thread).
-     * CallerRuns on overflow: under extreme load a call degrades to synchronous, but is never lost.
+     * Executor for connector tools ({@code ExecuteToolAsync} must not hold a gRPC thread). Virtual
+     * threads, one per call: a tool spends its life waiting on someone else's IO, and with a detached
+     * call that wait is unbounded — a platform pool would make "how long may a tool run" a question
+     * about thread supply, which is how the previous 32-thread pool ended up executing tools on HTTP
+     * threads under overflow (CallerRuns).
+     *
+     * <p>The concurrency limit is pathology insurance, not capacity planning — and it is not a queue:
+     * at the limit {@code ConcurrencyThrottleSupport} blocks the <em>submitter</em>, same pressure
+     * the old CallerRuns applied. Meaningful ceilings live at the entry points (per-agent caps,
+     * rate limits), not here.
      */
     @Bean
-    public ThreadPoolTaskExecutor toolExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setThreadNamePrefix("tool-exec-");
-        executor.setCorePoolSize(8);
-        executor.setMaxPoolSize(32);
-        executor.setQueueCapacity(200);
-        executor.setKeepAliveSeconds(60);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+    public SimpleAsyncTaskExecutor toolExecutor() {
+        SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("tool-exec-");
+        executor.setVirtualThreads(true);
+        executor.setConcurrencyLimit(1000);
         return executor;
     }
 }
