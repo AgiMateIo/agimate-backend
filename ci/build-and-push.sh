@@ -46,12 +46,16 @@ echo "════════════════════════�
 # same base layer and therefore share its ID. Remove only our own tags, and by name —
 # `docker rmi <repo>:<tag>` drops a reference, and layers are freed only once the last
 # reference to them is gone, so anything still in use survives.
+# The `|| true` is not decoration: grep exits 1 when it selects nothing, and under
+# `set -euo pipefail` that kills the script before the build even starts — which is
+# exactly what happens on the first run after a failure left no local images behind.
 echo "▶ Removing old ${IMAGE} tags..."
-docker images "${IMAGE}" --format '{{.Repository}}:{{.Tag}}' \
-  | grep -v ':<none>$' \
-  | while read -r REF; do
-      docker rmi "$REF" 2>/dev/null || true
-    done
+OLD_TAGS=$(docker images "${IMAGE}" --format '{{.Repository}}:{{.Tag}}' | grep -v ':<none>$' || true)
+if [ -n "$OLD_TAGS" ]; then
+  echo "$OLD_TAGS" | while read -r REF; do
+    docker rmi "$REF" 2>/dev/null || true
+  done
+fi
 
 # ── Docker build ─────────────────────────────────────────
 echo "▶ Building Docker image..."
