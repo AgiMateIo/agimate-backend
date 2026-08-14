@@ -18,7 +18,7 @@ class McpToolMapperTest {
     private static final UUID IDENTITY = UUID.randomUUID();
 
     private static JsonNode tool(String json) {
-        return JsonUtils.toJsonNode(json);
+        return JsonUtils.toJsonNodeOrNull(json);
     }
 
     @Test

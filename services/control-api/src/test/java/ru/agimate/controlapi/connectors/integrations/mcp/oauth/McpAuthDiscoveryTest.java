@@ -60,7 +60,7 @@ class McpAuthDiscoveryTest {
         when(http.getJson(anyString(), any())).thenAnswer(invocation -> {
             String url = invocation.getArgument(0);
             String body = documents.get(url);
-            return body == null ? Optional.empty() : Optional.of(JsonUtils.toJsonNode(body));
+            return body == null ? Optional.empty() : Optional.of(JsonUtils.toJsonNodeOrNull(body));
         });
     }
 

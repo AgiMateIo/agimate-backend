@@ -55,7 +55,7 @@ class AcpToolServiceTest {
     }
 
     private static CompletableFuture<JsonNode> reply(String json) {
-        return CompletableFuture.completedFuture(JsonUtils.toJsonNode(json));
+        return CompletableFuture.completedFuture(JsonUtils.toJsonNodeOrNull(json));
     }
 
     private void stub(String method, CompletableFuture<JsonNode> future) {

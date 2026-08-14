@@ -58,7 +58,7 @@ class McpToolDiscoveryServiceTest {
     }
 
     private static JsonNode rawTool(String name) {
-        return JsonUtils.toJsonNode("{\"name\":\"" + name + "\",\"description\":\"" + name + " desc\"}");
+        return JsonUtils.toJsonNodeOrNull("{\"name\":\"" + name + "\",\"description\":\"" + name + " desc\"}");
     }
 
     private static ConnectionTool cached(String name) {

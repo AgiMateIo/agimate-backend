@@ -283,7 +283,7 @@ class AgentRunQueryServiceTest {
         @DisplayName("снимок отдаётся простыми коллекциями: между Jackson 2 и 3 это нейтральная территория")
         void promptBecomesPlainCollections() {
             AgentRun run = run(USER_ID);
-            JsonNode prompt = JsonUtils.toJsonNode(
+            JsonNode prompt = JsonUtils.toJsonNodeOrNull(
                     "[{\"role\":\"SYSTEM\",\"text\":\"ты помощник\"},{\"role\":\"USER\",\"text\":\"привет\"}]");
             run.setPrompt(prompt);
             when(agentRunRepository.findById(RUN_ID)).thenReturn(Optional.of(run));

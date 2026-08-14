@@ -48,7 +48,7 @@ public class AgentRunPromptService {
             log.debug("prompt snapshot already present run={}", runId);
             return new SaveResult(false);
         }
-        JsonNode prompt = JsonUtils.toJsonNode(promptJson);
+        JsonNode prompt = JsonUtils.toJsonNodeOrNull(promptJson);
         if (prompt == null) {
             throw new BadRequestStatusException("prompt_json is not valid JSON");
         }

@@ -167,7 +167,7 @@ class AcpSessionRegistryTest {
             assertTrue(id.startsWith("srv-"));
             assertFalse(future.isDone());
 
-            registry.handleResponse(id, JsonUtils.toJsonNode("{\"content\":\"hi\"}"), null);
+            registry.handleResponse(id, JsonUtils.toJsonNodeOrNull("{\"content\":\"hi\"}"), null);
             assertEquals("hi", future.get(1, TimeUnit.SECONDS).path("content").asText());
         }
 
@@ -178,7 +178,7 @@ class AcpSessionRegistryTest {
             CompletableFuture<JsonNode> future = registry.request(SESSION_ID, "fs/write_text_file", Map.of());
             String id = (String) client.frames.get(0).get("id");
 
-            registry.handleResponse(id, null, JsonUtils.toJsonNode("{\"code\":-32000,\"message\":\"nope\"}"));
+            registry.handleResponse(id, null, JsonUtils.toJsonNodeOrNull("{\"code\":-32000,\"message\":\"nope\"}"));
 
             ExecutionException ex = assertThrows(ExecutionException.class, () -> future.get(1, TimeUnit.SECONDS));
             assertTrue(ex.getCause().getMessage().contains("nope"));

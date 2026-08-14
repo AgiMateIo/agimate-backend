@@ -42,7 +42,10 @@ public class SecretService {
         return secretRepository.save(secret);
     }
 
-    /** Decrypt a credentials map. Throws when the AAD (entity+ownerId) does not match. */
+    /**
+     * Decrypt a credentials map. Throws when the AAD (entity+ownerId) does not match, and equally when
+     * the plaintext is not the expected JSON — a half-readable secret is not a usable one.
+     */
     public Map<String, String> reveal(Secret secret, UUID ownerId) {
         byte[] plaintext = encryptionService.decrypt(secret, ownerId);
         return JsonUtils.readValue(new String(plaintext, StandardCharsets.UTF_8),

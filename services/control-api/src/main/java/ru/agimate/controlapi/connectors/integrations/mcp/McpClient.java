@@ -232,7 +232,7 @@ public class McpClient {
         }
         JsonNode message = contentType != null && contentType.isCompatibleWith(MediaType.TEXT_EVENT_STREAM)
                 ? parseSseResponse(body, id)
-                : JsonUtils.toJsonNode(body);
+                : JsonUtils.toJsonNodeOrNull(body);
 
         if (message == null) {
             throw new ConnectorException("No JSON-RPC response in MCP reply");
@@ -292,7 +292,7 @@ public class McpClient {
             if (data.isEmpty()) {
                 continue;
             }
-            JsonNode node = JsonUtils.toJsonNode(data);
+            JsonNode node = JsonUtils.toJsonNodeOrNull(data);
             if (node == null || (!node.has("result") && !node.has("error"))) {
                 continue;
             }

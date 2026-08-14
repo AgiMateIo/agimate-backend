@@ -58,7 +58,7 @@ class ConnectionToolMapperTest {
     @Test
     @DisplayName("сырой JSON + заданное имя (session-scoped тул из IDE) → спек с этим именем и фиделити схемы")
     void mapsRawNodeWithExplicitName() {
-        JsonNode node = JsonUtils.toJsonNode("""
+        JsonNode node = JsonUtils.toJsonNodeOrNull("""
                 {
                   "name": "search",
                   "title": "Search",

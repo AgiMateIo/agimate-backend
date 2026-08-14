@@ -80,7 +80,7 @@ public class OAuthHttpClient {
             if (body == null || body.isBlank()) {
                 return Optional.empty();
             }
-            return Optional.ofNullable(JsonUtils.toJsonNode(body));
+            return Optional.ofNullable(JsonUtils.toJsonNodeOrNull(body));
         } catch (ConnectorException e) {
             throw e;
         } catch (Exception e) {
@@ -111,7 +111,7 @@ public class OAuthHttpClient {
                             throw new ConnectorException("Token endpoint redirects; refusing to follow");
                         }
                         String text = response.bodyTo(String.class);
-                        JsonNode json = text == null || text.isBlank() ? null : JsonUtils.toJsonNode(text);
+                        JsonNode json = text == null || text.isBlank() ? null : JsonUtils.toJsonNodeOrNull(text);
                         return new TokenResponse(status.value(), json);
                     });
         } catch (ConnectorException e) {

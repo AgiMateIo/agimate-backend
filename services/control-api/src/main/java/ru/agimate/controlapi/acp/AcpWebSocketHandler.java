@@ -96,7 +96,7 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
     @Override
     protected void handleTextMessage(@NonNull WebSocketSession session, TextMessage message) {
         AcpSessionRegistry.Client client = client(session);
-        JsonNode frame = JsonUtils.toJsonNode(message.getPayload());
+        JsonNode frame = JsonUtils.toJsonNodeOrNull(message.getPayload());
         if (frame == null || !frame.isObject()) {
             client.send(errorFrame(null, -32700, "Parse error"));
             return;
