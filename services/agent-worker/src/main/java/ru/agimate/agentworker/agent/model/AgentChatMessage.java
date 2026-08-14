@@ -6,7 +6,8 @@ import java.util.List;
 
 /**
  * The worker's own message model — used both to drive the turn loop and, via
- * {@link MessageCodec}, to (de)serialize session history. Deliberately independent of Spring AI
+ * {@link ru.agimate.agentworker.agent.MessageCodec}, to (de)serialize session history. Deliberately
+ * independent of Spring AI
  * (greenfield: the Java worker owns its history JSON) and mapped to Spring AI messages only at
  * model-call time. One instance is one conversation turn message.
  *

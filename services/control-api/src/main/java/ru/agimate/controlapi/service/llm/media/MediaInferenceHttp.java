@@ -26,7 +26,8 @@ import java.util.Optional;
  * The HTTP transport of media inference: {@code POST /chat/completions} of an OpenAI-compatible
  * provider (the only path in phase 1 — see docs/connectors/media.md) plus parsing of the multimodal
  * response (images in {@code message.images[]} as data URIs, the OpenRouter convention). Modelled on
- * {@link LlmDiscoveryHttp}, but with a long read timeout: generation can take minutes.
+ * {@link ru.agimate.controlapi.service.llm.discovery.LlmDiscoveryHttp}, but with a long read
+ * timeout: generation can take minutes.
  */
 @Component
 @Slf4j

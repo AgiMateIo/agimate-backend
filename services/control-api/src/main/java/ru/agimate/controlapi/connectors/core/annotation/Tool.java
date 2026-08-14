@@ -9,7 +9,8 @@ import java.lang.annotation.Target;
  * MCP-compatible description of a connector's tool.
  * {@code name}/{@code title}/{@code description}/{@link ToolAnnotations}/{@code _meta} are declared
  * statically on the method; {@code inputSchema} and {@code outputSchema} are built by reflection
- * ({@link ToolSchemaReflector}) from the method's signature (parameters carrying {@link ToolParam})
+ * ({@link ru.agimate.controlapi.connectors.core.ToolSchemaReflector}) from the method's signature
+ * (parameters carrying {@link ToolParam})
  * and its return type.
  */
 @Retention(RetentionPolicy.RUNTIME)
