@@ -13,16 +13,25 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="session_id" type="UUID">
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
             <column name="agent_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="session_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="run_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="seq" type="INTEGER"/>
+            <column name="completed" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
             <column name="kind" type="TEXT">
                 <constraints nullable="false"/>
             </column>
@@ -31,15 +40,6 @@
             <!-- Structured tool turn (ToolTurnRecord) for PROGRESS rows, capped; null otherwise. -->
             <column name="message_json" type="JSONB"/>
             <column name="trigger_input" type="JSONB"/>
-            <column name="completed" type="BOOLEAN" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <sql>

@@ -14,11 +14,17 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <!-- Sheet owner: agentId. -->
-            <column name="scope_id" type="UUID">
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
             <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Sheet owner: agentId. -->
+            <column name="scope_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <!-- Machine code (slug); display name is title. -->
@@ -30,12 +36,6 @@
             </column>
             <!-- [{name,title,type,unit}], type: number|text|date|bool -->
             <column name="columns" type="JSONB">
-                <constraints nullable="false"/>
-            </column>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
         </createTable>
@@ -57,21 +57,21 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="sheet_id" type="UUID">
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
             <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
+            <column name="sheet_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
             <!-- Cell values {column: value}. Named data, not values, because VALUES is a reserved
                  PostgreSQL word; the tool JSON still exposes the key as "values". -->
             <column name="data" type="JSONB">
-                <constraints nullable="false"/>
-            </column>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
         </createTable>

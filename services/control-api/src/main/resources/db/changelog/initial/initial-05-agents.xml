@@ -12,7 +12,24 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
             <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="webhook_auth_secret_id" type="UUID">
+                <constraints foreignKeyName="fk_agents_webhook_auth_secret" references="secrets(id)"/>
+            </column>
+            <column name="agentic_team_id" type="UUID">
+                <constraints foreignKeyName="fk_agents_agentic_team"
+                             references="agentic_teams(id)"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
                 <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT" defaultValue="Unnamed Agent">
@@ -26,29 +43,12 @@
             <column name="key_id" type="TEXT">
                 <constraints nullable="false" unique="true" uniqueConstraintName="uq_agents_key_id"/>
             </column>
-            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
-                <constraints nullable="false"/>
-            </column>
             <column name="type" type="TEXT" defaultValue="CENTRIFUGO">
                 <constraints nullable="false"/>
             </column>
             <column name="webhook_url" type="TEXT"/>
-            <column name="webhook_auth_secret_id" type="UUID">
-                <constraints foreignKeyName="fk_agents_webhook_auth_secret" references="secrets(id)"/>
-            </column>
-            <column name="agentic_team_id" type="UUID">
-                <constraints foreignKeyName="fk_agents_agentic_team"
-                             references="agentic_teams(id)"/>
-            </column>
             <!-- Funnel analytics; no FK — a preset may be disabled or removed. -->
             <column name="preset_name" type="TEXT"/>
-            <column name="deleted_at" type="TIMESTAMP"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <createIndex tableName="agents" indexName="idx_agents_user_id">

@@ -10,30 +10,30 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="agent_run_id" type="UUID">
-                <constraints nullable="false"
-                             foreignKeyName="fk_webhook_delivery_logs_agent_run"
-                             references="agent_runs(id)"/>
-            </column>
-            <column name="request_url" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="request_payload" type="JSONB">
-                <constraints nullable="false"/>
-            </column>
-            <column name="response_status_code" type="INTEGER"/>
-            <column name="response_body" type="TEXT"/>
-            <column name="error" type="TEXT"/>
-            <column name="duration_ms" type="BIGINT"/>
-            <column name="delivered_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
             <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
+            <column name="agent_run_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_webhook_delivery_logs_agent_run"
+                             references="agent_runs(id)"/>
+            </column>
+            <column name="duration_ms" type="BIGINT"/>
+            <column name="delivered_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="response_status_code" type="INTEGER"/>
+            <column name="request_url" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="request_payload" type="JSONB">
+                <constraints nullable="false"/>
+            </column>
+            <column name="response_body" type="TEXT"/>
+            <column name="error" type="TEXT"/>
         </createTable>
 
         <createIndex tableName="webhook_delivery_logs" indexName="idx_webhook_delivery_logs_agent_run_id">

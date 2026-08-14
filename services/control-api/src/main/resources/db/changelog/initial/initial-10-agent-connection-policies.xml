@@ -12,11 +12,18 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
             <column name="agent_connection_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_agent_connection_policies_agent_connection"
                              references="agent_connections(id)" deleteCascade="true"/>
             </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
             <column name="kind" type="TEXT">
                 <constraints nullable="false"/>
             </column>
@@ -28,13 +35,6 @@
             <column name="params_filter" type="JSONB"/>
             <column name="description" type="TEXT"/>
             <column name="source" type="TEXT"/>
-            <column name="deleted_at" type="TIMESTAMP"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <sql>

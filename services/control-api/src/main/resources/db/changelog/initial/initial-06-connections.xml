@@ -13,6 +13,38 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Outbound credentials (telegram/mcp); null for internal/app. -->
+            <column name="secret_id" type="UUID">
+                <constraints foreignKeyName="fk_connections_secret" references="secrets(id)"/>
+            </column>
+            <!-- APP instances: app auth and device linking live in apps, not duplicated here. -->
+            <column name="app_id" type="UUID">
+                <constraints foreignKeyName="fk_connections_app" references="apps(id)"/>
+            </column>
+            <column name="webhook_secret_id" type="UUID">
+                <constraints foreignKeyName="fk_connections_webhook_secret" references="secrets(id)"/>
+            </column>
+            <!-- The two dated halves of the OAuth state below: how long the authorisation attempt is
+                 valid, and when the token dies. oauth_expires_at is a column and not part of the secret
+                 even though it travels with the token — inside the blob «who needs refreshing» could be
+                 answered neither by a query nor by the UI. NULL there means «unknown» (the AS sent no
+                 expires_in), never «expired». -->
+            <column name="oauth_state_expires_at" type="TIMESTAMP"/>
+            <column name="oauth_expires_at" type="TIMESTAMP"/>
+            <column name="last_used_at" type="TIMESTAMP"/>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
             <column name="connector_code" type="TEXT">
                 <constraints nullable="false"
                              foreignKeyName="fk_connections_connector_code"
@@ -29,44 +61,15 @@
             <column name="full_code" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="user_id" type="UUID">
-                <constraints nullable="false"/>
-            </column>
             <column name="name" type="TEXT"/>
-            <!-- Outbound credentials (telegram/mcp); null for internal/app. -->
-            <column name="secret_id" type="UUID">
-                <constraints foreignKeyName="fk_connections_secret" references="secrets(id)"/>
-            </column>
-            <!-- APP instances: app auth and device linking live in apps, not duplicated here. -->
-            <column name="app_id" type="UUID">
-                <constraints foreignKeyName="fk_connections_app" references="apps(id)"/>
-            </column>
-            <column name="webhook_secret_id" type="UUID">
-                <constraints foreignKeyName="fk_connections_webhook_secret" references="secrets(id)"/>
-            </column>
-            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
-                <constraints nullable="false"/>
-            </column>
             <!-- OAuth for connector instances (docs/decisions/mcp-oauth.md). Only what has to be
                  searched or shown without decrypting the secret becomes a column: the tokens, the
                  issuer, the AS endpoints and the granted scope stay inside the connection's secret.
-                 oauth_expires_at is out of the secret even though it travels with the token — inside
-                 the blob «who needs refreshing» could be answered neither by a query nor by the UI.
-                 NULL there means «unknown» (the AS sent no expires_in), never «expired». -->
+                 The dated half of this state sits with the other timestamps above. -->
             <column name="auth_status" type="TEXT" defaultValue="AUTHORIZED">
                 <constraints nullable="false"/>
             </column>
             <column name="oauth_state" type="TEXT"/>
-            <column name="oauth_state_expires_at" type="TIMESTAMP"/>
-            <column name="oauth_expires_at" type="TIMESTAMP"/>
-            <column name="last_used_at" type="TIMESTAMP"/>
-            <column name="deleted_at" type="TIMESTAMP"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <!-- Instance uniqueness among active rows, but only where a second instance would do harm

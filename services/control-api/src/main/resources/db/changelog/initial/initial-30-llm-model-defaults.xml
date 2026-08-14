@@ -17,21 +17,21 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="model" type="TEXT">
-                <constraints nullable="false" unique="true" uniqueConstraintName="uq_llm_model_defaults_model"/>
-            </column>
-            <column name="display_name" type="TEXT"/>
-            <column name="context_window" type="INTEGER"/>
-            <column name="max_output_tokens" type="INTEGER"/>
-            <column name="input_modalities" type="JSONB"/>
-            <column name="output_modalities" type="JSONB"/>
-            <column name="supported_parameters" type="JSONB"/>
             <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
             <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
+            <column name="context_window" type="INTEGER"/>
+            <column name="max_output_tokens" type="INTEGER"/>
+            <column name="model" type="TEXT">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_llm_model_defaults_model"/>
+            </column>
+            <column name="display_name" type="TEXT"/>
+            <column name="input_modalities" type="JSONB"/>
+            <column name="output_modalities" type="JSONB"/>
+            <column name="supported_parameters" type="JSONB"/>
         </createTable>
     </changeSet>
 

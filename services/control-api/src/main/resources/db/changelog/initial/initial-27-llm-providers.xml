@@ -10,7 +10,21 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
             <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- API key lives in secrets (entity=llm_provider, owner=llm_providers.id). Nullable —
+                 set right after insert, since the AAD binding needs the provider id. No FK: the
+                 lifecycle is managed by the service. -->
+            <column name="secret_id" type="UUID"/>
+            <column name="models_refreshed_at" type="TIMESTAMP"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
                 <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT">
@@ -20,10 +34,6 @@
                 <constraints nullable="false"/>
             </column>
             <column name="base_url" type="TEXT"/>
-            <!-- API key lives in secrets (entity=llm_provider, owner=llm_providers.id). Nullable —
-                 set right after insert, since the AAD binding needs the provider id. No FK: the
-                 lifecycle is managed by the service. -->
-            <column name="secret_id" type="UUID"/>
             <column name="api_key_mask" type="TEXT">
                 <constraints nullable="false"/>
             </column>
@@ -47,16 +57,6 @@
             <!-- Extra chat/completions body params (OpenRouter routing, transforms), merged with the
                  per-model extra_body (model wins). Not a secret. -->
             <column name="extra_body" type="JSONB"/>
-            <column name="models_refreshed_at" type="TIMESTAMP"/>
-            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
-                <constraints nullable="false"/>
-            </column>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <!-- Its index also serves the listing by user_id — no separate one on that column. -->

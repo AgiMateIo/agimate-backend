@@ -10,6 +10,12 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
             <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
@@ -18,17 +24,6 @@
             </column>
             <!-- Initiating run; feeds ConnectorEnv.runId. Nullable — app-originated calls have no run. -->
             <column name="run_id" type="UUID"/>
-            <column name="connector_code" type="TEXT"/>
-            <column name="connection_id" type="TEXT"/>
-            <column name="external_id" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="name" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="input" type="JSONB"/>
-            <column name="agent_session_id" type="TEXT"/>
-            <column name="access_effect" type="TEXT"/>
             <!-- Detached tools: the worker waits no longer than the grace threshold, then lets go
                  (DetachTool) and the result reaches the agent as a tool_completed trigger — a new run
                  of the same session. MCP tasks reuse the same row (taskId = external_id).
@@ -51,14 +46,19 @@
             <column name="delivered_at" type="TIMESTAMP"/>
             <column name="cancel_requested_at" type="TIMESTAMP"/>
             <column name="finish_at" type="TIMESTAMP"/>
+            <column name="connector_code" type="TEXT"/>
+            <column name="connection_id" type="TEXT"/>
+            <column name="external_id" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="name" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="input" type="JSONB"/>
+            <column name="agent_session_id" type="TEXT"/>
+            <column name="access_effect" type="TEXT"/>
             <column name="output" type="TEXT"/>
             <column name="error" type="TEXT"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <!-- Its index also serves the per-agent listing — no separate one on agent_id. -->

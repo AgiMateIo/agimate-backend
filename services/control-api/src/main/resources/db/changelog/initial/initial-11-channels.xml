@@ -10,12 +10,23 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
             <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
+            <!-- connections.id — the route source. -->
+            <column name="connection_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
             <column name="name" type="TEXT">
                 <constraints nullable="false"/>
             </column>
@@ -25,20 +36,9 @@
             <column name="connector_code" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <!-- connections.id — the route source. -->
-            <column name="connection_id" type="UUID">
-                <constraints nullable="false"/>
-            </column>
             <!-- Chat filtering by trigger params (the "how" layer, unlike policies — the "what"). -->
             <column name="input_filter" type="JSONB"/>
             <column name="config" type="JSONB">
-                <constraints nullable="false"/>
-            </column>
-            <column name="deleted_at" type="TIMESTAMP"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
         </createTable>

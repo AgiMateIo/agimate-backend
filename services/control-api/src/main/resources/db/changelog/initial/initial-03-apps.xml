@@ -10,13 +10,23 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
+                <constraints nullable="false"/>
+            </column>
             <column name="connector_code" type="TEXT">
                 <constraints nullable="false"
                              foreignKeyName="fk_apps_connector_code"
                              references="connectors(code)"/>
-            </column>
-            <column name="user_id" type="UUID">
-                <constraints nullable="false"/>
             </column>
             <column name="name" type="TEXT">
                 <constraints nullable="false"/>
@@ -28,20 +38,10 @@
             <column name="key_id" type="TEXT">
                 <constraints nullable="false"/>
             </column>
-            <column name="enabled" type="BOOLEAN" defaultValueBoolean="true">
-                <constraints nullable="false"/>
-            </column>
-            <column name="deleted_at" type="TIMESTAMP"/>
             <column name="device_id" type="TEXT"/>
             <column name="info" type="JSONB"/>
             <column name="triggers" type="JSONB"/>
             <column name="tools" type="JSONB"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <createIndex tableName="apps" indexName="idx_apps_user_id">

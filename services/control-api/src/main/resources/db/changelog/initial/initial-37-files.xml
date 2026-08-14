@@ -14,7 +14,26 @@
             <column name="id" type="UUID">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
             <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <!-- The agent that PRODUCED the file — provenance, not an access boundary. Access stays
+                 user_id-wide on purpose: agents of one user hand agf_ ids to each other through board
+                 comments and sheet cells, and a per-agent gate would break that flow. Nullable
+                 because the producing agent is genuinely unknown on the ingest paths. No FK and no
+                 index, as with user_id: the row is swept on TTL independently of what it points at,
+                 and nothing queries files by agent yet. -->
+            <column name="agent_id" type="UUID"/>
+            <column name="size" type="BIGINT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
             <!-- UPLOADING | READY -->
@@ -22,9 +41,6 @@
                 <constraints nullable="false"/>
             </column>
             <column name="mime" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="size" type="BIGINT">
                 <constraints nullable="false"/>
             </column>
             <!-- hex SHA-256; filled once the upload completes (status=READY) -->
@@ -35,22 +51,6 @@
                  export). Nullable: ingest paths often have no name at all (a Telegram photo, a
                  generated image), and inventing one would be indistinguishable from a real one. -->
             <column name="name" type="TEXT"/>
-            <!-- The agent that PRODUCED the file — provenance, not an access boundary. Access stays
-                 user_id-wide on purpose: agents of one user hand agf_ ids to each other through board
-                 comments and sheet cells, and a per-agent gate would break that flow. Nullable
-                 because the producing agent is genuinely unknown on the ingest paths. No FK and no
-                 index, as with user_id: the row is swept on TTL independently of what it points at,
-                 and nothing queries files by agent yet. -->
-            <column name="agent_id" type="UUID"/>
-            <column name="expires_at" type="TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <!-- daily quota: sum(size) per owner over the window -->

@@ -14,13 +14,19 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="run_id" type="UUID">
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="agent_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="session_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="agent_id" type="UUID">
+            <column name="run_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="turn_index" type="INTEGER">
@@ -39,12 +45,6 @@
             <column name="finish_reason" type="TEXT"/>
             <column name="model" type="TEXT"/>
             <column name="call_id" type="TEXT"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <sql>

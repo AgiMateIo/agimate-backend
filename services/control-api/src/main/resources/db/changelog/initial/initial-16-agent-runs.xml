@@ -14,45 +14,21 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="trigger_log_id" type="UUID">
-                <constraints nullable="false"
-                             foreignKeyName="fk_agent_runs_trigger_log"
-                             references="trigger_logs(id)"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
             </column>
             <column name="agent_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_agent_runs_agent"
                              references="agents(id)"/>
             </column>
-            <column name="destination" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
             <!-- A run is only ever born from a trigger, and a trigger always has a connector and a
                  connection, so the session always exists — an invariant in the schema rather than
                  an agreement. -->
             <column name="session_id" type="UUID">
-                <constraints nullable="false"/>
-            </column>
-            <column name="status" type="TEXT" defaultValue="ENQUEUED">
-                <constraints nullable="false"/>
-            </column>
-            <!-- Route channels (prompt/progress/answer) snapshotted at dispatch; NULL for direct runs. -->
-            <column name="channels" type="JSONB"/>
-            <!-- Start prompt exactly as sent to the first LLM call (SavePrompt, first-write-wins). -->
-            <column name="prompt" type="JSONB"/>
-            <column name="result" type="TEXT"/>
-            <column name="error" type="TEXT"/>
-            <!-- The cancellation request is kept apart from the status: the current step runs to its
-                 end between the click and the stop, and all that time the run is still RUNNING.
-                 Otherwise we would either lie about instant cancellation or invent a CANCELLING
-                 status that means nothing to the queue. The same field settles the «cancel against
-                 finish» race: a terminal ANSWER becomes CANCELLED with it, DONE without it. -->
-            <column name="cancel_requested_at" type="TIMESTAMP"/>
-            <!-- History for the next run is assembled from agent_run_turns, and SaveTurn is
-                 best-effort: a lost turn leaves a tool_use without its tool_result, and the provider
-                 rejects such a request whole. The journal is checked once, when the run finishes
-                 (turn_index continuity and pairing of the last turn), and the verdict stays here. -->
-            <column name="turns_intact" type="BOOLEAN" defaultValueBoolean="true">
                 <constraints nullable="false"/>
             </column>
             <!-- Steering: a running run takes over the incoming messages of younger ENQUEUED runs of
@@ -65,14 +41,38 @@
             <column name="main_run_id" type="UUID">
                 <constraints foreignKeyName="fk_agent_runs_main_run" references="agent_runs(id)"/>
             </column>
+            <column name="trigger_log_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_agent_runs_trigger_log"
+                             references="trigger_logs(id)"/>
+            </column>
+            <!-- The cancellation request is kept apart from the status: the current step runs to its
+                 end between the click and the stop, and all that time the run is still RUNNING.
+                 Otherwise we would either lie about instant cancellation or invent a CANCELLING
+                 status that means nothing to the queue. The same field settles the «cancel against
+                 finish» race: a terminal ANSWER becomes CANCELLED with it, DONE without it. -->
+            <column name="cancel_requested_at" type="TIMESTAMP"/>
             <column name="steered_at" type="TIMESTAMP"/>
             <column name="last_activity_at" type="TIMESTAMP"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+            <!-- History for the next run is assembled from agent_run_turns, and SaveTurn is
+                 best-effort: a lost turn leaves a tool_use without its tool_result, and the provider
+                 rejects such a request whole. The journal is checked once, when the run finishes
+                 (turn_index continuity and pairing of the last turn), and the verdict stays here. -->
+            <column name="turns_intact" type="BOOLEAN" defaultValueBoolean="true">
                 <constraints nullable="false"/>
             </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+            <column name="destination" type="TEXT">
                 <constraints nullable="false"/>
             </column>
+            <column name="status" type="TEXT" defaultValue="ENQUEUED">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Route channels (prompt/progress/answer) snapshotted at dispatch; NULL for direct runs. -->
+            <column name="channels" type="JSONB"/>
+            <!-- Start prompt exactly as sent to the first LLM call (SavePrompt, first-write-wins). -->
+            <column name="prompt" type="JSONB"/>
+            <column name="result" type="TEXT"/>
+            <column name="error" type="TEXT"/>
         </createTable>
 
         <addUniqueConstraint tableName="agent_runs"

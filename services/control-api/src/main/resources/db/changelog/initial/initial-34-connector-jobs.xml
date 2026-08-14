@@ -13,14 +13,31 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="connector_code" type="TEXT">
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
-            <column name="connection_id" type="TEXT"/>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
             <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <column name="agent_id" type="UUID"/>
+            <!-- Originating channel and session snapshotted at scheduling time: where a dynamic job
+                 (time.schedule) sends its answer and whose history its run gets. -->
+            <column name="channel_id" type="UUID"/>
+            <column name="session_id" type="UUID"/>
+            <column name="next_run_at" type="TIMESTAMP"/>
+            <column name="lease_until" type="TIMESTAMP"/>
+            <column name="last_started_at" type="TIMESTAMP"/>
+            <column name="paused_at" type="TIMESTAMP"/>
+            <column name="timeout_seconds" type="INTEGER" defaultValueNumeric="300">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connector_code" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="connection_id" type="TEXT"/>
             <column name="kind" type="TEXT">
                 <constraints nullable="false"/>
             </column>
@@ -39,24 +56,7 @@
             <column name="status" type="TEXT" defaultValue="PENDING">
                 <constraints nullable="false"/>
             </column>
-            <column name="next_run_at" type="TIMESTAMP"/>
-            <column name="timeout_seconds" type="INTEGER" defaultValueNumeric="300">
-                <constraints nullable="false"/>
-            </column>
-            <column name="lease_until" type="TIMESTAMP"/>
-            <column name="last_started_at" type="TIMESTAMP"/>
             <column name="last_error" type="TEXT"/>
-            <column name="paused_at" type="TIMESTAMP"/>
-            <!-- Originating channel and session snapshotted at scheduling time: where a dynamic job
-                 (time.schedule) sends its answer and whose history its run gets. -->
-            <column name="channel_id" type="UUID"/>
-            <column name="session_id" type="UUID"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <!-- The business key holds only for declarative jobs: AGENT jobs share one name (time.fire)

@@ -10,17 +10,32 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
             <column name="board_id" type="UUID">
                 <constraints nullable="false"
                              foreignKeyName="fk_board_tasks_board"
                              references="boards(id)"/>
             </column>
-            <column name="user_id" type="UUID">
-                <constraints nullable="false"/>
-            </column>
             <column name="parent_task_id" type="UUID">
                 <constraints foreignKeyName="fk_board_tasks_parent_task"
                              references="board_tasks(id)"/>
+            </column>
+            <column name="created_by_agent_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_board_tasks_created_by_agent"
+                             references="agents(id)"/>
+            </column>
+            <column name="assignee_agent_id" type="UUID">
+                <constraints foreignKeyName="fk_board_tasks_assignee_agent"
+                             references="agents(id)"/>
             </column>
             <column name="type" type="TEXT">
                 <constraints nullable="false"/>
@@ -32,21 +47,6 @@
                 <constraints nullable="false"/>
             </column>
             <column name="description" type="TEXT"/>
-            <column name="created_by_agent_id" type="UUID">
-                <constraints nullable="false"
-                             foreignKeyName="fk_board_tasks_created_by_agent"
-                             references="agents(id)"/>
-            </column>
-            <column name="assignee_agent_id" type="UUID">
-                <constraints foreignKeyName="fk_board_tasks_assignee_agent"
-                             references="agents(id)"/>
-            </column>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
 
         <sql>

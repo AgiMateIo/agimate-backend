@@ -14,24 +14,24 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <!-- One cold file per scope — the business key. -->
-            <column name="scope_id" type="UUID">
-                <constraints nullable="false" unique="true" uniqueConstraintName="uq_persistent_memory_cold_scope_id"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
             </column>
             <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
-            <column name="content" type="TEXT" defaultValue="">
-                <constraints nullable="false"/>
+            <!-- One cold file per scope — the business key. -->
+            <column name="scope_id" type="UUID">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_persistent_memory_cold_scope_id"/>
             </column>
             <!-- Optimistic lock: update_memory writes WHERE version = expected. -->
             <column name="version" type="INTEGER" defaultValueNumeric="0">
                 <constraints nullable="false"/>
             </column>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+            <column name="content" type="TEXT" defaultValue="">
                 <constraints nullable="false"/>
             </column>
         </createTable>
@@ -42,7 +42,10 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="scope_id" type="UUID">
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
             <column name="user_id" type="UUID">
@@ -50,16 +53,13 @@
             </column>
             <!-- Note origin (tracing); NULL for inline notes outside a session. -->
             <column name="session_id" type="UUID"/>
-            <column name="content" type="TEXT">
+            <column name="scope_id" type="UUID">
                 <constraints nullable="false"/>
             </column>
             <!-- Consolidation claim: batch id + claim time (lease). NULL = not consolidated. -->
             <column name="consolidation_id" type="UUID"/>
             <column name="claimed_at" type="TIMESTAMP"/>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+            <column name="content" type="TEXT">
                 <constraints nullable="false"/>
             </column>
         </createTable>

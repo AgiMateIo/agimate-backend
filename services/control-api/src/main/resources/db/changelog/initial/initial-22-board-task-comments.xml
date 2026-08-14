@@ -10,10 +10,11 @@
             <column name="id" type="UUID" defaultValueComputed="uuidv7()">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="board_task_id" type="UUID">
-                <constraints nullable="false"
-                             foreignKeyName="fk_board_task_comments_board_task"
-                             references="board_tasks(id)"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
             </column>
             <column name="user_id" type="UUID">
                 <constraints nullable="false"/>
@@ -23,13 +24,12 @@
                              foreignKeyName="fk_board_task_comments_agent"
                              references="agents(id)"/>
             </column>
+            <column name="board_task_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_board_task_comments_board_task"
+                             references="board_tasks(id)"/>
+            </column>
             <column name="content" type="TEXT">
-                <constraints nullable="false"/>
-            </column>
-            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
         </createTable>
