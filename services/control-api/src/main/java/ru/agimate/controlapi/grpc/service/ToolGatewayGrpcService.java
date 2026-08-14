@@ -83,9 +83,10 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
     }
 
     /**
-     * Protocol v2: the worker sends the run's run_id; the session (the tools' domain context — the
-     * prompt's channel) is resolved on this side from the run's row. An empty or unknown run_id → null
-     * (the tool is outside a channel).
+     * Protocol v2: the worker sends the run's run_id, and the session — the tools' domain context —
+     * is read from the run's row, where it is never empty. Whether that session has a channel is a
+     * later question, answered by {@code ToolExecutionService}. An empty or unknown run_id → null: a
+     * call outside a run, which is not the same as a call outside a channel.
      */
     private String resolveSessionId(ExecuteToolRequest request) {
         if (request.getRunId().isEmpty()) {
@@ -93,7 +94,7 @@ public class ToolGatewayGrpcService extends ToolGatewayGrpc.ToolGatewayImplBase 
         }
         try {
             return agentRunRepository.findById(UUID.fromString(request.getRunId()))
-                    .map(run -> run.getSessionId() != null ? run.getSessionId().toString() : null)
+                    .map(run -> run.getSessionId().toString())
                     .orElse(null);
         } catch (IllegalArgumentException e) {
             return null;
