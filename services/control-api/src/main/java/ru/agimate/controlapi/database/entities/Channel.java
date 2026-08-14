@@ -63,7 +63,7 @@ public class Channel extends BaseEntity {
     /**
      * Filter on incoming trigger parameters (chat filtering) — the «how» layer. Applied while
      * resolving the route ({@code ChannelRouteResolver}); no match → delivery over this channel is
-     * skipped. It used to live on the trigger policy via {@code channel_id}.
+     * skipped. It lives here and not on a policy because it decides «how», not «who».
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "input_filter", columnDefinition = "JSONB")

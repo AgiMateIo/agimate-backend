@@ -15,9 +15,9 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Refinement of the access rules on top of {@link AgentConnection} — it replaces the separate
- * {@code agent_tool_policies}/{@code agent_trigger_policies}. The model is <b>default-allow</b>:
- * given a binding, a tool or trigger is permitted unless a rule says otherwise.
+ * Refinement of the access rules on top of {@link AgentConnection}, one row per refined
+ * {@code (kind, name)}. The model is <b>default-allow</b>: given a binding, a tool or trigger is
+ * permitted unless a rule says otherwise.
  *
  * <p>Precedence when resolving {@code (kind, name)}: a rule for the exact {@link #name} → a
  * binding-wide rule ({@code name IS NULL}) → default-allow. That covers both patterns: a deny-list

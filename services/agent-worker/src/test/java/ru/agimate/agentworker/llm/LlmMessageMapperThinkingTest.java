@@ -16,8 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The {@code thinking} flag of an assistant turn — the value that ends up in
- * {@code agent_run_turns.thinking} and drives the 💭 marker. It is read out of Spring AI's assistant
+ * The {@code thinking} flag of an assistant turn — the value that drives the 💭 progress marker.
+ * Only the flag lives on the message; the reasoning text itself travels on {@code LlmMeta} and is
+ * persisted as {@code agent_run_turns.thinking_text}. It is read out of Spring AI's assistant
  * metadata by a key whose constant is private upstream, so this locks our half of that contract.
  */
 @DisplayName("LlmMessageMapper — флаг thinking из reasoning-метаданных")
