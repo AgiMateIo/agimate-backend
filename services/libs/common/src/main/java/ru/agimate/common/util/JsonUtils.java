@@ -1,20 +1,14 @@
 package ru.agimate.common.util;
 
-import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.StreamReadFeature;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import jakarta.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,19 +19,6 @@ public class JsonUtils {
     public static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
             .registerModule(new JavaTimeModule());
-
-    private static final ObjectMapper SNAKE_CASE_MAPPER;
-
-    static {
-        var factory = JsonFactory.builder()
-                .enable(StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION)
-                .build();
-
-        SNAKE_CASE_MAPPER = new ObjectMapper(factory)
-                .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
-                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-                .registerModule(new JavaTimeModule());
-    }
 
     public static final TypeReference<Map<String, Object>> MAP_TYPE_REFERENCE = new TypeReference<>() {
     };
@@ -65,14 +46,6 @@ public class JsonUtils {
         return null;
     }
 
-    public static <T> T readValueSnakeCase(String value, Class<T> vClass) {
-        try {
-            return SNAKE_CASE_MAPPER.readValue(value, vClass);
-        } catch (JsonProcessingException ex) {
-            throw new RuntimeException("Failed to convert String to object: " + ex.getMessage(), ex);
-        }
-    }
-
     public static Optional<String> toJson(Object object) {
         try {
             return Optional.ofNullable(MAPPER.writeValueAsString(object));
@@ -88,51 +61,6 @@ public class JsonUtils {
         } catch (JsonProcessingException ex) {
             throw new RuntimeException("Failed to convert object to String: " + ex.getMessage(), ex);
         }
-    }
-
-    @Nullable
-    public static String writeValueAsStringSafe(Object object) {
-        try {
-            return MAPPER.writeValueAsString(object);
-        } catch (Exception ex) {
-            return null;
-        }
-    }
-
-    public static <T> Optional<T> fromJson(byte[] jsonBytes, Class<T> clazz) {
-        try {
-            return Optional.of(MAPPER.readValue(jsonBytes, clazz));
-        } catch (IOException e) {
-            log.info("JSON parse error: {}. Input: {}", e.getMessage(), jsonBytes != null ? new String(jsonBytes) : null);
-        }
-        return Optional.empty();
-    }
-
-    public static <T> Optional<T> fromJson(String json, Class<T> clazz) {
-        try {
-            return Optional.of(MAPPER.readValue(json, clazz));
-        } catch (Exception e) {
-            log.info("JSON parse error: {}. Input: {}", e.getMessage(), json);
-        }
-        return Optional.empty();
-    }
-
-    public static <T> Optional<T> fromMap(Map<String, ?> json, Class<T> clazz) {
-        try {
-            return Optional.of(MAPPER.convertValue(json, clazz));
-        } catch (Exception e) {
-            log.warn("Failed to convert JSON from map: {}. Input: {}", e.getMessage(), json);
-        }
-        return Optional.empty();
-    }
-
-    public static <T> Optional<T> fromJson(String json, TypeReference<T> typeReference) {
-        try {
-            return Optional.of(MAPPER.readValue(json, typeReference));
-        } catch (Exception e) {
-            log.info("JSON parse error: {}. Input: {}", e.getMessage(), json);
-        }
-        return Optional.empty();
     }
 
     public static Map<String, Object> fromJsonToMap(String json) {
@@ -184,14 +112,5 @@ public class JsonUtils {
         JsonNode na = MAPPER.valueToTree(a);
         JsonNode nb = MAPPER.valueToTree(b);
         return na.equals(NUMERIC_AWARE_LEAF_COMPARATOR, nb);
-    }
-
-    public static Map<String, Object> loadJsonIntoMap(File jsonFile) {
-        try {
-            return MAPPER.readValue(jsonFile, MAP_TYPE_REFERENCE);
-        } catch (IOException e) {
-            log.error("JSON parse error for file: {}", jsonFile.getPath(), e);
-            throw new RuntimeException(e);
-        }
     }
 }
