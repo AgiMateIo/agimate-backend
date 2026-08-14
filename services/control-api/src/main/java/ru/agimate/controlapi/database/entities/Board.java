@@ -9,7 +9,8 @@ import ru.agimate.common.persistence.BaseEntity;
 import java.util.UUID;
 
 @Entity
-@Table(name = "boards", uniqueConstraints = @UniqueConstraint(columnNames = "agentic_team_id"))
+@Table(name = "boards", uniqueConstraints =
+        @UniqueConstraint(name = "uq_boards_agentic_team_id", columnNames = "agentic_team_id"))
 @Getter
 @Setter
 @Builder
@@ -27,7 +28,7 @@ public class Board extends BaseEntity {
     private UUID userId;
 
     @OneToOne
-    @JoinColumn(name = "agentic_team_id", nullable = false, unique = true)
+    @JoinColumn(name = "agentic_team_id", nullable = false)
     private AgenticTeam agenticTeam;
 
     @Column(name = "name", nullable = false, columnDefinition = "TEXT")

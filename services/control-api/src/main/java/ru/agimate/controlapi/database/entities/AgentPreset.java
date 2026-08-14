@@ -31,7 +31,8 @@ import java.util.UUID;
  * {@code code}.
  */
 @Entity
-@Table(name = "agent_presets", uniqueConstraints = @UniqueConstraint(columnNames = "name"))
+@Table(name = "agent_presets", uniqueConstraints =
+        @UniqueConstraint(name = "uq_agent_presets_name", columnNames = "name"))
 @Getter
 @Setter
 @Builder
@@ -46,7 +47,7 @@ public class AgentPreset extends BaseEntity {
     private UUID id;
 
     /** Machine code slug ('personal-assistant') — the key of idempotent seeding. */
-    @Column(name = "name", nullable = false, unique = true, columnDefinition = "TEXT")
+    @Column(name = "name", nullable = false, columnDefinition = "TEXT")
     private String name;
 
     /** Human-readable display name. */

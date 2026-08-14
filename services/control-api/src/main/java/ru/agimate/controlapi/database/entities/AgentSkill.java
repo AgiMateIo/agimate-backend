@@ -15,7 +15,8 @@ import java.util.UUID;
  * and the bindings are cleaned up by {@code SkillService.delete}.
  */
 @Entity
-@Table(name = "agent_skills", uniqueConstraints = @UniqueConstraint(columnNames = {"agent_id", "skill_id"}))
+@Table(name = "agent_skills", uniqueConstraints =
+        @UniqueConstraint(name = "uq_agent_skills_agent_id_skill_id", columnNames = {"agent_id", "skill_id"}))
 @Getter
 @Setter
 @Builder

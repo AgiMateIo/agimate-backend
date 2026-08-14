@@ -16,7 +16,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "trigger_logs", uniqueConstraints =
-        @UniqueConstraint(columnNames = {"user_id", "connector_code", "connection_id", "name", "external_id"}))
+        @UniqueConstraint(name = "uq_trigger_logs_user_connector_code_connection_name_external",
+                columnNames = {"user_id", "connector_code", "connection_id", "name", "external_id"}))
 @Getter
 @Setter
 @Builder

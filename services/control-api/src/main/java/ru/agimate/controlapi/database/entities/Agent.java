@@ -19,7 +19,8 @@ import java.util.UUID;
  * single manual {@code deletedAt IS NULL} is needed anywhere.
  */
 @Entity
-@Table(name = "agents", uniqueConstraints = @UniqueConstraint(columnNames = "key_id"))
+@Table(name = "agents", uniqueConstraints =
+        @UniqueConstraint(name = "uq_agents_key_id", columnNames = "key_id"))
 @SQLRestriction("deleted_at IS NULL")
 @Getter
 @Setter
@@ -37,7 +38,7 @@ public class Agent extends BaseEntity {
     @Column(name = "key_hash", nullable = false, columnDefinition = "TEXT")
     private String keyHash;
 
-    @Column(name = "key_id", nullable = false, unique = true, columnDefinition = "TEXT")
+    @Column(name = "key_id", nullable = false, columnDefinition = "TEXT")
     private String keyId;
 
     @Column(name = "user_id", nullable = false)

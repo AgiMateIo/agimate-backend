@@ -13,7 +13,8 @@ import java.util.Map;
 import java.util.UUID;
 
 @Entity
-@Table(name = "channel_session_messages")
+@Table(name = "channel_session_messages", uniqueConstraints =
+        @UniqueConstraint(name = "uq_channel_session_messages_run_id_seq", columnNames = {"run_id", "seq"}))
 @Getter
 @Setter
 @Builder

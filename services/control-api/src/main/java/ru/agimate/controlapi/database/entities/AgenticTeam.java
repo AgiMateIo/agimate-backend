@@ -9,7 +9,8 @@ import ru.agimate.common.persistence.BaseEntity;
 import java.util.UUID;
 
 @Entity
-@Table(name = "agentic_teams", uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "name"}))
+@Table(name = "agentic_teams", uniqueConstraints =
+        @UniqueConstraint(name = "uq_agentic_teams_user_id_name", columnNames = {"user_id", "name"}))
 @Getter
 @Setter
 @Builder

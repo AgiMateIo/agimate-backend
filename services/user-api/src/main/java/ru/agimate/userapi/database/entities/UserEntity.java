@@ -11,7 +11,10 @@ import ru.agimate.common.security.UserRole;
 import java.util.UUID;
 
 @Entity
-@Table(name = "users", uniqueConstraints = @UniqueConstraint(columnNames = "referral_code"))
+@Table(name = "users", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_users_email", columnNames = "email"),
+        @UniqueConstraint(name = "uq_users_referral_code", columnNames = "referral_code")
+})
 @Getter
 @Setter
 public class UserEntity extends BaseEntity {
@@ -21,7 +24,7 @@ public class UserEntity extends BaseEntity {
     @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
-    @Column(name = "email", nullable = false, unique = true, columnDefinition = "TEXT")
+    @Column(name = "email", nullable = false, columnDefinition = "TEXT")
     private String email;
 
     @Column(name = "first_name", columnDefinition = "TEXT")
