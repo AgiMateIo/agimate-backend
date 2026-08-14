@@ -7,7 +7,7 @@ import io.grpc.ClientInterceptor;
 import io.grpc.ForwardingClientCall;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Adds the worker-pool bearer token (and optional worker-instance id) to every

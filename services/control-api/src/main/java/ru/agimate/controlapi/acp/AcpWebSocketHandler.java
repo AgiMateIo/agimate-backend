@@ -3,7 +3,6 @@ package ru.agimate.controlapi.acp;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -89,12 +88,12 @@ public class AcpWebSocketHandler extends TextWebSocketHandler {
     }
 
     @Override
-    public void afterConnectionClosed(WebSocketSession session, @NonNull CloseStatus status) {
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         sessionRegistry.detachAll(client(session));
     }
 
     @Override
-    protected void handleTextMessage(@NonNull WebSocketSession session, TextMessage message) {
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         AcpSessionRegistry.Client client = client(session);
         JsonNode frame = JsonUtils.toJsonNodeOrNull(message.getPayload());
         if (frame == null || !frame.isObject()) {

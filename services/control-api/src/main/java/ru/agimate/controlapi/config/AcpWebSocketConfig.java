@@ -3,7 +3,6 @@ package ru.agimate.controlapi.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.lang.NonNull;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
@@ -34,7 +33,7 @@ public class AcpWebSocketConfig implements WebSocketConfigurer {
     private final AcpWebSocketHandler acpWebSocketHandler;
 
     @Override
-    public void registerWebSocketHandlers(@NonNull WebSocketHandlerRegistry registry) {
+    public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         // The client is not a browser (the bridge or the IDE), there is no Origin header; an Origin policy does not apply.
         registry.addHandler(acpWebSocketHandler, PATH)
                 .addInterceptors(new AcpHandshakeInterceptor())

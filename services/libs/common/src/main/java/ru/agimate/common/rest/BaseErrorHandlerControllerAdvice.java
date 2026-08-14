@@ -253,7 +253,7 @@ public class BaseErrorHandlerControllerAdvice {
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    @ResponseStatus(HttpStatus.CONTENT_TOO_LARGE)
     public ErrorResponse badRequest(MaxUploadSizeExceededException ex, HttpServletRequest request) {
         log.warn("Payload too large on {} {}: {}", request.getMethod(), request.getRequestURL(), ex.getMessage());
         return new ErrorResponse("Uploaded files exceed the allowed size.");
