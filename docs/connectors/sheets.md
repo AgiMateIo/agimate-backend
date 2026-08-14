@@ -167,6 +167,6 @@ connectors/internal/sheets/
   dto/SheetDtos            view/command-records
 
 database/entities/Sheet.java, SheetRow.java
-resources/skills/sheets/SKILL.md   (регистрируется в SystemSkillBootstrap)
+resources/seed/skills/<lang>/sheets/SKILL.md   (регистрируется в SystemSkillBootstrap)
 db/changelog/initial/initial-36-sheets.xml
 ```

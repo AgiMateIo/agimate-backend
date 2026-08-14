@@ -4,7 +4,7 @@
 
 ## Модель
 
-- **Тип:** internal (не integration). Привязывается к агенту **через навык** `platform-admin` (`connectors: [platform]`), а не через connection. Навык сидится в БД `SystemSkillBootstrap` (`resources/skills/platform/SKILL.md`, seed-only-if-missing).
+- **Тип:** internal (не integration). Привязывается к агенту **через навык** `platform-admin` (`connectors: [platform]`), а не через connection. Навык сидится в БД `SystemSkillBootstrap` (`resources/seed/skills/<lang>/platform/SKILL.md`, seed-only-if-missing).
 - **Owner операций:** человек-владелец агента (`ConnectorEnv.userId`). Все листинги и мутации user-scoped — мета-агент управляет только ресурсами своего владельца.
 - **Реализация:** тонкий адаптер поверх существующих сервисов. Чтение — из репозиториев, запись — через `AgentService`/`SkillService`/`AgentSkillService`/`ConnectionBindingService` (service-layer command-перегрузки, без зависимости от `controller/**`). Доменные `*StatusException` транслируются в `ConnectorException`.
 
