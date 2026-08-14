@@ -59,7 +59,7 @@ import java.util.stream.Collectors;
 /**
  * Orchestration of webchat: one USER-scope connection per user (materialised by the binding on the
  * first chat), a per-agent channel with the {@code webchat} handler, explicit sessions
- * ({@code channel_sessions}). An incoming message goes out through the regular trigger pipeline: the
+ * ({@code agent_sessions}). An incoming message goes out through the regular trigger pipeline: the
  * audience targets the channel's agent (the connection is shared — without an audience this would fan
  * out to every bound agent), and the declared prompt carries the session the frontend chose.
  *

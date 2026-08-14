@@ -20,8 +20,8 @@ import java.util.UUID;
 
 /**
  * The «this connection is available to this agent» bindings ({@code agent_connections}) — the
- * availability gate, and the only place a user grants or revokes one. Skills no longer create bindings
- * of their own: they declare <i>which instance</i> they work with, and go unsatisfied while it is not
+ * availability gate, and the only place a user grants or revokes one. Skills create no bindings of
+ * their own: they declare <i>which instance</i> they work with, and go unsatisfied while it is not
  * open here. Bindings that a channel holds (webchat/acp) are created by the channel services and are
  * removed with the channel. A binding's tools and triggers are refined through
  * {@link ManageAgentConnectionPolicyController}.

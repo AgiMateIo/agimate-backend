@@ -209,8 +209,9 @@ public class ConnectionBindingService {
     }
 
     /**
-     * Close a connector for an agent. Any kind: skills no longer resurrect internal bindings, so the
-     * user's decision is the last word — the skills that pointed at this instance simply go unsatisfied.
+     * Close a connector for an agent. Any kind: nothing recreates a binding behind the user's back —
+     * a skill only declares the instance it means — so this is the last word, and the skills that
+     * pointed at this instance simply go unsatisfied.
      */
     @Transactional
     public void unbind(UUID userId, UUID agentId, UUID connectionId) {

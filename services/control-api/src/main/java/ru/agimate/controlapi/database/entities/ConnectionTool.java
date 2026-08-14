@@ -10,10 +10,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * A tool of a dynamic connector instance (MCP server, connected app). Generalises the former
- * {@code mcp_tool} cache: the set is discovered at runtime ({@code tools/list} / app link) and
- * cached here so the worker and the policy UI can see the list without reaching the source on the
- * hot path.
+ * A tool of a dynamic connector instance (MCP server, connected app): the set is discovered at
+ * runtime ({@code tools/list} / app link) and cached here so the worker and the policy UI can see
+ * the list without reaching the source on the hot path.
  *
  * <p>Schemas are kept as raw JSON text for fidelity to an arbitrary JSON Schema. The business key
  * {@code (connection_id, name)} is partial unique {@code WHERE deleted_at IS NULL}.

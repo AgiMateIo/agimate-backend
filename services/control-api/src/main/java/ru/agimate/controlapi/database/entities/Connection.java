@@ -10,9 +10,9 @@ import java.util.UUID;
 
 /**
  * The single registry of connector instances. {@code id} is the {@code connectionId} across all
- * downstream tables (channels, policies, trigger_logs, tool_call_logs, connector_jobs). It subsumes
- * {@code integration_credentials}; {@code apps} is referenced through {@link #appId} (app auth and
- * device linking are not duplicated).
+ * downstream tables (channels, policies, trigger_logs, tool_call_logs, connector_jobs). Credentials
+ * get no table of their own — they hang off {@link #secretId}; {@code apps} is referenced through
+ * {@link #appId} (app auth and device linking are not duplicated).
  *
  * <p>{@code full_code = connector_code + "_" + sub_code} — the stable client-facing handle and the
  * prefix of the tool namespace (mcp_context7.resolve-library-id); for a static singleton it equals

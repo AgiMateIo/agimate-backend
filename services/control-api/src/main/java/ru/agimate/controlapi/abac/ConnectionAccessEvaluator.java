@@ -16,8 +16,8 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The single ABAC evaluator on top of a binding (it replaces {@code ToolPolicyDbEvaluatorService} +
- * {@code TriggerPolicyDbEvaluatorService}). The model is <b>default-allow gated by the binding</b>:
+ * The single ABAC evaluator on top of a binding, for both {@link PolicyKind}s. The model is
+ * <b>default-allow gated by the binding</b>:
  * <ol>
  *   <li>no active {@link AgentConnection} (agent↔connection) → <b>deny</b> (the connector is unavailable);</li>
  *   <li>a rule {@code (binding, kind, name)} matching the exact name → its effect;</li>

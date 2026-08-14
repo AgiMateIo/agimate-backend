@@ -33,7 +33,7 @@ import java.util.UUID;
 /**
  * Orchestration of an ACP dialogue (the structural twin of {@code WebchatService}): one USER-scope
  * connection per user, a per-agent channel with the {@code acp} handler, explicit sessions
- * ({@code channel_sessions}). An incoming message goes out through the regular trigger pipeline;
+ * ({@code agent_sessions}). An incoming message goes out through the regular trigger pipeline;
  * unlike webchat there is no separate UI history — a {@code session/load} replay reads
  * {@code channel_session_messages} (INBOUND is written by the worker through SaveMessage).
  *

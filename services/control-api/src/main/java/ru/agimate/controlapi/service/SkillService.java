@@ -169,10 +169,10 @@ public class SkillService {
 
     /**
      * Replace a skill's connector list in place (without touching the body or the name). The rights are
-     * the same as for a full {@link #update}: one's own skill, or a system one for ADMIN. The add-only
-     * policy ({@code AgentSkillPolicyService}) means already-bound agents will not pick the new
-     * connectors up on their own — they are synchronised explicitly (per-agent {@code sync-policies});
-     * so here we only bump the version for drift detection.
+     * the same as for a full {@link #update}: one's own skill, or a system one for ADMIN. A skill only
+     * declares what it needs and never binds anything, so a new connector reaches no already-bound
+     * agent by itself — the version bump is what surfaces the drift, against
+     * {@code AgentSkill.installedSkillVersion}.
      */
     @Transactional
     public SkillResponse updateConnectors(UUID id, UUID userId, boolean admin, UpdateSkillConnectorsRequest request) {
@@ -205,7 +205,7 @@ public class SkillService {
         }
         skillRepository.softDelete(skill.getId(), LocalDateTime.now());
         // The bindings (other people's included — the skill may have been installed while public) are deleted
-        // right away: the policies are add-only (AgentSkillPolicyService), so no per-agent recomputation is needed.
+        // right away: a skill grants no access of its own, so there is nothing per-agent to recompute.
         int unbound = agentSkillRepository.deleteBySkillId(skill.getId());
         log.info("Soft-deleted skill '{}' id={} by user={}, unbound from {} agent(s)",
                 skill.getName(), id, userId, unbound);
