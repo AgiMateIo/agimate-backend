@@ -45,7 +45,11 @@ dependencies {
     implementation("org.apache.commons:commons-lang3")
     implementation("commons-io:commons-io")
 
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    // What JsonUtils is actually written against. Declared explicitly: it used to arrive as a side
+    // effect of jackson-module-kotlin, and jsr310 (JavaTimeModule) did not arrive at all — only the
+    // consumers happened to have it.
+    implementation("com.fasterxml.jackson.core:jackson-databind")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
 
     api("org.projectlombok:lombok")
     annotationProcessor("org.projectlombok:lombok")

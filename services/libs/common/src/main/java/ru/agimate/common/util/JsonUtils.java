@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fasterxml.jackson.module.kotlin.KotlinModule;
 import jakarta.annotation.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -25,8 +24,7 @@ import java.util.Optional;
 public class JsonUtils {
     public static final ObjectMapper MAPPER = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-            .registerModule(new JavaTimeModule())
-            .registerModule(new KotlinModule.Builder().build());
+            .registerModule(new JavaTimeModule());
 
     private static final ObjectMapper SNAKE_CASE_MAPPER;
 
@@ -38,8 +36,7 @@ public class JsonUtils {
         SNAKE_CASE_MAPPER = new ObjectMapper(factory)
                 .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
-                .registerModule(new JavaTimeModule())
-                .registerModule(new KotlinModule.Builder().build());
+                .registerModule(new JavaTimeModule());
     }
 
     public static final TypeReference<Map<String, Object>> MAP_TYPE_REFERENCE = new TypeReference<>() {
