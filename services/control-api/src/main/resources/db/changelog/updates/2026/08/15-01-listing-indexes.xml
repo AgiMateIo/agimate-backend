@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Индексы под листинги manage. Общая форма запроса — «строки владельца, свежие сверху»,
+      и до сих пор индекс закрывал только фильтр: сортировку PostgreSQL делал сам, то есть
+      сортировал весь набор строк пользователя на каждой странице.
+    -->
+    <changeSet id="add-listing-indexes" author="agimate">
+        <createIndex tableName="trigger_logs" indexName="idx_trigger_logs_user_id_created_at">
+            <column name="user_id"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+        <createIndex tableName="tool_call_logs" indexName="idx_tool_call_logs_user_id_created_at">
+            <column name="user_id"/>
+            <column name="created_at" descending="true"/>
+        </createIndex>
+        <!-- Листинг джоб сортируется по next_run_at, а не по created_at. -->
+        <createIndex tableName="connector_jobs" indexName="idx_connector_jobs_user_id_next_run_at">
+            <column name="user_id"/>
+            <column name="next_run_at"/>
+        </createIndex>
+        <createIndex tableName="connector_jobs" indexName="idx_connector_jobs_connection_id">
+            <column name="connection_id"/>
+        </createIndex>
+        <!--
+          Не для manage: ConnectorJobScheduler забирает партию FOR UPDATE SKIP LOCKED с
+          ORDER BY next_run_at каждый тик — без индекса это seq scan с сортировкой раз в секунду.
+          Индекс непартиальный, хотя планировщик всегда добавляет paused_at IS NULL: пауз в
+          таблице единицы, а слово предиката в имени пришлось бы заводить новое.
+        -->
+        <createIndex tableName="connector_jobs" indexName="idx_connector_jobs_next_run_at">
+            <column name="next_run_at"/>
+        </createIndex>
+    </changeSet>
+
+    <!--
+      Снятие индексов, которые стали мёртвым грузом. Ни один запрос не ходит в эти таблицы по
+      created_at без владельца: в trigger_logs это findByUserIdWithFilters и
+      findFirstByUserAndPayloadContaining, в tool_call_logs — findWithFilters (user_id) и
+      countLiveDetached (agent_id); ретеншена по времени нет ни у той, ни у другой.
+    -->
+    <changeSet id="drop-superseded-log-indexes" author="agimate">
+        <!-- Строгий префикс idx_tool_call_logs_user_id_created_at. -->
+        <dropIndex tableName="tool_call_logs" indexName="idx_tool_call_logs_user_id"/>
+        <dropIndex tableName="tool_call_logs" indexName="idx_tool_call_logs_created_at"/>
+        <dropIndex tableName="trigger_logs" indexName="idx_trigger_logs_created_at"/>
+    </changeSet>
+
+</databaseChangeLog>
