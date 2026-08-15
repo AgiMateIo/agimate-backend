@@ -80,6 +80,14 @@ public class JwtService {
     }
 
     public String generateAccessToken(AgimateUserPrincipal agimateUserPrincipal) {
+        return generateAccessToken(agimateUserPrincipal, jwtProperties.getAccessExpiration());
+    }
+
+    /**
+     * @param expirationSeconds how long this particular token lives; a browser and an installed
+     *                          application are given different lifetimes for the same person
+     */
+    public String generateAccessToken(AgimateUserPrincipal agimateUserPrincipal, int expirationSeconds) {
         Map<String, Object> claims = new HashMap<>();
         List<String> roles = agimateUserPrincipal.authorities().stream()
                 .map(GrantedAuthority::getAuthority)
@@ -88,16 +96,39 @@ public class JwtService {
         claims.put(CLAIM_TYPE, CLAIM_TYPE_ACCESS);
         claims.put("roles", roles);
 
-        return createToken(agimateUserPrincipal.getName(), claims, jwtProperties.getAccessExpiration());
+        return createToken(agimateUserPrincipal.getName(), claims, expirationSeconds);
     }
 
     public String generateRefreshToken(AgimateUserPrincipal agimateUserPrincipal, String jwtId) {
+        return generateRefreshToken(agimateUserPrincipal, jwtId, jwtProperties.getRefreshExpiration());
+    }
+
+    /** @param expirationSeconds see {@link #generateAccessToken(AgimateUserPrincipal, int)} */
+    public String generateRefreshToken(AgimateUserPrincipal agimateUserPrincipal, String jwtId,
+                                       int expirationSeconds) {
         Map<String, Object> claims = new HashMap<>();
 
         claims.put(CLAIM_TYPE, CLAIM_TYPE_REFRESH);
         claims.put(CLAIM_JWT_ID, jwtId);
 
-        return createToken(agimateUserPrincipal.getName(), claims, jwtProperties.getRefreshExpiration());
+        return createToken(agimateUserPrincipal.getName(), claims, expirationSeconds);
+    }
+
+    /**
+     * Verifies a refresh token without being told which id to expect — the caller looks the id up
+     * afterwards instead of having to know it in advance, which is what a client holding nothing
+     * but the token itself can do.
+     */
+    public Optional<WrappedJwt> extractClaimsFromValidRefreshToken(String token) {
+        try {
+            Claims claims = extractAllClaims(token);
+            if (CLAIM_TYPE_REFRESH.equals(claims.get(CLAIM_TYPE)) && claims.get(CLAIM_JWT_ID) != null) {
+                return Optional.of(new WrappedJwt(token, claims));
+            }
+            return Optional.empty();
+        } catch (Exception e) {
+            return Optional.empty();
+        }
     }
 
     /**

@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableConfigurationProperties
 @ConfigurationPropertiesScan(basePackages = {
@@ -20,6 +21,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 )
 @EntityScan
 @EnableJpaRepositories
+@EnableScheduling
 public class UserApiApplication {
 
     public static void main(String[] args) {

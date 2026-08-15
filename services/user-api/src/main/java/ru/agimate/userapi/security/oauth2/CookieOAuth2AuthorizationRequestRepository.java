@@ -27,9 +27,17 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
     public static final String OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME = "oauth2_auth_request";
     public static final String OAUTH2_REDIRECT_TO_COOKIE_NAME = "oauth2_redirect_to";
     public static final String OAUTH2_REF_COOKIE_NAME = "oauth2_ref";
+    public static final String OAUTH2_CODE_CHALLENGE_COOKIE_NAME = "oauth2_code_challenge";
     public static final int COOKIE_EXPIRE_SECONDS = 900; // 15 minutes
 
     private static final Pattern REF_PATTERN = Pattern.compile("^[A-Za-z0-9]{1,16}$");
+
+    /**
+     * S256 and nothing else, which fixes the length at 43 base64url characters. The value is a hash
+     * and travels in the clear like {@code redirect_to} next to it — what matters is that only the
+     * application that started the login knows its preimage.
+     */
+    private static final Pattern CODE_CHALLENGE_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{43}$");
 
     private final SecretKey encryptionKey;
     private final boolean cookieSecure;
@@ -72,6 +80,18 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         if (isValidRefCode(ref)) {
             addCookie(response, OAUTH2_REF_COOKIE_NAME, ref, COOKIE_EXPIRE_SECONDS);
         }
+
+        // The PKCE challenge of the native client, which has to outlive the trip to the provider and
+        // is unrelated to the code_verifier inside the authorization request — that one belongs to
+        // our exchange with the provider, this one to the app's exchange with us.
+        String codeChallenge = request.getParameter("code_challenge");
+        if (isValidCodeChallenge(codeChallenge)) {
+            addCookie(response, OAUTH2_CODE_CHALLENGE_COOKIE_NAME, codeChallenge, COOKIE_EXPIRE_SECONDS);
+        }
+    }
+
+    public static boolean isValidCodeChallenge(String value) {
+        return value != null && CODE_CHALLENGE_PATTERN.matcher(value).matches();
     }
 
     /**
@@ -93,6 +113,7 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         }
         deleteCookie(request, response, OAUTH2_REDIRECT_TO_COOKIE_NAME);
         deleteCookie(request, response, OAUTH2_REF_COOKIE_NAME);
+        deleteCookie(request, response, OAUTH2_CODE_CHALLENGE_COOKIE_NAME);
         return authorizationRequest;
     }
 

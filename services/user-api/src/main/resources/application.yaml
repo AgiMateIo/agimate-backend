@@ -123,6 +123,12 @@ jwt:
   publicKey: ""
   accessExpiration: 86400 # 24 hours
   refreshExpiration: 604800 # 7 days
+  # Приложение открывают раз в неделю — недельный refresh означал бы регулярный разлогин.
+  # Access при этом короче суточного: реестр сессий читается только на рефреше, поэтому
+  # «выйти на устройстве» догоняет его не раньше, чем истечёт текущий access.
+  # См. docs/decisions/native-auth.md
+  nativeAccessExpiration: 3600 # 1 hour
+  nativeRefreshExpiration: 5184000 # 60 days
 
 app:
   oauth:
@@ -133,6 +139,14 @@ app:
       - http://www.agimate.lc:8000/login-check
       - https://www.agimate.ru/login-check
       - https://www.agimate.io/login-check
+    # Адреса нативных клиентов — отдельным списком, а не в allowed-redirect-urls: из веб-адреса
+    # вычисляется домен cookie, а у agimate:// домена нет. Смешение ломает именно веб-ветку,
+    # поэтому OAuthProperties отказывается стартовать, если списки перепутаны.
+    # App Link предпочтительнее схемы: он проверяется доменом (/.well-known/assetlinks.json),
+    # и присвоить его чужому приложению нельзя. Схема остаётся фолбэком.
+    native-redirect-urls:
+      - https://www.agimate.io/app/auth
+      - agimate://auth
     # AES-256 encryption key for OAuth2 authorization request cookies (Base64-encoded, 32 bytes)
     # IMPORTANT: Use the same key across all backend instances for multi-instance deployments
     # Generate with: openssl rand -base64 32

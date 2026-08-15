@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- The session registry replaces the in-memory list of spent refresh ids: a device session
+         outlives any single instance, and logout has to mean revocation across replicas.
+
+         Two jti columns rather than one, because a rotated refresh must survive a lost response:
+         the client retries with what it still holds, and previous_jti within a short window after
+         rotated_at is a retry, not a replay. Past that window it is evidence the token exists in two
+         places, and the whole row is revoked (docs/decisions/native-auth.md). -->
+    <changeSet id="create-auth-sessions-table" author="Eugene Smith">
+        <createTable tableName="auth_sessions">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="client" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- What the person recognises in a device list: the model a native client sends, the
+                 user agent for a browser. Cosmetic, and never trusted for anything else. -->
+            <column name="device_label" type="TEXT"/>
+            <column name="current_jti" type="TEXT">
+                <constraints nullable="false" unique="true"
+                             uniqueConstraintName="uq_auth_sessions_current_jti"/>
+            </column>
+            <column name="previous_jti" type="TEXT"/>
+            <column name="rotated_at" type="TIMESTAMP"/>
+            <column name="last_seen_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="revoked_at" type="TIMESTAMP"/>
+            <column name="revoke_reason" type="TEXT"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="auth_sessions"
+                baseColumnNames="user_id"
+                constraintName="fk_auth_sessions_user"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <!-- A refresh arrives with one jti and no idea which of the two columns holds it, so both
+             are looked up in a single OR and both have to be indexed. -->
+        <createIndex tableName="auth_sessions" indexName="idx_auth_sessions_previous_jti">
+            <column name="previous_jti"/>
+        </createIndex>
+
+        <createIndex tableName="auth_sessions" indexName="idx_auth_sessions_user_id">
+            <column name="user_id"/>
+        </createIndex>
+
+        <sql>
+            ALTER TABLE auth_sessions ADD CONSTRAINT chk_auth_sessions_client
+            CHECK (client IN ('WEB', 'NATIVE'));
+        </sql>
+
+        <sql>
+            ALTER TABLE auth_sessions ADD CONSTRAINT chk_auth_sessions_revoke_reason
+            CHECK (revoke_reason IS NULL OR revoke_reason IN ('LOGOUT', 'REPLAY', 'REVOKED'));
+        </sql>
+    </changeSet>
+
+    <!-- One-time codes for the native token exchange. Not a cache: the code is issued on whichever
+         replica finished the provider callback and redeemed on whichever one the app reaches.
+
+         The hash is stored, never the code — a dump of this table must not let anyone redeem a code
+         that is still in flight. used_at is kept instead of deleting the row, because the difference
+         between "no such code" and "this code was already spent" is what turns a second exchange
+         into a revocation of the session the first one minted. -->
+    <changeSet id="create-auth-codes-table" author="Eugene Smith">
+        <createTable tableName="auth_codes">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="code_hash" type="TEXT">
+                <constraints nullable="false" unique="true"
+                             uniqueConstraintName="uq_auth_codes_code_hash"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"/>
+            </column>
+            <column name="code_challenge" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="redirect_uri" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="used_at" type="TIMESTAMP"/>
+            <!-- Which session the exchange minted, so that a replay of the code can revoke it. -->
+            <column name="session_id" type="UUID"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="auth_codes"
+                baseColumnNames="user_id"
+                constraintName="fk_auth_codes_user"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                onDelete="CASCADE"/>
+
+        <!-- Sessions are purged long before codes would be; a code that outlives its session simply
+             has nothing left to revoke. -->
+        <addForeignKeyConstraint
+                baseTableName="auth_codes"
+                baseColumnNames="session_id"
+                constraintName="fk_auth_codes_session"
+                referencedTableName="auth_sessions"
+                referencedColumnNames="id"
+                onDelete="SET NULL"/>
+    </changeSet>
+
+</databaseChangeLog>

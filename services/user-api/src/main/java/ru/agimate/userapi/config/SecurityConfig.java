@@ -122,6 +122,10 @@ public class SecurityConfig {
                         // The admin area first: the rules below are broader (/user/** admits GUEST as
                         // well), and the first matching rule wins.
                         .requestMatchers(AdminPaths.PREFIX + "/**").hasRole("ADMIN")
+                        // Its own rule because the path sits outside /user/**, where the default
+                        // for anything unlisted is USER or ADMIN. Managing one's own devices is
+                        // open to GUEST as well.
+                        .requestMatchers("/sessions/**").hasAnyRole("USER", "ADMIN", "GUEST")
                         .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "GUEST")
                         .anyRequest().hasAnyRole("USER", "ADMIN")
                 )

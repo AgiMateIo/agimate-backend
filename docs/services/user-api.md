@@ -16,7 +16,9 @@ Authentication service handling OAuth2 login, JWT token management, and user pro
 - **OAuth2 Providers**: Google, Yandex, GitHub, VK ID (см. [Провайдеры входа](#провайдеры-входа))
 - **JWT**: ES256 (ECDSA P-256)
 - Access tokens in response body
-- Refresh tokens in HTTP-only cookies
+- Refresh tokens in HTTP-only cookies — в браузере; нативный клиент получает их в теле ответа
+  (см. [Вход нативного приложения](#вход-нативного-приложения))
+- Живые сессии лежат в `auth_sessions`: логаут — это отзыв строки, а не только удаление cookie
 
 ## Environment Variables
 
@@ -28,7 +30,8 @@ Authentication service handling OAuth2 login, JWT token management, and user pro
 | `APP_OAUTH_COOKIE_DOMAIN`         | Default cookie domain for refresh tokens             |
 | `APP_OAUTH_COOKIE_SECURE`         | Set to `true` in production (HTTPS)                  |
 | `APP_OAUTH_FRONTEND_REDIRECT_URL` | Default frontend redirect URL after OAuth2 login     |
-| `APP_OAUTH_ALLOWED_REDIRECT_URLS` | Comma-separated whitelist for multi-domain redirects |
+| `APP_OAUTH_ALLOWED_REDIRECT_URLS` | Comma-separated whitelist for multi-domain redirects  |
+| `APP_OAUTH_NATIVE_REDIRECT_URLS`  | Comma-separated whitelist of native redirect targets |
 
 ## Провайдеры входа
 
@@ -104,9 +107,10 @@ table above.
 
 **Понижение роли доходит до control-api не сразу.** user-api читает роль из БД на каждом запросе
 (`JwtDbAuthenticationFilter`), а control-api доверяет claim'у `roles` в access-токене, живущему
-`jwt.accessExpiration` (сутки по умолчанию). До следующего refresh понижённый пользователь
-сохраняет прежние права в `/manage/**`. Отобрать доступ немедленно нынешней схемой нельзя — для
-этого нужен либо короткий access TTL, либо версия роли в claim'ах.
+`jwt.accessExpiration` (сутки по умолчанию; у нативных сессий — `jwt.nativeAccessExpiration`, час).
+До следующего refresh понижённый пользователь сохраняет прежние права в `/manage/**`. Отобрать
+доступ немедленно нынешней схемой нельзя — для этого нужен либо короткий access TTL, либо версия
+роли в claim'ах.
 
 Расходы LLM по пользователю отдаёт control-api (`GET /manage/admin/llm-usage/{userId}/`): таблицы
 `users` и `llm_usage_*` лежат в разных БД, между сервисами нет ни вызовов, ни репликации, поэтому
@@ -123,6 +127,76 @@ Supports OAuth2 login from multiple frontend domains (e.g. `agimate.ru` and `agi
 4. If valid — redirects to the specified URL with the correct cookie domain. If not — falls back to the default `frontend-redirect-url`
 
 For `refresh` and `logout` endpoints, the cookie domain is resolved from the request's `Host` header by matching against `allowed-redirect-urls`.
+
+## Вход нативного приложения
+
+Приложению нельзя отдать refresh-токен в cookie: Custom Tabs и `ASWebAuthenticationSession` держат
+свой cookie jar, до которого HTTP-клиент приложения не дотягивается. Поэтому вход заканчивается не
+cookie, а одноразовым кодом, который обменивается на пару токенов в теле ответа. Решение и
+отвергнутые варианты — [Авторизация нативного приложения](../decisions/native-auth.md).
+**Веб-флоу не меняется ни в одной точке.**
+
+Ветка выбирается по `redirect_to`: адрес из `app.oauth.native-redirect-urls` — нативная, из
+`allowed-redirect-urls` — прежняя браузерная. Списки раздельные, потому что из веб-адреса
+вычисляется домен cookie, а у `agimate://auth` его нет; перепутанные списки роняют старт сервиса,
+а не логин.
+
+```
+1. GET /user/oauth2/authorization/google?redirect_to=agimate://auth&code_challenge=<S256>
+2. …круг к провайдеру…
+3. 302 agimate://auth?code=<одноразовый код>          ← никаких Set-Cookie
+4. POST /user/oauth2/native/token {code, codeVerifier, redirectUri, deviceName}
+   → {accessToken, refreshToken, refreshTokenId, expiresIn, sessionId}
+```
+
+`code_challenge` — только S256 (43 символа base64url); на время круга к провайдеру он лежит в cookie
+`oauth2_code_challenge` рядом с `oauth2_redirect_to`. Это **не** тот `code_verifier`, что внутри
+`oauth2_auth_request`: тот принадлежит нашему обмену с провайдером, этот — обмену приложения с нами.
+Код живёт 60 секунд, хранится хешем, гасится первым обменом; повторный обмен отзывает сессию,
+которую выдал первый.
+
+`POST /user/oauth2/refresh` и `/logout` принимают токен **сначала из cookie, потом из тела**: браузер
+работает как работал, приложение шлёт `refreshToken` в теле и получает новый там же. Нативная ветка
+cookie не ставит и не удаляет. Токен, выданный браузеру, в теле не принимается и наоборот — иначе
+XSS обменял бы httpOnly-cookie на токен, доступный скрипту.
+
+### Реестр сессий
+
+`auth_sessions` — строка на устройство. Без неё логаут не был бы отзывом: список погашенных `jti`
+жил в памяти инстанса, терялся при рестарте и не разделялся между репликами. Реестр общий для обеих
+веток — веб-вход заводит такую же строку.
+
+Строка хранит **два** `jti`, текущий и предыдущий. Рефреш ротирует токен, но ответ на мобильной сети
+может не доехать, и клиент повторит запрос с тем, что у него осталось:
+
+| Что предъявлено | Ответ |
+|---|---|
+| текущий `jti` | ротация: новая пара, поколение сдвигается |
+| предыдущий `jti`, прошло < 60 c с ротации | та же текущая пара ещё раз, поколение **не** двигается |
+| предыдущий `jti` позже, или любой более старый | 403 и отзыв всей сессии — токен оказался у двоих (RFC 9700) |
+| параллельный рефреш проиграл гонку | 409: клиент обязан сериализовать обновление |
+
+Повторная выдача текущей пары вместо новой ротации — сознательно: так переживается и вторая подряд
+потерянная сеть, тогда как цепочка ротаций оставила бы клиента с парой, которую уже отменили.
+
+Реестр читается только на рефреше — access-токен проверяется подписью. Поэтому у нативной сессии он
+короткий (час против суток у веба): отзыв устройства догоняет его не раньше, чем истечёт текущий
+access. Refresh нативной сессии живёт 60 дней и продлевается при каждой ротации — сессия умирает от
+простоя, а не от возраста.
+
+Свои устройства пользователь видит и гасит сам:
+
+| Эндпойнт (снаружи) | Что делает |
+|---|---|
+| `GET /user/sessions/` | Активные сессии, свежие сверху |
+| `DELETE /user/sessions/{id}` | Отзыв одной сессии |
+
+Путь лежит вне `/user/**`, но в цепочке назван явно и пускает в том числе `GUEST`: аккаунт, ждущий
+одобрения и потерявший телефон, — тот, кому это нужнее всего.
+
+**При выкатке все живут ровно один разлогин.** Токены, выданные до реестра, строки не имеют и
+принимаются не будут: сессия, которую нельзя отозвать, не усыновляется. Это одноразовая цена, и она
+дешевле постоянного исключения в коде.
 
 ## Реферальные ссылки
 
@@ -161,6 +235,8 @@ APP_OAUTH_COOKIE_DOMAIN=agimate.ru
 
 - `users` — User accounts
 - `user_oauth_accounts` — OAuth2 provider links
+- `auth_sessions` — живые сессии: строка на устройство, пара `jti`, отзыв
+- `auth_codes` — одноразовые коды нативного входа (хеш, не код)
 
 Migrations: `services/user-api/src/main/resources/db/changelog/`
 

@@ -11,11 +11,11 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.util.UriComponentsBuilder;
 import ru.agimate.common.rest.ErrorResponse;
-import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.common.security.jwt.JwtService;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.userapi.config.OAuthProperties;
+import ru.agimate.userapi.database.entities.AuthClient;
 import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.entities.UserOAuthAccount;
 import ru.agimate.userapi.database.repositories.UserOAuthAccountRepository;
@@ -24,6 +24,9 @@ import ru.agimate.userapi.security.oauth2.providers.OAuthUserAdapter;
 import ru.agimate.userapi.security.oauth2.providers.OAuthUserAdapters;
 import ru.agimate.userapi.security.oauth2.providers.OAuthUserInfo;
 import ru.agimate.userapi.service.UserService;
+import ru.agimate.userapi.service.auth.AuthSessionService;
+import ru.agimate.userapi.service.auth.IssuedTokens;
+import ru.agimate.userapi.service.auth.NativeAuthService;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,12 +38,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-    private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final UserOAuthAccountRepository userOAuthAccountRepository;
     private final UserService userService;
     private final OAuthProperties oAuthProperties;
     private final OAuthUserAdapters adapters;
+    private final AuthSessionService authSessionService;
+    private final NativeAuthService nativeAuthService;
 
 
     @Override
@@ -75,21 +79,59 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         UserEntity userEntity = createOrGetUserFromOAuth(oAuth2User, registrationId, referralCode);
 
-        // Generate JWT tokens
-        AgimateUserPrincipal agimateUserPrincipal = AgimateUserPrincipal.fromUser(
-                userEntity.getId().toString(), userEntity.getRole());
-
-        String refreshTokenId = UUID.randomUUID().toString();
-        String refreshToken = jwtService.generateRefreshToken(agimateUserPrincipal, refreshTokenId);
-
         String redirectToUrl = getCookieValue(request,
                 CookieOAuth2AuthorizationRequestRepository.OAUTH2_REDIRECT_TO_COOKIE_NAME);
-        OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRedirectUrl(redirectToUrl);
 
-        refreshTokenService.setHttpOnlyRefreshTokenCookie(response, refreshToken,
-                resolved.cookieDomain(), resolved.cookieSecure());
-        response.sendRedirect(resolved.frontendRedirectUrl() + "#rti-" + refreshTokenId);
+        if (oAuthProperties.isNativeRedirect(redirectToUrl)) {
+            redirectToNativeClient(request, response, userEntity, redirectToUrl);
+        } else {
+            redirectToBrowser(request, response, userEntity, redirectToUrl);
+        }
         response.getWriter().flush();
+    }
+
+    /**
+     * The browser flow, unchanged: the token itself stays in an httpOnly cookie and only its id
+     * travels in the fragment, where it is allowed to be seen.
+     */
+    private void redirectToBrowser(HttpServletRequest request, HttpServletResponse response,
+                                   UserEntity userEntity, String redirectToUrl) throws IOException {
+        IssuedTokens tokens = authSessionService.open(
+                userEntity, AuthClient.WEB, request.getHeader("User-Agent"));
+
+        OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRedirectUrl(redirectToUrl);
+        refreshTokenService.setHttpOnlyRefreshTokenCookie(response, tokens.refreshToken(),
+                resolved.cookieDomain(), resolved.cookieSecure());
+        response.sendRedirect(resolved.frontendRedirectUrl() + "#rti-" + tokens.refreshTokenId());
+    }
+
+    /**
+     * The native flow ends with a one-time code and no cookie whatsoever: a {@code Set-Cookie} for
+     * the web domain in answer to an app is at best ignored and at worst mistaken for a mechanism.
+     *
+     * <p>A missing challenge is reported through the redirect rather than as a page, because the
+     * only thing looking at this response is the application.
+     */
+    private void redirectToNativeClient(HttpServletRequest request, HttpServletResponse response,
+                                        UserEntity userEntity, String redirectToUrl) throws IOException {
+        String codeChallenge = getCookieValue(request,
+                CookieOAuth2AuthorizationRequestRepository.OAUTH2_CODE_CHALLENGE_COOKIE_NAME);
+
+        if (!CookieOAuth2AuthorizationRequestRepository.isValidCodeChallenge(codeChallenge)) {
+            log.warn("native login for {} started without a usable code_challenge", redirectToUrl);
+            response.sendRedirect(withQueryParam(redirectToUrl, "error", "invalid_request"));
+            return;
+        }
+
+        String code = nativeAuthService.issueCode(userEntity.getId(), codeChallenge, redirectToUrl);
+        response.sendRedirect(withQueryParam(redirectToUrl, "code", code));
+    }
+
+    private static String withQueryParam(String url, String name, String value) {
+        return UriComponentsBuilder.fromUriString(url)
+                .queryParam(name, value)
+                .build()
+                .toUriString();
     }
 
     private void writeError(HttpServletResponse response, int status, String message) throws IOException {

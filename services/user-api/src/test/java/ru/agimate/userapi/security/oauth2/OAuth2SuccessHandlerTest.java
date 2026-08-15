@@ -10,7 +10,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.core.user.OAuth2User;
-import ru.agimate.common.security.jwt.JwtService;
 import ru.agimate.userapi.config.OAuthProperties;
 import ru.agimate.userapi.database.entities.OAuthProviderType;
 import ru.agimate.userapi.database.entities.UserEntity;
@@ -21,6 +20,8 @@ import ru.agimate.userapi.security.oauth2.providers.OAuthUserAdapter;
 import ru.agimate.userapi.security.oauth2.providers.OAuthUserAdapters;
 import ru.agimate.userapi.security.oauth2.providers.OAuthUserInfo;
 import ru.agimate.userapi.service.UserService;
+import ru.agimate.userapi.service.auth.AuthSessionService;
+import ru.agimate.userapi.service.auth.NativeAuthService;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -45,8 +46,6 @@ class OAuth2SuccessHandlerTest {
     private static final String EMAIL = "ivan@example.com";
 
     @Mock
-    private JwtService jwtService;
-    @Mock
     private RefreshTokenService refreshTokenService;
     @Mock
     private UserOAuthAccountRepository userOAuthAccountRepository;
@@ -56,6 +55,10 @@ class OAuth2SuccessHandlerTest {
     private OAuthProperties oAuthProperties;
     @Mock
     private OAuthUserAdapters adapters;
+    @Mock
+    private AuthSessionService authSessionService;
+    @Mock
+    private NativeAuthService nativeAuthService;
 
     @InjectMocks
     private OAuth2SuccessHandler handler;
