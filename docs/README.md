@@ -72,7 +72,7 @@
 
 Что и почему было решено. Прошлое не протухает — в отличие от планов.
 
-В шапке каждого документа — `status` (`implemented`, `partial`, `deferred`, `analysis`) и даты
+В шапке каждого документа — `status` (`implemented`, `partial`, `accepted`, `deferred`, `analysis`) и даты
 `created`/`implemented`. Даты взяты из git: первый коммит с документом и коммит, которым решение
 доехало до кода.
 
@@ -92,6 +92,7 @@
 | [agent-sessions.md](decisions/agent-sessions.md) | Сессия есть у каждого рана и служит ключом упорядочивания, а не артефактом канала |
 | [referrals.md](decisions/referrals.md) | Кто кого привёл: `?ref=` через cookie, атрибуция только при создании аккаунта, ссылка доступа не даёт |
 | [agent-participants.md](decisions/agent-participants.md) | Разные люди в одном канале: `agent_participants` обязателен у канального рана; личность — тип и ключ, полномочия — сравнение аккаунтов |
+| [native-auth.md](decisions/native-auth.md) | Вход нативного клиента: одноразовый код с PKCE вместо cookie, реестр сессий устройств |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [agent-to-agent-internal](decisions/deferred/agent-to-agent-internal.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md) |
 
 ---
