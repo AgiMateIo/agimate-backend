@@ -27,7 +27,7 @@ public class Board extends BaseEntity {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "agentic_team_id", nullable = false)
     private AgenticTeam agenticTeam;
 

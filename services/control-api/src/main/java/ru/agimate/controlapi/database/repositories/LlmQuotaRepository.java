@@ -6,6 +6,7 @@ import ru.agimate.controlapi.database.entities.LlmQuota;
 import ru.agimate.controlapi.database.enums.UsageSubjectKind;
 import ru.agimate.controlapi.database.enums.UsageWindow;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,6 +15,8 @@ import java.util.UUID;
 public interface LlmQuotaRepository extends JpaRepository<LlmQuota, UUID> {
 
     List<LlmQuota> findAllByLlmProviderId(UUID llmProviderId);
+
+    List<LlmQuota> findAllByLlmProviderIdIn(Collection<UUID> llmProviderIds);
 
     Optional<LlmQuota> findByIdAndLlmProviderId(UUID id, UUID llmProviderId);
 

@@ -29,6 +29,10 @@ public interface SkillRepository extends JpaRepository<Skill, UUID>, JpaSpecific
     @Query("SELECT s FROM Skill s WHERE s.userId = :userId AND s.name = :name AND s.deletedAt IS NULL")
     Optional<Skill> findByUserIdAndNameNotDeleted(@Param("userId") UUID userId, @Param("name") String name);
 
+    @Query("SELECT s FROM Skill s WHERE s.userId = :userId AND s.name IN :names AND s.deletedAt IS NULL")
+    List<Skill> findByUserIdAndNameInNotDeleted(@Param("userId") UUID userId,
+                                                @Param("names") Collection<String> names);
+
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Skill s SET s.deletedAt = :now WHERE s.id = :id")
     void softDelete(@Param("id") UUID id, @Param("now") LocalDateTime now);

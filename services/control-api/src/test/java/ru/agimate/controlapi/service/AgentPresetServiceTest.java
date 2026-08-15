@@ -29,6 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -82,10 +84,8 @@ class AgentPresetServiceTest {
                     .thenReturn(List.of(preset("personal-assistant", List.of("AgiMate Time", "AgiMate Memory"))));
             Skill time = skill("AgiMate Time", List.of("time"));
             Skill memory = skill("AgiMate Memory", List.of("persist-memory"));
-            when(skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "AgiMate Time"))
-                    .thenReturn(Optional.of(time));
-            when(skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "AgiMate Memory"))
-                    .thenReturn(Optional.of(memory));
+            when(skillRepository.findByUserIdAndNameInNotDeleted(eq(SYSTEM_USER_ID), anyCollection()))
+                    .thenReturn(List.of(time, memory));
 
             List<AgentPresetResponse> presets = service.list();
 
@@ -103,10 +103,8 @@ class AgentPresetServiceTest {
         void skipsMissingSkill() {
             when(agentPresetRepository.findAllByEnabledTrueOrderBySortOrderAscNameAsc())
                     .thenReturn(List.of(preset("personal-assistant", List.of("Gone", "AgiMate Time"))));
-            when(skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "Gone"))
-                    .thenReturn(Optional.empty());
-            when(skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "AgiMate Time"))
-                    .thenReturn(Optional.of(skill("AgiMate Time", List.of("time"))));
+            when(skillRepository.findByUserIdAndNameInNotDeleted(eq(SYSTEM_USER_ID), anyCollection()))
+                    .thenReturn(List.of(skill("AgiMate Time", List.of("time"))));
 
             AgentPresetResponse response = service.list().get(0);
 
@@ -120,10 +118,8 @@ class AgentPresetServiceTest {
         void deduplicatesConnectorCodes() {
             when(agentPresetRepository.findAllByEnabledTrueOrderBySortOrderAscNameAsc())
                     .thenReturn(List.of(preset("p", List.of("A", "B"))));
-            when(skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "A"))
-                    .thenReturn(Optional.of(skill("A", List.of("time", "board"))));
-            when(skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "B"))
-                    .thenReturn(Optional.of(skill("B", List.of("board"))));
+            when(skillRepository.findByUserIdAndNameInNotDeleted(eq(SYSTEM_USER_ID), anyCollection()))
+                    .thenReturn(List.of(skill("A", List.of("time", "board")), skill("B", List.of("board"))));
 
             assertEquals(List.of("time", "board"), service.list().get(0).connectorCodes());
         }
@@ -139,8 +135,8 @@ class AgentPresetServiceTest {
         @DisplayName("create — валидирует skillNames и сохраняет enabled=true")
         void createsPreset() {
             when(agentPresetRepository.findByName("new-role")).thenReturn(Optional.empty());
-            when(skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "AgiMate Time"))
-                    .thenReturn(Optional.of(skill("AgiMate Time", List.of("time"))));
+            when(skillRepository.findByUserIdAndNameInNotDeleted(eq(SYSTEM_USER_ID), anyCollection()))
+                    .thenReturn(List.of(skill("AgiMate Time", List.of("time"))));
             when(agentPresetRepository.save(any(AgentPreset.class))).thenAnswer(inv -> {
                 AgentPreset p = inv.getArgument(0);
                 p.setId(UUID.randomUUID());
@@ -171,8 +167,8 @@ class AgentPresetServiceTest {
         @DisplayName("create с несуществующим системным скиллом → 400")
         void rejectsUnknownSkill() {
             when(agentPresetRepository.findByName("r")).thenReturn(Optional.empty());
-            when(skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, "Ghost"))
-                    .thenReturn(Optional.empty());
+            when(skillRepository.findByUserIdAndNameInNotDeleted(eq(SYSTEM_USER_ID), anyCollection()))
+                    .thenReturn(List.of());
 
             BadRequestStatusException ex = assertThrows(BadRequestStatusException.class,
                     () -> service.create(adminId,

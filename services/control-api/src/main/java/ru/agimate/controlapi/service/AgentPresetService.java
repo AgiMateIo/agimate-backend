@@ -17,9 +17,13 @@ import ru.agimate.controlapi.database.repositories.AgentPresetRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static ru.agimate.controlapi.service.SystemSkillBootstrap.SYSTEM_USER_ID;
 
@@ -39,16 +43,12 @@ public class AgentPresetService {
     private final SkillRepository skillRepository;
 
     public List<AgentPresetResponse> list() {
-        return agentPresetRepository.findAllByEnabledTrueOrderBySortOrderAscNameAsc().stream()
-                .map(this::toResponse)
-                .toList();
+        return toResponses(agentPresetRepository.findAllByEnabledTrueOrderBySortOrderAscNameAsc());
     }
 
     /** Every preset, disabled ones included — for the admin table. */
     public List<AgentPresetResponse> listAll() {
-        return agentPresetRepository.findAllByOrderBySortOrderAscNameAsc().stream()
-                .map(this::toResponse)
-                .toList();
+        return toResponses(agentPresetRepository.findAllByOrderBySortOrderAscNameAsc());
     }
 
     @Transactional
@@ -120,8 +120,9 @@ public class AgentPresetService {
         if (names == null || names.isEmpty()) {
             return;
         }
+        Map<String, Skill> known = loadSystemSkills(names);
         List<String> missing = names.stream()
-                .filter(name -> skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, name).isEmpty())
+                .filter(name -> !known.containsKey(name))
                 .distinct()
                 .toList();
         if (!missing.isEmpty()) {
@@ -129,11 +130,34 @@ public class AgentPresetService {
         }
     }
 
+    /** The whole page's skills in one lookup: a preset references them by name, and the names repeat across presets. */
+    private List<AgentPresetResponse> toResponses(List<AgentPreset> presets) {
+        Map<String, Skill> skillsByName = loadSystemSkills(presets.stream()
+                .flatMap(preset -> preset.getSkillNames().stream())
+                .collect(Collectors.toSet()));
+        return presets.stream()
+                .map(preset -> toResponse(preset, skillsByName))
+                .toList();
+    }
+
+    private Map<String, Skill> loadSystemSkills(Collection<String> names) {
+        if (names.isEmpty()) {
+            return Map.of();
+        }
+        // (SYSTEM_USER_ID, name) is unique among the live rows — uq_skills_user_id_name_active.
+        return skillRepository.findByUserIdAndNameInNotDeleted(SYSTEM_USER_ID, names).stream()
+                .collect(Collectors.toMap(Skill::getName, Function.identity()));
+    }
+
     private AgentPresetResponse toResponse(AgentPreset preset) {
+        return toResponse(preset, loadSystemSkills(preset.getSkillNames()));
+    }
+
+    private AgentPresetResponse toResponse(AgentPreset preset, Map<String, Skill> skillsByName) {
         List<AgentPresetResponse.PresetSkill> skills = new ArrayList<>();
         LinkedHashSet<String> connectorCodes = new LinkedHashSet<>();
         for (String skillName : preset.getSkillNames()) {
-            Skill skill = skillRepository.findByUserIdAndNameNotDeleted(SYSTEM_USER_ID, skillName).orElse(null);
+            Skill skill = skillsByName.get(skillName);
             if (skill == null) {
                 log.warn("Preset '{}' references missing system skill '{}'", preset.getName(), skillName);
                 continue;

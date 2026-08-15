@@ -30,8 +30,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,24 +66,22 @@ class LlmUsageQueryServiceTest {
         when(llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(USER_ID)).thenReturn(List.of(byok));
         when(llmProviderService.findUsablePlatformProvider()).thenReturn(Optional.of(platform));
 
-        // BYOK: дневная TOTAL-квота 1000, израсходовано 300 за день
-        when(quotaRepository.findAllByLlmProviderId(byokId)).thenReturn(List.of(
+        // Квоты и счётчики читаются одним запросом на всех провайдеров, поэтому у платформенного
+        // здесь просто нет строк — это и есть его нулевой расход без квоты.
+        when(quotaRepository.findAllByLlmProviderIdIn(anyCollection())).thenReturn(List.of(
                 LlmQuota.builder().llmProviderId(byokId)
                         .subjectKind(UsageSubjectKind.TOTAL).window(UsageWindow.DAY).limitTokens(1000L)
                         .build()));
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        when(counterRepository.findByLlmProviderIdAndSubjectKindAndSubjectIdAndWindowAndWindowStart(
-                byokId, UsageSubjectKind.TOTAL, LlmUsageCounter.TOTAL_SUBJECT_ID, UsageWindow.DAY, today))
-                .thenReturn(Optional.of(LlmUsageCounter.builder().tokens(300L).requests(7).build()));
-        when(counterRepository.findByLlmProviderIdAndSubjectKindAndSubjectIdAndWindowAndWindowStart(
-                eq(byokId), eq(UsageSubjectKind.TOTAL), eq(LlmUsageCounter.TOTAL_SUBJECT_ID),
-                eq(UsageWindow.MONTH), any())).thenReturn(Optional.empty());
-
-        // платформенный: без квот и счётчиков (нулевой расход)
-        when(quotaRepository.findAllByLlmProviderId(platform.getId())).thenReturn(List.of());
-        when(counterRepository.findByLlmProviderIdAndSubjectKindAndSubjectIdAndWindowAndWindowStart(
-                eq(platform.getId()), eq(UsageSubjectKind.USER), eq(USER_ID), any(), any()))
-                .thenReturn(Optional.empty());
+        when(counterRepository.findForSubjects(anyCollection(), anyCollection(), anyCollection()))
+                .thenReturn(List.of(LlmUsageCounter.builder()
+                        .llmProviderId(byokId)
+                        .subjectKind(UsageSubjectKind.TOTAL)
+                        .subjectId(LlmUsageCounter.TOTAL_SUBJECT_ID)
+                        .window(UsageWindow.DAY)
+                        .windowStart(today)
+                        .tokens(300L).requests(7)
+                        .build()));
 
         List<LlmUsageResponse> result = service.usageForUser(USER_ID);
 

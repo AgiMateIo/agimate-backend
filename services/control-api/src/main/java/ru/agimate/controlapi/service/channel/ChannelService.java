@@ -131,11 +131,9 @@ public class ChannelService {
             return Map.of();
         }
         Map<UUID, String> result = new HashMap<>();
-        for (UUID id : connectionIds) {
-            connectionRepository.findByIdNotDeleted(id).ifPresent(c -> {
-                String name = c.getName() != null && !c.getName().isBlank() ? c.getName() : c.getSubCode();
-                result.put(c.getId(), name);
-            });
+        for (Connection c : connectionRepository.findByIdInNotDeleted(connectionIds)) {
+            String name = c.getName() != null && !c.getName().isBlank() ? c.getName() : c.getSubCode();
+            result.put(c.getId(), name);
         }
         return result;
     }

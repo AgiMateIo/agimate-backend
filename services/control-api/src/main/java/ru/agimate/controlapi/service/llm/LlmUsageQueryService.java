@@ -18,8 +18,10 @@ import ru.agimate.controlapi.service.LlmProviderService;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -41,39 +43,83 @@ public class LlmUsageQueryService {
 
     public List<LlmUsageResponse> usageForUser(UUID userId) {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
-        List<LlmUsageResponse> result = new ArrayList<>();
-        for (LlmProvider provider : llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId)) {
-            result.add(build(provider, UsageSubjectKind.TOTAL, LlmUsageCounter.TOTAL_SUBJECT_ID,
-                    AgentLlmResponse.Source.USER, today));
+        List<Subject> subjects = subjects(userId);
+        if (subjects.isEmpty()) {
+            return List.of();
         }
-        llmProviderService.findUsablePlatformProvider().ifPresent(platform ->
-                result.add(build(platform, UsageSubjectKind.USER, userId,
-                        AgentLlmResponse.Source.PLATFORM, today)));
-        return result;
+
+        List<UUID> providerIds = subjects.stream().map(s -> s.provider().getId()).distinct().toList();
+        Map<QuotaKey, Long> limits = quotaRepository.findAllByLlmProviderIdIn(providerIds).stream()
+                .collect(Collectors.toMap(
+                        quota -> new QuotaKey(quota.getLlmProviderId(), quota.getSubjectKind(), quota.getWindow()),
+                        LlmQuota::getLimitTokens,
+                        (a, b) -> a));
+        Map<CounterKey, LlmUsageCounter> counters = counterRepository
+                .findForSubjects(providerIds,
+                        subjects.stream().map(Subject::subjectId).collect(Collectors.toSet()),
+                        windowStarts(today))
+                .stream()
+                .collect(Collectors.toMap(LlmUsageQueryService::keyOf, Function.identity()));
+
+        return subjects.stream().map(subject -> build(subject, limits, counters, today)).toList();
     }
 
-    private LlmUsageResponse build(LlmProvider provider, UsageSubjectKind kind, UUID subjectId,
-                                   AgentLlmResponse.Source source, LocalDate today) {
-        Map<UsageWindow, Long> limits = quotaRepository.findAllByLlmProviderId(provider.getId()).stream()
-                .filter(q -> q.getSubjectKind() == kind)
-                .collect(Collectors.toMap(LlmQuota::getWindow, LlmQuota::getLimitTokens, (a, b) -> a));
+    /** Which subject each provider is asked about — the perspective the class comment describes. */
+    private List<Subject> subjects(UUID userId) {
+        List<Subject> subjects = new ArrayList<>();
+        for (LlmProvider provider : llmProviderRepository.findAllByUserIdOrderByCreatedAtDesc(userId)) {
+            subjects.add(new Subject(provider, UsageSubjectKind.TOTAL, LlmUsageCounter.TOTAL_SUBJECT_ID,
+                    AgentLlmResponse.Source.USER));
+        }
+        llmProviderService.findUsablePlatformProvider().ifPresent(platform ->
+                subjects.add(new Subject(platform, UsageSubjectKind.USER, userId,
+                        AgentLlmResponse.Source.PLATFORM)));
+        return subjects;
+    }
 
+    private static Set<LocalDate> windowStarts(LocalDate today) {
+        return Arrays.stream(UsageWindow.values())
+                .map(window -> window.windowStart(today))
+                .collect(Collectors.toSet());
+    }
+
+    private LlmUsageResponse build(Subject subject, Map<QuotaKey, Long> limits,
+                                   Map<CounterKey, LlmUsageCounter> counters, LocalDate today) {
+        LlmProvider provider = subject.provider();
         List<LlmUsageResponse.WindowUsage> windows = new ArrayList<>();
         for (UsageWindow window : UsageWindow.values()) {
             LocalDate windowStart = window.windowStart(today);
-            LlmUsageCounter counter = counterRepository
-                    .findByLlmProviderIdAndSubjectKindAndSubjectIdAndWindowAndWindowStart(
-                            provider.getId(), kind, subjectId, window, windowStart)
-                    .orElse(null);
+            LlmUsageCounter counter = counters.get(new CounterKey(
+                    provider.getId(), subject.kind(), subject.subjectId(), window, windowStart));
             long used = counter != null ? counter.getTokens() : 0L;
             int requests = counter != null ? counter.getRequests() : 0;
-            Long limit = limits.get(window);
+            Long limit = limits.get(new QuotaKey(provider.getId(), subject.kind(), window));
             windows.add(new LlmUsageResponse.WindowUsage(
                     window, windowStart, used, requests,
                     limit, limit != null ? Math.max(0, limit - used) : null));
         }
         return new LlmUsageResponse(
-                source == AgentLlmResponse.Source.PLATFORM ? null : provider.getId(),
-                provider.getName(), source, windows);
+                subject.source() == AgentLlmResponse.Source.PLATFORM ? null : provider.getId(),
+                provider.getName(), subject.source(), windows);
+    }
+
+    private static CounterKey keyOf(LlmUsageCounter counter) {
+        return new CounterKey(counter.getLlmProviderId(), counter.getSubjectKind(),
+                counter.getSubjectId(), counter.getWindow(), counter.getWindowStart());
+    }
+
+    private record Subject(LlmProvider provider, UsageSubjectKind kind, UUID subjectId,
+                           AgentLlmResponse.Source source) {
+    }
+
+    private record QuotaKey(UUID providerId, UsageSubjectKind kind, UsageWindow window) {
+    }
+
+    /**
+     * {@code windowStart} belongs in the key: on the first of the month the two windows start on the
+     * same date, and a DAY counter from that day would otherwise collide with the current one.
+     */
+    private record CounterKey(UUID providerId, UsageSubjectKind kind, UUID subjectId,
+                              UsageWindow window, LocalDate windowStart) {
     }
 }
