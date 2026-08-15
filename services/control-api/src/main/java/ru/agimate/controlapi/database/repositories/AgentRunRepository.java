@@ -197,6 +197,42 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
             """)
     List<UUID> findHistoryRunIds(@Param("sessionId") UUID sessionId, Pageable pageable);
 
+    /**
+     * Which of these sessions have a live run right now — the «agent is working» mark of a listing.
+     *
+     * <p>{@code RUNNING} is taken at face value: a run gone silent is swept into FAILED. {@code
+     * ENQUEUED} is trusted only while it is young — nothing sweeps a run the worker never took, so
+     * without the window a queue that stalled once would leave the mark burning forever. The window
+     * is the sweeper's own threshold: past it we stop believing a run is alive, whatever its status.
+     */
+    @Query("""
+            SELECT DISTINCT t.sessionId FROM AgentRun t
+            WHERE t.sessionId IN :sessionIds
+              AND (t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
+                   OR (t.status = ru.agimate.controlapi.database.enums.RunStatus.ENQUEUED
+                       AND t.createdAt > :enqueuedSince))
+            """)
+    List<UUID> findLiveSessionIds(@Param("sessionIds") Collection<UUID> sessionIds,
+                                  @Param("enqueuedSince") LocalDateTime enqueuedSince);
+
+    /**
+     * The same liveness folded per agent and narrowed to one connector: a contact row of the
+     * messenger must light up for the chat the user is looking at, not for a scheduled run that is
+     * talking to Telegram at the same moment.
+     */
+    @Query("""
+            SELECT DISTINCT t.agent.id FROM AgentRun t, AgentSession s
+            WHERE s.id = t.sessionId
+              AND s.connectorCode = :connectorCode
+              AND t.agent.id IN :agentIds
+              AND (t.status = ru.agimate.controlapi.database.enums.RunStatus.RUNNING
+                   OR (t.status = ru.agimate.controlapi.database.enums.RunStatus.ENQUEUED
+                       AND t.createdAt > :enqueuedSince))
+            """)
+    List<UUID> findLiveAgentIds(@Param("agentIds") Collection<UUID> agentIds,
+                                @Param("connectorCode") String connectorCode,
+                                @Param("enqueuedSince") LocalDateTime enqueuedSince);
+
     /** Runs of a session still waiting for their turn — the backlog behind a queue partition. */
     @Query("""
             SELECT COUNT(t) FROM AgentRun t

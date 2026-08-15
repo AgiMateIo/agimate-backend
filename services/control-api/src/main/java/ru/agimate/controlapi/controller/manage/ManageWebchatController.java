@@ -20,6 +20,7 @@ import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
+import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatFileResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMarkReadRequest;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMessageResponse;
@@ -87,6 +88,19 @@ public class ManageWebchatController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(webchatService.uploadFile(userId, file));
+    }
+
+    @Operation(summary = "List agents as chat contacts, freshest conversation first",
+            description = "One row per agent: the agent plus unread count, last message preview and "
+                    + "whether it is working right now")
+    @GetMapping("/contacts/")
+    public SuccessResponse<PageResponse<WebchatContactResponse>> listContacts(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(PageResponse.from(webchatService.listContacts(userId, page, size)));
     }
 
     @Operation(summary = "Mark a session read",

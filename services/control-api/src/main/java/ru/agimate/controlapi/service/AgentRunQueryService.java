@@ -23,10 +23,14 @@ import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
 import ru.agimate.controlapi.database.repositories.LlmUsageLogRepository;
 import ru.agimate.controlapi.database.projections.AgentRunProjection;
 import ru.agimate.controlapi.database.projections.RunUsageProjection;
+import ru.agimate.controlapi.service.trigger.RunActivityService;
 
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -58,6 +62,31 @@ public class AgentRunQueryService {
                 userId, null, agentId, sessionId, triggerLogId,
                 blankToNull(connectorCode), blankToNull(connectionId), blankToNull(name), status,
                 PageRequest.of(page, size)));
+    }
+
+    /**
+     * Which of these sessions is an agent working in right now — the «typing…» of a chat listing.
+     * The liveness rule lives here rather than in the caller: a run is live by its status, and a
+     * listing must not grow a second opinion about that.
+     */
+    public Set<UUID> liveSessionIds(Collection<UUID> sessionIds) {
+        if (sessionIds.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(agentRunRepository.findLiveSessionIds(sessionIds, liveSince()));
+    }
+
+    /** The same, folded per agent and narrowed to one connector's sessions. */
+    public Set<UUID> liveAgentIds(Collection<UUID> agentIds, String connectorCode) {
+        if (agentIds.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(agentRunRepository.findLiveAgentIds(agentIds, connectorCode, liveSince()));
+    }
+
+    /** An ENQUEUED run older than this is not believed to be alive — see {@code findLiveSessionIds}. */
+    private static LocalDateTime liveSince() {
+        return LocalDateTime.now().minus(RunActivityService.STALE_AFTER);
     }
 
     /**

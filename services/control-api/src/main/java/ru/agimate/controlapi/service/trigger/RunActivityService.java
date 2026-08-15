@@ -26,7 +26,8 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class RunActivityService {
 
-    static final Duration STALE_AFTER = Duration.ofMinutes(15);
+    /** Public because it is also the horizon past which a listing stops calling a run live. */
+    public static final Duration STALE_AFTER = Duration.ofMinutes(15);
     static final String STALE_ERROR = "run went silent (no worker activity); swept as stale";
 
     private final AgentRunRepository agentRunRepository;

@@ -27,10 +27,25 @@ public record WebchatSessionResponse(
         LocalDateTime closedAt,
 
         @Schema(description = "Creation timestamp")
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+
+        @Schema(description = "Agent messages past the read pointer; progress lines do not count")
+        long unreadCount,
+
+        @Schema(description = "Preview of the last message; null when nothing has been said yet")
+        WebchatLastMessage lastMessage,
+
+        @Schema(description = "Whether the agent is working in this session right now")
+        boolean isRunning
 ) {
 
+    /** A session on its own — creation and closing, where there is no listing to enrich it from. */
     public static WebchatSessionResponse from(AgentSession session, UUID agentId) {
+        return from(session, agentId, 0, null, false);
+    }
+
+    public static WebchatSessionResponse from(AgentSession session, UUID agentId, long unreadCount,
+                                              WebchatLastMessage lastMessage, boolean isRunning) {
         return new WebchatSessionResponse(
                 session.getId(),
                 session.getChannelId(),
@@ -38,6 +53,9 @@ public record WebchatSessionResponse(
                 session.getTitle(),
                 session.getLastActivityAt(),
                 session.getClosedAt(),
-                session.getCreatedAt());
+                session.getCreatedAt(),
+                unreadCount,
+                lastMessage,
+                isRunning);
     }
 }

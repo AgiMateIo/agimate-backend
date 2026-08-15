@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
+import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSessionResponse;
@@ -24,6 +25,7 @@ import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
+import ru.agimate.controlapi.service.AgentRunQueryService;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.channel.ChannelService;
 import ru.agimate.controlapi.service.session.AgentSessionService;
@@ -32,9 +34,11 @@ import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Set;
@@ -43,9 +47,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -74,6 +80,8 @@ class WebchatServiceTest {
     @Mock
     private AgentSessionService agentSessionService;
     @Mock
+    private AgentRunQueryService agentRunQueryService;
+    @Mock
     private ConnectionBindingService connectionBindingService;
     @Mock
     private TriggerRouterService triggerRouterService;
@@ -99,7 +107,7 @@ class WebchatServiceTest {
     @BeforeEach
     void setUp() {
         webchatService = new WebchatService(agentRepository, channelRepository, channelService,
-                agentSessionService, connectionBindingService, triggerRouterService,
+                agentSessionService, agentRunQueryService, connectionBindingService, triggerRouterService,
                 webchatMessagePublisher, webchatMessageRepository, centrifugoService,
                 signedFileUrlService, fileStorageService, rateLimiter);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).name("Assistant").build();
@@ -356,6 +364,47 @@ class WebchatServiceTest {
             verify(agentSessionService, never()).listByChannelIds(any(), anyInt(), anyInt());
         }
 
+        @Test
+        @DisplayName("строка несёт бейдж, обрезанное превью и признак работающего агента")
+        void enrichesRows() {
+            when(channelRepository.findByUserIdAndConnectorCodeAndDeletedAtIsNull(USER_ID, "webchat"))
+                    .thenReturn(List.of(channel));
+            when(agentSessionService.listByChannelIds(Set.of(CHANNEL_ID), 0, 50))
+                    .thenReturn(new PageImpl<>(List.of(session)));
+            when(webchatMessageRepository.countUnreadBySessionIds(List.of(SESSION_ID)))
+                    .thenReturn(List.<Object[]>of(new Object[]{SESSION_ID, 3L}));
+            when(webchatMessageRepository.findLastMessagesBySessionIds(List.of(SESSION_ID)))
+                    .thenReturn(List.<Object[]>of(new Object[]{
+                            SESSION_ID, "AGENT", "  готово  ", true,
+                            Timestamp.valueOf(LocalDateTime.of(2026, 8, 15, 12, 0))}));
+            when(agentRunQueryService.liveSessionIds(List.of(SESSION_ID))).thenReturn(Set.of(SESSION_ID));
+
+            WebchatSessionResponse row =
+                    webchatService.listSessions(USER_ID, null, 0, 50).getContent().get(0);
+
+            assertEquals(3L, row.unreadCount());
+            assertEquals("готово", row.lastMessage().text());
+            assertEquals("AGENT", row.lastMessage().direction());
+            assertTrue(row.lastMessage().hasAttachments());
+            assertEquals(LocalDateTime.of(2026, 8, 15, 12, 0), row.lastMessage().createdAt());
+            assertTrue(row.isRunning());
+        }
+
+        @Test
+        @DisplayName("сессия без сообщений и без ранов — нули, а не null'ы")
+        void emptySessionRow() {
+            when(channelRepository.findByUserIdAndConnectorCodeAndDeletedAtIsNull(USER_ID, "webchat"))
+                    .thenReturn(List.of(channel));
+            when(agentSessionService.listByChannelIds(Set.of(CHANNEL_ID), 0, 50))
+                    .thenReturn(new PageImpl<>(List.of(session)));
+
+            WebchatSessionResponse row =
+                    webchatService.listSessions(USER_ID, null, 0, 50).getContent().get(0);
+
+            assertEquals(0L, row.unreadCount());
+            assertNull(row.lastMessage());
+            assertFalse(row.isRunning());
+        }
     }
 
     @Nested
@@ -435,6 +484,59 @@ class WebchatServiceTest {
             webchatService.closeSession(USER_ID, SESSION_ID);
 
             verify(agentSessionService).advanceReadPointer(SESSION_ID, lastMessageRowId);
+        }
+    }
+
+    @Nested
+    @DisplayName("listContacts — агент как контакт")
+    class ListContacts {
+
+        private Page<Object[]> contactRow(Object chatActivityAt) {
+            return new PageImpl<>(List.<Object[]>of(
+                    new Object[]{AGENT_ID, "Assistant", "Личный ассистент", true, chatActivityAt}));
+        }
+
+        @Test
+        @DisplayName("строка склеивает агента с состоянием его чата")
+        void mapsChatState() {
+            UUID lastSessionId = UUID.randomUUID();
+            when(agentRepository.findChatContacts(eq(USER_ID), eq("webchat"), any(Pageable.class)))
+                    .thenReturn(contactRow(Timestamp.valueOf(LocalDateTime.of(2026, 8, 15, 12, 0))));
+            when(webchatMessageRepository.countUnreadByAgentIds(List.of(AGENT_ID)))
+                    .thenReturn(List.<Object[]>of(new Object[]{AGENT_ID, 2L}));
+            when(webchatMessageRepository.findLastMessagesByAgentIds(List.of(AGENT_ID)))
+                    .thenReturn(List.<Object[]>of(new Object[]{
+                            AGENT_ID, lastSessionId, "AGENT", "готово", false,
+                            Timestamp.valueOf(LocalDateTime.of(2026, 8, 15, 12, 0))}));
+            when(agentRunQueryService.liveAgentIds(List.of(AGENT_ID), "webchat"))
+                    .thenReturn(Set.of(AGENT_ID));
+
+            WebchatContactResponse contact =
+                    webchatService.listContacts(USER_ID, 0, 50).getContent().get(0);
+
+            assertEquals(AGENT_ID, contact.agentId());
+            assertEquals("Assistant", contact.name());
+            assertEquals(2L, contact.unreadCount());
+            assertEquals("готово", contact.lastMessage().text());
+            assertEquals(lastSessionId, contact.lastSessionId());
+            assertEquals(LocalDateTime.of(2026, 8, 15, 12, 0), contact.lastActivityAt());
+            assertTrue(contact.isRunning());
+        }
+
+        @Test
+        @DisplayName("агент, которому ещё не писали — пустая строка контакта, а не пропуск")
+        void agentWithoutChat() {
+            when(agentRepository.findChatContacts(eq(USER_ID), eq("webchat"), any(Pageable.class)))
+                    .thenReturn(contactRow(null));
+
+            WebchatContactResponse contact =
+                    webchatService.listContacts(USER_ID, 0, 50).getContent().get(0);
+
+            assertEquals(0L, contact.unreadCount());
+            assertNull(contact.lastMessage());
+            assertNull(contact.lastSessionId());
+            assertNull(contact.lastActivityAt());
+            assertFalse(contact.isRunning());
         }
     }
 }

@@ -14,7 +14,9 @@ import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.TooManyRequestsStatusException;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
+import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatFileResponse;
+import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatLastMessage;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendResponse;
@@ -29,6 +31,7 @@ import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
+import ru.agimate.controlapi.service.AgentRunQueryService;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.channel.ChannelService;
 import ru.agimate.controlapi.service.session.AgentSessionService;
@@ -48,10 +51,13 @@ import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -76,6 +82,7 @@ public class WebchatService {
     private final ChannelRepository channelRepository;
     private final ChannelService channelService;
     private final AgentSessionService agentSessionService;
+    private final AgentRunQueryService agentRunQueryService;
     private final ConnectionBindingService connectionBindingService;
     private final TriggerRouterService triggerRouterService;
     private final WebchatMessagePublisher webchatMessagePublisher;
@@ -115,6 +122,9 @@ public class WebchatService {
      * A user's webchat sessions (optionally for one agent), freshest first. The channels are read
      * whole — there is one per agent, so that set is bounded by how many agents the user has; the
      * sessions behind them are not, and they are the paged half.
+     *
+     * <p>The three marks a chat list needs — unread, preview, «working now» — are three batch
+     * queries for the whole page, never one per row.
      */
     @Transactional(readOnly = true)
     public Page<WebchatSessionResponse> listSessions(UUID userId, UUID agentId, int page, int size) {
@@ -128,8 +138,49 @@ public class WebchatService {
         }
         Map<UUID, Channel> byId = channels.stream()
                 .collect(Collectors.toMap(Channel::getId, Function.identity()));
-        return agentSessionService.listByChannelIds(byId.keySet(), page, size)
-                .map(s -> WebchatSessionResponse.from(s, byId.get(s.getChannelId()).getAgentId()));
+        Page<AgentSession> sessions = agentSessionService.listByChannelIds(byId.keySet(), page, size);
+
+        List<UUID> sessionIds = sessions.getContent().stream().map(AgentSession::getId).toList();
+        Map<UUID, Long> unread = unreadBySession(sessionIds);
+        Map<UUID, WebchatLastMessage> previews = lastMessagesBySession(sessionIds);
+        Set<UUID> live = agentRunQueryService.liveSessionIds(sessionIds);
+
+        return sessions.map(s -> WebchatSessionResponse.from(
+                s,
+                byId.get(s.getChannelId()).getAgentId(),
+                unread.getOrDefault(s.getId(), 0L),
+                previews.get(s.getId()),
+                live.contains(s.getId())));
+    }
+
+    /**
+     * The contact list: the user's agents ordered by the freshness of their chat. The ordering is
+     * the reason this is one endpoint and not two — see {@code AgentRepository.findChatContacts}.
+     */
+    @Transactional(readOnly = true)
+    public Page<WebchatContactResponse> listContacts(UUID userId, int page, int size) {
+        Page<Object[]> rows = agentRepository.findChatContacts(
+                userId, WebchatChannelHandler.CONNECTOR_CODE, PageRequest.of(page, size));
+
+        List<UUID> agentIds = rows.getContent().stream().map(row -> (UUID) row[0]).toList();
+        Map<UUID, Long> unread = unreadByAgent(agentIds);
+        Map<UUID, ContactPreview> previews = lastMessagesByAgent(agentIds);
+        Set<UUID> live = agentRunQueryService.liveAgentIds(agentIds, WebchatChannelHandler.CONNECTOR_CODE);
+
+        return rows.map(row -> {
+            UUID id = (UUID) row[0];
+            ContactPreview preview = previews.get(id);
+            return new WebchatContactResponse(
+                    id,
+                    (String) row[1],
+                    (String) row[2],
+                    Boolean.TRUE.equals(row[3]),
+                    unread.getOrDefault(id, 0L),
+                    preview != null ? preview.message() : null,
+                    preview != null ? preview.sessionId() : null,
+                    toLocalDateTime(row[4]),
+                    live.contains(id));
+        });
     }
 
     /**
@@ -157,6 +208,63 @@ public class WebchatService {
         webchatMessageRepository.findLastMessageId(sessionId)
                 .ifPresent(id -> agentSessionService.advanceReadPointer(sessionId, id));
     }
+
+    private Map<UUID, Long> unreadBySession(List<UUID> sessionIds) {
+        if (sessionIds.isEmpty()) {
+            return Map.of();
+        }
+        return webchatMessageRepository.countUnreadBySessionIds(sessionIds).stream()
+                .collect(Collectors.toMap(row -> (UUID) row[0], row -> ((Number) row[1]).longValue()));
+    }
+
+    private Map<UUID, Long> unreadByAgent(List<UUID> agentIds) {
+        if (agentIds.isEmpty()) {
+            return Map.of();
+        }
+        return webchatMessageRepository.countUnreadByAgentIds(agentIds).stream()
+                .collect(Collectors.toMap(row -> (UUID) row[0], row -> ((Number) row[1]).longValue()));
+    }
+
+    private Map<UUID, WebchatLastMessage> lastMessagesBySession(List<UUID> sessionIds) {
+        if (sessionIds.isEmpty()) {
+            return Map.of();
+        }
+        return webchatMessageRepository.findLastMessagesBySessionIds(sessionIds).stream()
+                .collect(Collectors.toMap(
+                        row -> (UUID) row[0],
+                        row -> lastMessage(row[1], row[2], row[3], row[4])));
+    }
+
+    private Map<UUID, ContactPreview> lastMessagesByAgent(List<UUID> agentIds) {
+        if (agentIds.isEmpty()) {
+            return Map.of();
+        }
+        return webchatMessageRepository.findLastMessagesByAgentIds(agentIds).stream()
+                .collect(Collectors.toMap(
+                        row -> (UUID) row[0],
+                        row -> new ContactPreview((UUID) row[1],
+                                lastMessage(row[2], row[3], row[4], row[5]))));
+    }
+
+    private static WebchatLastMessage lastMessage(Object direction, Object text,
+                                                  Object hasAttachments, Object createdAt) {
+        return new WebchatLastMessage(
+                WebchatPreviews.shorten((String) text),
+                (String) direction,
+                Boolean.TRUE.equals(hasAttachments),
+                toLocalDateTime(createdAt));
+    }
+
+    /** Native queries hand a {@code TIMESTAMP} back as {@link Timestamp}; nothing else lands here. */
+    private static LocalDateTime toLocalDateTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return value instanceof Timestamp timestamp ? timestamp.toLocalDateTime() : (LocalDateTime) value;
+    }
+
+    /** The preview of a contact row together with the conversation it came from. */
+    private record ContactPreview(UUID sessionId, WebchatLastMessage message) {}
 
     /**
      * Upload a file to be sent later in a message (parts). The file is placed into the file layer under
