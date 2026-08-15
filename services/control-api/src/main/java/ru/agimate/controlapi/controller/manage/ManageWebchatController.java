@@ -21,6 +21,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatFileResponse;
+import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMarkReadRequest;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendResponse;
@@ -86,6 +87,20 @@ public class ManageWebchatController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(webchatService.uploadFile(userId, file));
+    }
+
+    @Operation(summary = "Mark a session read",
+            description = "Up to lastReadMessageId (the row id from the history), or up to the end of "
+                    + "the session when the body names none; the pointer never moves backwards")
+    @PostMapping("/sessions/{id}/read")
+    public SuccessResponse<Void> markRead(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID id,
+            @RequestBody(required = false) WebchatMarkReadRequest request
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        webchatService.markRead(userId, id, request != null ? request.lastReadMessageId() : null);
+        return SuccessResponse.empty();
     }
 
     @Operation(summary = "Session message history (UI log), newest first")

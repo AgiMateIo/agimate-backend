@@ -270,6 +270,19 @@ class WebchatServiceTest {
         }
 
         @Test
+        @DisplayName("отправка отмечает прочитанным всё, что было в сессии до неё")
+        void sendMarksConversationRead() {
+            stubOwnedSession();
+            UUID lastMessageRowId = UUID.randomUUID();
+            when(webchatMessageRepository.findLastMessageId(SESSION_ID))
+                    .thenReturn(Optional.of(lastMessageRowId));
+
+            webchatService.send(USER_ID, SESSION_ID, new WebchatSendMessageRequest("привет", null));
+
+            verify(agentSessionService).advanceReadPointer(SESSION_ID, lastMessageRowId);
+        }
+
+        @Test
         @DisplayName("чужая сессия — Forbidden")
         void foreignSessionForbidden() {
             channel.setUserId(UUID.randomUUID());
@@ -341,6 +354,87 @@ class WebchatServiceTest {
 
             assertEquals(0, sessions.getTotalElements());
             verify(agentSessionService, never()).listByChannelIds(any(), anyInt(), anyInt());
+        }
+
+    }
+
+    @Nested
+    @DisplayName("markRead — указатель прочтения")
+    class MarkRead {
+
+        private void stubOwnedSession() {
+            when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
+            when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
+        }
+
+        @Test
+        @DisplayName("указанное сообщение двигает указатель")
+        void advancesToGivenMessage() {
+            stubOwnedSession();
+            UUID messageRowId = UUID.randomUUID();
+            when(webchatMessageRepository.existsByIdAndSessionId(messageRowId, SESSION_ID))
+                    .thenReturn(true);
+
+            webchatService.markRead(USER_ID, SESSION_ID, messageRowId);
+
+            verify(agentSessionService).advanceReadPointer(SESSION_ID, messageRowId);
+        }
+
+        @Test
+        @DisplayName("сообщение не из этой сессии — 400, указатель не трогаем")
+        void foreignMessageRejected() {
+            stubOwnedSession();
+            UUID messageRowId = UUID.randomUUID();
+            when(webchatMessageRepository.existsByIdAndSessionId(messageRowId, SESSION_ID))
+                    .thenReturn(false);
+
+            assertThrows(BadRequestStatusException.class,
+                    () -> webchatService.markRead(USER_ID, SESSION_ID, messageRowId));
+            verify(agentSessionService, never()).advanceReadPointer(any(), any());
+        }
+
+        @Test
+        @DisplayName("без тела — прочитано до последнего сообщения сессии")
+        void readsThroughLatest() {
+            stubOwnedSession();
+            UUID lastMessageRowId = UUID.randomUUID();
+            when(webchatMessageRepository.findLastMessageId(SESSION_ID))
+                    .thenReturn(Optional.of(lastMessageRowId));
+
+            webchatService.markRead(USER_ID, SESSION_ID, null);
+
+            verify(agentSessionService).advanceReadPointer(SESSION_ID, lastMessageRowId);
+        }
+
+        @Test
+        @DisplayName("в сессии ещё ничего не показано — читать нечего")
+        void nothingShownYet() {
+            stubOwnedSession();
+            when(webchatMessageRepository.findLastMessageId(SESSION_ID)).thenReturn(Optional.empty());
+
+            webchatService.markRead(USER_ID, SESSION_ID, null);
+
+            verify(agentSessionService, never()).advanceReadPointer(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("closeSession")
+    class CloseSession {
+
+        @Test
+        @DisplayName("закрытие гасит бейдж — указатель уезжает на последнее сообщение")
+        void closingMarksRead() {
+            when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
+            when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            UUID lastMessageRowId = UUID.randomUUID();
+            when(webchatMessageRepository.findLastMessageId(SESSION_ID))
+                    .thenReturn(Optional.of(lastMessageRowId));
+            when(agentSessionService.close(SESSION_ID)).thenReturn(session);
+
+            webchatService.closeSession(USER_ID, SESSION_ID);
+
+            verify(agentSessionService).advanceReadPointer(SESSION_ID, lastMessageRowId);
         }
     }
 }

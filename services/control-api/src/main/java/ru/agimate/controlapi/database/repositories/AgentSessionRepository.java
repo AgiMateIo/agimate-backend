@@ -74,4 +74,25 @@ public interface AgentSessionRepository extends JpaRepository<AgentSession, UUID
     @Modifying
     @Query("UPDATE AgentSession s SET s.lastActivityAt = :now, s.updatedAt = :now WHERE s.id = :id")
     void touch(@Param("id") UUID id, @Param("now") LocalDateTime now);
+
+    /**
+     * The read pointer moves forward only: a second device that opened an older view of the same
+     * conversation must not un-read what the first one has already read.
+     *
+     * <p>Native because the comparison must be PostgreSQL's — its uuid ordering is bytewise, so a
+     * uuidv7 sorts by time, while Java's {@code UUID.compareTo} treats the halves as signed longs
+     * and would order the same values differently.
+     *
+     * @return 1 when the pointer moved, 0 when the session already stood at or past {@code messageId}
+     */
+    @Modifying
+    @Query(value = """
+            UPDATE agent_sessions
+            SET last_read_message_id = :messageId, updated_at = :now
+            WHERE id = :id
+              AND (last_read_message_id IS NULL OR last_read_message_id < :messageId)
+            """, nativeQuery = true)
+    int advanceReadPointer(@Param("id") UUID id,
+                           @Param("messageId") UUID messageId,
+                           @Param("now") LocalDateTime now);
 }

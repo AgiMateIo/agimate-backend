@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Указатель прочтения диалога: строка webchat_messages, до которой пользователь дочитал.
+      Всё, что старше указателя, прочитано; всё, что новее и пришло от агента, — бейдж.
+
+      Указатель, а не отсечка по времени: created_at даёт ничьи внутри миллисекунды, а id —
+      uuidv7, и его порядок в PostgreSQL совпадает с временным (на это уже опирается сортировка
+      сессий и claim стиринга). Сравнение получается точным и без tiebreak'а.
+
+      Внешнего ключа намеренно нет: это значение-отсечка, а не ссылка на живую строку. Сообщение
+      может быть удалено ретеншеном, и сравнение id > указателя переживёт удаление, тогда как FK
+      либо запретил бы чистку, либо потянул бы каскад в обратную сторону — на сессию.
+    -->
+    <changeSet id="add-agent-sessions-last-read-message-id" author="agimate">
+        <addColumn tableName="agent_sessions">
+            <column name="last_read_message_id" type="UUID"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

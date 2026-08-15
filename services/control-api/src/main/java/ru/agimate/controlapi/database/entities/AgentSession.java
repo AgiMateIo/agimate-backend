@@ -72,4 +72,12 @@ public class AgentSession extends BaseEntity {
 
     @Column(name = "closed_at")
     private LocalDateTime closedAt;
+
+    /**
+     * How far the user has read this conversation: the {@code webchat_messages.id} of the last
+     * message they saw — the row id, not the delivery {@code message_id}. Null — nothing read yet.
+     * Moves forward only ({@code AgentSessionRepository.advanceReadPointer}).
+     */
+    @Column(name = "last_read_message_id")
+    private UUID lastReadMessageId;
 }

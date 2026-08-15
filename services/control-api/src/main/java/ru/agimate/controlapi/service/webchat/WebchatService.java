@@ -133,6 +133,32 @@ public class WebchatService {
     }
 
     /**
+     * Read up to {@code lastReadMessageId}, or up to the end of the conversation when the request
+     * names no message. The pointer only ever moves forward.
+     */
+    public void markRead(UUID userId, UUID sessionId, UUID lastReadMessageId) {
+        requireOwnedWebchatSession(userId, sessionId);
+        UUID pointer = lastReadMessageId;
+        if (pointer != null) {
+            // A pointer from another session — or invented — would silence this session's badge forever.
+            if (!webchatMessageRepository.existsByIdAndSessionId(pointer, sessionId)) {
+                throw new BadRequestStatusException("Message does not belong to this session");
+            }
+        } else {
+            pointer = webchatMessageRepository.findLastMessageId(sessionId).orElse(null);
+        }
+        if (pointer != null) {
+            agentSessionService.advanceReadPointer(sessionId, pointer);
+        }
+    }
+
+    /** Whatever stood in the conversation up to now has been read. */
+    private void markReadThroughLatest(UUID sessionId) {
+        webchatMessageRepository.findLastMessageId(sessionId)
+                .ifPresent(id -> agentSessionService.advanceReadPointer(sessionId, id));
+    }
+
+    /**
      * Upload a file to be sent later in a message (parts). The file is placed into the file layer under
      * the user's name; the frontend receives a {@code fileId} and passes it in {@code parts} at
      * {@link #send}.
@@ -190,6 +216,8 @@ public class WebchatService {
         agentSessionService.bumpLastActivityAt(session);
         webchatMessagePublisher.record(userId, channel.getAgentId(), channel.getId(), session.getId(),
                 WebchatMessageDirection.USER, null, messageId, request.text(), parts);
+        // Writing into a conversation is reading it: the answer being replied to is not unread.
+        markReadThroughLatest(session.getId());
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("sessionId", session.getId().toString());
@@ -268,9 +296,14 @@ public class WebchatService {
         return WebchatAttachment.fromStored(message.getParts(), signedFileUrlService::issue);
     }
 
+    /**
+     * Closing a conversation also ends it as unread: a closed chat keeps its history but stops
+     * asking for attention in the listings.
+     */
     @Transactional
     public WebchatSessionResponse closeSession(UUID userId, UUID sessionId) {
         SessionContext ctx = requireOwnedWebchatSession(userId, sessionId);
+        markReadThroughLatest(sessionId);
         AgentSession closed = agentSessionService.close(sessionId);
         return WebchatSessionResponse.from(closed, ctx.channel().getAgentId());
     }

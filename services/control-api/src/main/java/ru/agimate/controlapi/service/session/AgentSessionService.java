@@ -117,6 +117,15 @@ public class AgentSessionService {
         agentSessionRepository.save(session);
     }
 
+    /**
+     * Move the session's read pointer to {@code messageId}. Never rewinds — see
+     * {@code AgentSessionRepository.advanceReadPointer}.
+     */
+    @Transactional
+    public void advanceReadPointer(UUID sessionId, UUID messageId) {
+        agentSessionRepository.advanceReadPointer(sessionId, messageId, LocalDateTime.now());
+    }
+
     @Transactional
     public AgentSession close(UUID id) {
         AgentSession session = getById(id);

@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.WebchatMessage;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -41,4 +42,16 @@ public interface WebchatMessageRepository extends JpaRepository<WebchatMessage, 
                              @Param("partsJson") String partsJson);
 
     Page<WebchatMessage> findBySessionId(UUID sessionId, Pageable pageable);
+
+    boolean existsByIdAndSessionId(UUID id, UUID sessionId);
+
+    /** The newest shown message of a session — where «read everything» puts the pointer. */
+    @Query(value = """
+            SELECT m.id FROM webchat_messages m
+            WHERE m.session_id = :sessionId
+              AND m.stream IS DISTINCT FROM 'progress'
+            ORDER BY m.id DESC
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<UUID> findLastMessageId(@Param("sessionId") UUID sessionId);
 }
