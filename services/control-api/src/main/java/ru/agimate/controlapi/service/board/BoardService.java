@@ -114,13 +114,9 @@ public class BoardService {
         Board board = findBoardById(boardId);
         validateBoardOwnership(board, userId);
 
-        List<BoardTask> tasks = boardTaskRepository.findByBoardIdOrderByCreatedAtDesc(board.getId()).stream()
-                .filter(t -> statusFilter == null || t.getStatus() == statusFilter)
-                .filter(t -> assigneeFilter == null || assigneeFilter.equals(t.getAssigneeAgentId()))
-                .toList();
+        List<BoardTask> tasks = boardTaskRepository.findByBoardIdFiltered(
+                board.getId(), statusFilter, assigneeFilter);
         Map<UUID, Agent> agentsById = resolveAgentsForTasks(tasks);
-        Map<UUID, BoardTask> tasksById = tasks.stream()
-                .collect(Collectors.toMap(BoardTask::getId, Function.identity()));
 
         Map<BoardTaskStatus, List<BoardTaskResponse>> grouped = new LinkedHashMap<>();
         for (BoardTaskStatus status : BoardTaskStatus.values()) {
@@ -130,8 +126,7 @@ public class BoardService {
         }
 
         for (BoardTask task : tasks) {
-            BoardTaskResponse response = toBoardTaskResponse(task, agentsById, tasksById);
-            grouped.get(task.getStatus()).add(response);
+            grouped.get(task.getStatus()).add(toBoardTaskResponse(task, agentsById));
         }
 
         return new BoardTasksByStatusResponse(grouped);
@@ -340,7 +335,7 @@ public class BoardService {
 
         Map<UUID, Agent> agentsById = resolveAgentsForTasks(List.of(task));
         if (changedFields.isEmpty()) {
-            return toBoardTaskResponse(task, agentsById, parentById(task));
+            return toBoardTaskResponse(task, agentsById);
         }
         task = boardTaskRepository.save(task);
         log.info("Edited task {}: {}", taskId, changedFields);
@@ -373,14 +368,7 @@ public class BoardService {
                     new BoardTaskUpdatedEvent(board.getId(), task.getId(), List.copyOf(changedFields)));
         }
 
-        return toBoardTaskResponse(task, agentsById, parentById(task));
-    }
-
-    private Map<UUID, BoardTask> parentById(BoardTask task) {
-        return task.getParentTaskId() != null
-                ? boardTaskRepository.findById(task.getParentTaskId())
-                    .map(p -> Map.of(p.getId(), p)).orElse(Map.<UUID, BoardTask>of())
-                : Map.of();
+        return toBoardTaskResponse(task, agentsById);
     }
 
     // ---- Comments ----
@@ -561,14 +549,19 @@ public class BoardService {
         return List.copyOf(ids);
     }
 
-    private BoardTaskResponse toBoardTaskResponse(BoardTask task, Map<UUID, Agent> agentsById, Map<UUID, BoardTask> tasksById) {
+    /**
+     * The agents are looked up because one of them may have been soft-deleted, and a dangling id in
+     * the card would be worse than none. The parent is not: {@code board_tasks} has no soft delete,
+     * so the reference on the task is always live — resolving it through a loaded set only dropped
+     * ids whose task happened to be outside that set.
+     */
+    private BoardTaskResponse toBoardTaskResponse(BoardTask task, Map<UUID, Agent> agentsById) {
         Agent createdBy = agentsById.get(task.getCreatedByAgentId());
         Agent assignee = task.getAssigneeAgentId() != null ? agentsById.get(task.getAssigneeAgentId()) : null;
-        BoardTask parentTask = task.getParentTaskId() != null ? tasksById.get(task.getParentTaskId()) : null;
 
         return BoardTaskResponse.from(task,
                 createdBy != null ? createdBy.getId() : null,
                 assignee != null ? assignee.getId() : null,
-                parentTask != null ? parentTask.getId() : null);
+                task.getParentTaskId());
     }
 }
