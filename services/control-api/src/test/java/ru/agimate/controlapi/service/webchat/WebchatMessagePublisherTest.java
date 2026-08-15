@@ -18,11 +18,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -77,6 +82,59 @@ class WebchatMessagePublisherTest {
         assertEquals("image/png", attachment.mime());
         assertEquals(42L, attachment.size());
         assertEquals("/files/" + fileId + "?exp=1&sig=s", attachment.url());
+    }
+
+    @Test
+    @DisplayName("ответ агента дублируется бейджем в user:{userId} с тегами и обрезанным превью")
+    void answerFansOutToUserChannel() {
+        String longText = "а".repeat(WebchatPreviews.MAX_LENGTH + 20);
+
+        publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.AGENT, "answer", "m3", longText, null);
+
+        WebchatActivityEvent event = capturedActivity();
+        assertEquals(AGENT_ID, event.agentId());
+        assertEquals(SESSION_ID, event.sessionId());
+        assertEquals("m3", event.messageId());
+        assertEquals("answer", event.stream());
+        assertEquals(WebchatPreviews.MAX_LENGTH, event.preview().length());
+    }
+
+    @Test
+    @DisplayName("progress и эхо пользователя бейдж не поднимают")
+    void progressAndUserDoNotFanOut() {
+        publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.AGENT, "progress", "m4", "читаю таблицу", null);
+        publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.USER, null, "m5", "привет", null);
+
+        verify(centrifugoService, never()).publishMessage(
+                eq(WebchatMessagePublisher.USER_CHANNEL_PREFIX + USER_ID), any(), any(), anyMap());
+    }
+
+    @Test
+    @DisplayName("падение публикации бейджа не роняет доставку сообщения")
+    void activityFailureSwallowed() {
+        // lenient: strict stubbing tells overloads apart by name, so the 3-argument publish of the
+        // message itself would read as a mismatch against this stub of the 4-argument one.
+        lenient().doThrow(new RuntimeException("centrifugo down")).when(centrifugoService)
+                .publishMessage(eq(WebchatMessagePublisher.USER_CHANNEL_PREFIX + USER_ID),
+                        any(), any(), anyMap());
+
+        assertDoesNotThrow(() -> publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.AGENT, "answer", "m6", "готово", null));
+
+        verify(webchatMessageRepository).insertIgnoreConflict(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                "AGENT", "answer", "m6", "готово", null);
+    }
+
+    private WebchatActivityEvent capturedActivity() {
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(centrifugoService).publishMessage(
+                eq(WebchatMessagePublisher.USER_CHANNEL_PREFIX + USER_ID),
+                eq(WebchatMessagePublisher.ACTIVITY_EVENT_TYPE), payload.capture(),
+                eq(Map.of("entity", "webchat.message", "agentId", AGENT_ID.toString())));
+        return (WebchatActivityEvent) payload.getValue();
     }
 
     private WebchatMessageEvent capturedEvent() {

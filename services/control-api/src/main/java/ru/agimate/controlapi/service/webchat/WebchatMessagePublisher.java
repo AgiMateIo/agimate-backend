@@ -37,6 +37,10 @@ public class WebchatMessagePublisher {
 
     public static final String CENTRIFUGO_CHANNEL_PREFIX = "webchat:";
     public static final String EVENT_TYPE = "webchat_message";
+    public static final String USER_CHANNEL_PREFIX = "user:";
+    public static final String ACTIVITY_EVENT_TYPE = "webchat_activity";
+    /** The stream that is work in progress, not an answer — it neither raises a badge nor previews a chat. */
+    static final String STREAM_PROGRESS = "progress";
 
     private final WebchatMessageRepository webchatMessageRepository;
     private final CentrifugoService centrifugoService;
@@ -61,6 +65,30 @@ public class WebchatMessagePublisher {
                         direction.name(), stream, text,
                         WebchatAttachment.fromStored(storedParts, signedFileUrlService::issue),
                         Instant.now().toString()));
+
+        if (direction == WebchatMessageDirection.AGENT && !STREAM_PROGRESS.equals(stream)) {
+            publishActivity(userId, agentId, sessionId, messageId, stream, text);
+        }
+    }
+
+    /**
+     * The badge of a client that is not inside any conversation: the same delivery, announced once
+     * more in the user's own channel. Failure is swallowed on purpose — a lost badge is repaired by
+     * the next listing, while letting the exception out would fail a message that has already been
+     * written and published.
+     */
+    private void publishActivity(UUID userId, UUID agentId, UUID sessionId, String messageId,
+                                 String stream, String text) {
+        try {
+            centrifugoService.publishMessage(
+                    USER_CHANNEL_PREFIX + userId,
+                    ACTIVITY_EVENT_TYPE,
+                    new WebchatActivityEvent(agentId, sessionId, messageId, stream,
+                            WebchatPreviews.shorten(text), Instant.now().toString()),
+                    Map.of("entity", "webchat.message", "agentId", agentId.toString()));
+        } catch (Exception e) {
+            log.warn("Failed to publish webchat activity for session {}: {}", sessionId, e.getMessage());
+        }
     }
 
     /** The stored representation of parts ({@code type/fileId/mime/size/name}); null — a message with no attachments. */
