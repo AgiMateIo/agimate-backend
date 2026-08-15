@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
@@ -96,8 +97,12 @@ public class AgentService {
                     .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
         }
         String normalizedSearch = (search == null || search.isBlank()) ? null : search.trim();
+        // Newest first, id as the tiebreak: without an order PostgreSQL is free to return the same
+        // row on two pages and skip another one entirely.
         Page<Agent> agents = agentRepository.searchForUser(
-                userId, agenticTeamId, normalizedSearch, PageRequest.of(page, size));
+                userId, agenticTeamId, normalizedSearch,
+                PageRequest.of(page, size,
+                        Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id"))));
 
         List<UUID> teamIds = agents.getContent().stream()
                 .map(Agent::getAgenticTeamId)
