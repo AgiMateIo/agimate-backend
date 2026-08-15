@@ -4,8 +4,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.channel.ChannelHandlerResponse;
@@ -30,6 +33,8 @@ import java.util.UUID;
 public class ManageChannelController {
 
     public static final String PATH = "/manage/channels";
+
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final ChannelService channelService;
     private final AgentSessionService agentSessionService;
@@ -112,36 +117,41 @@ public class ManageChannelController {
         return SuccessResponse.empty();
     }
 
-    @Operation(summary = "List sessions of a channel")
+    @Operation(summary = "List sessions of a channel, freshest activity first")
     @GetMapping("/{id}/sessions/")
-    public SuccessResponse<List<ChannelSessionResponse>> listSessions(
+    public SuccessResponse<PageResponse<ChannelSessionResponse>> listSessions(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
         Channel channel = channelService.getById(userId, id);
-        List<ChannelSessionResponse> response = agentSessionService.listByChannelId(channel.getId()).stream()
-                .map(ChannelSessionResponse::from)
-                .toList();
-        return SuccessResponse.ok(response);
+        return SuccessResponse.ok(PageResponse.from(
+                agentSessionService.listByChannelId(channel.getId(), page, size)
+                        .map(ChannelSessionResponse::from)));
     }
 
-    @Operation(summary = "List messages of a session")
+    @Operation(summary = "List messages of a session, newest first",
+            description = "Page 0 is the freshest; the frontend reverses it when rendering — the same "
+                    + "shape as the webchat history")
     @GetMapping("/sessions/{sessionId}/messages/")
-    public SuccessResponse<List<ChannelSessionMessageResponse>> listSessionMessages(
+    public SuccessResponse<PageResponse<ChannelSessionMessageResponse>> listSessionMessages(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID sessionId
+            @PathVariable UUID sessionId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
         AgentSession session = agentSessionService.getById(sessionId);
         channelService.getByIdForUser(userId, session.getChannelId());
-        List<ChannelSessionMessageResponse> response = channelSessionMessageRepository
-                .findBySessionIdOrderByCreatedAtAsc(session.getId())
-                .stream()
-                .filter(m -> m.getMessage() != null)
-                .map(ChannelSessionMessageResponse::from)
-                .toList();
-        return SuccessResponse.ok(response);
+        // created_at comes from CURRENT_TIMESTAMP, which is the same for every row a run writes in one
+        // transaction — the id (uuidv7) is what keeps a page from repeating or skipping one of them.
+        PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE),
+                Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
+        return SuccessResponse.ok(PageResponse.from(channelSessionMessageRepository
+                .findWithMessageBySessionId(session.getId(), pageRequest)
+                .map(ChannelSessionMessageResponse::from)));
     }
 
     @Operation(summary = "Close a channel session")

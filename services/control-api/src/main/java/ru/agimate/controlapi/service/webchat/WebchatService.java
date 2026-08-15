@@ -111,22 +111,25 @@ public class WebchatService {
         return WebchatSessionResponse.from(session, agentId);
     }
 
-    /** All of a user's webchat sessions (optionally for one agent), freshest first. */
+    /**
+     * A user's webchat sessions (optionally for one agent), freshest first. The channels are read
+     * whole — there is one per agent, so that set is bounded by how many agents the user has; the
+     * sessions behind them are not, and they are the paged half.
+     */
     @Transactional(readOnly = true)
-    public List<WebchatSessionResponse> listSessions(UUID userId, UUID agentId) {
+    public Page<WebchatSessionResponse> listSessions(UUID userId, UUID agentId, int page, int size) {
         List<Channel> channels = channelRepository
                 .findByUserIdAndConnectorCodeAndDeletedAtIsNull(userId, WebchatChannelHandler.CONNECTOR_CODE)
                 .stream()
                 .filter(c -> agentId == null || agentId.equals(c.getAgentId()))
                 .toList();
         if (channels.isEmpty()) {
-            return List.of();
+            return Page.empty(PageRequest.of(page, size));
         }
         Map<UUID, Channel> byId = channels.stream()
                 .collect(Collectors.toMap(Channel::getId, Function.identity()));
-        return agentSessionService.listByChannelIds(List.copyOf(byId.keySet())).stream()
-                .map(s -> WebchatSessionResponse.from(s, byId.get(s.getChannelId()).getAgentId()))
-                .toList();
+        return agentSessionService.listByChannelIds(byId.keySet(), page, size)
+                .map(s -> WebchatSessionResponse.from(s, byId.get(s.getChannelId()).getAgentId()));
     }
 
     /**

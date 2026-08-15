@@ -54,12 +54,14 @@ public class ManageWebchatController {
 
     @Operation(summary = "List webchat sessions, newest activity first")
     @GetMapping("/sessions/")
-    public SuccessResponse<List<WebchatSessionResponse>> listSessions(
+    public SuccessResponse<PageResponse<WebchatSessionResponse>> listSessions(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam(required = false) UUID agentId
+            @RequestParam(required = false) UUID agentId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(webchatService.listSessions(userId, agentId));
+        return SuccessResponse.ok(PageResponse.from(webchatService.listSessions(userId, agentId, page, size)));
     }
 
     @Operation(summary = "Send a message into a session",

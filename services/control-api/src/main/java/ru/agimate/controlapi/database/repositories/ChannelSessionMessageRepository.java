@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.database.repositories;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -49,6 +50,20 @@ public interface ChannelSessionMessageRepository extends JpaRepository<ChannelSe
     int markRunCompleted(@Param("runId") UUID runId);
 
     List<ChannelSessionMessage> findBySessionIdOrderByCreatedAtAsc(UUID sessionId);
+
+    /**
+     * A session's history for the manage view. Rows without text are dropped by the query rather
+     * than after the page is fetched: a progress row carries none, and filtering afterwards would
+     * hand back a page shorter than the size that was asked for — with no way to tell that from
+     * the end of the history.
+     */
+    @Query("""
+            SELECT m FROM ChannelSessionMessage m
+            WHERE m.sessionId = :sessionId
+              AND m.message IS NOT NULL
+            """)
+    Page<ChannelSessionMessage> findWithMessageBySessionId(@Param("sessionId") UUID sessionId,
+                                                           Pageable pageable);
 
     /**
      * The tail of history «as the user saw it»: completed runs only, newest first (the caller

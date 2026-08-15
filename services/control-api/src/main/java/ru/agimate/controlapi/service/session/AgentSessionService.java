@@ -2,6 +2,9 @@ package ru.agimate.controlapi.service.session;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.NotFoundStatusException;
@@ -12,6 +15,7 @@ import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -30,6 +34,7 @@ public class AgentSessionService {
 
     public static final Duration SESSION_TTL = Duration.ofHours(12);
     private static final int TITLE_MAX_LENGTH = 80;
+    private static final int MAX_PAGE_SIZE = 100;
 
     private final AgentSessionRepository agentSessionRepository;
 
@@ -38,12 +43,22 @@ public class AgentSessionService {
                 .orElseThrow(() -> new NotFoundStatusException("Agent session not found"));
     }
 
-    public List<AgentSession> listByChannelId(UUID channelId) {
-        return agentSessionRepository.findByChannelIdOrderByLastActivityAtDesc(channelId);
+    public Page<AgentSession> listByChannelId(UUID channelId, int page, int size) {
+        return agentSessionRepository.findByChannelId(channelId, pageRequest(page, size));
     }
 
-    public List<AgentSession> listByChannelIds(List<UUID> channelIds) {
-        return agentSessionRepository.findByChannelIdInOrderByLastActivityAtDesc(channelIds);
+    public Page<AgentSession> listByChannelIds(Collection<UUID> channelIds, int page, int size) {
+        return agentSessionRepository.findByChannelIdIn(channelIds, pageRequest(page, size));
+    }
+
+    /**
+     * Freshest activity first, with the id as the tiebreak: a burst of sessions can share a
+     * timestamp, and an unstable order lets a page repeat one row while skipping another. The id is
+     * a uuidv7, so it breaks the tie in the same direction time does.
+     */
+    private static PageRequest pageRequest(int page, int size) {
+        return PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE),
+                Sort.by(Sort.Direction.DESC, "lastActivityAt").and(Sort.by(Sort.Direction.DESC, "id")));
     }
 
     @Transactional

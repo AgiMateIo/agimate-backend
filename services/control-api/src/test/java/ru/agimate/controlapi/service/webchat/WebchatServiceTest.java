@@ -33,7 +33,11 @@ import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.time.LocalDateTime;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,6 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -315,25 +320,27 @@ class WebchatServiceTest {
         void listsAcrossAgents() {
             when(channelRepository.findByUserIdAndConnectorCodeAndDeletedAtIsNull(USER_ID, "webchat"))
                     .thenReturn(List.of(channel));
-            when(agentSessionService.listByChannelIds(List.of(CHANNEL_ID)))
-                    .thenReturn(List.of(session));
+            when(agentSessionService.listByChannelIds(Set.of(CHANNEL_ID), 0, 50))
+                    .thenReturn(new PageImpl<>(List.of(session)));
 
-            List<WebchatSessionResponse> sessions = webchatService.listSessions(USER_ID, null);
+            Page<WebchatSessionResponse> sessions = webchatService.listSessions(USER_ID, null, 0, 50);
 
-            assertEquals(1, sessions.size());
-            assertEquals(AGENT_ID, sessions.get(0).agentId());
-            assertNull(sessions.get(0).closedAt());
+            assertEquals(1, sessions.getTotalElements());
+            assertEquals(AGENT_ID, sessions.getContent().get(0).agentId());
+            assertNull(sessions.getContent().get(0).closedAt());
         }
 
         @Test
-        @DisplayName("фильтр по агенту отсекает чужие каналы")
+        @DisplayName("фильтр по агенту отсекает чужие каналы — до запроса сессий")
         void filtersByAgent() {
             when(channelRepository.findByUserIdAndConnectorCodeAndDeletedAtIsNull(USER_ID, "webchat"))
                     .thenReturn(List.of(channel));
 
-            List<WebchatSessionResponse> sessions = webchatService.listSessions(USER_ID, UUID.randomUUID());
+            Page<WebchatSessionResponse> sessions =
+                    webchatService.listSessions(USER_ID, UUID.randomUUID(), 0, 50);
 
-            assertEquals(0, sessions.size());
+            assertEquals(0, sessions.getTotalElements());
+            verify(agentSessionService, never()).listByChannelIds(any(), anyInt(), anyInt());
         }
     }
 }
