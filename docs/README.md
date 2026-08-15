@@ -91,6 +91,7 @@
 | [mcp-tasks.md](decisions/mcp-tasks.md) | Долгий вызов по MCP отвечает хэндлом таска; таск — строка `tool_call_logs` |
 | [agent-sessions.md](decisions/agent-sessions.md) | Сессия есть у каждого рана и служит ключом упорядочивания, а не артефактом канала |
 | [referrals.md](decisions/referrals.md) | Кто кого привёл: `?ref=` через cookie, атрибуция только при создании аккаунта, ссылка доступа не даёт |
+| [agent-participants.md](decisions/agent-participants.md) | Разные люди в одном канале: `agent_participants` обязателен у канального рана; личность — тип и ключ, полномочия — сравнение аккаунтов |
 | [deferred/](decisions/deferred/) | Разобрано, но не сделано: [mail](decisions/deferred/mail.md), [terminal](decisions/deferred/terminal.md), [a2a-external-agents](decisions/deferred/a2a-external-agents.md), [agent-to-agent-internal](decisions/deferred/agent-to-agent-internal.md), [pluggable-connectors](decisions/deferred/pluggable-connectors.md), [llm-inference-proxy](decisions/deferred/llm-inference-proxy.md), [matrix-connector](decisions/deferred/matrix-connector.md) |
 
 ---
