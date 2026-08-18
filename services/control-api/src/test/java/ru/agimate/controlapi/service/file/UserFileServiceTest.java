@@ -18,6 +18,7 @@ import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.FileStatus;
 import ru.agimate.controlapi.database.repositories.StoredFileRepository;
 import ru.agimate.controlapi.storage.FileIds;
+import ru.agimate.controlapi.storage.FileLink;
 import ru.agimate.controlapi.storage.FileStorageService;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
@@ -80,7 +81,7 @@ class UserFileServiceTest {
             when(storedFileRepository.findVisible(eq(USER_ID), isNull(), isNull(),
                     any(LocalDateTime.class), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(stored)));
-            when(signedFileUrlService.issue(anyString())).thenReturn("/files/x?exp=1&sig=s");
+            when(signedFileUrlService.issue(any(FileLink.class))).thenReturn("/files/x?exp=1&sig=s");
 
             Page<FileListItemResponse> page = service.list(USER_ID, null, null, 0, 20);
 
@@ -91,7 +92,7 @@ class UserFileServiceTest {
             assertEquals(AGENT_ID, item.agentId());
             assertEquals("sheets:export", item.origin());
             assertEquals("/files/x?exp=1&sig=s", item.url());
-            verify(signedFileUrlService).issue(FileIds.external(stored.getId()));
+            verify(signedFileUrlService).issue(FileLink.of(stored));
         }
 
         @Test

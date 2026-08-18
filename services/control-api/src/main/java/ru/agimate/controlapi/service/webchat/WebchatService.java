@@ -401,7 +401,7 @@ public class WebchatService {
 
     /** Stored parts plus a fresh signed link to the contents (expired links are never stored). */
     private List<WebchatAttachment> attachments(WebchatMessage message) {
-        return WebchatAttachment.fromStored(message.getParts(), signedFileUrlService::issue);
+        return WebchatAttachment.fromStored(message.getParts(), message.getUserId(), signedFileUrlService::issue);
     }
 
     /**

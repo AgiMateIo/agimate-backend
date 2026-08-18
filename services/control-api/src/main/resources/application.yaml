@@ -146,6 +146,12 @@ app:
     region: us-east-1
     endpoint: ""
     path-style: true
+    # presign: ссылка на вложение ведёт прямо в хранилище (SigV4 в query), байты не идут через
+    # control-api — нужны публично достижимый endpoint и CORS на бакете. Фронт обязан использовать
+    # URL как есть: он абсолютный, а не /files/… . Отзыв слабее — ссылка переживает удаление файла
+    # до ближайшей чистки блобов. public-endpoint: адрес для подписи, если endpoint внутренний.
+    presign: false
+    public-endpoint: ""
     # HMAC-секрет подписанных ссылок на файлы (GET /files/…?exp&sig — webchat-вложения).
     # Дефолта нет намеренно: в проде — env APP_FILES_URL_SECRET (без него отказ старта),
     # в dev пустое значение = случайный per-boot ключ.

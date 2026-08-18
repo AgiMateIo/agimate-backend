@@ -63,7 +63,7 @@ public class WebchatMessagePublisher {
                 EVENT_TYPE,
                 new WebchatMessageEvent(sessionId, channelId, agentId, messageId,
                         direction.name(), stream, text,
-                        WebchatAttachment.fromStored(storedParts, signedFileUrlService::issue),
+                        WebchatAttachment.fromStored(storedParts, userId, signedFileUrlService::issue),
                         Instant.now().toString()));
 
         if (direction == WebchatMessageDirection.AGENT && !STREAM_PROGRESS.equals(stream)) {

@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.storage.FileIds;
+import ru.agimate.controlapi.storage.FileLink;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.util.List;
@@ -61,7 +62,8 @@ class WebchatMessagePublisherTest {
     @DisplayName("вложение: строка хранит fileId без url, событие несёт свежую подписанную ссылку")
     void partsStoredWithoutUrlEventWithUrl() {
         String fileId = FileIds.external(UUID.randomUUID());
-        when(signedFileUrlService.issue(fileId)).thenReturn("/files/" + fileId + "?exp=1&sig=s");
+        when(signedFileUrlService.issue(new FileLink(USER_ID, fileId, "image/png", null)))
+                .thenReturn("/files/" + fileId + "?exp=1&sig=s");
 
         publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
                 WebchatMessageDirection.AGENT, "answer", "m2", "вот скриншот",

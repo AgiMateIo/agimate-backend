@@ -32,6 +32,18 @@ public class FileStorageProperties {
     private String secretKey;
     /** Path-style bucket addressing (required by MinIO). */
     private boolean pathStyle = true;
+    /**
+     * Presigned links straight into the object store instead of streaming the bytes through
+     * control-api (docs/connectors/files.md). Opt-in: it needs an endpoint the browser can reach plus
+     * CORS on the bucket, and it weakens revocation — a link outlives deletion of the file until the
+     * blob is swept.
+     */
+    private boolean presign = false;
+    /**
+     * The endpoint presigned links point at, when the browser cannot reach {@code endpoint} itself
+     * (MinIO on a cluster-internal address); empty — {@code endpoint}.
+     */
+    private String publicEndpoint;
 
     /** Maximum size of a single file (the ceiling of a Telegram bot upload — 50 MB). */
     private long maxFileSizeBytes = 50L * 1024 * 1024;

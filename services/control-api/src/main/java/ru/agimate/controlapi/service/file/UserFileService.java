@@ -10,7 +10,7 @@ import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.manage.dto.files.FileListItemResponse;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.repositories.StoredFileRepository;
-import ru.agimate.controlapi.storage.FileIds;
+import ru.agimate.controlapi.storage.FileLink;
 import ru.agimate.controlapi.storage.FileStorageService;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
@@ -43,7 +43,7 @@ public class UserFileService {
         return storedFileRepository
                 .findVisible(userId, agentId, blankToNull(name), LocalDateTime.now(), PageRequest.of(page, size))
                 .map(file -> FileListItemResponse.from(file,
-                        signedFileUrlService.issue(FileIds.external(file.getId()))));
+                        signedFileUrlService.issue(FileLink.of(file))));
     }
 
     /**

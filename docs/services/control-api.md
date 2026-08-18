@@ -39,6 +39,7 @@ Control API for connector registration, tool delivery, trigger submission, and A
 | `INBOUND_RATE_LIMIT_MCP_TASK_POLLS_PER_MINUTE` | MCP task polls per minute per agent — `tasks/get` and friends (default `240`, `<=0` disables) |
 | `APP_FILES_BACKEND` | Connector file layer blob store: `local` (disk, default; root — `APP_FILES_LOCAL_DIR`, empty = `~/.agimate/files`) or `s3` (`docs/connectors/files.md`) |
 | `APP_FILES_BUCKET` / `APP_FILES_ENDPOINT` / `APP_FILES_REGION` / `APP_FILES_ACCESS_KEY` / `APP_FILES_SECRET_KEY` | s3 backend only; empty endpoint = AWS, empty keys = AWS credentials chain |
+| `APP_FILES_PRESIGN` / `APP_FILES_PUBLIC_ENDPOINT` | s3 backend only: presigned links straight into the bucket (default off) and the endpoint they point at |
 
 ## Inbound Rate Limiting
 

@@ -37,7 +37,7 @@ public record FileListItemResponse(
         @Schema(description = "When it will be swept (TTL)")
         LocalDateTime expiresAt,
 
-        @Schema(description = "Signed relative URL of the contents; expires with app.files.url-ttl")
+        @Schema(description = "Signed URL of the contents; relative to the control-api origin, or absolute when the object store signed it (app.files.presign). Expires with app.files.url-ttl")
         String url
 ) {
 

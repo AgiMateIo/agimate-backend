@@ -143,7 +143,7 @@ public class FileStorageService {
     }
 
     private static String blobKey(StoredFile file) {
-        return file.getUserId() + "/" + FileIds.external(file.getId());
+        return FileLink.of(file).blobKey();
     }
 
     private static MessageDigest sha256Digest() {
