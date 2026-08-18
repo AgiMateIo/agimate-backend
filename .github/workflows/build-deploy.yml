@@ -92,6 +92,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Full history and tags: the image tag is `git describe --tags`, and a shallow
+          # checkout degrades it to a bare commit hash without failing. See docs/operations/ci.md.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Build and push
@@ -108,6 +111,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Full history and tags: the image tag is `git describe --tags`, and a shallow
+          # checkout degrades it to a bare commit hash without failing. See docs/operations/ci.md.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Build and push
@@ -124,6 +130,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Full history and tags: the image tag is `git describe --tags`, and a shallow
+          # checkout degrades it to a bare commit hash without failing. See docs/operations/ci.md.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Build and push
@@ -141,6 +150,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Full history and tags: the image tag is `git describe --tags`, and a shallow
+          # checkout degrades it to a bare commit hash without failing. See docs/operations/ci.md.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Update infra
