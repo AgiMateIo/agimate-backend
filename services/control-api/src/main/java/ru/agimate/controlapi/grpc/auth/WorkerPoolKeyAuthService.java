@@ -1,10 +1,11 @@
 package ru.agimate.controlapi.grpc.auth;
 
+import ru.agimate.common.security.keys.ParsedAuthkey;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import ru.agimate.controlapi.util.AppKeyUtils;
-import ru.agimate.controlapi.util.ParsedAppKey;
+import ru.agimate.common.security.keys.AppKeyUtils;
+import ru.agimate.common.security.keys.ParsedAppKey;
 
 import java.util.Optional;
 
@@ -38,7 +39,7 @@ public class WorkerPoolKeyAuthService {
             return Optional.empty();
         }
 
-        Optional<ParsedWorkerAuthkey> entry = registry.findByKeyId(parsedKey.keyId());
+        Optional<ParsedAuthkey> entry = registry.findByKeyId(parsedKey.keyId());
         if (entry.isEmpty()) {
             log.debug("Worker pool not found for keyId: {}", parsedKey.keyId());
             return Optional.empty();

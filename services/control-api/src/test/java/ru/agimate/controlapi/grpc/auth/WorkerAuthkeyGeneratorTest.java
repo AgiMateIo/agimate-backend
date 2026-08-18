@@ -1,10 +1,11 @@
 package ru.agimate.controlapi.grpc.auth;
 
+import ru.agimate.common.security.keys.ParsedAuthkey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
-import ru.agimate.controlapi.util.AppKeyUtils;
-import ru.agimate.controlapi.util.GeneratedAppKey;
+import ru.agimate.common.security.keys.AppKeyUtils;
+import ru.agimate.common.security.keys.GeneratedAppKey;
 
 /**
  * Manual generator for worker pool authkeys. Disabled by default.
@@ -18,7 +19,7 @@ class WorkerAuthkeyGeneratorTest {
     @EnabledIfSystemProperty(named = "generate.worker.authkey", matches = "true")
     void generate() {
         GeneratedAppKey generated = AppKeyUtils.generate(WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX);
-        String authkey = ParsedWorkerAuthkey.build(WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX, generated);
+        String authkey = ParsedAuthkey.build(WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX, generated);
 
         System.out.println();
         System.out.println("=== Worker Pool Authkey Generated ===");

@@ -6,8 +6,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.database.entities.App;
 import ru.agimate.controlapi.database.repositories.AppRepository;
-import ru.agimate.controlapi.util.AppKeyUtils;
-import ru.agimate.controlapi.util.ParsedAppKey;
+import ru.agimate.common.security.keys.AppKeyUtils;
+import ru.agimate.common.security.keys.ParsedAppKey;
 
 import java.util.Optional;
 

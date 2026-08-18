@@ -27,8 +27,8 @@ import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.dto.AppCreateResult;
 import ru.agimate.controlapi.service.dto.AppTool;
 import ru.agimate.controlapi.service.dto.AppTrigger;
-import ru.agimate.controlapi.util.AppKeyUtils;
-import ru.agimate.controlapi.util.GeneratedAppKey;
+import ru.agimate.common.security.keys.AppKeyUtils;
+import ru.agimate.common.security.keys.GeneratedAppKey;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;

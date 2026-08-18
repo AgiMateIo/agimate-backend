@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.util;
+package ru.agimate.common.security.keys;
 
 /**
  * Result of app key generation.

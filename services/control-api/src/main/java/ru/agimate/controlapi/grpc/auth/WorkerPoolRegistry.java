@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.grpc.auth;
 
+import ru.agimate.common.security.keys.ParsedAuthkey;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,20 +20,20 @@ public class WorkerPoolRegistry {
 
     private final WorkerPoolProperties properties;
 
-    private Map<String, ParsedWorkerAuthkey> byKeyId = Map.of();
+    private Map<String, ParsedAuthkey> byKeyId = Map.of();
 
     @PostConstruct
     void init() {
-        Map<String, ParsedWorkerAuthkey> map = new HashMap<>();
+        Map<String, ParsedAuthkey> map = new HashMap<>();
         for (int i = 0; i < properties.authkeys().size(); i++) {
             String authkey = properties.authkeys().get(i);
-            ParsedWorkerAuthkey parsed = ParsedWorkerAuthkey.parse(authkey);
+            ParsedAuthkey parsed = ParsedAuthkey.parse(authkey);
             if (!WORKER_POOL_KEY_PREFIX.equals(parsed.prefix())) {
                 throw new IllegalStateException(
                         "Worker pool authkey at index " + i + " has wrong prefix '"
                                 + parsed.prefix() + "', expected '" + WORKER_POOL_KEY_PREFIX + "'");
             }
-            ParsedWorkerAuthkey prev = map.putIfAbsent(parsed.keyId(), parsed);
+            ParsedAuthkey prev = map.putIfAbsent(parsed.keyId(), parsed);
             if (prev != null) {
                 throw new IllegalStateException(
                         "Duplicate worker pool authkey with keyId=" + parsed.keyId());
@@ -42,7 +43,7 @@ public class WorkerPoolRegistry {
         log.info("Loaded {} worker pool(s)", byKeyId.size());
     }
 
-    public Optional<ParsedWorkerAuthkey> findByKeyId(String keyId) {
+    public Optional<ParsedAuthkey> findByKeyId(String keyId) {
         return Optional.ofNullable(byKeyId.get(keyId));
     }
 

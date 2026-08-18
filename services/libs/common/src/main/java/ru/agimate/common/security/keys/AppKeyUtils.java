@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.util;
+package ru.agimate.common.security.keys;
 
 import ru.agimate.common.util.CryptoUtils;
 
@@ -29,6 +29,10 @@ import java.util.zip.CRC32;
  * before the database is touched; it is not authentication, that is {@link #verifySecret}.
  * <p>
  * Which prefix means what, and where each key is stored: {@code docs/contracts/api-keys.md}.
+ * <p>
+ * Lives in the shared library rather than in one service: the same key is generated on one side
+ * and verified on the other, and a format that drifted between two copies would fail as an
+ * authentication error — the least readable way for a format mismatch to surface.
  */
 public final class AppKeyUtils {
 

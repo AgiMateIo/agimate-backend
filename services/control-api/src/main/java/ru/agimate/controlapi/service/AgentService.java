@@ -52,8 +52,8 @@ import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.util.AgentNames;
-import ru.agimate.controlapi.util.AppKeyUtils;
-import ru.agimate.controlapi.util.GeneratedAppKey;
+import ru.agimate.common.security.keys.AppKeyUtils;
+import ru.agimate.common.security.keys.GeneratedAppKey;
 
 import java.time.LocalDateTime;
 import java.util.*;

@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.util;
+package ru.agimate.common.security.keys;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

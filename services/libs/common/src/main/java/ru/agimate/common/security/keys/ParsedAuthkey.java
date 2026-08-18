@@ -1,17 +1,17 @@
-package ru.agimate.controlapi.grpc.auth;
-
-import ru.agimate.controlapi.util.GeneratedAppKey;
+package ru.agimate.common.security.keys;
 
 import java.util.regex.Pattern;
 
 /**
- * Parsed authkey stored in worker-pools config.
- * <p>
- * Authkey format (single string, 80 chars): {prefix(4)}{keyId(12)}{keyHashHex(64)}.
- * The keyHash is SHA-256 of the secret embedded in the worker's full key —
- * the secret itself never appears in the config.
+ * An authkey as it is stored in configuration: {@code {prefix(4)}{keyId(12)}{keyHashHex(64)}}, 80
+ * chars in one string. The keyHash is SHA-256 of the secret inside the 64-char full key its holder
+ * presents, so the secret itself never appears in a config file or a deployment manifest.
+ *
+ * <p>Used by everything whose keys live outside the database — worker pools ({@code wrkp}) and the
+ * internal service calls of user-api ({@code intr}); the keys of agents and apps are rows, and are
+ * verified against their own columns instead.
  */
-public record ParsedWorkerAuthkey(String prefix, String keyId, String keyHash) {
+public record ParsedAuthkey(String prefix, String keyId, String keyHash) {
 
     public static final int PREFIX_LENGTH = 4;
     public static final int KEYID_LENGTH = 12;
@@ -22,10 +22,10 @@ public record ParsedWorkerAuthkey(String prefix, String keyId, String keyHash) {
     private static final Pattern KEYID_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{12}$");
     private static final Pattern KEYHASH_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
 
-    public static ParsedWorkerAuthkey parse(String authkey) {
+    public static ParsedAuthkey parse(String authkey) {
         if (authkey == null || authkey.length() != TOTAL_LENGTH) {
             throw new IllegalArgumentException(
-                    "Invalid worker authkey length: expected " + TOTAL_LENGTH + " characters");
+                    "Invalid authkey length: expected " + TOTAL_LENGTH + " characters");
         }
         String prefix = authkey.substring(0, PREFIX_LENGTH);
         String keyId = authkey.substring(PREFIX_LENGTH, PREFIX_LENGTH + KEYID_LENGTH);
@@ -40,7 +40,7 @@ public record ParsedWorkerAuthkey(String prefix, String keyId, String keyHash) {
         if (!KEYHASH_PATTERN.matcher(keyHash).matches()) {
             throw new IllegalArgumentException("Invalid authkey keyHash: must be 64-char hex SHA-256");
         }
-        return new ParsedWorkerAuthkey(prefix, keyId, keyHash);
+        return new ParsedAuthkey(prefix, keyId, keyHash);
     }
 
     public static String build(String prefix, GeneratedAppKey generated) {

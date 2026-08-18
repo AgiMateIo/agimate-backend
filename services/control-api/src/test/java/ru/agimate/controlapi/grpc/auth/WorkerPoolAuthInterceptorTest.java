@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.grpc.auth;
 
+import ru.agimate.common.security.keys.ParsedAuthkey;
 import com.google.protobuf.Timestamp;
 import io.grpc.ManagedChannel;
 import io.grpc.Metadata;
@@ -15,8 +16,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import ru.agimate.controlapi.config.WorkerPoolProperties;
-import ru.agimate.controlapi.util.AppKeyUtils;
-import ru.agimate.controlapi.util.GeneratedAppKey;
+import ru.agimate.common.security.keys.AppKeyUtils;
+import ru.agimate.common.security.keys.GeneratedAppKey;
 import ru.agimate.agentworker.HealthCheckRequest;
 import ru.agimate.agentworker.HealthCheckResponse;
 import ru.agimate.agentworker.WorkerControlGrpc;
@@ -40,7 +41,7 @@ class WorkerPoolAuthInterceptorTest {
     @BeforeEach
     void setUp() throws IOException {
         generated = AppKeyUtils.generate(WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX);
-        String authkey = ParsedWorkerAuthkey.build(
+        String authkey = ParsedAuthkey.build(
                 WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX, generated);
         WorkerPoolProperties props = new WorkerPoolProperties(List.of(authkey));
         WorkerPoolRegistry registry = new WorkerPoolRegistry(props);

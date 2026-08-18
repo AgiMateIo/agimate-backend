@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.util;
+package ru.agimate.common.security.keys;
 
 /**
  * Parsed app key components.
