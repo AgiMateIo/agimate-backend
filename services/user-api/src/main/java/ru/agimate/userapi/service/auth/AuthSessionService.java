@@ -16,6 +16,7 @@ import ru.agimate.userapi.database.entities.SessionRevokeReason;
 import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.repositories.AuthSessionRepository;
 import ru.agimate.userapi.service.UserService;
+import ru.agimate.userapi.service.push.PushSubscriptionService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -47,6 +48,7 @@ public class AuthSessionService {
     private final UserService userService;
     private final JwtService jwtService;
     private final JwtProperties jwtProperties;
+    private final PushSubscriptionService pushSubscriptionService;
 
     @Transactional
     public IssuedTokens open(UserEntity user, AuthClient client, String deviceLabel) {
@@ -101,7 +103,7 @@ public class AuthSessionService {
     public void closeByJti(String jti, AuthClient expectedClient) {
         LocalDateTime now = LocalDateTime.now();
         AuthSession session = requireUsableSession(jti, expectedClient, now);
-        sessionRepository.revoke(session.getId(), SessionRevokeReason.LOGOUT, now);
+        revokeSession(session.getId(), SessionRevokeReason.LOGOUT, now);
     }
 
     public List<AuthSession> listActive(UUID userId) {
@@ -113,12 +115,26 @@ public class AuthSessionService {
     public void revokeOwn(UUID userId, UUID sessionId) {
         AuthSession session = sessionRepository.findByIdAndUserId(sessionId, userId)
                 .orElseThrow(() -> new NotFoundStatusException("Session not found"));
-        sessionRepository.revoke(session.getId(), SessionRevokeReason.REVOKED, LocalDateTime.now());
+        revokeSession(session.getId(), SessionRevokeReason.REVOKED, LocalDateTime.now());
     }
 
     @Transactional
     public void revoke(UUID sessionId, SessionRevokeReason reason) {
-        sessionRepository.revoke(sessionId, reason, LocalDateTime.now());
+        revokeSession(sessionId, reason, LocalDateTime.now());
+    }
+
+    /**
+     * The single way a session ends, whatever ended it — and the only place the device stops being
+     * notified. The subscription is deleted rather than left to the foreign key: revoking stamps
+     * {@code revoked_at} and keeps the row, so the cascade would not fire until the sweep deletes
+     * the expired session, and a lost phone would go on receiving previews until then.
+     *
+     * <p>Sessions swept by {@link AuthCleanupTask} need nothing here: deleting the row is exactly
+     * what the cascade is for.
+     */
+    private void revokeSession(UUID sessionId, SessionRevokeReason reason, LocalDateTime now) {
+        sessionRepository.revoke(sessionId, reason, now);
+        pushSubscriptionService.dropByAuthSession(sessionId);
     }
 
     /**
@@ -164,7 +180,7 @@ public class AuthSessionService {
 
         if (deadline == null || deadline.isBefore(now)) {
             log.warn("replayed refresh token on session {} — revoking", session.getId());
-            sessionRepository.revoke(session.getId(), SessionRevokeReason.REPLAY, now);
+            revokeSession(session.getId(), SessionRevokeReason.REPLAY, now);
             throw new ForbiddenStatusException("Refresh token was already rotated — session revoked");
         }
     }

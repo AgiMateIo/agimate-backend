@@ -3,6 +3,7 @@ package ru.agimate.userapi.config;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -21,6 +22,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -30,6 +32,8 @@ import ru.agimate.common.security.SecurityUtils;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.userapi.controller.admin.AdminPaths;
 import ru.agimate.userapi.security.jwt.JwtDbAuthenticationFilter;
+import ru.agimate.userapi.security.InternalAuthFilter;
+import ru.agimate.userapi.controller.internal.InternalNotificationController;
 import ru.agimate.userapi.security.oauth2.CookieOAuth2AuthorizationRequestRepository;
 import ru.agimate.userapi.security.oauth2.OAuth2FailureHandler;
 import ru.agimate.userapi.security.oauth2.OAuth2SuccessHandler;
@@ -103,7 +107,30 @@ public class SecurityConfig {
                 oauth2CookieEncryptionKey, oAuthProperties.isCookieSecure());
     }
 
+    /**
+     * control-api asking to notify someone. A chain of its own, ahead of the main one: the key is not
+     * a user token, and the main chain's rules — roles read from the database — have nothing to say
+     * about a service.
+     */
     @Bean
+    @Order(1)
+    public SecurityFilterChain internalFilterChain(HttpSecurity http, InternalAuthFilter internalAuthFilter) {
+        http.securityMatcher(InternalNotificationController.PATH + "/**")
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptionHandling -> exceptionHandling
+                        .authenticationEntryPoint(authenticationEntryPoint())
+                        .accessDeniedHandler(accessDeniedHandler()))
+                .authorizeHttpRequests(authz -> authz.anyRequest().hasRole(InternalAuthFilter.ROLE_INTERNAL))
+                .userDetailsService(new InMemoryUserDetailsManager())
+                .addFilterBefore(internalAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain filterChain(HttpSecurity http, @Lazy JwtDbAuthenticationFilter jwtDbAuthenticationFilter) {
         http.cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
@@ -126,6 +153,9 @@ public class SecurityConfig {
                         // for anything unlisted is USER or ADMIN. Managing one's own devices is
                         // open to GUEST as well.
                         .requestMatchers("/sessions/**").hasAnyRole("USER", "ADMIN", "GUEST")
+                        // Подписка на пуши — про то же устройство, что и сессия, и открыта тем же,
+                        // кому открыт список устройств.
+                        .requestMatchers("/push/**").hasAnyRole("USER", "ADMIN", "GUEST")
                         .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN", "GUEST")
                         .anyRequest().hasAnyRole("USER", "ADMIN")
                 )

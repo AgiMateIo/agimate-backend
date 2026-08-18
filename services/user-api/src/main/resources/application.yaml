@@ -131,6 +131,24 @@ jwt:
   nativeRefreshExpiration: 5184000 # 60 days
 
 app:
+  internal:
+    # Ключ, которым control-api зовёт /internal/notifications (docs/contracts/api-keys.md). Здесь
+    # лежит authkey — префикс, keyId и хэш секрета (80 символов); полный 64-символьный ключ держит
+    # control-api. Пусто = внутренняя поверхность не пускает никого.
+    # В проде — env APP_INTERNAL_AUTHKEY.
+    authkey: ""
+  push:
+    # Пуш-уведомления на устройства пользователя (docs/decisions/push-notifications.md).
+    # Креды из консоли RuStore. Пустой service-key = отправка выключена: подписки устройств
+    # регистрируются, уведомления никуда не уходят. Заполненный наполовину — отказ старта:
+    # это опечатка, а не выбор. В проде — env APP_PUSH_RUSTORE_PROJECT_ID / _SERVICE_KEY.
+    # project-id у стенда и прода обязан быть разным, иначе стенд шлёт на боевые устройства.
+    rustore:
+      project-id: ""
+      service-key: ""
+    # Сколько транспорт пытается доставить, если вызывающий не сказал иного. Его собственный
+    # дефолт — четыре недели; ответ агента, доехавший к вечеру, не нужен никому.
+    ttl: 1h
   oauth:
     cookie-secure: false  # локальный HTTP; в проде включено профилем (application-prod.yaml)
     cookie-domain: agimate.lc

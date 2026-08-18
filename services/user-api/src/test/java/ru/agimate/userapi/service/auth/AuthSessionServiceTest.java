@@ -20,6 +20,7 @@ import ru.agimate.userapi.database.entities.SessionRevokeReason;
 import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.repositories.AuthSessionRepository;
 import ru.agimate.userapi.service.UserService;
+import ru.agimate.userapi.service.push.PushSubscriptionService;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -52,6 +53,8 @@ class AuthSessionServiceTest {
     private JwtService jwtService;
     @Mock
     private JwtProperties jwtProperties;
+    @Mock
+    private PushSubscriptionService pushSubscriptionService;
 
     @InjectMocks
     private AuthSessionService service;
@@ -272,6 +275,33 @@ class AuthSessionServiceTest {
             service.closeByJti(CURRENT_JTI, AuthClient.NATIVE);
 
             verify(sessionRepository).revoke(eq(session.getId()), eq(SessionRevokeReason.LOGOUT), any());
+        }
+
+        /**
+         * Отзыв ставит revoked_at и строку не удаляет, поэтому каскад по внешнему ключу сработал бы
+         * только на смёте истёкших — а до него потерянный телефон получал бы превью переписок.
+         */
+        @Test
+        @DisplayName("логаут сносит подписки на пуши — каскад тут сработает слишком поздно")
+        void logoutDropsPushSubscriptions() {
+            AuthSession session = session(AuthClient.NATIVE);
+            when(sessionRepository.findByJti(CURRENT_JTI)).thenReturn(Optional.of(session));
+
+            service.closeByJti(CURRENT_JTI, AuthClient.NATIVE);
+
+            verify(pushSubscriptionService).dropByAuthSession(session.getId());
+        }
+
+        @Test
+        @DisplayName("отзыв своего устройства сносит их так же")
+        void revokeOwnDropsPushSubscriptions() {
+            AuthSession session = session(AuthClient.NATIVE);
+            when(sessionRepository.findByIdAndUserId(session.getId(), session.getUserId()))
+                    .thenReturn(Optional.of(session));
+
+            service.revokeOwn(session.getUserId(), session.getId());
+
+            verify(pushSubscriptionService).dropByAuthSession(session.getId());
         }
     }
 }

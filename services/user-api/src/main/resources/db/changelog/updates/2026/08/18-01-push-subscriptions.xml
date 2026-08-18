@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Подписка устройства на пуш-уведомления (docs/decisions/push-notifications.md). Живёт рядом
+         с сессиями входа, а не в control-api: подписка принадлежит входу, и здесь это выражается
+         внешним ключом, а не вызовом соседнего сервиса, который может не пройти.
+
+         control-api о токенах не знает вовсе — он просит уведомить пользователя и передаёт только
+         содержание. -->
+    <changeSet id="create-push-subscriptions-table" author="Eugene Smith">
+        <createTable tableName="push_subscriptions">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_push_subscriptions_user"
+                             references="users(id)"/>
+            </column>
+            <!-- Вход, с которого устройство зарегистрировалось: приходит claim'ом asid, из тела
+                 запроса не принимается — там он ничем не подтверждён. Nullable, потому что токены,
+                 выпущенные до появления claim'а, его не несут; такая строка живёт до смёта по
+                 last_seen_at. Каскад: истёкшую сессию сметает AuthCleanupTask, и подписка уходит
+                 вместе с ней. Отзыв сессии строку не удаляет (он ставит revoked_at), поэтому
+                 подписку сносит явным DELETE тот же метод, что отзывает. -->
+            <column name="auth_session_id" type="UUID">
+                <constraints foreignKeyName="fk_push_subscriptions_auth_session"
+                             references="auth_sessions(id)"
+                             deleteCascade="true"/>
+            </column>
+            <!-- RUSTORE | FIREBASE | HMS — имя транспорта от universal SDK: у каждого свои креды и
+                 свой формат отправки, и выбор делается по этой колонке. -->
+            <column name="provider" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Уникальность по токену, а не по паре (user_id, token): один токен не может
+                 принадлежать двоим, и перелогин устройства под другим аккаунтом обязан ПЕРЕНЕСТИ
+                 строку, а не задвоить её — иначе прежний владелец продолжит получать уведомления на
+                 чужой телефон. Отсюда же upsert `ON CONFLICT (token) DO UPDATE`. -->
+            <column name="token" type="TEXT">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_push_subscriptions_token"/>
+            </column>
+            <!-- Приложение подтверждает подписку при каждом входе; строка старше порога считается
+                 мёртвой и сметается. Страховка для подписок без сессии — у остальных срабатывает
+                 каскад. -->
+            <column name="last_seen_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Веер отправки: все подписки пользователя. Уникальный индекс по token его не покрывает. -->
+        <createIndex tableName="push_subscriptions" indexName="idx_push_subscriptions_user_id">
+            <column name="user_id"/>
+        </createIndex>
+
+        <!-- Снос подписок отзываемой сессии. -->
+        <createIndex tableName="push_subscriptions" indexName="idx_push_subscriptions_auth_session_id">
+            <column name="auth_session_id"/>
+        </createIndex>
+
+        <sql>
+            ALTER TABLE push_subscriptions
+                ADD CONSTRAINT chk_push_subscriptions_provider CHECK (provider IN ('RUSTORE', 'FIREBASE', 'HMS'));
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
