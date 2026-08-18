@@ -28,4 +28,17 @@ public class AsyncConfig {
         executor.setConcurrencyLimit(1000);
         return executor;
     }
+
+    /**
+     * Handing notifications over to user-api. Separate from {@link #toolExecutor()} on purpose: this
+     * is a short call to a neighbouring service, and sharing a pool with tools — which wait for
+     * minutes and are throttled accordingly — would let one starve the other.
+     */
+    @Bean
+    public SimpleAsyncTaskExecutor notificationExecutor() {
+        SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("notify-");
+        executor.setVirtualThreads(true);
+        executor.setConcurrencyLimit(100);
+        return executor;
+    }
 }

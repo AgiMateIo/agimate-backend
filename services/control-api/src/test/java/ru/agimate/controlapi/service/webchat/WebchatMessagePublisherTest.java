@@ -7,6 +7,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 import ru.agimate.controlapi.service.centrifugo.CentrifugoService;
@@ -44,8 +45,26 @@ class WebchatMessagePublisherTest {
     @Mock private WebchatMessageRepository webchatMessageRepository;
     @Mock private CentrifugoService centrifugoService;
     @Mock private SignedFileUrlService signedFileUrlService;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks private WebchatMessagePublisher publisher;
+
+    @Test
+    @DisplayName("ответ агента поднимает событие для пуша, эхо пользователя и progress — нет")
+    void pushEventOnlyForAnswers() {
+        publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.AGENT, "answer", "m1", "готово", null);
+        publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.AGENT, "progress", "m2", "думаю", null);
+        publisher.record(USER_ID, AGENT_ID, CHANNEL_ID, SESSION_ID,
+                WebchatMessageDirection.USER, null, "m3", "привет", null);
+
+        var captor = ArgumentCaptor.forClass(WebchatAgentMessageEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertEquals(SESSION_ID, captor.getValue().sessionId());
+        assertEquals("m1", captor.getValue().messageId());
+        assertEquals("готово", captor.getValue().text());
+    }
 
     @Test
     @DisplayName("без вложений: parts null и в строке, и в событии")

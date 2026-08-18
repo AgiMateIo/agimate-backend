@@ -2,6 +2,7 @@ package ru.agimate.controlapi.service.webchat;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.JsonUtils;
@@ -45,6 +46,7 @@ public class WebchatMessagePublisher {
     private final WebchatMessageRepository webchatMessageRepository;
     private final CentrifugoService centrifugoService;
     private final SignedFileUrlService signedFileUrlService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public void record(UUID userId, UUID agentId, UUID channelId, UUID sessionId,
@@ -68,6 +70,10 @@ public class WebchatMessagePublisher {
 
         if (direction == WebchatMessageDirection.AGENT && !STREAM_PROGRESS.equals(stream)) {
             publishActivity(userId, agentId, sessionId, messageId, stream, text);
+            // Delivery to a closed application. An event rather than a call: the push leaves after
+            // the commit and off this thread, and neither is this class's business.
+            eventPublisher.publishEvent(
+                    new WebchatAgentMessageEvent(userId, agentId, sessionId, messageId, text));
         }
     }
 

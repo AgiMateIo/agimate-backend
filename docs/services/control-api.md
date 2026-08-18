@@ -62,6 +62,25 @@ Common error envelope for every group:
 | 403 | Authenticated but not authorized |
 | 429 | Inbound rate limit exceeded (see above) |
 
+## Пуш-уведомления
+
+Устройств, токенов и транспорта здесь нет: control-api собирает **содержание** уведомления и отдаёт
+его user-api, который владеет устройствами
+([decisions/push-notifications.md](../decisions/push-notifications.md)).
+
+Ответ агента (`direction=AGENT`, поток не `progress`) поднимает событие в `WebchatMessagePublisher`,
+`WebchatNotificationListener` ловит его **после коммита** и **вне потока доставки**
+(`notificationExecutor`, виртуальные нити) и зовёт `POST /internal/notifications` у user-api под
+ключом `intr` (заголовок `X-Internal-Auth-Key`). Payload — только `data`: `type`
+(`webchat_message`, то же имя, что у события Centrifugo), `sessionId`, `agentId`, `agentName`,
+`messageId`, `preview` (выключается `app.notifications.preview`).
+
+Вызов «выстрелил и забыл»: доставка уведомления и так best-effort, а потерянное чинится следующим
+сообщением. Пустой `app.notifications.base-url` — уведомления не уходят вовсе.
+
+Чего сервер **не** делает: не молчит, когда открыт тот же чат (это знает только клиент), не
+дедуплицирует (клиент — по `messageId`) и не считает бейдж.
+
 ## Каталог LLM-провайдеров
 
 `GET /manage/llm-providers/catalog/` отдаёт известные шлюзы, которыми фронт предзаполняет форму
