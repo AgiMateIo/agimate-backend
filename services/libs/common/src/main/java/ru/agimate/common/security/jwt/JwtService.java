@@ -28,6 +28,12 @@ public class JwtService {
 
     private static final String CLAIM_JWT_ID = "jti";
 
+    /**
+     * The sign-in behind the token. Not {@code sid} (which is what OIDC calls the same thing):
+     * {@code sessionId} in control-api means a conversation, and the short name would be read as one.
+     */
+    public static final String CLAIM_AUTH_SESSION = "asid";
+
     /** Tolerance for clock drift between the issuing and the verifying instance. */
     private static final long CLOCK_SKEW_SECONDS = 30;
 
@@ -95,8 +101,29 @@ public class JwtService {
 
         claims.put(CLAIM_TYPE, CLAIM_TYPE_ACCESS);
         claims.put("roles", roles);
+        if (agimateUserPrincipal.authSessionId() != null) {
+            claims.put(CLAIM_AUTH_SESSION, agimateUserPrincipal.authSessionId().toString());
+        }
 
         return createToken(agimateUserPrincipal.getName(), claims, expirationSeconds);
+    }
+
+    /**
+     * The sign-in the access token was minted for, or null — the claim is absent in tokens issued
+     * before it shipped, and a token whose {@code asid} is not a UUID is treated as one without it:
+     * the value addresses a push subscription for cleanup, and refusing the whole request over it
+     * would trade an unusable cleanup key for a locked-out user.
+     */
+    public static UUID authSessionId(Claims claims) {
+        Object raw = claims.get(CLAIM_AUTH_SESSION);
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(raw.toString());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public String generateRefreshToken(AgimateUserPrincipal agimateUserPrincipal, String jwtId) {

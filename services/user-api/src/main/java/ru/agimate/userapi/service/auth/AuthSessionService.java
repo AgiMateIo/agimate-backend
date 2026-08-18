@@ -187,7 +187,7 @@ public class AuthSessionService {
 
     private IssuedTokens mint(UserEntity user, UUID sessionId, AuthClient client, String jti) {
         AgimateUserPrincipal principal = AgimateUserPrincipal.fromUser(
-                user.getId().toString(), user.getRole());
+                user.getId().toString(), user.getRole(), sessionId);
         int accessLifetime = accessLifetime(client);
 
         return new IssuedTokens(

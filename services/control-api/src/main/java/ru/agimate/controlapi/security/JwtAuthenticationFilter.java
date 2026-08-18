@@ -45,7 +45,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                         // Create principal with subject (userId)
                         String subject = wrappedJwt.claims().getSubject();
-                        var principal = new AgimateUserPrincipal(subject, authorities);
+                        var principal = new AgimateUserPrincipal(subject, authorities,
+                                JwtService.authSessionId(wrappedJwt.claims()));
 
                         SecurityContextHolder.getContext().setAuthentication(
                                 new JwtAuthenticationToken(principal)

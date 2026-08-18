@@ -3,6 +3,8 @@ package ru.agimate.common.security.jwt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import ru.agimate.common.security.UserRole;
+
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.spec.ECGenParameterSpec;
@@ -12,6 +14,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DisplayName("JwtService")
@@ -112,6 +115,35 @@ class JwtServiceTest {
         String token = issuer.generateAccessToken(somePrincipal());
 
         assertTrue(verifier.extractClaimsFromValidAccessToken(token).isEmpty());
+    }
+
+    /**
+     * The claim is what makes a push subscription attributable to a sign-in; without it the cleanup
+     * on revocation has no key, and the subscription would outlive the session that registered it.
+     */
+    @Test
+    @DisplayName("an access token carries the auth session it was minted for")
+    void accessTokenCarriesAuthSession() throws Exception {
+        JwtService jwtService = service(900, 3600);
+        UUID authSessionId = UUID.randomUUID();
+        var principal = AgimateUserPrincipal.fromUser(UUID.randomUUID().toString(), UserRole.USER, authSessionId);
+
+        String token = jwtService.generateAccessToken(principal);
+
+        var claims = jwtService.extractClaimsFromValidAccessToken(token).orElseThrow().claims();
+        assertEquals(authSessionId, JwtService.authSessionId(claims));
+    }
+
+    /** Tokens issued before the claim shipped stay valid for their whole lifetime. */
+    @Test
+    @DisplayName("a token without the claim reads as no auth session, not as a failure")
+    void tokenWithoutAuthSessionClaimIsFine() throws Exception {
+        JwtService jwtService = service(900, 3600);
+
+        String token = jwtService.generateAccessToken(somePrincipal());
+
+        var claims = jwtService.extractClaimsFromValidAccessToken(token).orElseThrow().claims();
+        assertNull(JwtService.authSessionId(claims));
     }
 
     /** control-api holds only the public half; constructing the service there must not fail. */
