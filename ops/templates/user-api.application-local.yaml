@@ -37,6 +37,17 @@ jwt:
   publicKey: "__JWT_PUBLICKEY__"
 
 app:
+  internal:
+    # The counterpart of app.notifications.auth-token in control-api's local config: the hash of the
+    # key it presents on /internal/notifications. Both halves from the same ./dev-init.sh run.
+    authkey: "__APP_INTERNAL_AUTHKEY__"
+  push:
+    # Push notifications: paste the RuStore console credentials into services/.env
+    # (APP_PUSH_RUSTORE_PROJECT_ID / APP_PUSH_RUSTORE_SERVICE_KEY) and re-run ./dev-init.sh --force.
+    # Empty service-key = subscriptions are still registered, nothing is sent.
+    rustore:
+      project-id: "__APP_PUSH_RUSTORE_PROJECT_ID__"
+      service-key: "__APP_PUSH_RUSTORE_SERVICE_KEY__"
   oauth:
     cookie-domain: "__APP_OAUTH_COOKIE_DOMAIN__"
     frontend-redirect-url: "__APP_OAUTH_FRONTEND_REDIRECT_URL__"

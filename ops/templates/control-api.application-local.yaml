@@ -23,6 +23,11 @@ app:
     mcp:
       # Local MCP servers live on loopback, which the production SSRF guard rejects.
       allow-private-targets: true
+  notifications:
+    # Notifications are handed to user-api, which owns the devices and the transport. The full key
+    # whose hash sits in user-api's app.internal.authkey — both halves from the same ./dev-init.sh run.
+    base-url: "__APP_NOTIFICATIONS_BASE_URL__"
+    auth-token: "__APP_NOTIFICATIONS_AUTH_TOKEN__"
   files:
     # Signs the /files links; a fixed value keeps already-issued links valid across restarts,
     # where the dev fallback (random per boot) invalidates them.

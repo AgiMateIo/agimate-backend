@@ -56,6 +56,8 @@ CENTRIFUGO_ADMIN_PASSWORD CENTRIFUGO_ADMIN_SECRET
 APP_SECRETS_ENCRYPTION_KEY APP_OAUTH_COOKIE_ENCRYPTION_KEY APP_FILES_URL_SECRET
 APP_OAUTH_COOKIE_DOMAIN APP_OAUTH_FRONTEND_REDIRECT_URL
 APP_CONTENT_LANGUAGE APP_INTEGRATION_TELEGRAM_MODE APP_INTEGRATION_WEBHOOK_BASE_URL
+APP_PUSH_RUSTORE_PROJECT_ID APP_PUSH_RUSTORE_SERVICE_KEY
+APP_INTERNAL_AUTHKEY APP_NOTIFICATIONS_BASE_URL APP_NOTIFICATIONS_AUTH_TOKEN
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_ID
@@ -166,6 +168,11 @@ if [ ! -f "$ENV_FILE" ]; then
     import_value APP_CONTENT_LANGUAGE "app.content.language" "$CONTROL_API_LOCAL"
     import_value APP_INTEGRATION_TELEGRAM_MODE "app.integration.telegram.mode" "$CONTROL_API_LOCAL"
     import_value APP_INTEGRATION_WEBHOOK_BASE_URL "app.integration.webhook-base-url" "$CONTROL_API_LOCAL"
+    import_value APP_INTERNAL_AUTHKEY "app.internal.authkey" "$USER_API_LOCAL"
+    import_value APP_NOTIFICATIONS_BASE_URL "app.notifications.base-url" "$CONTROL_API_LOCAL"
+    import_value APP_NOTIFICATIONS_AUTH_TOKEN "app.notifications.auth-token" "$CONTROL_API_LOCAL"
+    import_value APP_PUSH_RUSTORE_PROJECT_ID "app.push.rustore.project-id" "$USER_API_LOCAL"
+    import_value APP_PUSH_RUSTORE_SERVICE_KEY "app.push.rustore.service-key" "$USER_API_LOCAL"
     import_value WORKER_POOLS_AUTHKEYS_0 "worker-pools.authkeys" "$CONTROL_API_LOCAL"
 
     import_value AGENT_GRPC_AUTHTOKEN "agent.grpc.auth-token" "$WORKER_LOCAL"
@@ -183,14 +190,16 @@ gen_ec_pair() {
     EC_PUBLIC="$(grep -v 'BEGIN\|END' "$TEMP_DIR/ec-public.pem" | tr -d '\n')"
 }
 
-# Sets WORKER_FULL_KEY / WORKER_AUTHKEY. Mirrors AppKeyUtils.generate + ParsedWorkerAuthkey.build:
-# full key = prefix(4) + keyId(12) + base64url(secret32 || crc32), authkey = prefix + keyId + sha256(secret).
-gen_worker_key() {
-    local generated
-    generated="$(python3 - <<'PY'
-import base64, hashlib, os, struct, time, zlib
+# Sets GENERATED_FULL_KEY / GENERATED_AUTHKEY for the given 4-letter prefix. Mirrors
+# AppKeyUtils.generate + ParsedAuthkey.build: full key = prefix(4) + keyId(12) +
+# base64url(secret32 || crc32), authkey = prefix + keyId + sha256(secret). The holder presents the
+# full key, the verifying service keeps only the authkey.
+gen_key_pair() {
+    local prefix="$1" generated
+    generated="$(python3 - "$prefix" <<'PY'
+import base64, hashlib, os, struct, sys, time, zlib
 
-prefix = "wrkp"
+prefix = sys.argv[1]
 key_id = base64.urlsafe_b64encode(struct.pack(">I", int(time.time())) + os.urandom(5)).decode().rstrip("=")
 secret = os.urandom(32)
 crc = zlib.crc32(prefix.encode() + key_id.encode() + secret) & 0xFFFFFFFF
@@ -200,8 +209,8 @@ print(prefix + key_id + payload)
 print(prefix + key_id + hashlib.sha256(secret).hexdigest())
 PY
 )"
-    WORKER_FULL_KEY="$(echo "$generated" | sed -n 1p)"
-    WORKER_AUTHKEY="$(echo "$generated" | sed -n 2p)"
+    GENERATED_FULL_KEY="$(echo "$generated" | sed -n 1p)"
+    GENERATED_AUTHKEY="$(echo "$generated" | sed -n 2p)"
 }
 
 interactive() {
@@ -249,16 +258,24 @@ fi
 [ -n "$APP_FILES_URL_SECRET" ] || { APP_FILES_URL_SECRET="$(openssl rand -base64 32)"; echo "  + file URL signing secret"; }
 
 if [ -z "$WORKER_POOLS_AUTHKEYS_0" ] || [ -z "$AGENT_GRPC_AUTHTOKEN" ]; then
-    gen_worker_key
-    WORKER_POOLS_AUTHKEYS_0="$WORKER_AUTHKEY"
-    AGENT_GRPC_AUTHTOKEN="$WORKER_FULL_KEY"
+    gen_key_pair wrkp
+    WORKER_POOLS_AUTHKEYS_0="$GENERATED_AUTHKEY"
+    AGENT_GRPC_AUTHTOKEN="$GENERATED_FULL_KEY"
     echo "  + worker pool key"
+fi
+
+if [ -z "$APP_INTERNAL_AUTHKEY" ] || [ -z "$APP_NOTIFICATIONS_AUTH_TOKEN" ]; then
+    gen_key_pair intr
+    APP_INTERNAL_AUTHKEY="$GENERATED_AUTHKEY"
+    APP_NOTIFICATIONS_AUTH_TOKEN="$GENERATED_FULL_KEY"
+    echo "  + internal service key (control-api → user-api)"
 fi
 
 [ -n "$APP_OAUTH_COOKIE_DOMAIN" ] || APP_OAUTH_COOKIE_DOMAIN="agimate.lc"
 [ -n "$APP_OAUTH_FRONTEND_REDIRECT_URL" ] || APP_OAUTH_FRONTEND_REDIRECT_URL="http://www.agimate.lc:8000/login"
 [ -n "$APP_INTEGRATION_TELEGRAM_MODE" ] || APP_INTEGRATION_TELEGRAM_MODE="polling"
 [ -n "$APP_INTEGRATION_WEBHOOK_BASE_URL" ] || APP_INTEGRATION_WEBHOOK_BASE_URL="http://localhost:8180/control"
+[ -n "$APP_NOTIFICATIONS_BASE_URL" ] || APP_NOTIFICATIONS_BASE_URL="http://localhost:8080/user"
 
 echo
 
@@ -347,6 +364,18 @@ APP_CONTENT_LANGUAGE=$APP_CONTENT_LANGUAGE
 APP_INTEGRATION_TELEGRAM_MODE=$APP_INTEGRATION_TELEGRAM_MODE
 APP_INTEGRATION_WEBHOOK_BASE_URL=$APP_INTEGRATION_WEBHOOK_BASE_URL
 
+# Push notifications (control-api): credentials from the RuStore console. Not generated — paste
+# them here and re-run with --force. Empty service key = nothing is sent, subscriptions still work.
+# The project id of a stand must differ from production's, or the stand notifies live devices.
+APP_PUSH_RUSTORE_PROJECT_ID=$APP_PUSH_RUSTORE_PROJECT_ID
+APP_PUSH_RUSTORE_SERVICE_KEY=$APP_PUSH_RUSTORE_SERVICE_KEY
+
+# Internal service key: control-api presents the full key on user-api's /internal/notifications
+# (user-api owns the devices and the push transport), user-api stores only the hash.
+APP_INTERNAL_AUTHKEY=$APP_INTERNAL_AUTHKEY
+APP_NOTIFICATIONS_AUTH_TOKEN=$APP_NOTIFICATIONS_AUTH_TOKEN
+APP_NOTIFICATIONS_BASE_URL=$APP_NOTIFICATIONS_BASE_URL
+
 # Worker pool key: control-api stores the hash (authkey), the worker presents the full key.
 WORKER_POOLS_AUTHKEYS_0=$WORKER_POOLS_AUTHKEYS_0
 AGENT_GRPC_AUTHTOKEN=$AGENT_GRPC_AUTHTOKEN
@@ -387,6 +416,11 @@ render() {
         -e "s|__GITHUB_CLIENT_ID__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_ID")|g" \
         -e "s|__GITHUB_CLIENT_SECRET__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_SECRET")|g" \
         -e "s|__VK_CLIENT_ID__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_VK_CLIENT_ID")|g" \
+        -e "s|__APP_INTERNAL_AUTHKEY__|$(esc "$APP_INTERNAL_AUTHKEY")|g" \
+        -e "s|__APP_NOTIFICATIONS_BASE_URL__|$(esc "$APP_NOTIFICATIONS_BASE_URL")|g" \
+        -e "s|__APP_NOTIFICATIONS_AUTH_TOKEN__|$(esc "$APP_NOTIFICATIONS_AUTH_TOKEN")|g" \
+        -e "s|__APP_PUSH_RUSTORE_PROJECT_ID__|$(esc "$APP_PUSH_RUSTORE_PROJECT_ID")|g" \
+        -e "s|__APP_PUSH_RUSTORE_SERVICE_KEY__|$(esc "$APP_PUSH_RUSTORE_SERVICE_KEY")|g" \
         -e "s|__WORKER_POOLS_AUTHKEYS_0__|$(esc "$WORKER_POOLS_AUTHKEYS_0")|g" \
         -e "s|__AGENT_GRPC_AUTHTOKEN__|$(esc "$AGENT_GRPC_AUTHTOKEN")|g" \
         "$template" > "$target"

@@ -21,6 +21,7 @@ docker compose --profile infra up -d
 | JWT ES256 | user-api подписывает токены, control-api проверяет публичной половиной |
 | Centrifugo ES256 | control-api подписывает клиентские токены, Centrifugo проверяет их публичной половиной |
 | Ключ воркер-пула | agent-worker предъявляет полный ключ, control-api хранит его хэш (authkey) |
+| Внутренний ключ | control-api предъявляет полный ключ на `/internal/notifications`, user-api хранит его хэш |
 
 Что генерится:
 
@@ -51,6 +52,11 @@ WebSocket-URL Centrifugo (`ws://localhost:9000`; для доступа с тел
 инсталляция просто не предлагает: его регистрация выбрасывается на старте, сервис поднимается без
 него, не работает только вход через него. Добавить потом — вписать креды в `services/.env`
 (`SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_<ПРОВАЙДЕР>_CLIENT_ID`), дальше `--force`.
+
+Про пуши скрипт не спрашивает — генерировать там нечего, креды берутся из консоли RuStore. Кладутся
+тем же способом: `APP_PUSH_RUSTORE_PROJECT_ID` и `APP_PUSH_RUSTORE_SERVICE_KEY` в `services/.env`,
+дальше `--force`; уезжают они в user-api, который владеет устройствами и транспортом. Пустой ключ —
+подписки регистрируются, уведомления не уходят.
 
 Требования: `openssl`, `python3`, `awk`, `fold`.
 

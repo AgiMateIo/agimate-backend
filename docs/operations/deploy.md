@@ -43,6 +43,30 @@ Blob store for the connector file layer (`docs/connectors/files.md`).
 | `APP_FILES_URL_SECRET` | HMAC secret for signed file links (`GET /files/…?exp&sig`, webchat attachments). Required outside `local`/`test` profiles — startup fails without it; dev fallback is a random per-boot key |
 | `APP_FILES_URL_TTL`    | Signed link lifetime (default `15m`)                                 |
 
+### Notifications (control-api → user-api)
+
+control-api assembles what to say, user-api owns the devices and the transport
+([decisions/push-notifications.md](../decisions/push-notifications.md)). The key is an `intr` key —
+see [api-keys.md](../contracts/api-keys.md) for how the two halves are generated.
+
+| Variable                        | Service     | Description                                                                                    |
+|---------------------------------|-------------|------------------------------------------------------------------------------------------------|
+| `APP_NOTIFICATIONS_BASE_URL`    | control-api | user-api base URL **including the context path**, e.g. `http://user-api:8080/user`               |
+| `APP_NOTIFICATIONS_AUTH_TOKEN`  | control-api | The 64-char full key. Empty together with the base URL = notifications are not handed over; one of the two empty = startup fails |
+| `APP_NOTIFICATIONS_PREVIEW`     | control-api | Whether the answer's first line travels in the notification (default `true`)                     |
+| `APP_NOTIFICATIONS_TTL`         | control-api | How long the transport should keep trying (default `1h`)                                         |
+| `APP_INTERNAL_AUTHKEY`          | user-api    | 80-char authkey (hash half). Empty = `/internal/**` authenticates nobody                         |
+
+### Push transport (user-api)
+
+Credentials from the RuStore console.
+
+| Variable                       | Description                                                                                     |
+|--------------------------------|-------------------------------------------------------------------------------------------------|
+| `APP_PUSH_RUSTORE_PROJECT_ID`  | RuStore project the mobile app is built against. **Must differ between a stand and production** — sharing it makes the stand notify live devices |
+| `APP_PUSH_RUSTORE_SERVICE_KEY` | Service key authorizing the sends. Empty = nothing is sent, device subscriptions are still registered; only one of the two filled in = startup fails |
+| `APP_PUSH_TTL`                 | Delivery lifetime when the caller does not specify one (default `1h`)                            |
+
 ### Centrifugo (control-api)
 
 | Variable                | Description                            |
