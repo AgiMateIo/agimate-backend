@@ -13,9 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.userapi.controller.dto.response.auth.SessionResponse;
+import ru.agimate.userapi.database.entities.PushSubscription;
 import ru.agimate.userapi.service.auth.AuthSessionService;
+import ru.agimate.userapi.service.push.PushSubscriptionService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -34,15 +37,22 @@ import java.util.UUID;
 public class SessionController {
 
     private final AuthSessionService authSessionService;
+    private final PushSubscriptionService pushSubscriptionService;
 
     @Operation(summary = "List my active sessions",
-            description = "One entry per signed-in device, most recently seen first")
+            description = "One entry per signed-in device, most recently seen first, each with what it "
+                    + "is subscribed to notifications with")
     @GetMapping("/")
     public SuccessResponse<List<SessionResponse>> listSessions(
             @AuthenticationPrincipal AgimateUserPrincipal principal) {
-        List<SessionResponse> sessions = authSessionService.listActive(UUID.fromString(principal.id()))
+        UUID userId = UUID.fromString(principal.id());
+        // One query for all of them: a person has a handful of devices, and asking per session would
+        // be a query per row for data the listing shows either way.
+        Map<UUID, List<PushSubscription>> push = pushSubscriptionService.byAuthSession(userId);
+
+        List<SessionResponse> sessions = authSessionService.listActive(userId)
                 .stream()
-                .map(SessionResponse::of)
+                .map(session -> SessionResponse.of(session, push.getOrDefault(session.getId(), List.of())))
                 .toList();
 
         return SuccessResponse.ok(sessions);

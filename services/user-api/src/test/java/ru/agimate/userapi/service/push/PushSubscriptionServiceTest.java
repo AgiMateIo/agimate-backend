@@ -8,9 +8,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.userapi.database.entities.PushProvider;
+import ru.agimate.userapi.database.entities.PushSubscription;
 import ru.agimate.userapi.database.repositories.PushSubscriptionRepository;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -77,6 +80,46 @@ class PushSubscriptionServiceTest {
         service.dropByAuthSession(AUTH_SESSION_ID);
 
         verify(pushSubscriptionRepository).deleteByAuthSessionId(AUTH_SESSION_ID);
+    }
+
+    @Nested
+    @DisplayName("листинг устройств")
+    class ByAuthSession {
+
+        @Test
+        @DisplayName("подписки группируются по сессии входа")
+        void groupsBySession() {
+            UUID otherSession = UUID.randomUUID();
+            when(pushSubscriptionRepository.findByUserId(USER_ID)).thenReturn(List.of(
+                    subscription(AUTH_SESSION_ID, TOKEN),
+                    subscription(AUTH_SESSION_ID, TOKEN + "-rotated"),
+                    subscription(otherSession, "another-device-token")));
+
+            Map<UUID, List<PushSubscription>> bySession = service.byAuthSession(USER_ID);
+
+            assertEquals(2, bySession.get(AUTH_SESSION_ID).size());
+            assertEquals(1, bySession.get(otherSession).size());
+        }
+
+        /** Показать её не рядом с чем: устройства в листинге у неё нет. */
+        @Test
+        @DisplayName("подписка без сессии входа в листинг не попадает")
+        void skipsSubscriptionsWithoutSession() {
+            when(pushSubscriptionRepository.findByUserId(USER_ID))
+                    .thenReturn(List.of(subscription(null, TOKEN)));
+
+            assertTrue(service.byAuthSession(USER_ID).isEmpty());
+        }
+
+        private PushSubscription subscription(UUID authSessionId, String token) {
+            PushSubscription subscription = new PushSubscription();
+            subscription.setUserId(USER_ID);
+            subscription.setAuthSessionId(authSessionId);
+            subscription.setProvider(PushProvider.RUSTORE);
+            subscription.setToken(token);
+            subscription.setLastSeenAt(LocalDateTime.now());
+            return subscription;
+        }
     }
 
     @Nested
