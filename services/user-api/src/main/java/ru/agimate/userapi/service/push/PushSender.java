@@ -5,7 +5,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import ru.agimate.userapi.database.entities.PushSubscription;
 import ru.agimate.userapi.database.entities.PushProvider;
-import ru.agimate.userapi.database.repositories.PushSubscriptionRepository;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -23,11 +22,11 @@ import java.util.UUID;
 @Component
 public class PushSender {
 
-    private final PushSubscriptionRepository pushSubscriptionRepository;
+    private final PushSubscriptionService pushSubscriptionService;
     private final Map<PushProvider, PushTransport> transports = new EnumMap<>(PushProvider.class);
 
-    public PushSender(PushSubscriptionRepository pushSubscriptionRepository, List<PushTransport> transports) {
-        this.pushSubscriptionRepository = pushSubscriptionRepository;
+    public PushSender(PushSubscriptionService pushSubscriptionService, List<PushTransport> transports) {
+        this.pushSubscriptionService = pushSubscriptionService;
         transports.forEach(transport -> this.transports.put(transport.provider(), transport));
     }
 
@@ -38,9 +37,15 @@ public class PushSender {
     @Async("pushExecutor")
     public void sendToUser(UUID userId, PushMessage message) {
         try {
-            List<PushSubscription> subscriptions = pushSubscriptionRepository.findByUserId(userId);
-            for (PushSubscription subscription : subscriptions) {
-                deliver(subscription, message);
+            for (PushSubscription subscription : pushSubscriptionService.listByUser(userId)) {
+                try {
+                    deliver(subscription, message);
+                } catch (Exception e) {
+                    // One device must not cost the others their notification: this is a fan-out, and
+                    // the transports behind it fail independently.
+                    log.warn("push to subscription {} failed: {}",
+                            PushTokens.masked(subscription.getToken()), e.toString());
+                }
             }
         } catch (Exception e) {
             log.warn("push fan-out for user {} failed: {}", userId, e.toString());
@@ -59,9 +64,7 @@ public class PushSender {
 
         PushDelivery delivery = transport.send(subscription.getToken(), message);
         if (delivery == PushDelivery.TOKEN_GONE) {
-            pushSubscriptionRepository.deleteByToken(subscription.getToken());
-            log.info("push subscription {} dropped: the transport no longer knows the token",
-                    PushTokens.masked(subscription.getToken()));
+            pushSubscriptionService.dropDeadToken(subscription.getToken());
         }
     }
 }

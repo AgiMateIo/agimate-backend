@@ -51,6 +51,24 @@ public class PushSubscriptionService {
     }
 
     /**
+     * The transport says it no longer knows the token: the application was removed or reinstalled.
+     * Its own answer is the only reliable signal of that, so the row goes right away — kept, it
+     * would cost a request on every notification from here on.
+     *
+     * <p>Lives here rather than in the sender because a delete needs a transaction, and the sender
+     * runs outside one: it is an asynchronous fan-out over the network, and holding a database
+     * connection open for the length of it would be worse than the bug this replaced.
+     */
+    @Transactional
+    public void dropDeadToken(String token) {
+        int deleted = pushSubscriptionRepository.deleteByToken(token);
+        if (deleted > 0) {
+            log.info("push subscription {} dropped: the transport no longer knows the token",
+                    PushTokens.masked(token));
+        }
+    }
+
+    /**
      * The caller's own subscriptions, grouped by the sign-in that registered them — what the device
      * listing shows next to each session. Rows with no session behind them (tokens registered before
      * the {@code asid} claim) are left out: there is no device in the listing to show them against,
