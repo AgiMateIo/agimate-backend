@@ -1,10 +1,15 @@
 package ru.agimate.userapi.service.push.rustore;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
 import ru.agimate.userapi.config.PushProperties;
 import ru.agimate.userapi.service.push.PushDelivery;
+import ru.agimate.userapi.service.push.PushMessage;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,18 +27,98 @@ class RuStorePushTransportTest {
         return properties;
     }
 
-    /**
-     * 404 — транспорт больше не знает токен, 400 — это вообще не токен; обе не лечатся повтором.
-     * Всё остальное может починиться, и подписка должна это пережить.
-     */
-    @Test
-    @DisplayName("404 и 400 — токен мёртв, 5xx и 429 — временный сбой")
-    void statusMapping() {
-        assertEquals(PushDelivery.TOKEN_GONE, RuStorePushTransport.deliveryFor(HttpStatus.NOT_FOUND));
-        assertEquals(PushDelivery.TOKEN_GONE, RuStorePushTransport.deliveryFor(HttpStatus.BAD_REQUEST));
-        assertEquals(PushDelivery.FAILED, RuStorePushTransport.deliveryFor(HttpStatus.INTERNAL_SERVER_ERROR));
-        assertEquals(PushDelivery.FAILED, RuStorePushTransport.deliveryFor(HttpStatus.TOO_MANY_REQUESTS));
-        assertEquals(PushDelivery.FAILED, RuStorePushTransport.deliveryFor(HttpStatus.UNAUTHORIZED));
+    private static final String TOKEN = "cV8kQz1p-device-token";
+
+    @Nested
+    @DisplayName("тело запроса")
+    class Body {
+
+        private final RuStorePushTransport transport = new RuStorePushTransport(properties("project-1", "key-1"));
+
+        @Test
+        @DisplayName("креды едут в теле, токен — списком")
+        @SuppressWarnings("unchecked")
+        void credentialsAndTokensInTheBody() {
+            Map<String, Object> body = transport.body(TOKEN, new PushMessage(Map.of("type", "webchat_message"), null));
+
+            Map<String, Object> rustore = (Map<String, Object>) ((Map<String, Object>) body.get("providers")).get("rustore");
+            assertEquals("project-1", rustore.get("project_id"));
+            assertEquals("key-1", rustore.get("auth_token"));
+            assertEquals(List.of(TOKEN), ((Map<String, Object>) body.get("tokens")).get("rustore"));
+        }
+
+        /** Уведомление рисует приложение — иначе оно не смогло бы промолчать над открытой перепиской. */
+        @Test
+        @DisplayName("только data, без notification; ttl в диалекте транспорта")
+        @SuppressWarnings("unchecked")
+        void dataOnly() {
+            Map<String, String> data = Map.of("type", "webchat_message", "sessionId", "s-1");
+
+            Map<String, Object> message = (Map<String, Object>) transport
+                    .body(TOKEN, new PushMessage(data, Duration.ofMinutes(5)))
+                    .get("message");
+
+            assertEquals(data, message.get("data"));
+            assertEquals(Map.of("ttl", "300s"), message.get("android"));
+            assertFalse(message.containsKey("notification"));
+        }
+
+        /** Не сказали срок — берётся общий из конфигурации, а не дефолт транспорта в четыре недели. */
+        @Test
+        @DisplayName("без ttl в сообщении берётся ttl из конфигурации")
+        @SuppressWarnings("unchecked")
+        void fallsBackToConfiguredTtl() {
+            Map<String, Object> message = (Map<String, Object>) transport
+                    .body(TOKEN, new PushMessage(Map.of("type", "webchat_message"), null))
+                    .get("message");
+
+            assertEquals(Map.of("ttl", "3600s"), message.get("android"));
+        }
+    }
+
+    @Nested
+    @DisplayName("разбор отказа")
+    class Refusal {
+
+        /** Ответ агрегированный: негодные токены названы первыми шестью символами. */
+        @Test
+        @DisplayName("наш токен назван среди негодных — подписку сносим")
+        void ourTokenIsNamed() {
+            String body = """
+                    {"code": 3, "status": "PROVIDER_ERROR", "errors": ["rustore: invalid tokens: cV8kQz, aB3dEf"]}""";
+
+            assertEquals(PushDelivery.TOKEN_GONE, RuStorePushTransport.deliveryFor(body, TOKEN));
+        }
+
+        /** Отказ про чужой токен — не повод сносить живое устройство. */
+        @Test
+        @DisplayName("назван чужой токен — подписка остаётся")
+        void anotherTokenIsNamed() {
+            String body = """
+                    {"code": 3, "status": "PROVIDER_ERROR", "errors": ["rustore: invalid tokens: aB3dEf"]}""";
+
+            assertEquals(PushDelivery.FAILED, RuStorePushTransport.deliveryFor(body, TOKEN));
+        }
+
+        /**
+         * Кривой запрос — наша ошибка формата, а не мёртвый токен. Прежнее правило «400 = токен
+         * мёртв» на этом API снесло бы подписки всех, кому запрос предназначался.
+         */
+        @Test
+        @DisplayName("ошибка валидации запроса подписку не трогает")
+        void validationErrorKeepsTheSubscription() {
+            String body = """
+                    {"code": 3, "status": "VALIDATION_ERROR", "errors": ["message: data must not be empty"]}""";
+
+            assertEquals(PushDelivery.FAILED, RuStorePushTransport.deliveryFor(body, TOKEN));
+        }
+
+        @Test
+        @DisplayName("нечитаемый или пустой ответ — временный сбой")
+        void unreadableAnswerIsAFailure() {
+            assertEquals(PushDelivery.FAILED, RuStorePushTransport.deliveryFor("<html>502</html>", TOKEN));
+            assertEquals(PushDelivery.FAILED, RuStorePushTransport.deliveryFor("", TOKEN));
+        }
     }
 
     @Test
