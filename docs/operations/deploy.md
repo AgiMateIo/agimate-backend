@@ -43,19 +43,23 @@ Blob store for the connector file layer (`docs/connectors/files.md`).
 | `APP_FILES_URL_SECRET` | HMAC secret for signed file links (`GET /files/…?exp&sig`, webchat attachments). Required outside `local`/`test` profiles — startup fails without it; dev fallback is a random per-boot key |
 | `APP_FILES_URL_TTL`    | Signed link lifetime (default `15m`)                                 |
 
-### Notifications (control-api → user-api)
+### Service-to-service calls (control-api → user-api)
 
 control-api assembles what to say, user-api owns the devices and the transport
-([decisions/push-notifications.md](../decisions/push-notifications.md)). The key is an `intr` key —
-see [api-keys.md](../contracts/api-keys.md) for how the two halves are generated.
+([decisions/push-notifications.md](../decisions/push-notifications.md)). One shared secret, the same
+value on both sides — generate with `openssl rand -hex 32`, at least 32 characters or user-api refuses
+to start.
 
-| Variable                        | Service     | Description                                                                                    |
-|---------------------------------|-------------|------------------------------------------------------------------------------------------------|
-| `APP_NOTIFICATIONS_BASE_URL`    | control-api | user-api base URL **including the context path**, e.g. `http://user-api:8080/user`               |
-| `APP_NOTIFICATIONS_AUTH_TOKEN`  | control-api | The 64-char full key. Empty together with the base URL = notifications are not handed over; one of the two empty = startup fails |
-| `APP_NOTIFICATIONS_PREVIEW`     | control-api | Whether the answer's first line travels in the notification (default `true`)                     |
-| `APP_NOTIFICATIONS_TTL`         | control-api | How long the transport should keep trying (default `1h`)                                         |
-| `APP_INTERNAL_AUTHKEY`          | user-api    | 80-char authkey (hash half). Empty = `/internal/**` authenticates nobody                         |
+| Variable                 | Service     | Description                                                                                  |
+|--------------------------|-------------|-----------------------------------------------------------------------------------------------|
+| `APP_S2S_KEY`            | user-api    | The secret it compares against. Empty = `/internal/**` authenticates nobody                    |
+| `APP_USER_API_S2S_KEY`   | control-api | The same value, presented in `X-S2S-Key`                                                       |
+| `APP_USER_API_URL`       | control-api | user-api base URL **including the context path**, e.g. `http://user-api:8080/user`             |
+| `APP_NOTIFICATIONS_PREVIEW` | control-api | Whether the answer's first line travels in the notification (default `true`)                |
+| `APP_NOTIFICATIONS_TTL`  | control-api | How long the transport should keep trying (default `1h`)                                       |
+
+Empty URL and key together = notifications are not handed over; exactly one of them filled = startup
+fails.
 
 ### Push transport (user-api)
 

@@ -24,22 +24,22 @@ public class InternalAuthFilter extends OncePerRequestFilter {
 
     public static final String ROLE_INTERNAL = "INTERNAL";
 
-    private static final String INTERNAL_AUTH_KEY_HEADER = "X-Internal-Auth-Key";
+    private static final String S2S_KEY_HEADER = "X-S2S-Key";
 
-    private final InternalKeyAuthService internalKeyAuthService;
+    private final S2sKeyAuthService s2sKeyAuthService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        String key = request.getHeader(INTERNAL_AUTH_KEY_HEADER);
+        String key = request.getHeader(S2S_KEY_HEADER);
 
-        if (StringUtils.hasText(key) && internalKeyAuthService.isValid(key)) {
+        if (StringUtils.hasText(key) && s2sKeyAuthService.isValid(key)) {
             SecurityContextHolder.getContext().setAuthentication(
                     new UsernamePasswordAuthenticationToken(
                             "internal", null, List.of(new SimpleGrantedAuthority("ROLE_" + ROLE_INTERNAL))));
-            log.debug("Internal key authenticated for {}", request.getRequestURI());
+            log.debug("S2S key authenticated for {}", request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);

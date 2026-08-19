@@ -131,12 +131,12 @@ jwt:
   nativeRefreshExpiration: 5184000 # 60 days
 
 app:
-  internal:
-    # Ключ, которым control-api зовёт /internal/notifications (docs/contracts/api-keys.md). Здесь
-    # лежит authkey — префикс, keyId и хэш секрета (80 символов); полный 64-символьный ключ держит
-    # control-api. Пусто = внутренняя поверхность не пускает никого.
-    # В проде — env APP_INTERNAL_AUTHKEY.
-    authkey: ""
+  s2s:
+    # Общий секрет, которым наши же сервисы представляются на /internal/**. То же значение лежит у
+    # control-api в app.user-api.s2s-key — хэша нет намеренно, разбор в
+    # docs/decisions/push-notifications.md. Генерится `openssl rand -hex 32`.
+    # Пусто = внутренняя поверхность не пускает никого. В проде — env APP_S2S_KEY.
+    key: ""
   push:
     # Пуш-уведомления на устройства пользователя (docs/decisions/push-notifications.md).
     # Креды из консоли RuStore. Пустой service-key = отправка выключена: подписки устройств

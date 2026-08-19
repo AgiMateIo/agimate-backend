@@ -7,9 +7,10 @@ import java.util.regex.Pattern;
  * chars in one string. The keyHash is SHA-256 of the secret inside the 64-char full key its holder
  * presents, so the secret itself never appears in a config file or a deployment manifest.
  *
- * <p>Used by everything whose keys live outside the database — worker pools ({@code wrkp}) and the
- * internal service calls of user-api ({@code intr}); the keys of agents and apps are rows, and are
- * verified against their own columns instead.
+ * <p>Used by worker pools ({@code wrkp}), whose keys live in configuration rather than in a row:
+ * the holders are many and each has its own key, so the verifying side keeps hashes. The keys of
+ * agents and apps are rows and are verified against their own columns; calls between our own
+ * services share one plain secret instead (docs/decisions/push-notifications.md).
  */
 public record ParsedAuthkey(String prefix, String keyId, String keyHash) {
 

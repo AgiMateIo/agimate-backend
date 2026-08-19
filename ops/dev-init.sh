@@ -57,7 +57,7 @@ APP_SECRETS_ENCRYPTION_KEY APP_OAUTH_COOKIE_ENCRYPTION_KEY APP_FILES_URL_SECRET
 APP_OAUTH_COOKIE_DOMAIN APP_OAUTH_FRONTEND_REDIRECT_URL
 APP_CONTENT_LANGUAGE APP_INTEGRATION_TELEGRAM_MODE APP_INTEGRATION_WEBHOOK_BASE_URL
 APP_PUSH_RUSTORE_PROJECT_ID APP_PUSH_RUSTORE_SERVICE_KEY
-APP_INTERNAL_AUTHKEY APP_NOTIFICATIONS_BASE_URL APP_NOTIFICATIONS_AUTH_TOKEN
+APP_S2S_KEY APP_USER_API_URL
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_YANDEX_CLIENT_ID
@@ -168,9 +168,8 @@ if [ ! -f "$ENV_FILE" ]; then
     import_value APP_CONTENT_LANGUAGE "app.content.language" "$CONTROL_API_LOCAL"
     import_value APP_INTEGRATION_TELEGRAM_MODE "app.integration.telegram.mode" "$CONTROL_API_LOCAL"
     import_value APP_INTEGRATION_WEBHOOK_BASE_URL "app.integration.webhook-base-url" "$CONTROL_API_LOCAL"
-    import_value APP_INTERNAL_AUTHKEY "app.internal.authkey" "$USER_API_LOCAL"
-    import_value APP_NOTIFICATIONS_BASE_URL "app.notifications.base-url" "$CONTROL_API_LOCAL"
-    import_value APP_NOTIFICATIONS_AUTH_TOKEN "app.notifications.auth-token" "$CONTROL_API_LOCAL"
+    import_value APP_S2S_KEY "app.s2s.key" "$USER_API_LOCAL"
+    import_value APP_USER_API_URL "app.user-api.url" "$CONTROL_API_LOCAL"
     import_value APP_PUSH_RUSTORE_PROJECT_ID "app.push.rustore.project-id" "$USER_API_LOCAL"
     import_value APP_PUSH_RUSTORE_SERVICE_KEY "app.push.rustore.service-key" "$USER_API_LOCAL"
     import_value WORKER_POOLS_AUTHKEYS_0 "worker-pools.authkeys" "$CONTROL_API_LOCAL"
@@ -264,18 +263,13 @@ if [ -z "$WORKER_POOLS_AUTHKEYS_0" ] || [ -z "$AGENT_GRPC_AUTHTOKEN" ]; then
     echo "  + worker pool key"
 fi
 
-if [ -z "$APP_INTERNAL_AUTHKEY" ] || [ -z "$APP_NOTIFICATIONS_AUTH_TOKEN" ]; then
-    gen_key_pair intr
-    APP_INTERNAL_AUTHKEY="$GENERATED_AUTHKEY"
-    APP_NOTIFICATIONS_AUTH_TOKEN="$GENERATED_FULL_KEY"
-    echo "  + internal service key (control-api → user-api)"
-fi
+[ -n "$APP_S2S_KEY" ] || { APP_S2S_KEY="$(openssl rand -hex 32)"; echo "  + service-to-service key"; }
 
 [ -n "$APP_OAUTH_COOKIE_DOMAIN" ] || APP_OAUTH_COOKIE_DOMAIN="agimate.lc"
 [ -n "$APP_OAUTH_FRONTEND_REDIRECT_URL" ] || APP_OAUTH_FRONTEND_REDIRECT_URL="http://www.agimate.lc:8000/login"
 [ -n "$APP_INTEGRATION_TELEGRAM_MODE" ] || APP_INTEGRATION_TELEGRAM_MODE="polling"
 [ -n "$APP_INTEGRATION_WEBHOOK_BASE_URL" ] || APP_INTEGRATION_WEBHOOK_BASE_URL="http://localhost:8180/control"
-[ -n "$APP_NOTIFICATIONS_BASE_URL" ] || APP_NOTIFICATIONS_BASE_URL="http://localhost:8080/user"
+[ -n "$APP_USER_API_URL" ] || APP_USER_API_URL="http://localhost:8080/user"
 
 echo
 
@@ -370,11 +364,10 @@ APP_INTEGRATION_WEBHOOK_BASE_URL=$APP_INTEGRATION_WEBHOOK_BASE_URL
 APP_PUSH_RUSTORE_PROJECT_ID=$APP_PUSH_RUSTORE_PROJECT_ID
 APP_PUSH_RUSTORE_SERVICE_KEY=$APP_PUSH_RUSTORE_SERVICE_KEY
 
-# Internal service key: control-api presents the full key on user-api's /internal/notifications
-# (user-api owns the devices and the push transport), user-api stores only the hash.
-APP_INTERNAL_AUTHKEY=$APP_INTERNAL_AUTHKEY
-APP_NOTIFICATIONS_AUTH_TOKEN=$APP_NOTIFICATIONS_AUTH_TOKEN
-APP_NOTIFICATIONS_BASE_URL=$APP_NOTIFICATIONS_BASE_URL
+# Service-to-service key: one secret, the same value on both sides — control-api presents it on
+# user-api's /internal/**, user-api compares it. No hashing, see docs/decisions/push-notifications.md.
+APP_S2S_KEY=$APP_S2S_KEY
+APP_USER_API_URL=$APP_USER_API_URL
 
 # Worker pool key: control-api stores the hash (authkey), the worker presents the full key.
 WORKER_POOLS_AUTHKEYS_0=$WORKER_POOLS_AUTHKEYS_0
@@ -416,9 +409,8 @@ render() {
         -e "s|__GITHUB_CLIENT_ID__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_ID")|g" \
         -e "s|__GITHUB_CLIENT_SECRET__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GITHUB_CLIENT_SECRET")|g" \
         -e "s|__VK_CLIENT_ID__|$(esc "$SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_VK_CLIENT_ID")|g" \
-        -e "s|__APP_INTERNAL_AUTHKEY__|$(esc "$APP_INTERNAL_AUTHKEY")|g" \
-        -e "s|__APP_NOTIFICATIONS_BASE_URL__|$(esc "$APP_NOTIFICATIONS_BASE_URL")|g" \
-        -e "s|__APP_NOTIFICATIONS_AUTH_TOKEN__|$(esc "$APP_NOTIFICATIONS_AUTH_TOKEN")|g" \
+        -e "s|__APP_S2S_KEY__|$(esc "$APP_S2S_KEY")|g" \
+        -e "s|__APP_USER_API_URL__|$(esc "$APP_USER_API_URL")|g" \
         -e "s|__APP_PUSH_RUSTORE_PROJECT_ID__|$(esc "$APP_PUSH_RUSTORE_PROJECT_ID")|g" \
         -e "s|__APP_PUSH_RUSTORE_SERVICE_KEY__|$(esc "$APP_PUSH_RUSTORE_SERVICE_KEY")|g" \
         -e "s|__WORKER_POOLS_AUTHKEYS_0__|$(esc "$WORKER_POOLS_AUTHKEYS_0")|g" \

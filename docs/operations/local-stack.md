@@ -21,7 +21,7 @@ docker compose --profile infra up -d
 | JWT ES256 | user-api подписывает токены, control-api проверяет публичной половиной |
 | Centrifugo ES256 | control-api подписывает клиентские токены, Centrifugo проверяет их публичной половиной |
 | Ключ воркер-пула | agent-worker предъявляет полный ключ, control-api хранит его хэш (authkey) |
-| Внутренний ключ | control-api предъявляет полный ключ на `/internal/notifications`, user-api хранит его хэш |
+| Ключ между сервисами | одно значение у обоих: control-api предъявляет, user-api сверяет |
 
 Что генерится:
 

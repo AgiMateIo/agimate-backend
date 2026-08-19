@@ -27,10 +27,9 @@ agntZ3h5YWJjZGVlxQ8pJvLmN5rT3sU2vWxYzAbCdEfGhIjKlMnOpQrStUvWxYz
 | `agnt`  | Ключ агента (один ключ = один агент)  | `agents.key_id` / `agents.key_hash`     |
 | `appk`  | Ключ приложения                      | `apps.key_id` / `apps.key_hash`         |
 | `wrkp`  | Authkey пула воркеров                | конфиг `worker-pools.authkeys`, не в БД |
-| `intr`  | Внутренние вызовы control-api → user-api | конфиг `app.internal.authkey` у user-api, не в БД |
 
 Префиксы объявлены константами: `AgentService.AGENT_KEY_PREFIX`, `AppService.APP_KEY_PREFIX`,
-`WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX`, `InternalKeyAuthService.INTERNAL_KEY_PREFIX` (в user-api). В тестах и javadoc встречаются `apik` и `dvck` —
+`WorkerPoolRegistry.WORKER_POOL_KEY_PREFIX`. В тестах и javadoc встречаются `apik` и `dvck` —
 это следы эпохи device-api, в рабочем коде такие ключи не выдаются.
 
 ## Генерация
@@ -96,10 +95,10 @@ MCP-клиент говорит только на MCP, самописный аг
 (цепочка api-key). Валидный ключ на чужой поверхности даёт **403**, а не 401: ключ настоящий,
 поверхность не его.
 
-## Отдельный случай: ключи, которых нет в базе
+## Отдельный случай: authkey пула воркеров
 
-Ключи `wrkp` и `intr` не хранятся в базе — control-api сверяет их с конфигом. Поэтому у них есть
-вторая сериализация, **authkey**, где вместо payload стоит хэш секрета:
+Ключи `wrkp` не хранятся в базе — control-api сверяет их с конфигом. Поэтому у них есть вторая
+сериализация, **authkey**, где вместо payload стоит хэш секрета:
 
 ```
 authkey = prefix + keyid + sha256Hex(secret)      → 80 символов
@@ -111,9 +110,13 @@ authkey = prefix + keyid + sha256Hex(secret)      → 80 символов
 | Ключ | Кто предъявляет | Генератор |
 |:-----|:----------------|:----------|
 | `wrkp` | agent-worker, Bearer в gRPC (`agent.grpc.auth-token` → `worker-pools.authkeys`) | `--tests "*WorkerAuthkeyGeneratorTest" -Dgenerate.worker.authkey=true` |
-| `intr` | control-api, заголовок `X-Internal-Auth-Key` (`app.notifications.auth-token` → `app.internal.authkey` у user-api) | `:user-api:test --tests "*InternalAuthkeyGeneratorTest" -Dgenerate.internal.authkey=true` |
 
-Для локального стенда обе пары генерит `ops/dev-init.sh` — руками собирать их не нужно.
+Для локального стенда ключ генерит `ops/dev-init.sh` — руками собирать его не нужно.
+
+**Вызовы между нашими сервисами этот формат не используют.** control-api зовёт user-api с общим
+секретом в заголовке `X-S2S-Key` (`APP_S2S_KEY`, `openssl rand -hex 32`), который проверяющая сторона
+хранит как есть. Асимметрии, ради которой у `wrkp` заведён хэш, там нет: держателей двое, секрет один,
+и конфиг, который для этого должен утечь, содержит секреты OAuth и пароль от базы.
 
 ## Свойства формата
 

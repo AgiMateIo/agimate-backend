@@ -37,10 +37,9 @@ jwt:
   publicKey: "__JWT_PUBLICKEY__"
 
 app:
-  internal:
-    # The counterpart of app.notifications.auth-token in control-api's local config: the hash of the
-    # key it presents on /internal/notifications. Both halves from the same ./dev-init.sh run.
-    authkey: "__APP_INTERNAL_AUTHKEY__"
+  s2s:
+    # The same secret control-api holds in app.user-api.s2s-key — one value, both sides.
+    key: "__APP_S2S_KEY__"
   push:
     # Push notifications: paste the RuStore console credentials into services/.env
     # (APP_PUSH_RUSTORE_PROJECT_ID / APP_PUSH_RUSTORE_SERVICE_KEY) and re-run ./dev-init.sh --force.
