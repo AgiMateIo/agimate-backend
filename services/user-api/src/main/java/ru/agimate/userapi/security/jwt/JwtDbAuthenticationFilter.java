@@ -35,14 +35,19 @@ public class JwtDbAuthenticationFilter extends OncePerRequestFilter {
         String jwt = parseJwt(request);
 
         if (jwt != null) {
-            jwtService.extractClaimsFromValidAccessToken(jwt)
-                    .flatMap(w -> userService.findById(UUID.fromString(w.claims().getSubject())))
-                    .ifPresent(userEntity -> SecurityContextHolder.getContext().setAuthentication(
-                            new JwtAuthenticationToken(
-                                    AgimateUserPrincipal.fromUser(
-                                            userEntity.getId().toString(), userEntity.getRole())
-                            )
-                    ));
+            jwtService.extractClaimsFromValidAccessToken(jwt).ifPresent(wrapped ->
+                    userService.findById(UUID.fromString(wrapped.claims().getSubject()))
+                            .ifPresent(userEntity -> SecurityContextHolder.getContext().setAuthentication(
+                                    new JwtAuthenticationToken(
+                                            AgimateUserPrincipal.fromUser(
+                                                    userEntity.getId().toString(),
+                                                    userEntity.getRole(),
+                                                    // The claims are carried this far for this one
+                                                    // value: the role comes from the database, but
+                                                    // which sign-in is asking only the token knows.
+                                                    JwtService.authSessionId(wrapped.claims()))
+                                    )
+                            )));
         }
 
         filterChain.doFilter(request, response);

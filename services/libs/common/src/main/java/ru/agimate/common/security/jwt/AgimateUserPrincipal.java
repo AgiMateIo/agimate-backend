@@ -32,10 +32,12 @@ public record AgimateUserPrincipal(
         this(id, authorities, null);
     }
 
-    public static AgimateUserPrincipal fromUser(String id, UserRole role) {
-        return fromUser(id, role, null);
-    }
-
+    /**
+     * No overload without the sign-in on purpose: the one that existed dropped {@code asid} silently
+     * in the filter that authenticates every user-api request, and every push subscription
+     * registered through it lost the key its revocation cleanup runs on. Pass null explicitly where
+     * there is genuinely no session.
+     */
     public static AgimateUserPrincipal fromUser(String id, UserRole role, UUID authSessionId) {
         return new AgimateUserPrincipal(id, List.of(new SimpleGrantedAuthority(role.toAuthority())), authSessionId);
     }
