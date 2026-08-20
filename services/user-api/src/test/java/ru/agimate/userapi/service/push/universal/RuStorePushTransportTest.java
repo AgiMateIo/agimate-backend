@@ -34,7 +34,8 @@ class RuStorePushTransportTest {
     void credentialsAndTokensInTheBody() {
         RuStorePushTransport transport = new RuStorePushTransport(properties("project-1", "key-1"));
 
-        Map<String, Object> body = transport.body(TOKEN, new PushMessage(Map.of("type", "webchat_message"), null));
+        Map<String, Object> body = transport.body(
+                TOKEN, new PushMessage(Map.of("type", "webchat_message"), null), transport.authToken());
 
         Map<String, Object> rustore = (Map<String, Object>) ((Map<String, Object>) body.get("providers")).get("rustore");
         assertEquals("project-1", rustore.get("project_id"));

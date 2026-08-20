@@ -57,17 +57,27 @@ public abstract class UniversalPushTransport implements PushTransport {
      */
     private static final List<String> TOKEN_ERROR_MARKERS = List.of("invalid token", "unregistered", "not_found");
 
-    private final PushProperties pushProperties;
-    private final RestClient restClient;
+    /**
+     * One client for every channel: they share the endpoint, so a client apiece would only split
+     * the connection pool to one host and start a second selector thread for nothing.
+     *
+     * <p>The factory is pinned rather than left to {@link RestClient}'s classpath detection, as in
+     * {@code TelegramApiClient}: what that detection picks changes when a dependency changes, and a
+     * push transport is a poor place to discover a new HTTP stack.
+     */
+    private static final RestClient REST_CLIENT = restClient();
+
+    /** Read by the subclasses: their credentials live in it beside the shared ttl. */
+    protected final PushProperties pushProperties;
 
     protected UniversalPushTransport(PushProperties pushProperties) {
         this.pushProperties = pushProperties;
-        // An explicit factory, as in TelegramApiClient: the default builder picks one by classpath
-        // detection, which HttpComponents wins by arriving transitively — with the AWS SDK there,
-        // with the Google auth library here.
+    }
+
+    private static RestClient restClient() {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory();
         factory.setReadTimeout(READ_TIMEOUT);
-        this.restClient = RestClient.builder().baseUrl(BASE_URL).requestFactory(factory).build();
+        return RestClient.builder().baseUrl(BASE_URL).requestFactory(factory).build();
     }
 
     /**
@@ -88,11 +98,15 @@ public abstract class UniversalPushTransport implements PushTransport {
 
     @Override
     public PushDelivery send(String token, PushMessage message) {
+        // Asked for once per send and kept for the length of it: the refusal has to be stripped of
+        // the very secret this request carried, and asking twice would mean two answers.
+        String authToken = null;
         try {
-            restClient.post()
+            authToken = authToken();
+            REST_CLIENT.post()
                     .uri("/v1/send")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(body(token, message))
+                    .body(body(token, message, authToken))
                     .retrieve()
                     .toBodilessEntity();
             return PushDelivery.DELIVERED;
@@ -104,7 +118,7 @@ public abstract class UniversalPushTransport implements PushTransport {
             // dropped subscription looks exactly like a project the stand is misconfigured for, and
             // both of them show up as silence on the phone.
             log.warn("{} push refused with {} ({}): {}", provider(), e.getStatusCode(), delivery,
-                    refusal(answer, token));
+                    refusal(answer, token, authToken));
             return delivery;
         } catch (Exception e) {
             log.warn("{} push failed: {}", provider(), e.getClass().getSimpleName());
@@ -144,19 +158,28 @@ public abstract class UniversalPushTransport implements PushTransport {
     }
 
     /**
-     * The answer as the transport wrote it, minus our own token: the rejected ones come back as
-     * prefixes, but nothing promises the message will not quote the token whole, and a token in a
-     * log line is the right to notify that device.
+     * The answer as the transport wrote it, minus the two secrets the request carried. The rejected
+     * tokens come back as prefixes, but nothing promises the message will not quote one whole, and
+     * a token in a log line is the right to notify that device. The credential matters more: an
+     * answer that echoes the request would put the channel's {@code auth_token} into the log — the
+     * right to notify <b>every</b> device of this installation, and for RuStore a key that does not
+     * expire.
+     *
+     * @param authToken the secret this request went out with; null when the send failed before it
+     *                  was even fetched
      */
-    static String refusal(String responseBody, String token) {
+    static String refusal(String responseBody, String token, String authToken) {
         if (responseBody == null || responseBody.isBlank()) {
             return "<no body>";
         }
-        String answer = token == null || token.isEmpty()
-                ? responseBody
-                : responseBody.replace(token, PushTokens.masked(token));
+        String answer = without(responseBody, token, PushTokens.masked(token));
+        answer = without(answer, authToken, "<credentials>");
 
         return answer.length() <= MAX_LOGGED_ANSWER ? answer : answer.substring(0, MAX_LOGGED_ANSWER) + "…";
+    }
+
+    private static String without(String text, String secret, String replacement) {
+        return secret == null || secret.isEmpty() ? text : text.replace(secret, replacement);
     }
 
     private static boolean namesATokenError(String reason) {
@@ -180,7 +203,7 @@ public abstract class UniversalPushTransport implements PushTransport {
      * very conversation. The whole request is capped at 4 KB, which the preview length keeps us well
      * under.
      */
-    Map<String, Object> body(String token, PushMessage message) {
+    Map<String, Object> body(String token, PushMessage message, String authToken) {
         Duration ttl = message.ttl() != null ? message.ttl() : pushProperties.getTtl();
 
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -191,7 +214,7 @@ public abstract class UniversalPushTransport implements PushTransport {
         // The credentials travel in the body here — this API has no Authorization header at all.
         body.put("providers", Map.of(wireName(), Map.of(
                 "project_id", projectId(),
-                "auth_token", authToken())));
+                "auth_token", authToken)));
         // One token per request, and that is what makes the answer readable: it is aggregated, and
         // with several devices in it there is nothing to attribute a rejected prefix to.
         body.put("tokens", Map.of(wireName(), List.of(token)));

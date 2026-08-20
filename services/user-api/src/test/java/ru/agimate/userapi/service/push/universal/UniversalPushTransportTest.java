@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class UniversalPushTransportTest {
 
     private static final String TOKEN = "cV8kQz1p-device-token";
+    private static final String AUTH_TOKEN = "ya29.minted-for-this-send";
 
     /** Канал, у которого имя в теле и креды свои: ровно то, чем отличаются реальные два. */
     private static class TestTransport extends UniversalPushTransport {
@@ -50,7 +51,7 @@ class UniversalPushTransportTest {
 
         @Override
         protected String authToken() {
-            return "ya29.minted-for-this-send";
+            return AUTH_TOKEN;
         }
     }
 
@@ -68,13 +69,13 @@ class UniversalPushTransportTest {
         @DisplayName("креды и токен едут под именем канала, а не провайдера")
         @SuppressWarnings("unchecked")
         void wireNameEverywhere() {
-            Map<String, Object> body = transport.body(TOKEN, new PushMessage(Map.of("type", "webchat_message"), null));
+            Map<String, Object> body = transport.body(TOKEN, new PushMessage(Map.of("type", "webchat_message"), null), AUTH_TOKEN);
 
             Map<String, Object> providers = (Map<String, Object>) body.get("providers");
             assertEquals(List.of("fcm"), List.copyOf(providers.keySet()));
             Map<String, Object> fcm = (Map<String, Object>) providers.get("fcm");
             assertEquals("agimate", fcm.get("project_id"));
-            assertEquals("ya29.minted-for-this-send", fcm.get("auth_token"));
+            assertEquals(AUTH_TOKEN, fcm.get("auth_token"));
             assertEquals(List.of(TOKEN), ((Map<String, Object>) body.get("tokens")).get("fcm"));
         }
 
@@ -86,7 +87,7 @@ class UniversalPushTransportTest {
             Map<String, String> data = Map.of("type", "webchat_message", "sessionId", "s-1");
 
             Map<String, Object> message = (Map<String, Object>) transport
-                    .body(TOKEN, new PushMessage(data, Duration.ofMinutes(5)))
+                    .body(TOKEN, new PushMessage(data, Duration.ofMinutes(5)), AUTH_TOKEN)
                     .get("message");
 
             assertEquals(data, message.get("data"));
@@ -100,7 +101,7 @@ class UniversalPushTransportTest {
         @SuppressWarnings("unchecked")
         void fallsBackToConfiguredTtl() {
             Map<String, Object> message = (Map<String, Object>) transport
-                    .body(TOKEN, new PushMessage(Map.of("type", "webchat_message"), null))
+                    .body(TOKEN, new PushMessage(Map.of("type", "webchat_message"), null), AUTH_TOKEN)
                     .get("message");
 
             assertEquals(Map.of("ttl", "3600s"), message.get("android"));
@@ -179,12 +180,29 @@ class UniversalPushTransportTest {
         void refusalIsLoggedWithoutTheToken() {
             String body = "{\"status\": \"PROVIDER_ERROR\", \"errors\": [\"rustore: invalid token " + TOKEN + "\"]}";
 
-            String logged = UniversalPushTransport.refusal(body, TOKEN);
+            String logged = UniversalPushTransport.refusal(body, TOKEN, AUTH_TOKEN);
 
             assertFalse(logged.contains(TOKEN));
             assertTrue(logged.contains("PROVIDER_ERROR"));
             assertTrue(logged.contains("cV8kQz1p…"));
-            assertEquals("<no body>", UniversalPushTransport.refusal("", TOKEN));
+            assertEquals("<no body>", UniversalPushTransport.refusal("", TOKEN, AUTH_TOKEN));
+        }
+
+        /**
+         * Кред в теле запроса едет всегда, и ответ вендора вправе процитировать запрос. Токен
+         * устройства — право уведомлять один телефон, кред — право уведомлять все телефоны
+         * установки, а у RuStore он ещё и не истекает.
+         */
+        @Test
+        @DisplayName("кред запроса в лог не попадает, даже если вендор вернул его эхом")
+        void credentialsNeverReachTheLog() {
+            String body = "{\"status\": \"AUTH_ERROR\", \"errors\": [\"fcm: token " + AUTH_TOKEN + " rejected\"]}";
+
+            String logged = UniversalPushTransport.refusal(body, TOKEN, AUTH_TOKEN);
+
+            assertFalse(logged.contains(AUTH_TOKEN));
+            assertTrue(logged.contains("<credentials>"));
+            assertTrue(logged.contains("AUTH_ERROR"));
         }
 
         @Test

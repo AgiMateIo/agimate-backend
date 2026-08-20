@@ -15,11 +15,8 @@ import ru.agimate.userapi.database.entities.PushProvider;
 @Component
 public class RuStorePushTransport extends UniversalPushTransport {
 
-    private final PushProperties pushProperties;
-
     public RuStorePushTransport(PushProperties pushProperties) {
         super(pushProperties);
-        this.pushProperties = pushProperties;
     }
 
     /**

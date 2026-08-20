@@ -7,14 +7,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import ru.agimate.userapi.config.PushProperties;
 import ru.agimate.userapi.database.entities.PushProvider;
-import ru.agimate.userapi.service.push.PushMessage;
 
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
 import java.util.Base64;
 import java.util.Date;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -107,16 +105,12 @@ class FirebasePushTransportTest {
         GoogleCredentials credentials = mock(GoogleCredentials.class);
         when(credentials.getAccessToken()).thenReturn(new AccessToken("ya29.first", new Date()));
         FirebasePushTransport transport = new FirebasePushTransport(new PushProperties(), credentials, "agimate");
-        PushMessage message = new PushMessage(Map.of("type", "webchat_message"), null);
 
-        transport.body("token-1", message);
+        assertEquals("ya29.first", transport.authToken());
         when(credentials.getAccessToken()).thenReturn(new AccessToken("ya29.second", new Date()));
-        Map<String, Object> second = transport.body("token-2", message);
+        assertEquals("ya29.second", transport.authToken());
 
         verify(credentials, times(2)).refreshIfExpired();
-        @SuppressWarnings("unchecked")
-        Map<String, Object> fcm = (Map<String, Object>) ((Map<String, Object>) second.get("providers")).get("fcm");
-        assertEquals("ya29.second", fcm.get("auth_token"));
     }
 
     /**
