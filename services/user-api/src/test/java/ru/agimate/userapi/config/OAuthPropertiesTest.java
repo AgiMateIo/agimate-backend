@@ -119,6 +119,15 @@ class OAuthPropertiesTest {
             assertThrows(IllegalStateException.class, () -> properties.validateRedirectLists());
         }
 
+        /** Досюда доходит каждый вход: домен cookie вычисляется из хоста, и без него это NPE в 500. */
+        @Test
+        @DisplayName("веб-адрес без хоста роняет старт")
+        void refusesUrlWithoutHost() {
+            properties.setAllowedRedirectUrls(List.of("http:///login-check"));
+
+            assertThrows(IllegalStateException.class, () -> properties.validateRedirectLists());
+        }
+
         @Test
         @DisplayName("правильно разложенные списки проходят")
         void acceptsWellFormedLists() {

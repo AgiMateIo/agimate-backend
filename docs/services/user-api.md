@@ -272,7 +272,7 @@ access. Refresh нативной сессии живёт 60 дней и прод
 **Контракт с фронтом.** Код добавляется к authorization-URL рядом с `redirect_to`:
 
 ```
-GET /user/oauth2/authorization/google?redirect_to=https://www.agimate.ru/login&ref=K7M2QX9F
+GET /user/oauth2/authorization/google?redirect_to=https://www.agimate.ru/login-check&ref=K7M2QX9F
 ```
 
 Дальше он на время круга к провайдеру ложится в cookie `oauth2_ref` (15 минут, как и

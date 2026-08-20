@@ -37,11 +37,18 @@ public class OAuthProperties {
     @PostConstruct
     void validateRedirectLists() {
         for (String url : allowedRedirectUrls) {
-            String scheme = URI.create(url).getScheme();
+            URI uri = URI.create(url);
+            String scheme = uri.getScheme();
             if (!"http".equals(scheme) && !"https".equals(scheme)) {
                 throw new IllegalStateException(
                         "app.oauth.allowed-redirect-urls is the web list and takes http(s) addresses only; "
                                 + url + " belongs in app.oauth.native-redirect-urls");
+            }
+            // Every login reads this list to find the installation it arrived at, and the cookie
+            // domain comes out of the host — an address without one fails the login, not the boot.
+            if (uri.getHost() == null) {
+                throw new IllegalStateException(
+                        "app.oauth.allowed-redirect-urls: " + url + " has no host to take a cookie domain from");
             }
         }
         for (String url : nativeRedirectUrls) {
