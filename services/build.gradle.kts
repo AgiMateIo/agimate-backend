@@ -43,6 +43,11 @@ allprojects {
                 implementation("commons-io:commons-io:2.22.0")
                 implementation("org.jetbrains:annotations:26.1.0")
 
+                // FCM through RuStore's universal API (user-api): the whole of what is needed from
+                // Google is an access token minted from a service account — firebase-admin sends
+                // natively, and a natively sent message the universal SDK on the device discards
+                implementation("com.google.auth:google-auth-library-oauth2-http:1.50.0")
+
                 implementation("com.squareup.okhttp3:okhttp:5.3.2")
                 implementation("com.squareup.okhttp3:okhttp-brotli:5.3.2")
                 implementation("com.squareup.okhttp3:logging-interceptor:5.3.2")

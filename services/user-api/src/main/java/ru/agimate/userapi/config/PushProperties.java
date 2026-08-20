@@ -27,6 +27,8 @@ public class PushProperties {
 
     private RuStore rustore = new RuStore();
 
+    private Fcm fcm = new Fcm();
+
     /** Credentials from the RuStore console; both empty — nothing is sent. */
     @Getter
     @Setter
@@ -47,6 +49,27 @@ public class PushProperties {
         /** Exactly one of the two filled in is a typo, not a choice — see {@code RuStorePushTransport}. */
         public boolean isHalfConfigured() {
             return projectId.isBlank() != serviceKey.isBlank();
+        }
+    }
+
+    /**
+     * The Firebase channel, named after the sending API rather than after the provider: the token is
+     * stored as {@code FIREBASE} because that is what the SDK on the device calls it, while
+     * everything on this side — the credentials, their scope, the name in the request — says
+     * {@code fcm}. See {@code FirebasePushTransport}.
+     */
+    @Getter
+    @Setter
+    public static class Fcm {
+
+        /**
+         * Base64 of the service account JSON of the Firebase project — the whole configuration of
+         * the channel, project id included. Empty — nothing is sent; unreadable — the boot fails.
+         */
+        private String credentials = "";
+
+        public boolean isConfigured() {
+            return !credentials.isBlank();
         }
     }
 }

@@ -45,12 +45,16 @@ app:
     # The same secret control-api holds in app.user-api.s2s-key — one value, both sides.
     key: "__APP_S2S_KEY__"
   push:
-    # Push notifications: paste the RuStore console credentials into services/.env
-    # (APP_PUSH_RUSTORE_PROJECT_ID / APP_PUSH_RUSTORE_SERVICE_KEY) and re-run ./dev-init.sh --force.
-    # Empty service-key = subscriptions are still registered, nothing is sent.
+    # Push notifications: paste the vendors' credentials into services/.env
+    # (APP_PUSH_RUSTORE_PROJECT_ID / APP_PUSH_RUSTORE_SERVICE_KEY, APP_PUSH_FCM_CREDENTIALS)
+    # and re-run ./dev-init.sh --force. Empty = subscriptions are still registered, nothing is
+    # sent through that channel. The two are parallel — a device registers a token in each.
     rustore:
       project-id: "__APP_PUSH_RUSTORE_PROJECT_ID__"
       service-key: "__APP_PUSH_RUSTORE_SERVICE_KEY__"
+    fcm:
+      # base64 of the Firebase service account JSON; the project id is read from it.
+      credentials: "__APP_PUSH_FCM_CREDENTIALS__"
   oauth:
     cookie-domain: "__APP_OAUTH_COOKIE_DOMAIN__"
     frontend-redirect-url: "__APP_OAUTH_FRONTEND_REDIRECT_URL__"

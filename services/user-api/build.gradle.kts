@@ -38,6 +38,9 @@ dependencies {
     // SpringDoc for OpenAPI
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui")
 
+    // Access tokens for the FCM push channel (service account -> OAuth2), version in the root build
+    implementation("com.google.auth:google-auth-library-oauth2-http")
+
     // JWT Dependencies
     implementation("io.jsonwebtoken:jjwt-api")
     implementation("io.jsonwebtoken:jjwt-impl")

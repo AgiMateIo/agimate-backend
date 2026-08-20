@@ -63,12 +63,16 @@ fails.
 
 ### Push transport (user-api)
 
-Credentials from the RuStore console.
+Two channels, RuStore and FCM, both sent through RuStore's universal API. They are parallel, not one
+plus a spare: a device registers a token in each, and a failure to deliver is invisible to the sender
+(docs/decisions/push-second-channel.md). Credentials are per channel — configure one, and only that
+one is sent through.
 
 | Variable                       | Description                                                                                     |
 |--------------------------------|-------------------------------------------------------------------------------------------------|
 | `APP_PUSH_RUSTORE_PROJECT_ID`  | RuStore project the mobile app is built against. **Must differ between a stand and production** — sharing it makes the stand notify live devices |
 | `APP_PUSH_RUSTORE_SERVICE_KEY` | Service key authorizing the sends. Empty = nothing is sent, device subscriptions are still registered; only one of the two filled in = startup fails |
+| `APP_PUSH_FCM_CREDENTIALS`     | base64 of the Firebase service account JSON (`base64 -i service-account.json`), scoped to `firebase.messaging` by the service itself. The project id is read from that JSON — there is no separate variable. Empty = this channel is off; unreadable = startup fails. **The Firebase project of a stand must differ from production's**, same as above |
 | `APP_PUSH_TTL`                 | Delivery lifetime when the caller does not specify one (default `1h`)                            |
 
 ### Centrifugo (control-api)

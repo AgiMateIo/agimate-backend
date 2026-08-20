@@ -56,7 +56,7 @@ CENTRIFUGO_ADMIN_PASSWORD CENTRIFUGO_ADMIN_SECRET
 APP_SECRETS_ENCRYPTION_KEY APP_OAUTH_COOKIE_ENCRYPTION_KEY APP_FILES_URL_SECRET
 APP_OAUTH_COOKIE_DOMAIN APP_OAUTH_FRONTEND_REDIRECT_URL
 APP_CONTENT_LANGUAGE APP_INTEGRATION_TELEGRAM_MODE APP_INTEGRATION_WEBHOOK_BASE_URL
-APP_PUSH_RUSTORE_PROJECT_ID APP_PUSH_RUSTORE_SERVICE_KEY
+APP_PUSH_RUSTORE_PROJECT_ID APP_PUSH_RUSTORE_SERVICE_KEY APP_PUSH_FCM_CREDENTIALS
 APP_S2S_KEY APP_USER_API_URL
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET
@@ -172,6 +172,7 @@ if [ ! -f "$ENV_FILE" ]; then
     import_value APP_USER_API_URL "app.user-api.url" "$CONTROL_API_LOCAL"
     import_value APP_PUSH_RUSTORE_PROJECT_ID "app.push.rustore.project-id" "$USER_API_LOCAL"
     import_value APP_PUSH_RUSTORE_SERVICE_KEY "app.push.rustore.service-key" "$USER_API_LOCAL"
+    import_value APP_PUSH_FCM_CREDENTIALS "app.push.fcm.credentials" "$USER_API_LOCAL"
     import_value WORKER_POOLS_AUTHKEYS_0 "worker-pools.authkeys" "$CONTROL_API_LOCAL"
 
     import_value AGENT_GRPC_AUTHTOKEN "agent.grpc.auth-token" "$WORKER_LOCAL"
@@ -358,11 +359,14 @@ APP_CONTENT_LANGUAGE=$APP_CONTENT_LANGUAGE
 APP_INTEGRATION_TELEGRAM_MODE=$APP_INTEGRATION_TELEGRAM_MODE
 APP_INTEGRATION_WEBHOOK_BASE_URL=$APP_INTEGRATION_WEBHOOK_BASE_URL
 
-# Push notifications (control-api): credentials from the RuStore console. Not generated — paste
-# them here and re-run with --force. Empty service key = nothing is sent, subscriptions still work.
-# The project id of a stand must differ from production's, or the stand notifies live devices.
+# Push notifications (user-api): credentials from the vendors' consoles. Not generated — paste them
+# here and re-run with --force. Empty = nothing is sent through that channel, subscriptions still
+# work. The projects of a stand must differ from production's, or the stand notifies live devices.
+# The two channels are parallel, not one plus a spare: a device registers a token in each.
 APP_PUSH_RUSTORE_PROJECT_ID=$APP_PUSH_RUSTORE_PROJECT_ID
 APP_PUSH_RUSTORE_SERVICE_KEY=$APP_PUSH_RUSTORE_SERVICE_KEY
+# base64 of the Firebase service account JSON; the project id is read from it.
+APP_PUSH_FCM_CREDENTIALS=$APP_PUSH_FCM_CREDENTIALS
 
 # Service-to-service key: one secret, the same value on both sides — control-api presents it on
 # user-api's /internal/**, user-api compares it. No hashing, see docs/decisions/push-notifications.md.
@@ -413,6 +417,7 @@ render() {
         -e "s|__APP_USER_API_URL__|$(esc "$APP_USER_API_URL")|g" \
         -e "s|__APP_PUSH_RUSTORE_PROJECT_ID__|$(esc "$APP_PUSH_RUSTORE_PROJECT_ID")|g" \
         -e "s|__APP_PUSH_RUSTORE_SERVICE_KEY__|$(esc "$APP_PUSH_RUSTORE_SERVICE_KEY")|g" \
+        -e "s|__APP_PUSH_FCM_CREDENTIALS__|$(esc "$APP_PUSH_FCM_CREDENTIALS")|g" \
         -e "s|__WORKER_POOLS_AUTHKEYS_0__|$(esc "$WORKER_POOLS_AUTHKEYS_0")|g" \
         -e "s|__AGENT_GRPC_AUTHTOKEN__|$(esc "$AGENT_GRPC_AUTHTOKEN")|g" \
         "$template" > "$target"
