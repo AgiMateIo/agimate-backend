@@ -152,15 +152,27 @@ claim, а не тело запроса; в токенах, выпущенных 
 
 ## Multi-domain OAuth2 Redirect
 
-Supports OAuth2 login from multiple frontend domains (e.g. `agimate.ru` and `agimate.io`).
+Вход поддерживается с нескольких доменов фронта (`agimate.ru`, `agimate.io`, локальный `agimate.lc`).
 
-**How it works:**
-1. Frontend appends `?redirect_to=https://www.agimate.io/login` to the OAuth2 authorization URL
-2. The value is saved in a temporary `oauth2_redirect_to` cookie (15 min TTL)
-3. After successful OAuth2 authentication, the handler reads the cookie and validates the URL against `allowed-redirect-urls`
-4. If valid — redirects to the specified URL with the correct cookie domain. If not — falls back to the default `frontend-redirect-url`
+**Как это работает:**
+1. Фронт дописывает к authorization-URL `?redirect_to=https://www.agimate.io/login-check` — адрес
+   страницы, которая читает `#rti-`
+2. Значение кладётся в временную cookie `oauth2_redirect_to` (15 минут)
+3. На колбэке `OAuth2SuccessHandler` читает cookie и сверяет адрес со списком
+   `allowed-redirect-urls` — точным совпадением, потому что префиксное правило и есть открытый
+   редирект
+4. Совпал — редирект туда, cookie ставится на его домен
 
-For `refresh` and `logout` endpoints, the cookie domain is resolved from the request's `Host` header by matching against `allowed-redirect-urls`.
+**Если не совпал — адрес берётся у той установки, на которую пришёл сам колбэк**: `Host` запроса
+сопоставляется с доменами из `allowed-redirect-urls` (тот же разбор, что у `refresh` и `logout`).
+Это ветка по умолчанию, а не исключение: `redirect_to` шлёт не каждый клиент, а колбэк провайдера
+всегда приходит на домен своей установки.
+
+`frontend-redirect-url` — последний рубеж, до которого доходит только колбэк на хост, не похожий ни
+на один адрес из списка. В общем `application.yaml` там лежит боевой адрес, поэтому у установки со
+своим доменом он обязан быть либо в `allowed-redirect-urls`, либо в `APP_OAUTH_FRONTEND_REDIRECT_URL`
+— иначе вход уводит людей на чужой фронт, и refresh-cookie, выставленная на свой домен, до него не
+доезжает.
 
 ## Вход нативного приложения
 
@@ -264,8 +276,8 @@ GET /user/oauth2/authorization/google?redirect_to=https://www.agimate.ru/login&r
 
 **Production example:**
 ```
-APP_OAUTH_ALLOWED_REDIRECT_URLS=https://www.agimate.ru/login,https://www.agimate.io/login
-APP_OAUTH_FRONTEND_REDIRECT_URL=https://www.agimate.ru/login
+APP_OAUTH_ALLOWED_REDIRECT_URLS=https://www.agimate.ru/login-check,https://www.agimate.io/login-check
+APP_OAUTH_FRONTEND_REDIRECT_URL=https://www.agimate.ru/login-check
 APP_OAUTH_COOKIE_DOMAIN=agimate.ru
 ```
 

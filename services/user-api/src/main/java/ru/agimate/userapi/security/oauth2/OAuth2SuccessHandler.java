@@ -99,7 +99,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         IssuedTokens tokens = authSessionService.open(
                 userEntity, AuthClient.WEB, request.getHeader("User-Agent"));
 
-        OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRedirectUrl(redirectToUrl);
+        OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRedirectUrl(redirectToUrl, request);
         refreshTokenService.setHttpOnlyRefreshTokenCookie(response, tokens.refreshToken(),
                 resolved.cookieDomain(), resolved.cookieSecure());
         response.sendRedirect(resolved.frontendRedirectUrl() + "#rti-" + tokens.refreshTokenId());

@@ -266,7 +266,7 @@ fi
 [ -n "$APP_S2S_KEY" ] || { APP_S2S_KEY="$(openssl rand -hex 32)"; echo "  + service-to-service key"; }
 
 [ -n "$APP_OAUTH_COOKIE_DOMAIN" ] || APP_OAUTH_COOKIE_DOMAIN="agimate.lc"
-[ -n "$APP_OAUTH_FRONTEND_REDIRECT_URL" ] || APP_OAUTH_FRONTEND_REDIRECT_URL="http://www.agimate.lc:8000/login"
+[ -n "$APP_OAUTH_FRONTEND_REDIRECT_URL" ] || APP_OAUTH_FRONTEND_REDIRECT_URL="http://www.agimate.lc:8000/login-check"
 [ -n "$APP_INTEGRATION_TELEGRAM_MODE" ] || APP_INTEGRATION_TELEGRAM_MODE="polling"
 [ -n "$APP_INTEGRATION_WEBHOOK_BASE_URL" ] || APP_INTEGRATION_WEBHOOK_BASE_URL="http://localhost:8180/control"
 [ -n "$APP_USER_API_URL" ] || APP_USER_API_URL="http://localhost:8080/user"

@@ -52,11 +52,19 @@ public class OAuthProperties {
         }
     }
 
-    public ResolvedDomain resolveFromRedirectUrl(@Nullable String redirectToUrl) {
+    /**
+     * Where the browser branch of a login ends up. Three sources in order: {@code redirect_to} when
+     * it is on the list, then the installation the callback itself arrived at, and only then the
+     * fixed default — that one holds a single installation's address, so every other installation
+     * used to send its people to somebody else's frontend.
+     *
+     * @param redirectToUrl what the client asked for, or null; honoured only on an exact match
+     */
+    public ResolvedDomain resolveFromRedirectUrl(@Nullable String redirectToUrl, HttpServletRequest request) {
         if (redirectToUrl != null && allowedRedirectUrls.contains(redirectToUrl)) {
             return new ResolvedDomain(extractBaseDomain(redirectToUrl), cookieSecure, redirectToUrl);
         }
-        return defaults();
+        return resolveFromRequest(request);
     }
 
     /** Exact string match, like the web list: a prefix rule is how an open redirect gets in. */

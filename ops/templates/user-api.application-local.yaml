@@ -23,7 +23,11 @@ spring:
           yandex:
             client-id: "__YANDEX_CLIENT_ID__"
             client-secret: "__YANDEX_CLIENT_SECRET__"
-            redirect-uri: "__APP_OAUTH_FRONTEND_REDIRECT_URL__/redirect"
+            # Yandex takes no .lc address, so the callback is registered on localhost and
+            # bounced to api.agimate.lc by the page in ops/caddy/Caddyfile. Spelled out
+            # rather than derived from the frontend URL: it follows the Caddyfile, not the
+            # frontend, and a rendered guess here silently breaks the Yandex button.
+            redirect-uri: "http://localhost:8000/login/redirect"
           github:
             client-id: "__GITHUB_CLIENT_ID__"
             client-secret: "__GITHUB_CLIENT_SECRET__"

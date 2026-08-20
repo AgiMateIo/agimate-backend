@@ -152,7 +152,10 @@ app:
   oauth:
     cookie-secure: false  # локальный HTTP; в проде включено профилем (application-prod.yaml)
     cookie-domain: agimate.lc
-    frontend-redirect-url: https://www.agimate.io/login
+    # Последний рубеж: сначала redirect_to, потом установка, на которую пришёл колбэк
+    # (OAuthProperties.resolveFromRedirectUrl). Досюда доходит только адрес, не похожий
+    # ни на один из allowed-redirect-urls, — и это именно страница, читающая #rti-.
+    frontend-redirect-url: https://www.agimate.io/login-check
     allowed-redirect-urls:
       - http://www.agimate.lc:8000/login-check
       - https://www.agimate.ru/login-check
