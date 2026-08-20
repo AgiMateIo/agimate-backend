@@ -53,13 +53,6 @@ public class FirebasePushTransport extends UniversalPushTransport {
         this.credentials = account.createScoped(MESSAGING_SCOPE);
     }
 
-    /** Ready-made credentials, for the tests: minting a real access token is a trip to Google. */
-    FirebasePushTransport(PushProperties pushProperties, GoogleCredentials credentials, String projectId) {
-        super(pushProperties);
-        this.credentials = credentials;
-        this.projectId = projectId;
-    }
-
     @Override
     public PushProvider provider() {
         return PushProvider.FIREBASE;
@@ -83,6 +76,16 @@ public class FirebasePushTransport extends UniversalPushTransport {
 
     @Override
     protected String authToken() {
+        return accessToken(credentials);
+    }
+
+    /**
+     * The token of one send. Static, like the answer parsing of the base class: the refresh is the
+     * one behaviour here worth a test of its own, and reaching it through a second constructor
+     * instead would leave a bean Spring cannot instantiate at all — it picks a constructor by itself
+     * only while there is exactly one.
+     */
+    static String accessToken(GoogleCredentials credentials) {
         try {
             credentials.refreshIfExpired();
         } catch (IOException e) {

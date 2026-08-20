@@ -104,11 +104,10 @@ class FirebasePushTransportTest {
     void tokenIsRefreshedPerSend() throws Exception {
         GoogleCredentials credentials = mock(GoogleCredentials.class);
         when(credentials.getAccessToken()).thenReturn(new AccessToken("ya29.first", new Date()));
-        FirebasePushTransport transport = new FirebasePushTransport(new PushProperties(), credentials, "agimate");
 
-        assertEquals("ya29.first", transport.authToken());
+        assertEquals("ya29.first", FirebasePushTransport.accessToken(credentials));
         when(credentials.getAccessToken()).thenReturn(new AccessToken("ya29.second", new Date()));
-        assertEquals("ya29.second", transport.authToken());
+        assertEquals("ya29.second", FirebasePushTransport.accessToken(credentials));
 
         verify(credentials, times(2)).refreshIfExpired();
     }
