@@ -66,12 +66,18 @@ public class AgentRunCore {
 
     /**
      * Fetch the backend-assembled run context ({@code GetRunContext}) and render it into the
-     * prompt + tool registry in one durable step. The assembly policy lives server-side
-     * (ContextSpec); the worker only renders the blocks.
+     * prompt + tool registry. The assembly policy lives server-side (ContextSpec); the worker only
+     * renders the blocks.
+     *
+     * <p>Deliberately not a durable step: that checkpoint held the whole assembled conversation —
+     * system prompt, the user's message, memory notes and the entire history window — which made
+     * the DBOS system database a second store of the dialogue. The price is paid by a crash replay:
+     * it re-fetches instead of restoring, so it gets today's context rather than the one the run
+     * started with, and fails outright if the agent was disabled meanwhile. Both are rare (a replay
+     * needs the process to die mid-run) and the model calls already made keep their own checkpoints.
      */
     public PreparedContext prepareContext(String agentId, String runId) {
-        return dbos.runStep(() -> ContextBuilder.build(fetcher.fetch(agentId, runId)),
-                "prepare_context");
+        return ContextBuilder.build(fetcher.fetch(agentId, runId));
     }
 
     /**

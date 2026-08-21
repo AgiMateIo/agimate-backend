@@ -44,9 +44,10 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 | `ToolCallWorkflow.toolCall` | `tool_calls` | One backend tool call (`ExecuteToolAsync` + poll `GetToolResult`); never raises. A call still pending at `detach-after` is detached (`DetachTool`): the model gets an interim task handle, the result returns later as a `tool_completed` trigger. |
 
 The package root is what DBOS sees: the three workflow pairs and `Queues`. The run-body machinery lives in `workers/run`:
-`AgentRunCore` holds the invariant run body — a `prepare_context` step
+`AgentRunCore` holds the invariant run body — the context fetch
 (`ContextMaterialsFetcher`: one `GetRunContext(agent_id, run_id)` call → pure
-`ContextBuilder.build` render → `PreparedContext`), the loop, and failure reporting — delegating the
+`ContextBuilder.build` render → `PreparedContext`; deliberately **not** a durable step, so the
+assembled dialogue never lands in the DBOS system database), the loop, and failure reporting — delegating the
 distinct concerns to collaborators: `MessageLog` (the run's single writer of dialogue events —
 inbound ack, progress, answer, error — one `save_message` durable step per event with a
 deterministic per-run `seq`, so replays dedupe backend-side) and
@@ -63,8 +64,7 @@ content — mail, tickets, web; a prompt-injection channel) is wrapped by the di
 `<untrusted_tool_output>` with the closing tag neutralized inside the payload; the wrapper's
 semantics are pinned by the `ContextBuilder` system paragraph. History arrives pre-assembled in `PreparedContext.history`
 (backend window/filter, completed runs only); delivery and persistence are backend projections
-of `SaveMessage` — the worker no longer routes channels. `PreparedContext` stays in `workers/run` — its FQCN is pinned by the DBOS
-checkpoint (in-flight runs replay the serialized step result across deploys). See
+of `SaveMessage` — the worker no longer routes channels. See
 [agent-context-design.md](../architecture/agents-and-runs.md) for the context-assembly design.
 
 ### Продолжать или закончить

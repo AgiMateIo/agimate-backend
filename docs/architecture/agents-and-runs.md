@@ -87,8 +87,8 @@ flags, connector blocks via `PromptBlockProvider`) and the scoped toolset;
 untrusted ones with the data-not-instructions preamble (neutralizing closing tags inside the
 payload), splits ephemeral user blocks (memory notes) into a non-persisted prefix prepended
 ahead of the user's message. LLM
-credentials deliberately stay a separate inline RPC — the `GetRunContext` result is
-checkpointed and must not carry the api_key.
+credentials deliberately stay a separate inline RPC — fetched per call, the api_key neither enters
+a checkpoint nor outlives the call.
 
 Stage 3 (`SaveMessage`) makes the worker the single writer of dialogue events: history is the
 dialogue «as the user saw it» (INBOUND/PROGRESS/ANSWER/ERROR text, no tool_call/thinking

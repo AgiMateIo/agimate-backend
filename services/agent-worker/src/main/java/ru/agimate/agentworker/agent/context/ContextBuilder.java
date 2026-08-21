@@ -30,10 +30,6 @@ import java.util.regex.Pattern;
  * wrapped in {@code <name attrs>…</name>}; an untrusted block additionally gets a preamble
  * pinning it as data, and closing tags inside its content are neutralized so the payload cannot
  * break out of the wrapper.
- *
- * <p>{@code PreparedContext} stays in {@code workers.run} — its FQCN is pinned by the DBOS
- * {@code prepare_context} checkpoint (in-flight runs replay the serialized step result across
- * deploys), so this pure package deliberately references it there.
  */
 @Slf4j
 public final class ContextBuilder {

@@ -3,8 +3,8 @@ package ru.agimate.controlapi.service.runcontext;
 /**
  * A reference to an inbound attachment within a run's context — the wire form for
  * {@code RunContext.inbound_parts}. Metadata and an {@code agf_} reference only; the worker pulls the
- * bytes with a separate {@code GetFile}, so only the reference enters the
- * {@code prepare_context} DBOS checkpoint (see docs/connectors/files.md).
+ * bytes with a separate {@code GetFile}, so a DBOS checkpoint only ever holds the reference, never
+ * the contents (see docs/connectors/files.md).
  *
  * @param fileId the file's public id ({@code agf_<uuid>})
  * @param type   attachment type (image | video | audio | file) — it drives the worker's multimodality

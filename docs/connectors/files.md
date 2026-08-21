@@ -220,8 +220,8 @@ HTTP-DTO и подписанные ссылки, а слой байтов и в�
   (`[[attach:agf_…]]`, см. `ATTACHMENT_GUIDANCE` — расширен на inbound-файлы). Это одновременно
   плейсхолдер в истории (протокол текстовый). `InboundTextResolver` возвращает полное
   `InboundMessage`; `RunContextService` кладёт ссылки в `RunContextView.inboundParts`.
-- **Протокол v2**. `RunContext.inbound_parts` (`repeated FilePart` — только `agf_`-ссылки, без байтов;
-  безопасно для DBOS-чекпоинта `prepare_context`). Новый RPC `AgentContext.GetFile` (server-streaming
+- **Протокол v2**. `RunContext.inbound_parts` (`repeated FilePart` — только `agf_`-ссылки, без байтов:
+  в чекпоинт уезжает ссылка, содержимое — никогда). Новый RPC `AgentContext.GetFile` (server-streaming
   чанки 128 KB) отдаёт содержимое воркеру с ownership-гейтом `file.user_id == agent.user_id`.
 - **Воркер → LLM**. `inbound_parts` доезжают до `AgentChatMessage.parts` (только ссылки). Байты
   image-вложений воркер тянет `GetFile`'ом **inline при llm_call** — как `api_key`, вне чекпоинта —

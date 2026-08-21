@@ -13,9 +13,9 @@ service AgentContext {
   // (ContextSpec: skill/tool scope, guidance) lives entirely on the backend; the worker only
   // renders the blocks in the order given. run_id = agent_runs.id.
   rpc GetRunContext(GetRunContextRequest) returns (RunContext);
-  // Deliberately separate from GetRunContext: the worker checkpoints that result (durable step
-  // prepare_context), and api_key must never enter a checkpoint — credentials are fetched inline
-  // on every llm_call.
+  // Deliberately separate from GetRunContext: credentials are fetched inline on every llm_call, so
+  // the api_key never enters a DBOS checkpoint and never outlives the call — a rotated key takes
+  // effect on the next turn.
   rpc GetLlmCredentials(GetLlmCredentialsRequest) returns (LlmCredentials);
   // Token accounting: best-effort report from the worker after each successful LLM call.
   // Idempotent by call_id (the DBOS workflow id of the LLM call) — a repeat returns duplicate=true.
