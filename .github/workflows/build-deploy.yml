@@ -166,3 +166,8 @@ jobs:
           REGISTRY: ${{ vars.REGISTRY }}
           INFRA_REPO_SSH: ${{ vars.INFRA_REPO_SSH }}
           INFRA_DEPLOY_KEY: ${{ secrets.INFRA_DEPLOY_KEY }}
+          # Read-only here: infra's update-image.sh uses these solely to inspect the
+          # pushed manifest and refuse to write the tag if the image is not amd64.
+          # Without them that check degrades to a warning and a broken tag reaches ArgoCD.
+          CR_USERNAME: ${{ secrets.CR_USERNAME }}
+          CR_PASSWORD: ${{ secrets.CR_PASSWORD }}

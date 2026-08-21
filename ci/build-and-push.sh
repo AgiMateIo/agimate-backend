@@ -65,6 +65,28 @@ docker build \
   -f "services/${SERVICE}/Dockerfile" \
   "services"
 
+# ── Architecture gate ────────────────────────────────────
+# Cluster nodes are amd64. A plain `docker build` inherits the host architecture,
+# so a job that lands on an arm runner produces an arm64 image that pushes and
+# deploys without complaint and then dies in the pod with `exec format error`.
+# The three build jobs run in parallel on `runs-on: self-hosted` with no way to
+# tell the runners apart, so this is decided per job: in v0.3.0-10-g541550ad
+# user-api and agent-worker came out amd64 while control-api came out arm64.
+# Runner labels cannot fix it — act-runner writes "x64:host" into .runner
+# statically at registration, so an arm runner advertises itself as x64.
+# The built image is the only honest witness, which is why this reads the
+# artifact, not the runner. Before the push on purpose: a wrong image must not
+# reach the registry, where `latest` would also start pointing at it.
+EXPECTED_ARCH="${EXPECTED_ARCH:-amd64}"
+ARCH=$(docker image inspect --format '{{.Architecture}}' "${IMAGE}:${TAG}")
+if [ "$ARCH" != "$EXPECTED_ARCH" ]; then
+  echo "❌ Built ${ARCH}, cluster nodes are ${EXPECTED_ARCH} — this job ran on an arm runner."
+  echo "   Nothing was pushed. Disable the arm runner, or build with"
+  echo "   --platform ${EXPECTED_ARCH} (slow: QEMU emulation) and retry."
+  exit 1
+fi
+echo "▶ Architecture: ${ARCH} ✓"
+
 # ── Docker push ──────────────────────────────────────────
 registry_login() {
   echo "${CR_PASSWORD}" | docker login "${REGISTRY}" -u "${CR_USERNAME}" --password-stdin
