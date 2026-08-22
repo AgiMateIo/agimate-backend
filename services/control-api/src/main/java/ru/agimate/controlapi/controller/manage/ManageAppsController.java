@@ -77,7 +77,10 @@ public class ManageAppsController {
         return SuccessResponse.ok(UserAppDetailResponse.from(app));
     }
 
-    @Operation(summary = "Update an app")
+    @Operation(summary = "Update an app (partial)",
+            description = "Only the fields present in the body are written; a description sent as an "
+                    + "empty string is cleared. Identical to PATCH — this app's update has always been "
+                    + "partial, PUT is kept for the clients already calling it")
     @PutMapping("/{appId}")
     public SuccessResponse<AppResponse> updateApp(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
@@ -93,6 +96,21 @@ public class ManageAppsController {
                 request.enabled()
         );
         return SuccessResponse.ok(AppResponse.from(updated));
+    }
+
+    // The canonical verb for what this handler does. It delegates rather than sharing one mapping with
+    // PUT: two methods on one @RequestMapping collide on operationId, and the frontend generates its
+    // client from that.
+    @Operation(summary = "Partially update an app",
+            description = "Only the fields present in the body are written; a description sent as an "
+                    + "empty string is cleared")
+    @PatchMapping("/{appId}")
+    public SuccessResponse<AppResponse> patchApp(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID appId,
+            @Valid @RequestBody UpdateAppRequest request
+    ) {
+        return updateApp(principal, appId, request);
     }
 
     @Operation(summary = "Delete an app (soft delete)")

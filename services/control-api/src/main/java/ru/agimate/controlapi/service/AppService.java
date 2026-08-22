@@ -116,8 +116,10 @@ public class AppService {
                 .filter(k -> k.getUserId().equals(userId))
                 .orElseThrow(() -> new NotFoundStatusException("App not found"));
 
+        // Partial by design (see the endpoint, which answers to both PUT and PATCH): null is "not sent",
+        // and a blank description is the erase — the only field here that has anything to erase.
         if (name != null) app.setName(name);
-        if (description != null) app.setDescription(description);
+        if (description != null) app.setDescription(description.isBlank() ? null : description);
         if (enabled != null) app.setEnabled(enabled);
 
         return appRepository.save(app);
