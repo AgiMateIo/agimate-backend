@@ -98,7 +98,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes, imageInput), options);
             ChatResponse response = callWithRetry(model, prompt);
             String callId = currentCallId();
-            return Result.ok(mapper.fromResponse(response), mapper.finishReason(response),
+            return Result.ok(mapper.fromResponse(response, callId), mapper.finishReason(response),
                     creds.getModel(), callId, buildUsage(response, creds, callId),
                     mapper.reasoning(response));
         } catch (Exception e) {

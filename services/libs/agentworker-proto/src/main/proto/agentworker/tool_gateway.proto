@@ -24,9 +24,10 @@ service ToolGateway {
 }
 
 message ExecuteToolRequest {
-  // The idempotency key, minted by the worker (the model's turn id). A repeat with the same id and
-  // the same input finishes the earlier call instead of executing a second one; the same id with a
-  // different input is a conflict.
+  // The idempotency key, minted by the worker itself — never the id the provider put on the tool
+  // call, which some OpenAI-compatible servers number positionally and restart every response. A
+  // repeat with the same id and the same input finishes the earlier call instead of executing a
+  // second one; the same id with a different input is a conflict.
   string tool_call_id = 1;
   string connector_code = 2;
   string connection_id = 3 [json_name = "connectionId"];

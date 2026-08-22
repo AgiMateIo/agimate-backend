@@ -24,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("LlmMessageMapper — флаг thinking из reasoning-метаданных")
 class LlmMessageMapperThinkingTest {
 
+    private static final String CALL_ID = "wf-llm-1";
+
     private final LlmMessageMapper mapper = new LlmMessageMapper();
 
     /** As {@code OpenAiChatModel} builds it: the reasoning key is always present, empty when absent on the wire. */
@@ -48,7 +50,7 @@ class LlmMessageMapperThinkingTest {
     @Test
     @DisplayName("непустой reasoningContent → thinking = true, текст и тулы не затронуты")
     void reasoningContentSetsFlag() {
-        AgentChatMessage msg = mapper.fromResponse(response(metadata("reasoningContent", "сначала подумаю")));
+        AgentChatMessage msg = mapper.fromResponse(response(metadata("reasoningContent", "сначала подумаю")), CALL_ID);
 
         assertTrue(msg.thinking());
         assertEquals("готово", msg.text());
@@ -57,26 +59,26 @@ class LlmMessageMapperThinkingTest {
     @Test
     @DisplayName("пустой reasoningContent (модель не рассуждала) → thinking = false")
     void blankReasoningContentLeavesFlagOff() {
-        assertFalse(mapper.fromResponse(response(metadata("reasoningContent", ""))).thinking());
-        assertFalse(mapper.fromResponse(response(metadata("reasoningContent", "   "))).thinking());
+        assertFalse(mapper.fromResponse(response(metadata("reasoningContent", "")), CALL_ID).thinking());
+        assertFalse(mapper.fromResponse(response(metadata("reasoningContent", "   ")), CALL_ID).thinking());
     }
 
     @Test
     @DisplayName("не-строка под ключом не считается рассуждением")
     void nonStringReasoningIgnored() {
-        assertFalse(mapper.fromResponse(response(metadata("reasoningContent", 42))).thinking());
+        assertFalse(mapper.fromResponse(response(metadata("reasoningContent", 42)), CALL_ID).thinking());
     }
 
     @Test
     @DisplayName("ключа нет вовсе → фолбэк на любой reasoning-ключ (переименование в Spring AI)")
     void fallsBackToAnyReasoningKey() {
-        assertTrue(mapper.fromResponse(response(metadata("reasoning_content", "подумал"))).thinking());
-        assertTrue(mapper.fromResponse(response(metadata("reasoning", "подумал"))).thinking());
+        assertTrue(mapper.fromResponse(response(metadata("reasoning_content", "подумал")), CALL_ID).thinking());
+        assertTrue(mapper.fromResponse(response(metadata("reasoning", "подумал")), CALL_ID).thinking());
     }
 
     @Test
     @DisplayName("метаданных о рассуждении нет — thinking = false, а не исключение")
     void noReasoningMetadataAtAll() {
-        assertFalse(mapper.fromResponse(response(metadata(null, null))).thinking());
+        assertFalse(mapper.fromResponse(response(metadata(null, null)), CALL_ID).thinking());
     }
 }

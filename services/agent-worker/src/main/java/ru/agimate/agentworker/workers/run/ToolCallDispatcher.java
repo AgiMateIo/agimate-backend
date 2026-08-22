@@ -13,11 +13,9 @@ import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Per-run {@link AgiMateAgent.ToolDispatcher}: enqueues every tool call in deterministic order first,
@@ -52,9 +50,9 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
         // Enqueue every call first (deterministic order), then await, so they run concurrently.
         List<Pending> pending = new ArrayList<>(calls.size());
         for (AgentChatMessage.ToolCall tc : calls) {
-            // OpenAI always emits a tool_call_id; the fallback covers OpenAI-shim providers
-            // (e.g. some Ollama configurations) that occasionally drop it.
-            String toolCallId = effectiveToolCallId(tc.id());
+            // Minted by LlmMessageMapper in place of the provider's, so it is unique across the run
+            // and stable across replays — the backend keys tool call idempotency on it.
+            String toolCallId = tc.id();
             ToolRegistry.BackendTool bt = registry.resolve(tc.name());
             if (bt == null) {
                 log.warn("model called unknown tool {}; {} available: {}", tc.name(), registry.names().size(), registry.names());
@@ -101,23 +99,6 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
     static String wrapUntrusted(String content) {
         String tag = ContextBuilder.UNTRUSTED_TOOL_OUTPUT_TAG;
         return "<" + tag + ">\n" + ContextBuilder.neutralizeClosingTag(content, tag) + "\n</" + tag + ">";
-    }
-
-    /** Counter of generated fallback ids; deterministic in the order of calls within a run. */
-    private int generatedIdSeq = 0;
-
-    /**
-     * The LLM-emitted id, or a deterministic fallback when the provider dropped it. The fallback
-     * derives from the run id and a per-run counter — never random: the workflow body re-executes
-     * on a DBOS crash-replay, and the id must stay the one the backend already executed (and
-     * deduped) the call under.
-     */
-    String effectiveToolCallId(String id) {
-        if (id != null && !id.isBlank()) {
-            return id;
-        }
-        return UUID.nameUUIDFromBytes(("agimate-toolcall:" + runId + ":" + generatedIdSeq++)
-                .getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     private static AgentChatMessage.ToolResult failed(AgentChatMessage.ToolCall tc, String toolCallId, String error) {

@@ -18,9 +18,14 @@ import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.FilePartRef;
 import ru.agimate.agentworker.agent.model.ToolDef;
 
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Maps between the worker's {@link AgentChatMessage} model and Spring AI's message/tool types.
@@ -31,6 +36,10 @@ import java.util.Map;
 @Slf4j
 @Component
 public class LlmMessageMapper {
+
+    /** Alphabet and length of a minted tool call id — see {@link #mintToolCallId(String, int)}. */
+    private static final String ID_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final int ID_LENGTH = 9;
 
     /**
      * The «vision» framing for the current call: attachment stubs ({@code MediaStubs} on the backend)
@@ -170,15 +179,65 @@ public class LlmMessageMapper {
         return response.getResult().getMetadata().getFinishReason();
     }
 
-    /** Convert a non-streaming chat response to an assistant message (text + tool calls + thinking). */
-    public AgentChatMessage fromResponse(ChatResponse response) {
+    /**
+     * Convert a non-streaming chat response to an assistant message (text + tool calls + thinking).
+     *
+     * @param callId the LLM call's workflow id — the seed the tool call ids are minted from
+     */
+    public AgentChatMessage fromResponse(ChatResponse response, String callId) {
         AssistantMessage out = response.getResult().getOutput();
-        List<AgentChatMessage.ToolCall> toolCalls = out.getToolCalls().stream()
-                .map(tc -> new AgentChatMessage.ToolCall(tc.id(), tc.name(), tc.arguments()))
-                .toList();
+        List<AgentChatMessage.ToolCall> toolCalls = new ArrayList<>();
+        for (AssistantMessage.ToolCall tc : out.getToolCalls()) {
+            toolCalls.add(new AgentChatMessage.ToolCall(
+                    mintToolCallId(callId, toolCalls.size()), tc.name(), tc.arguments()));
+        }
         // Only the flag lives on the message (it drives the 💭 progress marker); the reasoning text
         // itself travels on LlmMeta — see reasoning(ChatResponse).
         return AgentChatMessage.assistant(out.getText(), reasoning(response) != null, toolCalls);
+    }
+
+    /**
+     * Our own tool call id, minted in place of the one the provider sent: an id coming back from a
+     * model is data, not a key. Several OpenAI-compatible servers number tool calls positionally
+     * ({@code call_0}, {@code call_1}) and restart the counter every response, so the same id
+     * returns carrying different arguments — while the backend keys tool call idempotency on it,
+     * per agent, for the agent's whole life. Minted always rather than when an id looks suspicious:
+     * the repeating shape differs per stack (sglang, vLLM and Bedrock have each produced one), and
+     * «looks unique» is not «is unique».
+     *
+     * <p>Derived from the LLM call's workflow id, so a DBOS replay of that call mints the same ids
+     * for the same calls and the tool workflows keep deduplicating against the rows they created.
+     *
+     * <p>Nine alphanumerics is the intersection of what providers accept: Mistral rejects anything
+     * but {@code [a-zA-Z0-9]{9}} — an underscore included, so OpenAI's own {@code call_…} fails
+     * there — OpenAI caps the id at 40 characters, and the rest do not look. 62^9 ≈ 1.4e16 makes a
+     * collision unreachable across one agent's calls, which is the whole scope an id has to be
+     * unique in: the backend addresses a call by {@code (agent_id, external_id)}. That address is
+     * what nine characters are enough for — a lookup by the id alone would not be safe at this
+     * length.
+     *
+     * @param callId blank outside DBOS, where there is no replay to stay consistent with and a
+     *               random seed does just as well
+     */
+    static String mintToolCallId(String callId, int index) {
+        String seed = (callId == null || callId.isBlank() ? UUID.randomUUID().toString() : callId)
+                + ":" + index;
+        BigInteger value = new BigInteger(1, sha256(seed));
+        BigInteger base = BigInteger.valueOf(ID_ALPHABET.length());
+        StringBuilder id = new StringBuilder(ID_LENGTH);
+        for (int i = 0; i < ID_LENGTH; i++) {
+            id.append(ID_ALPHABET.charAt(value.mod(base).intValue()));
+            value = value.divide(base);
+        }
+        return id.toString();
+    }
+
+    private static byte[] sha256(String seed) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
     }
 
     /**

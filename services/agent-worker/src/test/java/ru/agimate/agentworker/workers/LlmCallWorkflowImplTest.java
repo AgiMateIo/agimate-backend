@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -89,7 +90,7 @@ class LlmCallWorkflowImplTest {
             ChatResponse response = new ChatResponse(List.of(),
                     ChatResponseMetadata.builder().usage(new DefaultUsage(100, 20)).build());
             when(model.call(any(Prompt.class))).thenReturn(response);
-            when(mapper.fromResponse(response)).thenReturn(
+            when(mapper.fromResponse(eq(response), any())).thenReturn(
                     AgentChatMessage.assistant("ok", false, List.of()));
         }
 
