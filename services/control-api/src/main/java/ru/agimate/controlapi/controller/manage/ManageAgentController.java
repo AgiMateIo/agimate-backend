@@ -12,6 +12,7 @@ import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.AgentCreatedResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateAgentRequest;
+import ru.agimate.controlapi.controller.manage.dto.PatchAgentRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateAgentRequest;
 import ru.agimate.controlapi.service.AgentService;
 
@@ -73,6 +74,20 @@ public class ManageAgentController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(agentService.update(agentId, userId, request));
+    }
+
+    @Operation(summary = "Partially update an agent",
+            description = "Only the fields present in the body are written; a field sent as an empty "
+                    + "string is cleared. Switching type away from WEBHOOK clears webhookUrl and "
+                    + "webhookAuthHeader on the server")
+    @PatchMapping("/{agentId}")
+    public SuccessResponse<AgentResponse> patchAgent(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID agentId,
+            @Valid @RequestBody PatchAgentRequest request
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentService.patch(agentId, userId, request));
     }
 
     @Operation(summary = "Delete an agent")

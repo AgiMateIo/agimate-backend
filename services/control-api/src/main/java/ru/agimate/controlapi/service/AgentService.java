@@ -21,6 +21,7 @@ import ru.agimate.controlapi.controller.agent.dto.ToolDefinition;
 import ru.agimate.controlapi.controller.manage.dto.AgentResponse;
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillSummary;
 import ru.agimate.controlapi.controller.manage.dto.CreateAgentRequest;
+import ru.agimate.controlapi.controller.manage.dto.PatchAgentRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateAgentRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.AgentLlmResponse;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -149,10 +150,7 @@ public class AgentService {
         if (!agent.getUserId().equals(userId)) {
             throw new NotFoundStatusException("Agent not found");
         }
-        var team = resolveTeam(agent.getAgenticTeamId());
-        var skills = loadSkillSummaries(List.of(id)).getOrDefault(id, List.of());
-        var llms = agentLlmService.listForAgents(List.of(agent)).getOrDefault(id, List.of());
-        return AgentResponse.from(agent, team, skills, llms);
+        return detailResponse(agent);
     }
 
     public AgentConfigResponse getConfigById(UUID agentId) {
@@ -361,12 +359,7 @@ public class AgentService {
 
     @Transactional
     public AgentCreateResult regenerateKey(UUID id, UUID userId) {
-        Agent agent = agentRepository.findById(id)
-                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-
-        if (!agent.getUserId().equals(userId)) {
-            throw new ForbiddenStatusException("Access denied");
-        }
+        Agent agent = ownedAgent(id, userId);
 
         GeneratedAppKey generatedKey = AppKeyUtils.generate(AGENT_KEY_PREFIX);
         agent.setKeyHash(generatedKey.secretHash());
@@ -388,12 +381,7 @@ public class AgentService {
 
     @Transactional
     public AgentResponse update(UUID id, UUID userId, AgentUpdateCommand command) {
-        Agent agent = agentRepository.findById(id)
-                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-
-        if (!agent.getUserId().equals(userId)) {
-            throw new ForbiddenStatusException("Access denied");
-        }
+        Agent agent = ownedAgent(id, userId);
 
         AgentType type = command.type() != null
                 ? command.type() : agent.getType();
@@ -413,22 +401,66 @@ public class AgentService {
         }
         agent = agentRepository.save(agent);
 
-        var team = resolveTeam(agent.getAgenticTeamId());
-        var skills = loadSkillSummaries(List.of(id)).getOrDefault(id, List.of());
-        var llms = agentLlmService.listForAgents(List.of(agent)).getOrDefault(id, List.of());
-
         log.info("Updated agent id={}", id);
-        return AgentResponse.from(agent, team, skills, llms);
+        return detailResponse(agent);
+    }
+
+    @Transactional
+    public AgentResponse patch(UUID id, UUID userId, PatchAgentRequest request) {
+        return patch(id, userId, new AgentUpdateCommand(
+                request.name(), request.description(), request.instructions(), request.type(),
+                request.webhookUrl(), request.webhookAuthHeader(), request.enabled()));
+    }
+
+    /**
+     * The partial counterpart of {@link #update}: {@code null} means "the field was not sent" and keeps
+     * its value, an empty string is the explicit erase. The webhook pair is normalized here rather than
+     * by the caller — an agent that stops being WEBHOOK keeps an address and a secret nothing will read
+     * again, and every client would otherwise have to remember to clear them.
+     *
+     * @param command the same record {@link #update} takes, read with PATCH semantics
+     */
+    @Transactional
+    public AgentResponse patch(UUID id, UUID userId, AgentUpdateCommand command) {
+        Agent agent = ownedAgent(id, userId);
+
+        AgentType type = command.type() != null ? command.type() : agent.getType();
+        boolean leavesWebhook = agent.getType() == AgentType.WEBHOOK && type != AgentType.WEBHOOK;
+        String webhookUrl = leavesWebhook ? null
+                : command.webhookUrl() != null ? cleared(command.webhookUrl()) : agent.getWebhookUrl();
+
+        validateWebhookFields(type, webhookUrl);
+        requireChannelsCanFollowTheType(agent, type);
+
+        if (command.name() != null) {
+            if (cleared(command.name()) == null) {
+                throw new ValidationErrorStatusException("name", "Name must not be blank");
+            }
+            agent.setName(command.name());
+        }
+        if (command.description() != null) {
+            agent.setDescription(cleared(command.description()));
+        }
+        if (command.instructions() != null) {
+            agent.setInstructions(cleared(command.instructions()));
+        }
+        agent.setType(type);
+        agent.setWebhookUrl(webhookUrl);
+        if (leavesWebhook || command.webhookAuthHeader() != null) {
+            applyWebhookAuthHeader(agent, leavesWebhook ? null : command.webhookAuthHeader());
+        }
+        if (command.enabled() != null) {
+            agent.setEnabled(command.enabled());
+        }
+        agent = agentRepository.save(agent);
+
+        log.info("Patched agent id={}", id);
+        return detailResponse(agent);
     }
 
     @Transactional
     public void delete(UUID id, UUID userId) {
-        Agent agent = agentRepository.findById(id)
-                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
-
-        if (!agent.getUserId().equals(userId)) {
-            throw new ForbiddenStatusException("Access denied");
-        }
+        Agent agent = ownedAgent(id, userId);
 
         // We drop every binding together with its policies: the mode rows and the external instances live on
         // (they do not belong to the agent), but an orphaned binding's rules must not remain.
@@ -441,6 +473,28 @@ public class AgentService {
         agent.setDeletedAt(LocalDateTime.now());
 
         log.info("Soft-deleted agent id={}", id);
+    }
+
+    private Agent ownedAgent(UUID id, UUID userId) {
+        Agent agent = agentRepository.findById(id)
+                .orElseThrow(() -> new NotFoundStatusException("Agent not found"));
+        if (!agent.getUserId().equals(userId)) {
+            throw new ForbiddenStatusException("Access denied");
+        }
+        return agent;
+    }
+
+    private AgentResponse detailResponse(Agent agent) {
+        UUID id = agent.getId();
+        var team = resolveTeam(agent.getAgenticTeamId());
+        var skills = loadSkillSummaries(List.of(id)).getOrDefault(id, List.of());
+        var llms = agentLlmService.listForAgents(List.of(agent)).getOrDefault(id, List.of());
+        return AgentResponse.from(agent, team, skills, llms);
+    }
+
+    /** The PATCH convention: a field that arrived blank was sent to be erased. */
+    private static String cleared(String value) {
+        return value.isBlank() ? null : value;
     }
 
     private AgenticTeam resolveTeam(UUID agenticTeamId) {
