@@ -184,6 +184,18 @@ class SkillServiceTest {
         }
 
         @Test
+        @DisplayName("update без isPublic не снимает публичность")
+        void omittedIsPublicKeepsVisibility() {
+            when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(systemSkill()));
+            when(skillRepository.save(any(Skill.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            SkillResponse response = service.update(SKILL_ID, USER_ID, true,
+                    new UpdateSkillRequest(systemSkillMd("board"), null));
+
+            assertTrue(response.isPublic());
+        }
+
+        @Test
         @DisplayName("переименование системного скилла запрещено → 400")
         void renameSystemForbidden() {
             when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(systemSkill()));

@@ -9,10 +9,7 @@ public record UpdateSkillRequest(
         @Schema(description = "Content of SKILL.md with frontmatter")
         String skillMd,
 
-        @Schema(description = "Whether the skill is public")
+        @Schema(description = "Whether the skill is public; omit to keep the current visibility")
         Boolean isPublic
 ) {
-    public boolean resolveIsPublic() {
-        return isPublic != null && isPublic;
-    }
 }

@@ -125,12 +125,17 @@ public class SkillService {
 
     @Transactional
     public SkillResponse update(UUID id, UUID userId, boolean admin, UpdateSkillRequest request) {
-        return SkillResponse.from(update(id, userId, admin, request.skillMd(), request.resolveIsPublic()));
+        return SkillResponse.from(update(id, userId, admin, request.skillMd(), request.isPublic()));
     }
 
-    /** Service-layer overload (the connector layer): editing SKILL.md, returning the entity (no controller DTO). */
+    /**
+     * Service-layer overload (the connector layer): editing SKILL.md, returning the entity (no controller DTO).
+     *
+     * @param isPublic {@code null} keeps the current visibility — this endpoint replaces the document, and a
+     *                 caller editing only the body must not unpublish the skill by omission
+     */
     @Transactional
-    public Skill update(UUID id, UUID userId, boolean admin, String skillMd, boolean isPublic) {
+    public Skill update(UUID id, UUID userId, boolean admin, String skillMd, Boolean isPublic) {
         Skill skill = findOwnedOrSystemAdmin(id, userId, admin);
         boolean system = isSystem(skill);
 
@@ -154,7 +159,9 @@ public class SkillService {
         skill.setDescription(parsed.description());
         skill.setMdContent(parsed.body());
         skill.setConnectorCodes(new ArrayList<>(parsed.connectors()));
-        skill.setIsPublic(isPublic);
+        if (isPublic != null) {
+            skill.setIsPublic(isPublic);
+        }
         skill.setVersion(skill.getVersion() + 1);
 
         try {

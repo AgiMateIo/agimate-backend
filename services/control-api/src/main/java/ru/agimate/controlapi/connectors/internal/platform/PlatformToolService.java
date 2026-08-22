@@ -298,11 +298,11 @@ public class PlatformToolService {
     public SkillDetail updateSkill(
             @ToolParam("Skill public ID") String skillId,
             @ToolParam("Full SKILL.md content (frontmatter + body)") String skillMd,
-            @ToolParam(value = "Publish to the shared catalog (default false)", required = false)
+            @ToolParam(value = "Publish to the shared catalog; omit to keep the current visibility",
+                    required = false)
             Boolean isPublic) {
         UUID id = parseUuid(skillId, "skillId");
-        domain(() -> skillService.update(id, userId(), false, requireText(skillMd, "skillMd"),
-                Boolean.TRUE.equals(isPublic)));
+        domain(() -> skillService.update(id, userId(), false, requireText(skillMd, "skillMd"), isPublic));
         return getSkill(skillId);
     }
 
