@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -221,8 +222,8 @@ class PlatformToolServiceTest {
     class UpdateAgent {
 
         @Test
-        @DisplayName("переименование сохраняет инструкции и описание (частичный апдейт)")
-        void renameKeepsInstructions() {
+        @DisplayName("переименование уходит в patch одним полем — остальные не трогаются")
+        void renameSendsOnlyTheName() {
             UUID agentId = UUID.randomUUID();
             when(agentRepository.findById(agentId)).thenReturn(Optional.of(Agent.builder()
                     .id(agentId).userId(USER_ID).name("Old").description("keep desc")
@@ -233,11 +234,13 @@ class PlatformToolServiceTest {
                     Map.of("agentId", agentId.toString(), "name", "New Name"));
 
             ArgumentCaptor<AgentUpdateCommand> captor = ArgumentCaptor.forClass(AgentUpdateCommand.class);
-            verify(agentService).update(eq(agentId), eq(USER_ID), captor.capture());
+            verify(agentService).patch(eq(agentId), eq(USER_ID), captor.capture());
             AgentUpdateCommand cmd = captor.getValue();
             assertEquals("New Name", cmd.name());
-            assertEquals("keep prompt", cmd.instructions());
-            assertEquals("keep desc", cmd.description());
+            // Nothing else was passed, so patch leaves it alone — the tool no longer copies values back in
+            assertNull(cmd.instructions());
+            assertNull(cmd.description());
+            assertNull(cmd.type());
         }
     }
 }

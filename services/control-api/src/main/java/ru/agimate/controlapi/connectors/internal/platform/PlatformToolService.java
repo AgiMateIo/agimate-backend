@@ -270,14 +270,11 @@ public class PlatformToolService {
         if (existing.getType() == AgentType.WEBHOOK) {
             throw new ConnectorException("WEBHOOK agents are managed in the UI");
         }
-        // AgentService.update has PUT semantics (it sets the fields unconditionally). The tool is partial: a
-        // description or instructions that were not passed are carried over from the existing agent, otherwise a
-        // rename would wipe the prompt.
-        String newDescription = blankToNull(description) != null ? description : existing.getDescription();
-        String newInstructions = blankToNull(instructions) != null ? instructions : existing.getInstructions();
-        var command = new AgentUpdateCommand(blankToNull(name), newDescription, newInstructions,
-                existing.getType(), existing.getWebhookUrl(), null, enabled);
-        domain(() -> agentService.update(id, userId(), command));
+        // A blank argument means the agent did not pass it, so it reaches patch as null — "leave alone".
+        // The tool therefore cannot erase a field, which is what we want: an erase should be deliberate.
+        var command = new AgentUpdateCommand(blankToNull(name), blankToNull(description),
+                blankToNull(instructions), null, null, null, enabled);
+        domain(() -> agentService.patch(id, userId(), command));
         return getAgent(agentId);
     }
 
