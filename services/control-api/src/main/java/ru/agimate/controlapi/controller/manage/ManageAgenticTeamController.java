@@ -10,6 +10,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.AgenticTeamResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateAgenticTeamRequest;
+import ru.agimate.controlapi.controller.manage.dto.PatchAgenticTeamRequest;
 import ru.agimate.controlapi.controller.manage.dto.UpdateAgenticTeamRequest;
 import ru.agimate.controlapi.service.AgenticTeamService;
 
@@ -64,6 +65,19 @@ public class ManageAgenticTeamController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(agenticTeamService.update(id, userId, request));
+    }
+
+    @Operation(summary = "Partially update an agentic team",
+            description = "Only the fields present in the body are written; a field sent as an empty "
+                    + "string is cleared")
+    @PatchMapping("/{id}")
+    public SuccessResponse<AgenticTeamResponse> patchAgenticTeam(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody PatchAgenticTeamRequest request
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agenticTeamService.patch(id, userId, request));
     }
 
     @Operation(summary = "Delete agentic team")
