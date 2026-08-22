@@ -18,6 +18,7 @@ import ru.agimate.controlapi.service.ConnectorService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.dto.IToolResult;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -32,7 +33,7 @@ public class AgentToolCallService {
     private sealed interface EvaluationResult {
         record Created(ToolCallLog log, AccessDecision decision) implements EvaluationResult {}
         record Replay(ToolCallLog log) implements EvaluationResult {}
-        record InputConflict(ToolCallLog existing) implements EvaluationResult {}
+        record IdConflict(ToolCallLog existing) implements EvaluationResult {}
     }
 
     /** Idempotency check + ABAC evaluate + create log */
@@ -65,10 +66,20 @@ public class AgentToolCallService {
         }
     }
 
+    /**
+     * The same id seen twice: one call retried, or two different calls that collided on the id.
+     * «The same» is the tool together with its input — on the input alone a collision would hand one
+     * tool's recorded result to another tool's call, which for the many no-argument tools ({@code {}}
+     * either way) is not far-fetched. The connector is deliberately out of the comparison: it is
+     * optional on the request (derived from the connection when omitted), so a genuine retry may
+     * legitimately differ on it, and a false conflict refuses a call that should have run.
+     */
     private EvaluationResult classifyExisting(ToolCallLog existing, ToolCallRequest request) {
-        return JsonUtils.jsonEquals(existing.getInput(), request.getInput())
+        boolean sameCall = Objects.equals(existing.getName(), request.getName())
+                && JsonUtils.jsonEquals(existing.getInput(), request.getInput());
+        return sameCall
                 ? new EvaluationResult.Replay(existing)
-                : new EvaluationResult.InputConflict(existing);
+                : new EvaluationResult.IdConflict(existing);
     }
 
     /**
@@ -88,7 +99,7 @@ public class AgentToolCallService {
                 }
                 yield log.getExternalId();
             }
-            case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());
+            case EvaluationResult.IdConflict(var ignored) -> throw idConflict(request.getId());
             case EvaluationResult.Created(var log, var decision) -> {
                 if (!decision.allowed()) {
                     throw notAuthorized(request, decision.reason());
@@ -107,7 +118,7 @@ public class AgentToolCallService {
     public ToolCallLog authorizeToolCall(UUID agentId, ToolCallRequest request) {
         return switch (evaluate(agentId, request)) {
             case EvaluationResult.Replay(var log) -> log;
-            case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());
+            case EvaluationResult.IdConflict(var ignored) -> throw idConflict(request.getId());
             case EvaluationResult.Created(var log, var decision) -> {
                 if (!decision.allowed()) {
                     throw notAuthorized(request, decision.reason());
@@ -121,7 +132,7 @@ public class AgentToolCallService {
     public AccessEffect checkToolCall(UUID agentId, ToolCallRequest request) {
         return switch (evaluate(agentId, request)) {
             case EvaluationResult.Replay(var log) -> log.getAccessEffect();
-            case EvaluationResult.InputConflict(var ignored) -> throw inputConflict(request.getId());
+            case EvaluationResult.IdConflict(var ignored) -> throw idConflict(request.getId());
             case EvaluationResult.Created(var log, var decision) -> decision.accessEffect();
         };
     }
@@ -131,9 +142,9 @@ public class AgentToolCallService {
                 "Tool '" + request.getName() + "' is not authorized for this agent: " + reason);
     }
 
-    private static ConflictStatusException inputConflict(String externalId) {
+    private static ConflictStatusException idConflict(String externalId) {
         return new ConflictStatusException(
-                "Tool use id '" + externalId + "' was reused with a different input");
+                "Tool use id '" + externalId + "' was reused for a different call");
     }
 
     /** Get tool use log for agent */
