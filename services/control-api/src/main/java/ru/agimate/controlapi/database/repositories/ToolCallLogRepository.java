@@ -15,8 +15,6 @@ import java.util.UUID;
 
 public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> {
 
-    Optional<ToolCallLog> findByExternalId(String externalId);
-
     Optional<ToolCallLog> findByExternalIdAndAgentId(String externalId, UUID agentId);
 
     /**

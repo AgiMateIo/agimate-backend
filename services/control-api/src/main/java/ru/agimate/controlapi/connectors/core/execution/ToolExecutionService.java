@@ -199,7 +199,7 @@ public class ToolExecutionService {
         var toolResult = new ToolResult(
                 toolCallLog.getExternalId(), toolCallLog.getConnectorCode(), output, error);
         try {
-            toolCallLogService.recordOutput(toolResult);
+            toolCallLogService.recordOutput(toolCallLog.getId(), toolResult);
         } catch (Exception logError) {
             log.warn("Failed to log tool result: {}", logError.getMessage());
         }

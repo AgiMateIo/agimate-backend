@@ -130,9 +130,15 @@ public class ToolCallLogService {
         return toolCallLogRepository.save(toolCallLog);
     }
 
+    /**
+     * Record the outcome of a call the caller already holds — addressed by the log's PK, never by
+     * {@code external_id}: that one is unique per agent, not globally (the same reason the app path
+     * correlates by PK).
+     */
     @Transactional
-    public ToolCallLog recordOutput(IToolResult toolResult) {
-        var toolCallLog = getByExternalId(toolResult.getId());
+    public ToolCallLog recordOutput(UUID logId, IToolResult toolResult) {
+        var toolCallLog = toolCallLogRepository.findById(logId)
+                .orElseThrow(() -> new NotFoundStatusException("ToolCallLog", logId.toString()));
 
         toolCallLog.applyResult(toolResult);
         return toolCallLogRepository.save(toolCallLog);
@@ -155,8 +161,7 @@ public class ToolCallLogService {
 
     @Transactional
     public ToolCallLog recordOutputByAgent(UUID agentId, IToolResult toolResult) {
-        var toolCallLog = getByExternalId(toolResult.getId());
-        verifyOwnedByAgent(toolCallLog, agentId);
+        var toolCallLog = getForAgent(toolResult.getId(), agentId);
 
         if (toolCallLog.getAccessEffect() != AccessEffect.ALLOW) {
             throw new ForbiddenStatusException("Cannot record output for denied tool use");
@@ -167,9 +172,7 @@ public class ToolCallLogService {
     }
 
     public ToolCallLog findByExternalIdForAgent(String externalId, UUID agentId) {
-        var toolCallLog = getByExternalId(externalId);
-        verifyOwnedByAgent(toolCallLog, agentId);
-        return toolCallLog;
+        return getForAgent(externalId, agentId);
     }
 
     public Page<ToolCallLogResponse> getToolCallLogs(UUID userId, UUID agentId, String connectorCode,
@@ -189,14 +192,14 @@ public class ToolCallLogService {
         return (value == null || value.isBlank()) ? null : value.trim();
     }
 
-    private ToolCallLog getByExternalId(String externalId) {
-        return toolCallLogRepository.findByExternalId(externalId)
+    /**
+     * {@code external_id} is unique per agent, so the agent is part of the address, not a check
+     * applied after a global lookup: two agents may legitimately hold the same id, and looking it up
+     * without the owner returns an arbitrary row of the two — or fails outright. Someone else's call
+     * is therefore «not found» rather than «forbidden»: the caller is not entitled to learn it exists.
+     */
+    private ToolCallLog getForAgent(String externalId, UUID agentId) {
+        return toolCallLogRepository.findByExternalIdAndAgentId(externalId, agentId)
                 .orElseThrow(() -> new NotFoundStatusException("ToolCallLog", externalId));
-    }
-
-    private void verifyOwnedByAgent(ToolCallLog toolCallLog, UUID agentId) {
-        if (!agentId.equals(toolCallLog.getAgentId())) {
-            throw new ForbiddenStatusException("ToolCallLog does not belong to this agent");
-        }
     }
 }
