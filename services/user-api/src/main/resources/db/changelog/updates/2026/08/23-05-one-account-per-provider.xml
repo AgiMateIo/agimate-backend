@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- One account per provider per person. Uniqueness used to be on (provider, provider_user_id)
+         alone, which was enough while the only way to gain a provider was to sign in through it: the
+         login joins by verified address, and one address is one account at any provider.
+
+         Binding a provider by hand does not go through an address, so nothing stopped a second
+         GitHub landing on the same person — and then the whole feature seized up, because the API
+         addresses a provider by its name: the listing showed two GitHubs and unlinking either raised
+         "expected one, got two" out of the repository. Refused in the code as well; this constraint
+         is what makes the refusal true under concurrency.
+
+         idx_user_oauth_accounts_user_id is dropped as a prefix of the new index. -->
+    <changeSet id="one-oauth-account-per-provider" author="Eugene Smith">
+        <addUniqueConstraint tableName="user_oauth_accounts"
+                             columnNames="user_id, oauth_provider"
+                             constraintName="uq_user_oauth_accounts_user_id_oauth_provider"/>
+
+        <dropIndex tableName="user_oauth_accounts" indexName="idx_user_oauth_accounts_user_id"/>
+    </changeSet>
+
+</databaseChangeLog>

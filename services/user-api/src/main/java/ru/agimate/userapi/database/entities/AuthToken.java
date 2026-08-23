@@ -50,8 +50,9 @@ public class AuthToken extends BaseEntity {
     private LocalDateTime expiresAt;
 
     /**
-     * Set both when the token is spent and when a newer one supersedes it: an older letter in the
-     * mailbox stops being a key the moment another one is sent.
+     * Stamped when the token is spent, and only then. A newer token does not retire the ones already
+     * in a mailbox: issuing can be triggered by anybody from an endpoint that needs no account, so
+     * superseding would let a stranger kill a link its owner is holding. The lifetime bounds them.
      */
     @Column(name = "used_at")
     private LocalDateTime usedAt;

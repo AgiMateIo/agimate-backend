@@ -119,7 +119,7 @@ class CookieOAuth2AuthorizationRequestRepositoryTest {
         void dropsWrongLength() {
             saveWithChallenge("tooshort");
 
-            assertNull(challengeCookie());
+            assertDeleted(challengeCookie());
         }
 
         @Test
@@ -127,15 +127,74 @@ class CookieOAuth2AuthorizationRequestRepositoryTest {
         void dropsUnexpectedCharacters() {
             saveWithChallenge("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSst\r\n=+");
 
-            assertNull(challengeCookie());
+            assertDeleted(challengeCookie());
+        }
+
+        /**
+         * Не «ничего не пишем», а «стираем»: cookie удаляется на колбэке, поэтому брошенный круг —
+         * закрытая страница согласия, кнопка «назад» — оставляет её жить четверть часа, и следующий
+         * круг прочитался бы как предыдущий.
+         */
+        @Test
+        @DisplayName("без параметра прежняя cookie стирается, а не остаётся от прошлого круга")
+        void clearsStaleCookie() {
+            saveWithChallenge(null);
+
+            assertDeleted(challengeCookie());
+        }
+    }
+
+    @Nested
+    @DisplayName("билет привязки провайдера")
+    class LinkTicket {
+
+        private static final String VALID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+        private Cookie ticketCookie() {
+            return response.getCookie(
+                    CookieOAuth2AuthorizationRequestRepository.OAUTH2_LINK_TICKET_COOKIE_NAME);
+        }
+
+        private void saveWithTicket(String ticket) {
+            if (ticket != null) {
+                request.setParameter("link_ticket", ticket);
+            }
+            save(null);
         }
 
         @Test
-        @DisplayName("веб-вход обходится без параметра — cookie не заводится")
-        void writesNothingWithoutParameter() {
-            saveWithChallenge(null);
+        @DisplayName("билет доезжает до колбэка — иначе привязывать будет некуда")
+        void keepsValidTicket() {
+            saveWithTicket(VALID);
 
-            assertNull(challengeCookie());
+            assertNotNull(ticketCookie());
+            assertEquals(VALID, ticketCookie().getValue());
         }
+
+        @Test
+        @DisplayName("значение не той формы отбрасывается")
+        void dropsMalformed() {
+            saveWithTicket("not-a-ticket");
+
+            assertDeleted(ticketCookie());
+        }
+
+        /**
+         * Иначе брошенная привязка ломает следующий вход: обычный круг прочитался бы как привязка,
+         * сессия не завелась бы вовсе, а человек увидел бы ошибку просроченного билета.
+         */
+        @Test
+        @DisplayName("обычный вход стирает билет, оставшийся от брошенной привязки")
+        void clearsStaleTicket() {
+            saveWithTicket(null);
+
+            assertDeleted(ticketCookie());
+        }
+    }
+
+    /** Удаляющая cookie — это пустое значение с нулевым сроком, а не отсутствие заголовка. */
+    private static void assertDeleted(Cookie cookie) {
+        assertNotNull(cookie, "cookie должна быть перезаписана удаляющей");
+        assertEquals(0, cookie.getMaxAge());
     }
 }

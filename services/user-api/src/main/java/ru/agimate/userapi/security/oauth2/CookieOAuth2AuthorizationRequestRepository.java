@@ -85,12 +85,20 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
             addCookie(response, OAUTH2_REF_COOKIE_NAME, ref, COOKIE_EXPIRE_SECONDS);
         }
 
+        // Both of the following are cleared when this round trip does not ask for them, and that
+        // matters more than setting them: they are deleted at the callback, so an abandoned trip —
+        // the consent page closed, the back button — leaves one behind for a quarter of an hour, and
+        // the next trip would be read as whatever the last one was. A stale link ticket turns an
+        // ordinary login into a binding that mints no session at all.
+
         // The PKCE challenge of the native client, which has to outlive the trip to the provider and
         // is unrelated to the code_verifier inside the authorization request — that one belongs to
         // our exchange with the provider, this one to the app's exchange with us.
         String codeChallenge = request.getParameter("code_challenge");
         if (isValidCodeChallenge(codeChallenge)) {
             addCookie(response, OAUTH2_CODE_CHALLENGE_COOKIE_NAME, codeChallenge, COOKIE_EXPIRE_SECONDS);
+        } else {
+            deleteCookie(request, response, OAUTH2_CODE_CHALLENGE_COOKIE_NAME);
         }
 
         // Turns this round trip from a login into a binding of the provider to an account already
@@ -100,6 +108,8 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         String linkTicket = request.getParameter("link_ticket");
         if (isValidLinkTicket(linkTicket)) {
             addCookie(response, OAUTH2_LINK_TICKET_COOKIE_NAME, linkTicket, COOKIE_EXPIRE_SECONDS);
+        } else {
+            deleteCookie(request, response, OAUTH2_LINK_TICKET_COOKIE_NAME);
         }
     }
 

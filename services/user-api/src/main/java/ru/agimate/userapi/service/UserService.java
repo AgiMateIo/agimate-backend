@@ -53,6 +53,11 @@ public class UserService {
         return userRepository.findById(id);
     }
 
+    /** Locks the row for the caller's transaction; see {@link UserRepository#findByIdForUpdate}. */
+    public Optional<UserEntity> findByIdForUpdate(UUID id) {
+        return userRepository.findByIdForUpdate(id);
+    }
+
     public Optional<UserEntity> findByReferralCode(String referralCode) {
         return userRepository.findByReferralCode(referralCode);
     }

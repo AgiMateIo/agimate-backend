@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.rest.error.TooManyRequestsStatusException;
 import ru.agimate.userapi.database.entities.AuthTokenPurpose;
 import ru.agimate.userapi.database.entities.OAuthProviderType;
 import ru.agimate.userapi.database.entities.UserEntity;
@@ -42,6 +43,9 @@ public class LoginMethodService {
     /** Long enough for the trip to a provider and back, short enough to be worthless if captured. */
     private static final Duration LINK_TICKET_TTL = Duration.ofMinutes(5);
 
+    private static final Duration TICKET_WINDOW = Duration.ofHours(1);
+    private static final int TICKET_LIMIT = 20;
+
     private static final String LINKED_LETTER = "provider-linked";
     private static final String UNLINKED_LETTER = "provider-unlinked";
     private static final String PASSWORD_REMOVED_LETTER = "password-removed";
@@ -70,11 +74,26 @@ public class LoginMethodService {
      *         nothing else ever sees
      */
     public String issueLinkTicket(UUID userId) {
+        // No minimum interval — abandoning a consent page and starting again straight away is
+        // ordinary — but a ceiling all the same: every other producer of these rows is rationed, and
+        // an authenticated client in a loop should not be able to grow the table without bound.
+        if (!authTokenService.allowedToSend(userId, AuthTokenPurpose.PROVIDER_LINK,
+                Duration.ZERO, TICKET_WINDOW, TICKET_LIMIT)) {
+            throw new TooManyRequestsStatusException("Too many linking attempts — try again later");
+        }
         return authTokenService.issue(userId, AuthTokenPurpose.PROVIDER_LINK, LINK_TICKET_TTL);
     }
 
     /** What became of a linking attempt, in the terms the redirect back to the client speaks. */
-    public enum LinkOutcome { LINKED, ALREADY_YOURS, TAKEN }
+    public enum LinkOutcome {
+        LINKED,
+        /** The same provider account, bound already. Saying so beats inventing an error. */
+        ALREADY_YOURS,
+        /** That account of that provider belongs to somebody else, and accounts are never merged. */
+        TAKEN,
+        /** A different account of a provider this person already has. One per provider, by design. */
+        PROVIDER_OCCUPIED
+    }
 
     /**
      * Binds a provider account to the person the ticket was issued to. The address the provider
@@ -99,6 +118,14 @@ public class LoginMethodService {
             return LinkOutcome.TAKEN;
         }
 
+        // A second account of a provider this person already has. Everything downstream addresses a
+        // provider by its name — the listing shows one row per provider, unlinking names a provider
+        // — so two of a kind would show up as an ambiguous listing and an unlink that cannot resolve.
+        if (!oAuthAccountRepository.findByUserEntityIdAndOauthProvider(userId, provider).isEmpty()) {
+            log.info("user {} already has a {} account linked", userId, provider);
+            return LinkOutcome.PROVIDER_OCCUPIED;
+        }
+
         oAuthAccountRepository.save(UserOAuthAccount.builder()
                 .userEntity(user)
                 .oauthProvider(provider)
@@ -115,9 +142,9 @@ public class LoginMethodService {
 
     @Transactional
     public void unlinkProvider(UUID userId, OAuthProviderType provider) {
-        UserEntity user = requireUser(userId);
+        UserEntity user = lockUser(userId);
         UserOAuthAccount account = oAuthAccountRepository
-                .findByUserEntityIdAndOauthProvider(userId, provider)
+                .findByUserEntityIdAndOauthProvider(userId, provider).stream().findFirst()
                 .orElseThrow(() -> new NotFoundStatusException("This account has no " + provider + " linked"));
 
         requireAnotherWayIn(user);
@@ -129,7 +156,7 @@ public class LoginMethodService {
 
     @Transactional
     public void dropPassword(UUID userId) {
-        UserEntity user = requireUser(userId);
+        UserEntity user = lockUser(userId);
         if (user.getPasswordHash() == null) {
             throw new NotFoundStatusException("This account has no password");
         }
@@ -166,6 +193,16 @@ public class LoginMethodService {
                 ? Map.of("name", displayName(user))
                 : Map.of("name", displayName(user), "provider", provider);
         mailService.send(user.getEmail(), letter, variables);
+    }
+
+    /**
+     * Counting the ways in and removing one are two statements, and between them another request can
+     * remove the other one — two devices, two taps, an account with nothing left to sign in with.
+     * The row is locked so that the second of them waits and then counts what the first has left.
+     */
+    private UserEntity lockUser(UUID userId) {
+        return userService.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ForbiddenStatusException("User no longer exists"));
     }
 
     private UserEntity requireUser(UUID userId) {

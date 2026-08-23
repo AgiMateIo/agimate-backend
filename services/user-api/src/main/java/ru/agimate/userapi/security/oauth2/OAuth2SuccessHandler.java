@@ -123,9 +123,11 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                     adapter.providerType(), userInfo.providerUserId(), userInfo.email(),
                     userInfo.firstName(), userInfo.lastName());
 
-            response.sendRedirect(outcome == LoginMethodService.LinkOutcome.TAKEN
-                    ? withQueryParam(target, "link_error", "already_linked")
-                    : withQueryParam(target, "linked", registrationId));
+            response.sendRedirect(switch (outcome) {
+                case TAKEN -> withQueryParam(target, "link_error", "already_linked");
+                case PROVIDER_OCCUPIED -> withQueryParam(target, "link_error", "provider_already_linked");
+                case LINKED, ALREADY_YOURS -> withQueryParam(target, "linked", registrationId);
+            });
         } catch (BaseHttpStatusException ex) {
             // A ticket that expired, was spent, or belongs to an account that is gone. The person is
             // looking at a page, not at a status code, so it comes back as one.

@@ -20,7 +20,12 @@ public interface UserOAuthAccountRepository extends JpaRepository<UserOAuthAccou
     /** Oldest first: the list of ways into an account reads as the order they were added. */
     List<UserOAuthAccount> findByUserEntityIdOrderByCreatedAtAsc(UUID userId);
 
-    Optional<UserOAuthAccount> findByUserEntityIdAndOauthProvider(UUID userId, OAuthProviderType provider);
+    /**
+     * A list, not an {@code Optional}: the unique constraint says there is at most one, and a
+     * repository that throws "expected one, got two" when the data disagrees turns a broken row into
+     * a 500 on an endpoint that could have said something useful.
+     */
+    List<UserOAuthAccount> findByUserEntityIdAndOauthProvider(UUID userId, OAuthProviderType provider);
 
     long countByUserEntityId(UUID userId);
 }

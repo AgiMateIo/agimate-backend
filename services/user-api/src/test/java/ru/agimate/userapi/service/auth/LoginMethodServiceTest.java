@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.rest.error.TooManyRequestsStatusException;
 import ru.agimate.userapi.database.entities.AuthTokenPurpose;
 import ru.agimate.userapi.database.entities.OAuthProviderType;
 import ru.agimate.userapi.database.entities.UserEntity;
@@ -80,6 +81,8 @@ class LoginMethodServiceTest {
             when(userService.findById(user.getId())).thenReturn(Optional.of(user));
             when(oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(
                     OAuthProviderType.GITHUB, PROVIDER_USER_ID)).thenReturn(Optional.empty());
+            when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(
+                    user.getId(), OAuthProviderType.GITHUB)).thenReturn(List.of());
 
             LoginMethodService.LinkOutcome outcome = service.link(TICKET, OAuthProviderType.GITHUB,
                     PROVIDER_USER_ID, "other@mailbox.org", null, null);
@@ -98,6 +101,7 @@ class LoginMethodServiceTest {
             when(userService.findById(user.getId())).thenReturn(Optional.of(user));
             when(oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(any(), anyString()))
                     .thenReturn(Optional.empty());
+            when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(any(), any())).thenReturn(List.of());
 
             service.link(TICKET, OAuthProviderType.GITHUB, PROVIDER_USER_ID, null, null, null);
 
@@ -125,6 +129,28 @@ class LoginMethodServiceTest {
             verify(mailService, never()).send(anyString(), anyString(), any());
         }
 
+        /**
+         * Всё ниже по течению адресует провайдера по имени: в списке одна строка на провайдера,
+         * отвязка называет провайдера. Два GitHub'а сделали бы список неоднозначным, а отвязку —
+         * неразрешимой.
+         */
+        @Test
+        @DisplayName("второй аккаунт того же провайдера не привязывается")
+        void refusesSecondAccountOfSameProvider() {
+            when(authTokenService.consume(TICKET, AuthTokenPurpose.PROVIDER_LINK)).thenReturn(user.getId());
+            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
+            when(oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(any(), anyString()))
+                    .thenReturn(Optional.empty());
+            when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(user.getId(), OAuthProviderType.GITHUB))
+                    .thenReturn(List.of(account(OAuthProviderType.GITHUB, user)));
+
+            LoginMethodService.LinkOutcome outcome = service.link(TICKET, OAuthProviderType.GITHUB,
+                    "another-github-account", null, null, null);
+
+            assertEquals(LoginMethodService.LinkOutcome.PROVIDER_OCCUPIED, outcome);
+            verify(oAuthAccountRepository, never()).save(any());
+        }
+
         @Test
         @DisplayName("свой же провайдер повторно — не ошибка и не дубль")
         void idempotent() {
@@ -147,10 +173,38 @@ class LoginMethodServiceTest {
             when(userService.findById(user.getId())).thenReturn(Optional.of(user));
             when(oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(any(), anyString()))
                     .thenReturn(Optional.empty());
+            when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(any(), any())).thenReturn(List.of());
 
             service.link(TICKET, OAuthProviderType.YANDEX, PROVIDER_USER_ID, null, null, null);
 
             verify(mailService).send(eq("ivan@example.com"), eq("provider-linked"), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("билет на привязку")
+    class Ticket {
+
+        @Test
+        @DisplayName("выдаётся, пока не исчерпан часовой лимит")
+        void issues() {
+            when(authTokenService.allowedToSend(eq(user.getId()), eq(AuthTokenPurpose.PROVIDER_LINK),
+                    any(), any(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(true);
+            when(authTokenService.issue(eq(user.getId()), eq(AuthTokenPurpose.PROVIDER_LINK), any()))
+                    .thenReturn("ticket");
+
+            assertEquals("ticket", service.issueLinkTicket(user.getId()));
+        }
+
+        @Test
+        @DisplayName("исчерпанный лимит — 429, а не бесконечный рост таблицы")
+        void throttled() {
+            when(authTokenService.allowedToSend(any(), any(), any(), any(),
+                    org.mockito.ArgumentMatchers.anyInt())).thenReturn(false);
+
+            assertThrows(TooManyRequestsStatusException.class,
+                    () -> service.issueLinkTicket(user.getId()));
+            verify(authTokenService, never()).issue(any(), any(), any());
         }
     }
 
@@ -163,9 +217,9 @@ class LoginMethodServiceTest {
         void unlinks() {
             UserOAuthAccount google = account(OAuthProviderType.GOOGLE, user);
             user.setPasswordHash("{bcrypt}$2a$10$stored");
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
+            when(userService.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
             when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(user.getId(), OAuthProviderType.GOOGLE))
-                    .thenReturn(Optional.of(google));
+                    .thenReturn(List.of(google));
             when(oAuthAccountRepository.countByUserEntityId(user.getId())).thenReturn(1L);
 
             service.unlinkProvider(user.getId(), OAuthProviderType.GOOGLE);
@@ -178,9 +232,9 @@ class LoginMethodServiceTest {
         @Test
         @DisplayName("последний способ входа отвязать нельзя")
         void refusesTheLastOne() {
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
+            when(userService.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
             when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(any(), any()))
-                    .thenReturn(Optional.of(account(OAuthProviderType.GOOGLE, user)));
+                    .thenReturn(List.of(account(OAuthProviderType.GOOGLE, user)));
             when(oAuthAccountRepository.countByUserEntityId(user.getId())).thenReturn(1L);
 
             assertThrows(BadRequestStatusException.class,
@@ -192,7 +246,7 @@ class LoginMethodServiceTest {
         @DisplayName("пароль как последний способ тоже не убрать")
         void refusesTheLastPassword() {
             user.setPasswordHash("{bcrypt}$2a$10$stored");
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
+            when(userService.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
             when(oAuthAccountRepository.countByUserEntityId(user.getId())).thenReturn(0L);
 
             assertThrows(BadRequestStatusException.class, () -> service.dropPassword(user.getId()));
@@ -203,7 +257,7 @@ class LoginMethodServiceTest {
         @DisplayName("пароль при живом провайдере убирается")
         void dropsPassword() {
             user.setPasswordHash("{bcrypt}$2a$10$stored");
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
+            when(userService.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
             when(oAuthAccountRepository.countByUserEntityId(user.getId())).thenReturn(1L);
 
             service.dropPassword(user.getId());
@@ -216,9 +270,9 @@ class LoginMethodServiceTest {
         @Test
         @DisplayName("нечего отвязывать — 404, а не тихий успех")
         void nothingToUnlink() {
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
+            when(userService.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
             when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(any(), any()))
-                    .thenReturn(Optional.empty());
+                    .thenReturn(List.of());
 
             assertThrows(NotFoundStatusException.class,
                     () -> service.unlinkProvider(user.getId(), OAuthProviderType.VK));

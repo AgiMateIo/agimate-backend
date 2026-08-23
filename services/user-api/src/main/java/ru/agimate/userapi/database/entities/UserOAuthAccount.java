@@ -13,11 +13,16 @@ import ru.agimate.common.persistence.BaseEntity;
 import java.util.UUID;
 
 @Entity
-@Table(name = "user_oauth_accounts",
-       uniqueConstraints = @UniqueConstraint(
-               name = "uq_user_oauth_accounts_oauth_provider_provider_user_id",
-               columnNames = {"oauth_provider", "provider_user_id"}
-       ))
+@Table(name = "user_oauth_accounts", uniqueConstraints = {
+        @UniqueConstraint(
+                name = "uq_user_oauth_accounts_oauth_provider_provider_user_id",
+                columnNames = {"oauth_provider", "provider_user_id"}),
+        // One account per provider per person: the API addresses a provider by its name, so a second
+        // one of the same kind would make the listing ambiguous and unlinking impossible.
+        @UniqueConstraint(
+                name = "uq_user_oauth_accounts_user_id_oauth_provider",
+                columnNames = {"user_id", "oauth_provider"})
+})
 @Getter
 @Setter
 @Builder

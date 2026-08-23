@@ -39,8 +39,14 @@ public class LoginRateLimiter {
             .expireAfterAccess(WINDOW)
             .build();
 
+    /**
+     * Read without touching the deadline. An ordinary {@code getIfPresent} counts as an access, so
+     * asking "is this address blocked" would itself push the block out — and then anybody who knows
+     * an address could keep it locked for ever by calling the endpoint every fourteen minutes, while
+     * the owner's own retries did the same to them. Only a guess may extend a lockout.
+     */
     public boolean blocked(String email) {
-        AtomicInteger count = failures.getIfPresent(key(email));
+        AtomicInteger count = failures.policy().getIfPresentQuietly(key(email));
         return count != null && count.get() >= MAX_FAILURES;
     }
 
