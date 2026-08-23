@@ -1,6 +1,7 @@
 package ru.agimate.userapi.service.auth;
 
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -121,6 +122,32 @@ public class AuthSessionService {
     @Transactional
     public void revoke(UUID sessionId, SessionRevokeReason reason) {
         revokeSession(sessionId, reason, LocalDateTime.now());
+    }
+
+    /**
+     * Ends every sign-in of one person, which is what a password change is for: whoever else knew
+     * the old one is holding tokens that outlive it by weeks otherwise. Row by row rather than in one
+     * statement — each session has a device subscription to drop with it, and a person has a handful
+     * of devices, not thousands.
+     *
+     * @param keep the session doing the changing, or null to end that one too
+     * @return how many were ended
+     */
+    @Transactional
+    public int revokeAllForUser(UUID userId, SessionRevokeReason reason, @Nullable UUID keep) {
+        LocalDateTime now = LocalDateTime.now();
+        int revoked = 0;
+
+        for (AuthSession session : sessionRepository.findActive(userId, now)) {
+            if (session.getId().equals(keep)) {
+                continue;
+            }
+            revokeSession(session.getId(), reason, now);
+            revoked++;
+        }
+
+        log.info("revoked {} session(s) of user {}: {}", revoked, userId, reason);
+        return revoked;
     }
 
     /**

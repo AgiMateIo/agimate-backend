@@ -13,5 +13,12 @@ public enum SessionRevokeReason {
     REPLAY,
 
     /** Dropped from the device list by its owner. */
-    REVOKED
+    REVOKED,
+
+    /**
+     * The password was reset or changed. Told apart from a manual revoke because it ends many
+     * sessions at once, and because a reset is what somebody does when they suspect the account is
+     * not only theirs any more.
+     */
+    PASSWORD_CHANGED
 }

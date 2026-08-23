@@ -8,6 +8,7 @@ import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.common.security.UserRole;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -39,6 +40,16 @@ public class UserEntity extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, columnDefinition = "TEXT")
     private UserRole role = UserRole.GUEST;
+
+    /**
+     * Null for everyone who only ever signed in through a provider. Carries the algorithm as a
+     * prefix ({@code {bcrypt}…}), so the encoder can be replaced without touching stored hashes.
+     */
+    @Column(name = "password_hash", columnDefinition = "TEXT")
+    private String passwordHash;
+
+    @Column(name = "password_updated_at")
+    private LocalDateTime passwordUpdatedAt;
 
     /** The code this user hands out; everyone has one, whether or not they ever invite anybody. */
     @Column(name = "referral_code", nullable = false, columnDefinition = "TEXT")

@@ -27,6 +27,7 @@ import ru.agimate.userapi.controller.dto.request.auth.NativeTokenRequest;
 import ru.agimate.userapi.controller.dto.request.auth.RefreshRequest;
 import ru.agimate.userapi.controller.dto.response.auth.AuthResponse;
 import ru.agimate.userapi.database.entities.AuthClient;
+import ru.agimate.userapi.mappers.AuthMapper;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
 import ru.agimate.userapi.service.auth.AuthSessionService;
 import ru.agimate.userapi.service.auth.IssuedTokens;
@@ -79,12 +80,12 @@ public class OAuthController {
             refreshTokenService.setHttpOnlyRefreshTokenCookie(response, tokens.refreshToken(),
                     resolved.cookieDomain(), resolved.cookieSecure());
 
-            return ResponseEntity.ok(SuccessResponse.ok(webResponse(tokens)));
+            return ResponseEntity.ok(SuccessResponse.ok(AuthMapper.forWeb(tokens)));
         }
 
         IssuedTokens tokens = authSessionService.refresh(
                 nativeJti(refreshRequest.refreshToken()), AuthClient.NATIVE);
-        return ResponseEntity.ok(SuccessResponse.ok(nativeResponse(tokens)));
+        return ResponseEntity.ok(SuccessResponse.ok(AuthMapper.forNative(tokens)));
     }
 
     @Operation(summary = "Logout", description = "Revokes the session the refresh token belongs to")
@@ -138,7 +139,7 @@ public class OAuthController {
         IssuedTokens tokens = nativeAuthService.exchange(
                 tokenRequest.code(), tokenRequest.codeVerifier(), tokenRequest.redirectUri(), deviceLabel);
 
-        return ResponseEntity.ok(SuccessResponse.ok(nativeResponse(tokens)));
+        return ResponseEntity.ok(SuccessResponse.ok(AuthMapper.forNative(tokens)));
     }
 
     /**
@@ -168,13 +169,4 @@ public class OAuthController {
                 .getId();
     }
 
-    private static AuthResponse webResponse(IssuedTokens tokens) {
-        return new AuthResponse(tokens.accessToken(), tokens.refreshTokenId(), null,
-                tokens.accessExpiresIn(), tokens.sessionId());
-    }
-
-    private static AuthResponse nativeResponse(IssuedTokens tokens) {
-        return new AuthResponse(tokens.accessToken(), tokens.refreshTokenId(), tokens.refreshToken(),
-                tokens.accessExpiresIn(), tokens.sessionId());
-    }
 }

@@ -10,15 +10,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@DisplayName("MailTemplates")
+@DisplayName("MailTemplates — письма из ресурсов")
 class MailTemplatesTest {
 
     @Nested
-    @DisplayName("rendering")
+    @DisplayName("подстановка")
     class Rendering {
 
         @Test
-        @DisplayName("substitutes into the subject and the body alike")
+        @DisplayName("значения попадают и в тему, и в тело")
         void substitutes() {
             MailTemplates templates = new MailTemplates("ru");
 
@@ -33,7 +33,7 @@ class MailTemplatesTest {
          * markup inside it must show up as markup, not act as it.
          */
         @Test
-        @DisplayName("escapes what it substitutes")
+        @DisplayName("подставленное экранируется — имя пишет сам человек")
         void escapes() {
             MailTemplates templates = new MailTemplates("ru");
 
@@ -44,7 +44,7 @@ class MailTemplatesTest {
         }
 
         @Test
-        @DisplayName("refuses to send a letter with a placeholder left in it")
+        @DisplayName("незаполненный плейсхолдер — отказ, а не письмо с маркером на виду")
         void refusesUnfilled() {
             MailTemplates templates = new MailTemplates("ru");
 
@@ -53,11 +53,11 @@ class MailTemplatesTest {
     }
 
     @Nested
-    @DisplayName("language")
+    @DisplayName("язык")
     class Language {
 
         @Test
-        @DisplayName("falls back to English when the letter has no translation")
+        @DisplayName("нет перевода — письмо уходит на английском")
         void fallsBack() {
             MailTemplates templates = new MailTemplates("ru");
 
@@ -68,7 +68,7 @@ class MailTemplatesTest {
         }
 
         @Test
-        @DisplayName("an unknown letter is a failure, not an empty message")
+        @DisplayName("неизвестное письмо — отказ, а не пустое сообщение")
         void unknownLetter() {
             MailTemplates templates = new MailTemplates("ru");
 

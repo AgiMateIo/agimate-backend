@@ -19,6 +19,8 @@ import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequest
 import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
@@ -30,6 +32,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.security.SecurityUtils;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.userapi.controller.AuthController;
 import ru.agimate.userapi.controller.admin.AdminPaths;
 import ru.agimate.userapi.security.jwt.JwtDbAuthenticationFilter;
 import ru.agimate.userapi.security.InternalAuthFilter;
@@ -70,6 +73,16 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    /**
+     * Delegating rather than plain bcrypt: the stored hash carries the id of the algorithm that
+     * produced it ({@code {bcrypt}…}), so a future move to another one re-encodes passwords as their
+     * owners sign in instead of requiring a migration that cannot exist — the plaintext is gone.
+     */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
     }
 
     @Bean
@@ -142,6 +155,17 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/", "/oauth2/**").permitAll()
+                        // Signing in with a password and asking for one by mail happen before there
+                        // is anything to authenticate with. Changing a password does not: it sits
+                        // under the rule below, where a session is required.
+                        .requestMatchers(AuthController.PATH + "/login",
+                                AuthController.PATH + "/password/forgot",
+                                AuthController.PATH + "/password/reset").permitAll()
+                        // Changing one's own password is open to GUEST for the same reason the
+                        // device list is: an account still awaiting approval has the most reason
+                        // to be able to lock somebody out of it.
+                        .requestMatchers(AuthController.PATH + "/password/change")
+                        .hasAnyRole("USER", "ADMIN", "GUEST")
                         .requestMatchers("/docs/**").permitAll()
                         // Management port 8088 runs this very chain, so permitAll here decides what is
                         // public there. Health and its liveness/readiness groups only — never the rest.

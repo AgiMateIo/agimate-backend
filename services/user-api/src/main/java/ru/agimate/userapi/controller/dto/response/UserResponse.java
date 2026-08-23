@@ -30,6 +30,11 @@ public record UserResponse(
         @Schema(description = "Who invited this user; absent for everyone who came on their own")
         UUID referredBy,
 
+        @Schema(description = "Whether this account can be signed into with a password. False means "
+                + "the providers are the only way in — asking for a password by mail is what adds one",
+                example = "false")
+        boolean hasPassword,
+
         @Schema(description = "User creation timestamp")
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
         LocalDateTime createdAt,

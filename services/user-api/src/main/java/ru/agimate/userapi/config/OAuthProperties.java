@@ -90,6 +90,19 @@ public class OAuthProperties {
         return defaults();
     }
 
+    /**
+     * Scheme, host and port of the frontend this request belongs to — the base a link inside a letter
+     * is built on. Derived from the same whitelist the login redirects use, rather than configured
+     * separately: a second setting naming the frontend would be a second truth about one address, and
+     * the two would drift. A letter then always points at the installation the person is using, which
+     * is the difference between a familiar page and something that reads as phishing.
+     */
+    public String frontendOrigin(HttpServletRequest request) {
+        URI url = URI.create(resolveFromRequest(request).frontendRedirectUrl());
+        String origin = url.getScheme() + "://" + url.getHost();
+        return url.getPort() == -1 ? origin : origin + ":" + url.getPort();
+    }
+
     private ResolvedDomain defaults() {
         return new ResolvedDomain(cookieDomain, cookieSecure, frontendRedirectUrl);
     }

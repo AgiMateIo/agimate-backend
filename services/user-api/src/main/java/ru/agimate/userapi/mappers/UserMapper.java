@@ -16,6 +16,7 @@ public class UserMapper {
                 userEntity.getDisplayName(),
                 userEntity.getRole(),
                 userEntity.getReferredBy(),
+                userEntity.getPasswordHash() != null,
                 userEntity.getCreatedAt(),
                 userEntity.getUpdatedAt()
         );
