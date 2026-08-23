@@ -9,6 +9,12 @@ management:
     port: 8088
 
 spring:
+  mail:
+    # Mailpit from `docker compose --profile infra`: letters are accepted and shown at
+    # http://localhost:8025 rather than delivered anywhere. Clearing the host switches sending off
+    # entirely, which is what an installation without mail looks like.
+    host: "__SPRING_MAIL_HOST__"
+    port: __SPRING_MAIL_PORT__
   security:
     oauth2:
       client:
@@ -41,6 +47,8 @@ jwt:
   publicKey: "__JWT_PUBLICKEY__"
 
 app:
+  mail:
+    from: "__APP_MAIL_FROM__"
   s2s:
     # The same secret control-api holds in app.user-api.s2s-key — one value, both sides.
     key: "__APP_S2S_KEY__"

@@ -58,6 +58,21 @@ services:
     networks: [agimate]
     restart: unless-stopped
 
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: agimate-mailpit
+    profiles: [infra, full]
+    # 1025 — SMTP для сервисов, 8025 — веб-интерфейс, в котором письма и читаются. Наружу ничего
+    # не уходит: mailpit принимает и показывает, а не доставляет.
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    networks: [agimate]
+    restart: unless-stopped
+
   caddy:
     image: caddy:2-alpine
     container_name: agimate-caddy
@@ -91,6 +106,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/am_user_db
       SPRING_DATASOURCE_USERNAME: agimate
       SPRING_DATASOURCE_PASSWORD: agimate_dev_password
+      # .env carries the host's view of mailpit (localhost); from inside the network it is the
+      # service name, so the container's own value wins over the file.
+      SPRING_MAIL_HOST: mailpit
+      SPRING_MAIL_PORT: "1025"
     ports:
       - "8080:8080"
     networks: [agimate]

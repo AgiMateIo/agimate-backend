@@ -21,4 +21,17 @@ public class AsyncConfig {
         executor.setConcurrencyLimit(100);
         return executor;
     }
+
+    /**
+     * Mail. Separate from the push executor rather than shared: SMTP answers in seconds where a push
+     * transport answers in milliseconds, and a slow relay must not take the notifications down with
+     * it. The limit is low on purpose — a mailbox rate-limits long before a hundred parallel sends.
+     */
+    @Bean
+    public SimpleAsyncTaskExecutor mailExecutor() {
+        SimpleAsyncTaskExecutor executor = new SimpleAsyncTaskExecutor("mail-");
+        executor.setVirtualThreads(true);
+        executor.setConcurrencyLimit(10);
+        return executor;
+    }
 }

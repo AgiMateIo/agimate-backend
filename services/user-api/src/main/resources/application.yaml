@@ -57,6 +57,22 @@ spring:
       ddl-auto: none
     show-sql: false
     open-in-view: false
+  mail:
+    # Почта для подтверждений и сброса пароля. Ключ host здесь намеренно не объявлен: пока его нет
+    # в окружении, Spring не поднимает JavaMailSender, а вся отправка выключена — то же правило, по
+    # которому провайдер без client-id не предлагается. Установка, которой почта не нужна, ничего не
+    # настраивает и стартует как раньше. В проде и локально — env SPRING_MAIL_HOST,
+    # SPRING_MAIL_PORT, SPRING_MAIL_USERNAME, SPRING_MAIL_PASSWORD.
+    properties:
+      mail:
+        smtp:
+          # Порт 587 у всех целевых провайдеров говорит STARTTLS. Для 465 (implicit TLS) установка
+          # доопределяет SPRING_MAIL_PROPERTIES_MAIL_SMTP_SSL_ENABLE=true.
+          starttls:
+            enable: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
   security:
     oauth2:
       client:
@@ -131,6 +147,15 @@ jwt:
   nativeRefreshExpiration: 5184000 # 60 days
 
 app:
+  content:
+    # Язык системного контента установки — тем же именем и тем же env APP_CONTENT_LANGUAGE, что и в
+    # control-api: язык у установки один, а два понятия для него разъехались бы.
+    language: ru
+  mail:
+    # Адрес в поле From. Пусто при заполненном SPRING_MAIL_HOST — отказ старта: это опечатка, а не
+    # выбор, и обнаружилась бы она первым же неотправленным письмом. В проде — env APP_MAIL_FROM.
+    from: ""
+    from-name: "AgiMate"
   s2s:
     # Общий секрет, которым наши же сервисы представляются на /internal/**. То же значение лежит у
     # control-api в app.user-api.s2s-key — хэша нет намеренно, разбор в

@@ -68,14 +68,14 @@ Firebase. Кладутся тем же способом: `APP_PUSH_RUSTORE_PROJE
 
 | Профиль | Что содержит | Для чего |
 | --- | --- | --- |
-| `infra` | PostgreSQL, Centrifugo | Ежедневный цикл: сервисы идут из IDE или `gradle bootRun` |
+| `infra` | PostgreSQL, Centrifugo, mailpit | Ежедневный цикл: сервисы идут из IDE или `gradle bootRun` |
 | `edge` | Caddy | Добавляет хостнеймы `*.agimate.lc` на `:8000` перед сервисами хоста |
 | `full` | infra + user-api, control-api, agent-worker | Смоук: образы собираются и стек стартует |
 
 ```bash
 cd ops
 
-docker compose --profile infra up -d                  # postgres + centrifugo
+docker compose --profile infra up -d                  # postgres + centrifugo + mailpit
 docker compose --profile infra --profile edge up -d   # + caddy
 docker compose --profile full up -d                   # всё в контейнерах
 ```
@@ -131,6 +131,28 @@ docker run --rm -v "$PWD/centrifugo/config.yaml:/c.yaml" \
 Содержимое смонтированного файла для compose не изменение — `up -d` контейнер не пересоздаст,
 нужен `docker compose --profile infra restart centrifugo`.
 
+## Почта
+
+Письма подтверждения и сброса пароля локально уходят в mailpit и дальше него не идут: он принимает
+что угодно без аутентификации и показывает принятое на <http://localhost:8025>.
+
+`dev-init.sh` прописывает в `services/.env` адрес `localhost:1025` и отправителя
+`no-reply@agimate.lc`, а `--force` переносит их в `user-api/application-local.yaml`. На уже
+настроенном чекауте нужны оба шага — переменные добавились позже остальных:
+
+```bash
+cd ops && ./dev-init.sh && ./dev-init.sh --force
+```
+
+Пустой `SPRING_MAIL_HOST` — законное состояние: отправка выключена, сервис поднимается, флоу,
+которым нужно письмо, не предлагаются. Проверить настройку живого отправителя (SPF, DKIM) можно
+смоук-тестом, он же отправляет письмо в mailpit:
+
+```bash
+cd services
+./gradlew :user-api:test --tests "*MailSmokeTest" -Dmail.smoke=true
+```
+
 ## Хостнеймы `.lc`
 
 Профиль `edge` ожидает их в `/etc/hosts`:
@@ -149,6 +171,7 @@ Docker Desktop оно встроенное.
 | --- | --- |
 | PostgreSQL | 5432 |
 | Centrifugo | 9000 → 8000 |
+| mailpit | 1025 (SMTP), 8025 (веб) |
 | Caddy | 8000 |
 | user-api | 8080 |
 | control-api | 8180 |
