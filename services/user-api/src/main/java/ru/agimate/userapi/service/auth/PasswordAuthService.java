@@ -49,6 +49,7 @@ public class PasswordAuthService {
     private static final int MAIL_LIMIT = 5;
 
     private static final String RESET_LETTER = "password-reset";
+    private static final String CHANGED_LETTER = "password-changed";
     private static final String RESET_PATH = "/password/reset?token=";
 
     private final PasswordEncoder passwordEncoder;
@@ -150,6 +151,7 @@ public class PasswordAuthService {
 
         store(user, password);
         authSessionService.revokeAllForUser(userId, SessionRevokeReason.PASSWORD_CHANGED, null);
+        notifyChanged(user);
         log.info("password set for user {} through a reset link", userId);
     }
 
@@ -174,7 +176,16 @@ public class PasswordAuthService {
 
         store(user, newPassword);
         authSessionService.revokeAllForUser(userId, SessionRevokeReason.PASSWORD_CHANGED, currentSessionId);
+        notifyChanged(user);
         log.info("password changed by user {}", userId);
+    }
+
+    /**
+     * The letter that costs nothing and is the whole early warning: somebody who has taken an account
+     * changes its password first, and the owner's mailbox is the one place they cannot reach.
+     */
+    private void notifyChanged(UserEntity user) {
+        mailService.send(user.getEmail(), CHANGED_LETTER, Map.of("name", displayName(user)));
     }
 
     private void store(UserEntity user, String password) {

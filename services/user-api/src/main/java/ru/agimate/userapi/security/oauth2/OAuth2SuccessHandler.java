@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 import ru.agimate.common.rest.ErrorResponse;
+import ru.agimate.common.rest.error.BaseHttpStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.userapi.config.OAuthProperties;
 import ru.agimate.userapi.database.entities.AuthClient;
@@ -26,6 +27,7 @@ import ru.agimate.userapi.security.oauth2.providers.OAuthUserInfo;
 import ru.agimate.userapi.service.UserService;
 import ru.agimate.userapi.service.auth.AuthSessionService;
 import ru.agimate.userapi.service.auth.IssuedTokens;
+import ru.agimate.userapi.service.auth.LoginMethodService;
 import ru.agimate.userapi.service.auth.NativeAuthService;
 
 import java.io.IOException;
@@ -45,6 +47,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final OAuthUserAdapters adapters;
     private final AuthSessionService authSessionService;
     private final NativeAuthService nativeAuthService;
+    private final LoginMethodService loginMethodService;
 
 
     @Override
@@ -74,6 +77,13 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
         String registrationId = getRegistrationId(authentication);
 
+        String linkTicket = getCookieValue(request,
+                CookieOAuth2AuthorizationRequestRepository.OAUTH2_LINK_TICKET_COOKIE_NAME);
+        if (CookieOAuth2AuthorizationRequestRepository.isValidLinkTicket(linkTicket)) {
+            linkProvider(request, response, oAuth2User, registrationId, linkTicket);
+            return;
+        }
+
         String referralCode = getCookieValue(request,
                 CookieOAuth2AuthorizationRequestRepository.OAUTH2_REF_COOKIE_NAME);
 
@@ -88,6 +98,50 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             redirectToBrowser(request, response, userEntity, redirectToUrl);
         }
         response.getWriter().flush();
+    }
+
+    /**
+     * The same round trip read as a binding rather than as a login: whoever started it was already
+     * signed in, and what comes back is another way into the account they were signed into.
+     *
+     * <p>The address the provider reports is not consulted at all here — that is the whole point.
+     * Joining by address is what the login does, and it cannot help somebody whose GitHub sits on a
+     * different mailbox, which until now silently gave them a second account.
+     *
+     * <p>Nothing is minted: the person already has a session. The outcome travels back as a query
+     * parameter, because the only thing that can act on it is the page they came from.
+     */
+    private void linkProvider(HttpServletRequest request, HttpServletResponse response,
+                              OAuth2User oAuth2User, String registrationId, String linkTicket)
+            throws IOException {
+        OAuthUserAdapter adapter = adapters.require(registrationId);
+        OAuthUserInfo userInfo = adapter.extract(oAuth2User);
+        String target = linkTarget(request);
+
+        try {
+            LoginMethodService.LinkOutcome outcome = loginMethodService.link(linkTicket,
+                    adapter.providerType(), userInfo.providerUserId(), userInfo.email(),
+                    userInfo.firstName(), userInfo.lastName());
+
+            response.sendRedirect(outcome == LoginMethodService.LinkOutcome.TAKEN
+                    ? withQueryParam(target, "link_error", "already_linked")
+                    : withQueryParam(target, "linked", registrationId));
+        } catch (BaseHttpStatusException ex) {
+            // A ticket that expired, was spent, or belongs to an account that is gone. The person is
+            // looking at a page, not at a status code, so it comes back as one.
+            log.warn("provider linking refused: {}", ex.getMessage());
+            response.sendRedirect(withQueryParam(target, "link_error", "invalid_ticket"));
+        }
+    }
+
+    /** Where a linking round trip lands: the address it started from when that one is allowed. */
+    private String linkTarget(HttpServletRequest request) {
+        String redirectToUrl = getCookieValue(request,
+                CookieOAuth2AuthorizationRequestRepository.OAUTH2_REDIRECT_TO_COOKIE_NAME);
+
+        return oAuthProperties.isNativeRedirect(redirectToUrl)
+                ? redirectToUrl
+                : oAuthProperties.resolveFromRedirectUrl(redirectToUrl, request).frontendRedirectUrl();
     }
 
     /**

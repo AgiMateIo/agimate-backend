@@ -33,6 +33,7 @@ import ru.agimate.common.rest.ErrorResponse;
 import ru.agimate.common.security.SecurityUtils;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.userapi.controller.AuthController;
+import ru.agimate.userapi.controller.LoginMethodController;
 import ru.agimate.userapi.controller.admin.AdminPaths;
 import ru.agimate.userapi.security.jwt.JwtDbAuthenticationFilter;
 import ru.agimate.userapi.security.InternalAuthFilter;
@@ -168,6 +169,10 @@ public class SecurityConfig {
                         // device list is: an account still awaiting approval has the most reason
                         // to be able to lock somebody out of it.
                         .requestMatchers(AuthController.PATH + "/password/change")
+                        .hasAnyRole("USER", "ADMIN", "GUEST")
+                        // Managing how one's own account is reached, open to GUEST for the same
+                        // reason the device list is.
+                        .requestMatchers(LoginMethodController.PATH + "/**")
                         .hasAnyRole("USER", "ADMIN", "GUEST")
                         .requestMatchers("/docs/**").permitAll()
                         // Management port 8088 runs this very chain, so permitAll here decides what is

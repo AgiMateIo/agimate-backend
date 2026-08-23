@@ -11,5 +11,12 @@ public enum AuthTokenPurpose {
      * and «I signed in through Google and now want a password»: both are answered by proving that
      * the mailbox is yours, and that is one mechanism, not two.
      */
-    PASSWORD_RESET
+    PASSWORD_RESET,
+
+    /**
+     * Turns one trip to a provider into a binding of that provider to the account the ticket was
+     * issued to. It exists because the cookie carrying it across that trip is not encrypted: whose
+     * account it is has to be looked up here, not read out of something the browser could rewrite.
+     */
+    PROVIDER_LINK
 }

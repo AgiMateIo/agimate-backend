@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Binding a provider to an account you are already signed into needs the account carried
+         across the trip to that provider. It travels as a ticket rather than as an id: of the four
+         cookies the OAuth flow uses only the authorization request itself is encrypted, so anything
+         naming a person in one of the others could be rewritten into naming somebody else.
+
+         Same columns as a password-reset token — a hash, an owner, a deadline, a used_at — so it is
+         the same table with another purpose rather than a table of its own. The constraint has to be
+         recreated for the value to be storable at all. -->
+    <changeSet id="add-provider-link-token-purpose" author="Eugene Smith">
+        <sql>
+            ALTER TABLE auth_tokens DROP CONSTRAINT chk_auth_tokens_purpose;
+        </sql>
+        <sql>
+            ALTER TABLE auth_tokens ADD CONSTRAINT chk_auth_tokens_purpose
+            CHECK (purpose IN ('PASSWORD_RESET', 'PROVIDER_LINK'));
+        </sql>
+    </changeSet>
+
+    <!-- A provider linked deliberately need not report an address at all: identity in that flow is
+         the account you were already signed into, not the mailbox. GitHub without a public address
+         is the ordinary case, and it is exactly what explicit linking exists for. The column stays
+         for the listing, which shows which mailbox a provider is bound to when it says. -->
+    <changeSet id="allow-oauth-account-without-email" author="Eugene Smith">
+        <dropNotNullConstraint tableName="user_oauth_accounts" columnName="email" columnDataType="TEXT"/>
+    </changeSet>
+
+</databaseChangeLog>

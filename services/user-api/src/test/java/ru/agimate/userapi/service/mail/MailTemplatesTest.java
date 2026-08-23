@@ -27,6 +27,7 @@ class MailTemplatesTest {
         variables.put("name", "Евгений");
         variables.put("link", "https://www.agimate.ru/password/reset?token=abc");
         variables.put("hours", "1");
+        variables.put("provider", "GitHub");
         return variables;
     }
 
@@ -39,12 +40,25 @@ class MailTemplatesTest {
                 "password-reset, ru", "password-reset, en",
                 "registration-confirm, ru", "registration-confirm, en",
                 "account-exists, ru", "account-exists, en",
+                "provider-linked, ru", "provider-linked, en",
+                "provider-unlinked, ru", "provider-unlinked, en",
+                "password-changed, ru", "password-changed, en",
+                "password-removed, ru", "password-removed, en",
         })
-        @DisplayName("рендерится целиком: и тема, и тело, и ссылка")
+        @DisplayName("рендерится целиком: и тема, и тело с обращением")
         void renders(String letter, String language) {
             MailTemplates.Letter rendered = new MailTemplates(language).render(letter, variables());
 
             assertFalse(rendered.subject().isBlank(), "тема пуста");
+            assertTrue(rendered.html().contains("Евгений"), rendered.html());
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @CsvSource({"password-reset", "registration-confirm", "account-exists"})
+        @DisplayName("письма со ссылкой её и несут")
+        void carriesTheLink(String letter) {
+            MailTemplates.Letter rendered = new MailTemplates("ru").render(letter, variables());
+
             assertTrue(rendered.html().contains("https://www.agimate.ru/password/reset?token=abc"),
                     rendered.html());
         }

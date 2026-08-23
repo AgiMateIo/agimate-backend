@@ -28,6 +28,7 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
     public static final String OAUTH2_REDIRECT_TO_COOKIE_NAME = "oauth2_redirect_to";
     public static final String OAUTH2_REF_COOKIE_NAME = "oauth2_ref";
     public static final String OAUTH2_CODE_CHALLENGE_COOKIE_NAME = "oauth2_code_challenge";
+    public static final String OAUTH2_LINK_TICKET_COOKIE_NAME = "oauth2_link_ticket";
     public static final int COOKIE_EXPIRE_SECONDS = 900; // 15 minutes
 
     private static final Pattern REF_PATTERN = Pattern.compile("^[A-Za-z0-9]{1,16}$");
@@ -38,6 +39,9 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
      * application that started the login knows its preimage.
      */
     private static final Pattern CODE_CHALLENGE_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{43}$");
+
+    /** 32 bytes of hex, the shape {@code AuthTokenService} issues. */
+    private static final Pattern LINK_TICKET_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
 
     private final SecretKey encryptionKey;
     private final boolean cookieSecure;
@@ -88,6 +92,19 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         if (isValidCodeChallenge(codeChallenge)) {
             addCookie(response, OAUTH2_CODE_CHALLENGE_COOKIE_NAME, codeChallenge, COOKIE_EXPIRE_SECONDS);
         }
+
+        // Turns this round trip from a login into a binding of the provider to an account already
+        // signed in. Opaque on purpose: this cookie, unlike the authorization request beside it, is
+        // not encrypted, so it must carry nothing that could be forged into naming somebody. Whose
+        // account it is is looked up from the ticket in the database, never read out of here.
+        String linkTicket = request.getParameter("link_ticket");
+        if (isValidLinkTicket(linkTicket)) {
+            addCookie(response, OAUTH2_LINK_TICKET_COOKIE_NAME, linkTicket, COOKIE_EXPIRE_SECONDS);
+        }
+    }
+
+    public static boolean isValidLinkTicket(String value) {
+        return value != null && LINK_TICKET_PATTERN.matcher(value).matches();
     }
 
     public static boolean isValidCodeChallenge(String value) {
@@ -114,6 +131,7 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         deleteCookie(request, response, OAUTH2_REDIRECT_TO_COOKIE_NAME);
         deleteCookie(request, response, OAUTH2_REF_COOKIE_NAME);
         deleteCookie(request, response, OAUTH2_CODE_CHALLENGE_COOKIE_NAME);
+        deleteCookie(request, response, OAUTH2_LINK_TICKET_COOKIE_NAME);
         return authorizationRequest;
     }
 
