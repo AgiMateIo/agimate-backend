@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- A registration that has not proved its mailbox yet, and the reason it is not a row in users.
+
+         An account created before the address is confirmed can be claimed: register with somebody
+         else's address, never confirm, and when the owner later signs in through a provider, the
+         lookup by address joins them to the account the password is already on. Keeping the request
+         here instead means users continues to hold confirmed people only — which is the rule the
+         provider login has always relied on (docs/decisions/email-password-auth.md).
+
+         email is deliberately not unique: several attempts from one address are ordinary, and the
+         one that gets confirmed is the one that wins. The password arrives here already hashed —
+         nothing stores what the person typed, not even for the hour before they confirm. -->
+    <changeSet id="create-pending-registrations-table" author="Eugene Smith">
+        <createTable tableName="pending_registrations">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="password_hash" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="display_name" type="TEXT"/>
+            <!-- Resolved from the referral code at request time rather than kept as the code: the
+                 foreign key then guarantees it still means somebody by the time the account exists. -->
+            <column name="referred_by" type="UUID"/>
+            <column name="token_hash" type="TEXT">
+                <constraints nullable="false" unique="true"
+                             uniqueConstraintName="uq_pending_registrations_token_hash"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="used_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+                baseTableName="pending_registrations"
+                baseColumnNames="referred_by"
+                constraintName="fk_pending_registrations_referred_by"
+                referencedTableName="users"
+                referencedColumnNames="id"
+                onDelete="SET NULL"/>
+
+        <!-- Both readers work by address, because until the letter is opened there is no user id to
+             work by: how recently this address was written to (the throttle) and which requests a
+             new one supersedes. -->
+        <createIndex tableName="pending_registrations" indexName="idx_pending_registrations_email">
+            <column name="email"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

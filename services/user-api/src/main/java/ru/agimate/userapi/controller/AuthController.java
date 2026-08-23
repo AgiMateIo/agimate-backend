@@ -16,8 +16,11 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.userapi.config.OAuthProperties;
 import ru.agimate.userapi.controller.dto.request.auth.ChangePasswordRequest;
+import ru.agimate.userapi.controller.dto.request.auth.ConfirmRegistrationRequest;
 import ru.agimate.userapi.controller.dto.request.auth.ForgotPasswordRequest;
 import ru.agimate.userapi.controller.dto.request.auth.LoginRequest;
+import ru.agimate.userapi.controller.dto.request.auth.RegisterRequest;
+import ru.agimate.userapi.controller.dto.request.auth.ResendConfirmationRequest;
 import ru.agimate.userapi.controller.dto.request.auth.ResetPasswordRequest;
 import ru.agimate.userapi.controller.dto.response.auth.AuthResponse;
 import ru.agimate.userapi.database.entities.AuthClient;
@@ -25,6 +28,7 @@ import ru.agimate.userapi.mappers.AuthMapper;
 import ru.agimate.userapi.security.jwt.RefreshTokenService;
 import ru.agimate.userapi.service.auth.IssuedTokens;
 import ru.agimate.userapi.service.auth.PasswordAuthService;
+import ru.agimate.userapi.service.auth.RegistrationService;
 
 import java.util.UUID;
 
@@ -45,6 +49,7 @@ public class AuthController {
     public static final String PATH = "/auth";
 
     private final PasswordAuthService passwordAuthService;
+    private final RegistrationService registrationService;
     private final RefreshTokenService refreshTokenService;
     private final OAuthProperties oAuthProperties;
 
@@ -60,21 +65,57 @@ public class AuthController {
             LoginRequest loginRequest
     ) {
         AuthClient client = loginRequest.client() == null ? AuthClient.WEB : loginRequest.client();
-        String deviceLabel = StringUtils.hasText(loginRequest.deviceName())
-                ? loginRequest.deviceName()
-                : request.getHeader("User-Agent");
 
-        IssuedTokens tokens = passwordAuthService.login(
-                loginRequest.email(), loginRequest.password(), client, deviceLabel);
+        IssuedTokens tokens = passwordAuthService.login(loginRequest.email(), loginRequest.password(),
+                client, deviceLabel(request, loginRequest.deviceName()));
 
-        if (client == AuthClient.NATIVE) {
-            return SuccessResponse.ok(AuthMapper.forNative(tokens));
-        }
+        return respond(request, response, tokens, client);
+    }
 
-        OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRequest(request);
-        refreshTokenService.setHttpOnlyRefreshTokenCookie(response, tokens.refreshToken(),
-                resolved.cookieDomain(), resolved.cookieSecure());
-        return SuccessResponse.ok(AuthMapper.forWeb(tokens));
+    @Operation(summary = "Register with a password",
+            description = "Takes the request and sends a confirmation letter. The answer is the same "
+                    + "whether the address is free, already has an account, or has had enough letters "
+                    + "for one hour — nothing here tells the caller who is registered.")
+    @PostMapping("/register")
+    public SuccessResponse<String> register(
+            HttpServletRequest request,
+            @Valid @RequestBody
+            RegisterRequest registerRequest
+    ) {
+        registrationService.register(registerRequest.email(), registerRequest.password(),
+                registerRequest.displayName(), registerRequest.ref(),
+                oAuthProperties.frontendOrigin(request));
+        return SuccessResponse.ok("If the address can be registered, a letter is on its way");
+    }
+
+    @Operation(summary = "Confirm the registration",
+            description = "The account is created here and not before: an unconfirmed address must "
+                    + "not hold one. Ends signed in — the person has just proved the mailbox.")
+    @PostMapping("/register/confirm")
+    public SuccessResponse<AuthResponse> confirmRegistration(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            @Valid @RequestBody
+            ConfirmRegistrationRequest confirmRequest
+    ) {
+        AuthClient client = confirmRequest.client() == null ? AuthClient.WEB : confirmRequest.client();
+        IssuedTokens tokens = registrationService.confirm(
+                confirmRequest.token(), client, deviceLabel(request, confirmRequest.deviceName()));
+
+        return respond(request, response, tokens, client);
+    }
+
+    @Operation(summary = "Send the confirmation letter again",
+            description = "For a registration that is still waiting. Answers the same way whether or "
+                    + "not there was one.")
+    @PostMapping("/register/resend")
+    public SuccessResponse<String> resendConfirmation(
+            HttpServletRequest request,
+            @Valid @RequestBody
+            ResendConfirmationRequest resendRequest
+    ) {
+        registrationService.resend(resendRequest.email(), oAuthProperties.frontendOrigin(request));
+        return SuccessResponse.ok("If a registration is waiting for the address, a letter is on its way");
     }
 
     @Operation(summary = "Ask for a password by mail",
@@ -115,5 +156,27 @@ public class AuthController {
         passwordAuthService.change(UUID.fromString(principal.id()), principal.authSessionId(),
                 changeRequest.currentPassword(), changeRequest.newPassword());
         return SuccessResponse.ok("success");
+    }
+
+    /**
+     * Where the refresh token goes. A browser's belongs in the httpOnly cookie and only there; an
+     * installed application has no cookie jar the answer could have written to, so it is told.
+     */
+    private SuccessResponse<AuthResponse> respond(HttpServletRequest request,
+                                                  HttpServletResponse response,
+                                                  IssuedTokens tokens, AuthClient client) {
+        if (client == AuthClient.NATIVE) {
+            return SuccessResponse.ok(AuthMapper.forNative(tokens));
+        }
+
+        OAuthProperties.ResolvedDomain resolved = oAuthProperties.resolveFromRequest(request);
+        refreshTokenService.setHttpOnlyRefreshTokenCookie(response, tokens.refreshToken(),
+                resolved.cookieDomain(), resolved.cookieSecure());
+        return SuccessResponse.ok(AuthMapper.forWeb(tokens));
+    }
+
+    /** The label is shown back to its owner in the device list and trusted for nothing else. */
+    private static String deviceLabel(HttpServletRequest request, String deviceName) {
+        return StringUtils.hasText(deviceName) ? deviceName : request.getHeader("User-Agent");
     }
 }

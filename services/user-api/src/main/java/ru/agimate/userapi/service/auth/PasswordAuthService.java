@@ -18,7 +18,6 @@ import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.service.UserService;
 import ru.agimate.userapi.service.mail.MailService;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -48,14 +47,6 @@ public class PasswordAuthService {
     private static final Duration MAIL_INTERVAL = Duration.ofMinutes(1);
     private static final Duration MAIL_WINDOW = Duration.ofHours(1);
     private static final int MAIL_LIMIT = 5;
-
-    private static final int PASSWORD_MIN_LENGTH = 8;
-
-    /**
-     * bcrypt reads 72 bytes and silently ignores everything after them. Unchecked, a long password
-     * would be verified by its beginning alone, and no test would ever show it.
-     */
-    private static final int PASSWORD_MAX_BYTES = 72;
 
     private static final String RESET_LETTER = "password-reset";
     private static final String RESET_PATH = "/password/reset?token=";
@@ -112,6 +103,15 @@ public class PasswordAuthService {
      *                 installation the person is actually using
      */
     public void requestReset(String email, String linkBase) {
+        requestReset(email, linkBase, RESET_LETTER);
+    }
+
+    /**
+     * @param letter which letter carries the link. A person whose address is already taken asked to
+     *               register, not to reset — they are told that the account exists, and the link is
+     *               the same one, because adding a password and resetting it are the same operation
+     */
+    public void requestReset(String email, String linkBase, String letter) {
         Optional<UserEntity> found = userService.findByEmail(email);
         if (found.isEmpty()) {
             log.debug("password reset asked for an address with no account");
@@ -126,7 +126,7 @@ public class PasswordAuthService {
         }
 
         String token = authTokenService.issue(user.getId(), AuthTokenPurpose.PASSWORD_RESET, RESET_TTL);
-        mailService.send(user.getEmail(), RESET_LETTER, Map.of(
+        mailService.send(user.getEmail(), letter, Map.of(
                 "name", displayName(user),
                 "link", linkBase + RESET_PATH + token,
                 "hours", String.valueOf(RESET_TTL.toHours())));
@@ -139,7 +139,7 @@ public class PasswordAuthService {
      */
     @Transactional
     public void reset(String token, String password) {
-        validate(password);
+        PasswordPolicy.validate(password);
 
         UUID userId = authTokenService.consume(token, AuthTokenPurpose.PASSWORD_RESET);
         UserEntity user = userService.findById(userId)
@@ -167,7 +167,7 @@ public class PasswordAuthService {
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             throw new BadRequestStatusException("Current password does not match");
         }
-        validate(newPassword);
+        PasswordPolicy.validate(newPassword);
 
         store(user, newPassword);
         authSessionService.revokeAllForUser(userId, SessionRevokeReason.PASSWORD_CHANGED, currentSessionId);
@@ -178,21 +178,6 @@ public class PasswordAuthService {
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setPasswordUpdatedAt(LocalDateTime.now());
         userService.updateUser(user);
-    }
-
-    /**
-     * Length and nothing else. Rules about digits and capitals produce passwords that are
-     * predictable in one way and forgotten in another; NIST stopped recommending them in 2017.
-     */
-    private void validate(String password) {
-        if (password.length() < PASSWORD_MIN_LENGTH) {
-            throw new BadRequestStatusException(
-                    "The password must be at least " + PASSWORD_MIN_LENGTH + " characters long");
-        }
-        if (password.getBytes(StandardCharsets.UTF_8).length > PASSWORD_MAX_BYTES) {
-            throw new BadRequestStatusException(
-                    "The password is too long — up to " + PASSWORD_MAX_BYTES + " bytes");
-        }
     }
 
     /**

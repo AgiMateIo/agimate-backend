@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.userapi.database.repositories.AuthCodeRepository;
 import ru.agimate.userapi.database.repositories.AuthSessionRepository;
 import ru.agimate.userapi.database.repositories.AuthTokenRepository;
+import ru.agimate.userapi.database.repositories.PendingRegistrationRepository;
 
 import java.time.LocalDateTime;
 
@@ -29,6 +30,7 @@ public class AuthCleanupTask {
 
     private final AuthCodeRepository codeRepository;
     private final AuthTokenRepository tokenRepository;
+    private final PendingRegistrationRepository registrationRepository;
     private final AuthSessionRepository sessionRepository;
 
     @Scheduled(fixedDelay = 3_600_000)
@@ -38,11 +40,12 @@ public class AuthCleanupTask {
 
         int codes = codeRepository.deleteExpired(now.minusHours(CODE_RETENTION_HOURS));
         int tokens = tokenRepository.deleteExpired(now.minusHours(CODE_RETENTION_HOURS));
+        int registrations = registrationRepository.deleteExpired(now.minusHours(CODE_RETENTION_HOURS));
         int sessions = sessionRepository.deleteExpired(now);
 
-        if (codes > 0 || tokens > 0 || sessions > 0) {
-            log.info("purged {} auth code(s), {} mail token(s) and {} expired session(s)",
-                    codes, tokens, sessions);
+        if (codes > 0 || tokens > 0 || registrations > 0 || sessions > 0) {
+            log.info("purged {} auth code(s), {} mail token(s), {} unconfirmed registration(s) "
+                    + "and {} expired session(s)", codes, tokens, registrations, sessions);
         }
     }
 }

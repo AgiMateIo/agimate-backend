@@ -159,6 +159,9 @@ public class SecurityConfig {
                         // is anything to authenticate with. Changing a password does not: it sits
                         // under the rule below, where a session is required.
                         .requestMatchers(AuthController.PATH + "/login",
+                                AuthController.PATH + "/register",
+                                AuthController.PATH + "/register/confirm",
+                                AuthController.PATH + "/register/resend",
                                 AuthController.PATH + "/password/forgot",
                                 AuthController.PATH + "/password/reset").permitAll()
                         // Changing one's own password is open to GUEST for the same reason the
