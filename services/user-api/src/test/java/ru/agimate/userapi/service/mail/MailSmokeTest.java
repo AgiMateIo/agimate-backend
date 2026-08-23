@@ -62,7 +62,10 @@ class MailSmokeTest {
         assertTrue(mailService.isConfigured());
         // Called directly, so @Async does not apply and the send has finished by the time the
         // assertion below runs. Failures are logged rather than thrown — read the log, then mailpit.
-        mailService.send(to, "test-message", Map.of("name", "Eugene"));
+        mailService.send(to, "password-reset", Map.of(
+                "name", "Eugene",
+                "link", "https://www.agimate.ru/password/reset?token=smoke",
+                "hours", "1"));
 
         System.out.println();
         System.out.println("=== Mail smoke ===");

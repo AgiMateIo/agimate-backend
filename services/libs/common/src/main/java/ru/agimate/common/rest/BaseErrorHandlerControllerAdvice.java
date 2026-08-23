@@ -72,6 +72,18 @@ public class BaseErrorHandlerControllerAdvice {
         return new ErrorResponse(ex.getMessage());
     }
 
+    /**
+     * Something the installation cannot do at all right now — an unconfigured mail relay, a
+     * Centrifugo that is not answering. Until this handler existed the exception fell through to the
+     * generic 500, and a caller was told to contact support about a state the operator had chosen.
+     */
+    @ExceptionHandler(value = {ServiceUnavailableStatusException.class})
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ErrorResponse serviceUnavailable(ServiceUnavailableStatusException ex, HttpServletRequest request) {
+        log.warn("Service unavailable on {} {}: {}", request.getMethod(), request.getRequestURL(), ex.getMessage());
+        return new ErrorResponse(ex.getMessage());
+    }
+
     @ExceptionHandler({NotFoundStatusException.class})
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse notFound(RuntimeException ex, HttpServletRequest request) {

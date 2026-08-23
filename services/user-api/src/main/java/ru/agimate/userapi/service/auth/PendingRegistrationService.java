@@ -42,8 +42,7 @@ public class PendingRegistrationService {
 
     /** @return the token, which from here on exists only in the letter */
     @Transactional
-    public String issue(String email, String passwordHash, @Nullable String displayName,
-                        @Nullable UUID referredBy) {
+    public String issue(String email, @Nullable String displayName, @Nullable UUID referredBy) {
         LocalDateTime now = LocalDateTime.now();
         // Only the newest letter for an address works: an older one left live would stay a way into
         // an account long after the person stopped meaning to use it.
@@ -53,7 +52,6 @@ public class PendingRegistrationService {
 
         PendingRegistration pending = new PendingRegistration();
         pending.setEmail(email);
-        pending.setPasswordHash(passwordHash);
         pending.setDisplayName(displayName);
         pending.setReferredBy(referredBy);
         pending.setTokenHash(CryptoUtils.sha256Hex(token));

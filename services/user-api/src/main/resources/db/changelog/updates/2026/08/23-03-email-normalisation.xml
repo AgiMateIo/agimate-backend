@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- Addresses are stored folded, because everything that matters here is decided by comparing
+         them. Until now the comparison was exact: registering as Eugene@example.com and later typing
+         eugene@example.com missed the lookup twice — once when the address was checked as free, once
+         when the account was created — and produced a second account for one mailbox, with
+         uq_users_email none the wiser, the two strings being different.
+
+         The update runs before anything else can insert: if two rows differ only by case, it fails
+         on uq_users_email rather than quietly merging two people, which is the only safe way for it
+         to fail. Folding happens in UserService from here on, so this is a one-off repair. -->
+    <changeSet id="fold-existing-emails" author="Eugene Smith">
+        <sql>
+            UPDATE users SET email = lower(btrim(email)), updated_at = CURRENT_TIMESTAMP
+            WHERE email &lt;&gt; lower(btrim(email));
+        </sql>
+        <sql>
+            UPDATE pending_registrations SET email = lower(btrim(email)), updated_at = CURRENT_TIMESTAMP
+            WHERE email &lt;&gt; lower(btrim(email));
+        </sql>
+    </changeSet>
+
+    <!-- The password is chosen by whoever opens the letter, not by whoever submitted the form, so
+         there is nothing to carry here any more.
+
+         Carrying it was an account pre-hijacking: the form names a password, the letter proves a
+         mailbox, and nothing said the two were the same person. Whoever clicked an unsolicited
+         confirmation ended up with an account whose password somebody else had picked. -->
+    <changeSet id="drop-pending-registration-password" author="Eugene Smith">
+        <dropColumn tableName="pending_registrations" columnName="password_hash"/>
+    </changeSet>
+
+</databaseChangeLog>

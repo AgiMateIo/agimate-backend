@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -74,13 +75,17 @@ class AuthTokenServiceTest {
             assertTrue(issued.length() >= 64, "токен должен быть длиной с 256 бит");
         }
 
-        /** Иначе старое письмо в ящике остаётся рабочим ключом столько же, сколько новое. */
+        /**
+         * Гасить прежние живые токены было бы удобно — работает только последняя ссылка, — но выдачу
+         * умеет запустить кто угодно с эндпойнта, не требующего аккаунта, и тогда чужой запрос убивал
+         * бы ссылку, которую владелец уже держит в почте.
+         */
         @Test
-        @DisplayName("новая выдача гасит прежние живые токены той же цели")
-        void retiresPrevious() {
+        @DisplayName("уже отправленная ссылка переживает новую выдачу")
+        void keepsPreviousAlive() {
             service.issue(userId, AuthTokenPurpose.PASSWORD_RESET, TTL);
 
-            verify(tokenRepository).retireLive(eq(userId), eq(AuthTokenPurpose.PASSWORD_RESET), any());
+            verify(tokenRepository, never()).claim(anyString(), any());
         }
     }
 

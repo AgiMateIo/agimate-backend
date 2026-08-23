@@ -31,7 +31,6 @@ import static org.mockito.Mockito.when;
 class PendingRegistrationServiceTest {
 
     private static final String EMAIL = "ivan@example.com";
-    private static final String HASH = "{bcrypt}$2a$10$stored";
     private static final String TOKEN = "0123456789abcdef";
 
     @Mock
@@ -43,7 +42,6 @@ class PendingRegistrationServiceTest {
     private PendingRegistration live() {
         PendingRegistration pending = new PendingRegistration();
         pending.setEmail(EMAIL);
-        pending.setPasswordHash(HASH);
         pending.setTokenHash(CryptoUtils.sha256Hex(TOKEN));
         pending.setExpiresAt(LocalDateTime.now().plusHours(1));
         return pending;
@@ -54,20 +52,19 @@ class PendingRegistrationServiceTest {
     class Issue {
 
         @Test
-        @DisplayName("в базу едет хеш токена и уже готовый хеш пароля")
+        @DisplayName("в базу едет только хеш токена — пароля в заявке нет вовсе")
         void storesHashes() {
-            String token = service.issue(EMAIL, HASH, "Иван", null);
+            String token = service.issue(EMAIL, "Иван", null);
 
             ArgumentCaptor<PendingRegistration> saved = ArgumentCaptor.forClass(PendingRegistration.class);
             verify(registrationRepository).save(saved.capture());
             assertEquals(CryptoUtils.sha256Hex(token), saved.getValue().getTokenHash());
-            assertEquals(HASH, saved.getValue().getPasswordHash());
         }
 
         @Test
         @DisplayName("новая заявка гасит прежнюю на тот же адрес")
         void retiresPrevious() {
-            service.issue(EMAIL, HASH, null, null);
+            service.issue(EMAIL, null, null);
 
             verify(registrationRepository).retireLive(eq(EMAIL), any());
         }

@@ -16,6 +16,7 @@ import ru.agimate.userapi.database.repositories.UserRepository;
 import ru.agimate.userapi.database.repositories.UserSpecs;
 import ru.agimate.userapi.util.ReferralCodes;
 
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,8 +31,22 @@ public class UserService {
 
     private final UserRepository userRepository;
 
+    /**
+     * Addresses are compared folded, and folded is how they are stored — see {@link #fold}. The whole
+     * identity of an account hangs off this one comparison: the provider login joins a second provider
+     * to an existing person by it, and the password flows decide by it whether an address is free.
+     */
     public Optional<UserEntity> findByEmail(String email) {
-        return userRepository.findByEmail(email);
+        return userRepository.findByEmail(fold(email));
+    }
+
+    /**
+     * Lower case and trimmed. A mailbox does not care about the case of its name, so neither may the
+     * lookup: two accounts for one mailbox is not a duplicate row, it is one person unable to reach
+     * half of what is theirs.
+     */
+    public static String fold(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     public Optional<UserEntity> findById(UUID id) {
@@ -53,7 +68,7 @@ public class UserService {
     @Transactional
     public UserEntity createUser(String email, String firstName, String lastName, String displayName,
                                  UUID referredBy) {
-        UserEntity userEntity = new UserEntity(email, firstName, lastName, displayName);
+        UserEntity userEntity = new UserEntity(fold(email), firstName, lastName, displayName);
         userEntity.setReferralCode(freeReferralCode());
         userEntity.setReferredBy(referredBy);
         return userRepository.save(userEntity);

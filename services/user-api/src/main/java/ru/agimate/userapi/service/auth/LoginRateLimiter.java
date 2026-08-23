@@ -25,15 +25,18 @@ public class LoginRateLimiter {
     private static final int MAX_FAILURES = 10;
 
     /**
-     * Both the window the failures are counted in and how long the block lasts: the entry expires
-     * this long after the most recent failure, so guessing extends its own lockout.
+     * Both the window the failures are counted in and how long the block lasts: the entry dies this
+     * long after it was last touched, so guessing extends its own lockout.
      */
     private static final Duration WINDOW = Duration.ofMinutes(15);
 
     private final Cache<String, AtomicInteger> failures = Caffeine.newBuilder()
             // A ceiling against a flood of invented addresses; honest keys are in no danger of eviction.
             .maximumSize(100_000)
-            .expireAfterWrite(WINDOW)
+            // Access and not write: incrementing the counter mutates the value in place and is not a
+            // cache write at all, so expireAfterWrite would keep the deadline pinned to the first
+            // failure and let a run of guesses outlive its own lockout.
+            .expireAfterAccess(WINDOW)
             .build();
 
     public boolean blocked(String email) {

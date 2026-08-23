@@ -74,8 +74,10 @@ public class PasswordAuthService {
      * comparison: the answer must not tell whether an address is registered here, and neither must
      * the time it takes to arrive.
      */
-    public IssuedTokens login(String email, String password, AuthClient client,
+    public IssuedTokens login(String rawEmail, String password, AuthClient client,
                               @Nullable String deviceLabel) {
+        String email = UserService.fold(rawEmail);
+
         if (rateLimiter.blocked(email)) {
             throw new TooManyRequestsStatusException("Too many attempts — try again in "
                     + rateLimiter.window().toMinutes() + " minutes");
@@ -111,7 +113,8 @@ public class PasswordAuthService {
      *               register, not to reset — they are told that the account exists, and the link is
      *               the same one, because adding a password and resetting it are the same operation
      */
-    public void requestReset(String email, String linkBase, String letter) {
+    public void requestReset(String rawEmail, String linkBase, String letter) {
+        String email = UserService.fold(rawEmail);
         Optional<UserEntity> found = userService.findByEmail(email);
         if (found.isEmpty()) {
             log.debug("password reset asked for an address with no account");

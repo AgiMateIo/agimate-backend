@@ -6,6 +6,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 /**
+ * No password here: it is chosen at confirmation, by whoever opens the letter. A password named on
+ * this form would be named by somebody who has not shown that the mailbox is theirs.
+ *
  * @param ref the referral code the visitor arrived with, if the frontend carried one from the
  *            landing page; an unknown code is dropped rather than refused
  */
@@ -15,11 +18,6 @@ public record RegisterRequest(
                 requiredMode = Schema.RequiredMode.REQUIRED)
         @NotBlank @Email
         String email,
-
-        @Schema(description = "Password of the account being asked for, at least 8 characters",
-                requiredMode = Schema.RequiredMode.REQUIRED)
-        @NotBlank @Size(min = 8, max = 72)
-        String password,
 
         @Schema(description = "How the person wants to be addressed; the email is used when absent",
                 example = "Eugene")

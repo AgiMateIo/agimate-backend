@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.common.rest.error.ServiceUnavailableStatusException;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.userapi.config.OAuthProperties;
 import ru.agimate.userapi.controller.dto.request.auth.ChangePasswordRequest;
@@ -29,6 +30,7 @@ import ru.agimate.userapi.security.jwt.RefreshTokenService;
 import ru.agimate.userapi.service.auth.IssuedTokens;
 import ru.agimate.userapi.service.auth.PasswordAuthService;
 import ru.agimate.userapi.service.auth.RegistrationService;
+import ru.agimate.userapi.service.mail.MailService;
 
 import java.util.UUID;
 
@@ -52,6 +54,7 @@ public class AuthController {
     private final RegistrationService registrationService;
     private final RefreshTokenService refreshTokenService;
     private final OAuthProperties oAuthProperties;
+    private final MailService mailService;
 
     @Operation(summary = "Sign in with a password",
             description = "An unknown address and a wrong password are refused identically. Web "
@@ -82,9 +85,9 @@ public class AuthController {
             @Valid @RequestBody
             RegisterRequest registerRequest
     ) {
-        registrationService.register(registerRequest.email(), registerRequest.password(),
-                registerRequest.displayName(), registerRequest.ref(),
-                oAuthProperties.frontendOrigin(request));
+        requireMail();
+        registrationService.register(registerRequest.email(), registerRequest.displayName(),
+                registerRequest.ref(), oAuthProperties.frontendOrigin(request));
         return SuccessResponse.ok("If the address can be registered, a letter is on its way");
     }
 
@@ -99,8 +102,8 @@ public class AuthController {
             ConfirmRegistrationRequest confirmRequest
     ) {
         AuthClient client = confirmRequest.client() == null ? AuthClient.WEB : confirmRequest.client();
-        IssuedTokens tokens = registrationService.confirm(
-                confirmRequest.token(), client, deviceLabel(request, confirmRequest.deviceName()));
+        IssuedTokens tokens = registrationService.confirm(confirmRequest.token(),
+                confirmRequest.password(), client, deviceLabel(request, confirmRequest.deviceName()));
 
         return respond(request, response, tokens, client);
     }
@@ -114,6 +117,7 @@ public class AuthController {
             @Valid @RequestBody
             ResendConfirmationRequest resendRequest
     ) {
+        requireMail();
         registrationService.resend(resendRequest.email(), oAuthProperties.frontendOrigin(request));
         return SuccessResponse.ok("If a registration is waiting for the address, a letter is on its way");
     }
@@ -128,6 +132,7 @@ public class AuthController {
             @Valid @RequestBody
             ForgotPasswordRequest forgotRequest
     ) {
+        requireMail();
         passwordAuthService.requestReset(forgotRequest.email(), oAuthProperties.frontendOrigin(request));
         return SuccessResponse.ok("If the address belongs to an account, a letter is on its way");
     }
@@ -173,6 +178,19 @@ public class AuthController {
         refreshTokenService.setHttpOnlyRefreshTokenCookie(response, tokens.refreshToken(),
                 resolved.cookieDomain(), resolved.cookieSecure());
         return SuccessResponse.ok(AuthMapper.forWeb(tokens));
+    }
+
+    /**
+     * An installation with no mail configured cannot finish any of these, and saying so is the whole
+     * point: without this the request is accepted, a row is written and a cheerful "a letter is on
+     * its way" comes back, while the only trace of the truth is a warning in the log of an async
+     * executor. Confirming a link that did arrive keeps working — nothing is sent from there.
+     */
+    private void requireMail() {
+        if (!mailService.isConfigured()) {
+            throw new ServiceUnavailableStatusException(
+                    "This installation cannot send mail, so password sign-in is not available here");
+        }
     }
 
     /** The label is shown back to its owner in the device list and trusted for nothing else. */

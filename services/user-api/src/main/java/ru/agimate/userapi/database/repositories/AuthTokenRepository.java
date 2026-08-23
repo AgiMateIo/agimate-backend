@@ -32,20 +32,6 @@ public interface AuthTokenRepository extends JpaRepository<AuthToken, UUID> {
     int claim(@Param("tokenHash") String tokenHash, @Param("now") LocalDateTime now);
 
     /**
-     * Retires every live token of one purpose before a new one is issued, so that the latest letter
-     * is the one that works and the older ones in the mailbox stop being keys.
-     */
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-            UPDATE AuthToken t
-            SET t.usedAt = :now, t.updatedAt = :now
-            WHERE t.userId = :userId AND t.purpose = :purpose AND t.usedAt IS NULL
-            """)
-    int retireLive(@Param("userId") UUID userId,
-                   @Param("purpose") AuthTokenPurpose purpose,
-                   @Param("now") LocalDateTime now);
-
-    /**
      * How many letters of this purpose this person has been sent since a moment — the throttle, kept
      * in the database rather than in memory because a counter a restart resets is not a throttle.
      */

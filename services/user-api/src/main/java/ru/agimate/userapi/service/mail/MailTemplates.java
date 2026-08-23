@@ -13,6 +13,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * The letters themselves: {@code mail/<lang>/<name>.html} for the body, one
@@ -31,6 +33,8 @@ public class MailTemplates {
      * a missing translation should read oddly, not fail to arrive.
      */
     private static final String FALLBACK_LANGUAGE = "en";
+
+    private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{(\\w+)}}");
 
     private final String language;
 
@@ -87,20 +91,28 @@ public class MailTemplates {
     }
 
     /**
-     * A placeholder left unfilled means the caller and the letter disagree about what the letter
-     * needs — most often a renamed variable. Sending it anyway would show the reader the markers.
+     * One pass over the markers rather than one pass per variable: substituting sequentially would
+     * let a value carrying {@code {{…}}} of its own be read as a marker — and a display name is
+     * written by the person it belongs to. A placeholder left unfilled means the caller and the
+     * letter disagree about what the letter needs, most often a renamed variable, and sending it
+     * anyway would show the reader the markers.
      */
     private String substitute(String template, Map<String, String> variables, String name) {
         if (template == null) {
             throw new IllegalStateException("No subject for the mail template " + name);
         }
-        String result = template;
-        for (Map.Entry<String, String> variable : variables.entrySet()) {
-            result = result.replace("{{" + variable.getKey() + "}}", HtmlUtils.htmlEscape(variable.getValue()));
+
+        Matcher matcher = PLACEHOLDER.matcher(template);
+        StringBuilder result = new StringBuilder();
+        while (matcher.find()) {
+            String value = variables.get(matcher.group(1));
+            if (value == null) {
+                throw new IllegalStateException(
+                        "No value for {{" + matcher.group(1) + "}} in the mail template " + name);
+            }
+            matcher.appendReplacement(result, Matcher.quoteReplacement(HtmlUtils.htmlEscape(value)));
         }
-        if (result.contains("{{")) {
-            throw new IllegalStateException("Unfilled placeholder in the mail template " + name);
-        }
-        return result;
+        matcher.appendTail(result);
+        return result.toString();
     }
 }

@@ -48,14 +48,18 @@ public class RegistrationService {
      * mailbox that has had enough letters are one answer — the difference is only of use to somebody
      * finding out who is registered here.
      *
+     * <p>No password is taken here: it is chosen at confirmation, by whoever opens the letter. That
+     * is what keeps an unsolicited click from creating an account whose password somebody else
+     * picked — the form and the mailbox are not necessarily the same person.
+     *
      * @param referralCode the code the visitor arrived with, or null; honoured only if this request
      *                     ends up creating an account, so that a link brings new people alone
      * @param linkBase     origin of the frontend the request came from, so the letter points at the
      *                     installation the person is actually using
      */
-    public void register(String email, String password, @Nullable String displayName,
+    public void register(String rawEmail, @Nullable String displayName,
                          @Nullable String referralCode, String linkBase) {
-        PasswordPolicy.validate(password);
+        String email = UserService.fold(rawEmail);
 
         if (userService.findByEmail(email).isPresent()) {
             // Not an error: the person is told by mail that they already have a way in, and given the
@@ -70,8 +74,7 @@ public class RegistrationService {
             return;
         }
 
-        String token = pendingRegistrations.issue(email, passwordEncoder.encode(password),
-                displayName, resolveReferrer(referralCode));
+        String token = pendingRegistrations.issue(email, displayName, resolveReferrer(referralCode));
         sendConfirmation(email, displayName, token, linkBase);
     }
 
@@ -80,7 +83,8 @@ public class RegistrationService {
      * with any of this is a letter that does not arrive. Silent about everything, for the same reason
      * {@link #register} is.
      */
-    public void resend(String email, String linkBase) {
+    public void resend(String rawEmail, String linkBase) {
+        String email = UserService.fold(rawEmail);
         Optional<PendingRegistration> live = pendingRegistrations.findLive(email);
         if (live.isEmpty() || !pendingRegistrations.allowedToSend(email)) {
             return;
@@ -89,8 +93,8 @@ public class RegistrationService {
         PendingRegistration pending = live.get();
         // A new token rather than the old one: what went out the first time exists in a letter we do
         // not have a copy of, and only its hash is here.
-        String token = pendingRegistrations.issue(pending.getEmail(), pending.getPasswordHash(),
-                pending.getDisplayName(), pending.getReferredBy());
+        String token = pendingRegistrations.issue(pending.getEmail(), pending.getDisplayName(),
+                pending.getReferredBy());
 
         sendConfirmation(email, pending.getDisplayName(), token, linkBase);
     }
@@ -100,31 +104,40 @@ public class RegistrationService {
      * login page: the person has just shown everything the account could ask of them.
      */
     @Transactional
-    public IssuedTokens confirm(String token, AuthClient client, @Nullable String deviceLabel) {
+    public IssuedTokens confirm(String token, String password, AuthClient client,
+                                @Nullable String deviceLabel) {
+        PasswordPolicy.validate(password);
         PendingRegistration pending = pendingRegistrations.consume(token);
+        String passwordHash = passwordEncoder.encode(password);
 
         UserEntity user = userService.findByEmail(pending.getEmail())
                 // Somebody signed in through a provider while this letter was waiting. The address is
                 // theirs either way — this letter proves it as surely as the provider did — so the
                 // password joins the account that exists instead of colliding with its unique index.
-                .map(existing -> attachPassword(existing, pending))
-                .orElseGet(() -> create(pending));
+                .map(existing -> attachPassword(existing, passwordHash))
+                .orElseGet(() -> create(pending, passwordHash));
 
         return authSessionService.open(user, client, deviceLabel);
     }
 
-    private UserEntity attachPassword(UserEntity user, PendingRegistration pending) {
+    /**
+     * Safe precisely because the password was named a moment ago by whoever opened the letter: they
+     * have proved the mailbox the account is bound to and chosen the password themselves. Other
+     * sessions are left alone — nothing here suggests the account is in anybody else's hands, unlike
+     * a reset, which is asked for by somebody who has lost their way in.
+     */
+    private UserEntity attachPassword(UserEntity user, String passwordHash) {
         log.info("address gained an account while its registration waited — password attached to {}",
                 user.getId());
-        user.setPasswordHash(pending.getPasswordHash());
+        user.setPasswordHash(passwordHash);
         user.setPasswordUpdatedAt(LocalDateTime.now());
         return userService.updateUser(user);
     }
 
-    private UserEntity create(PendingRegistration pending) {
+    private UserEntity create(PendingRegistration pending, String passwordHash) {
         UserEntity user = userService.createUser(pending.getEmail(), null, null,
                 displayName(pending.getDisplayName(), pending.getEmail()), pending.getReferredBy());
-        user.setPasswordHash(pending.getPasswordHash());
+        user.setPasswordHash(passwordHash);
         user.setPasswordUpdatedAt(LocalDateTime.now());
 
         log.info("account {} created from a confirmed registration", user.getId());

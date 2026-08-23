@@ -18,6 +18,10 @@ import java.util.UUID;
  * Somebody who has asked for an account and has not yet shown that the address is theirs. It becomes
  * a {@link UserEntity} at the moment the letter is opened and not a second earlier — an unconfirmed
  * row in {@code users} could be claimed by whoever registered with somebody else's address.
+ *
+ * <p>No password here on purpose: it is chosen by whoever opens the letter. Carrying one from the
+ * form would mean the password is named by one person and the mailbox proved by another, and an
+ * unsolicited confirmation click would hand the clicker an account somebody else knows the way into.
  */
 @Entity
 @Table(name = "pending_registrations", uniqueConstraints = {
@@ -36,10 +40,6 @@ public class PendingRegistration extends BaseEntity {
     /** Not unique: two attempts from one address are ordinary, and the confirmed one wins. */
     @Column(name = "email", nullable = false, columnDefinition = "TEXT")
     private String email;
-
-    /** Already a hash. What the person typed is never stored, not even for the day before they confirm. */
-    @Column(name = "password_hash", nullable = false, columnDefinition = "TEXT")
-    private String passwordHash;
 
     @Column(name = "display_name", columnDefinition = "TEXT")
     private String displayName;

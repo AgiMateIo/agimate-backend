@@ -63,7 +63,6 @@ class RegistrationServiceTest {
     void createPending() {
         pending = new PendingRegistration();
         pending.setEmail(EMAIL);
-        pending.setPasswordHash(HASH);
         pending.setDisplayName("Иван");
     }
 
@@ -76,11 +75,9 @@ class RegistrationServiceTest {
         void freeAddress() {
             when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
             when(pendingRegistrations.allowedToSend(EMAIL)).thenReturn(true);
-            when(passwordEncoder.encode(PASSWORD)).thenReturn(HASH);
-            when(pendingRegistrations.issue(eq(EMAIL), eq(HASH), eq("Иван"), isNull()))
-                    .thenReturn("t0ken");
+            when(pendingRegistrations.issue(eq(EMAIL), eq("Иван"), isNull())).thenReturn("t0ken");
 
-            service.register(EMAIL, PASSWORD, "Иван", null, LINK_BASE);
+            service.register(EMAIL, "Иван", null, LINK_BASE);
 
             verify(mailService).send(eq(EMAIL), eq("registration-confirm"),
                     argThat((Map<String, String> vars) ->
@@ -96,10 +93,10 @@ class RegistrationServiceTest {
         void takenAddress() {
             when(userService.findByEmail(EMAIL)).thenReturn(Optional.of(new UserEntity()));
 
-            service.register(EMAIL, PASSWORD, null, null, LINK_BASE);
+            service.register(EMAIL, null, null, LINK_BASE);
 
             verify(passwordAuthService).requestReset(EMAIL, LINK_BASE, "account-exists");
-            verify(pendingRegistrations, never()).issue(anyString(), anyString(), any(), any());
+            verify(pendingRegistrations, never()).issue(anyString(), any(), any());
         }
 
         @Test
@@ -108,17 +105,22 @@ class RegistrationServiceTest {
             when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
             when(pendingRegistrations.allowedToSend(EMAIL)).thenReturn(false);
 
-            service.register(EMAIL, PASSWORD, null, null, LINK_BASE);
+            service.register(EMAIL, null, null, LINK_BASE);
 
             verify(mailService, never()).send(anyString(), anyString(), any());
         }
 
+        /** Адрес приводится к нижнему регистру до всего: иначе один ящик получил бы два аккаунта. */
         @Test
-        @DisplayName("короткий пароль не доходит ни до базы, ни до почты")
-        void shortPassword() {
-            assertThrows(BadRequestStatusException.class,
-                    () -> service.register(EMAIL, "short", null, null, LINK_BASE));
-            verify(userService, never()).findByEmail(anyString());
+        @DisplayName("адрес складывается в нижний регистр до поиска")
+        void foldsAddress() {
+            when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
+            when(pendingRegistrations.allowedToSend(EMAIL)).thenReturn(true);
+            when(pendingRegistrations.issue(eq(EMAIL), any(), isNull())).thenReturn("t0ken");
+
+            service.register("  Ivan@Example.COM ", null, null, LINK_BASE);
+
+            verify(mailService).send(eq(EMAIL), eq("registration-confirm"), any());
         }
 
         @Test
@@ -127,10 +129,9 @@ class RegistrationServiceTest {
             when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
             when(userService.findByReferralCode("NOSUCH12")).thenReturn(Optional.empty());
             when(pendingRegistrations.allowedToSend(EMAIL)).thenReturn(true);
-            when(passwordEncoder.encode(PASSWORD)).thenReturn(HASH);
-            when(pendingRegistrations.issue(eq(EMAIL), eq(HASH), any(), isNull())).thenReturn("t0ken");
+            when(pendingRegistrations.issue(eq(EMAIL), any(), isNull())).thenReturn("t0ken");
 
-            service.register(EMAIL, PASSWORD, null, "NOSUCH12", LINK_BASE);
+            service.register(EMAIL, null, "NOSUCH12", LINK_BASE);
 
             verify(mailService).send(eq(EMAIL), eq("registration-confirm"), any());
         }
@@ -145,7 +146,7 @@ class RegistrationServiceTest {
         void reissues() {
             when(pendingRegistrations.findLive(EMAIL)).thenReturn(Optional.of(pending));
             when(pendingRegistrations.allowedToSend(EMAIL)).thenReturn(true);
-            when(pendingRegistrations.issue(EMAIL, HASH, "Иван", null)).thenReturn("fresh");
+            when(pendingRegistrations.issue(EMAIL, "Иван", null)).thenReturn("fresh");
 
             service.resend(EMAIL, LINK_BASE);
 
@@ -170,16 +171,17 @@ class RegistrationServiceTest {
     class Confirm {
 
         @Test
-        @DisplayName("аккаунт заводится здесь и не раньше, с паролем из заявки")
+        @DisplayName("аккаунт заводится здесь и не раньше, с паролем из формы подтверждения")
         void createsAccount() {
             UserEntity created = new UserEntity(EMAIL, null, null, "Иван");
             created.setId(UUID.randomUUID());
             when(pendingRegistrations.consume("t0ken")).thenReturn(pending);
+            when(passwordEncoder.encode(PASSWORD)).thenReturn(HASH);
             when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
             when(userService.createUser(EMAIL, null, null, "Иван", null)).thenReturn(created);
             when(userService.updateUser(created)).thenReturn(created);
 
-            service.confirm("t0ken", AuthClient.WEB, "Pixel 8");
+            service.confirm("t0ken", PASSWORD, AuthClient.WEB, "Pixel 8");
 
             assertEquals(HASH, created.getPasswordHash());
             assertNotNull(created.getPasswordUpdatedAt());
@@ -197,14 +199,24 @@ class RegistrationServiceTest {
             UserEntity existing = new UserEntity(EMAIL, null, null, "Иван");
             existing.setId(UUID.randomUUID());
             when(pendingRegistrations.consume("t0ken")).thenReturn(pending);
+            when(passwordEncoder.encode(PASSWORD)).thenReturn(HASH);
             when(userService.findByEmail(EMAIL)).thenReturn(Optional.of(existing));
             when(userService.updateUser(existing)).thenReturn(existing);
 
-            service.confirm("t0ken", AuthClient.NATIVE, null);
+            service.confirm("t0ken", PASSWORD, AuthClient.NATIVE, null);
 
             assertEquals(HASH, existing.getPasswordHash());
             verify(userService, never()).createUser(anyString(), any(), any(), anyString(), any());
             verify(authSessionService).open(existing, AuthClient.NATIVE, null);
+        }
+
+        /** Пароль задаёт тот, кто открыл письмо, — и проверяется он там же, до траты токена. */
+        @Test
+        @DisplayName("короткий пароль не тратит ссылку из письма")
+        void shortPassword() {
+            assertThrows(BadRequestStatusException.class,
+                    () -> service.confirm("t0ken", "short", AuthClient.WEB, null));
+            verify(pendingRegistrations, never()).consume(anyString());
         }
 
         @Test
@@ -213,11 +225,12 @@ class RegistrationServiceTest {
             pending.setDisplayName(null);
             UserEntity created = new UserEntity(EMAIL, null, null, EMAIL);
             when(pendingRegistrations.consume("t0ken")).thenReturn(pending);
+            when(passwordEncoder.encode(PASSWORD)).thenReturn(HASH);
             when(userService.findByEmail(EMAIL)).thenReturn(Optional.empty());
             when(userService.createUser(EMAIL, null, null, EMAIL, null)).thenReturn(created);
             when(userService.updateUser(created)).thenReturn(created);
 
-            service.confirm("t0ken", AuthClient.WEB, null);
+            service.confirm("t0ken", PASSWORD, AuthClient.WEB, null);
 
             verify(userService).createUser(EMAIL, null, null, EMAIL, null);
         }

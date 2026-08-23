@@ -16,7 +16,7 @@ import java.util.UUID;
 
 /**
  * One-time secrets that travel by mail, and the rules that make them worth trusting: hashed at rest,
- * spent once, superseded by the next one, and rationed.
+ * spent once, short-lived, and rationed.
  *
  * <p>The purpose is checked on the way out as well as the way in, so that a token issued for one
  * thing cannot be presented for another — the discriminator is a security boundary, not a label.
@@ -39,10 +39,10 @@ public class AuthTokenService {
     @Transactional
     public String issue(UUID userId, AuthTokenPurpose purpose, Duration ttl) {
         LocalDateTime now = LocalDateTime.now();
-        // Whatever was live is retired first: two letters in one mailbox, both working, means the
-        // older link stays a key long after the person stopped meaning to use it.
-        tokenRepository.retireLive(userId, purpose, now);
-
+        // Live tokens are deliberately left alone. Retiring them read well — only the newest link
+        // works — until you notice who else can trigger an issue: anybody, from an endpoint that
+        // needs no account, killing a link the owner is holding. Several letters into one mailbox
+        // over an hour prove the same thing anyway, and the TTL still bounds them.
         String token = CryptoUtils.randomHex(TOKEN_BYTES);
 
         AuthToken authToken = new AuthToken();
