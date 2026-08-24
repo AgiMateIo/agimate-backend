@@ -95,8 +95,6 @@ class WebchatServiceTest {
     private SignedFileUrlService signedFileUrlService;
     @Mock
     private ru.agimate.controlapi.storage.FileStorageService fileStorageService;
-    @Mock
-    private ru.agimate.controlapi.service.ratelimit.InboundRateLimiter rateLimiter;
 
     private WebchatService webchatService;
 
@@ -109,7 +107,7 @@ class WebchatServiceTest {
         webchatService = new WebchatService(agentRepository, channelRepository, channelService,
                 agentSessionService, agentRunQueryService, connectionBindingService, triggerRouterService,
                 webchatMessagePublisher, webchatMessageRepository, centrifugoService,
-                signedFileUrlService, fileStorageService, rateLimiter);
+                signedFileUrlService, fileStorageService);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).name("Assistant").build();
         channel = Channel.builder()
                 .id(CHANNEL_ID)

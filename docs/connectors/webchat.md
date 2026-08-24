@@ -98,7 +98,8 @@ PostgreSQL совпадает с временным, поэтому сравне
 только answer-стрим. Изображения фронт рендерит `<img src>` прямо по ссылке.
 
 **Входящие файлы от пользователя работают** (docs/connectors/files.md, раздел «Входящие вложения»):
-`POST /manage/webchat/files` (multipart) → `fileId`, затем `parts: [{fileId}]` в send-запросе.
+`POST /manage/files` (multipart) → `id`, затем `parts: [{fileId}]` в send-запросе — своего
+эндпойнта загрузки у вебчата нет, файловый слой общий.
 `WebchatService` валидирует владение/READY/TTL, кладёт `parts` в data триггера; `handleInput` мапит
 их в `InboundMessage.parts` + текст-стаб. Воркер тянет байты изображения `GetFile`'ом при LLM-вызове
 и подаёт модели как `Media` («зрение»). Эхо USER-сообщения несёт свои `parts` (подписанный URL).

@@ -4,7 +4,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,15 +12,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
-import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatFileResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMarkReadRequest;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
@@ -77,17 +73,6 @@ public class ManageWebchatController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(webchatService.send(userId, id, request));
-    }
-
-    @Operation(summary = "Upload a file for a webchat message",
-            description = "Stores the file and returns its fileId; put it into send parts as {\"fileId\": ...}")
-    @PostMapping(value = "/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public SuccessResponse<WebchatFileResponse> uploadFile(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestPart("file") MultipartFile file
-    ) {
-        UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(webchatService.uploadFile(userId, file));
     }
 
     @Operation(summary = "List agents as chat contacts, freshest conversation first",

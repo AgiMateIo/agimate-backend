@@ -5,17 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.common.rest.error.TooManyRequestsStatusException;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
-import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatFileResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatLastMessage;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
@@ -38,7 +34,6 @@ import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.channel.handler.WebchatChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
-import ru.agimate.controlapi.service.ratelimit.InboundRateLimiter;
 import ru.agimate.controlapi.service.trigger.ChannelInfo;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.Trigger;
@@ -46,11 +41,8 @@ import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 import ru.agimate.controlapi.storage.FileStorageService;
-import ru.agimate.controlapi.storage.NewFile;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -90,7 +82,6 @@ public class WebchatService {
     private final CentrifugoService centrifugoService;
     private final SignedFileUrlService signedFileUrlService;
     private final FileStorageService fileStorageService;
-    private final InboundRateLimiter rateLimiter;
 
     /** Ceiling on attachments in one message — protection of the prompt and the quota from abuse. */
     private static final int MAX_PARTS = 5;
@@ -265,37 +256,6 @@ public class WebchatService {
 
     /** The preview of a contact row together with the conversation it came from. */
     private record ContactPreview(UUID sessionId, WebchatLastMessage message) {}
-
-    /**
-     * Upload a file to be sent later in a message (parts). The file is placed into the file layer under
-     * the user's name; the frontend receives a {@code fileId} and passes it in {@code parts} at
-     * {@link #send}.
-     */
-    public WebchatFileResponse uploadFile(UUID userId, MultipartFile file) {
-        // Before touching the storage: the bucket's key is the user themselves.
-        if (!rateLimiter.tryAcquire(InboundRateLimiter.Scope.FILE_UPLOAD, userId)) {
-            throw new TooManyRequestsStatusException("File upload rate limit exceeded");
-        }
-        String mime = file.getContentType() != null && !file.getContentType().isBlank()
-                ? file.getContentType() : MediaType.APPLICATION_OCTET_STREAM_VALUE;
-        // The content belongs to the user — only sizes and metadata go into the log.
-        log.info("Webchat file upload - user={}, mime={}, {} bytes", userId, mime, file.getSize());
-        StoredFile stored;
-        try (InputStream content = file.getInputStream()) {
-            // No agentId: the upload precedes the send, so the session — and with it the agent — is
-            // not yet chosen.
-            stored = fileStorageService.store(NewFile.builder()
-                    .userId(userId)
-                    .origin("webchat")
-                    .name(file.getOriginalFilename())
-                    .mime(mime)
-                    .sizeBytes(file.getSize())
-                    .build(), content);
-        } catch (IOException e) {
-            throw new BadRequestStatusException("Failed to read uploaded file: " + e.getMessage());
-        }
-        return WebchatFileResponse.from(stored);
-    }
 
     /**
      * Accept a user's message: a UI history row plus an echo event, then the regular trigger pipeline
