@@ -28,7 +28,7 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
     public static final String OAUTH2_REDIRECT_TO_COOKIE_NAME = "oauth2_redirect_to";
     public static final String OAUTH2_REF_COOKIE_NAME = "oauth2_ref";
     public static final String OAUTH2_CODE_CHALLENGE_COOKIE_NAME = "oauth2_code_challenge";
-    public static final String OAUTH2_LINK_TICKET_COOKIE_NAME = "oauth2_link_ticket";
+    public static final String OAUTH2_LINK_COOKIE_NAME = "oauth2_link";
     public static final int COOKIE_EXPIRE_SECONDS = 900; // 15 minutes
 
     private static final Pattern REF_PATTERN = Pattern.compile("^[A-Za-z0-9]{1,16}$");
@@ -40,8 +40,8 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
      */
     private static final Pattern CODE_CHALLENGE_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{43}$");
 
-    /** 32 bytes of hex, the shape {@code AuthTokenService} issues. */
-    private static final Pattern LINK_TICKET_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
+    /** The only value the marker below is ever set to; anything else is not one of ours. */
+    private static final String LINK_MARKER = "1";
 
     private final SecretKey encryptionKey;
     private final boolean cookieSecure;
@@ -88,7 +88,7 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         // Both of the following are cleared when this round trip does not ask for them, and that
         // matters more than setting them: they are deleted at the callback, so an abandoned trip —
         // the consent page closed, the back button — leaves one behind for a quarter of an hour, and
-        // the next trip would be read as whatever the last one was. A stale link ticket turns an
+        // the next trip would be read as whatever the last one was. A stale link marker turns an
         // ordinary login into a binding that mints no session at all.
 
         // The PKCE challenge of the native client, which has to outlive the trip to the provider and
@@ -101,20 +101,22 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
             deleteCookie(request, response, OAUTH2_CODE_CHALLENGE_COOKIE_NAME);
         }
 
-        // Turns this round trip from a login into a binding of the provider to an account already
-        // signed in. Opaque on purpose: this cookie, unlike the authorization request beside it, is
-        // not encrypted, so it must carry nothing that could be forged into naming somebody. Whose
-        // account it is is looked up from the ticket in the database, never read out of here.
-        String linkTicket = request.getParameter("link_ticket");
-        if (isValidLinkTicket(linkTicket)) {
-            addCookie(response, OAUTH2_LINK_TICKET_COOKIE_NAME, linkTicket, COOKIE_EXPIRE_SECONDS);
+        // Says that this round trip was asked for as a binding rather than as a login, and says
+        // nothing else — least of all whose binding. It used to carry a ticket naming an account,
+        // which made the binding belong to whoever finished the trip; a trip is begun by following
+        // a link, so it could be finished in a browser that was not the account holder's. The
+        // callback now hands back a proof of the provider and the account is named afterwards, by a
+        // request bearing an access token. Forging this marker turns your own login into a proof
+        // only you can spend, which is worth nothing to anybody.
+        if (LINK_MARKER.equals(request.getParameter("link"))) {
+            addCookie(response, OAUTH2_LINK_COOKIE_NAME, LINK_MARKER, COOKIE_EXPIRE_SECONDS);
         } else {
-            deleteCookie(request, response, OAUTH2_LINK_TICKET_COOKIE_NAME);
+            deleteCookie(request, response, OAUTH2_LINK_COOKIE_NAME);
         }
     }
 
-    public static boolean isValidLinkTicket(String value) {
-        return value != null && LINK_TICKET_PATTERN.matcher(value).matches();
+    public static boolean isLinkRequest(String cookieValue) {
+        return LINK_MARKER.equals(cookieValue);
     }
 
     public static boolean isValidCodeChallenge(String value) {
@@ -141,7 +143,7 @@ public class CookieOAuth2AuthorizationRequestRepository implements Authorization
         deleteCookie(request, response, OAUTH2_REDIRECT_TO_COOKIE_NAME);
         deleteCookie(request, response, OAUTH2_REF_COOKIE_NAME);
         deleteCookie(request, response, OAUTH2_CODE_CHALLENGE_COOKIE_NAME);
-        deleteCookie(request, response, OAUTH2_LINK_TICKET_COOKIE_NAME);
+        deleteCookie(request, response, OAUTH2_LINK_COOKIE_NAME);
         return authorizationRequest;
     }
 

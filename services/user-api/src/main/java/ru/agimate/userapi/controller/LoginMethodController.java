@@ -3,17 +3,20 @@ package ru.agimate.userapi.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
-import ru.agimate.userapi.controller.dto.response.auth.LinkTicketResponse;
+import ru.agimate.userapi.controller.dto.request.auth.LinkProviderRequest;
+import ru.agimate.userapi.controller.dto.response.auth.LinkProviderResponse;
 import ru.agimate.userapi.controller.dto.response.auth.LoginMethodResponse;
 import ru.agimate.userapi.database.entities.OAuthProviderType;
 import ru.agimate.userapi.service.auth.LoginMethodService;
@@ -24,9 +27,15 @@ import java.util.UUID;
 /**
  * The ways into one's own account: what they are, how another is added, how one is dropped.
  *
- * <p>Adding a provider by hand is for the case the login cannot serve: signing in through a provider
- * joins accounts by verified address, so somebody whose GitHub sits on a different mailbox used to
- * get a second account instead of a second way into the first one.
+ * <p>Adding a provider by hand is for the case the sign-in cannot serve: it joins accounts by
+ * verified address, so somebody whose GitHub sits on a different mailbox used to get a second
+ * account instead of a second way into the first one.
+ *
+ * <p>Binding takes two steps and has to. The client sends the browser to
+ * {@code /user/oauth2/authorization/{provider}?link=1&redirect_to=…}; the callback comes back to
+ * {@code redirect_to} with {@code link_proof} and {@code provider} on the query string, and the
+ * client posts that proof here. The account is named by this request and by nothing earlier, so a
+ * round trip somebody else caused cannot bind anything to anybody.
  *
  * <p>Open to GUEST as well, like the device list — an account still waiting for approval has the
  * same reason to manage how it is reached.
@@ -56,18 +65,20 @@ public class LoginMethodController {
         return SuccessResponse.ok(methods);
     }
 
-    @Operation(summary = "Start binding a provider",
-            description = "Answers with a one-time ticket. Send the browser to "
-                    + "/user/oauth2/authorization/{provider}?link_ticket=… and it comes back with the "
-                    + "provider bound to this account — whatever address that provider reports.")
-    @PostMapping("/link/{provider}")
-    public SuccessResponse<LinkTicketResponse> startLinking(
+    @Operation(summary = "Finish binding a provider",
+            description = "Takes the link_proof the callback came back with and binds that provider "
+                    + "to the account this request is authenticated as. Answers 200 with the "
+                    + "outcome: LINKED, ALREADY_YOURS, or a refusal — TAKEN when that account of "
+                    + "the provider belongs to somebody else, PROVIDER_OCCUPIED when this account "
+                    + "already reaches the provider through another of its accounts.")
+    @PostMapping("/link")
+    public SuccessResponse<LinkProviderResponse> linkProvider(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @Parameter(description = "Provider to bind", required = true)
-            @PathVariable("provider") OAuthProviderType provider
+            @Valid @RequestBody
+            LinkProviderRequest linkRequest
     ) {
-        String ticket = loginMethodService.issueLinkTicket(UUID.fromString(principal.id()));
-        return SuccessResponse.ok(new LinkTicketResponse(ticket, provider));
+        return SuccessResponse.ok(LinkProviderResponse.of(loginMethodService.redeemLinkProof(
+                UUID.fromString(principal.id()), linkRequest.proof())));
     }
 
     @Operation(summary = "Unbind a provider",

@@ -8,16 +8,14 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.common.rest.error.TooManyRequestsStatusException;
-import ru.agimate.userapi.database.entities.AuthTokenPurpose;
 import ru.agimate.userapi.database.entities.OAuthProviderType;
 import ru.agimate.userapi.database.entities.UserEntity;
+import ru.agimate.userapi.database.entities.ProviderLinkProof;
 import ru.agimate.userapi.database.entities.UserOAuthAccount;
 import ru.agimate.userapi.database.repositories.UserOAuthAccountRepository;
 import ru.agimate.userapi.service.UserService;
 import ru.agimate.userapi.service.mail.MailService;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,31 +25,26 @@ import java.util.UUID;
 /**
  * The ways into one account, and the rules for adding and removing them.
  *
- * <p>Several providers already lead to one person: a login through a second provider finds the
- * account by its verified address and joins it. What lives here is the case that cannot work by
- * address — a provider whose mailbox is a different one — and the management around it.
+ * <p>What the account's settings can do: read the list, add a provider that a sign-in could never
+ * have added by itself — one whose mailbox is a different one, or none — and take a way in away.
  *
- * <p>Two accounts are never merged. A provider that already belongs to somebody else is refused,
- * because merging would mean deciding what happens to two sets of agents, connections and files, and
- * that is a feature, not a branch in a linking routine.
+ * <p>Whose a provider identity is and what may be written to {@code user_oauth_accounts} is not
+ * decided here: {@link ProviderIdentityService} owns both, and this delegates to it. Two accounts
+ * are never merged — a provider that already belongs to somebody else is refused, because merging
+ * would mean deciding what happens to two sets of agents, connections and files, and that is a
+ * feature, not a branch in a linking routine.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class LoginMethodService {
 
-    /** Long enough for the trip to a provider and back, short enough to be worthless if captured. */
-    private static final Duration LINK_TICKET_TTL = Duration.ofMinutes(5);
-
-    private static final Duration TICKET_WINDOW = Duration.ofHours(1);
-    private static final int TICKET_LIMIT = 20;
-
-    private static final String LINKED_LETTER = "provider-linked";
     private static final String UNLINKED_LETTER = "provider-unlinked";
     private static final String PASSWORD_REMOVED_LETTER = "password-removed";
 
     private final UserOAuthAccountRepository oAuthAccountRepository;
-    private final AuthTokenService authTokenService;
+    private final ProviderIdentityService providerIdentityService;
+    private final ProviderLinkProofService linkProofService;
     private final UserService userService;
     private final MailService mailService;
 
@@ -70,75 +63,29 @@ public class LoginMethodService {
     }
 
     /**
-     * @return the ticket, which the client hands to {@code /oauth2/authorization/{provider}} and
-     *         nothing else ever sees
-     */
-    public String issueLinkTicket(UUID userId) {
-        // No minimum interval — abandoning a consent page and starting again straight away is
-        // ordinary — but a ceiling all the same: every other producer of these rows is rationed, and
-        // an authenticated client in a loop should not be able to grow the table without bound.
-        if (!authTokenService.allowedToSend(userId, AuthTokenPurpose.PROVIDER_LINK,
-                Duration.ZERO, TICKET_WINDOW, TICKET_LIMIT)) {
-            throw new TooManyRequestsStatusException("Too many linking attempts — try again later");
-        }
-        return authTokenService.issue(userId, AuthTokenPurpose.PROVIDER_LINK, LINK_TICKET_TTL);
-    }
-
-    /** What became of a linking attempt, in the terms the redirect back to the client speaks. */
-    public enum LinkOutcome {
-        LINKED,
-        /** The same provider account, bound already. Saying so beats inventing an error. */
-        ALREADY_YOURS,
-        /** That account of that provider belongs to somebody else, and accounts are never merged. */
-        TAKEN,
-        /** A different account of a provider this person already has. One per provider, by design. */
-        PROVIDER_OCCUPIED
-    }
-
-    /**
-     * Binds a provider account to the person the ticket was issued to. The address the provider
-     * reports is not consulted: identity here is the account you were signed into, which is exactly
-     * what makes this work for a provider whose mailbox is a different one — or none.
+     * Finishes a binding the person started in their settings: the provider is whatever the round
+     * trip proved, the account is the one this call is authenticated as.
      *
-     * @param email what the provider says the address is, or null; kept for the listing alone
+     * <p>That order is the security of it. The round trip is begun by sending a browser somewhere,
+     * which anybody can cause; this request carries an access token in a header, which only the
+     * account holder's own page can send. So the trip establishes a provider and nothing more, and
+     * the account is named by something no other origin can forge.
+     *
+     * @param proof what came back on {@code link_proof}; spent here and worthless afterwards
      */
     @Transactional
-    public LinkOutcome link(String ticket, OAuthProviderType provider, String providerUserId,
-                            @Nullable String email, @Nullable String firstName, @Nullable String lastName) {
-        UUID userId = authTokenService.consume(ticket, AuthTokenPurpose.PROVIDER_LINK);
-        UserEntity user = requireUser(userId);
+    public LinkResult redeemLinkProof(UUID userId, String proof) {
+        ProviderLinkProof proven = linkProofService.consume(proof);
 
-        var existing = oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(provider, providerUserId);
-        if (existing.isPresent()) {
-            if (existing.get().getUserEntity().getId().equals(userId)) {
-                return LinkOutcome.ALREADY_YOURS;
-            }
-            log.warn("{} account already belongs to another user — refusing to link it to {}",
-                    provider, userId);
-            return LinkOutcome.TAKEN;
-        }
+        ProviderIdentityService.LinkOutcome outcome = providerIdentityService.bind(userId,
+                proven.getOauthProvider(), proven.getProviderUserId(), proven.getEmail(),
+                proven.getFirstName(), proven.getLastName());
 
-        // A second account of a provider this person already has. Everything downstream addresses a
-        // provider by its name — the listing shows one row per provider, unlinking names a provider
-        // — so two of a kind would show up as an ambiguous listing and an unlink that cannot resolve.
-        if (!oAuthAccountRepository.findByUserEntityIdAndOauthProvider(userId, provider).isEmpty()) {
-            log.info("user {} already has a {} account linked", userId, provider);
-            return LinkOutcome.PROVIDER_OCCUPIED;
-        }
-
-        oAuthAccountRepository.save(UserOAuthAccount.builder()
-                .userEntity(user)
-                .oauthProvider(provider)
-                .providerUserId(providerUserId)
-                .email(email)
-                .firstName(firstName)
-                .lastName(lastName)
-                .build());
-
-        log.info("{} linked to user {}", provider, userId);
-        notify(user, LINKED_LETTER, provider.getDisplayName());
-        return LinkOutcome.LINKED;
+        return new LinkResult(proven.getOauthProvider(), outcome);
     }
+
+    /** Which provider the proof turned out to be for, and what came of binding it. */
+    public record LinkResult(OAuthProviderType provider, ProviderIdentityService.LinkOutcome outcome) {}
 
     @Transactional
     public void unlinkProvider(UUID userId, OAuthProviderType provider) {

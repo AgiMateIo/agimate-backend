@@ -19,6 +19,12 @@ public class GoogleUserAdapter implements OAuthUserAdapter {
         return OAuthProviderType.GOOGLE;
     }
 
+    /** {@code email_verified} is a claim of the id token: the provider answers for it itself. */
+    @Override
+    public boolean joinsExistingAccountByAddress() {
+        return true;
+    }
+
     @Override
     public OAuthUserInfo extract(OAuth2User oAuth2User) {
         return new OAuthUserInfo(

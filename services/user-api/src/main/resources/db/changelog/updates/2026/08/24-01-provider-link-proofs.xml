@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!-- What a trip to a provider brings back when it was asked for as a binding rather than as a
+         login: the identity the provider vouched for, and nothing about whose account it joins.
+
+         That absence is the point. A ticket issued beforehand named the account, which meant the
+         binding was decided by whoever completed the round trip — and a round trip is started by a
+         link, so it could be completed in somebody else's browser. The proof reverses the order:
+         the provider is established first, the account second, by an ordinary authenticated request
+         that carries an access token in a header. A header cannot be sent by a page that merely
+         made the browser navigate, so the binding stops being reachable across origins at all.
+
+         Its own table rather than another purpose of auth_tokens, for the same reason
+         pending_registrations is its own: what it carries — a provider, an id at that provider, a
+         name — has nothing in common with a user id and a deadline. Only the hash is stored, the
+         proof itself exists in the redirect and in the page that received it. -->
+    <changeSet id="create-provider-link-proofs-table" author="Eugene Smith">
+        <createTable tableName="provider_link_proofs">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="proof_hash" type="TEXT">
+                <constraints nullable="false" unique="true"
+                             uniqueConstraintName="uq_provider_link_proofs_proof_hash"/>
+            </column>
+            <column name="oauth_provider" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="provider_user_id" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <!-- Nullable for the same reason user_oauth_accounts.email is: a provider linked on
+                 purpose need not report an address, and this flow never consults one anyway. -->
+            <column name="email" type="TEXT"/>
+            <column name="first_name" type="TEXT"/>
+            <column name="last_name" type="TEXT"/>
+            <column name="expires_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="used_at" type="TIMESTAMP"/>
+        </createTable>
+
+        <sql>
+            ALTER TABLE provider_link_proofs ADD CONSTRAINT chk_provider_link_proofs_oauth_provider
+            CHECK (oauth_provider IN ('GOOGLE', 'YANDEX', 'GITHUB', 'VK'));
+        </sql>
+    </changeSet>
+
+    <!-- The tickets these proofs replace. Live rows are deleted rather than left to expire: the
+         value disappears from the enum in the same commit, and a row the constraint below would
+         refuse must not survive it. Nobody loses anything — a ticket is worth five minutes, and the
+         binding it was for is started again by the same button. -->
+    <changeSet id="drop-provider-link-token-purpose" author="Eugene Smith">
+        <sql>
+            DELETE FROM auth_tokens WHERE purpose = 'PROVIDER_LINK';
+        </sql>
+        <sql>
+            ALTER TABLE auth_tokens DROP CONSTRAINT chk_auth_tokens_purpose;
+        </sql>
+        <sql>
+            ALTER TABLE auth_tokens ADD CONSTRAINT chk_auth_tokens_purpose
+            CHECK (purpose IN ('PASSWORD_RESET'));
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

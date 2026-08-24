@@ -30,4 +30,24 @@ public interface OAuthUserAdapter {
     default Map<String, Object> normalize(OAuth2UserRequest userRequest, Map<String, Object> attributes) {
         return attributes;
     }
+
+    /**
+     * Whether an address from this provider may lead a signing-in person into an account that
+     * already exists here, rather than only into a new one.
+     *
+     * <p>Off unless a provider says otherwise, because {@link OAuthUserInfo#emailVerified()} is the
+     * adapter's word and not the protocol's: two of the four shipped here answer it with a literal
+     * {@code true} on reasoning about how that provider's accounts work. That reasoning is sound and
+     * the four declare the right below — but it is a claim about somebody else's system, and an
+     * adapter added later must not inherit the consequences of it by saying nothing. OpenID Connect
+     * Core §5.7 is the underlying rule: an address is not an identifier, so treating one as an
+     * identifier is a decision that has to be taken out loud.
+     *
+     * <p>A provider that does not declare it still opens accounts and still signs its own people in
+     * — {@code (provider, providerUserId)} never needed this. What it cannot do is walk into an
+     * account somebody else built.
+     */
+    default boolean joinsExistingAccountByAddress() {
+        return false;
+    }
 }

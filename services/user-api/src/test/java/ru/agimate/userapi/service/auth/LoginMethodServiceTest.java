@@ -11,9 +11,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
-import ru.agimate.common.rest.error.TooManyRequestsStatusException;
-import ru.agimate.userapi.database.entities.AuthTokenPurpose;
 import ru.agimate.userapi.database.entities.OAuthProviderType;
+import ru.agimate.userapi.database.entities.ProviderLinkProof;
 import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.entities.UserOAuthAccount;
 import ru.agimate.userapi.database.repositories.UserOAuthAccountRepository;
@@ -38,13 +37,15 @@ import static org.mockito.Mockito.when;
 @DisplayName("LoginMethodService — способы входа в один аккаунт")
 class LoginMethodServiceTest {
 
-    private static final String TICKET = "ticket";
+    private static final String PROOF = "0a1b2c";
     private static final String PROVIDER_USER_ID = "1234567890";
 
     @Mock
     private UserOAuthAccountRepository oAuthAccountRepository;
     @Mock
-    private AuthTokenService authTokenService;
+    private ProviderIdentityService providerIdentityService;
+    @Mock
+    private ProviderLinkProofService linkProofService;
     @Mock
     private UserService userService;
     @Mock
@@ -70,141 +71,47 @@ class LoginMethodServiceTest {
                 .build();
     }
 
+    /**
+     * Привязка здесь только погашает доказательство и зовёт владельца таблицы: правила про чужой
+     * провайдер и второй аккаунт того же провайдера проверяются в {@link ProviderIdentityServiceTest}.
+     * Смысл этого класса — что аккаунт называет сам вызов, а не то, что приехало из браузера.
+     */
     @Nested
-    @DisplayName("привязка провайдера")
-    class Link {
+    @DisplayName("погашение доказательства привязки")
+    class RedeemProof {
 
-        @Test
-        @DisplayName("адрес у провайдера не спрашивают — билет уже назвал аккаунт")
-        void linksWhateverTheAddress() {
-            when(authTokenService.consume(TICKET, AuthTokenPurpose.PROVIDER_LINK)).thenReturn(user.getId());
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
-            when(oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(
-                    OAuthProviderType.GITHUB, PROVIDER_USER_ID)).thenReturn(Optional.empty());
-            when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(
-                    user.getId(), OAuthProviderType.GITHUB)).thenReturn(List.of());
-
-            LoginMethodService.LinkOutcome outcome = service.link(TICKET, OAuthProviderType.GITHUB,
-                    PROVIDER_USER_ID, "other@mailbox.org", null, null);
-
-            assertEquals(LoginMethodService.LinkOutcome.LINKED, outcome);
-            ArgumentCaptor<UserOAuthAccount> saved = ArgumentCaptor.forClass(UserOAuthAccount.class);
-            verify(oAuthAccountRepository).save(saved.capture());
-            assertEquals(user, saved.getValue().getUserEntity());
-        }
-
-        /** Провайдер, который почты не отдаёт вовсе, — ровно тот случай, ради которого это и делается. */
-        @Test
-        @DisplayName("провайдер без адреса привязывается тоже")
-        void linksWithoutEmail() {
-            when(authTokenService.consume(TICKET, AuthTokenPurpose.PROVIDER_LINK)).thenReturn(user.getId());
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
-            when(oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(any(), anyString()))
-                    .thenReturn(Optional.empty());
-            when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(any(), any())).thenReturn(List.of());
-
-            service.link(TICKET, OAuthProviderType.GITHUB, PROVIDER_USER_ID, null, null, null);
-
-            ArgumentCaptor<UserOAuthAccount> saved = ArgumentCaptor.forClass(UserOAuthAccount.class);
-            verify(oAuthAccountRepository).save(saved.capture());
-            assertNull(saved.getValue().getEmail());
-        }
-
-        /** Слияние двух аккаунтов — отдельная большая работа, а не ветка в привязке. */
-        @Test
-        @DisplayName("чужой провайдер не забирается и аккаунты не сливаются")
-        void refusesSomebodyElses() {
-            UserEntity other = new UserEntity("other@example.com", null, null, "other");
-            other.setId(UUID.randomUUID());
-            when(authTokenService.consume(TICKET, AuthTokenPurpose.PROVIDER_LINK)).thenReturn(user.getId());
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
-            when(oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(any(), anyString()))
-                    .thenReturn(Optional.of(account(OAuthProviderType.GOOGLE, other)));
-
-            LoginMethodService.LinkOutcome outcome = service.link(TICKET, OAuthProviderType.GOOGLE,
-                    PROVIDER_USER_ID, null, null, null);
-
-            assertEquals(LoginMethodService.LinkOutcome.TAKEN, outcome);
-            verify(oAuthAccountRepository, never()).save(any());
-            verify(mailService, never()).send(anyString(), anyString(), any());
-        }
-
-        /**
-         * Всё ниже по течению адресует провайдера по имени: в списке одна строка на провайдера,
-         * отвязка называет провайдера. Два GitHub'а сделали бы список неоднозначным, а отвязку —
-         * неразрешимой.
-         */
-        @Test
-        @DisplayName("второй аккаунт того же провайдера не привязывается")
-        void refusesSecondAccountOfSameProvider() {
-            when(authTokenService.consume(TICKET, AuthTokenPurpose.PROVIDER_LINK)).thenReturn(user.getId());
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
-            when(oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(any(), anyString()))
-                    .thenReturn(Optional.empty());
-            when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(user.getId(), OAuthProviderType.GITHUB))
-                    .thenReturn(List.of(account(OAuthProviderType.GITHUB, user)));
-
-            LoginMethodService.LinkOutcome outcome = service.link(TICKET, OAuthProviderType.GITHUB,
-                    "another-github-account", null, null, null);
-
-            assertEquals(LoginMethodService.LinkOutcome.PROVIDER_OCCUPIED, outcome);
-            verify(oAuthAccountRepository, never()).save(any());
+        private ProviderLinkProof proof(OAuthProviderType provider) {
+            ProviderLinkProof row = new ProviderLinkProof();
+            row.setOauthProvider(provider);
+            row.setProviderUserId(PROVIDER_USER_ID);
+            row.setEmail("other@mailbox.org");
+            return row;
         }
 
         @Test
-        @DisplayName("свой же провайдер повторно — не ошибка и не дубль")
-        void idempotent() {
-            when(authTokenService.consume(TICKET, AuthTokenPurpose.PROVIDER_LINK)).thenReturn(user.getId());
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
-            when(oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(any(), anyString()))
-                    .thenReturn(Optional.of(account(OAuthProviderType.GOOGLE, user)));
+        @DisplayName("провайдер берётся из доказательства, аккаунт — из вызывающего")
+        void bindsToTheCaller() {
+            when(linkProofService.consume(PROOF)).thenReturn(proof(OAuthProviderType.GITHUB));
+            when(providerIdentityService.bind(user.getId(), OAuthProviderType.GITHUB, PROVIDER_USER_ID,
+                    "other@mailbox.org", null, null))
+                    .thenReturn(ProviderIdentityService.LinkOutcome.LINKED);
 
-            LoginMethodService.LinkOutcome outcome = service.link(TICKET, OAuthProviderType.GOOGLE,
-                    PROVIDER_USER_ID, null, null, null);
+            LoginMethodService.LinkResult result = service.redeemLinkProof(user.getId(), PROOF);
 
-            assertEquals(LoginMethodService.LinkOutcome.ALREADY_YOURS, outcome);
-            verify(oAuthAccountRepository, never()).save(any());
+            assertEquals(OAuthProviderType.GITHUB, result.provider());
+            assertEquals(ProviderIdentityService.LinkOutcome.LINKED, result.outcome());
         }
 
+        /** Доказательство не называет аккаунт вовсе — иначе привязку решал бы тот, кто прошёл круг. */
         @Test
-        @DisplayName("о новом способе входа владельцу уходит письмо")
-        void notifies() {
-            when(authTokenService.consume(TICKET, AuthTokenPurpose.PROVIDER_LINK)).thenReturn(user.getId());
-            when(userService.findById(user.getId())).thenReturn(Optional.of(user));
-            when(oAuthAccountRepository.findByOauthProviderAndProviderUserIdWithUser(any(), anyString()))
-                    .thenReturn(Optional.empty());
-            when(oAuthAccountRepository.findByUserEntityIdAndOauthProvider(any(), any())).thenReturn(List.of());
+        @DisplayName("негодное доказательство — ничего не связывается")
+        void refusesSpentProof() {
+            when(linkProofService.consume(PROOF))
+                    .thenThrow(new ru.agimate.common.rest.error.ForbiddenStatusException("nope"));
 
-            service.link(TICKET, OAuthProviderType.YANDEX, PROVIDER_USER_ID, null, null, null);
-
-            verify(mailService).send(eq("ivan@example.com"), eq("provider-linked"), any());
-        }
-    }
-
-    @Nested
-    @DisplayName("билет на привязку")
-    class Ticket {
-
-        @Test
-        @DisplayName("выдаётся, пока не исчерпан часовой лимит")
-        void issues() {
-            when(authTokenService.allowedToSend(eq(user.getId()), eq(AuthTokenPurpose.PROVIDER_LINK),
-                    any(), any(), org.mockito.ArgumentMatchers.anyInt())).thenReturn(true);
-            when(authTokenService.issue(eq(user.getId()), eq(AuthTokenPurpose.PROVIDER_LINK), any()))
-                    .thenReturn("ticket");
-
-            assertEquals("ticket", service.issueLinkTicket(user.getId()));
-        }
-
-        @Test
-        @DisplayName("исчерпанный лимит — 429, а не бесконечный рост таблицы")
-        void throttled() {
-            when(authTokenService.allowedToSend(any(), any(), any(), any(),
-                    org.mockito.ArgumentMatchers.anyInt())).thenReturn(false);
-
-            assertThrows(TooManyRequestsStatusException.class,
-                    () -> service.issueLinkTicket(user.getId()));
-            verify(authTokenService, never()).issue(any(), any(), any());
+            assertThrows(ru.agimate.common.rest.error.ForbiddenStatusException.class,
+                    () -> service.redeemLinkProof(user.getId(), PROOF));
+            verify(providerIdentityService, never()).bind(any(), any(), anyString(), any(), any(), any());
         }
     }
 

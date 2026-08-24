@@ -9,12 +9,13 @@ import ru.agimate.userapi.database.repositories.AuthCodeRepository;
 import ru.agimate.userapi.database.repositories.AuthSessionRepository;
 import ru.agimate.userapi.database.repositories.AuthTokenRepository;
 import ru.agimate.userapi.database.repositories.PendingRegistrationRepository;
+import ru.agimate.userapi.database.repositories.ProviderLinkProofRepository;
 
 import java.time.LocalDateTime;
 
 /**
- * Sweeps the two auth tables of rows that can no longer decide anything. Neither is urgent, which
- * is why this runs hourly and not on the request path.
+ * Sweeps the auth tables of rows that can no longer decide anything. None of it is urgent, which is
+ * why this runs hourly and not on the request path.
  */
 @Slf4j
 @Component
@@ -32,6 +33,7 @@ public class AuthCleanupTask {
     private final AuthTokenRepository tokenRepository;
     private final PendingRegistrationRepository registrationRepository;
     private final AuthSessionRepository sessionRepository;
+    private final ProviderLinkProofRepository linkProofRepository;
 
     @Scheduled(fixedDelay = 3_600_000)
     @Transactional
@@ -41,11 +43,13 @@ public class AuthCleanupTask {
         int codes = codeRepository.deleteExpired(now.minusHours(CODE_RETENTION_HOURS));
         int tokens = tokenRepository.deleteExpired(now.minusHours(CODE_RETENTION_HOURS));
         int registrations = registrationRepository.deleteExpired(now.minusHours(CODE_RETENTION_HOURS));
+        int proofs = linkProofRepository.deleteExpired(now.minusHours(CODE_RETENTION_HOURS));
         int sessions = sessionRepository.deleteExpired(now);
 
-        if (codes > 0 || tokens > 0 || registrations > 0 || sessions > 0) {
-            log.info("purged {} auth code(s), {} mail token(s), {} unconfirmed registration(s) "
-                    + "and {} expired session(s)", codes, tokens, registrations, sessions);
+        if (codes > 0 || tokens > 0 || registrations > 0 || proofs > 0 || sessions > 0) {
+            log.info("purged {} auth code(s), {} mail token(s), {} unconfirmed registration(s), "
+                    + "{} link proof(s) and {} expired session(s)",
+                    codes, tokens, registrations, proofs, sessions);
         }
     }
 }

@@ -19,6 +19,15 @@ public class YandexUserAdapter implements OAuthUserAdapter {
         return OAuthProviderType.YANDEX;
     }
 
+    /**
+     * No verification flag exists to read, so this rests on the account model instead:
+     * {@code default_email} is where Yandex delivers this account's own mail.
+     */
+    @Override
+    public boolean joinsExistingAccountByAddress() {
+        return true;
+    }
+
     @Override
     public OAuthUserInfo extract(OAuth2User oAuth2User) {
         // default_email is the address Yandex delivers mail to, so the account demonstrably controls

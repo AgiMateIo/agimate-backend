@@ -26,6 +26,15 @@ public class VkUserAdapter implements OAuthUserAdapter {
         return OAuthProviderType.VK;
     }
 
+    /**
+     * No per-field flag either: VK confirms an address before binding it, and an account registered
+     * by phone simply reports none.
+     */
+    @Override
+    public boolean joinsExistingAccountByAddress() {
+        return true;
+    }
+
     @Override
     public OAuthUserInfo extract(OAuth2User oAuth2User) {
         String firstName = oAuth2User.getAttribute("first_name");

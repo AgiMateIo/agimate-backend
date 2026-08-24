@@ -30,6 +30,12 @@ public class GithubUserAdapter implements OAuthUserAdapter {
         return OAuthProviderType.GITHUB;
     }
 
+    /** The address comes from {@code /user/emails} filtered by {@code verified}: GitHub answers. */
+    @Override
+    public boolean joinsExistingAccountByAddress() {
+        return true;
+    }
+
     @Override
     public OAuthUserInfo extract(OAuth2User oAuth2User) {
         Object id = oAuth2User.getAttributes().get("id");

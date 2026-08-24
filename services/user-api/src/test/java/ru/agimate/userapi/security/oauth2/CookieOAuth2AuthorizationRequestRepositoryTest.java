@@ -144,51 +144,54 @@ class CookieOAuth2AuthorizationRequestRepositoryTest {
         }
     }
 
+    /**
+     * Cookie больше не несёт секрета: она говорит только, что этот круг просили как привязку.
+     * Подделать её можно, и это ничего не даёт — колбэк вернёт доказательство провайдера, а
+     * потратить его сможет лишь тот, кто пришлёт свой access-токен.
+     */
     @Nested
-    @DisplayName("билет привязки провайдера")
-    class LinkTicket {
+    @DisplayName("признак привязки провайдера")
+    class LinkMarker {
 
-        private static final String VALID = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-        private Cookie ticketCookie() {
+        private Cookie linkCookie() {
             return response.getCookie(
-                    CookieOAuth2AuthorizationRequestRepository.OAUTH2_LINK_TICKET_COOKIE_NAME);
+                    CookieOAuth2AuthorizationRequestRepository.OAUTH2_LINK_COOKIE_NAME);
         }
 
-        private void saveWithTicket(String ticket) {
-            if (ticket != null) {
-                request.setParameter("link_ticket", ticket);
+        private void saveWithLink(String value) {
+            if (value != null) {
+                request.setParameter("link", value);
             }
             save(null);
         }
 
         @Test
-        @DisplayName("билет доезжает до колбэка — иначе привязывать будет некуда")
-        void keepsValidTicket() {
-            saveWithTicket(VALID);
+        @DisplayName("признак доезжает до колбэка — иначе круг прочитается как вход")
+        void keepsMarker() {
+            saveWithLink("1");
 
-            assertNotNull(ticketCookie());
-            assertEquals(VALID, ticketCookie().getValue());
+            assertNotNull(linkCookie());
+            assertEquals("1", linkCookie().getValue());
         }
 
         @Test
-        @DisplayName("значение не той формы отбрасывается")
-        void dropsMalformed() {
-            saveWithTicket("not-a-ticket");
+        @DisplayName("любое другое значение — это не наш признак")
+        void dropsAnythingElse() {
+            saveWithLink("true");
 
-            assertDeleted(ticketCookie());
+            assertDeleted(linkCookie());
         }
 
         /**
-         * Иначе брошенная привязка ломает следующий вход: обычный круг прочитался бы как привязка,
-         * сессия не завелась бы вовсе, а человек увидел бы ошибку просроченного билета.
+         * Иначе брошенная привязка ломает следующий вход: обычный круг прочитался бы как привязка и
+         * сессия не завелась бы вовсе.
          */
         @Test
-        @DisplayName("обычный вход стирает билет, оставшийся от брошенной привязки")
-        void clearsStaleTicket() {
-            saveWithTicket(null);
+        @DisplayName("обычный вход стирает признак, оставшийся от брошенной привязки")
+        void clearsStaleMarker() {
+            saveWithLink(null);
 
-            assertDeleted(ticketCookie());
+            assertDeleted(linkCookie());
         }
     }
 
