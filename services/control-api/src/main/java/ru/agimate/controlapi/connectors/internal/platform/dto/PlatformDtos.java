@@ -77,4 +77,17 @@ public final class PlatformDtos {
 
     public record OperationResult(boolean ok, String message) {
     }
+
+    /**
+     * A file of the owner as the agent sees it. {@code id} is the {@code agf_} reference: it goes
+     * into another tool's parameter or into an {@code [[attach:…]]} marker. No URL — a link would be
+     * signed, short-lived and useless to a model.
+     *
+     * @param name {@code null} where the file never had one (a photo from a chat, a generated image)
+     */
+    public record FileBrief(String id, String name, String mime, long size, String createdAt) {
+    }
+
+    public record FileList(List<FileBrief> files) {
+    }
 }

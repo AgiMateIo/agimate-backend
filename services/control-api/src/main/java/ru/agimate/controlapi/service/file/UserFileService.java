@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.TooManyRequestsStatusException;
+import ru.agimate.controlapi.config.FileStorageProperties;
 import ru.agimate.controlapi.controller.manage.dto.files.FileListItemResponse;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.repositories.StoredFileRepository;
@@ -43,6 +44,7 @@ public class UserFileService {
     private final FileStorageService fileStorageService;
     private final SignedFileUrlService signedFileUrlService;
     private final InboundRateLimiter rateLimiter;
+    private final FileStorageProperties fileStorageProperties;
 
     /** The user's own uploads; a client label, when given, becomes a suffix of it. */
     private static final String USER_ORIGIN = "user";
@@ -90,6 +92,7 @@ public class UserFileService {
                     .name(file.getOriginalFilename())
                     .mime(mime)
                     .sizeBytes(file.getSize())
+                    .ttl(fileStorageProperties.getUserTtl())
                     .build(), content);
         } catch (IOException e) {
             throw new BadRequestStatusException("Failed to read uploaded file: " + e.getMessage());
@@ -100,12 +103,16 @@ public class UserFileService {
     /**
      * The user's files, freshest first, each with a freshly signed content link.
      *
-     * @param agentId filter by the producing agent; {@code null} — every file of the user
-     * @param name    case-insensitive substring of the name; {@code null} or blank — no filter
+     * @param agentId   filter by the agent the file is related to — produced by it or seen by it
+     * @param sessionId filter by the conversation the file showed up in; a session that is not the
+     *                  user's simply matches nothing — the outer filter is ownership
+     * @param name      case-insensitive substring of the name; {@code null} or blank — no filter
      */
-    public Page<FileListItemResponse> list(UUID userId, UUID agentId, String name, int page, int size) {
+    public Page<FileListItemResponse> list(UUID userId, UUID agentId, UUID sessionId, String name,
+                                           int page, int size) {
         return storedFileRepository
-                .findVisible(userId, agentId, blankToNull(name), LocalDateTime.now(), PageRequest.of(page, size))
+                .findVisible(userId, agentId, sessionId, blankToNull(name), LocalDateTime.now(),
+                        PageRequest.of(page, size))
                 .map(file -> FileListItemResponse.from(file,
                         signedFileUrlService.issue(FileLink.of(file))));
     }

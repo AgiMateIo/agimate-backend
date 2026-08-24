@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.controlapi.controller.agent.dto.ToolCallRequest;
 import ru.agimate.controlapi.database.entities.Channel;
+import ru.agimate.controlapi.database.enums.FileReferenceKind;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
@@ -55,6 +56,7 @@ class ChannelMessageOutboundServiceTest {
     @Mock private ChannelHandlerRegistry channelHandlerRegistry;
     @Mock private AgentToolCallService agentToolCallService;
     @Mock private OutboundAttachmentParser attachmentParser;
+    @Mock private ru.agimate.controlapi.service.file.FileReferenceService fileReferenceService;
     @Mock private ChannelHandler handler;
 
     @InjectMocks private ChannelMessageOutboundService service;
@@ -154,6 +156,32 @@ class ChannelMessageOutboundServiceTest {
             verify(handler).handleOutput(any(), delivered.capture(), any());
             assertEquals("думаю про", delivered.getValue().text());
             assertTrue(delivered.getValue().parts().isEmpty());
+            // Вложение не доставлено — значит и ссылки на разговор быть не должно.
+            verify(fileReferenceService).record(eq(List.of()), eq(SESSION_ID), eq(AGENT_ID),
+                    eq(FileReferenceKind.OUTBOUND));
+        }
+
+        @Test
+        @DisplayName("доставленное вложение записывается в разговор — это воронка всего исходящего")
+        void recordsDeliveredAttachments() {
+            String fileId = "agf_" + UUID.randomUUID();
+            OutboundMessage outbound = OutboundMessage.text("держи [[attach:" + fileId + "]]");
+            OutboundMessage parsed = new OutboundMessage("держи",
+                    List.of(new Part("image", fileId, "image/png", 5, Map.of())));
+            when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            when(channelHandlerRegistry.find("telegram")).thenReturn(Optional.of(handler));
+            when(agentSessionService.findOrCreateActive(channel, null)).thenReturn(session);
+            when(channelSessionMessageRepository
+                    .findFirstBySessionIdAndTriggerInputIsNotNullOrderByCreatedAtDesc(SESSION_ID))
+                    .thenReturn(Optional.empty());
+            when(attachmentParser.parse(USER_ID, outbound)).thenReturn(parsed);
+            when(handler.supportsOutboundAttachments()).thenReturn(true);
+            when(handler.handleOutput(any(), any(), any())).thenReturn(List.of());
+
+            service.send(AGENT_ID, CHANNEL_ID, null, outbound, "m1", null, null);
+
+            verify(fileReferenceService).record(eq(List.of(fileId)), eq(SESSION_ID), eq(AGENT_ID),
+                    eq(FileReferenceKind.OUTBOUND));
         }
 
         @Test

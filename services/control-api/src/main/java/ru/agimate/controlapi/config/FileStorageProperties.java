@@ -51,6 +51,12 @@ public class FileStorageProperties {
     private long userDailyBytes = 500L * 1024 * 1024;
     /** Default TTL when the producer did not set its own. */
     private Duration defaultTtl = Duration.ofDays(7);
+    /**
+     * TTL of what the user uploaded themselves. Longer than {@link #defaultTtl} on purpose: a
+     * screenshot a connector produced is scaffolding of one run, while a file a person brought is
+     * theirs — and a week-wide window would make «the file I sent you» answerable for a week only.
+     */
+    private Duration userTtl = Duration.ofDays(90);
 
     /**
      * HMAC secret of signed links ({@code GET /files/…?exp&sig}); env only

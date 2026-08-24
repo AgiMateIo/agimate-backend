@@ -26,6 +26,8 @@ import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.Conne
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.ConnectorDetail;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.ConnectorList;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.CreatedAgent;
+import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.FileBrief;
+import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.FileList;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.OperationResult;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.SkillBrief;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformDtos.SkillDetail;
@@ -37,12 +39,14 @@ import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Connector;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
+import ru.agimate.controlapi.database.repositories.StoredFileRepository;
 import ru.agimate.controlapi.database.repositories.SkillSpecs;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.AgentSkillService;
@@ -52,9 +56,11 @@ import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.dto.agent.AgentCreateCommand;
 import ru.agimate.controlapi.service.dto.agent.AgentUpdateCommand;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
+import ru.agimate.controlapi.storage.FileIds;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -89,6 +95,7 @@ public class PlatformToolService {
     private final AgentService agentService;
     private final ConnectionRepository connectionRepository;
     private final ConnectionBindingService connectionBindingService;
+    private final StoredFileRepository storedFileRepository;
 
     // ---- discovery -------------------------------------------------------------------------
 
@@ -195,6 +202,33 @@ public class PlatformToolService {
         return new AgentDetail(agent.getId().toString(), agent.getName(), agent.getDescription(),
                 agent.getInstructions(), agent.getType().name(), agent.isEnabled(),
                 agent.getAgenticTeamId() == null ? null : agent.getAgenticTeamId().toString(), skills);
+    }
+
+    @Tool(name = "list_files",
+            description = "Find a file the owner shared with you or you produced earlier — a photo "
+                    + "from the conversation, a generated image, an exported table. Use it when the "
+                    + "agf_ id is no longer in what you can see: the ids returned here go straight "
+                    + "into another tool's file parameter, or into [[attach:agf_…]] to send the file "
+                    + "back. Freshest first. Files expire, so an old one may simply be gone.",
+            annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
+    public FileList listFiles(
+            @ToolParam(value = "Search the whole account instead of this conversation only "
+                    + "(default false)", required = false) Boolean allConversations,
+            @ToolParam(value = "Optional substring of the file name", required = false) String name) {
+        // Outside a channel flow there is no conversation to narrow to, and refusing would leave the
+        // agent with no way to reach its own files at all.
+        UUID sessionId = Boolean.TRUE.equals(allConversations)
+                ? null : ConnectorEnvHolder.current().sessionId();
+        List<StoredFile> files = storedFileRepository.findVisible(userId(), null, sessionId,
+                        blankToNull(name), LocalDateTime.now(), PageRequest.of(0, MAX_LISTING))
+                .getContent();
+        return new FileList(files.stream().map(PlatformToolService::toFileBrief).toList());
+    }
+
+    private static FileBrief toFileBrief(StoredFile file) {
+        return new FileBrief(FileIds.external(file.getId()), file.getName(), file.getMime(),
+                file.getSizeBytes(),
+                file.getCreatedAt() != null ? file.getCreatedAt().toString() : null);
     }
 
     // ---- agents & skills -------------------------------------------------------------------

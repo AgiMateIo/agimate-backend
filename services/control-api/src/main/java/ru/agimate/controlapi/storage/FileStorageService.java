@@ -7,8 +7,10 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.util.UUIDUtils;
 import ru.agimate.controlapi.config.FileStorageProperties;
 import ru.agimate.controlapi.database.entities.StoredFile;
+import ru.agimate.controlapi.database.enums.FileReferenceKind;
 import ru.agimate.controlapi.database.enums.FileStatus;
 import ru.agimate.controlapi.database.repositories.StoredFileRepository;
+import ru.agimate.controlapi.service.file.FileReferenceService;
 
 import java.io.InputStream;
 import java.security.DigestInputStream;
@@ -39,6 +41,7 @@ public class FileStorageService {
     private final StoredFileRepository storedFileRepository;
     private final BlobStore blobStore;
     private final FileStorageProperties props;
+    private final FileReferenceService fileReferenceService;
 
     /** Metadata plus a stream of the contents; the caller closes the stream. */
     public record FileContent(StoredFile file, InputStream content) {}
@@ -46,6 +49,11 @@ public class FileStorageService {
     /**
      * Stores a file: limit checks → an UPLOADING row → upload into the blob store (computing SHA-256
      * on the fly) → READY. Returns the row with {@code sha256} filled in.
+     *
+     * <p>A spec that names a session also gets a {@code TOOL} reference: this is the one place every
+     * producer passes through, so there is nothing for a new connector to forget. {@code TOOL} is the
+     * only kind mintable here — the paths that produce a file without a dispatch (an upload, an
+     * ingest) have no session to name, and their context is recorded by the channel funnels instead.
      */
     public StoredFile store(NewFile spec, InputStream content) {
         long sizeBytes = spec.sizeBytes();
@@ -87,6 +95,10 @@ public class FileStorageService {
         log.info("stored file {} for user {}: origin={}, agent={}, mime={}, {} bytes",
                 FileIds.external(file.getId()), userId, spec.origin(), spec.agentId(),
                 spec.mime(), sizeBytes);
+        if (spec.sessionId() != null) {
+            fileReferenceService.record(file.getId(), spec.sessionId(), spec.agentId(),
+                    FileReferenceKind.TOOL);
+        }
         return file;
     }
 

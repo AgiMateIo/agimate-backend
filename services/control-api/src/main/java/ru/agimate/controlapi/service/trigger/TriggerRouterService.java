@@ -11,11 +11,14 @@ import ru.agimate.controlapi.controller.app.dto.TriggerRequest;
 import ru.agimate.controlapi.database.entities.*;
 import ru.agimate.controlapi.database.enums.PolicyKind;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
+import ru.agimate.controlapi.database.enums.FileReferenceKind;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
 import ru.agimate.controlapi.service.channel.ChannelMessageOutboundService;
 import ru.agimate.controlapi.service.channel.InputFilterEvaluator;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.Part;
+import ru.agimate.controlapi.service.file.FileReferenceService;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
 import ru.agimate.controlapi.service.seed.ChannelTexts;
 import ru.agimate.controlapi.service.session.AgentSessionResolver;
@@ -44,6 +47,7 @@ public class TriggerRouterService {
     private final AgentSessionResolver sessionResolver;
 
     private final AgentRunRepository agentRunRepository;
+    private final FileReferenceService fileReferenceService;
 
     @Async
     public void routeAppTrigger(App app, TriggerRequest triggerRequest) {
@@ -180,11 +184,26 @@ public class TriggerRouterService {
                 }
 
                 agentDeliveryService.deliverTrigger(agentRun, trigger, route.channels(), route.message());
+                // After delivery: the file was in a conversation only if the message reached the agent.
+                recordInboundFiles(agentRun, route);
             } catch (Exception e) {
                 log.error("Failed to dispatch trigger '{}' to agent {}: {}",
                         trigger.name(), route.agent().getId(), e.getMessage(), e);
             }
         }
+    }
+
+    /**
+     * The single funnel of everything incoming: only here is the recipient's session known, and only
+     * here does a fan-out (one photo, several agents) turn into a row per conversation.
+     */
+    private void recordInboundFiles(AgentRun agentRun, TriggerRoute route) {
+        if (route.message() == null || route.message().parts().isEmpty()) {
+            return;
+        }
+        fileReferenceService.record(
+                route.message().parts().stream().map(Part::storageRef).toList(),
+                agentRun.getSessionId(), route.agent().getId(), FileReferenceKind.INBOUND);
     }
 
     /**

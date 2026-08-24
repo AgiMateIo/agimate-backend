@@ -58,20 +58,23 @@ public class ManageFilesController {
     @Operation(
             summary = "List files",
             description = "Returns the current user's files — fully uploaded and not yet expired — "
-                    + "freshest first, optionally filtered by the producing agent and by a substring "
-                    + "of the file name. Each item carries a freshly signed content URL."
+                    + "freshest first. agentId selects the files related to an agent: the ones it "
+                    + "produced and the ones it saw (attachments of that conversation). sessionId "
+                    + "selects one conversation, name is a substring of the file name. Each item "
+                    + "carries a freshly signed content URL."
     )
     @GetMapping("/")
     public SuccessResponse<PageResponse<FileListItemResponse>> getFiles(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @RequestParam(required = false) UUID agentId,
+            @RequestParam(required = false) UUID sessionId,
             @RequestParam(required = false) String name,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(PageResponse.from(
-                userFileService.list(userId, agentId, name, page, size)));
+                userFileService.list(userId, agentId, sessionId, name, page, size)));
     }
 
     @Operation(

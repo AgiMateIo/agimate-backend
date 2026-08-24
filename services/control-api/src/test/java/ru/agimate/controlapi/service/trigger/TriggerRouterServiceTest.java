@@ -21,7 +21,9 @@ import ru.agimate.controlapi.database.enums.PolicyKind;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.service.AgentDeliveryService;
+import ru.agimate.controlapi.database.enums.FileReferenceKind;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.Part;
 
 import java.time.Instant;
 import java.util.List;
@@ -31,6 +33,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
@@ -67,6 +70,8 @@ class TriggerRouterServiceTest {
     private ru.agimate.controlapi.service.seed.ChannelTexts channelTexts;
     @Mock
     private ru.agimate.controlapi.service.session.AgentSessionResolver sessionResolver;
+    @Mock
+    private ru.agimate.controlapi.service.file.FileReferenceService fileReferenceService;
 
     @InjectMocks
     private TriggerRouterService routerService;
@@ -203,6 +208,59 @@ class TriggerRouterServiceTest {
             verify(agentRunRepository).save(saved.capture());
             assertEquals(channelSession, saved.getValue().getSessionId());
             verifyNoInteractions(sessionResolver);
+        }
+    }
+
+    @Nested
+    @DisplayName("вложения входящего")
+    class InboundFiles {
+
+        private void stubChannelRouteWith(UUID sessionId, InboundMessage message) {
+            when(channelRouteResolver.resolve(any(), any())).thenAnswer(invocation ->
+                    ChannelResolution.channel(
+                            Channels.ofPrompt(new ChannelInfo(UUID.randomUUID(), sessionId, null)),
+                            message));
+        }
+
+        @Test
+        @DisplayName("вложение попадает в разговор получателя — здесь единственное место, где сессия известна")
+        void recordsInboundParts() {
+            UUID sessionId = UUID.randomUUID();
+            String fileId = "agf_" + UUID.randomUUID();
+            Agent agent = boundGenericAgent();
+            stubChannelRouteWith(sessionId, new InboundMessage("вот файл",
+                    List.of(new Part("image", fileId, "image/png", 7, Map.of()))));
+
+            routerService.routeTrigger(USER, trigger);
+
+            verify(fileReferenceService).record(eq(List.of(fileId)), eq(sessionId), eq(agent.getId()),
+                    eq(FileReferenceKind.INBOUND));
+        }
+
+        @Test
+        @DisplayName("не доехало до агента — не записываем: файл побывал в разговоре, только если сообщение дошло")
+        void skipsWhenDeliveryFailed() {
+            UUID sessionId = UUID.randomUUID();
+            boundGenericAgent();
+            stubChannelRouteWith(sessionId, new InboundMessage("вот файл",
+                    List.of(new Part("image", "agf_" + UUID.randomUUID(), "image/png", 7, Map.of()))));
+            doThrow(new IllegalStateException("worker is down"))
+                    .when(agentDeliveryService).deliverTrigger(any(), any(), any(), any());
+
+            routerService.routeTrigger(USER, trigger);
+
+            verifyNoInteractions(fileReferenceService);
+        }
+
+        @Test
+        @DisplayName("сообщение без вложений в таблицу не ходит")
+        void plainTextRecordsNothing() {
+            boundGenericAgent();
+            stubChannelRouteWith(UUID.randomUUID(), new InboundMessage("привет", List.of()));
+
+            routerService.routeTrigger(USER, trigger);
+
+            verifyNoInteractions(fileReferenceService);
         }
     }
 

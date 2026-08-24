@@ -11,6 +11,7 @@ import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.database.entities.ChannelSessionMessage;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
+import ru.agimate.controlapi.database.enums.FileReferenceKind;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.ChannelSessionMessageRepository;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
@@ -19,6 +20,8 @@ import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundDispatch;
 import ru.agimate.controlapi.service.channel.handler.dto.OutboundMessage;
+import ru.agimate.controlapi.service.channel.handler.dto.Part;
+import ru.agimate.controlapi.service.file.FileReferenceService;
 
 import java.util.List;
 import java.util.Map;
@@ -36,6 +39,7 @@ public class ChannelMessageOutboundService {
     private final ChannelHandlerRegistry channelHandlerRegistry;
     private final AgentToolCallService agentToolCallService;
     private final OutboundAttachmentParser attachmentParser;
+    private final FileReferenceService fileReferenceService;
 
     public record OutboundResult(AgentSession session, String messageId) {}
 
@@ -87,6 +91,12 @@ public class ChannelMessageOutboundService {
                 effectiveMessageId, stream, progressType, channel.getId(), session.getId(), replyContext);
 
         dispatchAll(channel, handler.handleOutput(config, effectiveOutbound, dispatch));
+        // The single funnel of everything outgoing: the parts are already resolved from [[attach:…]],
+        // and the ones dropped above (a handler without attachments, a progress stream) are gone from
+        // effectiveOutbound — so what gets recorded is what was actually delivered.
+        fileReferenceService.record(
+                effectiveOutbound.parts().stream().map(Part::storageRef).toList(),
+                session.getId(), channel.getAgentId(), FileReferenceKind.OUTBOUND);
 
         log.info("Dispatched OUT message session={} channel={} via handler={}",
                 session.getId(), channel.getId(), handler.name());

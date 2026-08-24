@@ -4,25 +4,33 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.Connector;
+import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.AgentType;
+import ru.agimate.controlapi.database.enums.FileStatus;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ConnectionRepository;
 import ru.agimate.controlapi.database.repositories.ConnectorRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
+import ru.agimate.controlapi.database.repositories.StoredFileRepository;
 import ru.agimate.controlapi.service.AgentService;
 import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.SkillService;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.dto.agent.AgentUpdateCommand;
 import ru.agimate.controlapi.service.tool.ToolDefinitionService;
+import ru.agimate.controlapi.storage.FileIds;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +38,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -48,12 +57,13 @@ class PlatformToolServiceTest {
     private final AgentService agentService = mock(AgentService.class);
     private final AgentSkillService agentSkillService = mock(AgentSkillService.class);
     private final ConnectionBindingService connectionBindingService = mock(ConnectionBindingService.class);
+    private final StoredFileRepository storedFileRepository = mock(StoredFileRepository.class);
 
     private final PlatformToolService toolService = new PlatformToolService(
             mock(ConnectorRegistry.class), connectorRepository, mock(ToolDefinitionService.class),
             mock(SkillRepository.class), mock(SkillService.class), agentRepository,
             agentSkillRepository, agentSkillService, agentService,
-            mock(ConnectionRepository.class), connectionBindingService);
+            mock(ConnectionRepository.class), connectionBindingService, storedFileRepository);
     private final PlatformConnectorService handler = new PlatformConnectorService(toolService);
 
     PlatformToolServiceTest() {
@@ -63,6 +73,73 @@ class PlatformToolServiceTest {
     /** Инициатор вызова = SELF_AGENT_ID: операции над ним должны блокироваться. */
     private static ConnectorEnv selfEnv() {
         return new ConnectorEnv(null, USER_ID, SELF_AGENT_ID, null, null, null, Map.of(), null);
+    }
+
+    private static ConnectorEnv sessionEnv(UUID sessionId) {
+        return new ConnectorEnv(null, USER_ID, SELF_AGENT_ID, null, null, sessionId, Map.of(), null);
+    }
+
+    @Nested
+    @DisplayName("list_files")
+    class ListFiles {
+
+        private final UUID sessionId = UUID.randomUUID();
+
+        private StoredFile file() {
+            StoredFile file = StoredFile.builder()
+                    .id(UUID.randomUUID())
+                    .userId(USER_ID)
+                    .status(FileStatus.READY)
+                    .mime("image/png")
+                    .name("shot.png")
+                    .sizeBytes(11L)
+                    .expiresAt(LocalDateTime.now().plusDays(1))
+                    .build();
+            file.setCreatedAt(LocalDateTime.now());
+            return file;
+        }
+
+        @Test
+        @DisplayName("по умолчанию — файлы этого разговора, и агент получает agf_-идентификатор")
+        void defaultsToCurrentConversation() {
+            StoredFile stored = file();
+            when(storedFileRepository.findVisible(eq(USER_ID), eq(null), eq(sessionId), eq(null),
+                    any(LocalDateTime.class), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(stored)));
+
+            // executeTool отдаёт запись коннектора картой — так её видит агент.
+            Map<?, ?> result = (Map<?, ?>) handler.executeTool(sessionEnv(sessionId), "list_files", Map.of());
+
+            List<?> files = (List<?>) result.get("files");
+            assertEquals(1, files.size());
+            assertEquals(FileIds.external(stored.getId()), ((Map<?, ?>) files.getFirst()).get("id"));
+        }
+
+        @Test
+        @DisplayName("allConversations=true снимает сужение по разговору")
+        void allConversationsDropsTheSessionFilter() {
+            when(storedFileRepository.findVisible(eq(USER_ID), eq(null), eq(null), eq(null),
+                    any(LocalDateTime.class), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            handler.executeTool(sessionEnv(sessionId), "list_files", Map.of("allConversations", true));
+
+            verify(storedFileRepository).findVisible(eq(USER_ID), eq(null), eq(null), eq(null),
+                    any(LocalDateTime.class), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("ран без канала — сессии нет, ищем по всему аккаунту, а не отказываем")
+        void channellessRunFallsBackToAccount() {
+            when(storedFileRepository.findVisible(eq(USER_ID), eq(null), eq(null), eq(null),
+                    any(LocalDateTime.class), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            handler.executeTool(selfEnv(), "list_files", Map.of());
+
+            verify(storedFileRepository).findVisible(eq(USER_ID), eq(null), eq(null), eq(null),
+                    any(LocalDateTime.class), any(Pageable.class));
+        }
     }
 
     @Nested

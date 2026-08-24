@@ -12,6 +12,11 @@ public class ConnectorEnvHolder {
 
     private static final ThreadLocal<ConnectorEnv> ENV = new ThreadLocal<>();
 
+    /** {@code null} — nothing is bound: the caller is outside a dispatch, which is not always an error. */
+    public static ConnectorEnv currentOrNull() {
+        return ENV.get();
+    }
+
     public static ConnectorEnv current() {
         ConnectorEnv env = ENV.get();
         if (env == null) {

@@ -14,6 +14,9 @@ import java.util.UUID;
  * @param agentId  the agent that produced the file — provenance only; {@code null} where the
  *                 producer is genuinely unknown (ingest of an inbound message, an upload from a
  *                 app or the webchat UI). Never an access check: see the migration's comment
+ * @param sessionId the conversation the file was produced in; {@code null} outside a channel flow
+ *                 (an upload, an ingest that has not been routed yet). Its only effect is a
+ *                 {@code file_references} row — see {@link FileStorageService#store}
  * @param origin   provenance of the producer: {@code connector_code:connection} / tool / channel
  * @param name     the file name as the producer knew it; {@code null} when there is none (path
  *                 parts, control characters and quotes are stripped — the value reaches a
@@ -25,6 +28,7 @@ import java.util.UUID;
 public record NewFile(
         UUID userId,
         UUID agentId,
+        UUID sessionId,
         String origin,
         String name,
         String mime,

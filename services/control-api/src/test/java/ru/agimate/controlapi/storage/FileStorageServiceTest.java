@@ -9,8 +9,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.config.FileStorageProperties;
 import ru.agimate.controlapi.database.entities.StoredFile;
+import ru.agimate.controlapi.database.enums.FileReferenceKind;
 import ru.agimate.controlapi.database.enums.FileStatus;
 import ru.agimate.controlapi.database.repositories.StoredFileRepository;
+import ru.agimate.controlapi.service.file.FileReferenceService;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -27,6 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -40,6 +43,8 @@ class FileStorageServiceTest {
 
     @Mock
     private StoredFileRepository repository;
+    @Mock
+    private FileReferenceService fileReferenceService;
 
     /** In-memory BlobStore: put читает стрим (иначе не посчитается SHA-256), delete идемпотентен. */
     private static class InMemoryBlobStore implements BlobStore {
@@ -77,7 +82,7 @@ class FileStorageServiceTest {
     void setUp() {
         blobStore = new InMemoryBlobStore();
         props = new FileStorageProperties();
-        service = new FileStorageService(repository, blobStore, props);
+        service = new FileStorageService(repository, blobStore, props, fileReferenceService);
     }
 
     private static InputStream bytes(String s) {
@@ -108,6 +113,30 @@ class FileStorageServiceTest {
             assertArrayEquals("hello".getBytes(StandardCharsets.UTF_8), blobStore.blobs.get(key));
             // Две записи строки: UPLOADING до аплоада и READY после.
             verify(repository, org.mockito.Mockito.times(2)).save(file);
+        }
+
+        @Test
+        @DisplayName("продюсер назвал сессию — файл получает ссылку на разговор здесь, а не у продюсера")
+        void recordsToolReferenceWhenSessionIsKnown() {
+            UUID sessionId = UUID.randomUUID();
+            UUID agentId = UUID.randomUUID();
+            when(repository.sumBytesSince(eq(USER_ID), any())).thenReturn(0L);
+
+            StoredFile file = service.store(NewFile.builder()
+                    .userId(USER_ID).agentId(agentId).sessionId(sessionId)
+                    .origin("media:gpt-image").mime("image/png").sizeBytes(5).build(), bytes("hello"));
+
+            verify(fileReferenceService).record(file.getId(), sessionId, agentId, FileReferenceKind.TOOL);
+        }
+
+        @Test
+        @DisplayName("сессии нет — ссылку поставят канальные воронки, когда файл дойдёт до разговора")
+        void skipsReferenceWithoutSession() {
+            when(repository.sumBytesSince(eq(USER_ID), any())).thenReturn(0L);
+
+            service.store(spec(USER_ID, "webchat", "text/plain", 5), bytes("hello"));
+
+            verifyNoInteractions(fileReferenceService);
         }
 
         @Test

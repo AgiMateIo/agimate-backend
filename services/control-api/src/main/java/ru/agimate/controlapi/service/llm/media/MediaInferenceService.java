@@ -71,7 +71,7 @@ public class MediaInferenceService {
      * Identity of a call: the owner of the files and quotas + the initiating agent + the initiating run
      * (to attribute usage to a run; {@code null} outside a run) + an idempotent call id.
      */
-    public record MediaCall(UUID userId, UUID agentId, UUID runId, String callId) {
+    public record MediaCall(UUID userId, UUID agentId, UUID sessionId, UUID runId, String callId) {
     }
 
     /**
@@ -108,6 +108,7 @@ public class MediaInferenceService {
         StoredFile stored = fileStorageService.store(NewFile.builder()
                 .userId(call.userId())
                 .agentId(call.agentId())
+                .sessionId(call.sessionId())
                 .origin("media:" + resolved.model())
                 .mime(generated.mime())
                 .sizeBytes(generated.bytes().length)

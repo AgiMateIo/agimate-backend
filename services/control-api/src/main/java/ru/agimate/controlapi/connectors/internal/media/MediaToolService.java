@@ -127,7 +127,7 @@ public class MediaToolService {
         if (env.userId() == null || env.agentId() == null) {
             throw new ConnectorException("media tools require agent identity");
         }
-        return new MediaCall(env.userId(), env.agentId(), env.runId(),
+        return new MediaCall(env.userId(), env.agentId(), env.sessionId(), env.runId(),
                 UUIDUtils.generateUUIDv8().toString());
     }
 

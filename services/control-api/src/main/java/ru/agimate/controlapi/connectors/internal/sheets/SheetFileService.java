@@ -10,6 +10,8 @@ import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.ColumnSpec;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.FileInfo;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.RowView;
+import ru.agimate.controlapi.connectors.core.ConnectorEnv;
+import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.storage.FileIds;
 import ru.agimate.controlapi.storage.FileRejectedException;
 import ru.agimate.controlapi.storage.FileStorageService;
@@ -148,6 +150,7 @@ public class SheetFileService {
             StoredFile file = fileStorageService.store(NewFile.builder()
                     .userId(userId)
                     .agentId(agentId)
+                    .sessionId(dispatchSessionId())
                     .origin("sheets:" + origin)
                     .name(name)
                     .mime(mime)
@@ -157,6 +160,16 @@ public class SheetFileService {
         } catch (FileRejectedException e) {
             throw new ConnectorException(e.getMessage(), e);
         }
+    }
+
+    /**
+     * The conversation the export was asked for. Read from the ambient env rather than threaded
+     * through {@code exportCsv}/{@code exportXlsx}/{@code render}: it is provenance of the dispatch,
+     * not an argument of building a file, and every one of those paths starts inside one.
+     */
+    private static UUID dispatchSessionId() {
+        ConnectorEnv env = ConnectorEnvHolder.currentOrNull();
+        return env != null ? env.sessionId() : null;
     }
 
     private byte[] read(UUID userId, String fileId) {

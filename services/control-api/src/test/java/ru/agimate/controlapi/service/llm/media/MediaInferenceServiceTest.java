@@ -52,7 +52,8 @@ class MediaInferenceServiceTest {
     private final UUID userId = UUID.randomUUID();
     private final UUID agentId = UUID.randomUUID();
     private final UUID runId = UUID.randomUUID();
-    private final MediaCall call = new MediaCall(userId, agentId, runId, "tc-42");
+    private final UUID sessionId = UUID.randomUUID();
+    private final MediaCall call = new MediaCall(userId, agentId, sessionId, runId, "tc-42");
 
     @Mock
     private LlmCredentialsResolver credentialsResolver;

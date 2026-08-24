@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Where a file showed up: the conversation it was attached to, the agent that saw it. Until now
+      that link existed only inside webchat_messages.parts (JSONB) — not indexable, not filterable,
+      and unavailable to any channel other than the webchat.
+
+      A table rather than a session_id column on files, because the relation is genuinely many: one
+      inbound photo fans out to every recipient of the trigger, and the same file is re-attached to
+      later answers. A column could hold only the first of those and would quietly lie about the rest.
+
+      user_id is deliberately absent: ownership lives in files.user_id and stays the single source of
+      it (ABAC). Every read joins files anyway — for the name and the mime.
+    -->
+    <changeSet id="add-file-references" author="agimate">
+        <createTable tableName="file_references">
+            <column name="id" type="UUID" defaultValueComputed="uuidv7()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="file_id" type="UUID">
+                <constraints nullable="false"
+                             foreignKeyName="fk_file_references_file"
+                             referencedTableName="files" referencedColumnNames="id"
+                             deleteCascade="true"/>
+            </column>
+            <!-- The conversation the file appeared in. Null where there is no session at all: a file
+                 produced by a tool outside a channel flow. -->
+            <column name="session_id" type="UUID">
+                <constraints foreignKeyName="fk_file_references_session"
+                             referencedTableName="agent_sessions" referencedColumnNames="id"
+                             deleteCascade="true"/>
+            </column>
+            <!-- Nullable, unlike what one would expect from a routed message: ConnectorEnv.agentId is
+                 empty outside a tool-use flow (declarative jobs, webhooks), and NOT NULL would force
+                 the producer to either invent an agent or skip the row. -->
+            <column name="agent_id" type="UUID"/>
+            <!-- INBOUND (the user brought it) | OUTBOUND (the agent sent it) | TOOL (produced by a tool) -->
+            <column name="kind" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <sql>
+            ALTER TABLE file_references
+                ADD CONSTRAINT chk_file_references_kind
+                    CHECK (kind IN ('INBOUND', 'OUTBOUND', 'TOOL'))
+        </sql>
+
+        <!--
+          The idempotency key of every writer: delivery is retried, steering replays a run, and the
+          same attachment must not pile up rows.
+
+          NULLS NOT DISTINCT is the whole point of writing this by hand — session_id is nullable, and
+          a plain UNIQUE treats NULLs as distinct, so session-less rows would duplicate freely. That
+          spelling is expressible neither in <addUniqueConstraint> nor in JPA's @Table, which is why
+          the entity carries a comment instead of the usual duplicated annotation.
+        -->
+        <sql>
+            ALTER TABLE file_references
+                ADD CONSTRAINT uq_file_references_file_session_kind
+                    UNIQUE NULLS NOT DISTINCT (file_id, session_id, kind)
+        </sql>
+
+        <!-- The unique constraint's index starts with file_id and cannot serve a lookup by context. -->
+        <createIndex tableName="file_references" indexName="idx_file_references_session_id">
+            <column name="session_id"/>
+        </createIndex>
+        <createIndex tableName="file_references" indexName="idx_file_references_agent_id">
+            <column name="agent_id"/>
+        </createIndex>
+    </changeSet>
+
+    <!--
+      What already happened, as far as it is recoverable. The only source is webchat_messages.parts:
+      channel sessions keep no message log of their own, so a Telegram conversation older than this
+      migration stays without references — better an honest gap than a guessed one.
+
+      Two details the shape forces: parts store the public id (agf_<uuid>, not a UUID), so the prefix
+      is stripped here; and the join to files is mandatory, since the sweeper has already removed
+      the rows of everything expired, and their ids in the history would violate the foreign key.
+    -->
+    <changeSet id="backfill-file-references-from-webchat" author="agimate">
+        <sql>
+            INSERT INTO file_references (file_id, session_id, agent_id, kind)
+            SELECT DISTINCT f.id,
+                            m.session_id,
+                            m.agent_id,
+                            CASE m.direction WHEN 'USER' THEN 'INBOUND' ELSE 'OUTBOUND' END
+            FROM webchat_messages m
+                     CROSS JOIN LATERAL jsonb_array_elements(m.parts) AS part
+                     JOIN files f
+                          ON f.id = substring(part ->> 'fileId' FROM 5)::uuid
+            WHERE m.parts IS NOT NULL
+              AND jsonb_typeof(m.parts) = 'array'
+              AND part ->> 'fileId' LIKE 'agf\_%'
+            ON CONFLICT ON CONSTRAINT uq_file_references_file_session_kind DO NOTHING
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

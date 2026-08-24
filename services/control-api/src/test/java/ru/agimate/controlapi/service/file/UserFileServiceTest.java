@@ -7,6 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -16,6 +17,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.rest.error.TooManyRequestsStatusException;
+import ru.agimate.controlapi.config.FileStorageProperties;
 import ru.agimate.controlapi.controller.manage.dto.files.FileListItemResponse;
 import ru.agimate.controlapi.database.entities.StoredFile;
 import ru.agimate.controlapi.database.enums.FileStatus;
@@ -28,6 +30,7 @@ import ru.agimate.controlapi.storage.NewFile;
 import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -62,6 +65,8 @@ class UserFileServiceTest {
     private SignedFileUrlService signedFileUrlService;
     @Mock
     private InboundRateLimiter rateLimiter;
+    @Spy
+    private final FileStorageProperties fileStorageProperties = new FileStorageProperties();
 
     @InjectMocks
     private UserFileService service;
@@ -105,6 +110,10 @@ class UserFileServiceTest {
             assertNull(spec.getValue().agentId());
             assertEquals("user", spec.getValue().origin());
             assertEquals("отчёт.csv", spec.getValue().name());
+            // Свой файл живёт дольше коннекторного: недельное окно обессмыслило бы «что я присылал».
+            assertEquals(Duration.ofDays(90), spec.getValue().ttl());
+            // Загрузка — ещё не использование: контекст появится, когда файл приложат к сообщению.
+            assertNull(spec.getValue().sessionId());
             // Ответ — то же представление, что и в листинге: у файла одна форма, а не две.
             assertEquals(FileIds.external(stored.getId()), response.id());
             assertEquals("/files/x?exp=1&sig=s", response.url());
@@ -167,12 +176,12 @@ class UserFileServiceTest {
         @DisplayName("каждая строка получает свежую подпись — хранить URL нельзя, он протухает")
         void signsEveryItem() {
             StoredFile stored = file("отчёт.csv", "text/csv", AGENT_ID);
-            when(storedFileRepository.findVisible(eq(USER_ID), isNull(), isNull(),
+            when(storedFileRepository.findVisible(eq(USER_ID), isNull(), isNull(), isNull(),
                     any(LocalDateTime.class), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(stored)));
             when(signedFileUrlService.issue(any(FileLink.class))).thenReturn("/files/x?exp=1&sig=s");
 
-            Page<FileListItemResponse> page = service.list(USER_ID, null, null, 0, 20);
+            Page<FileListItemResponse> page = service.list(USER_ID, null, null, null, 0, 20);
 
             FileListItemResponse item = page.getContent().getFirst();
             assertEquals(FileIds.external(stored.getId()), item.id());
@@ -187,11 +196,12 @@ class UserFileServiceTest {
         @Test
         @DisplayName("тип выводится из mime — фронт решает, рисовать ли картинку")
         void derivesTypeFromMime() {
-            when(storedFileRepository.findVisible(any(), any(), any(),
+            when(storedFileRepository.findVisible(any(), any(), any(), any(),
                     any(LocalDateTime.class), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(file(null, "image/png", null))));
 
-            FileListItemResponse item = service.list(USER_ID, null, null, 0, 20).getContent().getFirst();
+            FileListItemResponse item = service.list(USER_ID, null, null, null, 0, 20)
+                    .getContent().getFirst();
 
             assertEquals("image", item.type());
             // У телеграм-фото и генерации имени нет — фронту нужен фолбэк.
@@ -201,16 +211,30 @@ class UserFileServiceTest {
         @Test
         @DisplayName("пустой фильтр по имени не сужает выборку")
         void blankNameIsNoFilter() {
-            when(storedFileRepository.findVisible(eq(USER_ID), eq(AGENT_ID), isNull(),
+            when(storedFileRepository.findVisible(eq(USER_ID), eq(AGENT_ID), isNull(), isNull(),
                     any(LocalDateTime.class), any(Pageable.class)))
                     .thenReturn(Page.empty());
 
-            service.list(USER_ID, AGENT_ID, "   ", 0, 20);
+            service.list(USER_ID, AGENT_ID, null, "   ", 0, 20);
 
             ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-            verify(storedFileRepository).findVisible(eq(USER_ID), eq(AGENT_ID), isNull(),
+            verify(storedFileRepository).findVisible(eq(USER_ID), eq(AGENT_ID), isNull(), isNull(),
                     any(LocalDateTime.class), pageable.capture());
             assertEquals(PageRequest.of(0, 20), pageable.getValue());
+        }
+
+        @Test
+        @DisplayName("сессия доезжает до выборки — фильтр разговора живёт в file_references")
+        void passesSessionFilter() {
+            UUID sessionId = UUID.randomUUID();
+            when(storedFileRepository.findVisible(eq(USER_ID), isNull(), eq(sessionId), isNull(),
+                    any(LocalDateTime.class), any(Pageable.class)))
+                    .thenReturn(Page.empty());
+
+            service.list(USER_ID, null, sessionId, null, 0, 20);
+
+            verify(storedFileRepository).findVisible(eq(USER_ID), isNull(), eq(sessionId), isNull(),
+                    any(LocalDateTime.class), any(Pageable.class));
         }
     }
 
