@@ -63,10 +63,21 @@ public class SecurityConfig {
     private final OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> accessTokenResponseClient;
     private final OAuth2UserService<OAuth2UserRequest, OAuth2User> oAuth2UserService;
 
+    /**
+     * Named origins and not a pattern. {@code *} together with credentials is the combination that
+     * lets any page on the internet make a request as the person reading it and read the answer;
+     * what held it back here was only that the two endpoints authenticated by cookie also want a
+     * value from the request body, which is a lucky accident rather than a rule.
+     *
+     * <p>The list is the login white list ({@link OAuthProperties#allowedOrigins}), because a
+     * frontend that may not be redirected to is not a frontend of this installation either.
+     * Applications and the service-to-service surface are unaffected — neither sends an
+     * {@code Origin}, so CORS never applies to them.
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*")); // In production, be more specific
+        configuration.setAllowedOrigins(oAuthProperties.allowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

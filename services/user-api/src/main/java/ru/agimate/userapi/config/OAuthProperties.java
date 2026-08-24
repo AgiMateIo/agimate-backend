@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.net.URI;
 import java.util.List;
+import java.util.stream.Stream;
 
 @ConfigurationProperties(prefix = "app.oauth")
 @Getter
@@ -98,9 +99,30 @@ public class OAuthProperties {
      * is the difference between a familiar page and something that reads as phishing.
      */
     public String frontendOrigin(HttpServletRequest request) {
-        URI url = URI.create(resolveFromRequest(request).frontendRedirectUrl());
-        String origin = url.getScheme() + "://" + url.getHost();
-        return url.getPort() == -1 ? origin : origin + ":" + url.getPort();
+        return origin(resolveFromRequest(request).frontendRedirectUrl());
+    }
+
+    /**
+     * Who may call this API from a browser. Derived from the same white list the login redirects
+     * use rather than configured separately: a frontend that may not be redirected to is not a
+     * frontend, and a second setting naming the same addresses would drift from the first.
+     *
+     * <p>The native list is not here on purpose — an application sends no {@code Origin} and CORS
+     * has nothing to say about it. Neither does the service-to-service surface.
+     */
+    public List<String> allowedOrigins() {
+        return Stream.concat(allowedRedirectUrls.stream(), Stream.of(frontendRedirectUrl))
+                .filter(url -> url != null && !url.isBlank())
+                .map(OAuthProperties::origin)
+                .distinct()
+                .toList();
+    }
+
+    /** Scheme, host and port — everything a browser puts in {@code Origin} and nothing else. */
+    private static String origin(String url) {
+        URI uri = URI.create(url);
+        String origin = uri.getScheme() + "://" + uri.getHost();
+        return uri.getPort() == -1 ? origin : origin + ":" + uri.getPort();
     }
 
     private ResolvedDomain defaults() {
