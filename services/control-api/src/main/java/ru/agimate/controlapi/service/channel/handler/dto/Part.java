@@ -1,5 +1,7 @@
 package ru.agimate.controlapi.service.channel.handler.dto;
 
+import ru.agimate.controlapi.storage.FileNames;
+
 import java.util.Map;
 
 /**
@@ -25,18 +27,6 @@ public record Part(
 
     /** Attachment type from the MIME: {@code image|video|audio|file} — how to render it or feed it to the LLM. */
     public static String typeForMime(String mime) {
-        if (mime == null) {
-            return "file";
-        }
-        if (mime.startsWith("image/")) {
-            return "image";
-        }
-        if (mime.startsWith("video/")) {
-            return "video";
-        }
-        if (mime.startsWith("audio/")) {
-            return "audio";
-        }
-        return "file";
+        return FileNames.kindForMime(mime);
     }
 }

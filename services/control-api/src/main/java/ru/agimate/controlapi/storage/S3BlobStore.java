@@ -45,12 +45,16 @@ public class S3BlobStore implements BlobStore {
     private volatile boolean presignUnavailable;
 
     @Override
-    public void put(String key, InputStream content, long contentLength, String mime) {
+    public void put(String key, InputStream content, long contentLength, ResponseHeaders headers) {
         try {
             client().putObject(PutObjectRequest.builder()
                             .bucket(props.getBucket())
                             .key(key)
-                            .contentType(mime)
+                            // Stored, not only signed into the link: the key carries no extension, and
+                            // a store that ignores the response-content-* overrides would otherwise
+                            // hand the browser the key as the file name.
+                            .contentType(headers.contentType())
+                            .contentDisposition(headers.contentDisposition())
                             .contentLength(contentLength)
                             .build(),
                     RequestBody.fromInputStream(content, contentLength));

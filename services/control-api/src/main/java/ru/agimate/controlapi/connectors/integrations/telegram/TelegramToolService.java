@@ -14,6 +14,8 @@ import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 import ru.agimate.controlapi.storage.FileIds;
+import ru.agimate.controlapi.storage.FileLink;
+import ru.agimate.controlapi.storage.FileNames;
 import ru.agimate.controlapi.storage.FileStorageException;
 import ru.agimate.controlapi.storage.FileStorageService;
 
@@ -141,11 +143,11 @@ public class TelegramToolService {
                     throw new ConnectorException("file " + value + " is too large for Telegram bot upload: "
                             + sizeBytes + " bytes, limit " + BOT_UPLOAD_LIMIT_BYTES + " (50 MB)");
                 }
-                // What the agent asked for → the name the file was stored under → a synthetic one:
-                // a document forwarded to a chat should keep the name the user sent it with.
+                // What the agent asked for → what FileNames would call the file when downloading it
+                // (the stored name, else a synthetic one): a document forwarded to a chat should keep
+                // the name the user sent it with.
                 String effectiveName = fileName != null && !fileName.isBlank() ? fileName
-                        : file.file().getName() != null ? file.file().getName()
-                        : defaultFilename(value, file.file().getMime());
+                        : FileNames.forDownload(FileLink.of(file.file()));
                 return telegramApiClient.sendRequestMultipart(method, token, apiParams, field,
                         effectiveName, file.file().getMime(), content, file.file().getSizeBytes());
             }
@@ -155,18 +157,6 @@ public class TelegramToolService {
         } catch (IOException e) {
             throw new ConnectorException("Failed to read file " + value + ": " + e.getClass().getSimpleName());
         }
-    }
-
-    /** File name for the multipart part: Telegram shows it in the chat for documents. */
-    private static String defaultFilename(String fileId, String mime) {
-        String subtype = mime != null && mime.contains("/")
-                ? mime.substring(mime.indexOf('/') + 1) : "bin";
-        // "svg+xml" and the like → take the part before '+'; non-alphabetic tails do not work as an extension
-        int plus = subtype.indexOf('+');
-        if (plus > 0) {
-            subtype = subtype.substring(0, plus);
-        }
-        return fileId + "." + subtype;
     }
 
     // edit_message overwrites the previous text → destructiveHint=true (the default).

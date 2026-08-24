@@ -51,7 +51,7 @@ class FileStorageServiceTest {
         final Map<String, byte[]> blobs = new HashMap<>();
 
         @Override
-        public void put(String key, InputStream content, long contentLength, String mime) {
+        public void put(String key, InputStream content, long contentLength, ResponseHeaders headers) {
             try {
                 blobs.put(key, content.readAllBytes());
             } catch (Exception e) {

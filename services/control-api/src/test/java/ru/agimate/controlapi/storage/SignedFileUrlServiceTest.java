@@ -65,7 +65,7 @@ class SignedFileUrlServiceTest {
         private ResponseHeaders headers;
 
         @Override
-        public void put(String key, InputStream content, long contentLength, String mime) {
+        public void put(String key, InputStream content, long contentLength, ResponseHeaders headers) {
             throw new UnsupportedOperationException();
         }
 

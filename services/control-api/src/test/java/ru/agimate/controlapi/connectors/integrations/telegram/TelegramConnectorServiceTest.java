@@ -365,10 +365,12 @@ class TelegramConnectorServiceTest {
                     .mime("image/png").sizeBytes(5L)
                     .expiresAt(LocalDateTime.now().plusDays(1)).build();
             String fileId = FileIds.external(stored.getId());
+            // The file has no stored name, so the part is named the way downloading it would be.
+            String synthetic = "image-" + fileId.substring(fileId.length() - 8) + ".png";
             when(fileStorageService.open(USER_ID, fileId)).thenReturn(new FileStorageService.FileContent(
                     stored, new ByteArrayInputStream("bytes".getBytes(StandardCharsets.UTF_8))));
             when(telegramApiClient.sendRequestMultipart(eq("sendPhoto"), eq("token123"), any(),
-                    eq("photo"), eq(fileId + ".png"), eq("image/png"), any(), eq(5L)))
+                    eq("photo"), eq(synthetic), eq("image/png"), any(), eq(5L)))
                     .thenReturn(Map.of("ok", true));
 
             var result = handler.executeTool(env(), "send_photo",
@@ -379,7 +381,7 @@ class TelegramConnectorServiceTest {
                     argThat((Map<String, Object> p) ->
                             "100".equals(p.get("chat_id")) && "screenshot".equals(p.get("caption"))
                                     && !p.containsKey("photo")),
-                    eq("photo"), eq(fileId + ".png"), eq("image/png"), any(), eq(5L));
+                    eq("photo"), eq(synthetic), eq("image/png"), any(), eq(5L));
         }
 
         @Test

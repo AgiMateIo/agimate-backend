@@ -36,7 +36,9 @@ public class LocalBlobStore implements BlobStore {
     }
 
     @Override
-    public void put(String key, InputStream content, long contentLength, String mime) {
+    // The headers are ignored: a file on disk carries no presentation, and everything served from
+    // here goes through control-api, which builds them from the row.
+    public void put(String key, InputStream content, long contentLength, ResponseHeaders headers) {
         Path target = resolve(key);
         try {
             Files.createDirectories(target.getParent());

@@ -86,7 +86,8 @@ public class FileStorageService {
         storedFileRepository.save(file);
 
         DigestInputStream digest = new DigestInputStream(content, sha256Digest());
-        blobStore.put(blobKey(file), digest, sizeBytes, spec.mime());
+        FileLink link = FileLink.of(file);
+        blobStore.put(link.blobKey(), digest, sizeBytes, FileContentHeaders.forDelivery(link, true));
 
         file.setSha256(HexFormat.of().formatHex(digest.getMessageDigest().digest()));
         file.setStatus(FileStatus.READY);

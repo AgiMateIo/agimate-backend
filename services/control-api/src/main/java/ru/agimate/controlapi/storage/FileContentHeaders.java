@@ -35,8 +35,8 @@ public class FileContentHeaders {
     }
 
     /**
-     * The stored name when the producer knew one, otherwise the id; a name may be non-ASCII, so the
-     * header is built by Spring (filename + RFC 5987 filename*), never by concatenation.
+     * The name comes from {@link FileNames}; it may be non-ASCII, so the header is built by Spring
+     * (filename + RFC 5987 filename*), never by concatenation.
      *
      * @param contentType the type the response will claim — the already degraded one, not the stored
      *                    mime, so that active content never renders inline
@@ -46,9 +46,20 @@ public class FileContentHeaders {
     public static ContentDisposition contentDisposition(FileLink link, MediaType contentType,
                                                         boolean allowInline) {
         boolean render = allowInline && contentType.getType().equals("image");
-        String filename = link.name() != null ? link.name() : link.fileId();
         return (render ? ContentDisposition.inline() : ContentDisposition.attachment())
-                .filename(filename, StandardCharsets.UTF_8)
+                .filename(FileNames.forDownload(link), StandardCharsets.UTF_8)
                 .build();
+    }
+
+    /**
+     * Both values at once — what the bytes claim to be wherever they are not served by
+     * {@link ru.agimate.controlapi.controller.files.FileHttpResponses}: stored on the object at upload
+     * time and overridden again on a presigned link, so a store that ignores the override still
+     * presents the file the same way.
+     */
+    public static BlobStore.ResponseHeaders forDelivery(FileLink link, boolean allowInline) {
+        MediaType contentType = contentType(link.mime());
+        return new BlobStore.ResponseHeaders(contentType.toString(),
+                contentDisposition(link, contentType, allowInline).toString());
     }
 }

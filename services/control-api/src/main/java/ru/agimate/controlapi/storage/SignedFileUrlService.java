@@ -3,7 +3,6 @@ package ru.agimate.controlapi.storage;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.config.FileStorageProperties;
 
@@ -97,11 +96,8 @@ public class SignedFileUrlService {
         if (link.mime() == null) {
             return Optional.empty();
         }
-        MediaType contentType = FileContentHeaders.contentType(link.mime());
-        BlobStore.ResponseHeaders headers = new BlobStore.ResponseHeaders(
-                contentType.toString(),
-                FileContentHeaders.contentDisposition(link, contentType, true).toString());
-        return blobStore.presignGet(link.blobKey(), props.getUrlTtl(), headers);
+        return blobStore.presignGet(link.blobKey(), props.getUrlTtl(),
+                FileContentHeaders.forDelivery(link, true));
     }
 
     private String sign(String fileId, long exp) {

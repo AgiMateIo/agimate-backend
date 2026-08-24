@@ -11,7 +11,11 @@ import java.util.Optional;
  */
 public interface BlobStore {
 
-    void put(String key, InputStream content, long contentLength, String mime);
+    /**
+     * @param headers how the object presents itself when a client reads it without going through
+     *                control-api — a direct link into the store, the storage console
+     */
+    void put(String key, InputStream content, long contentLength, ResponseHeaders headers);
 
     /** Stream of the contents; the caller closes it. */
     InputStream get(String key);
@@ -35,6 +39,9 @@ public interface BlobStore {
         return Optional.empty();
     }
 
-    /** Values for {@code Content-Type} / {@code Content-Disposition} of a presigned link ({@link FileContentHeaders}). */
+    /**
+     * Values for {@code Content-Type} / {@code Content-Disposition} the object is stored with and
+     * that a presigned link overrides again ({@link FileContentHeaders}).
+     */
     record ResponseHeaders(String contentType, String contentDisposition) {}
 }

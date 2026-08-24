@@ -18,6 +18,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("LocalBlobStore")
 class LocalBlobStoreTest {
 
+    private static final BlobStore.ResponseHeaders HEADERS =
+            new BlobStore.ResponseHeaders("text/plain", "attachment; filename=\"notes.txt\"");
+
     @TempDir
     Path tempDir;
 
@@ -38,7 +41,7 @@ class LocalBlobStoreTest {
     @DisplayName("put/get roundtrip с вложенным ключом userId/agf_id")
     void roundtrip() throws Exception {
         String key = UUID.randomUUID() + "/agf_" + UUID.randomUUID();
-        store.put(key, bytes("hello"), 5, "text/plain");
+        store.put(key, bytes("hello"), 5, HEADERS);
 
         try (InputStream in = store.get(key)) {
             assertEquals("hello", new String(in.readAllBytes(), StandardCharsets.UTF_8));
@@ -60,7 +63,7 @@ class LocalBlobStoreTest {
     @DisplayName("delete идемпотентен")
     void deleteIdempotent() {
         String key = "u1/agf_x";
-        store.put(key, bytes("data"), 4, "text/plain");
+        store.put(key, bytes("data"), 4, HEADERS);
         store.delete(key);
         store.delete(key);
         assertThrows(FileStorageException.class, () -> store.get(key));
@@ -71,6 +74,6 @@ class LocalBlobStoreTest {
     void rejectsTraversal() {
         assertThrows(FileStorageException.class, () -> store.get("../outside"));
         assertThrows(FileStorageException.class,
-                () -> store.put("../../etc/passwd", bytes("x"), 1, "text/plain"));
+                () -> store.put("../../etc/passwd", bytes("x"), 1, HEADERS));
     }
 }
