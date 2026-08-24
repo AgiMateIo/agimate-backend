@@ -12,10 +12,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ru.agimate.common.rest.SuccessResponse;
+import ru.agimate.common.rest.error.UnauthorizedStatusException;
 import ru.agimate.userapi.controller.dto.response.UserResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.userapi.mappers.UserMapper;
 import ru.agimate.userapi.service.UserService;
+import ru.agimate.userapi.service.auth.AuthSessionService;
 
 import java.util.UUID;
 
@@ -26,6 +28,7 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final AuthSessionService authSessionService;
 
     @Operation(summary = "Get user by id", description = "Returns user information by their id")
     @GetMapping("/{id}")
@@ -41,7 +44,17 @@ public class UserController {
 
     }
 
-    @Operation(summary = "Get current user info", description = "Returns information about the currently authenticated user")
+    /**
+     * The one request on which the session registry is consulted, and the reason it is this one: a
+     * client asks who it is before it does anything else, so this is where a logout, a revoked
+     * device or a password reset can catch up with an access token that was minted before them and
+     * is signed for an hour yet. Everywhere else the signature is still the whole check —
+     * see {@link AuthSessionService#isActive}.
+     */
+    @Operation(summary = "Get current user info",
+            description = "Returns information about the currently authenticated user. Refuses a "
+                    + "token whose sign-in has been revoked, which no other endpoint checks — a "
+                    + "client that gets 401 here should refresh or sign in again.")
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<SuccessResponse<UserResponse>> getCurrentUser(Authentication authentication) {
@@ -49,6 +62,10 @@ public class UserController {
             Object principal = authentication.getPrincipal();
 
             if (principal instanceof AgimateUserPrincipal agimateUserPrincipal) {
+                if (!authSessionService.isActive(agimateUserPrincipal.authSessionId())) {
+                    throw new UnauthorizedStatusException("This sign-in is no longer active");
+                }
+
                 // Find the user by their id to get the full user object
                 return userService.findById(UUID.fromString(agimateUserPrincipal.id()))
                         .map(UserMapper::getUserResponse)

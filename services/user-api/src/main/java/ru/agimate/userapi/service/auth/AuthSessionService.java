@@ -107,6 +107,21 @@ public class AuthSessionService {
         revokeSession(session.getId(), SessionRevokeReason.LOGOUT, now);
     }
 
+    /**
+     * Whether the sign-in an access token names is still live. The token itself is proof of nothing
+     * beyond its signature: it is minted once and then travels for an hour with no way back to the
+     * registry, so a revoked session — a logout, a lost device, a password reset — keeps working
+     * until it expires unless somebody asks. This is that question, asked where the client asks it
+     * anyway ({@code /user/me}) rather than in the filter, which would put two selects on every
+     * request of every service for a window that is already an hour wide.
+     *
+     * @param sessionId the {@code asid} claim; null for a token minted before the registry existed,
+     *                  which is refused for the same reason {@link #requireUsableSession} refuses it
+     */
+    public boolean isActive(@Nullable UUID sessionId) {
+        return sessionId != null && sessionRepository.isActive(sessionId, LocalDateTime.now());
+    }
+
     public List<AuthSession> listActive(UUID userId) {
         return sessionRepository.findActive(userId, LocalDateTime.now());
     }

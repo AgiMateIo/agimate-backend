@@ -95,6 +95,16 @@ public interface AuthSessionRepository extends JpaRepository<AuthSession, UUID> 
     Optional<AuthSession> findByIdAndUserId(UUID id, UUID userId);
 
     /**
+     * Whether the sign-in behind an access token is still one. Counted rather than loaded: the
+     * caller wants the verdict, and this runs on a request path that is otherwise two selects.
+     */
+    @Query("""
+            SELECT COUNT(s) > 0 FROM AuthSession s
+            WHERE s.id = :id AND s.revokedAt IS NULL AND s.expiresAt > :now
+            """)
+    boolean isActive(@Param("id") UUID id, @Param("now") LocalDateTime now);
+
+    /**
      * Revoked rows are kept until they expire on their own: until then, a refresh that arrives with
      * a revoked id should be told it was revoked rather than that no such session ever existed.
      */
