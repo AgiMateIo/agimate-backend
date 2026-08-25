@@ -72,6 +72,12 @@ public class AcpConnectorService extends BaseConnectorHandler
         return merged;
     }
 
+    /** fs/terminal live in the IDE connection: outside its own ACP run every call fails. */
+    @Override
+    public boolean sessionScopedTools() {
+        return true;
+    }
+
     /** A fixed @Tool → the base's reflection dispatch; otherwise a session MCP tool → a reverse mcp/call_tool. */
     @Override
     public Map<String, Object> executeTool(ConnectorEnv env, String toolName, Map<String, Object> args) {

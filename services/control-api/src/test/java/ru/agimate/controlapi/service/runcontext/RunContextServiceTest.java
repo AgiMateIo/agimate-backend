@@ -470,6 +470,50 @@ class RunContextServiceTest {
             assertEquals(1, view.tools().size());
             assertEquals("persist-memory", view.tools().get(0).connectorCode());
         }
+
+        @Test
+        @DisplayName("сессионные тулы не попадают в чужой ран, хотя скилл требует их коннектор")
+        void sessionScopedToolsStayOutOfForeignRun() {
+            Agent agent = agent();
+            Channels channels = Channels.ofPrompt(new ChannelInfo(CHANNEL_ID, SESSION_ID, null));
+            stubRun(run(agent, triggerLog("webchat", "message_received"), channels));
+            UUID ideSkill = UUID.randomUUID();
+            stubSkills(List.of(new AgentSkillWithConnectorsResponse(
+                    ideSkill, "IDE", "d", List.of("persist-memory"))));
+            when(skillRepository.findByIdNotDeleted(ideSkill)).thenReturn(Optional.of(
+                    ru.agimate.controlapi.database.entities.Skill.builder()
+                            .id(ideSkill).name("IDE").mdContent("Working from the IDE").version(1).build()));
+
+            when(inboundTextResolver.resolve(any(), any()))
+                    .thenReturn(Optional.of(InboundMessage.text("hi")));
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
+                    .thenReturn(List.of(memoryConnection()));
+            lenient().when(memoryHandler.promptBlocks(any(ConnectorEnv.class))).thenReturn(List.of());
+
+            // Промпт-канал — чужой (webchat, тулов не приносит): sessionAwareConnectionId остаётся null.
+            ru.agimate.controlapi.database.entities.Channel channel =
+                    ru.agimate.controlapi.database.entities.Channel.builder()
+                            .id(CHANNEL_ID).channelHandler("webchat").connectorCode("webchat")
+                            .connectionId(UUID.randomUUID()).build();
+            when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID)).thenReturn(Optional.of(channel));
+            ru.agimate.controlapi.service.channel.handler.ChannelHandler h =
+                    mock(ru.agimate.controlapi.service.channel.handler.ChannelHandler.class);
+            when(h.contributesPromptTools()).thenReturn(false);
+            when(channelHandlerRegistry.find("webchat")).thenReturn(Optional.of(h));
+
+            Connector connector = new Connector();
+            connector.setCode("persist-memory");
+            connector.setDefinitionBinding(DefinitionBinding.STATIC);
+            when(connectorRepository.findById("persist-memory")).thenReturn(Optional.of(connector));
+            when(memoryHandler.sessionScopedTools()).thenReturn(true);
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            assertTrue(view.tools().isEmpty());
+            // Гейт снимает только тулы: скилл в контексте остаётся, привязка-то есть.
+            assertTrue(view.systemBlocks().stream().anyMatch(b ->
+                    "skill".equals(b.name()) && b.content().contains("Working from the IDE")));
+        }
     }
 
     @Nested

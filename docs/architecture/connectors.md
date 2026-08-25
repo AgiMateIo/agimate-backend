@@ -149,7 +149,7 @@ ConnectorHandler                — identity: connectorCode/Name, capabilities
 └── InternalConnectorHandler    — маркер (без credentials)
 
 Capability-интерфейсы (реализуются по необходимости):
-ToolProvider     — getTools, getTools(ctx), executeTool
+ToolProvider     — getTools, getTools(ctx), executeTool, sessionScopedTools
 TriggerProvider  — getTriggers
 JobProvider      — getJobs, executeJob
 PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
@@ -219,7 +219,12 @@ PromptBlockProvider  — promptBlocks(ctx) → List<PromptBlock>
 **динамические коннекторы** (MCP, см. ниже): набор тулов per-instance и открывается в рантайме. Для них
 `ToolProvider` даёт context-aware перегрузку `getTools(ConnectorEnv)` (дефолт — те же статические `getTools()`);
 gRPC-листинг (`GetConnectionTools(connection_id)`) единообразно зовёт её с контекстом по `connection_id` — без
-спец-кейсов. Воркер сперва получает доступные агенту экземпляры через `GetConnections(agent_id)`
+спец-кейсов. Второе исключение — **сессионные тулы** (`sessionScopedTools() = true`, сейчас только `acp`):
+они работают лишь внутри живой сессии своего prompt-канала, поэтому `RunContextService` не кладёт их
+в контекст чужого рана, даже если скилл объявил коннектор требуемым. Листингов это не касается —
+каталог и редактор ABAC-политик показывают тулы всегда.
+
+Воркер сперва получает доступные агенту экземпляры через `GetConnections(agent_id)`
 (привязки `agent_connections` → `connections`), затем по каждому зовёт `GetConnectionTools`.
 
 **Именование тулов и триггеров (единая форма).** Хранимое имя (`@Tool(name=…)`, ключи `getTriggers()`,

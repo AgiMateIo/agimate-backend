@@ -98,16 +98,19 @@ id `srv-N` и возвращает `CompletableFuture`; ответ клиент�
 
 **Доступность**: тулы попадают в контекст DIALOGUE-рана, чей prompt-канал — ACP
 (`ChannelHandler.contributesPromptTools() = true` подмешивает коннектор канала в `RunContextService`
-мимо скилл-гейта). Требуют клиентских capabilities из `initialize`
+мимо скилл-гейта). Обратное тоже верно: `ToolProvider.sessionScopedTools() = true` убирает их из
+любого другого рана, даже когда acp-connection пришла туда привязкой скилла — вне своей сессии
+каждый вызов всё равно падает. Листингов (`/manage/connectors/acp/tools`, редактор ABAC-политик) это
+не касается: там тулы видны всегда. Требуют клиентских capabilities из `initialize`
 (`fs.readTextFile`/`fs.writeTextFile`/`terminal`).
 
 **Сид-контент**: системный скилл `acp` (инструкция «как работать из IDE») и пресет `coder`
-(«Программист», `skills: [acp, persist-memory]`) — `resources/seed/{skills,presets}/<lang>/`. Скилл объявляет
-`connectors: []` **намеренно**: тулы приносит prompt-канал, а `connectors: [acp]` привязало бы
-acp-connection к агенту и выдало бы `read_file`/`write_file`/`run_command` во всех каналах, где они
-гарантированно падают (`SystemSkillBootstrapTest.CONNECTORLESS_SKILLS`). Состав тулов до подключения
-IDE неизвестен (session-scoped MCP), поэтому скилл учит смотреть список тулов рана, а не перечисляет
-их как данность.
+(«Программист», `skills: [acp, persist-memory]`) — `resources/seed/{skills,presets}/<lang>/`. Скилл
+объявляет `connectors: [acp]`: поле — список **требуемых** коннекторов, без подключённого acp скилл
+бессмыслен и скилл-гейт его не выдаёт. Тулы при этом приносит не привязка, а канал — за то, чтобы
+они не протекли в веб-чат и триггеры, отвечает `sessionScopedTools()` (см. «Доступность»). Состав
+тулов до подключения IDE неизвестен (session-scoped MCP), поэтому скилл учит смотреть список тулов
+рана, а не перечисляет их как данность.
 
 **Обрыв IDE = валидный error tool-result** (не зависание): нет живого соединения / нет capability /
 таймаут / отказ пользователя → `ConnectorException` → запись `error` в `tool_call_logs` → воркер

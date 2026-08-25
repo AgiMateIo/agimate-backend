@@ -508,6 +508,11 @@ public class RunContextService {
      * directly, bypassing the skill gate). For {@code sessionAwareConnectionId} (the connection of a
      * prompt channel that brings tools) the STATIC listing gets an env carrying
      * {@code promptSessionId}, so the connector can return session-scoped tools (MCP from the IDE).
+     *
+     * <p>A connector with {@link ToolProvider#sessionScopedTools()} enters the selection through that
+     * connection only: a skill declaring it as required still gates on the connection being there,
+     * but its tools belong to the live session, and elsewhere they would only be schemas that always
+     * fail.
      */
     private UUID addPromptChannelTools(UUID promptChannelId, Set<UUID> requiredConnections) {
         if (promptChannelId == null) {
@@ -541,12 +546,14 @@ public class RunContextService {
             if (connector == null || connector.getDefinitionBinding() == null) {
                 continue;
             }
-            ConnectorEnv listingEnv = connection.getId().equals(sessionAwareConnectionId)
+            boolean ownSession = connection.getId().equals(sessionAwareConnectionId);
+            ConnectorEnv listingEnv = ownSession
                     ? envFactory.internal(connection.getId().toString(), null, null, null, null, promptSessionId)
                     : ConnectorEnvFactory.listing(connection.getId());
             Map<String, ConnectorToolSpec> specs = switch (connector.getDefinitionBinding()) {
                 case STATIC -> connectorRegistry
                         .findCapability(connection.getConnectorCode(), ToolProvider.class)
+                        .filter(p -> ownSession || !p.sessionScopedTools())
                         .map(p -> p.getTools(listingEnv))
                         .orElse(Map.of());
                 case DYNAMIC -> dynamicTools(connection.getId());
