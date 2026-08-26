@@ -4,25 +4,22 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
+import ru.agimate.controlapi.controller.manage.dto.session.SessionLastMessage;
+import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
-import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatLastMessage;
-import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendResponse;
-import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSessionResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.StoredFile;
-import ru.agimate.controlapi.database.entities.WebchatMessage;
 import ru.agimate.controlapi.database.enums.WebchatMessageDirection;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
@@ -41,17 +38,14 @@ import ru.agimate.controlapi.service.trigger.TriggerAudience;
 import ru.agimate.controlapi.service.trigger.TriggerContext;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
 import ru.agimate.controlapi.storage.FileStorageService;
-import ru.agimate.controlapi.storage.SignedFileUrlService;
+import ru.agimate.controlapi.util.SqlValues;
 
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -80,7 +74,6 @@ public class WebchatService {
     private final WebchatMessagePublisher webchatMessagePublisher;
     private final WebchatMessageRepository webchatMessageRepository;
     private final CentrifugoService centrifugoService;
-    private final SignedFileUrlService signedFileUrlService;
     private final FileStorageService fileStorageService;
 
     /** Ceiling on attachments in one message — protection of the prompt and the quota from abuse. */
@@ -88,7 +81,7 @@ public class WebchatService {
 
     /** A new chat session with an agent; the binding and the channel are materialised lazily (find-or-create). */
     @Transactional
-    public WebchatSessionResponse startSession(UUID userId, UUID agentId) {
+    public SessionResponse startSession(UUID userId, UUID agentId) {
         Agent agent = requireOwnedAgent(userId, agentId);
         AgentConnection binding = connectionBindingService.bindInternal(
                 userId, agentId, WebchatChannelHandler.CONNECTOR_CODE);
@@ -106,42 +99,7 @@ public class WebchatService {
                         null)));
 
         AgentSession session = agentSessionService.createNew(channel, null);
-        return WebchatSessionResponse.from(session, agentId);
-    }
-
-    /**
-     * A user's webchat sessions (optionally for one agent), freshest first. The channels are read
-     * whole — there is one per agent, so that set is bounded by how many agents the user has; the
-     * sessions behind them are not, and they are the paged half.
-     *
-     * <p>The three marks a chat list needs — unread, preview, «working now» — are three batch
-     * queries for the whole page, never one per row.
-     */
-    @Transactional(readOnly = true)
-    public Page<WebchatSessionResponse> listSessions(UUID userId, UUID agentId, int page, int size) {
-        List<Channel> channels = channelRepository
-                .findByUserIdAndConnectorCodeAndDeletedAtIsNull(userId, WebchatChannelHandler.CONNECTOR_CODE)
-                .stream()
-                .filter(c -> agentId == null || agentId.equals(c.getAgentId()))
-                .toList();
-        if (channels.isEmpty()) {
-            return Page.empty(PageRequest.of(page, size));
-        }
-        Map<UUID, Channel> byId = channels.stream()
-                .collect(Collectors.toMap(Channel::getId, Function.identity()));
-        Page<AgentSession> sessions = agentSessionService.listByChannelIds(byId.keySet(), page, size);
-
-        List<UUID> sessionIds = sessions.getContent().stream().map(AgentSession::getId).toList();
-        Map<UUID, Long> unread = unreadBySession(sessionIds);
-        Map<UUID, WebchatLastMessage> previews = lastMessagesBySession(sessionIds);
-        Set<UUID> live = agentRunQueryService.liveSessionIds(sessionIds);
-
-        return sessions.map(s -> WebchatSessionResponse.from(
-                s,
-                byId.get(s.getChannelId()).getAgentId(),
-                unread.getOrDefault(s.getId(), 0L),
-                previews.get(s.getId()),
-                live.contains(s.getId())));
+        return SessionResponse.from(session);
     }
 
     /**
@@ -169,43 +127,9 @@ public class WebchatService {
                     unread.getOrDefault(id, 0L),
                     preview != null ? preview.message() : null,
                     preview != null ? preview.sessionId() : null,
-                    toLocalDateTime(row[4]),
+                    SqlValues.localDateTime(row[4]),
                     live.contains(id));
         });
-    }
-
-    /**
-     * Read up to {@code lastReadMessageId}, or up to the end of the conversation when the request
-     * names no message. The pointer only ever moves forward.
-     */
-    public void markRead(UUID userId, UUID sessionId, UUID lastReadMessageId) {
-        requireOwnedWebchatSession(userId, sessionId);
-        UUID pointer = lastReadMessageId;
-        if (pointer != null) {
-            // A pointer from another session — or invented — would silence this session's badge forever.
-            if (!webchatMessageRepository.existsByIdAndSessionId(pointer, sessionId)) {
-                throw new BadRequestStatusException("Message does not belong to this session");
-            }
-        } else {
-            pointer = webchatMessageRepository.findLastMessageId(sessionId).orElse(null);
-        }
-        if (pointer != null) {
-            agentSessionService.advanceReadPointer(sessionId, pointer);
-        }
-    }
-
-    /** Whatever stood in the conversation up to now has been read. */
-    private void markReadThroughLatest(UUID sessionId) {
-        webchatMessageRepository.findLastMessageId(sessionId)
-                .ifPresent(id -> agentSessionService.advanceReadPointer(sessionId, id));
-    }
-
-    private Map<UUID, Long> unreadBySession(List<UUID> sessionIds) {
-        if (sessionIds.isEmpty()) {
-            return Map.of();
-        }
-        return webchatMessageRepository.countUnreadBySessionIds(sessionIds).stream()
-                .collect(Collectors.toMap(row -> (UUID) row[0], row -> ((Number) row[1]).longValue()));
     }
 
     private Map<UUID, Long> unreadByAgent(List<UUID> agentIds) {
@@ -214,16 +138,6 @@ public class WebchatService {
         }
         return webchatMessageRepository.countUnreadByAgentIds(agentIds).stream()
                 .collect(Collectors.toMap(row -> (UUID) row[0], row -> ((Number) row[1]).longValue()));
-    }
-
-    private Map<UUID, WebchatLastMessage> lastMessagesBySession(List<UUID> sessionIds) {
-        if (sessionIds.isEmpty()) {
-            return Map.of();
-        }
-        return webchatMessageRepository.findLastMessagesBySessionIds(sessionIds).stream()
-                .collect(Collectors.toMap(
-                        row -> (UUID) row[0],
-                        row -> lastMessage(row[1], row[2], row[3], row[4])));
     }
 
     private Map<UUID, ContactPreview> lastMessagesByAgent(List<UUID> agentIds) {
@@ -237,25 +151,17 @@ public class WebchatService {
                                 lastMessage(row[2], row[3], row[4], row[5]))));
     }
 
-    private static WebchatLastMessage lastMessage(Object direction, Object text,
+    private static SessionLastMessage lastMessage(Object direction, Object text,
                                                   Object hasAttachments, Object createdAt) {
-        return new WebchatLastMessage(
+        return new SessionLastMessage(
                 WebchatPreviews.shorten((String) text),
                 (String) direction,
                 Boolean.TRUE.equals(hasAttachments),
-                toLocalDateTime(createdAt));
-    }
-
-    /** Native queries hand a {@code TIMESTAMP} back as {@link Timestamp}; nothing else lands here. */
-    private static LocalDateTime toLocalDateTime(Object value) {
-        if (value == null) {
-            return null;
-        }
-        return value instanceof Timestamp timestamp ? timestamp.toLocalDateTime() : (LocalDateTime) value;
+                SqlValues.localDateTime(createdAt));
     }
 
     /** The preview of a contact row together with the conversation it came from. */
-    private record ContactPreview(UUID sessionId, WebchatLastMessage message) {}
+    private record ContactPreview(UUID sessionId, SessionLastMessage message) {}
 
     /**
      * Accept a user's message: a UI history row plus an echo event, then the regular trigger pipeline
@@ -285,7 +191,7 @@ public class WebchatService {
         webchatMessagePublisher.record(userId, channel.getAgentId(), channel.getId(), session.getId(),
                 WebchatMessageDirection.USER, null, messageId, request.text(), parts);
         // Writing into a conversation is reading it: the answer being replied to is not unread.
-        markReadThroughLatest(session.getId());
+        agentSessionService.markReadThroughLatest(session.getId());
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("sessionId", session.getId().toString());
@@ -347,33 +253,6 @@ public class WebchatService {
             }
             return (Map<String, Object>) m;
         }).toList();
-    }
-
-    /** The session's UI history, newest first (page=0 — the freshest; the frontend reverses it when rendering). */
-    @Transactional(readOnly = true)
-    public Page<WebchatMessageResponse> listMessages(UUID userId, UUID sessionId, int page, int size) {
-        requireOwnedWebchatSession(userId, sessionId);
-        PageRequest pageRequest = PageRequest.of(page, size,
-                Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.DESC, "id")));
-        return webchatMessageRepository.findBySessionId(sessionId, pageRequest)
-                .map(message -> WebchatMessageResponse.from(message, attachments(message)));
-    }
-
-    /** Stored parts plus a fresh signed link to the contents (expired links are never stored). */
-    private List<WebchatAttachment> attachments(WebchatMessage message) {
-        return WebchatAttachment.fromStored(message.getParts(), message.getUserId(), signedFileUrlService::issue);
-    }
-
-    /**
-     * Closing a conversation also ends it as unread: a closed chat keeps its history but stops
-     * asking for attention in the listings.
-     */
-    @Transactional
-    public WebchatSessionResponse closeSession(UUID userId, UUID sessionId) {
-        SessionContext ctx = requireOwnedWebchatSession(userId, sessionId);
-        markReadThroughLatest(sessionId);
-        AgentSession closed = agentSessionService.close(sessionId);
-        return WebchatSessionResponse.from(closed, ctx.channel().getAgentId());
     }
 
     /** Centrifugo tokens for the channel {@code webchat:{sessionId}} — this session's live events. */

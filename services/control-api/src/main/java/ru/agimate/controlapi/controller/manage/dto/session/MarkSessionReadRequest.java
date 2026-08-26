@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.controller.manage.dto.webchat;
+package ru.agimate.controlapi.controller.manage.dto.session;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -9,8 +9,8 @@ import java.util.UUID;
  * field of the history), not its {@code messageId} — the latter is the delivery key and carries no
  * order.
  */
-@Schema(description = "Mark a webchat session read")
-public record WebchatMarkReadRequest(
+@Schema(description = "Mark a session read")
+public record MarkSessionReadRequest(
         @Schema(description = "Row id of the last message the user has seen; omit to mark the whole session read")
         UUID lastReadMessageId
 ) {

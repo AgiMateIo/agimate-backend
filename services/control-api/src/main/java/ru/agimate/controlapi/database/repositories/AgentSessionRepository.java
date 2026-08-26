@@ -1,8 +1,7 @@
 package ru.agimate.controlapi.database.repositories;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -10,17 +9,13 @@ import org.springframework.stereotype.Repository;
 import ru.agimate.controlapi.database.entities.AgentSession;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface AgentSessionRepository extends JpaRepository<AgentSession, UUID> {
-
-    Page<AgentSession> findByChannelId(UUID channelId, Pageable pageable);
-
-    Page<AgentSession> findByChannelIdIn(Collection<UUID> channelIds, Pageable pageable);
+public interface AgentSessionRepository
+        extends JpaRepository<AgentSession, UUID>, JpaSpecificationExecutor<AgentSession> {
 
     /**
      * Live sessions of a channel, freshest first. The scope is spelled out rather than implied by

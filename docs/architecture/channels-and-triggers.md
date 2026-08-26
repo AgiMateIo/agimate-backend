@@ -32,6 +32,10 @@
 событий коннекшена, у которого канала нет вовсе. См.
 [decisions/agent-sessions.md](../decisions/agent-sessions.md).
 
+Снаружи сессия — один ресурс `/manage/sessions` (листинг, переименование, закрытие, история,
+отметка прочитанного), независимо от канала. Транспортное остаётся у своего коннектора:
+`/manage/webchat` — старт чата, отправка, токен Centrifugo.
+
 ---
 
 ## 2. Путь триггера: три фазы
@@ -248,4 +252,4 @@ workflow id), на него опирается и доставка, и реес�
 - ABAC и биндинги — [`connectors.md`](connectors.md)
 - Протокол воркера, `GetRunContext`, журнал — [`../contracts/worker-protocol.md`](../contracts/worker-protocol.md)
 - ACP как зеркало webchat-канала — [`../contracts/acp.md`](../contracts/acp.md)
-- Схемы запросов и ответов `/control/manage/channels` — OpenAPI, не дублируются здесь
+- Схемы запросов и ответов `/control/manage/channels` и `/control/manage/sessions` — OpenAPI, не дублируются здесь

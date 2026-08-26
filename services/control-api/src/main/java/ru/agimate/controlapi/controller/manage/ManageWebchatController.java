@@ -5,7 +5,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,12 +16,10 @@ import ru.agimate.common.rest.PageResponse;
 import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
+import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
-import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMarkReadRequest;
-import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatMessageResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendResponse;
-import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSessionResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatStartSessionRequest;
 import ru.agimate.controlapi.service.webchat.WebchatService;
 
@@ -32,7 +29,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping(ManageWebchatController.PATH)
 @RequiredArgsConstructor
-@Tag(name = "Webchat", description = "Web chat with agents from the frontend")
+@Tag(name = "Webchat", description = "The web chat transport: starting a chat, sending into it, "
+        + "its live channel. The conversation itself lives under /manage/sessions")
 public class ManageWebchatController {
 
     public static final String PATH = "/manage/webchat";
@@ -42,24 +40,12 @@ public class ManageWebchatController {
     @Operation(summary = "Start a new chat session with an agent",
             description = "Lazily materializes the user's webchat connection, the agent binding and the channel")
     @PostMapping("/sessions")
-    public SuccessResponse<WebchatSessionResponse> startSession(
+    public SuccessResponse<SessionResponse> startSession(
             @AuthenticationPrincipal AgimateUserPrincipal principal,
             @Valid @RequestBody WebchatStartSessionRequest request
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(webchatService.startSession(userId, request.agentId()));
-    }
-
-    @Operation(summary = "List webchat sessions, newest activity first")
-    @GetMapping("/sessions/")
-    public SuccessResponse<PageResponse<WebchatSessionResponse>> listSessions(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @RequestParam(required = false) UUID agentId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size
-    ) {
-        UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(PageResponse.from(webchatService.listSessions(userId, agentId, page, size)));
     }
 
     @Operation(summary = "Send a message into a session",
@@ -86,42 +72,6 @@ public class ManageWebchatController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(PageResponse.from(webchatService.listContacts(userId, page, size)));
-    }
-
-    @Operation(summary = "Mark a session read",
-            description = "Up to lastReadMessageId (the row id from the history), or up to the end of "
-                    + "the session when the body names none; the pointer never moves backwards")
-    @PostMapping("/sessions/{id}/read")
-    public SuccessResponse<Void> markRead(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id,
-            @RequestBody(required = false) WebchatMarkReadRequest request
-    ) {
-        UUID userId = UUID.fromString(principal.id());
-        webchatService.markRead(userId, id, request != null ? request.lastReadMessageId() : null);
-        return SuccessResponse.empty();
-    }
-
-    @Operation(summary = "Session message history (UI log), newest first")
-    @GetMapping("/sessions/{id}/messages/")
-    public SuccessResponse<PageResponse<WebchatMessageResponse>> listMessages(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "50") int size
-    ) {
-        UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(PageResponse.from(webchatService.listMessages(userId, id, page, size)));
-    }
-
-    @Operation(summary = "Close a session")
-    @DeleteMapping("/sessions/{id}")
-    public SuccessResponse<WebchatSessionResponse> closeSession(
-            @AuthenticationPrincipal AgimateUserPrincipal principal,
-            @PathVariable UUID id
-    ) {
-        UUID userId = UUID.fromString(principal.id());
-        return SuccessResponse.ok(webchatService.closeSession(userId, id));
     }
 
     @Operation(summary = "Get Centrifugo tokens for the session channel webchat:{sessionId}")

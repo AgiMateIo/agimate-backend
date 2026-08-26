@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.controller.manage.dto.webchat;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.controlapi.controller.manage.dto.session.SessionLastMessage;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -28,7 +29,7 @@ public record WebchatContactResponse(
         long unreadCount,
 
         @Schema(description = "Preview of the last message; null when the chat has not started")
-        WebchatLastMessage lastMessage,
+        SessionLastMessage lastMessage,
 
         @Schema(description = "Session the preview came from — the one to open on tap; null when there is none")
         UUID lastSessionId,

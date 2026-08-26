@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Листинг сессий стал одним ресурсом /manage/sessions и фильтрует по владельцу, а не по набору
+      его каналов: сессии scope=CONNECTION канала не имеют вовсе, и найти их через channels нельзя.
+      Индекс закрывает обе половины запроса — отбор строк пользователя и порядок «свежие сверху».
+      Фильтры по agent_id и connector_code остаются остаточными: они сужают уже внутри одного
+      пользователя, а это ограниченный набор.
+    -->
+    <changeSet id="add-agent-sessions-owner-listing-index" author="agimate">
+        <createIndex tableName="agent_sessions" indexName="idx_agent_sessions_user_id_last_activity_at">
+            <column name="user_id"/>
+            <column name="last_activity_at" descending="true"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

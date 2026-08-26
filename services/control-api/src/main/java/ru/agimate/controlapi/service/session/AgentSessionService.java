@@ -1,21 +1,25 @@
 package ru.agimate.controlapi.service.session;
 
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.AgentSession;
 import ru.agimate.controlapi.database.entities.Channel;
 import ru.agimate.controlapi.database.enums.AgentSessionScope;
 import ru.agimate.controlapi.database.repositories.AgentSessionRepository;
+import ru.agimate.controlapi.database.repositories.WebchatMessageRepository;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -33,22 +37,39 @@ import java.util.UUID;
 public class AgentSessionService {
 
     public static final Duration SESSION_TTL = Duration.ofHours(12);
-    private static final int TITLE_MAX_LENGTH = 80;
+    public static final int TITLE_MAX_LENGTH = 80;
     private static final int MAX_PAGE_SIZE = 100;
 
     private final AgentSessionRepository agentSessionRepository;
+    private final WebchatMessageRepository webchatMessageRepository;
 
     public AgentSession getById(UUID id) {
         return agentSessionRepository.findById(id)
                 .orElseThrow(() -> new NotFoundStatusException("Agent session not found"));
     }
 
-    public Page<AgentSession> listByChannelId(UUID channelId, int page, int size) {
-        return agentSessionRepository.findByChannelId(channelId, pageRequest(page, size));
-    }
-
-    public Page<AgentSession> listByChannelIds(Collection<UUID> channelIds, int page, int size) {
-        return agentSessionRepository.findByChannelIdIn(channelIds, pageRequest(page, size));
+    /**
+     * The owner's sessions, narrowed by whatever the caller named. The filter is on the session's own
+     * {@code user_id} rather than on the channels behind it: a channel-shaped listing had to read the
+     * user's channels first, and sessions of connection scope have no channel to be found through.
+     */
+    public Page<AgentSession> list(UUID userId, UUID agentId, UUID channelId, String connectorCode,
+                                   int page, int size) {
+        Specification<AgentSession> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("userId"), userId));
+            if (agentId != null) {
+                predicates.add(cb.equal(root.get("agentId"), agentId));
+            }
+            if (channelId != null) {
+                predicates.add(cb.equal(root.get("channelId"), channelId));
+            }
+            if (connectorCode != null) {
+                predicates.add(cb.equal(root.get("connectorCode"), connectorCode));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+        return agentSessionRepository.findAll(spec, pageRequest(page, size));
     }
 
     /**
@@ -102,6 +123,20 @@ public class AgentSessionService {
                 .filter(s -> s.getClosedAt() == null);
     }
 
+    /** Rename explicitly; unlike the title derived from a message, an over-long one is refused, not cut. */
+    @Transactional
+    public AgentSession rename(AgentSession session, String title) {
+        String trimmed = title.strip();
+        if (trimmed.isEmpty()) {
+            throw new BadRequestStatusException("Title must not be blank");
+        }
+        if (trimmed.length() > TITLE_MAX_LENGTH) {
+            throw new BadRequestStatusException("Title is longer than " + TITLE_MAX_LENGTH + " characters");
+        }
+        session.setTitle(trimmed);
+        return agentSessionRepository.save(session);
+    }
+
     /** Set the title from the first message, if it is still empty. */
     @Transactional
     public void setTitleIfEmpty(AgentSession session, String hint) {
@@ -115,6 +150,37 @@ public class AgentSessionService {
     public void bumpLastActivityAt(AgentSession session) {
         session.setLastActivityAt(LocalDateTime.now());
         agentSessionRepository.save(session);
+    }
+
+    /**
+     * Read up to {@code lastReadMessageId}, or up to the end of the conversation when none is named.
+     * The pointer only ever moves forward.
+     *
+     * <p>The pointer addresses {@code webchat_messages} by definition — it is «how far the user has
+     * scrolled», and the user reads in the web UI. A session of another connector simply has no rows
+     * there, and marking it read is a no-op rather than an error.
+     */
+    @Transactional
+    public void markRead(UUID sessionId, UUID lastReadMessageId) {
+        UUID pointer = lastReadMessageId;
+        if (pointer != null) {
+            // A pointer from another session — or invented — would silence this session's badge forever.
+            if (!webchatMessageRepository.existsByIdAndSessionId(pointer, sessionId)) {
+                throw new BadRequestStatusException("Message does not belong to this session");
+            }
+        } else {
+            pointer = webchatMessageRepository.findLastMessageId(sessionId).orElse(null);
+        }
+        if (pointer != null) {
+            advanceReadPointer(sessionId, pointer);
+        }
+    }
+
+    /** Whatever stood in the conversation up to now has been read. */
+    @Transactional
+    public void markReadThroughLatest(UUID sessionId) {
+        webchatMessageRepository.findLastMessageId(sessionId)
+                .ifPresent(id -> advanceReadPointer(sessionId, id));
     }
 
     /**

@@ -14,7 +14,7 @@ import ru.agimate.controlapi.controller.app.dto.CentrifugoTokenResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatContactResponse;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendMessageRequest;
 import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSendResponse;
-import ru.agimate.controlapi.controller.manage.dto.webchat.WebchatSessionResponse;
+import ru.agimate.controlapi.controller.manage.dto.session.SessionResponse;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
 import ru.agimate.controlapi.database.entities.Channel;
@@ -32,7 +32,6 @@ import ru.agimate.controlapi.service.session.AgentSessionService;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.trigger.Trigger;
 import ru.agimate.controlapi.service.trigger.TriggerRouterService;
-import ru.agimate.controlapi.storage.SignedFileUrlService;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -92,8 +91,6 @@ class WebchatServiceTest {
     @Mock
     private CentrifugoService centrifugoService;
     @Mock
-    private SignedFileUrlService signedFileUrlService;
-    @Mock
     private ru.agimate.controlapi.storage.FileStorageService fileStorageService;
 
     private WebchatService webchatService;
@@ -106,8 +103,7 @@ class WebchatServiceTest {
     void setUp() {
         webchatService = new WebchatService(agentRepository, channelRepository, channelService,
                 agentSessionService, agentRunQueryService, connectionBindingService, triggerRouterService,
-                webchatMessagePublisher, webchatMessageRepository, centrifugoService,
-                signedFileUrlService, fileStorageService);
+                webchatMessagePublisher, webchatMessageRepository, centrifugoService, fileStorageService);
         agent = Agent.builder().id(AGENT_ID).userId(USER_ID).name("Assistant").build();
         channel = Channel.builder()
                 .id(CHANNEL_ID)
@@ -116,7 +112,13 @@ class WebchatServiceTest {
                 .connectorCode("webchat")
                 .connectionId(CONNECTION_ID)
                 .build();
-        session = AgentSession.builder().id(SESSION_ID).channelId(CHANNEL_ID).build();
+        session = AgentSession.builder()
+                .id(SESSION_ID)
+                .userId(USER_ID)
+                .agentId(AGENT_ID)
+                .connectorCode("webchat")
+                .channelId(CHANNEL_ID)
+                .build();
     }
 
     private AgentConnection binding() {
@@ -137,9 +139,9 @@ class WebchatServiceTest {
                     AGENT_ID, "webchat", CONNECTION_ID)).thenReturn(Optional.of(channel));
             when(agentSessionService.createNew(channel, null)).thenReturn(session);
 
-            WebchatSessionResponse response = webchatService.startSession(USER_ID, AGENT_ID);
+            SessionResponse response = webchatService.startSession(USER_ID, AGENT_ID);
 
-            assertEquals(SESSION_ID, response.sessionId());
+            assertEquals(SESSION_ID, response.id());
             assertEquals(AGENT_ID, response.agentId());
             verify(channelService, never()).create(any(), any());
         }
@@ -279,13 +281,10 @@ class WebchatServiceTest {
         @DisplayName("отправка отмечает прочитанным всё, что было в сессии до неё")
         void sendMarksConversationRead() {
             stubOwnedSession();
-            UUID lastMessageRowId = UUID.randomUUID();
-            when(webchatMessageRepository.findLastMessageId(SESSION_ID))
-                    .thenReturn(Optional.of(lastMessageRowId));
 
             webchatService.send(USER_ID, SESSION_ID, new WebchatSendMessageRequest("привет", null));
 
-            verify(agentSessionService).advanceReadPointer(SESSION_ID, lastMessageRowId);
+            verify(agentSessionService).markReadThroughLatest(SESSION_ID);
         }
 
         @Test
@@ -327,161 +326,6 @@ class WebchatServiceTest {
             CentrifugoTokenResponse response = webchatService.token(USER_ID, SESSION_ID);
 
             assertSame(expected, response);
-        }
-    }
-
-    @Nested
-    @DisplayName("listSessions")
-    class ListSessions {
-
-        @Test
-        @DisplayName("сессии всех webchat-каналов пользователя с agentId из канала")
-        void listsAcrossAgents() {
-            when(channelRepository.findByUserIdAndConnectorCodeAndDeletedAtIsNull(USER_ID, "webchat"))
-                    .thenReturn(List.of(channel));
-            when(agentSessionService.listByChannelIds(Set.of(CHANNEL_ID), 0, 50))
-                    .thenReturn(new PageImpl<>(List.of(session)));
-
-            Page<WebchatSessionResponse> sessions = webchatService.listSessions(USER_ID, null, 0, 50);
-
-            assertEquals(1, sessions.getTotalElements());
-            assertEquals(AGENT_ID, sessions.getContent().get(0).agentId());
-            assertNull(sessions.getContent().get(0).closedAt());
-        }
-
-        @Test
-        @DisplayName("фильтр по агенту отсекает чужие каналы — до запроса сессий")
-        void filtersByAgent() {
-            when(channelRepository.findByUserIdAndConnectorCodeAndDeletedAtIsNull(USER_ID, "webchat"))
-                    .thenReturn(List.of(channel));
-
-            Page<WebchatSessionResponse> sessions =
-                    webchatService.listSessions(USER_ID, UUID.randomUUID(), 0, 50);
-
-            assertEquals(0, sessions.getTotalElements());
-            verify(agentSessionService, never()).listByChannelIds(any(), anyInt(), anyInt());
-        }
-
-        @Test
-        @DisplayName("строка несёт бейдж, обрезанное превью и признак работающего агента")
-        void enrichesRows() {
-            when(channelRepository.findByUserIdAndConnectorCodeAndDeletedAtIsNull(USER_ID, "webchat"))
-                    .thenReturn(List.of(channel));
-            when(agentSessionService.listByChannelIds(Set.of(CHANNEL_ID), 0, 50))
-                    .thenReturn(new PageImpl<>(List.of(session)));
-            when(webchatMessageRepository.countUnreadBySessionIds(List.of(SESSION_ID)))
-                    .thenReturn(List.<Object[]>of(new Object[]{SESSION_ID, 3L}));
-            when(webchatMessageRepository.findLastMessagesBySessionIds(List.of(SESSION_ID)))
-                    .thenReturn(List.<Object[]>of(new Object[]{
-                            SESSION_ID, "AGENT", "  готово  ", true,
-                            Timestamp.valueOf(LocalDateTime.of(2026, 8, 15, 12, 0))}));
-            when(agentRunQueryService.liveSessionIds(List.of(SESSION_ID))).thenReturn(Set.of(SESSION_ID));
-
-            WebchatSessionResponse row =
-                    webchatService.listSessions(USER_ID, null, 0, 50).getContent().get(0);
-
-            assertEquals(3L, row.unreadCount());
-            assertEquals("готово", row.lastMessage().text());
-            assertEquals("AGENT", row.lastMessage().direction());
-            assertTrue(row.lastMessage().hasAttachments());
-            assertEquals(LocalDateTime.of(2026, 8, 15, 12, 0), row.lastMessage().createdAt());
-            assertTrue(row.isRunning());
-        }
-
-        @Test
-        @DisplayName("сессия без сообщений и без ранов — нули, а не null'ы")
-        void emptySessionRow() {
-            when(channelRepository.findByUserIdAndConnectorCodeAndDeletedAtIsNull(USER_ID, "webchat"))
-                    .thenReturn(List.of(channel));
-            when(agentSessionService.listByChannelIds(Set.of(CHANNEL_ID), 0, 50))
-                    .thenReturn(new PageImpl<>(List.of(session)));
-
-            WebchatSessionResponse row =
-                    webchatService.listSessions(USER_ID, null, 0, 50).getContent().get(0);
-
-            assertEquals(0L, row.unreadCount());
-            assertNull(row.lastMessage());
-            assertFalse(row.isRunning());
-        }
-    }
-
-    @Nested
-    @DisplayName("markRead — указатель прочтения")
-    class MarkRead {
-
-        private void stubOwnedSession() {
-            when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
-            when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
-        }
-
-        @Test
-        @DisplayName("указанное сообщение двигает указатель")
-        void advancesToGivenMessage() {
-            stubOwnedSession();
-            UUID messageRowId = UUID.randomUUID();
-            when(webchatMessageRepository.existsByIdAndSessionId(messageRowId, SESSION_ID))
-                    .thenReturn(true);
-
-            webchatService.markRead(USER_ID, SESSION_ID, messageRowId);
-
-            verify(agentSessionService).advanceReadPointer(SESSION_ID, messageRowId);
-        }
-
-        @Test
-        @DisplayName("сообщение не из этой сессии — 400, указатель не трогаем")
-        void foreignMessageRejected() {
-            stubOwnedSession();
-            UUID messageRowId = UUID.randomUUID();
-            when(webchatMessageRepository.existsByIdAndSessionId(messageRowId, SESSION_ID))
-                    .thenReturn(false);
-
-            assertThrows(BadRequestStatusException.class,
-                    () -> webchatService.markRead(USER_ID, SESSION_ID, messageRowId));
-            verify(agentSessionService, never()).advanceReadPointer(any(), any());
-        }
-
-        @Test
-        @DisplayName("без тела — прочитано до последнего сообщения сессии")
-        void readsThroughLatest() {
-            stubOwnedSession();
-            UUID lastMessageRowId = UUID.randomUUID();
-            when(webchatMessageRepository.findLastMessageId(SESSION_ID))
-                    .thenReturn(Optional.of(lastMessageRowId));
-
-            webchatService.markRead(USER_ID, SESSION_ID, null);
-
-            verify(agentSessionService).advanceReadPointer(SESSION_ID, lastMessageRowId);
-        }
-
-        @Test
-        @DisplayName("в сессии ещё ничего не показано — читать нечего")
-        void nothingShownYet() {
-            stubOwnedSession();
-            when(webchatMessageRepository.findLastMessageId(SESSION_ID)).thenReturn(Optional.empty());
-
-            webchatService.markRead(USER_ID, SESSION_ID, null);
-
-            verify(agentSessionService, never()).advanceReadPointer(any(), any());
-        }
-    }
-
-    @Nested
-    @DisplayName("closeSession")
-    class CloseSession {
-
-        @Test
-        @DisplayName("закрытие гасит бейдж — указатель уезжает на последнее сообщение")
-        void closingMarksRead() {
-            when(agentSessionService.getById(SESSION_ID)).thenReturn(session);
-            when(channelRepository.findById(CHANNEL_ID)).thenReturn(Optional.of(channel));
-            UUID lastMessageRowId = UUID.randomUUID();
-            when(webchatMessageRepository.findLastMessageId(SESSION_ID))
-                    .thenReturn(Optional.of(lastMessageRowId));
-            when(agentSessionService.close(SESSION_ID)).thenReturn(session);
-
-            webchatService.closeSession(USER_ID, SESSION_ID);
-
-            verify(agentSessionService).advanceReadPointer(SESSION_ID, lastMessageRowId);
         }
     }
 

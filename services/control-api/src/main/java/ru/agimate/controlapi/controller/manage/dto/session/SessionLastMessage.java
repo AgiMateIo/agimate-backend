@@ -1,4 +1,4 @@
-package ru.agimate.controlapi.controller.manage.dto.webchat;
+package ru.agimate.controlapi.controller.manage.dto.session;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
  * row must show what the conversation ended on, not what the agent was doing halfway through it.
  */
 @Schema(description = "Preview of the last message of a conversation")
-public record WebchatLastMessage(
+public record SessionLastMessage(
         @Schema(description = "Message text, truncated for the listing; null when the message carried attachments only")
         String text,
 
