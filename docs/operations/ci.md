@@ -20,7 +20,7 @@ workflow_dispatch (ручной запуск)
 ## Где идёт пайплайн
 
 Деплой выполняется **только на GitVerse** (`agimate/agimate-backend`) — там self-hosted раннер,
-registry и деплой-ключи. GitHub (`AgiMateIo/backend`) — публичное зеркало: тот же файл workflow
+registry и деплой-ключи. GitHub (`AgiMateIo/agimate-backend`) — публичное зеркало: тот же файл workflow
 там лежит, но `validate-config` гардится по `github.repository` и пропускает всю цепочку, потому
 что следующие джобы висят на `needs`. Форк, склонировавший workflow, по той же причине до нашей
 инфраструктуры не дотянется.

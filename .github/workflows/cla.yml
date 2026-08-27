@@ -26,6 +26,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-signatures: 'signatures/version1/cla.json'
-          path-to-document: 'https://github.com/AgiMateIo/backend/blob/master/CLA.md'
+          path-to-document: 'https://github.com/AgiMateIo/agimate-backend/blob/master/CLA.md'
           branch: 'cla-signatures'
           allowlist: easmith,dependabot[bot]
