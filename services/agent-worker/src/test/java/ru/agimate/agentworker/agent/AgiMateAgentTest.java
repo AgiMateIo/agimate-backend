@@ -376,19 +376,24 @@ class AgiMateAgentTest {
     }
 
     @Test
-    @DisplayName("guard: пустой ход не финал — переспрос, пустой ход выброшен из диалога")
+    @DisplayName("guard: пустой ход не финал — повторяется тот же самый запрос")
     void emptyReplyRetried() {
         AtomicInteger turn = new AtomicInteger();
-        AgiMateAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
-                ? reply(AgentChatMessage.assistant("   ", false, List.of()))
-                : reply(AgentChatMessage.assistant("готово", false, List.of()));
+        List<List<AgentChatMessage>> sent = new ArrayList<>();
+        AgiMateAgent.LlmCaller llm = (msgs, defs) -> {
+            sent.add(List.copyOf(msgs));
+            return turn.getAndIncrement() == 0
+                    ? reply(AgentChatMessage.assistant("   ", false, List.of()))
+                    : reply(AgentChatMessage.assistant("готово", false, List.of()));
+        };
         AgiMateAgent agent = agent(llm, calls -> List.of(), null, 10);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertEquals("готово", agent.run(conv));
-        // user + нудж + assistant(финал): пустого assistant-хода в диалоге не остаётся.
-        assertEquals(3, conv.size());
-        assertEquals(AgiMateAgent.EMPTY_ANSWER_NUDGE, conv.get(1).text());
+        // Переспрос — это тот же запрос, а не другой: ничего не дописано взамен пустого хода.
+        assertEquals(sent.get(0), sent.get(1));
+        // user + assistant(финал): пустого assistant-хода в диалоге не остаётся.
+        assertEquals(2, conv.size());
         assertTrue(conv.stream().noneMatch(m -> m.role() == AgentChatMessage.Role.ASSISTANT
                 && (m.text() == null || m.text().isBlank())));
     }
@@ -401,10 +406,11 @@ class AgiMateAgentTest {
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertThrows(EmptyAnswerExhausted.class, () -> agent.run(conv));
-        long nudges = conv.stream()
-                .filter(m -> AgiMateAgent.EMPTY_ANSWER_NUDGE.equals(m.text()))
-                .count();
-        assertEquals(AgiMateAgent.MAX_EMPTY_RETRIES, nudges);
+        // Взамен пустых ходов ничего не дописано: пользовательское сообщение как было одно, так и
+        // осталось. (Последний пустой ход остаётся в списке — ран прерван, и список никто не читает.)
+        assertEquals(List.of("hi"), conv.stream()
+                .filter(m -> m.role() == AgentChatMessage.Role.USER)
+                .map(AgentChatMessage::text).toList());
     }
 
     @Test
@@ -421,7 +427,9 @@ class AgiMateAgentTest {
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertEquals("final", agent.run(conv));
-        assertTrue(conv.stream().noneMatch(m -> AgiMateAgent.EMPTY_ANSWER_NUDGE.equals(m.text())));
+        // Guard не сработал: ход с вызовами остался в диалоге вместе с результатом тула.
+        assertTrue(conv.stream().anyMatch(AgentChatMessage::hasToolCalls));
+        assertTrue(conv.stream().anyMatch(m -> m.role() == AgentChatMessage.Role.TOOL));
     }
 
     @Test
@@ -493,9 +501,10 @@ class AgiMateAgentTest {
 
         assertEquals("готово", agent(llm, calls -> List.of(), null, 10)
                 .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
-        // Во втором вызове пустого assistant-хода в контексте нет — строгие шлюзы такое отклоняют.
+        // Во втором вызове пустого assistant-хода в контексте нет — строгие шлюзы такое отклоняют,
+        // и взамен него тоже ничего нет: второй запрос равен первому.
         assertTrue(sent.get(1).stream().noneMatch(m -> m.role() == AgentChatMessage.Role.ASSISTANT));
-        assertEquals(AgiMateAgent.EMPTY_ANSWER_NUDGE, sent.get(1).get(sent.get(1).size() - 1).text());
+        assertEquals(sent.get(0), sent.get(1));
     }
 
     @Test

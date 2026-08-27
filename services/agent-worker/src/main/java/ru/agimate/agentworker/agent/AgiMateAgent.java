@@ -43,7 +43,7 @@ import java.util.Set;
  * OpenAI-compatible gateways sometimes spend the whole generation on {@code reasoning_content} and
  * return an empty {@code content} with {@code finish_reason: stop} — nothing marks it as a failure,
  * so without the guard the run ends «successfully» and the user sees silence. The empty turn is
- * dropped from the conversation, a nudge is appended and the model is asked again (up to
+ * dropped from the conversation and the identical request is re-sent (up to
  * {@value #MAX_EMPTY_RETRIES} time per run); if it stays empty the run aborts with
  * {@link EmptyAnswerExhausted} and the user gets a notice.
  *
@@ -62,11 +62,6 @@ public class AgiMateAgent {
      * clears, and every attempt costs a full model call the user waits through.
      */
     static final int MAX_EMPTY_RETRIES = 1;
-
-    static final String EMPTY_ANSWER_NUDGE =
-            "Предыдущий ход вернулся пустым — пользователь не получил ничего. Ответь обычным "
-            + "текстом (поле content), коротко и по существу задачи. Если для ответа нужен "
-            + "инструмент — сделай настоящий структурный tool call.";
 
     /** How many turns before the cap the wrap-up notice is injected; the last turn runs without tools. */
     static final int WRAP_UP_TURNS = 2;
@@ -255,9 +250,14 @@ public class AgiMateAgent {
                     emptyRetries++;
                     log.warn("turn {}: empty reply, re-asking ({}/{})",
                             turn, emptyRetries, MAX_EMPTY_RETRIES);
-                    // The empty turn is dropped rather than kept: it carries no signal for the model.
+                    // The empty turn is dropped and nothing takes its place, so the next request is
+                    // byte-for-byte the one that produced it — which is the hypothesis being tested: an
+                    // empty reply is a provider hiccup that a re-roll clears. A correction message would
+                    // make it a different request (leaving the hypothesis untested), would point at a
+                    // turn just deleted from the model's context, and would sit there for the rest of
+                    // the run. Re-sending the empty turn is not an option either — strict gateways
+                    // reject empty assistant content.
                     messages.remove(messages.size() - 1);
-                    messages.add(AgentChatMessage.user(EMPTY_ANSWER_NUDGE));
                 }
                 case ANSWER -> {
                     String answer = text(assistant);
