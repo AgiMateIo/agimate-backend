@@ -2,13 +2,13 @@ package ru.agimate.agentworker.agent;
 
 /**
  * The run's turn counter and the soft landing derived from it. An object rather than a {@code for}
- * variable because steering restarts the count mid-body: a reassigned loop variable can only be read
- * by tracing what the update expression then does to it, and the arithmetic here is load-bearing —
- * a reset leaves the running turn as turn 1, so the next one is 2 and each absorption buys exactly
- * one turn back.
+ * variable because steering restarts the count mid-body, and the arithmetic is load-bearing: a reset
+ * leaves the running turn as turn 1, so each absorption buys back exactly one turn.
  *
- * <p>The policy constants stay on {@link AgiMateAgent}, next to the class javadoc that explains them
- * and the notice texts they govern.
+ * <p>The soft landing exists so iterative perfectionism (generate → check → «not quite» → again) ends
+ * in a degraded but useful answer instead of {@code MaxTurnsExceeded} with all the work lost:
+ * {@link AgiMateAgent#WRAP_UP_TURNS} turns before the cap the loop injects «finish with what you
+ * have», and the last turn runs without tools, leaving the model nothing to do but write.
  */
 final class TurnBudget {
 

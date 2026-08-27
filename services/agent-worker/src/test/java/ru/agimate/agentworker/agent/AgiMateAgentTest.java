@@ -25,9 +25,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AgiMateAgentTest {
 
+    /** Своя строка вместо продакшновой: тесты про механику посадки, а не про формулировку нотиса. */
+    private static final String WRAP_UP = "wrap up now";
+
     private static AgiMateAgent agent(AgiMateAgent.LlmCaller llm, AgiMateAgent.ToolDispatcher dispatcher,
                                      AgiMateAgent.RunObserver observer, int maxTurns) {
-        return new AgiMateAgent(llm, dispatcher, List.of(), maxTurns, observer);
+        return new AgiMateAgent(llm, dispatcher, List.of(), maxTurns, WRAP_UP, observer);
     }
 
     private static AgiMateAgent.LlmReply reply(AgentChatMessage message) {
@@ -339,7 +342,7 @@ class AgiMateAgentTest {
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id", "t", "{}", false));
         AgiMateAgent agent = new AgiMateAgent(llm, dispatcher,
-                List.of(new ToolDef("t", "tool", "{}")), 4, null);
+                List.of(new ToolDef("t", "tool", "{}")), 4, WRAP_UP, null);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertEquals("вот что успел", agent.run(conv));
@@ -349,7 +352,7 @@ class AgiMateAgentTest {
         assertTrue(defsPerTurn.get(3).isEmpty());
         // Нотис инжектится перед ходом maxTurns - WRAP_UP_TURNS + 1 и не дублируется.
         long notices = conv.stream()
-                .filter(m -> AgiMateAgent.WRAP_UP_NOTICE.equals(m.text()))
+                .filter(m -> WRAP_UP.equals(m.text()))
                 .count();
         assertEquals(1, notices);
     }
@@ -366,13 +369,13 @@ class AgiMateAgentTest {
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id", "t", "{}", false));
         List<ToolDef> defs = List.of(new ToolDef("t", "tool", "{}"));
-        AgiMateAgent agent = new AgiMateAgent(llm, dispatcher, defs, 2, null);
+        AgiMateAgent agent = new AgiMateAgent(llm, dispatcher, defs, 2, WRAP_UP, null);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertThrows(MaxTurnsExceeded.class, () -> agent.run(conv));
         // Оба хода с тулами, нотис не инжектился.
         assertTrue(defsPerTurn.stream().allMatch(d -> !d.isEmpty()));
-        assertTrue(conv.stream().noneMatch(m -> AgiMateAgent.WRAP_UP_NOTICE.equals(m.text())));
+        assertTrue(conv.stream().noneMatch(m -> WRAP_UP.equals(m.text())));
     }
 
     @Test
@@ -580,7 +583,7 @@ class AgiMateAgentTest {
             }
         };
         AgiMateAgent agent = new AgiMateAgent(llm, dispatcher,
-                List.of(new ToolDef("t", "tool", "{}")), 4, observer);
+                List.of(new ToolDef("t", "tool", "{}")), 4, WRAP_UP, observer);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertEquals("вот что успел", agent.run(conv));
@@ -588,11 +591,11 @@ class AgiMateAgentTest {
         assertEquals(7, sent.size());
         // Вызов сразу после поглощения: старого wrap-up-нотиса в контексте нет, сообщение — есть.
         List<AgentChatMessage> afterAbsorb = sent.get(3);
-        assertTrue(afterAbsorb.stream().noneMatch(m -> AgiMateAgent.WRAP_UP_NOTICE.equals(m.text())));
+        assertTrue(afterAbsorb.stream().noneMatch(m -> WRAP_UP.equals(m.text())));
         assertEquals("ещё задача", afterAbsorb.get(afterAbsorb.size() - 1).text());
         // Перевзведённый нотис инжектирован заново — в диалоге он ровно один.
         assertEquals(1, conv.stream()
-                .filter(m -> AgiMateAgent.WRAP_UP_NOTICE.equals(m.text()))
+                .filter(m -> WRAP_UP.equals(m.text()))
                 .count());
     }
 

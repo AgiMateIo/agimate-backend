@@ -51,7 +51,8 @@ public class AgentRunner {
         messages.addAll(history);
         messages.add(initialRequest);
 
-        AgiMateAgent agent = new AgiMateAgent(llmCaller, toolDispatcher, toolDefs, maxTurns, observer);
+        AgiMateAgent agent = new AgiMateAgent(llmCaller, toolDispatcher, toolDefs, maxTurns,
+                templates.wrapUp(), observer);
         try {
             return agent.run(messages);
         } catch (MaxTurnsExceeded e) {

@@ -29,6 +29,8 @@ class ResponseTemplatesTest {
         assertTrue(templates("ru").maxTurns().startsWith("Извини"));
         assertNotEquals(templates("en").filtered(), templates("ru").filtered());
         assertNotEquals(templates("en").noModel(), templates("ru").noModel());
+        // Model-facing тоже живёт в бандле — иначе он был бы захардкожен на одном языке.
+        assertNotEquals(templates("en").wrapUp(), templates("ru").wrapUp());
     }
 
     @Test

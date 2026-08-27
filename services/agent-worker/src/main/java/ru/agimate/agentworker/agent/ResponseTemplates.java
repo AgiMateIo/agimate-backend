@@ -7,10 +7,14 @@ import ru.agimate.agentworker.config.AgentProperties;
 import java.util.Locale;
 
 /**
- * User-facing response notices, resolved once for the deployment's configured language
+ * Response notices, resolved once for the deployment's configured language
  * ({@code agent.response.language}) from {@code messages*.properties} via Spring's
  * {@link MessageSource}. Per-deployment for now; a per-agent locale sourced from the run is the
- * eventual axis. Only end-user notices live here — model-facing prompt text is not localized here.
+ * eventual axis.
+ *
+ * <p>Mostly end-user notices, plus {@link #wrapUp()}, which the model reads rather than the user.
+ * Its axis is strictly the dialogue's language, not the deployment's, so this is the right bundle
+ * only while the two coincide — which is also why the key is {@code prompt.*}, not {@code notice.*}.
  */
 @Component
 public class ResponseTemplates {
@@ -65,6 +69,11 @@ public class ResponseTemplates {
 
     public String infraError() {
         return get("notice.infra-error");
+    }
+
+    /** The soft landing's «finish with what you have» — read by the model, never shown to the user. */
+    public String wrapUp() {
+        return get("prompt.wrap-up");
     }
 
     private String get(String key) {

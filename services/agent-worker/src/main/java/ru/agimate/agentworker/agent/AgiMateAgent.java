@@ -21,64 +21,31 @@ import java.util.Set;
  * about DBOS, credentials, transport, or history — the LLM call and the tool dispatcher are
  * injected, and the initial message list is built by the caller.
  *
- * <p>Loop: request the LLM; append the assistant reply; if it has no tool calls, notify and return
- * its text; otherwise notify the assistant's calls, dispatch them all, append one tool-result
- * message, notify it separately, and continue — up to {@code maxTurns}. The two notifies per tool
- * turn (calls before dispatch, results after) are what let the backend record and deliver the tool
- * call the moment it is made, ahead of the — possibly slow — execution.
+ * <p>Each turn asks the model, {@link #classify classifies} the reply and acts on the verdict. A
+ * tool turn notifies twice — the calls before the dispatch, the results after — so the backend can
+ * show a call the moment it is made, ahead of its possibly slow execution.
  *
- * <p>Cancellation is cooperative and checked twice: at the seam and again just before a dispatch, so
- * a stop does not spend tool calls the user no longer wants. Calls already made are never interrupted;
- * unmade ones get a synthetic result, since a {@code tool_use} with no {@code tool_result} is rejected
- * by providers on the next run.
- *
- * <p>Steering is polled at the seam only (after the cancel check — a stop wins): messages of the
- * session that arrived mid-run are appended to the conversation instead of waiting out the queue,
- * the turn budget resets and the wrap-up notice, if already injected, is withdrawn — new work and
- * «finish now» must not coexist. Resets are capped at {@value #MAX_STEERING_RESETS} per run; the
- * dispatch seam does not steer — a {@code tool_use} must be followed by its results, a user message
- * cannot sit between them.
- *
- * <p>Guard: a tool-less turn with empty text is not a final answer. Reasoning models behind
- * OpenAI-compatible gateways sometimes spend the whole generation on {@code reasoning_content} and
- * return an empty {@code content} with {@code finish_reason: stop} — nothing marks it as a failure,
- * so without the guard the run ends «successfully» and the user sees silence. The empty turn is
- * dropped from the conversation and the identical request is re-sent (up to
- * {@value #MAX_EMPTY_RETRIES} time per run); if it stays empty the run aborts with
- * {@link EmptyAnswerExhausted} and the user gets a notice.
- *
- * <p>Soft landing at the cap: {@value #WRAP_UP_TURNS} turns before the limit an ephemeral wrap-up
- * notice is injected («finish with what you have»), and the last turn runs <b>without tools</b> —
- * forcing the model to produce final text. Iterative perfectionism (generate → check → «not quite»
- * → again) then ends in a degraded but useful answer with the artefacts already produced, rather
- * than in {@link MaxTurnsExceeded} with all the work lost. {@code MaxTurnsExceeded} remains
- * possible only if the model fails to answer even on the tool-less turn.
+ * <p>Four policies keep a degenerate turn from passing for an answer, each documented where it
+ * lives: cancellation (two cooperative checks below), steering ({@link #absorbSteering}), the turn
+ * budget and its soft landing ({@link TurnBudget}), and the empty-reply guard. The last exists
+ * because reasoning models behind OpenAI-compatible gateways can spend the whole generation on
+ * {@code reasoning_content} and return an empty {@code content} with {@code finish_reason: stop};
+ * nothing marks that as a failure, so without the guard a run ends «successfully» into silence.
  */
 @Slf4j
 public class AgiMateAgent {
 
-    /**
-     * One retry, not several: an empty reply is a provider hiccup that a single re-ask usually
-     * clears, and every attempt costs a full model call the user waits through.
-     */
+    /** One, not several: a re-ask usually clears the hiccup, and each costs a full call the user waits through. */
     static final int MAX_EMPTY_RETRIES = 1;
 
     /** How many turns before the cap the wrap-up notice is injected; the last turn runs without tools. */
     static final int WRAP_UP_TURNS = 2;
 
     /**
-     * How many times an absorption may reset the turn budget. Each reset also re-arms the soft
-     * landing, so without a cap a busy session would keep one run alive — and RUNNING — forever,
-     * with nothing but a manual stop to end it. Past the cap the seam stops polling; queued
-     * messages simply run on their own after this run finishes.
+     * Without a cap a chatty session would keep one run alive — and RUNNING — forever, with nothing
+     * but a manual stop to end it. Past it the seam stops polling and queued messages run on their own.
      */
     static final int MAX_STEERING_RESETS = 5;
-
-    static final String WRAP_UP_NOTICE =
-            "Бюджет шагов рана почти исчерпан: осталось не более двух ходов. Заверши работу сейчас — "
-            + "дай пользователю финальный ответ из того, что уже готово (приложи готовые файлы и "
-            + "результаты), и явно отметь, что сделать не успел. Новый вызов инструмента — только "
-            + "если без него ответ невозможен.";
 
     /** Injected single-model-request call; throws {@link LlmCallError} on HTTP/API failure. */
     @FunctionalInterface
@@ -87,22 +54,17 @@ public class AgiMateAgent {
     }
 
     /**
-     * How the model ended the turn, as the provider reported it — the loop's stop/continue signal.
-     * The raw {@code finish_reason} is mapped in the dispatcher (provider dialects stay there):
-     * {@code TOOL_CALLS} means the model is mid-work and the loop goes on, {@code STOP} means it is
-     * done. {@code UNKNOWN} covers an absent or unrecognised value — providers do send
-     * {@code end_turn}, {@code eos} and plain nulls — and there the structural fact decides, as it
-     * did before: a message carrying tool calls continues the loop, one without them is the answer.
+     * How the model ended the turn. Provider dialects are mapped to this in the dispatcher, so the
+     * loop never sees a raw {@code finish_reason}. {@code UNKNOWN} covers absent and unrecognised
+     * values ({@code end_turn}, {@code eos}, null), where the message's own shape decides instead.
      */
     public enum Completion {TOOL_CALLS, STOP, UNKNOWN}
 
     /**
-     * An LLM reply: the assistant message plus its provenance ({@code meta}) for the turn ledger,
-     * the call's token {@code usage} ({@code null} when nothing to account), the {@code completion}
-     * that decides whether the loop goes on, and — for a truncated call — the terminal
-     * {@code incompleteReason} ({@code null} on a normal finish). The loop surfaces {@code usage}
-     * <b>before</b> acting on {@code incompleteReason}, so a truncated call's tokens are still
-     * accounted although the turn aborts.
+     * An LLM reply. {@code meta} is the provenance the turn ledger keeps, {@code usage} the call's
+     * tokens ({@code null} when there is nothing to account), {@code incompleteReason} the terminal
+     * truncation reason ({@code null} on a normal finish). The loop surfaces {@code usage}
+     * <b>before</b> acting on {@code incompleteReason}: a truncated call has already spent them.
      */
     public record LlmReply(AgentChatMessage message, LlmMeta meta, LlmUsage usage,
                            LlmResponseIncomplete.Reason incompleteReason, Completion completion) {
@@ -174,14 +136,19 @@ public class AgiMateAgent {
     private final ToolDispatcher toolDispatcher;
     private final List<ToolDef> toolDefs;
     private final int maxTurns;
+    private final String wrapUpNotice;
     private final RunObserver observer;
 
+    /** @param wrapUpNotice the soft landing's «finish with what you have», resolved by the caller
+     *                      ({@code ResponseTemplates.wrapUp}) — the model reads it, so it follows
+     *                      the dialogue's language, not this class */
     public AgiMateAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, List<ToolDef> toolDefs,
-                       int maxTurns, RunObserver observer) {
+                       int maxTurns, String wrapUpNotice, RunObserver observer) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;
         this.maxTurns = maxTurns;
+        this.wrapUpNotice = wrapUpNotice;
         this.observer = observer != null ? observer : RunObserver.NOOP;
     }
 
@@ -190,49 +157,44 @@ public class AgiMateAgent {
      * Throws {@link MaxTurnsExceeded} if no final reply is produced.
      */
     public String run(List<AgentChatMessage> messages) {
-        TurnBudget budget = new TurnBudget(maxTurns);
+        TurnBudget turnBudget = new TurnBudget(maxTurns);
         int emptyRetries = 0;
         boolean started = false;
-        // The injected wrap-up notice, tracked so an absorption can pull it back out of the list.
-        AgentChatMessage wrapUpNotice = null;
-        // Tools of *this* run that returned a result — the receipt for a stop. Collected as we go
-        // rather than scanned off `messages`: that list opens with the history of earlier runs.
+        // Tracked so an absorption can pull it back out of the list.
+        AgentChatMessage injectedWrapUp = null;
+        // Collected as we go rather than scanned off `messages`, which opens with earlier runs' history.
         LinkedHashSet<String> executed = new LinkedHashSet<>();
-        while (budget.next()) {
-            // The seam: the message list is whole here, so the run can be left loadable.
-            // Cancellation is checked first — a stop must not absorb new work on its way out. It stays
-            // in the body rather than moving into the seam helper: every exit of a run must be
-            // visible where the run is driven.
+        while (turnBudget.next()) {
+            // The seam: the message list is whole here, so the run can be left loadable. Cancellation
+            // goes first — a stop must not absorb new work on its way out.
             if (observer.cancelRequested()) {
-                log.info("turn {}: cancelled — stopping at the seam", budget.current());
+                log.info("turn {}: cancelled — stopping at the seam", turnBudget.current());
                 throw new RunCancelled(List.copyOf(executed));
             }
-            // An absorption re-arms the soft landing, and the wrap-up notice contradicts fresh work,
-            // so it is pulled out; the budget injects it again if it runs down a second time.
-            if (absorbSteering(messages, budget) && wrapUpNotice != null) {
-                messages.remove(wrapUpNotice);
-                wrapUpNotice = null;
+            // «Finish now» contradicts fresh work; the re-armed soft landing injects it again if needed.
+            if (absorbSteering(messages, turnBudget) && injectedWrapUp != null) {
+                messages.remove(injectedWrapUp);
+                injectedWrapUp = null;
             }
             // The seam is behind us — the turn's number cannot change for the rest of the body.
-            final int turn = budget.current();
+            final int turn = turnBudget.current();
             // After the first seam's poll, so messages steered in while the run sat queued land in
             // the snapshot: it must be exactly what the first LLM call sees.
             if (!started) {
                 notifyStart(messages);
                 started = true;
             }
-            if (budget.wrapUpTurn()) {
-                // An ephemeral turn (no notify): it is projected neither into history nor into the channel, like an imitation correction.
-                log.info("turn {}/{}: injecting wrap-up notice", turn, budget.max());
-                wrapUpNotice = AgentChatMessage.user(WRAP_UP_NOTICE);
-                messages.add(wrapUpNotice);
+            if (turnBudget.wrapUpTurn()) {
+                // Ephemeral: no notify, so it reaches the model but neither history nor the channel.
+                log.info("turn {}/{}: injecting wrap-up notice", turn, turnBudget.max());
+                injectedWrapUp = AgentChatMessage.user(wrapUpNotice);
+                messages.add(injectedWrapUp);
             }
-            boolean toolless = budget.toolless();
-            log.info("turn {}/{}: requesting LLM{}", turn, budget.max(), toolless ? " (tool-less final)" : "");
+            boolean toolless = turnBudget.toolless();
+            log.info("turn {}/{}: requesting LLM{}", turn, turnBudget.max(), toolless ? " (tool-less final)" : "");
             LlmReply reply = llmCaller.call(messages, toolless ? List.of() : toolDefs);
-            // Usage accounting comes before any decision: a truncated call has already spent its tokens
-            // while the turn itself is about to break off. We surface it into the sink, and the run wiring
-            // reports it (the single writer of side records).
+            // Before any decision: a truncated call has already spent its tokens while the turn is
+            // about to break off.
             notifyUsage(reply.usage());
             if (reply.incompleteReason() != null) {
                 throw new LlmResponseIncomplete(reply.incompleteReason());
@@ -250,13 +212,9 @@ public class AgiMateAgent {
                     emptyRetries++;
                     log.warn("turn {}: empty reply, re-asking ({}/{})",
                             turn, emptyRetries, MAX_EMPTY_RETRIES);
-                    // The empty turn is dropped and nothing takes its place, so the next request is
-                    // byte-for-byte the one that produced it — which is the hypothesis being tested: an
-                    // empty reply is a provider hiccup that a re-roll clears. A correction message would
-                    // make it a different request (leaving the hypothesis untested), would point at a
-                    // turn just deleted from the model's context, and would sit there for the rest of
-                    // the run. Re-sending the empty turn is not an option either — strict gateways
-                    // reject empty assistant content.
+                    // Nothing takes the empty turn's place, so the re-ask is byte-for-byte the request
+                    // that produced it — that is the hypothesis: a provider hiccup a re-roll clears.
+                    // Keeping the turn is not an option either, strict gateways reject empty content.
                     messages.remove(messages.size() - 1);
                 }
                 case ANSWER -> {
@@ -266,18 +224,15 @@ public class AgiMateAgent {
                     return answer;
                 }
                 case CALLS_LOST -> {
-                    // We ask again and let the turn cap end it, rather than passing off half a turn as
-                    // the result. The turn keeps its text (an empty one is EMPTY, not CALLS_LOST), so the
-                    // model sees its own attempt and can repeat it as a structural call.
+                    // The turn keeps its text, so the model sees its own attempt and can repeat it as a
+                    // structural call; the turn cap ends the run if it never does.
                     log.warn("turn {}: finish_reason says tool calls, none parsed — re-asking", turn);
                     notify(List.of(assistant), reply.meta());
                 }
                 case DISPATCH -> {
-                    // Two turn events: first the calls (delivered into the channel before execution), then — after
-                    // the dispatch — the results. Recording them as separate entries is precisely the point of v2.1a.
+                    // Calls now, results after the dispatch: two separate records is the point of v2.1a.
                     notify(List.of(assistant), reply.meta());
-                    // The cheapest place to stop: the model has decided to call, but nothing has been sent yet.
-                    // Later the effect is out in the world and irreversible.
+                    // The cheapest place to stop: decided, but nothing sent yet — later it is irreversible.
                     if (observer.cancelRequested()) {
                         log.info("turn {}: cancelled — {} call(s) not made", turn, assistant.toolCalls().size());
                         recordResults(messages, cancelledResults(assistant.toolCalls()));
@@ -316,8 +271,6 @@ public class AgiMateAgent {
      * @return whether anything was absorbed
      */
     private boolean absorbSteering(List<AgentChatMessage> messages, TurnBudget budget) {
-        // Past the reset cap a chatty session would keep this run alive — and RUNNING — forever, with
-        // nothing but a manual stop to end it. Its queued messages run on their own afterwards.
         if (!budget.canSteer()) {
             return false;
         }
@@ -346,12 +299,10 @@ public class AgiMateAgent {
     }
 
     /**
-     * The whole {@code finish_reason} × tool-calls × text table in one place. The order of the checks
-     * is the policy, not an accident: EMPTY is decided first, so a «tool calls» finish whose calls did
-     * not survive the gateway and left no text lands there — re-sending empty assistant content with
-     * no tool calls is exactly what strict gateways reject. Only then does the provider's
-     * stop/continue signal decide, and only for a continuing turn does the message's own shape
-     * separate a real dispatch from a lost call.
+     * The whole {@code finish_reason} × tool-calls × text table in one place. The order is the policy,
+     * not an accident: EMPTY comes first, so a «tool calls» finish whose calls did not survive the
+     * gateway and left no text lands there rather than being re-sent as empty assistant content,
+     * which strict gateways reject.
      */
     static Verdict classify(LlmReply reply) {
         boolean hasCalls = reply.message().hasToolCalls();
@@ -387,7 +338,7 @@ public class AgiMateAgent {
         notify(List.of(toolMsg), null);
     }
 
-    /** Answers every call without making it — the pair the next run needs, minus the side effects. */
+    /** Answers every call without making it: a {@code tool_use} with no {@code tool_result} is rejected next run. */
     private static List<AgentChatMessage.ToolResult> cancelledResults(List<AgentChatMessage.ToolCall> calls) {
         return calls.stream()
                 .map(c -> new AgentChatMessage.ToolResult(c.id(), c.name(), CANCELLED_RESULT_JSON, true))
