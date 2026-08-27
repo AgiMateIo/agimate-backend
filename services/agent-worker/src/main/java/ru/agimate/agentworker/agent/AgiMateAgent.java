@@ -194,56 +194,45 @@ public class AgiMateAgent {
      * Throws {@link MaxTurnsExceeded} if no final reply is produced.
      */
     public String run(List<AgentChatMessage> messages) {
+        TurnBudget budget = new TurnBudget(maxTurns);
         int emptyRetries = 0;
-        int steeringResets = 0;
         boolean started = false;
         // The injected wrap-up notice, tracked so an absorption can pull it back out of the list.
         AgentChatMessage wrapUpNotice = null;
         // Tools of *this* run that returned a result — the receipt for a stop. Collected as we go
         // rather than scanned off `messages`: that list opens with the history of earlier runs.
         LinkedHashSet<String> executed = new LinkedHashSet<>();
-        // Soft landing only for a meaningful cap — a tiny maxTurns (tests, debugging) is left alone.
-        boolean softLanding = maxTurns > WRAP_UP_TURNS;
-        for (int turn = 1; turn <= maxTurns; turn++) {
+        while (budget.next()) {
             // The seam: the message list is whole here, so the run can be left loadable.
-            // Cancellation is checked first — a stop must not absorb new work on its way out.
+            // Cancellation is checked first — a stop must not absorb new work on its way out. It stays
+            // in the body rather than moving into the seam helper: every exit of a run must be
+            // visible where the run is driven.
             if (observer.cancelRequested()) {
-                log.info("turn {}: cancelled — stopping at the seam", turn);
+                log.info("turn {}: cancelled — stopping at the seam", budget.current());
                 throw new RunCancelled(List.copyOf(executed));
             }
-            // Steering: messages that arrived in the session while this run was working. Absorbing
-            // one resets the turn budget — the new message deserves the full allowance — and re-arms
-            // the soft landing, so the wrap-up notice (which contradicts fresh work) is pulled out
-            // and re-injected later if needed. The reset cap keeps a chatty session from making the
-            // run immortal: past it, messages stay queued and run on their own.
-            if (steeringResets < MAX_STEERING_RESETS) {
-                List<AgentChatMessage> absorbed = observer.pollSteering();
-                if (!absorbed.isEmpty()) {
-                    steeringResets++;
-                    messages.addAll(absorbed);
-                    if (wrapUpNotice != null) {
-                        messages.remove(wrapUpNotice);
-                        wrapUpNotice = null;
-                    }
-                    log.info("turn {}: absorbed {} steered message(s), turn budget reset ({}/{})",
-                            turn, absorbed.size(), steeringResets, MAX_STEERING_RESETS);
-                    turn = 1;
-                }
+            // An absorption re-arms the soft landing, and the wrap-up notice contradicts fresh work,
+            // so it is pulled out; the budget injects it again if it runs down a second time.
+            if (absorbSteering(messages, budget) && wrapUpNotice != null) {
+                messages.remove(wrapUpNotice);
+                wrapUpNotice = null;
             }
+            // The seam is behind us — the turn's number cannot change for the rest of the body.
+            final int turn = budget.current();
             // After the first seam's poll, so messages steered in while the run sat queued land in
             // the snapshot: it must be exactly what the first LLM call sees.
             if (!started) {
                 notifyStart(messages);
                 started = true;
             }
-            if (softLanding && turn == maxTurns - WRAP_UP_TURNS + 1) {
+            if (budget.wrapUpTurn()) {
                 // An ephemeral turn (no notify): it is projected neither into history nor into the channel, like an imitation correction.
-                log.info("turn {}/{}: injecting wrap-up notice", turn, maxTurns);
+                log.info("turn {}/{}: injecting wrap-up notice", turn, budget.max());
                 wrapUpNotice = AgentChatMessage.user(WRAP_UP_NOTICE);
                 messages.add(wrapUpNotice);
             }
-            boolean toolless = softLanding && turn == maxTurns;
-            log.info("turn {}/{}: requesting LLM{}", turn, maxTurns, toolless ? " (tool-less final)" : "");
+            boolean toolless = budget.toolless();
+            log.info("turn {}/{}: requesting LLM{}", turn, budget.max(), toolless ? " (tool-less final)" : "");
             LlmReply reply = llmCaller.call(messages, toolless ? List.of() : toolDefs);
             // Usage accounting comes before any decision: a truncated call has already spent its tokens
             // while the turn itself is about to break off. We surface it into the sink, and the run wiring
@@ -287,8 +276,7 @@ public class AgiMateAgent {
                     // the dispatch — the results. Recording them as separate entries is precisely the point of v2.1a.
                     notify(List.of(assistant), reply.meta());
                     // The cheapest place to stop: the model has decided to call, but nothing has been sent yet.
-                    // Later the effect is out in the world and irreversible. Kept in the loop body on
-                    // purpose — every exit of a run must be visible where the run is driven.
+                    // Later the effect is out in the world and irreversible.
                     if (observer.cancelRequested()) {
                         log.info("turn {}: cancelled — {} call(s) not made", turn, assistant.toolCalls().size());
                         recordResults(messages, cancelledResults(assistant.toolCalls()));
@@ -307,6 +295,31 @@ public class AgiMateAgent {
             }
         }
         throw new MaxTurnsExceeded("agent loop exceeded " + maxTurns + " turns without a final reply");
+    }
+
+    /**
+     * The steering half of the seam: messages of the session that arrived while this run was working.
+     * Absorbing them resets the turn budget — the new message deserves the full allowance — which
+     * also re-arms the soft landing. Never terminal, unlike the cancellation check that precedes it.
+     *
+     * @return whether anything was absorbed
+     */
+    private boolean absorbSteering(List<AgentChatMessage> messages, TurnBudget budget) {
+        // Past the reset cap a chatty session would keep this run alive — and RUNNING — forever, with
+        // nothing but a manual stop to end it. Its queued messages run on their own afterwards.
+        if (!budget.canSteer()) {
+            return false;
+        }
+        List<AgentChatMessage> absorbed = observer.pollSteering();
+        if (absorbed.isEmpty()) {
+            return false;
+        }
+        int at = budget.current();
+        budget.reset();
+        messages.addAll(absorbed);
+        log.info("turn {}: absorbed {} steered message(s), turn budget reset ({}/{})",
+                at, absorbed.size(), budget.resets(), MAX_STEERING_RESETS);
+        return true;
     }
 
     /** What the loop does with a reply — see {@link #classify}. */
