@@ -13,6 +13,7 @@ import ru.agimate.agentworker.agent.model.ToolDef;
 
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Minimal agent turn-loop over {@link AgentChatMessage}. Drives a model conversation manually so
@@ -282,19 +283,29 @@ public class AgiMateAgent {
                         recordResults(messages, cancelledResults(assistant.toolCalls()));
                         throw new RunCancelled(List.copyOf(executed));
                     }
-                    log.info("turn {}: dispatching {} tool call(s): {}", turn, assistant.toolCalls().size(),
-                            assistant.toolCalls().stream().map(AgentChatMessage.ToolCall::name).toList());
-                    List<AgentChatMessage.ToolResult> results = toolDispatcher.dispatchAll(assistant.toolCalls());
-                    recordResults(messages, results);
-                    for (AgentChatMessage.ToolResult result : results) {
-                        if (!result.failed() && result.name() != null) {
-                            executed.add(result.name());
-                        }
-                    }
+                    dispatchTools(messages, assistant, executed, turn);
                 }
             }
         }
         throw new MaxTurnsExceeded("agent loop exceeded " + maxTurns + " turns without a final reply");
+    }
+
+    /**
+     * Runs the assistant's calls and appends the single tool-result message they produce, collecting
+     * the names that actually returned — the receipt a stop reports. Non-terminal by construction: a
+     * failed call comes back as a failed result, so the loop, not this method, decides what ends a run.
+     */
+    private void dispatchTools(List<AgentChatMessage> messages, AgentChatMessage assistant,
+                               Set<String> executed, int turn) {
+        log.info("turn {}: dispatching {} tool call(s): {}", turn, assistant.toolCalls().size(),
+                assistant.toolCalls().stream().map(AgentChatMessage.ToolCall::name).toList());
+        List<AgentChatMessage.ToolResult> results = toolDispatcher.dispatchAll(assistant.toolCalls());
+        recordResults(messages, results);
+        for (AgentChatMessage.ToolResult result : results) {
+            if (!result.failed() && result.name() != null) {
+                executed.add(result.name());
+            }
+        }
     }
 
     /**
