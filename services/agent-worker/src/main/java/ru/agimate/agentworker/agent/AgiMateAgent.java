@@ -254,65 +254,94 @@ public class AgiMateAgent {
             }
             AgentChatMessage assistant = reply.message();
             messages.add(assistant);
-            String text = assistant.text() != null ? assistant.text() : "";
 
-            // Nothing to say and nothing to call — whatever finish_reason claims, the turn is empty.
-            // The check sits ahead of the stop/continue branch on purpose: a «tool calls» finish whose
-            // calls did not survive the gateway lands here too, and re-sending empty assistant content
-            // with no tool calls is exactly what strict gateways reject.
-            if (!assistant.hasToolCalls() && text.isBlank()) {
-                if (emptyRetries < MAX_EMPTY_RETRIES) {
+            switch (classify(reply)) {
+                case EMPTY -> {
+                    if (emptyRetries >= MAX_EMPTY_RETRIES) {
+                        log.warn("turn {}: still empty after {} retry(-ies), aborting", turn, MAX_EMPTY_RETRIES);
+                        throw new EmptyAnswerExhausted("model returned no text after "
+                                + MAX_EMPTY_RETRIES + " retry(-ies)");
+                    }
                     emptyRetries++;
                     log.warn("turn {}: empty reply, re-asking ({}/{})",
                             turn, emptyRetries, MAX_EMPTY_RETRIES);
                     // The empty turn is dropped rather than kept: it carries no signal for the model.
                     messages.remove(messages.size() - 1);
                     messages.add(AgentChatMessage.user(EMPTY_ANSWER_NUDGE));
-                    continue;
                 }
-                log.warn("turn {}: still empty after {} retry(-ies), aborting", turn, MAX_EMPTY_RETRIES);
-                throw new EmptyAnswerExhausted("model returned no text after "
-                        + MAX_EMPTY_RETRIES + " retry(-ies)");
-            }
-
-            if (!continues(reply)) {
-                notify(List.of(assistant), reply.meta());
-                log.info("turn {}: final answer ({} chars)", turn, text.length());
-                return text;
-            }
-
-            if (!assistant.hasToolCalls()) {
-                // TOOL_CALLS with nothing to dispatch: the model went for a tool and the call was lost
-                // (a gateway dropped it, arguments failed to parse). Not a final answer — we ask again
-                // and let the turn cap end it, rather than passing off half a turn as the result. The
-                // turn keeps its text (an empty one never reaches here), so the model sees its own
-                // attempt and can repeat it as a structural call.
-                log.warn("turn {}: finish_reason says tool calls, none parsed — re-asking", turn);
-                notify(List.of(assistant), reply.meta());
-                continue;
-            }
-
-            // Two turn events: first the calls (delivered into the channel before execution), then — after
-            // the dispatch — the results. Recording them as separate entries is precisely the point of v2.1a.
-            notify(List.of(assistant), reply.meta());
-            // The cheapest place to stop: the model has decided to call, but nothing has been sent yet.
-            // Later the effect is out in the world and irreversible.
-            if (observer.cancelRequested()) {
-                log.info("turn {}: cancelled — {} call(s) not made", turn, assistant.toolCalls().size());
-                recordResults(messages, cancelledResults(assistant.toolCalls()));
-                throw new RunCancelled(List.copyOf(executed));
-            }
-            log.info("turn {}: dispatching {} tool call(s): {}", turn, assistant.toolCalls().size(),
-                    assistant.toolCalls().stream().map(AgentChatMessage.ToolCall::name).toList());
-            List<AgentChatMessage.ToolResult> results = toolDispatcher.dispatchAll(assistant.toolCalls());
-            recordResults(messages, results);
-            for (AgentChatMessage.ToolResult result : results) {
-                if (!result.failed() && result.name() != null) {
-                    executed.add(result.name());
+                case ANSWER -> {
+                    String answer = text(assistant);
+                    notify(List.of(assistant), reply.meta());
+                    log.info("turn {}: final answer ({} chars)", turn, answer.length());
+                    return answer;
+                }
+                case CALLS_LOST -> {
+                    // We ask again and let the turn cap end it, rather than passing off half a turn as
+                    // the result. The turn keeps its text (an empty one is EMPTY, not CALLS_LOST), so the
+                    // model sees its own attempt and can repeat it as a structural call.
+                    log.warn("turn {}: finish_reason says tool calls, none parsed — re-asking", turn);
+                    notify(List.of(assistant), reply.meta());
+                }
+                case DISPATCH -> {
+                    // Two turn events: first the calls (delivered into the channel before execution), then — after
+                    // the dispatch — the results. Recording them as separate entries is precisely the point of v2.1a.
+                    notify(List.of(assistant), reply.meta());
+                    // The cheapest place to stop: the model has decided to call, but nothing has been sent yet.
+                    // Later the effect is out in the world and irreversible. Kept in the loop body on
+                    // purpose — every exit of a run must be visible where the run is driven.
+                    if (observer.cancelRequested()) {
+                        log.info("turn {}: cancelled — {} call(s) not made", turn, assistant.toolCalls().size());
+                        recordResults(messages, cancelledResults(assistant.toolCalls()));
+                        throw new RunCancelled(List.copyOf(executed));
+                    }
+                    log.info("turn {}: dispatching {} tool call(s): {}", turn, assistant.toolCalls().size(),
+                            assistant.toolCalls().stream().map(AgentChatMessage.ToolCall::name).toList());
+                    List<AgentChatMessage.ToolResult> results = toolDispatcher.dispatchAll(assistant.toolCalls());
+                    recordResults(messages, results);
+                    for (AgentChatMessage.ToolResult result : results) {
+                        if (!result.failed() && result.name() != null) {
+                            executed.add(result.name());
+                        }
+                    }
                 }
             }
         }
         throw new MaxTurnsExceeded("agent loop exceeded " + maxTurns + " turns without a final reply");
+    }
+
+    /** What the loop does with a reply — see {@link #classify}. */
+    enum Verdict {
+        /** No text and no calls: not a final answer, whatever {@code finish_reason} claims. */
+        EMPTY,
+        /** The turn is done and its text is the run's answer. */
+        ANSWER,
+        /** The model went for a tool and the call was lost — a gateway dropped it, arguments failed to parse. */
+        CALLS_LOST,
+        /** The assistant's calls are ready to dispatch. */
+        DISPATCH
+    }
+
+    /**
+     * The whole {@code finish_reason} × tool-calls × text table in one place. The order of the checks
+     * is the policy, not an accident: EMPTY is decided first, so a «tool calls» finish whose calls did
+     * not survive the gateway and left no text lands there — re-sending empty assistant content with
+     * no tool calls is exactly what strict gateways reject. Only then does the provider's
+     * stop/continue signal decide, and only for a continuing turn does the message's own shape
+     * separate a real dispatch from a lost call.
+     */
+    static Verdict classify(LlmReply reply) {
+        boolean hasCalls = reply.message().hasToolCalls();
+        if (!hasCalls && text(reply.message()).isBlank()) {
+            return Verdict.EMPTY;
+        }
+        if (!continues(reply)) {
+            return Verdict.ANSWER;
+        }
+        return hasCalls ? Verdict.DISPATCH : Verdict.CALLS_LOST;
+    }
+
+    private static String text(AgentChatMessage message) {
+        return message.text() != null ? message.text() : "";
     }
 
     /**
