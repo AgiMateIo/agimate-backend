@@ -29,7 +29,7 @@ class AgiMateAgentTest {
     private static final String WRAP_UP = "wrap up now";
 
     private static AgiMateAgent agent(AgiMateAgent.LlmCaller llm, AgiMateAgent.ToolDispatcher dispatcher,
-                                     AgiMateAgent.RunObserver observer, int maxTurns) {
+                                      RunObserver observer, int maxTurns) {
         return new AgiMateAgent(llm, dispatcher, List.of(), maxTurns, WRAP_UP, observer);
     }
 
@@ -45,7 +45,7 @@ class AgiMateAgentTest {
             calls.incrementAndGet();
             return reply(AgentChatMessage.assistant("не должно случиться", false, List.of()));
         };
-        AgiMateAgent.RunObserver cancelled = new AgiMateAgent.RunObserver() {
+        RunObserver cancelled = new RunObserver() {
             @Override
             public boolean cancelRequested() {
                 return true;
@@ -70,7 +70,7 @@ class AgiMateAgentTest {
             return List.of(new AgentChatMessage.ToolResult(c.get(0).id(), c.get(0).name(), "{}", false));
         };
         List<AgentChatMessage> projected = new ArrayList<>();
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public void onMessages(List<AgentChatMessage> msgs, LlmMeta meta) {
                 projected.addAll(msgs);
@@ -103,7 +103,7 @@ class AgiMateAgentTest {
             return List.of();
         };
         // На первом шве отмены ещё нет, к моменту диспатча — уже да.
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             private int seen;
 
             @Override
@@ -137,7 +137,7 @@ class AgiMateAgentTest {
                     new AgentChatMessage.ToolResult("b", "sheets.add_rows", null, true),
                     new AgentChatMessage.ToolResult("c", "telegram.send_message", "{}", false));
         };
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public boolean cancelRequested() {
                 return cancelled.get();
@@ -155,7 +155,7 @@ class AgiMateAgentTest {
     @DisplayName("квитанция не тянет тулы из истории прошлых ранов")
     void receiptIgnoresHistory() {
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("ответ", false, List.of()));
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public boolean cancelRequested() {
                 return true;
@@ -194,7 +194,7 @@ class AgiMateAgentTest {
                 new AgentChatMessage.ToolResult("id1", "t", "{\"ok\":true}", false));
 
         List<AgentChatMessage> newMsgs = new ArrayList<>();
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public void onMessages(List<AgentChatMessage> msgs, LlmMeta meta) {
                 newMsgs.addAll(msgs);
@@ -227,7 +227,7 @@ class AgiMateAgentTest {
 
         List<LlmMeta> metas = new ArrayList<>();
         List<AgentChatMessage.Role> roles = new ArrayList<>();
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public void onMessages(List<AgentChatMessage> msgs, LlmMeta m) {
                 msgs.forEach(x -> {
@@ -254,7 +254,7 @@ class AgiMateAgentTest {
                 AgentChatMessage.assistant("done", false, List.of()), null, usage, null,
                 AgiMateAgent.Completion.STOP);
         List<LlmUsage> got = new ArrayList<>();
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public void onUsage(LlmUsage u) {
                 got.add(u);
@@ -275,7 +275,7 @@ class AgiMateAgentTest {
                 AgentChatMessage.assistant("обрезано", false, List.of()), null, usage,
                 LlmResponseIncomplete.Reason.LENGTH, AgiMateAgent.Completion.UNKNOWN);
         List<LlmUsage> got = new ArrayList<>();
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public void onUsage(LlmUsage u) {
                 got.add(u);
@@ -296,7 +296,7 @@ class AgiMateAgentTest {
             return reply(AgentChatMessage.assistant("done", false, List.of()));
         };
         List<List<AgentChatMessage>> snapshots = new ArrayList<>();
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public void onStart(List<AgentChatMessage> messages) {
                 snapshots.add(messages);
@@ -443,7 +443,7 @@ class AgiMateAgentTest {
                 ? reply(AgentChatMessage.assistant("   ", false, List.of()))
                 : reply(AgentChatMessage.assistant("готово", false, List.of()));
         List<AgentChatMessage> projected = new ArrayList<>();
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public void onMessages(List<AgentChatMessage> msgs, LlmMeta m) {
                 projected.addAll(msgs);
@@ -543,7 +543,7 @@ class AgiMateAgentTest {
         };
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id1", "t", "{}", false));
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             private int polls;
 
             @Override
@@ -573,7 +573,7 @@ class AgiMateAgentTest {
         };
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id", "t", "{}", false));
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             private int polls;
 
             @Override
@@ -611,7 +611,7 @@ class AgiMateAgentTest {
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id", "t", "{}", false));
         AtomicInteger polls = new AtomicInteger();
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public List<AgentChatMessage> pollSteering() {
                 polls.incrementAndGet();
@@ -633,7 +633,7 @@ class AgiMateAgentTest {
     @DisplayName("стиринг: отмена первее — стоп не поглощает новую работу")
     void cancellationWinsOverSteering() {
         AtomicBoolean polled = new AtomicBoolean();
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public boolean cancelRequested() {
                 return true;
@@ -657,7 +657,7 @@ class AgiMateAgentTest {
     @DisplayName("стиринг: поглощение на первом шве попадает в снимок промпта (onStart после опроса)")
     void firstSeamAbsorptionLandsInTheSnapshot() {
         List<AgentChatMessage> snapshot = new ArrayList<>();
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             private int polls;
 
             @Override

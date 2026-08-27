@@ -5,26 +5,27 @@ import dev.dbos.transact.DBOS;
 import dev.dbos.transact.workflow.Queue;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.WorkerMessageType;
+import ru.agimate.agentworker.agent.*;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
+import ru.agimate.agentworker.agent.error.EmptyAnswerExhausted;
+import ru.agimate.agentworker.agent.error.LlmCallError;
+import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
+import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.error.RunCancelled;
-import ru.agimate.agentworker.agent.AgentRunner;
-import ru.agimate.agentworker.agent.MessageCodec;
-import ru.agimate.agentworker.agent.ResponseTemplates;
-import ru.agimate.agentworker.agent.AgiMateAgent;
-import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.workers.LlmCallWorkflow;
 import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Shared agent-run core: one implementation of the invariant run body (prepare context, drive
- * {@link AgentRunner}, record output, report failures). History arrives pre-assembled in the
+ * {@link AgiMateAgent}, record output, report failures). History arrives pre-assembled in the
  * {@link PreparedContext} (backend-side window/filter); all dialogue events go out through the
  * run's {@link MessageLog} — persistence and channel delivery are its backend-side projections.
  * LLM/tool dispatch in {@link LlmCallDispatcher}/{@link ToolCallDispatcher}. Durable checkpoints
@@ -107,7 +108,7 @@ public class AgentRunCore {
         //    stays pure.
         SteeringAbsorber steering = new SteeringAbsorber(client, turns, agentId, runId);
 
-        AgiMateAgent.RunObserver observer = new AgiMateAgent.RunObserver() {
+        RunObserver observer = new RunObserver() {
             @Override
             public void onStart(List<AgentChatMessage> startMessages) {
                 reportPrompt(agentId, runId, startMessages);
@@ -154,8 +155,17 @@ public class AgentRunCore {
         ToolCallDispatcher toolDispatcher = new ToolCallDispatcher(dbos, tool, toolQueue, agentId,
                 runId, registry);
 
-        AgentRunner runner = new AgentRunner(llmDispatcher, toolDispatcher, registry.toolDefs(), maxTurns,
-                context, observer, templates);
+        // The model-side list: system + backend-assembled history + the trigger (with its ephemeral
+        // prefix, if any). The system prompt is rebuilt every run — otherwise a history-trim could
+        // drop it, and a spec change would only take effect on the next run. The trigger already
+        // carries the ephemeral block from withEphemeralPrefix, so the model sees it once.
+        List<AgentChatMessage> conv = new ArrayList<>();
+        conv.add(AgentChatMessage.system(prepared.systemPrompt()));
+        conv.addAll(prepared.history());
+        conv.add(modelRequest);
+
+        AgiMateAgent agent = new AgiMateAgent(llmDispatcher, toolDispatcher, registry.toolDefs(), maxTurns,
+                templates.wrapUp(), observer);
         // Turn 0 is the inbound one, without the ephemeral prefix — the persistent part of the turn.
         // Without it the transcript of a direct run opens with the answer and the question exists
         // nowhere but inside the prompt snapshot's JSON (a direct run has no channel history).
@@ -163,7 +173,40 @@ public class AgentRunCore {
         turns.record(initialRequest, null);
         String answer;
         try {
-            answer = runner.run(prepared.systemPrompt(), prepared.history(), modelRequest);
+            answer = agent.run(conv);
+        } catch (MaxTurnsExceeded e) {
+            throw new AgentRunAborted(templates.maxTurns(),
+                    "agent loop hit max_turns " + context + ": " + e.getMessage());
+        } catch (EmptyAnswerExhausted e) {
+            throw new AgentRunAborted(templates.emptyAnswer(),
+                    "model returned an empty answer " + context + ": " + e.getMessage());
+        } catch (LlmResponseIncomplete e) {
+            String userNotice = switch (e.reason()) {
+                case LENGTH -> templates.truncated();
+                case CONTENT_FILTER -> templates.filtered();
+            };
+            throw new AgentRunAborted(userNotice,
+                    "llm response incomplete (" + e.reason() + ") " + context + ": " + e.getMessage());
+        } catch (LlmCallError e) {
+            // The call already produced a ready user notice (a quota text, «no model configured») — verbatim.
+            if (e.userFacing()) {
+                throw new AgentRunAborted(e.getMessage(),
+                        "LLM call aborted " + context + ": " + e.getMessage());
+            }
+            Integer status = e.statusCode();
+            String userNotice;
+            String prefix;
+            if (status != null && (status == 401 || status == 403)) {
+                userNotice = templates.authError();
+                prefix = "LLM auth error (HTTP " + status + ")";
+            } else if (status != null) {
+                userNotice = templates.modelError();
+                prefix = "LLM HTTP error (HTTP " + status + ")";
+            } else {
+                userNotice = templates.modelError();
+                prefix = "LLM API error";
+            }
+            throw new AgentRunAborted(userNotice, prefix + " " + context + ": " + e.getMessage());
         } catch (RunCancelled e) {
             // A stop ends the run with an ANSWER, not an ERROR: that is what marks the run completed, so
             // the next run sees it was interrupted instead of suffering unexplained amnesia.
