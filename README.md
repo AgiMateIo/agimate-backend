@@ -56,8 +56,8 @@ are not in the docs — they are generated from the code, see
 ## Related repositories
 
 - [agimate-frontend](https://github.com/AgiMateIo/agimate-frontend) — the web dashboard for these services
-- [desktop](https://github.com/AgiMateIo/desktop) — cross-platform system tray agent
-- [android](https://github.com/AgiMateIo/android) — Android companion agent
+- [connector-desktop](https://github.com/AgiMateIo/connector-desktop) — cross-platform system tray agent
+- [connector-android](https://github.com/AgiMateIo/connector-android) — Android companion agent
 - [n8n-nodes-agimate](https://github.com/AgiMateIo/n8n-nodes-agimate) — n8n community nodes
 
 ## Contributing
