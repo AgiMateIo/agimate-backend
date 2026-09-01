@@ -24,7 +24,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # PostgreSQL 18 images store data under /var/lib/postgresql/<major>/docker and refuse a mount
+      # directly on /var/lib/postgresql/data ("unused mount/volume") — mount the parent directory.
+      - postgres_data:/var/lib/postgresql
       - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U agimate"]
