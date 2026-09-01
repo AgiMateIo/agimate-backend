@@ -95,44 +95,59 @@ public class AgentLlmService {
 
     @Transactional
     public AgentLlmResponse create(UUID agentId, UUID userId, CreateAgentLlmRequest request) {
-        Agent agent = requireOwnedAgent(agentId, userId);
-        LlmProvider provider = llmProviderService.requireOwned(request.llmProviderId(), userId);
-        validateModel(provider, request.model());
+        AgentLlm binding = create(agentId, userId, request.llmProviderId(), request.model(), request.purpose());
+        return AgentLlmResponse.from(binding, llmProviderService.requireOwned(request.llmProviderId(), userId));
+    }
 
-        LlmPurpose purpose = request.purpose() != null ? request.purpose() : LlmPurpose.CHAT;
-        if (agentLlmRepository.existsByAgentIdAndPurpose(agent.getId(), purpose)) {
+    /** The primitive overload — the platform connector's entry point (no {@code controller/**} dependency). */
+    @Transactional
+    public AgentLlm create(UUID agentId, UUID userId, UUID llmProviderId, String model, LlmPurpose purpose) {
+        Agent agent = requireOwnedAgent(agentId, userId);
+        LlmProvider provider = llmProviderService.requireOwned(llmProviderId, userId);
+        validateModel(provider, model);
+
+        LlmPurpose resolvedPurpose = purpose != null ? purpose : LlmPurpose.CHAT;
+        if (agentLlmRepository.existsByAgentIdAndPurpose(agent.getId(), resolvedPurpose)) {
             throw new ConflictStatusException(
-                    "Agent already has an LLM binding for purpose " + purpose + "; replace it with PUT");
+                    "Agent already has an LLM binding for purpose " + resolvedPurpose + "; replace it with PUT");
         }
 
         AgentLlm binding = AgentLlm.builder()
                 .userId(userId)
                 .agentId(agent.getId())
                 .llmProviderId(provider.getId())
-                .model(request.model())
-                .purpose(purpose)
+                .model(model)
+                .purpose(resolvedPurpose)
                 .build();
         binding = agentLlmRepository.save(binding);
 
         log.info("Created agent_llm: agent={} purpose={} provider={} model={}",
                 agent.getId(), binding.getPurpose(), provider.getId(), binding.getModel());
-        return AgentLlmResponse.from(binding, provider);
+        return binding;
     }
 
     @Transactional
     public AgentLlmResponse replace(UUID agentId, UUID userId, LlmPurpose purpose, UpdateAgentLlmRequest request) {
+        AgentLlm binding = replace(agentId, userId, purpose, request.llmProviderId(), request.model());
+        return AgentLlmResponse.from(binding, llmProviderService.requireOwned(request.llmProviderId(), userId));
+    }
+
+    /** The primitive overload — the platform connector's entry point (no {@code controller/**} dependency). */
+    @Transactional
+    public AgentLlm replace(UUID agentId, UUID userId, LlmPurpose purpose,
+                            UUID llmProviderId, String model) {
         Agent agent = requireOwnedAgent(agentId, userId);
         AgentLlm binding = requireBinding(agent.getId(), purpose);
-        LlmProvider provider = llmProviderService.requireOwned(request.llmProviderId(), userId);
-        validateModel(provider, request.model());
+        LlmProvider provider = llmProviderService.requireOwned(llmProviderId, userId);
+        validateModel(provider, model);
 
         binding.setLlmProviderId(provider.getId());
-        binding.setModel(request.model());
+        binding.setModel(model);
         binding = agentLlmRepository.save(binding);
 
         log.info("Replaced agent_llm: agent={} purpose={} provider={} model={}",
                 agent.getId(), purpose, provider.getId(), binding.getModel());
-        return AgentLlmResponse.from(binding, provider);
+        return binding;
     }
 
     @Transactional

@@ -199,7 +199,7 @@ participant_type <> 'PLATFORM'
 
 **`ConnectorEnv`** получает `participantId`. Существующий `userId` остаётся **владельцем данных** и
 не меняет смысла ни при каких условиях: на нём стоит авторизация внутренних коннекторов
-(`PlatformToolService`, `BoardToolService`, `SheetsToolService`), и если туда начнёт приезжать
+(`PlatformAgentToolService` и другие модули коннектора `platform`, `BoardToolService`, `SheetsToolService`), и если туда начнёт приезжать
 собеседник, первый же гость получит `platform.create_agent` в чужом аккаунте.
 
 ### Память — только личная

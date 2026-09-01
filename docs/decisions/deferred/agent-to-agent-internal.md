@@ -138,6 +138,6 @@ a2a-канала. Остаются:
   (сообщение → `InboundMessage`) и `handleOutput` (ответ → запись в вызов A).
 - `service/trigger/TriggerRouterService.java`, `service/trigger/TriggerAudience.java` — адресная
   доставка триггера конкретному агенту (образец — `time.fire`).
-- `connectors/internal/platform/PlatformToolService.java` — существующий `list_agents` (мета-агент,
+- `connectors/internal/platform/PlatformAgentToolService.java` — существующий `list_agents` (мета-агент,
   другой скоуп).
 - `connectors/internal/board/` — альтернатива для делегирования долгой работы.

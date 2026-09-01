@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.entities.Channel;
@@ -20,8 +21,12 @@ import java.util.UUID;
  * Stopping a run at the user's request. Cooperative: this only records the request, and the run reads
  * it off its next seam — the answer to {@code SaveMessage} or {@code GetToolResult}.
  *
- * <p><b>Only a human cancels.</b> No connector tool reaches this service, and none should: an agent
- * able to stop runs is an agent able to silence another agent, and no ABAC rule makes that safer.
+ * <p><b>Only a human cancels.</b> Connector tools must not reach this service, and none should: an
+ * agent able to stop runs is an agent able to silence another agent, and no ABAC rule makes that
+ * safer. The one deliberate exception is the platform connector's {@code cancel_run}/
+ * {@code cancel_session}: they run on behalf of the agent's human owner ({@code env.userId}, the
+ * same identity the /manage surface acts as), so the canceller is the owner, not the agent — see
+ * docs/decisions/platform-admin-mcp.md.
  */
 @Slf4j
 @Service
@@ -102,6 +107,16 @@ public class RunCancellationService {
     private void requireOwnedSession(UUID sessionId, UUID userId) {
         AgentSession session = agentSessionRepository.findById(sessionId)
                 .orElseThrow(() -> new NotFoundStatusException("Channel session not found"));
+        // Ownership first: a foreign row must read as not found, not as a different error that would
+        // confirm its existence and scope.
+        if (!session.getUserId().equals(userId)) {
+            throw new NotFoundStatusException("Channel session not found");
+        }
+        // A connection-scoped session has no channel and cannot be stopped through it; the listing
+        // shows every scope, so a cancel must not pretend the row is missing.
+        if (session.getChannelId() == null) {
+            throw new BadRequestStatusException("Only channel sessions can be cancelled");
+        }
         Channel channel = channelRepository.findByIdAndDeletedAtIsNull(session.getChannelId())
                 .orElseThrow(() -> new NotFoundStatusException("Channel session not found"));
         if (!channel.getUserId().equals(userId)) {

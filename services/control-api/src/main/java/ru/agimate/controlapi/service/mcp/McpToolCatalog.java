@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.controlapi.abac.ConnectionAccessEvaluator;
+import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
+import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentConnection;
@@ -57,6 +59,7 @@ public class McpToolCatalog {
     private final ConnectorRepository connectorRepository;
     private final ToolDefinitionService toolDefinitionService;
     private final ConnectionAccessEvaluator accessEvaluator;
+    private final ConnectorRegistry connectorRegistry;
 
     /** One tool of one connection, under the name the client sees. */
     public record ToolEntry(UUID connectionId, String connectorCode, String toolName, ConnectorToolSpec spec) {}
@@ -82,11 +85,21 @@ public class McpToolCatalog {
         Map<String, ConnectorToolSpec> tools = toolDefinitionService.getTools(
                 agent.getUserId(), connection.getConnectorCode(), connection.getId());
 
+        // The same handle the worker uses ({@code RunContextService.namespaceOf}): an internal mode
+        // row is named by its connector code, an external instance by its {@code full_code}. Aligning
+        // the two surfaces matters for long tool names — a 36-char uuid handle plus a 64-char cap
+        // would truncate names like {@code list_llm_provider_models} into hash tails.
+        String handle = connectorRegistry.findHandler(connection.getConnectorCode())
+                .map(InternalConnectorHandler.class::isInstance)
+                .orElse(false)
+                ? connection.getConnectorCode()
+                : connection.getFullCode();
+
         tools.forEach((toolName, spec) -> {
             if (!accessEvaluator.evaluate(agent.getId(), connection.getId(), PolicyKind.TOOL, toolName).allowed()) {
                 return;
             }
-            String publicName = publicName(connection.getFullCode(), toolName);
+            String publicName = publicName(handle, toolName);
             ToolEntry entry = new ToolEntry(connection.getId(), connection.getConnectorCode(), toolName, spec);
             ToolEntry clashing = catalog.putIfAbsent(publicName, entry);
             if (clashing != null) {

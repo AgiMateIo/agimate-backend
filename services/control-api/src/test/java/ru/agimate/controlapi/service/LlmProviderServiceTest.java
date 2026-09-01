@@ -7,7 +7,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.agimate.controlapi.database.entities.LlmModelDefaults;
 import ru.agimate.controlapi.database.entities.LlmProvider;
@@ -23,7 +22,6 @@ import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.llm.discovery.LlmModelDiscoveryService;
 import ru.agimate.controlapi.service.secret.SecretService;
-import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
 import java.util.List;
 import java.util.Map;
@@ -61,9 +59,6 @@ class LlmProviderServiceTest {
     private SecretService secretService;
     @Mock
     private LlmModelDiscoveryService modelDiscoveryService;
-    /** Настоящий, не мок: гард адреса — часть проверяемого здесь поведения, и он ничего не стоит. */
-    @Spy
-    private PublicOnlyHttp publicOnlyHttp = new PublicOnlyHttp(false);
 
     @InjectMocks
     private LlmProviderService service;
