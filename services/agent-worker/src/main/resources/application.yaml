@@ -61,6 +61,11 @@ agent:
   response:
     # Language of user-facing notices; BCP-47 tag. Bundled: en (default), ru.
     language: "en"
+  net:
+    # SSRF-guard провайдерского base_url: разрешать ли приватные/loopback/link-local адреса.
+    # В проде false — тогда же требуется https, потому что проверка адреса у этого клиента
+    # висит на TLS-сокете и по plain http не срабатывает. true — для локальных моделей.
+    allow-private-targets: false
   dbos:
     app-name: "agent-worker"
     # Must address the same database as control-api's dbos.system-database.

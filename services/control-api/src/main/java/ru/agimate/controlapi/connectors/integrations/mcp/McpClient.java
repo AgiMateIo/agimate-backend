@@ -6,17 +6,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import ru.agimate.common.net.PublicTargets;
+import ru.agimate.common.net.TargetNotAllowedException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.AttributionHeaders;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.McpUnauthorizedException;
 import ru.agimate.controlapi.connectors.integrations.mcp.oauth.WwwAuthenticate;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
-import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -53,29 +54,21 @@ public class McpClient {
     private final AtomicLong requestId = new AtomicLong(1);
 
     /** SSRF guard, shared with the OAuth side: every host of the chain is vetted the same way. */
-    private final McpTargetGuard targets;
+    private final PublicTargets targets;
 
     /** AgiMate brand attribution: the {@code User-Agent} plus the product version for {@code clientInfo.version}. */
     private final AttributionHeaders attribution;
 
     @Autowired
-    public McpClient(McpTargetGuard targets, AttributionHeaders attribution) {
-        this.targets = targets;
+    public McpClient(PublicOnlyHttp http, AttributionHeaders attribution) {
+        this.targets = http.targets();
         this.attribution = attribution;
-        // Redirects are never followed: the target is vetted before the request, and a 302 to a
-        // private address would step around that check entirely.
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder()
-                        .followRedirects(HttpClient.Redirect.NEVER)
-                        .connectTimeout(TIMEOUT)
-                        .build());
-        factory.setReadTimeout(TIMEOUT);
-        this.restClient = RestClient.builder().requestFactory(factory).build();
+        this.restClient = http.restClient(TIMEOUT).build();
     }
 
     /** Constructor for tests: no Spring context, and the brand version falls back. */
     McpClient(boolean allowPrivateTargets) {
-        this(new McpTargetGuard(allowPrivateTargets), new AttributionHeaders("dev"));
+        this(new PublicOnlyHttp(allowPrivateTargets), new AttributionHeaders("dev"));
     }
 
     /** The protocol revision this client speaks; the OAuth side sends it on well-known requests. */
@@ -246,11 +239,16 @@ public class McpClient {
     }
 
     /**
-     * SSRF guard, see {@link McpTargetGuard}. Applied on every call rather than once at creation: it
-     * narrows the DNS-rebinding window, though it does not close it.
+     * SSRF guard, see {@link PublicTargets}. Applied on every call rather than once at creation:
+     * this is the half that produces a comprehensible refusal, while the client's own resolver is
+     * the half that decides what the socket may reach.
      */
     private void validateTarget(String url) {
-        targets.requireAllowed(url);
+        try {
+            targets.requireAllowed(url);
+        } catch (TargetNotAllowedException e) {
+            throw new ConnectorException(e.getMessage());
+        }
     }
 
     /**

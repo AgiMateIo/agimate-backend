@@ -53,8 +53,10 @@ import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.service.connection.ConnectionBindingService;
 import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.util.AgentNames;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 import ru.agimate.common.security.keys.AppKeyUtils;
 import ru.agimate.common.security.keys.GeneratedAppKey;
+import ru.agimate.common.net.TargetNotAllowedException;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -88,6 +90,7 @@ public class AgentService {
     private final AgentLlmService agentLlmService;
     private final ConnectorJobRepository connectorJobRepository;
     private final ChannelRepository channelRepository;
+    private final PublicOnlyHttp publicOnlyHttp;
     private final AgentDeliveryService agentDeliveryService;
     private final SecretRepository secretRepository;
     private final SecretService secretService;
@@ -520,9 +523,24 @@ public class AgentService {
         }
     }
 
+    /**
+     * The address is vetted twice, and on purpose. Here, on the write, where a wrong url is a 400
+     * in front of the person who typed it — shape only, plus the address when the url names one
+     * outright, so saving a form does not depend on DNS. And again on every delivery, inside the
+     * client's own name resolution ({@link ru.agimate.controlapi.service.http.PublicOnlyHttp}),
+     * which is the check that decides what the socket may reach.
+     */
     private void validateWebhookFields(AgentType type, String webhookUrl) {
         if (type == AgentType.WEBHOOK && (webhookUrl == null || webhookUrl.isBlank())) {
             throw new ValidationErrorStatusException("webhookUrl", "Webhook url is required when type is WEBHOOK");
+        }
+        if (webhookUrl == null || webhookUrl.isBlank()) {
+            return;
+        }
+        try {
+            publicOnlyHttp.requireSyntax(webhookUrl);
+        } catch (TargetNotAllowedException e) {
+            throw new ValidationErrorStatusException("webhookUrl", e.getMessage());
         }
     }
 

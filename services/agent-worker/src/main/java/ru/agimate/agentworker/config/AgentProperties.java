@@ -26,6 +26,19 @@ public class AgentProperties {
     private Tool tool = new Tool();
     private Dbos dbos = new Dbos();
     private Response response = new Response();
+    private Net net = new Net();
+
+    /**
+     * Outbound network policy. The worker calls exactly one address it did not choose — the LLM
+     * provider's {@code base_url}, which belongs to whoever created the provider — and that call
+     * carries a prompt an attacker may have written and answers back into the agent's history.
+     */
+    @Getter
+    @Setter
+    public static class Net {
+        /** Private, loopback and link-local providers allowed. Local development only. */
+        private boolean allowPrivateTargets = false;
+    }
 
     /** gRPC channel to control-api's worker protocol (:9091, TLS). */
     @Getter

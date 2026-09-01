@@ -119,11 +119,15 @@ app:
     # Дефолта нет намеренно: в проде задаётся env'ом APP_SECRETS_ENCRYPTION_KEY,
     # для локальной разработки — в application-local.yaml. Пустое значение = отказ старта.
     encryption-key: ""
+  net:
+    # SSRF-guard всех исходящих вызовов по пользовательскому адресу (вебхук агента, base_url
+    # LLM-провайдера, MCP-сервер, картинка из ответа провайдера): разрешать ли приватные,
+    # loopback и link-local адреса. В проде — false; true только для локальной разработки,
+    # где интересные цели как раз на localhost. Флаг снимает проверку целиком, а не смягчает
+    # её: половинчатый гард труднее держать в голове, чем его отсутствие.
+    allow-private-targets: false
   connectors:
     mcp:
-      # SSRF-guard: разрешать ли MCP-серверы на приватных/loopback/link-local адресах.
-      # В проде держим false; true — для локальной разработки против localhost-серверов.
-      allow-private-targets: false
       oauth:
         # Идентичность OAuth-клиента (docs/decisions/mcp-oauth.md, раздел 3): client_id — это
         # HTTPS-адрес нашего же JSON-документа, который скачивает сервер авторизации. Значение

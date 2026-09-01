@@ -4,17 +4,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
+import ru.agimate.common.net.PublicTargets;
+import ru.agimate.common.net.TargetNotAllowedException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.AttributionHeaders;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
-import ru.agimate.controlapi.connectors.integrations.mcp.McpTargetGuard;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
-import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
@@ -24,7 +24,7 @@ import java.util.Optional;
  * {@code McpClient} on purpose — it needs guarantees that client does not (no redirects at all) and
  * none of what that client carries (JSON-RPC, sessions, the protocol version header).
  *
- * <p><strong>Redirects are never followed.</strong> {@link McpTargetGuard} vets an address before the
+ * <p><strong>Redirects are never followed.</strong> {@link PublicTargets} vets an address before the
  * request, and a {@code 302} to a private address would walk around that check entirely — carrying an
  * authorisation code or a token with it.
  */
@@ -35,19 +35,22 @@ public class OAuthHttpClient {
     private static final Duration TIMEOUT = Duration.ofSeconds(15);
 
     private final RestClient restClient;
-    private final McpTargetGuard targets;
+    private final PublicTargets targets;
     private final AttributionHeaders attribution;
 
-    public OAuthHttpClient(McpTargetGuard targets, AttributionHeaders attribution) {
-        this.targets = targets;
+    public OAuthHttpClient(PublicOnlyHttp http, AttributionHeaders attribution) {
+        this.targets = http.targets();
         this.attribution = attribution;
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(
-                HttpClient.newBuilder()
-                        .followRedirects(HttpClient.Redirect.NEVER)
-                        .connectTimeout(TIMEOUT)
-                        .build());
-        factory.setReadTimeout(TIMEOUT);
-        this.restClient = RestClient.builder().requestFactory(factory).build();
+        this.restClient = http.restClient(TIMEOUT).build();
+    }
+
+    /** https always: down this address travels an authorisation code or a token, not a picture. */
+    private void requireAllowed(String url) {
+        try {
+            targets.requireAllowed(url, true);
+        } catch (TargetNotAllowedException e) {
+            throw new ConnectorException(e.getMessage());
+        }
     }
 
     /**
@@ -59,7 +62,7 @@ public class OAuthHttpClient {
      *                        where the header means nothing
      */
     public Optional<JsonNode> getJson(String url, String protocolVersion) {
-        targets.requireAllowed(url, true);
+        requireAllowed(url);
         try {
             String body = restClient.get()
                     .uri(url)
@@ -95,7 +98,7 @@ public class OAuthHttpClient {
      * {@code invalid_target} (retry without the resource parameter).
      */
     public TokenResponse postForm(String url, Map<String, String> form) {
-        targets.requireAllowed(url, true);
+        requireAllowed(url);
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         form.forEach(body::add);
         try {

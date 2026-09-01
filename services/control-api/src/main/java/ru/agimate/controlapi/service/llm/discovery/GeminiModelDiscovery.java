@@ -2,8 +2,10 @@ package ru.agimate.controlapi.service.llm.discovery;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.database.model.LlmModelInfo;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 
@@ -11,7 +13,10 @@ import java.util.List;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class GeminiModelDiscovery implements LlmModelDiscoveryStrategy {
+
+    private final PublicOnlyHttp http;
 
     private static final String DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
 
@@ -28,7 +33,7 @@ public class GeminiModelDiscovery implements LlmModelDiscoveryStrategy {
 
         // Gemini /v1beta/models entries: {name, displayName, description, version, inputTokenLimit, ...}.
         // We use `name` (e.g. "models/gemini-1.5-pro") as the id and `displayName` as the label.
-        return LlmDiscoveryHttp.client(baseUrl).get()
+        return LlmDiscoveryHttp.client(http, baseUrl).get()
                 .uri(uriBuilder -> uriBuilder.path("/v1beta/models")
                         .queryParam("key", decryptedApiKey)
                         .build())

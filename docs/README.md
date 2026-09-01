@@ -31,6 +31,7 @@
 | [connectors.md](architecture/connectors.md) | SPI коннекторов: капабилити, реестр, джобы |
 | [channels-and-triggers.md](architecture/channels-and-triggers.md) | Маршрутизация триггеров и каналы: политика решает «кому», канал — «как» |
 | [content-language.md](architecture/content-language.md) | Язык системного контента установки |
+| [outbound-http.md](architecture/outbound-http.md) | Исходящие вызовы по пользовательскому адресу: где они, и чем закрыты |
 
 ## Контракты
 

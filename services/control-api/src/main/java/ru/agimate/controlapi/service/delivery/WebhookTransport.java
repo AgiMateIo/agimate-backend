@@ -1,6 +1,5 @@
 package ru.agimate.controlapi.service.delivery;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.springframework.data.domain.Page;
@@ -9,6 +8,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import ru.agimate.common.net.PublicOnlyDns;
+import ru.agimate.common.net.PublicTargets;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.controller.manage.dto.WebhookDeliveryLogResponse;
 import ru.agimate.controlapi.database.entities.Agent;
@@ -18,6 +19,7 @@ import ru.agimate.controlapi.database.entities.AgentRun;
 import ru.agimate.controlapi.database.entities.WebhookDeliveryLog;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.database.repositories.WebhookDeliveryLogRepository;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 import ru.agimate.controlapi.service.secret.SecretService;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
 import ru.agimate.controlapi.service.dto.AgentMessage;
@@ -31,7 +33,6 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class WebhookTransport implements AgentTransport {
 
     private static final MediaType JSON_MEDIA_TYPE = MediaType.get("application/json; charset=utf-8");
@@ -41,12 +42,34 @@ public class WebhookTransport implements AgentTransport {
     private final SecretRepository secretRepository;
     private final SecretService secretService;
 
-    private final OkHttpClient httpClient = new OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .build();
+    /**
+     * The url is the agent owner's to choose, so it is treated as a target of a request forgery
+     * rather than as an address of ours. Name resolution goes through {@link PublicTargets}, so the
+     * connection reaches only vetted addresses; redirects are not followed, because a {@code 302}
+     * to a private host would step around that on an address nothing checked.
+     *
+     * <p>A refusal reaches the owner through the delivery log, which is why it says only that the
+     * target was refused: naming the address a host resolved to would answer the very question an
+     * internal-network probe is asking.
+     */
+    private final OkHttpClient httpClient;
+
+    public WebhookTransport(WebhookDeliveryLogRepository webhookDeliveryLogRepository,
+                            SecretRepository secretRepository,
+                            SecretService secretService,
+                            PublicOnlyHttp publicOnlyHttp) {
+        this.webhookDeliveryLogRepository = webhookDeliveryLogRepository;
+        this.secretRepository = secretRepository;
+        this.secretService = secretService;
+        this.httpClient = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .dns(new PublicOnlyDns(publicOnlyHttp.targets()))
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .build();
+    }
 
     @Override
     public AgentType getAgentType() {

@@ -26,19 +26,19 @@ class McpClientTest {
     @Test
     @DisplayName("loopback-адрес блокируется до сетевого вызова")
     void blocksLoopback() {
-        assertTrue(probeError(guarded, "http://127.0.0.1:8080/mcp").contains("non-public"));
+        assertTrue(probeError(guarded, "http://127.0.0.1:8080/mcp").contains("not allowed"));
     }
 
     @Test
     @DisplayName("cloud metadata 169.254.169.254 (link-local) блокируется")
     void blocksMetadataEndpoint() {
-        assertTrue(probeError(guarded, "http://169.254.169.254/latest/meta-data/").contains("non-public"));
+        assertTrue(probeError(guarded, "http://169.254.169.254/latest/meta-data/").contains("not allowed"));
     }
 
     @Test
     @DisplayName("приватный диапазон 10.0.0.0/8 блокируется")
     void blocksSiteLocal() {
-        assertTrue(probeError(guarded, "https://10.0.0.5/mcp").contains("non-public"));
+        assertTrue(probeError(guarded, "https://10.0.0.5/mcp").contains("not allowed"));
     }
 
     @Test
@@ -52,6 +52,12 @@ class McpClientTest {
     void allowFlagBypassesGuard() {
         McpClient permissive = new McpClient(true);
         // Порт 1 закрыт → быстрый отказ соединения; важно, что это НЕ ошибка SSRF-guard'а.
-        assertFalse(probeError(permissive, "http://127.0.0.1:1/mcp").contains("non-public"));
+        assertFalse(probeError(permissive, "http://127.0.0.1:1/mcp").contains("not allowed"));
+    }
+
+    @Test
+    @DisplayName("имя, резолвящееся в loopback, блокируется резолвером клиента, а не только проверкой URL")
+    void blocksNameResolvingToLoopback() {
+        assertTrue(probeError(guarded, "http://localhost:8080/mcp").contains("not allowed"));
     }
 }

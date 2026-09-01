@@ -3,9 +3,11 @@ package ru.agimate.controlapi.service.llm.discovery;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.controlapi.database.model.LlmModelInfo;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 
@@ -13,7 +15,10 @@ import java.util.List;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class OpenAiCompatibleModelDiscovery implements LlmModelDiscoveryStrategy {
+
+    private final PublicOnlyHttp http;
 
     @Override
     public LlmProviderType type() {
@@ -30,7 +35,7 @@ public class OpenAiCompatibleModelDiscovery implements LlmModelDiscoveryStrategy
 
         // OpenAI-compatible /models often returns just {id}; some servers (OpenRouter, LM Studio)
         // include a "name" field, so we opportunistically pick it up as the displayName.
-        return LlmDiscoveryHttp.client(baseUrl).get()
+        return LlmDiscoveryHttp.client(http, baseUrl).get()
                 .uri("/models")
                 .accept(MediaType.APPLICATION_JSON)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + decryptedApiKey)

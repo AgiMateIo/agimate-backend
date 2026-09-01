@@ -19,10 +19,10 @@ app:
       # Polling needs no public URL — the webhook mode does.
       mode: polling
     webhook-base-url: "__APP_INTEGRATION_WEBHOOK_BASE_URL__"
-  connectors:
-    mcp:
-      # Local MCP servers live on loopback, which the production SSRF guard rejects.
-      allow-private-targets: true
+  net:
+    # Локальные цели живут на loopback, который прод-гард отвергает: MCP-серверы, локальные
+    # LLM-провайдеры, приёмник вебхука.
+    allow-private-targets: true
   user-api:
     # Notifications go to user-api, which owns the devices and the transport. The key is the same
     # value as user-api's app.s2s.key — one secret, both sides, from the same ./dev-init.sh run.

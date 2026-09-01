@@ -5,13 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.AttributionHeaders;
 import ru.agimate.controlapi.database.enums.MediaTransportType;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 import ru.agimate.controlapi.service.llm.ExtraBodyMerge;
 import ru.agimate.controlapi.service.llm.LlmCredentialsResolver.ResolvedLlm;
 
@@ -41,7 +41,6 @@ import java.util.Set;
 @Slf4j
 public class MediaEndpointTransport implements MediaTransport {
 
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     // Below the worker's budget for generation tools (30 min), as in MediaInferenceHttp.
     private static final Duration READ_TIMEOUT = Duration.ofMinutes(25);
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(5);
@@ -52,6 +51,7 @@ public class MediaEndpointTransport implements MediaTransport {
     private static final Set<String> CALLER_OWNED_PARAMS = Set.of("prompt", "images");
 
     private final AttributionHeaders attribution;
+    private final PublicOnlyHttp http;
     private final RemoteImageFetcher imageFetcher;
 
     @Override
@@ -261,11 +261,9 @@ public class MediaEndpointTransport implements MediaTransport {
         }
     }
 
-    private static RestClient client(String baseUrl) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout((int) CONNECT_TIMEOUT.toMillis());
-        factory.setReadTimeout((int) READ_TIMEOUT.toMillis());
-        return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+    /** The base url is the provider owner's; {@link PublicOnlyHttp} keeps the call out of our network. */
+    private RestClient client(String baseUrl) {
+        return http.restClient(READ_TIMEOUT).baseUrl(baseUrl).build();
     }
 
     private static String truncate(String body) {

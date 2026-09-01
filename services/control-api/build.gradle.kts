@@ -50,6 +50,11 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp")
 
+    // Клиент исходящих вызовов по пользовательскому адресу (PublicOnlyHttp): нужен ради хука в
+    // резолвер имён, которого нет ни у JDK-клиента, ни у Simple-фабрики. Объявлен явно — до сих
+    // пор приезжал транзитивно с centrifugo-клиентом, то есть держался на чужой зависимости.
+    implementation("org.apache.httpcomponents.client5:httpclient5")
+
     // Reading the data seed files (seed/llm-*.yaml) in SeedYaml. Boot already ships snakeyaml for
     // application.yaml, but we read it from our own code — an implicit dependency would break on a
     // starter change.

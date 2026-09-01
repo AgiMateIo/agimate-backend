@@ -2,8 +2,10 @@ package ru.agimate.controlapi.service.llm.discovery;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.database.model.LlmModelInfo;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 import ru.agimate.controlapi.database.entities.LlmProvider;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 
@@ -11,7 +13,10 @@ import java.util.List;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class AnthropicModelDiscovery implements LlmModelDiscoveryStrategy {
+
+    private final PublicOnlyHttp http;
 
     private static final String DEFAULT_BASE_URL = "https://api.anthropic.com";
     private static final String ANTHROPIC_VERSION = "2023-06-01";
@@ -28,7 +33,7 @@ public class AnthropicModelDiscovery implements LlmModelDiscoveryStrategy {
                 : DEFAULT_BASE_URL;
 
         // Anthropic /v1/models entries: {id, display_name, created_at, type}.
-        return LlmDiscoveryHttp.client(baseUrl).get()
+        return LlmDiscoveryHttp.client(http, baseUrl).get()
                 .uri("/v1/models")
                 .accept(MediaType.APPLICATION_JSON)
                 .header("x-api-key", decryptedApiKey)

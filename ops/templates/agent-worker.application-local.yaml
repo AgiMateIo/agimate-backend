@@ -11,3 +11,7 @@ agent:
   grpc:
     # Worker-pool full key; its authkey counterpart is in control-api's worker-pools.authkeys[0].
     auth-token: "__AGENT_GRPC_AUTHTOKEN__"
+  net:
+    # Локальная модель живёт на loopback (и по plain http), а прод-гард требует публичный
+    # адрес и https.
+    allow-private-targets: true

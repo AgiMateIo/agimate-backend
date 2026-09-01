@@ -3,11 +3,11 @@ package ru.agimate.controlapi.service.llm.discovery;
 import lombok.experimental.UtilityClass;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.database.model.LlmModelInfo;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,17 +20,15 @@ import java.util.Map;
 @UtilityClass
 public class LlmDiscoveryHttp {
 
-    private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(10);
 
-    public static RestClient client(String baseUrl) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout((int) CONNECT_TIMEOUT.toMillis());
-        factory.setReadTimeout((int) READ_TIMEOUT.toMillis());
-        return RestClient.builder()
-                .baseUrl(baseUrl)
-                .requestFactory(factory)
-                .build();
+    /**
+     * The base url belongs to whoever created the provider, and this call answers back with what it
+     * found there — so the request is made through {@link PublicOnlyHttp} and reaches public
+     * addresses only. Without that, «refresh models» is a read of any URL our network can reach.
+     */
+    public static RestClient client(PublicOnlyHttp http, String baseUrl) {
+        return http.restClient(READ_TIMEOUT).baseUrl(baseUrl).build();
     }
 
     /**

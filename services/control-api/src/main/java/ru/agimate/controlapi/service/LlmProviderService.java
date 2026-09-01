@@ -9,6 +9,7 @@ import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.common.net.TargetNotAllowedException;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreateLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderModelResponse;
@@ -30,6 +31,7 @@ import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.llm.discovery.LlmModelDiscoveryService;
 import ru.agimate.controlapi.service.secret.SecretService;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -64,6 +66,7 @@ public class LlmProviderService {
     private final SecretRepository secretRepository;
     private final SecretService secretService;
     private final LlmModelDiscoveryService modelDiscoveryService;
+    private final PublicOnlyHttp publicOnlyHttp;
 
     /** An admin also sees the platform row in the list (the free tier is managed through the same endpoints). */
     public List<LlmProviderResponse> listForUser(UUID userId, boolean admin) {
@@ -476,10 +479,25 @@ public class LlmProviderService {
         return key;
     }
 
+    /**
+     * The address is vetted twice: here, where a wrong base url is a 400 in front of the person who
+     * typed it — shape only, plus the address when the url names one outright, so saving a provider
+     * does not depend on DNS. And again inside the name resolution of every client that later calls
+     * it ({@link ru.agimate.controlapi.service.http.PublicOnlyHttp}), which is the check that
+     * decides what the socket may reach.
+     */
     private void validateBaseUrl(LlmProviderType providerType, String baseUrl) {
         if (providerType == LlmProviderType.OPENAI_COMPATIBLE
                 && (baseUrl == null || baseUrl.isBlank())) {
             throw new BadRequestStatusException("base_url is required for OPENAI_COMPATIBLE provider");
+        }
+        if (baseUrl == null || baseUrl.isBlank()) {
+            return;
+        }
+        try {
+            publicOnlyHttp.requireSyntax(baseUrl);
+        } catch (TargetNotAllowedException e) {
+            throw new BadRequestStatusException("base_url: " + e.getMessage());
         }
     }
 

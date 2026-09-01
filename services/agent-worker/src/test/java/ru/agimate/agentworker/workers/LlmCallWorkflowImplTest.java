@@ -237,7 +237,7 @@ class LlmCallWorkflowImplTest {
                 AgentWorkerClient client = mock(AgentWorkerClient.class);
                 when(client.getLlmCredentials("agent-1")).thenReturn(creds);
                 LlmCallWorkflowImpl workflow = new LlmCallWorkflowImpl(client,
-                        new ModelFactory(new AgentProperties()), new LlmMessageMapper(),
+                        new ModelFactory(localTargetsAllowed()), new LlmMessageMapper(),
                         mock(ResponseTemplates.class)) {
                     @Override
                     String currentCallId() {
@@ -260,6 +260,13 @@ class LlmCallWorkflowImplTest {
             } finally {
                 server.stop(0);
             }
+        }
+
+        /** Стаб провайдера живёт на loopback — как локальная модель, для которой флаг и существует. */
+        private AgentProperties localTargetsAllowed() {
+            AgentProperties props = new AgentProperties();
+            props.getNet().setAllowPrivateTargets(true);
+            return props;
         }
     }
 

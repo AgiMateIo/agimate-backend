@@ -9,9 +9,13 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.config.AgentProperties;
+import ru.agimate.common.net.PublicOnlySslSocketFactory;
+import ru.agimate.common.net.PublicTargets;
 import ru.agimate.common.util.CryptoUtils;
 import ru.agimate.common.util.JsonUtils;
 
+import javax.net.ssl.SSLContext;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -56,6 +60,15 @@ public class ModelFactory {
 
     private final AgentProperties.App app;
 
+    /**
+     * The base url belongs to whoever created the provider, so the call is a request forgery target:
+     * it leaves our network with an api key on it, and its answer lands in the agent's history where
+     * whoever wrote the prompt can read it. Both halves of the guard are needed — the url is vetted
+     * per call below, and {@link PublicOnlySslSocketFactory} checks the connected socket, which is
+     * what survives a name that answers differently the second time it is asked.
+     */
+    private final PublicTargets targets;
+
     private final Cache<ModelKey, OpenAiChatModel> models = Caffeine.newBuilder()
             .maximumSize(64)
             .expireAfterAccess(Duration.ofMinutes(30))
@@ -70,6 +83,7 @@ public class ModelFactory {
 
     public ModelFactory(AgentProperties props) {
         this.app = props.getApp();
+        this.targets = new PublicTargets(props.getNet().isAllowPrivateTargets());
     }
 
     public OpenAiChatModel build(LlmCredentials creds) {
@@ -77,8 +91,14 @@ public class ModelFactory {
         if (!OPENAI_COMPATIBLE.contains(providerType)) {
             throw new IllegalArgumentException("Unsupported provider_type: " + creds.getProviderType());
         }
-        ModelKey key = new ModelKey(emptyToNull(creds.getBaseUrl()), CryptoUtils.sha256Hex(creds.getApiKey()),
-                creds.getModel());
+        String baseUrl = emptyToNull(creds.getBaseUrl());
+        if (baseUrl != null) {
+            // Per call, not per cached client: the cache would otherwise vet an address once and
+            // keep using it for half an hour. https is required alongside, because the socket-level
+            // check below happens during the TLS handshake and a plain-http call never reaches it.
+            targets.requireAllowed(baseUrl, !targets.allowsPrivate());
+        }
+        ModelKey key = new ModelKey(baseUrl, CryptoUtils.sha256Hex(creds.getApiKey()), creds.getModel());
         return models.get(key, k -> buildModel(k.baseUrl(), creds));
     }
 
@@ -107,7 +127,25 @@ public class ModelFactory {
                 .timeout(REQUEST_TIMEOUT)
                 .customHeaders(requestHeaders(baseUrl))
                 .build();
-        return OpenAiChatModel.builder().options(options).build();
+        return OpenAiChatModel.builder()
+                .options(options)
+                .httpClientBuilderCustomizer(builder -> builder
+                        .sslSocketFactory(publicOnlySslSocketFactory())
+                        .trustManager(PublicOnlySslSocketFactory.defaultTrustManager()))
+                .build();
+    }
+
+    /**
+     * Spring AI's OpenAI client exposes no DNS hook and follows redirects on its own, so the address
+     * is checked where it is still reachable: on the connected socket, before the handshake and
+     * therefore before the api key or the prompt go anywhere.
+     */
+    private PublicOnlySslSocketFactory publicOnlySslSocketFactory() {
+        try {
+            return new PublicOnlySslSocketFactory(SSLContext.getDefault().getSocketFactory(), targets);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("No default SSL context available", e);
+        }
     }
 
     /**

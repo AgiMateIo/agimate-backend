@@ -280,12 +280,11 @@ auth — статический Bearer-токен/произвольные за�
 - `executeTool` проксирует в `tools/call`; путь исполнения (`ToolExecutionService`, свежие credentials по
   `connection_id`) — общий, без изменений.
 
-**SSRF-guard.** URL задаёт пользователь, а запрос делает бэкенд — перед каждым обращением (`probe`/
-`tools/list`/`tools/call`, единый чокпоинт `McpClient.openSession`) проверяем цель: схема только
-`http(s)`, хост резолвится, и все его адреса должны быть публичными — loopback / link-local (вкл.
-`169.254.169.254`) / site-local / any-local / multicast / IPv6 unique-local блокируются. Резолв на
-каждом вызове сужает (но не закрывает полностью) окно DNS-rebinding. Флаг
-`app.connectors.mcp.allow-private-targets` (default `false`) снимает проверку для локальной разработки.
+**SSRF-guard.** URL задаёт пользователь, а запрос делает бэкенд — цель проверяется общим гардом
+исходящих вызовов (`PublicOnlyHttp`, см. [outbound-http.md](outbound-http.md)): перед каждым
+обращением (`probe`/`tools/list`/`tools/call`, единый чокпоинт `McpClient.openSession`) и, что важнее,
+внутри резолвера имён самого клиента. Флаг `app.net.allow-private-targets` (default `false`) снимает
+проверку для локальной разработки.
 
 **Кэш `connection_tools`** (per-connection, сырые JSON-схемы текстом для фиделити произвольной JSON Schema —
 `JsonSchema` сохраняет нестандартные ключевые слова через `@JsonAnySetter`). Синк — `McpToolDiscoveryListener`

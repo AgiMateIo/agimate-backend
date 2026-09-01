@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
@@ -21,6 +22,7 @@ import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
+import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
 import java.util.List;
 import java.util.Map;
@@ -60,6 +62,9 @@ class AgentServiceTest {
     private AgentLlmService agentLlmService;
     @Mock
     private SecretRepository secretRepository;
+    /** Настоящий, не мок: гард адреса — часть проверяемого здесь поведения, и он ничего не стоит. */
+    @Spy
+    private PublicOnlyHttp publicOnlyHttp = new PublicOnlyHttp(false);
 
     @InjectMocks
     private AgentService service;
@@ -205,6 +210,15 @@ class AgentServiceTest {
 
             assertEquals(AgentType.WEBHOOK, agent.getType());
             assertEquals("https://example.test/hook", agent.getWebhookUrl());
+        }
+
+        @Test
+        @DisplayName("адрес внутрь сети отвергается на записи, без резолва имени")
+        void privateWebhookUrlIsRejected() {
+            assertThrows(ValidationErrorStatusException.class,
+                    () -> service.patch(AGENT_ID, USER_ID, new PatchAgentRequest(
+                            null, null, null, AgentType.WEBHOOK,
+                            "http://169.254.169.254/latest/meta-data/", null, null)));
         }
 
         @Test
