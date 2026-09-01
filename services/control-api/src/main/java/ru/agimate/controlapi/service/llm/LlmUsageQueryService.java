@@ -14,6 +14,7 @@ import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.LlmQuotaRepository;
 import ru.agimate.controlapi.database.repositories.LlmUsageCounterRepository;
 import ru.agimate.controlapi.service.LlmProviderService;
+import ru.agimate.controlapi.service.dto.llm.LlmUsageSnapshot;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -42,10 +43,30 @@ public class LlmUsageQueryService {
     private final LlmUsageCounterRepository counterRepository;
 
     public List<LlmUsageResponse> usageForUser(UUID userId) {
+        UsageData data = usageData(userId);
+        return data.subjects().stream()
+                .map(subject -> build(subject, data.limits(), data.counters(), data.today()))
+                .toList();
+    }
+
+    /**
+     * The same computation as {@link #usageForUser(UUID)} mapped onto {@link LlmUsageSnapshot} — the
+     * service-layer shape for consumers that must not depend on {@code controller/**} (the platform
+     * connector's {@code get_llm_usage}).
+     */
+    public List<LlmUsageSnapshot> usageForUserSnapshot(UUID userId) {
+        UsageData data = usageData(userId);
+        return data.subjects().stream()
+                .map(subject -> buildSnapshot(subject, data.limits(), data.counters(), data.today()))
+                .toList();
+    }
+
+    /** The shared loading of both usage views: subjects, quota limits and counters for today. */
+    private UsageData usageData(UUID userId) {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         List<Subject> subjects = subjects(userId);
         if (subjects.isEmpty()) {
-            return List.of();
+            return new UsageData(today, List.of(), Map.of(), Map.of());
         }
 
         List<UUID> providerIds = subjects.stream().map(s -> s.provider().getId()).distinct().toList();
@@ -61,7 +82,11 @@ public class LlmUsageQueryService {
                 .stream()
                 .collect(Collectors.toMap(LlmUsageQueryService::keyOf, Function.identity()));
 
-        return subjects.stream().map(subject -> build(subject, limits, counters, today)).toList();
+        return new UsageData(today, subjects, limits, counters);
+    }
+
+    private record UsageData(LocalDate today, List<Subject> subjects,
+                             Map<QuotaKey, Long> limits, Map<CounterKey, LlmUsageCounter> counters) {
     }
 
     /** Which subject each provider is asked about — the perspective the class comment describes. */
@@ -101,6 +126,26 @@ public class LlmUsageQueryService {
         return new LlmUsageResponse(
                 subject.source() == AgentLlmResponse.Source.PLATFORM ? null : provider.getId(),
                 provider.getName(), subject.source(), windows);
+    }
+
+    private LlmUsageSnapshot buildSnapshot(Subject subject, Map<QuotaKey, Long> limits,
+                                           Map<CounterKey, LlmUsageCounter> counters, LocalDate today) {
+        LlmProvider provider = subject.provider();
+        List<LlmUsageSnapshot.WindowUsage> windows = new ArrayList<>();
+        for (UsageWindow window : UsageWindow.values()) {
+            LocalDate windowStart = window.windowStart(today);
+            LlmUsageCounter counter = counters.get(new CounterKey(
+                    provider.getId(), subject.kind(), subject.subjectId(), window, windowStart));
+            long used = counter != null ? counter.getTokens() : 0L;
+            int requests = counter != null ? counter.getRequests() : 0;
+            Long limit = limits.get(new QuotaKey(provider.getId(), subject.kind(), window));
+            windows.add(new LlmUsageSnapshot.WindowUsage(
+                    window, windowStart, used, requests,
+                    limit, limit != null ? Math.max(0, limit - used) : null));
+        }
+        return new LlmUsageSnapshot(
+                subject.source() == AgentLlmResponse.Source.PLATFORM ? null : provider.getId(),
+                provider.getName(), subject.source().name(), windows);
     }
 
     private static CounterKey keyOf(LlmUsageCounter counter) {

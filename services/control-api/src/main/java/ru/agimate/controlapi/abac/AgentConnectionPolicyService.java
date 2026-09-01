@@ -78,7 +78,9 @@ public class AgentConnectionPolicyService {
         }
         policy.setParamsFilter(paramsFilter);
         if (description != null) {
-            policy.setDescription(description);
+            // The documented /manage PATCH convention: an empty string clears. Storing it literally
+            // would make "clear" indistinguishable from "set to empty" and violate docs/services/control-api.md.
+            policy.setDescription(description.isBlank() ? null : description);
         }
         AgentConnectionPolicy saved = policyRepository.save(policy);
         invalidate(policy.getAgentConnectionId());

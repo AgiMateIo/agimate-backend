@@ -62,6 +62,27 @@ public class AgenticTeamService {
         return AgenticTeamResponse.from(team);
     }
 
+    /**
+     * Primitive-args counterpart of {@link #create(UUID, CreateAgenticTeamRequest)} for the platform
+     * connector (no controller DTO in the connector layer). Same body, returns the entity.
+     */
+    @Transactional
+    public AgenticTeam create(UUID userId, String name, String description) {
+        if (agenticTeamRepository.existsByUserIdAndName(userId, name)) {
+            throw new BadRequestStatusException("Team with this name already exists");
+        }
+
+        AgenticTeam team = AgenticTeam.builder()
+                .name(name)
+                .description(description)
+                .userId(userId)
+                .build();
+        team = agenticTeamRepository.save(team);
+
+        log.info("Created agentic team '{}' for user={}", name, userId);
+        return team;
+    }
+
     @Transactional
     public AgenticTeamResponse update(UUID id, UUID userId, UpdateAgenticTeamRequest request) {
         AgenticTeam team = agenticTeamRepository.findById(id)
@@ -113,6 +134,39 @@ public class AgenticTeamService {
 
         log.info("Patched agentic team id={}", id);
         return AgenticTeamResponse.from(team);
+    }
+
+    /**
+     * Primitive-args counterpart of {@link #patch(UUID, UUID, PatchAgenticTeamRequest)} for the
+     * platform connector (no controller DTO in the connector layer). Same PATCH semantics:
+     * {@code null} keeps the field, a blank {@code name} is rejected, a blank {@code description}
+     * clears it. Returns the entity.
+     */
+    @Transactional
+    public AgenticTeam patch(UUID id, UUID userId, String name, String description) {
+        AgenticTeam team = agenticTeamRepository.findById(id)
+                .orElseThrow(() -> new NotFoundStatusException("Agentic team not found"));
+        if (!team.getUserId().equals(userId)) {
+            throw new ForbiddenStatusException("Access denied");
+        }
+
+        if (name != null) {
+            if (name.isBlank()) {
+                throw new ValidationErrorStatusException("name", "Name must not be blank");
+            }
+            if (!team.getName().equals(name)
+                    && agenticTeamRepository.existsByUserIdAndName(userId, name)) {
+                throw new BadRequestStatusException("Team with this name already exists");
+            }
+            team.setName(name);
+        }
+        if (description != null) {
+            team.setDescription(description.isBlank() ? null : description);
+        }
+        team = agenticTeamRepository.save(team);
+
+        log.info("Patched agentic team id={}", id);
+        return team;
     }
 
     @Transactional

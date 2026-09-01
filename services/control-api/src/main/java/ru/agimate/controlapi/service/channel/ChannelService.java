@@ -93,6 +93,17 @@ public class ChannelService {
                 .toList();
     }
 
+    /**
+     * The same registry walk as {@link #listHandlers()} but mapped to the service-layer record, so
+     * consumers outside the controllers (the platform connector) never see {@code controller/**}
+     * DTOs.
+     */
+    public List<ChannelHandlerInfo> listHandlersFlat() {
+        return channelHandlerRegistry.all().stream()
+                .map(h -> new ChannelHandlerInfo(h.name(), h.getConfigFields()))
+                .toList();
+    }
+
     public ChannelResponse toResponse(Channel channel) {
         return toResponses(List.of(channel)).get(0);
     }
@@ -235,7 +246,9 @@ public class ChannelService {
                 throw new BadRequestStatusException(
                         "Changing the trigger/tool set is not allowed; recreate the channel instead");
             }
-            channel.setConfig(data.config());
+            // "Empty map clears" per the /manage PATCH canon: a literal {} would read as a config
+            // that was never set.
+            channel.setConfig(data.config().isEmpty() ? null : data.config());
         }
 
         if (data.inputFilter() != null || data.clearInputFilter()) {

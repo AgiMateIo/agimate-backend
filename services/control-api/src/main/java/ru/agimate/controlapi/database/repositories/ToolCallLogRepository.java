@@ -96,7 +96,7 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
             AND (:name IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))
             AND (:status IS NULL
                  OR (:status = 'SUCCESS' AND t.finishAt IS NOT NULL AND t.error IS NULL)
-                 OR (:status = 'ERROR'   AND t.finishAt IS NOT NULL AND t.error IS NOT NULL)
+                 OR (:status = 'ERROR'   AND t.error IS NOT NULL)
                  OR (:status = 'PENDING' AND t.finishAt IS NULL AND t.error IS NULL))
             ORDER BY t.createdAt DESC
             """)

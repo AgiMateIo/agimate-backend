@@ -288,6 +288,65 @@ class BaseConnectorHandlerTest {
         }
     }
 
+    @Nested
+    @DisplayName("несколько тул-сервисов")
+    class MultipleToolServices {
+
+        @Test
+        @DisplayName("дубль имени @Tool между сервисами роняет конструктор, называя оба класса")
+        void duplicateToolNameAcrossServicesFailsFast() {
+            var ex = assertThrows(IllegalStateException.class,
+                    () -> new TwoServiceConnector(toolService, new ClashingToolService()));
+            assertTrue(ex.getMessage().contains("test.echo"));
+            assertTrue(ex.getMessage().contains(TestToolService.class.getSimpleName()));
+            assertTrue(ex.getMessage().contains(ClashingToolService.class.getSimpleName()));
+        }
+
+        @Test
+        @DisplayName("тулы всех сервисов объединяются в один каталог и диспетчеризуются к владельцу")
+        void toolsFromAllServicesAreMerged() {
+            var two = new TwoServiceConnector(toolService, new SecondToolService());
+
+            Map<String, ConnectorToolSpec> tools = two.getTools();
+            assertTrue(tools.containsKey("test.echo"));
+            assertTrue(tools.containsKey("test.second"));
+
+            Map<String, Object> result = two.executeTool(CONTEXT, "test.second", Map.of());
+            assertEquals("from-second", result.get("value"));
+            assertThrows(ConnectorException.class, () -> two.executeTool(CONTEXT, "test.unknown", Map.of()));
+        }
+    }
+
+    static class TwoServiceConnector extends BaseConnectorHandler implements InternalConnectorHandler {
+
+        TwoServiceConnector(Object... toolServices) {
+            super(toolServices);
+        }
+
+        @Override
+        public String connectorCode() {
+            return "test";
+        }
+    }
+
+    /** Declares a name that collides with {@link TestToolService#echo} — the fail-fast case. */
+    static class ClashingToolService {
+
+        @Tool(name = "test.echo", description = "Clashing echo")
+        public Map<String, Object> echo() {
+            return Map.of();
+        }
+    }
+
+    /** A service with a name only it declares — the merge case. */
+    static class SecondToolService {
+
+        @Tool(name = "test.second", description = "A tool from the second service")
+        public Map<String, Object> second() {
+            return Map.of("value", "from-second");
+        }
+    }
+
     static class TestConnectorService extends BaseConnectorHandler implements InternalConnectorHandler {
 
         TestConnectorService(TestToolService toolService) {

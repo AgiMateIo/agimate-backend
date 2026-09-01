@@ -9,7 +9,6 @@ import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.common.rest.error.ForbiddenStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.util.JsonUtils;
-import ru.agimate.common.net.TargetNotAllowedException;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreateLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.CreatePlatformLlmProviderRequest;
 import ru.agimate.controlapi.controller.manage.dto.llm.LlmProviderModelResponse;
@@ -25,13 +24,15 @@ import ru.agimate.controlapi.database.entities.Secret;
 import ru.agimate.controlapi.database.enums.LlmProviderModelStatus;
 import ru.agimate.controlapi.database.enums.LlmProviderType;
 import ru.agimate.controlapi.database.enums.LlmPurpose;
+import ru.agimate.controlapi.database.enums.MediaTransportType;
 import ru.agimate.controlapi.database.repositories.LlmModelDefaultsRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.llm.discovery.LlmModelDiscoveryService;
+import ru.agimate.controlapi.service.dto.llm.LlmProviderCreateCommand;
+import ru.agimate.controlapi.service.dto.llm.LlmProviderUpdateCommand;
 import ru.agimate.controlapi.service.secret.SecretService;
-import ru.agimate.controlapi.service.http.PublicOnlyHttp;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -66,7 +67,6 @@ public class LlmProviderService {
     private final SecretRepository secretRepository;
     private final SecretService secretService;
     private final LlmModelDiscoveryService modelDiscoveryService;
-    private final PublicOnlyHttp publicOnlyHttp;
 
     /** An admin also sees the platform row in the list (the free tier is managed through the same endpoints). */
     public List<LlmProviderResponse> listForUser(UUID userId, boolean admin) {
@@ -165,83 +165,120 @@ public class LlmProviderService {
 
     @Transactional
     public LlmProviderResponse create(UUID userId, CreateLlmProviderRequest request) {
-        validateBaseUrl(request.providerType(), request.baseUrl());
-        validateExtraBody(request.extraBody());
-        validatePurposePriority(request.purposePriority());
-        if (llmProviderRepository.existsByUserIdAndName(userId, request.name())) {
+        return LlmProviderResponse.from(createInternal(userId, request.name(), request.providerType(),
+                request.baseUrl(), request.apiKey(), request.purposePriority(), request.extraBody(),
+                request.mediaTransport(), request.enabled()));
+    }
+
+    /** The command overload — the platform connector's entry point (no {@code controller/**} dependency). */
+    @Transactional
+    public LlmProvider create(UUID userId, LlmProviderCreateCommand command) {
+        return createInternal(userId, command.name(), command.providerType(), command.baseUrl(),
+                command.apiKey(), command.purposePriority(), command.extraBody(),
+                command.mediaTransport(), command.enabled());
+    }
+
+    private LlmProvider createInternal(UUID userId, String name, LlmProviderType providerType, String baseUrl,
+                                       String apiKey, Map<LlmPurpose, List<String>> purposePriority,
+                                       Map<String, Object> extraBody, MediaTransportType mediaTransport,
+                                       Boolean enabled) {
+        validateBaseUrl(providerType, baseUrl);
+        validateExtraBody(extraBody);
+        validatePurposePriority(purposePriority);
+        if (llmProviderRepository.existsByUserIdAndName(userId, name)) {
             throw new ConflictStatusException("LLM provider with this name already exists");
         }
 
         // The id is needed before the secret is encrypted (the AAD binding) — so the provider is saved first.
         LlmProvider provider = llmProviderRepository.save(LlmProvider.builder()
                 .userId(userId)
-                .name(request.name())
-                .providerType(request.providerType())
-                .baseUrl(blankToNull(request.baseUrl()))
-                .purposePriority(emptyToNull(request.purposePriority()))
-                .extraBody(request.extraBody())
-                .mediaTransport(request.mediaTransport())
-                .apiKeyMask(buildMask(request.apiKey()))
-                .enabled(request.enabled() == null || request.enabled())
+                .name(name)
+                .providerType(providerType)
+                .baseUrl(blankToNull(baseUrl))
+                .purposePriority(emptyToNull(purposePriority))
+                .extraBody(extraBody)
+                .mediaTransport(mediaTransport)
+                .apiKeyMask(buildMask(apiKey))
+                .enabled(enabled == null || enabled)
                 .build());
 
         Secret secret = secretService.store(SECRET_ENTITY, provider.getId(),
-                Map.of(API_KEY_FIELD, request.apiKey()));
+                Map.of(API_KEY_FIELD, apiKey));
         provider.setSecretId(secret.getId());
         provider = llmProviderRepository.save(provider);
 
         log.info("Created LLM provider id={}, user={}, type={}",
                 provider.getId(), userId, provider.getProviderType());
-        return LlmProviderResponse.from(provider);
+        return provider;
     }
 
     @Transactional
     public LlmProviderResponse update(UUID id, UUID userId, boolean admin, UpdateLlmProviderRequest request) {
+        return LlmProviderResponse.from(updateInternal(id, userId, admin, request.name(), request.baseUrl(),
+                request.apiKey(), request.purposePriority(), request.extraBody(), request.mediaTransport(),
+                request.enabled()));
+    }
+
+    /** The command overload — the platform connector's entry point (no {@code controller/**} dependency).
+     *  PATCH semantics, as in the controller path: null fields keep the current value. */
+    @Transactional
+    public LlmProvider update(UUID id, UUID userId, LlmProviderUpdateCommand command) {
+        return updateInternal(id, userId, false, command.name(), command.baseUrl(), command.apiKey(),
+                command.purposePriority(), command.extraBody(), command.mediaTransport(), command.enabled());
+    }
+
+    private LlmProvider updateInternal(UUID id, UUID userId, boolean admin, String name, String baseUrl,
+                                       String apiKey, Map<LlmPurpose, List<String>> purposePriority,
+                                       Map<String, Object> extraBody, MediaTransportType mediaTransport,
+                                       Boolean enabled) {
         LlmProvider provider = requireOwnedOrPlatformAdmin(id, userId, admin);
 
-        if (request.name() != null && !request.name().equals(provider.getName())) {
+        if (name != null && name.isBlank()) {
+            throw new BadRequestStatusException("Provider name must not be blank");
+        }
+        if (name != null && !name.equals(provider.getName())) {
             if (isPlatform(provider)) {
                 // The name «platform» is the key of the fallback lookup; renaming would break credential issuing.
                 throw new BadRequestStatusException("Platform provider cannot be renamed");
             }
-            if (llmProviderRepository.existsByUserIdAndName(userId, request.name())) {
+            if (llmProviderRepository.existsByUserIdAndName(userId, name)) {
                 throw new ConflictStatusException("LLM provider with this name already exists");
             }
-            provider.setName(request.name());
+            provider.setName(name);
         }
-        if (request.purposePriority() != null) {
-            validatePurposePriority(request.purposePriority());
-            validateModelsKnown(provider, request.purposePriority().values().stream()
+        if (purposePriority != null) {
+            validatePurposePriority(purposePriority);
+            validateModelsKnown(provider, purposePriority.values().stream()
                     .flatMap(List::stream).toList());
             // The whole map is replaced; an empty object clears it (partial update: null = «leave unchanged»).
-            provider.setPurposePriority(emptyToNull(request.purposePriority()));
+            provider.setPurposePriority(emptyToNull(purposePriority));
         }
-        if (request.baseUrl() != null) {
-            String normalized = blankToNull(request.baseUrl());
+        if (baseUrl != null) {
+            String normalized = blankToNull(baseUrl);
             validateBaseUrl(provider.getProviderType(), normalized);
             provider.setBaseUrl(normalized);
         }
-        if (request.apiKey() != null && !request.apiKey().isBlank()) {
+        if (apiKey != null && !apiKey.isBlank()) {
             Secret secret = secretRepository.findById(provider.getSecretId())
                     .orElseThrow(() -> new NotFoundStatusException("Secret not found for LLM provider " + id));
-            secretService.update(secret, provider.getId(), Map.of(API_KEY_FIELD, request.apiKey()));
-            provider.setApiKeyMask(buildMask(request.apiKey()));
+            secretService.update(secret, provider.getId(), Map.of(API_KEY_FIELD, apiKey));
+            provider.setApiKeyMask(buildMask(apiKey));
         }
-        if (request.extraBody() != null) {
-            validateExtraBody(request.extraBody());
+        if (extraBody != null) {
+            validateExtraBody(extraBody);
             // An empty object clears it (partial update: null = «leave unchanged»).
-            provider.setExtraBody(request.extraBody().isEmpty() ? null : request.extraBody());
+            provider.setExtraBody(extraBody.isEmpty() ? null : extraBody);
         }
-        if (request.mediaTransport() != null) {
-            provider.setMediaTransport(request.mediaTransport());
+        if (mediaTransport != null) {
+            provider.setMediaTransport(mediaTransport);
         }
-        if (request.enabled() != null) {
-            provider.setEnabled(request.enabled());
+        if (enabled != null) {
+            provider.setEnabled(enabled);
         }
 
         provider = llmProviderRepository.save(provider);
         log.info("Updated LLM provider id={}", id);
-        return LlmProviderResponse.from(provider);
+        return provider;
     }
 
     @Transactional
@@ -479,25 +516,10 @@ public class LlmProviderService {
         return key;
     }
 
-    /**
-     * The address is vetted twice: here, where a wrong base url is a 400 in front of the person who
-     * typed it — shape only, plus the address when the url names one outright, so saving a provider
-     * does not depend on DNS. And again inside the name resolution of every client that later calls
-     * it ({@link ru.agimate.controlapi.service.http.PublicOnlyHttp}), which is the check that
-     * decides what the socket may reach.
-     */
     private void validateBaseUrl(LlmProviderType providerType, String baseUrl) {
         if (providerType == LlmProviderType.OPENAI_COMPATIBLE
                 && (baseUrl == null || baseUrl.isBlank())) {
             throw new BadRequestStatusException("base_url is required for OPENAI_COMPATIBLE provider");
-        }
-        if (baseUrl == null || baseUrl.isBlank()) {
-            return;
-        }
-        try {
-            publicOnlyHttp.requireSyntax(baseUrl);
-        } catch (TargetNotAllowedException e) {
-            throw new BadRequestStatusException("base_url: " + e.getMessage());
         }
     }
 

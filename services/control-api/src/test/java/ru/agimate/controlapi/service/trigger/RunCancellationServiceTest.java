@@ -127,7 +127,7 @@ class RunCancellationServiceTest {
     class CancelSession {
 
         private void stubSession(UUID ownerId) {
-            AgentSession session = AgentSession.builder().channelId(CHANNEL_ID).build();
+            AgentSession session = AgentSession.builder().userId(USER_ID).channelId(CHANNEL_ID).build();
             session.setId(SESSION_ID);
             when(agentSessionRepository.findById(SESSION_ID)).thenReturn(Optional.of(session));
             when(channelRepository.findByIdAndDeletedAtIsNull(CHANNEL_ID))

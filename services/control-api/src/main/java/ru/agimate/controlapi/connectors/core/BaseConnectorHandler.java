@@ -22,7 +22,7 @@ import java.util.Map;
 /**
  * Base of a connector facade with {@code @Tool} methods: identity ({@link ConnectorHandler}, with
  * {@code connectorCode} left to the facade) plus the single reflection dispatcher
- * {@link ToolProvider}/{@link JobProvider} — it scans the tool service's {@code @Tool} methods,
+ * {@link ToolProvider}/{@link JobProvider} — it scans the tool services' {@code @Tool} methods,
  * builds the specs and performs calls with {@link ConnectorEnv} bound through
  * {@link ConnectorEnvHolder} (set/clear happens only here). Connectors without a tool service
  * (webchat, MCP) do not use this base — they implement the interfaces they need directly.
@@ -34,27 +34,48 @@ import java.util.Map;
  */
 public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProvider, JobProvider {
 
-    private final Object toolService;
+    /** Dispatch target of each {@code @Tool} method: several tool services may share one facade. */
+    private final Map<Method, Object> ownerByMethod;
     private final Map<String, Method> methodsByName;
     private final Map<String, ConnectorToolSpec> toolSpecs;
 
-    protected BaseConnectorHandler(Object toolService) {
-        this.toolService = toolService;
-        this.methodsByName = scanToolMethods(toolService);
+    protected BaseConnectorHandler(Object... toolServices) {
+        if (toolServices.length == 0) {
+            throw new IllegalStateException(getClass().getSimpleName()
+                    + " must be built with at least one tool service");
+        }
+        for (Object service : toolServices) {
+            if (service == null) {
+                throw new IllegalStateException(getClass().getSimpleName()
+                        + " received a null tool service");
+            }
+        }
+        Map<Method, Object> owners = new LinkedHashMap<>();
+        this.methodsByName = scanToolMethods(toolServices, owners);
+        this.ownerByMethod = Map.copyOf(owners);
         this.toolSpecs = buildToolSpecs(this.methodsByName);
     }
 
-    private static Map<String, Method> scanToolMethods(Object toolService) {
+    /**
+     * Collects every {@code @Tool} method across all tool services, remembering which service owns
+     * each method. A {@code @Tool} name is unique per facade — a duplicate across two services is a
+     * wiring error and fails fast, naming both declaring classes.
+     */
+    private static Map<String, Method> scanToolMethods(Object[] toolServices, Map<Method, Object> owners) {
         Map<String, Method> methods = new LinkedHashMap<>();
-        for (Method method : toolService.getClass().getMethods()) {
-            Tool tool = method.getAnnotation(Tool.class);
-            if (tool == null) {
-                continue;
-            }
-            Method previous = methods.putIfAbsent(tool.name(), method);
-            if (previous != null) {
-                throw new IllegalStateException("Duplicate @Tool name '" + tool.name()
-                        + "' in " + toolService.getClass().getName());
+        for (Object toolService : toolServices) {
+            for (Method method : toolService.getClass().getMethods()) {
+                Tool tool = method.getAnnotation(Tool.class);
+                if (tool == null) {
+                    continue;
+                }
+                Method previous = methods.putIfAbsent(tool.name(), method);
+                if (previous != null) {
+                    throw new IllegalStateException("Duplicate @Tool name '" + tool.name()
+                            + "' across " + previous.getDeclaringClass().getName()
+                            + " and " + toolService.getClass().getName());
+                }
+                owners.put(method, toolService);
             }
         }
         return methods;
@@ -163,7 +184,7 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
     private Map<String, Object> invoke(ConnectorEnv env, Method method, Map<String, Object> args) {
         ConnectorEnvHolder.set(env);
         try {
-            Object result = method.invoke(toolService, buildMethodArgs(method, args));
+            Object result = method.invoke(ownerByMethod.get(method), buildMethodArgs(method, args));
             if (result == null) {
                 return Map.of();
             }

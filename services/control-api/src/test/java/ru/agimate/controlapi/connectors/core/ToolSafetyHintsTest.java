@@ -12,7 +12,11 @@ import ru.agimate.controlapi.connectors.internal.board.BoardToolService;
 import ru.agimate.controlapi.connectors.internal.divination.DivinationToolService;
 import ru.agimate.controlapi.connectors.internal.media.MediaToolService;
 import ru.agimate.controlapi.connectors.internal.persistentmemory.PersistentMemoryToolService;
-import ru.agimate.controlapi.connectors.internal.platform.PlatformToolService;
+import ru.agimate.controlapi.connectors.internal.platform.PlatformAgentToolService;
+import ru.agimate.controlapi.connectors.internal.platform.PlatformConnectionToolService;
+import ru.agimate.controlapi.connectors.internal.platform.PlatformLlmToolService;
+import ru.agimate.controlapi.connectors.internal.platform.PlatformObservabilityToolService;
+import ru.agimate.controlapi.connectors.internal.platform.PlatformWorkspaceToolService;
 import ru.agimate.controlapi.connectors.internal.sheets.SheetsToolService;
 import ru.agimate.controlapi.connectors.internal.time.TimeToolService;
 
@@ -40,7 +44,8 @@ class ToolSafetyHintsTest {
     private static final List<Class<?>> TOOL_SERVICES = List.of(
             TelegramToolService.class, AcpToolService.class, AstroToolService.class,
             BoardToolService.class, DivinationToolService.class, MediaToolService.class,
-            PersistentMemoryToolService.class, PlatformToolService.class,
+            PersistentMemoryToolService.class, PlatformAgentToolService.class, PlatformConnectionToolService.class,
+            PlatformLlmToolService.class, PlatformWorkspaceToolService.class, PlatformObservabilityToolService.class,
             SheetsToolService.class, TimeToolService.class);
 
     /**
@@ -70,9 +75,24 @@ class ToolSafetyHintsTest {
             "AcpToolService.run_command",
             "BoardToolService.edit_task",
             "PersistentMemoryToolService.update_memory",
-            "PlatformToolService.update_agent",
-            "PlatformToolService.update_skill",
-            "PlatformToolService.unbind_skill",
+            "PlatformAgentToolService.delete_agent",
+            "PlatformAgentToolService.delete_file",
+            "PlatformAgentToolService.delete_skill",
+            "PlatformAgentToolService.regenerate_agent_key",
+            "PlatformAgentToolService.unbind_skill",
+            "PlatformAgentToolService.update_agent",
+            "PlatformAgentToolService.update_skill",
+            "PlatformConnectionToolService.delete_channel",
+            "PlatformConnectionToolService.delete_connection",
+            "PlatformConnectionToolService.delete_policy",
+            "PlatformConnectionToolService.unbind_connection",
+            "PlatformLlmToolService.delete_agent_llm",
+            "PlatformLlmToolService.delete_llm_provider",
+            "PlatformLlmToolService.delete_llm_quota",
+            "PlatformObservabilityToolService.cancel_run",
+            "PlatformObservabilityToolService.cancel_session",
+            "PlatformWorkspaceToolService.delete_job",
+            "PlatformWorkspaceToolService.delete_team",
             "SheetsToolService.delete_sheet",
             "SheetsToolService.update_rows",
             "SheetsToolService.delete_rows",
