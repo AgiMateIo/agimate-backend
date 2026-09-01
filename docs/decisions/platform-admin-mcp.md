@@ -62,10 +62,13 @@ delete/regenerate, команды — были намеренно вне кон�
   `board`: остаются только `list_boards` (краткие сведения без задач) и `create_board`. Поэтому
   первичное наполнение доски команды — двухшаговый поток: создать доску через `platform`, затем
   привязанный коннектор `board` создаёт задачи и ведёт их.
-- **Усечённые листинги явны.** Восемь листингов (`list_agents`, `list_skills`, `list_connectors`,
-  `list_connections`, `list_channels`, `list_teams`, `list_boards`, `list_connector_jobs`)
-  ограничены 100 первыми записями и возвращают `{items, truncated}`, чтобы клиент не считал
-  результат полным.
+- **Усечённые листинги явны.** Все листинги владельца (22: agents, skills, files, connectors,
+  connections, connection_tools, connection_agents, agent_connections, channels, policies,
+  llm_providers, llm_provider_models, llm_quotas, agent_llms, runs, sessions, tool_call_logs,
+  trigger_logs, webhook_deliveries, teams, boards, connector_jobs) ограничены 100 первыми записями
+  и возвращают `{items, truncated}`, чтобы клиент не считал результат полным; статические каталоги
+  (`list_channel_handlers`, `list_llm_provider_catalog`, `list_presets`) и `get_run_turns`
+  (объявлено в описании тула) не капятся.
 - **ADMIN-поверхность (`/manage/admin`) вне коннектора**: в `ConnectorEnv` нет роли,
   ключ агента не доказывает ADMIN. Единственное исключение из «всё, что может дашборд»,
   мотивированное не транспортом, а правами.
@@ -117,7 +120,7 @@ ABAC уже гейтит (`agent_connections` + `agent_connection_policies`), MC
 - `BaseConnectorHandler` держит `Map<Method,Object> ownerByMethod`; диспатч по имени не
   меняется; дубль имени тула между модулями — `IllegalStateException` на конструкторе.
 - Все мутации — через `PlatformToolsSupport.domain(...)` (трансляция `*StatusException`
-  в `ConnectorException`); восемь листингов возвращают `{items, truncated}` и ограничены
+  в `ConnectorException`); листинги владельца возвращают `{items, truncated}` и ограничены
   `MAX_LISTING = 100`, без пагинации.
 - **Раскатка сидов.** Seed-only-if-missing сохраняется: на уже засиденных окружениях новое тело
   `SKILL.md` попадает к агентам через существующий manage API (`update_skill` +
