@@ -98,9 +98,18 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
                  OR (:status = 'SUCCESS' AND t.finishAt IS NOT NULL AND t.error IS NULL)
                  OR (:status = 'ERROR'   AND t.error IS NOT NULL)
                  OR (:status = 'PENDING' AND t.finishAt IS NULL AND t.error IS NULL))
+            AND (:since IS NULL OR t.createdAt >= :since)
+            AND (:until IS NULL OR t.createdAt <= :until)
             ORDER BY t.createdAt DESC
             """)
-    Page<ToolCallLog> findWithFilters(UUID userId, UUID agentId, String connectorCode,
-                                      String connectionId, AccessEffect accessEffect,
-                                      String name, String status, Pageable pageable);
+    Page<ToolCallLog> findWithFilters(@Param("userId") UUID userId,
+                                      @Param("agentId") UUID agentId,
+                                      @Param("connectorCode") String connectorCode,
+                                      @Param("connectionId") String connectionId,
+                                      @Param("accessEffect") AccessEffect accessEffect,
+                                      @Param("name") String name,
+                                      @Param("status") String status,
+                                      @Param("since") LocalDateTime since,
+                                      @Param("until") LocalDateTime until,
+                                      Pageable pageable);
 }

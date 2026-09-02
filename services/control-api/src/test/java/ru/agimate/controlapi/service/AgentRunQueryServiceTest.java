@@ -83,25 +83,25 @@ class AgentRunQueryServiceTest {
         @DisplayName("пустая строка фильтра — это отсутствие фильтра, а не поиск по пустой строке")
         void blankFiltersBecomeNull() {
             when(agentRunRepository.findRunsWithFilters(any(), any(), any(), any(), any(), any(), any(),
-                    any(), any(), any())).thenReturn(Page.empty());
+                    any(), any(), any(), any(), any())).thenReturn(Page.empty());
 
             service.listRuns(USER_ID, null, SESSION_ID, null, "  ", "", "  ", null, 0, 20);
 
             verify(agentRunRepository).findRunsWithFilters(eq(USER_ID), isNull(), isNull(), eq(SESSION_ID),
-                    isNull(), isNull(), isNull(), isNull(), isNull(), any());
+                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any());
         }
 
         @Test
         @DisplayName("страница и размер доезжают до запроса")
         void pagingPassedThrough() {
             when(agentRunRepository.findRunsWithFilters(any(), any(), any(), any(), any(), any(), any(),
-                    any(), any(), any())).thenReturn(Page.empty());
+                    any(), any(), any(), any(), any())).thenReturn(Page.empty());
 
             service.listRuns(USER_ID, null, null, null, null, null, null, null, 2, 5);
 
             ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
             verify(agentRunRepository).findRunsWithFilters(any(), any(), any(), any(), any(), any(),
-                    any(), any(), any(), pageable.capture());
+                    any(), any(), any(), isNull(), isNull(), pageable.capture());
             assertEquals(2, pageable.getValue().getPageNumber());
             assertEquals(5, pageable.getValue().getPageSize());
         }
@@ -135,7 +135,7 @@ class AgentRunQueryServiceTest {
             List<AgentRunProjection> page = List.of(projection(first), projection(second));
             List<RunUsageProjection> spend = List.of(usage(first, 1200, 300, 2));
             when(agentRunRepository.findRunsWithFilters(any(), any(), any(), any(), any(), any(), any(),
-                    any(), any(), any())).thenReturn(new PageImpl<>(page));
+                    any(), any(), any(), any(), any())).thenReturn(new PageImpl<>(page));
             when(usageLogRepository.sumByRunIds(List.of(first, second))).thenReturn(spend);
 
             List<AgentRunResponse> runs =
@@ -166,7 +166,7 @@ class AgentRunQueryServiceTest {
         @DisplayName("пустая страница — за расходом не идём вовсе")
         void emptyPageSkipsTheQuery() {
             when(agentRunRepository.findRunsWithFilters(any(), any(), any(), any(), any(), any(), any(),
-                    any(), any(), any())).thenReturn(Page.empty());
+                    any(), any(), any(), any(), any())).thenReturn(Page.empty());
 
             service.listRuns(USER_ID, null, null, null, null, null, null, null, 0, 20);
 
@@ -182,12 +182,12 @@ class AgentRunQueryServiceTest {
         @DisplayName("читается тем же запросом, что и листинг — только по ключу")
         void narrowsTheListingToAKey() {
             when(agentRunRepository.findRunsWithFilters(any(), any(), any(), any(), any(), any(), any(),
-                    any(), any(), any())).thenReturn(Page.empty());
+                    any(), any(), any(), any(), any())).thenReturn(Page.empty());
 
             assertThrows(NotFoundStatusException.class, () -> service.getRun(RUN_ID, USER_ID));
 
             verify(agentRunRepository).findRunsWithFilters(eq(USER_ID), eq(RUN_ID), isNull(), isNull(),
-                    isNull(), isNull(), isNull(), isNull(), isNull(), any());
+                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any());
         }
     }
 

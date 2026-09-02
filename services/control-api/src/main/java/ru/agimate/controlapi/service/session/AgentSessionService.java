@@ -54,7 +54,7 @@ public class AgentSessionService {
      * user's channels first, and sessions of connection scope have no channel to be found through.
      */
     public Page<AgentSession> list(UUID userId, UUID agentId, UUID channelId, String connectorCode,
-                                   int page, int size) {
+                                   LocalDateTime since, LocalDateTime until, int page, int size) {
         Specification<AgentSession> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("userId"), userId));
@@ -66,6 +66,13 @@ public class AgentSessionService {
             }
             if (connectorCode != null) {
                 predicates.add(cb.equal(root.get("connectorCode"), connectorCode));
+            }
+            // The activity window binds to the column the listing sorts by (lastActivityAt).
+            if (since != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("lastActivityAt"), since));
+            }
+            if (until != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("lastActivityAt"), until));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
         };

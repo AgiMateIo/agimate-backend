@@ -61,6 +61,7 @@ public class AgentRunQueryService {
         return withUsage(agentRunRepository.findRunsWithFilters(
                 userId, null, agentId, sessionId, triggerLogId,
                 blankToNull(connectorCode), blankToNull(connectionId), blankToNull(name), status,
+                null, null,
                 PageRequest.of(page, size)));
     }
 
@@ -112,7 +113,8 @@ public class AgentRunQueryService {
      */
     public AgentRunResponse getRun(UUID runId, UUID userId) {
         return withUsage(agentRunRepository.findRunsWithFilters(
-                        userId, runId, null, null, null, null, null, null, null, PageRequest.of(0, 1)))
+                        userId, runId, null, null, null, null, null, null, null, null, null,
+                        PageRequest.of(0, 1)))
                 .stream()
                 .findFirst()
                 .orElseThrow(() -> new NotFoundStatusException("Run not found: " + runId));

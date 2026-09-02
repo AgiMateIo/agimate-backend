@@ -12,7 +12,7 @@
 
 Новые тулы помечены **(новый)**, расширенные — **(расширен)**; 13 прежних тулов перенесены без изменения поведения и не помечены.
 
-Все листинги владельца (22 тула: `list_agents`, `list_skills`, `list_files`, `list_connectors`, `list_connections`, `list_connection_tools`, `list_connection_agents`, `list_agent_connections`, `list_channels`, `list_policies`, `list_llm_providers`, `list_llm_provider_models`, `list_llm_quotas`, `list_agent_llms`, `list_runs`, `list_sessions`, `list_tool_call_logs`, `list_trigger_logs`, `list_webhook_deliveries`, `list_teams`, `list_boards`, `list_connector_jobs`) возвращают `{items: [...], truncated: true|false}`. Каждый ограничен первыми 100 записями; `truncated` показывает, что результат неполный. Статические каталоги (`list_channel_handlers`, `list_llm_provider_catalog`, `list_presets`) не капятся — их объём ограничен системой; `get_run_turns` — осознанное исключение, объявленное в описании тула.
+Все листинги владельца и сводки (24 тула: `list_agents`, `list_skills`, `list_files`, `list_agent_skills`, `list_connectors`, `list_connections`, `list_connection_tools`, `list_connection_agents`, `list_agent_connections`, `list_channels`, `list_policies`, `list_llm_providers`, `list_llm_provider_models`, `list_llm_quotas`, `list_agent_llms`, `get_llm_usage`, `list_runs`, `list_sessions`, `list_tool_call_logs`, `list_trigger_logs`, `list_webhook_deliveries`, `list_teams`, `list_boards`, `list_connector_jobs`) возвращают списочное поле (имя у каждого своё — `items`, `agents`, `skills`, `models` и т.д.) плюс `truncated: true|false`. Каждый ограничен первыми 100 записями (или первой страницей из 100); `truncated` показывает, что результат неполный. Статические каталоги (`list_channel_handlers`, `list_llm_provider_catalog`, `list_presets`) не капятся — их объём ограничен системой; `get_run_turns` — осознанное исключение, объявленное в описании тула.
 
 ### Агенты, навыки, файлы — `PlatformAgentToolService` (17)
 
@@ -20,11 +20,11 @@
 |---|---|
 | `list_agents` | Агенты владельца (`search`) |
 | `get_agent` **(расширен)** | Конфиг агента: инструкции, тип, webhook (`webhookUrl`, `hasWebhookAuth`), привязанные навыки + их коннекторы |
-| `create_agent` **(расширен)** | Создать агента: type GENERIC (по умолчанию) / CENTRIFUGO / MCP / WEBHOOK; `webhookUrl` для WEBHOOK, `teamId` — в команду, `skillIds` — привязать сразу (внутренние коннекторы навыков открываются автоматически); возвращает `keyUrl` на страницу UI `/dashboard/agents/<id>`, где ключ показывается один раз |
-| `update_agent` **(расширен)** | Правка name/description/instructions/type/webhook/enabled (PATCH-семантика; смена типа с WEBHOOK чистит webhook-поля; пустой `type` означает «не прислан», очистки типа нет) |
+| `create_agent` **(расширен)** | Создать агента: type GENERIC (по умолчанию) / CENTRIFUGO / MCP / WEBHOOK; `webhookUrl` для WEBHOOK, `teamId` — в команду, `skillIds` — привязать сразу (внутренние коннекторы навыков открываются автоматически); возвращает `keyUrl` на страницу UI `/dashboard/agents/<id>`, где ключ показывается один раз; `webhookAuthHeader` тулом не принимается — вводится на той же странице агента |
+| `update_agent` **(расширен)** | Правка name/description/instructions/type/webhookUrl/enabled (PATCH-семантика; смена типа с WEBHOOK чистит webhookUrl и сохранённый auth-заголовок на сервере; пустой `type` означает «не прислан», очистки типа нет; `webhookAuthHeader` — не параметр тула, ввод на странице агента) |
 | `delete_agent` **(новый)** | Удалить агента (soft delete): снимает привязки, политики и джобы; себя — нельзя |
 | `regenerate_agent_key` **(новый)** | Перевыпустить ключ агента: старый перестаёт работать сразу; возвращает `keyUrl` на страницу UI `/dashboard/agents/<id>`, где новый ключ показывается один раз; себя — нельзя |
-| `list_agent_skills` **(новый)** | Навыки агента со статусом удовлетворённости коннекторов (что не хватает — видно в `list_agent_connections`; чтение собственного агента разрешено) |
+| `list_agent_skills` **(новый)** | Навыки агента со статусом удовлетворённости коннекторов (что не хватает — видно в `list_agent_connections`; чтение собственного агента разрешено; новейшие привязки первыми, первые 100) |
 | `mark_skills_installed` **(новый)** | Принять текущую версию навыков агента и снять `needsReinstall` (после обновления навыков мимо тулов) |
 | `get_skill` | Полный SKILL.md навыка |
 | `list_skills` | Навыки: `scope` MINE (свои) / PUBLIC, `search`, `connectorCode` |
@@ -69,12 +69,12 @@
 |---|---|
 | `list_llm_providers` **(новый)** | Свои LLM-провайдеры (BYOK); платформенный не показывается; ключ не возвращается — только `apiKeyMask` |
 | `get_llm_provider` **(новый)** | Детали провайдера: приоритеты целей, extraBody, mediaTransport |
-| `create_llm_provider` **(новый)** | Создать провайдера (OPENAI/ANTHROPIC/GEMINI/OPENAI_COMPATIBLE); `apiKey` обязателен, хранится шифрованно, не возвращается |
-| `update_llm_provider` **(новый)** | Частичная правка провайдера (не переданное — сохраняется; пустой map — очистка) |
+| `create_llm_provider` **(новый)** | Начать добавление провайдера (OPENAI/ANTHROPIC/GEMINI/OPENAI_COMPATIBLE): ничего не создаёт — возвращает setup-ссылку `/llm-providers/new`, где пользователь вводит ключ (ключ не параметр тула); после — `list_llm_providers` + `refresh_llm_provider_models` |
+| `update_llm_provider` **(новый)** | Частичная правка провайдера (не переданное — сохраняется; пустой map — очистка); ротация ключа и смена эндпоинта (`baseUrl`) — не параметры тула, выполняются в UI на странице провайдера (по эндпоинту платформа шлёт сохранённый ключ при refresh) |
 | `delete_llm_provider` **(новый)** | Удалить провайдера (каскад на привязки агентов); платформенный — отказ |
 | `refresh_llm_provider_models` **(новый)** | Синхронизировать реестр моделей из `/models` по сохранённому ключу (заодно проверяет ключ) |
-| `list_llm_provider_models` **(новый)** | Модели провайдера со статусами |
-| `list_llm_provider_catalog` **(новый)** | Каталог известных LLM-шлюзов: точный baseUrl, модели по целям (`purposePriority`), где взять ключ (`apiKeyUrl`) — перед `create_llm_provider` |
+| `list_llm_provider_models` **(новый)** | Модели провайдера со статусами; `search` — подстрока имени/displayName (реестр капится 100 — поиск достаёт модели за пределом) |
+| `list_llm_provider_catalog` **(новый)** | Каталог известных LLM-шлюзов: точный baseUrl, модели по целям (`purposePriority`), где взять ключ (`apiKeyUrl`) — значения для query-параметров setup-ссылки; перед `create_llm_provider` |
 | `list_llm_quotas` **(новый)** | Квоты провайдера (субъект USER/AGENT/TOTAL × окно DAY/MONTH) |
 | `create_llm_quota` **(новый)** | Создать квоту с обязательным `limitTokens` типа Long (дубль субъект+окно → конфликт) |
 | `update_llm_quota` **(новый)** | Сменить обязательный `limitTokens` типа Long |
@@ -82,7 +82,7 @@
 | `list_agent_llms` **(новый)** | LLM-привязки агента: цель (purpose) → провайдер + модель |
 | `set_agent_llm` **(новый)** | Создать или заменить привязку модели провайдера для цели агента (upsert; CHAT по умолчанию) |
 | `delete_agent_llm` **(новый)** | Снять LLM-привязку агента под целью |
-| `get_llm_usage` **(новый)** | Расход токенов и остаток квоты по провайдерам за день/месяц (платформенный — только свой расход) |
+| `get_llm_usage` **(новый)** | Расход токенов и остаток квоты по провайдерам за день/месяц (платформенный — только свой расход); первые 100 провайдеров |
 
 ### Команды, доски, джобы — `PlatformWorkspaceToolService` (13, все новые)
 
@@ -106,15 +106,15 @@
 
 | Тул | Назначение |
 |---|---|
-| `list_runs` **(новый)** | Прогоны с фильтрами (агент, сессия, коннектор, подключение, триггер, статус) |
+| `list_runs` **(новый)** | Прогоны с фильтрами (агент, сессия, коннектор, подключение, триггер, статус) + окно `since`/`until` по `createdAt` |
 | `get_run` **(новый)** | Прогон по id |
 | `cancel_run` **(новый)** | Попросить прогон остановиться на ближайшем стыке (идемпотентно) |
-| `list_sessions` **(новый)** | Сессии каналов (фильтры по агенту/каналу/коннектору) |
+| `list_sessions` **(новый)** | Сессии каналов (фильтры по агенту/каналу/коннектору) + окно `since`/`until` по `lastActivityAt` |
 | `get_session` **(новый)** | Сессия по id |
 | `cancel_session` **(новый)** | Остановить все живые прогоны сессии (текущий + очередь) |
-| `list_tool_call_logs` **(новый)** | Журнал вызовов тулов (фильтры по агенту/коннектору/эффекту ALLOW-DENY/статусу) |
-| `list_trigger_logs` **(новый)** | Журнал срабатываний триггеров коннекторов |
-| `list_webhook_deliveries` **(новый)** | Доставки вебхуков агента (статус, код ответа, ошибка, длительность) |
+| `list_tool_call_logs` **(новый)** | Журнал вызовов тулов (фильтры по агенту/коннектору/эффекту ALLOW-DENY/статусу) + окно `since`/`until` по `createdAt` |
+| `list_trigger_logs` **(новый)** | Журнал срабатываний триггеров (фильтры по коннектору/агенту — «дошли до агента») + окно `since`/`until` по `occurredAt` |
+| `list_webhook_deliveries` **(новый)** | Доставки вебхуков агента (статус, код ответа, ошибка, длительность; фильтр по агенту) + окно `since`/`until` по `deliveredAt` |
 | `get_run_turns` **(новый)** | Полный транскрипт прогона из журнала ходов, старые первыми (аудит) |
 | `get_run_prompt` **(новый)** | Сообщения, ушедшие в первый LLM-вызов прогона (system-блоки, история, триггер) |
 
@@ -144,10 +144,10 @@
 
 - **Owner scope.** Все листинги и мутации user-scoped по `env.userId` — мета-агент управляет только ресурсами своего владельца; чужая сущность читается как «not found», никогда «forbidden» (без утечки существования).
 - **Guard «не сам себя».** Тулы, управляющие агентом как субъектом (`update_agent`, `delete_agent`, `regenerate_agent_key`, bind/unbind навыков и подключений, агентские LLM-тулы, каналы о себе), реджектят `ConnectorException`, если цель == агент-инициатор (`ConnectorEnv.agentId`). `list_agent_skills` и `list_agent_connections` — read-only исключения: листинг собственного агента разрешён. Guard null-safe и **распространён на мутации ABAC-политик**: агент не может создавать/менять/удалять политики, чей субъект — он сам (иначе DENY владельца на мета-агента был бы самоустранимым). Исключения — фильтры листингов.
-- **Секреты write-only.** `webhookAuthHeader` (агенты) и `apiKey` (LLM-провайдеры) принимаются на вход и никогда не возвращаются: `get_agent` даёт булев `hasWebhookAuth`, провайдеры — `apiKeyMask` (префикс + первые 4 + `…` + последние 4). `webhookUrl` эхо-ится — URL не секрет.
-- **Ключ агента выдаётся только через UI.** `create_agent` и `regenerate_agent_key` возвращают `keyUrl` на `/dashboard/agents/<id>`, где ключ показывается один раз; секреты через тулы не ходят. Как защита в глубину `list_tool_call_logs` и `get_run_turns` вырезают `plaintextKey`/`apiKey`/`webhookAuthHeader` из JSON аргументов и результатов перед возвратом (сырой `output` всё же лежит в `tool_call_logs` и доступен владельцу в UI).
+- **Именованные секреты не ходят ни в одну сторону.** `apiKey` (LLM-провайдеры), `webhookAuthHeader` (агенты), ключ агента и креды подключений не принимаются параметром тула и не возвращаются; ввод — через deep-link в UI: страница агента (она же `keyUrl`), создание/страница провайдера. Эндпоинт провайдера (`baseUrl`) тоже не меняется тулом после создания — по нему платформа шлёт сохранённый ключ при refresh. Наружу — только производные: `get_agent` → `hasWebhookAuth`, провайдеры → `apiKeyMask` (префикс + первые 4 + `…` + последние 4). `webhookUrl` эхо-ится — URL не секрет. `extraBody` (провайдерский конфиг) — произвольный map, эхо-ится как есть: это не канал для секретов. Как защита в глубину `list_tool_call_logs`, `get_run_turns` и другие read-пути вырезают `plaintextKey`/`apiKey`/`webhookAuthHeader` из JSON аргументов и результатов перед возвратом (сырой `output` исторических вызовов всё же лежит в `tool_call_logs` и доступен владельцу в UI).
+- **Ключ агента выдаётся только через UI.** `create_agent` и `regenerate_agent_key` возвращают `keyUrl` на `/dashboard/agents/<id>`, где ключ показывается один раз; секреты через тулы не ходят.
 - **PATCH-семантика — одно правило для всех update-тулов.** Параметр не прислан (`null`) = не трогаем; пустая строка / пустой объект / пустой список = очистить. Тул сам резолвит «не трогаем» через текущую запись, где сервис не умеет null-семантику; где сервис умеет (`AgentService.patch`, `LlmProviderService.update`, `AgenticTeamService.patch`) — сырые значения передаются как есть. Исключения из «пусто = очистить»: **enum-параметры** (`update_agent.type`, `update_policy.effect`) — пустое значение = не прислано (очистки для enum не существует, иначе пустая строка молча переключала бы тип агента); **name** — пустая строка это ошибка (`update_agent`, `update_team`, `update_channel`, `update_llm_provider`) либо «не трогаем» (`update_connection`).
-- **Листинги.** Все листинги владельца (22 тула — список в шапке раздела) отдают `{items, truncated}`; каждая выдача ограничена 100 первыми записями, а `truncated` сообщает о неполном результате. Статические каталоги (`list_channel_handlers`, `list_llm_provider_catalog`, `list_presets`) не капятся — их объём ограничен системой; `get_run_turns` — осознанное исключение, объявленное в описании тула. Rate-limit общий MCP (120/мин на агента).
+- **Листинги.** Все листинги владельца и сводки (24 тула — список в шапке раздела) отдают `{items, truncated}`; каждая выдача ограничена первыми 100 записями (или первой страницей), а `truncated` сообщает о неполном результате (ровно 100 строк — не truncation). Статические каталоги (`list_channel_handlers`, `list_llm_provider_catalog`, `list_presets`) не капятся — их объём ограничен системой; `get_run_turns` — осознанное исключение, объявленное в описании тула. Rate-limit общий MCP (120/мин на агента).
 - **Deep-link для подключений — без изменений** (см. ниже).
 
 ## Deep-link для подключений (контракт фронта)

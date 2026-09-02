@@ -101,11 +101,12 @@ public class PlatformConnectionToolService {
             @ToolParam(value = "Optional full-text search over connector name/description", required = false)
             String search) {
         String q = PlatformToolsSupport.blankToNull(search);
-        List<ConnectorBrief> items = connectorRepository.search(q, PageRequest.of(0,
-                        PlatformToolsSupport.MAX_LISTING, Sort.by("name").ascending()))
-                .map(c -> new ConnectorBrief(c.getCode(), c.getName(), c.getDescription(), c.isIntegration()))
+        var page = connectorRepository.search(q, PageRequest.of(0,
+                PlatformToolsSupport.MAX_LISTING, Sort.by("name").ascending()));
+        List<ConnectorBrief> items = page.map(c -> new ConnectorBrief(c.getCode(), c.getName(),
+                        c.getDescription(), c.isIntegration()))
                 .getContent();
-        return new ConnectorList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+        return new ConnectorList(items, PlatformToolsSupport.truncated(page));
     }
 
     @Tool(name = "get_connector",
@@ -136,13 +137,13 @@ public class PlatformConnectionToolService {
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public ConnectionList listConnections(
             @ToolParam(value = "Filter by connector code", required = false) String connectorCode) {
-        List<ConnectionBrief> items = connectionRepository
+        var capped = PlatformToolsSupport.cap(connectionRepository
                 .findByUserIdFiltered(PlatformToolsSupport.userId(),
                         PlatformToolsSupport.blankToNull(connectorCode), null).stream()
-                .limit(PlatformToolsSupport.MAX_LISTING)
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(this::toConnectionBrief)
-                .toList();
-        return new ConnectionList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new ConnectionList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "create_connection",
@@ -238,13 +239,14 @@ public class PlatformConnectionToolService {
                     + "writing ABAC policies",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public ToolList listConnectionTools(@ToolParam("Connection public ID") String connectionId) {
-        Map<String, ConnectorToolSpec> tools = PlatformToolsSupport.domain(() -> toolDefinitionService
-                .getConnectionTools(PlatformToolsSupport.userId(),
-                        PlatformToolsSupport.parseUuid(connectionId, "connectionId")));
-        List<ToolBrief> items = tools.values().stream()
+        var capped = PlatformToolsSupport.cap(PlatformToolsSupport.domain(() -> toolDefinitionService
+                        .getConnectionTools(PlatformToolsSupport.userId(),
+                                PlatformToolsSupport.parseUuid(connectionId, "connectionId")))
+                .values().stream()
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(PlatformConnectionToolService::toToolBrief)
-                .toList();
-        return new ToolList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new ToolList(capped.items(), capped.truncated());
     }
 
     // ---- bindings --------------------------------------------------------------------------
@@ -255,14 +257,15 @@ public class PlatformConnectionToolService {
                     + "its credentials",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public AgentBindingList listConnectionAgents(@ToolParam("Connection public ID") String connectionId) {
-        List<ConnectionAgentView> views = PlatformToolsSupport.domain(() -> connectionBindingService
-                .listForConnection(PlatformToolsSupport.userId(),
-                        PlatformToolsSupport.parseUuid(connectionId, "connectionId")));
-        List<AgentBinding> items = views.stream()
+        var capped = PlatformToolsSupport.cap(PlatformToolsSupport.domain(() -> connectionBindingService
+                        .listForConnection(PlatformToolsSupport.userId(),
+                                PlatformToolsSupport.parseUuid(connectionId, "connectionId")))
+                .stream()
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(v -> new AgentBinding(v.agent().getId().toString(), v.agent().getName(),
                         v.agent().isEnabled()))
-                .toList();
-        return new AgentBindingList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new AgentBindingList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "list_agent_connections",
@@ -273,16 +276,17 @@ public class PlatformConnectionToolService {
     public AgentConnectionList listAgentConnections(@ToolParam("Agent public ID") String agentId) {
         UUID agent = PlatformToolsSupport.parseUuid(agentId, "agentId");
         // Read-only listing — no self-guard (see list_agent_skills); owner scope stays.
-        List<AgentConnectionView> views = PlatformToolsSupport.domain(() -> connectionBindingService
-                .listForAgent(PlatformToolsSupport.userId(), agent));
-        List<AgentConnectionItem> items = views.stream()
+        var capped = PlatformToolsSupport.cap(PlatformToolsSupport.domain(() -> connectionBindingService
+                        .listForAgent(PlatformToolsSupport.userId(), agent))
+                .stream()
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(v -> {
                     Connection c = v.connection();
                     return new AgentConnectionItem(c.getId().toString(), c.getConnectorCode(), c.getName(),
                             Boolean.TRUE.equals(c.getEnabled()), c.getAuthStatus().name(), v.managedBySkills());
                 })
-                .toList();
-        return new AgentConnectionList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new AgentConnectionList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "unbind_connection",
@@ -315,11 +319,11 @@ public class PlatformConnectionToolService {
         List<Channel> channels = agent == null
                 ? channelService.listForUser(PlatformToolsSupport.userId())
                 : channelService.listForUserAndAgent(PlatformToolsSupport.userId(), agent);
-        List<ChannelBrief> briefs = channels.stream()
-                .limit(PlatformToolsSupport.MAX_LISTING)
+        var capped = PlatformToolsSupport.cap(channels.stream()
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(this::toChannelBrief)
-                .toList();
-        return new ChannelList(briefs, briefs.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new ChannelList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "get_channel",
@@ -431,14 +435,14 @@ public class PlatformConnectionToolService {
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public PolicyList listPolicies(
             @ToolParam("Agent-connection binding public ID (from list_agent_connections)") String agentConnectionId) {
-        List<AgentConnectionPolicy> policies = PlatformToolsSupport.domain(() -> agentConnectionPolicyService
-                .getPolicies(PlatformToolsSupport.userId(),
-                        PlatformToolsSupport.parseUuid(agentConnectionId, "agentConnectionId")));
-        List<PolicyDetail> policyItems = policies.stream()
-                .limit(PlatformToolsSupport.MAX_LISTING)
+        var capped = PlatformToolsSupport.cap(PlatformToolsSupport.domain(() -> agentConnectionPolicyService
+                        .getPolicies(PlatformToolsSupport.userId(),
+                                PlatformToolsSupport.parseUuid(agentConnectionId, "agentConnectionId")))
+                .stream()
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(this::toPolicyDetail)
-                .toList();
-        return new PolicyList(policyItems, policyItems.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new PolicyList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "create_policy",

@@ -31,7 +31,7 @@ public final class PlatformAgentDtos {
     public record AgentKeyRegenerated(String id, String name, String keyUrl) {
     }
 
-    public record AgentSkillList(List<AgentSkillBinding> skills) {
+    public record AgentSkillList(List<AgentSkillBinding> skills, boolean truncated) {
     }
 
     /**

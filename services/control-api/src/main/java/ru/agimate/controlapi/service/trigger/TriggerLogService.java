@@ -26,12 +26,12 @@ public class TriggerLogService {
     private final TriggerLogRepository triggerLogRepository;
 
     public Page<TriggerLogResponse> getTriggerLogs(UUID userId, String connectorCode, int page, int size) {
-        return triggerLogRepository.findByUserIdWithFilters(userId, connectorCode, PageRequest.of(page, size, Sort.by("createdAt").descending()))
+        // connectorCode passes through raw — the manage surface's semantics are the caller's; the
+        // connector blanks its own filters at the tool boundary.
+        return triggerLogRepository.findByUserIdWithFilters(
+                        userId, connectorCode, null, null, null,
+                        PageRequest.of(page, size, Sort.by("createdAt").descending()))
                 .map(TriggerLogResponse::from);
-    }
-
-    private static String blankToNull(String value) {
-        return (value == null || value.isBlank()) ? null : value.trim();
     }
 
     @Transactional
