@@ -2,6 +2,7 @@ package ru.agimate.controlapi.connectors.internal.platform;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import ru.agimate.common.rest.error.BaseHttpStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
@@ -18,6 +19,7 @@ import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.Ll
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.LlmProviderList;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.LlmProviderModel;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.LlmProviderModelList;
+import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.LlmProviderSetup;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.LlmQuotaItem;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.LlmQuotaList;
 import ru.agimate.controlapi.connectors.internal.platform.dto.PlatformLlmDtos.LlmUsageItem;
@@ -38,14 +40,16 @@ import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.service.AgentLlmService;
 import ru.agimate.controlapi.service.LlmProviderService;
-import ru.agimate.controlapi.service.dto.llm.LlmProviderCreateCommand;
 import ru.agimate.controlapi.service.dto.llm.LlmProviderUpdateCommand;
 import ru.agimate.controlapi.service.dto.llm.LlmUsageSnapshot;
 import ru.agimate.controlapi.service.llm.LlmQuotaService;
 import ru.agimate.controlapi.service.llm.LlmUsageQueryService;
 
+import java.nio.charset.StandardCharsets;
+import java.net.URLEncoder;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
@@ -59,8 +63,10 @@ import java.util.stream.Collectors;
  * translated into {@link ConnectorException} so the message reaches the agent. Shared guards and
  * parsing live in {@link PlatformToolsSupport}.
  *
- * <p>Secrets are write-only: {@code apiKey} is accepted by create/update and stored encrypted, but no
- * tool ever returns it — providers report {@code apiKeyMask} only (the service's masked form).
+ * <p>Secrets never travel through tools in either direction: {@code apiKey} is not a parameter of any
+ * tool here — providers are created and their keys rotated by the user on the UI page a setup link
+ * opens ({@code create_llm_provider}), and no tool ever returns a key — providers report
+ * {@code apiKeyMask} only (the service's masked form).
  */
 @Slf4j
 @Component
@@ -77,6 +83,10 @@ public class PlatformLlmToolService {
     private final AgentLlmService agentLlmService;
     private final LlmUsageQueryService llmUsageQueryService;
 
+    /** Base of the UI deep links this module hands out ({@code create_llm_provider}). */
+    @Value("${app.frontend.base-url}")
+    private String frontendBaseUrl;
+
     // ---- providers -------------------------------------------------------------------------
 
     @Tool(name = "list_llm_providers",
@@ -85,12 +95,12 @@ public class PlatformLlmToolService {
                     + "(prefix + first 4 + … + last 4); the key itself is never returned",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public LlmProviderList listLlmProviders() {
-        List<LlmProviderBrief> items = llmProviderRepository
+        var capped = PlatformToolsSupport.cap(llmProviderRepository
                 .findAllByUserIdOrderByCreatedAtDesc(PlatformToolsSupport.userId()).stream()
-                .limit(PlatformToolsSupport.MAX_LISTING)
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(this::toBrief)
-                .toList();
-        return new LlmProviderList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new LlmProviderList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "get_llm_provider",
@@ -105,53 +115,48 @@ public class PlatformLlmToolService {
     }
 
     @Tool(name = "create_llm_provider",
-            description = "Create an LLM provider. providerType: OPENAI, ANTHROPIC, GEMINI or "
-                    + "OPENAI_COMPATIBLE. apiKey is required and stored encrypted — it appears in the "
-                    + "conversation once (what you pass here) and is never returned by any tool. "
-                    + "purposePriority maps LlmPurpose (CHAT, IMAGE, VISION, AUDIO_IN, AUDIO_OUT) to an "
-                    + "ordered model list; an empty list disables the purpose. Use "
-                    + "list_llm_provider_catalog first to get the exact baseUrl form",
+            description = "Start adding an LLM provider. providerType: OPENAI, ANTHROPIC, GEMINI or "
+                    + "OPENAI_COMPATIBLE. Returns a setup link the user opens to enter the API key — "
+                    + "secrets are never handled here and the provider row is created by the UI, not "
+                    + "by this tool. Use list_llm_provider_catalog first to pick the exact baseUrl "
+                    + "form; models per purpose are configured afterwards via update_llm_provider. "
+                    + "After the user finishes, call list_llm_providers",
             annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
-    public LlmProviderDetail createLlmProvider(
+    public LlmProviderSetup createLlmProvider(
             @ToolParam("Human-readable name, unique per user") String name,
             @ToolParam("Provider type: OPENAI, ANTHROPIC, GEMINI, OPENAI_COMPATIBLE") String providerType,
             @ToolParam(value = "Custom base URL (required for OPENAI_COMPATIBLE)", required = false)
-            String baseUrl,
-            @ToolParam("API key — stored encrypted, never returned") String apiKey,
-            @ToolParam(value = "Models allowed per purpose, in priority order "
-                    + "(e.g. {\"CHAT\": [\"m1\", \"m2\"]})", required = false)
-            Map<String, List<String>> purposePriority,
-            @ToolParam(value = "Provider-level extra body fields", required = false)
-            Map<String, Object> extraBody,
-            @ToolParam(value = "Media transport: CHAT_MODALITIES (default) or MEDIA_ENDPOINT",
-                    required = false) String mediaTransport,
-            @ToolParam(value = "Whether the provider starts enabled (default true)", required = false)
-            Boolean enabled) {
-        LlmProviderCreateCommand command = new LlmProviderCreateCommand(
-                PlatformToolsSupport.requireText(name, "name"),
-                requireEnum(LlmProviderType.class, providerType, "providerType"),
-                PlatformToolsSupport.blankToNull(baseUrl),
-                PlatformToolsSupport.requireText(apiKey, "apiKey"),
-                toPurposePriority(purposePriority),
-                extraBody,
-                optionalEnum(MediaTransportType.class, mediaTransport, "mediaTransport"),
-                enabled);
-        LlmProvider provider = PlatformToolsSupport.domain(
-                () -> llmProviderService.create(PlatformToolsSupport.userId(), command));
-        return toDetail(provider);
+            String baseUrl) {
+        String displayName = PlatformToolsSupport.requireText(name, "name");
+        LlmProviderType type = requireEnum(LlmProviderType.class, providerType, "providerType");
+        String normalizedBaseUrl = PlatformToolsSupport.blankToNull(baseUrl);
+        if (type == LlmProviderType.OPENAI_COMPATIBLE && normalizedBaseUrl == null) {
+            throw new ConnectorException("Parameter 'baseUrl' is required for OPENAI_COMPATIBLE providers");
+        }
+        // The pattern of create_connection: the tool writes nothing — it opens the UI page that
+        // collects the secret. The route is a frontend dependency: /llm-providers/new does not exist
+        // yet and is the page where the user pastes the key (prefilled from these query parameters).
+        StringBuilder url = new StringBuilder(frontendBaseUrl)
+                .append("/llm-providers/new?providerType=")
+                .append(URLEncoder.encode(type.name(), StandardCharsets.UTF_8))
+                .append("&name=")
+                .append(URLEncoder.encode(displayName, StandardCharsets.UTF_8));
+        if (normalizedBaseUrl != null) {
+            url.append("&baseUrl=").append(URLEncoder.encode(normalizedBaseUrl, StandardCharsets.UTF_8));
+        }
+        return new LlmProviderSetup("setup_required", url.toString());
     }
 
     @Tool(name = "update_llm_provider",
-            description = "Partial update of an LLM provider; omitted params are kept. apiKey: pass to "
-                    + "replace (never returned), omit to keep. purposePriority/extraBody: an empty map "
-                    + "clears, an omitted one keeps the current value",
+            description = "Partial update of an LLM provider; omitted params are kept. Key rotation and "
+                    + "endpoint (baseUrl) changes are never tool parameters — the user makes them on the "
+                    + "provider page in the UI (the stored key is sent to the provider's endpoint on "
+                    + "refresh, so the endpoint is a secret-side attribute). purposePriority/extraBody: "
+                    + "an empty map clears, an omitted one keeps the current value",
             annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public LlmProviderDetail updateLlmProvider(
             @ToolParam("Provider public ID") String id,
             @ToolParam(value = "New name (unique per user)", required = false) String name,
-            @ToolParam(value = "New base URL; empty string clears", required = false) String baseUrl,
-            @ToolParam(value = "New API key — stored encrypted, never returned; omit to keep",
-                    required = false) String apiKey,
             @ToolParam(value = "Models allowed per purpose; empty map clears, omitted keeps",
                     required = false) Map<String, List<String>> purposePriority,
             @ToolParam(value = "Provider-level extra body fields; empty map clears, omitted keeps",
@@ -163,11 +168,13 @@ public class PlatformLlmToolService {
         PlatformToolsSupport.domain(
                 () -> llmProviderService.requireOwned(providerId, PlatformToolsSupport.userId()));
         // PATCH semantics: raw values go into the command — null = keep (the service resolves),
-        // an empty purposePriority/extraBody map = clear, a non-blank apiKey = replace.
+        // an empty purposePriority/extraBody map = clear. apiKey and baseUrl are always null:
+        // rotation and endpoint changes are UI acts — the stored key is sent to the endpoint on
+        // refresh, so letting the model move the endpoint would let it redirect the key.
         LlmProviderUpdateCommand command = new LlmProviderUpdateCommand(
                 name,
-                baseUrl,
-                apiKey,
+                null,
+                null,
                 toPurposePriority(purposePriority),
                 extraBody,
                 optionalEnum(MediaTransportType.class, mediaTransport, "mediaTransport"),
@@ -209,18 +216,24 @@ public class PlatformLlmToolService {
             llmProviderService.refreshModels(providerId, PlatformToolsSupport.userId(), false);
             return null;
         });
-        return listModels(providerId);
+        return listModels(providerId, null);
     }
 
     @Tool(name = "list_llm_provider_models",
             description = "List the provider's model registry: discovery metadata, availability "
-                    + "status and per-model extra body. Refresh it with refresh_llm_provider_models",
+                    + "status and per-model extra body. Refresh it with refresh_llm_provider_models. "
+                    + "Models are sorted by name and the listing stops at the first 100 — pass search "
+                    + "to narrow to a substring of the model or display name when the registry is "
+                    + "larger",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
-    public LlmProviderModelList listLlmProviderModels(@ToolParam("Provider public ID") String id) {
+    public LlmProviderModelList listLlmProviderModels(
+            @ToolParam("Provider public ID") String id,
+            @ToolParam(value = "Only models whose model or display name contains this "
+                    + "(case-insensitive substring)", required = false) String search) {
         UUID providerId = PlatformToolsSupport.parseUuid(id, "id");
         PlatformToolsSupport.domain(
                 () -> llmProviderService.requireOwned(providerId, PlatformToolsSupport.userId()));
-        return listModels(providerId);
+        return listModels(providerId, PlatformToolsSupport.blankToNull(search));
     }
 
     @Tool(name = "list_llm_provider_catalog",
@@ -245,11 +258,11 @@ public class PlatformLlmToolService {
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public LlmQuotaList listLlmQuotas(@ToolParam("Provider public ID") String providerId) {
         UUID id = requireOwnedProvider(providerId);
-        List<LlmQuotaItem> items = llmQuotaService.listForProvider(id).stream()
-                .limit(PlatformToolsSupport.MAX_LISTING)
+        var capped = PlatformToolsSupport.cap(llmQuotaService.listForProvider(id).stream()
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(this::toQuotaItem)
-                .toList();
-        return new LlmQuotaList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new LlmQuotaList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "create_llm_quota",
@@ -310,10 +323,11 @@ public class PlatformLlmToolService {
     public AgentLlmBindingList listAgentLlms(@ToolParam("Agent public ID") String agentId) {
         // Read-only listing — no self-guard, same as list_agent_skills; owner scope stays.
         UUID id = PlatformToolsSupport.ownedAgent(agentRepository, PlatformToolsSupport.parseUuid(agentId, "agentId")).getId();
-        List<AgentLlm> bindings = agentLlmRepository.findAllByAgentIdOrderByPurpose(id).stream()
-                .limit(PlatformToolsSupport.MAX_LISTING)
-                .toList();
-        return new AgentLlmBindingList(toAgentLlmBindings(bindings), toAgentLlmBindings(bindings).size() == PlatformToolsSupport.MAX_LISTING);
+        var capped = PlatformToolsSupport.cap(toAgentLlmBindings(
+                agentLlmRepository.findAllByAgentIdOrderByPurpose(id).stream()
+                        .limit(PlatformToolsSupport.MAX_LISTING + 1)
+                        .toList()));
+        return new AgentLlmBindingList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "set_agent_llm",
@@ -375,11 +389,12 @@ public class PlatformLlmToolService {
                     + "provider shows your usage",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public LlmUsageList getLlmUsage() {
-        List<LlmUsageItem> items = llmUsageQueryService
+        var capped = PlatformToolsSupport.cap(llmUsageQueryService
                 .usageForUserSnapshot(PlatformToolsSupport.userId()).stream()
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(this::toUsageItem)
-                .toList();
-        return new LlmUsageList(items);
+                .toList());
+        return new LlmUsageList(capped.items(), capped.truncated());
     }
 
     // ---- guards ----------------------------------------------------------------------------
@@ -455,13 +470,21 @@ public class PlatformLlmToolService {
                 e -> e.getKey().name(), Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
     }
 
-    private LlmProviderModelList listModels(UUID providerId) {
-        List<LlmProviderModel> models = llmProviderModelRepository
+    /** The provider's models, filtered by an optional case-insensitive substring over the model name
+     *  and the (nullable) display name, then capped at {@code MAX_LISTING}. The cap applies to the
+     *  filtered set — a search can reach models past the first hundred of the full registry. */
+    private LlmProviderModelList listModels(UUID providerId, String search) {
+        String needle = search == null ? null : search.toLowerCase(Locale.ROOT);
+        var capped = PlatformToolsSupport.cap(llmProviderModelRepository
                 .findAllByLlmProviderIdOrderByModel(providerId).stream()
-                .limit(PlatformToolsSupport.MAX_LISTING)
+                .filter(m -> needle == null
+                        || m.getModel().toLowerCase(Locale.ROOT).contains(needle)
+                        || (m.getDisplayName() != null
+                        && m.getDisplayName().toLowerCase(Locale.ROOT).contains(needle)))
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(this::toModel)
-                .toList();
-        return new LlmProviderModelList(models, models.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new LlmProviderModelList(capped.items(), capped.truncated());
     }
 
     private LlmProviderModel toModel(ru.agimate.controlapi.database.entities.LlmProviderModel m) {

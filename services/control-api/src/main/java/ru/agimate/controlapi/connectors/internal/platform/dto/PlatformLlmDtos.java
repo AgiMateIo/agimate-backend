@@ -9,9 +9,9 @@ import java.util.Map;
  * LLM-friendly (public ids as strings), assembled by the connector from the repositories and the
  * service-layer commands. See {@link PlatformDtos} for the shared-file rules.
  *
- * <p>Secrets are write-only: no record here carries an {@code apiKey} — providers expose
- * {@code apiKeyMask} only (a masked form, e.g. {@code sk-AbCd...WxYz}), matching the service's
- * masking.
+ * <p>Secrets never travel through tools in either direction: no record here carries an {@code apiKey}
+ * — providers expose {@code apiKeyMask} only (a masked form, e.g. {@code sk-AbCd...WxYz}), and
+ * creation is a setup link ({@link LlmProviderSetup}), not a tool-created row.
  */
 public final class PlatformLlmDtos {
 
@@ -19,6 +19,10 @@ public final class PlatformLlmDtos {
     }
 
     // ---- providers -------------------------------------------------------------------------
+
+    /** {@code create_llm_provider} answer: the tool writes nothing — a link the user opens to enter the key. */
+    public record LlmProviderSetup(String status, String setupUrl) {
+    }
 
     public record LlmProviderList(List<LlmProviderBrief> items, boolean truncated) {
     }
@@ -74,7 +78,7 @@ public final class PlatformLlmDtos {
 
     // ---- usage -----------------------------------------------------------------------------
 
-    public record LlmUsageList(List<LlmUsageItem> items) {
+    public record LlmUsageList(List<LlmUsageItem> items, boolean truncated) {
     }
 
     public record LlmUsageItem(String providerId, String providerName, String source,

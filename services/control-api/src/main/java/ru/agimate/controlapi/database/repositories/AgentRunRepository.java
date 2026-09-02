@@ -168,6 +168,8 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
             AND (:connectionId IS NULL OR tl.connectionId = :connectionId)
             AND (:name IS NULL OR LOWER(tl.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))
             AND (:status IS NULL OR a.status = :status)
+            AND (:since IS NULL OR a.createdAt >= :since)
+            AND (:until IS NULL OR a.createdAt <= :until)
             ORDER BY a.createdAt DESC
             """)
     Page<AgentRunProjection> findRunsWithFilters(@Param("userId") UUID userId,
@@ -179,6 +181,8 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
                                                 @Param("connectionId") String connectionId,
                                                 @Param("name") String name,
                                                 @Param("status") RunStatus status,
+                                                @Param("since") LocalDateTime since,
+                                                @Param("until") LocalDateTime until,
                                                 Pageable pageable);
 
     /**

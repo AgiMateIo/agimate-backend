@@ -41,13 +41,19 @@ delete/regenerate, команды — были намеренно вне кон�
 
 Ключевые решения по границам:
 
-- **Секреты остаются write-only.** `webhookAuthHeader` и `apiKey` провайдеров принимаются
-  на вход, наружу не возвращаются никогда (`hasWebhookAuth`, `apiKeyMask`). Подключения —
-  по-прежнему deep-link: креды через LLM не идут.
+- **Именованные секреты через MCP не ходят ни в одну сторону.** `apiKey` провайдеров и
+  `webhookAuthHeader` не параметры тулов вовсе: провайдер создаётся через setup-link
+  (`create_llm_provider` возвращает `{status, setupUrl}`, как `create_connection`, и ничего не
+  пишет), ротация ключа и смена эндпоинта (`baseUrl` — по нему платформа шлёт сохранённый ключ
+  при refresh) — через UI-страницу провайдера, заголовок webhook-агента — на странице агента
+  (тот же deep-link, что `keyUrl`). Наружу отдаются только производные — `apiKeyMask`,
+  `hasWebhookAuth`; `extraBody` (произвольный конфиг-map) эхо-ится как есть — не канал для
+  секретов. Подключения — по-прежнему deep-link: креды через LLM не идут.
 - **Ключ агента выдаётся только через UI.** `create_agent` и `regenerate_agent_key` возвращают
   `keyUrl` на страницу агента `/dashboard/agents/<id>`, где ключ показывается один раз; в ответе
   тула секрет не приходит. Тем самым восстановлена исходная договорённость «ключ не возвращается
-  тулом» — отменена предыдущая отмена этого правила.
+  тулом» — отменена предыдущая отмена этого правила; ревью расширил её на все секреты коннектора
+  (см. пункт выше).
 - **PATCH-семантика одна на все update-тулы**: параметр не прислан (`null`) = не трогаем,
   пустая строка/пустой объект = очистить. Тул сам резолвит «не трогаем» через текущее
   значение записи, где сервис не умеет null-семантику. Исключения: enum-параметры
@@ -62,11 +68,13 @@ delete/regenerate, команды — были намеренно вне кон�
   `board`: остаются только `list_boards` (краткие сведения без задач) и `create_board`. Поэтому
   первичное наполнение доски команды — двухшаговый поток: создать доску через `platform`, затем
   привязанный коннектор `board` создаёт задачи и ведёт их.
-- **Усечённые листинги явны.** Все листинги владельца (22: agents, skills, files, connectors,
-  connections, connection_tools, connection_agents, agent_connections, channels, policies,
-  llm_providers, llm_provider_models, llm_quotas, agent_llms, runs, sessions, tool_call_logs,
-  trigger_logs, webhook_deliveries, teams, boards, connector_jobs) ограничены 100 первыми записями
-  и возвращают `{items, truncated}`, чтобы клиент не считал результат полным; статические каталоги
+- **Усечённые листинги явны.** Все листинги владельца и сводки (24: agents, skills, files,
+  agent_skills, connectors, connections, connection_tools, connection_agents, agent_connections,
+  channels, policies, llm_providers, llm_provider_models, llm_quotas, agent_llms, llm_usage,
+  runs, sessions, tool_call_logs, trigger_logs, webhook_deliveries, teams, boards, connector_jobs)
+  ограничены первыми 100 записями (или первой страницей) и возвращают `{items, truncated}`,
+  чтобы клиент не считал результат полным; флаг точен на границе: ровно 100 строк — не
+  truncation. Статические каталоги
   (`list_channel_handlers`, `list_llm_provider_catalog`, `list_presets`) и `get_run_turns`
   (объявлено в описании тула) не капятся.
 - **ADMIN-поверхность (`/manage/admin`) вне коннектора**: в `ConnectorEnv` нет роли,
@@ -168,6 +176,34 @@ ABAC уже гейтит (`agent_connections` + `agent_connection_policies`), MC
 - **`cancel_session`**: владелец проверяется по сессии до scope-проверки (чужая строка — «not
   found», без раскрытия существования).
 - Blank enum-фильтры (status/accessEffect) трактуются как «не прислан».
+
+## Ревью мейнтейнера (2026-09-02) — второй раунд
+
+- **Секреты — ни в одну сторону.** Правило «ключ агента — через UI» расширено на весь коннектор:
+  `create_llm_provider` больше не создаёт строку — возвращает `{status, setupUrl}` (`/llm-providers/new`,
+  новая FE-страница — зависимость от фронта), `update_llm_provider` и `create_agent`/`update_agent`
+  потеряли параметры `apiKey`/`webhookAuthHeader`. Ввод секретов — на странице агента (`keyUrl`)
+  и на странице создания/провайдера. Redaction (`SECRET_KEYS`, `redactKeys`, `redactSecrets`,
+  `redactDeep`) остаётся защитой в глубину для исторических строк и вставленных в чат ключей.
+  Остаточные пробелы, задокументированные в ответе: страница агента умеет только заменять
+  auth-заголовок (не очищать), `extraBody` — свободный конфиг-map, куда секрет теоретически можно
+  положить под произвольным ключом.
+- **Фильтры вместо пагинации** (курсоры явно не просили): `search` на `list_llm_provider_models`
+  (подстрока model/displayName до капа — реестр шлюза больше 100 имён, привязка требует точного
+  имени), `agentId` на `list_trigger_logs` (EXISTS по `agent_runs`), `since`/`until` на пяти
+  event-листингах по колонкам сортировки (runs/tool-logs — `createdAt`, trigger logs — `occurredAt`,
+  webhook deliveries — `deliveredAt`, sessions — `lastActivityAt`). Формат — ISO local date-time без
+  смещения (`2026-09-01T10:00:00`), тот же «часовой пояс», в котором пишутся строки; офсетные
+  строки отклоняются намеренно. `occurredAt` nullable: триггеры без времени выпадают из окна.
+  Замечание ревьюера про «модели за сотней нельзя привязать» не подтвердилось — валидация
+  (`validateModelsKnown`) сверяет имя со всем реестром; реальный пробел — discoverability листинга.
+- **Truncation-флаг стал точным.** Утверждение ревьюера «один сайт использует `.hasNext()`» не
+  подтвердилось: все 22 сайта считали `size() == MAX_LISTING` (ложное true ровно на 100 строках).
+  Введён хелпер в `PlatformToolsSupport`: Page-листинги используют `page.hasNext()`, потоковые —
+  fetch `MAX+1` + `cap(...)`; три листинга (`list_connection_tools`, `list_connection_agents`,
+  `list_agent_connections`) имели флаг без капа — теперь капятся по-настоящему. `list_agent_skills`
+  и `get_llm_usage` получили cap+флаг (перечисление: 24 листинга владельца; manage-API уже
+  пагинирует те же навыки).
 
 ## Отложено сознательно
 

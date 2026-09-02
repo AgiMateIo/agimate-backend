@@ -22,8 +22,18 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
             FROM TriggerLog t
             WHERE t.userId = :userId
             AND (:connectorCode IS NULL OR t.connectorCode = :connectorCode)
+            AND (:agentId IS NULL OR EXISTS (
+                    SELECT 1 FROM AgentRun ar WHERE ar.triggerLog = t AND ar.agent.id = :agentId))
+            AND (:since IS NULL OR t.occurredAt >= :since)
+            AND (:until IS NULL OR t.occurredAt <= :until)
             """)
-    Page<TriggerLogWithAgentsCountProjection> findByUserIdWithFilters(UUID userId, String connectorCode, Pageable pageable);
+    Page<TriggerLogWithAgentsCountProjection> findByUserIdWithFilters(
+            @Param("userId") UUID userId,
+            @Param("connectorCode") String connectorCode,
+            @Param("agentId") UUID agentId,
+            @Param("since") LocalDateTime since,
+            @Param("until") LocalDateTime until,
+            Pageable pageable);
 
     @Query(value = """
             SELECT tl.* FROM trigger_logs tl

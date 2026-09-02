@@ -78,7 +78,7 @@ class ManageSessionServiceTest {
     }
 
     private void stubList() {
-        when(agentSessionService.list(USER_ID, null, null, null, 0, 50))
+        when(agentSessionService.list(USER_ID, null, null, null, null, null, 0, 50))
                 .thenReturn(new PageImpl<>(List.of(session)));
     }
 
@@ -127,7 +127,7 @@ class ManageSessionServiceTest {
         @Test
         @DisplayName("пустая страница не идёт за обогащением")
         void emptyPageAsksNothing() {
-            when(agentSessionService.list(USER_ID, null, null, null, 0, 50))
+            when(agentSessionService.list(USER_ID, null, null, null, null, null, 0, 50))
                     .thenReturn(new PageImpl<>(List.of(), Pageable.ofSize(50), 0));
 
             assertEquals(0, manageSessionService.list(USER_ID, null, null, null, 0, 50).getTotalElements());

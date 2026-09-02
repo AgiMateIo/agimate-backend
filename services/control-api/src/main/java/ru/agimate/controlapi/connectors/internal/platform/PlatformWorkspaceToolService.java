@@ -70,11 +70,12 @@ public class PlatformWorkspaceToolService {
             + "work together on a shared board",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public TeamList listTeams() {
-        List<TeamBrief> items = agenticTeamRepository.findByUserId(PlatformToolsSupport.userId()).stream()
-                .limit(PlatformToolsSupport.MAX_LISTING)
+        var capped = PlatformToolsSupport.cap(agenticTeamRepository
+                .findByUserId(PlatformToolsSupport.userId()).stream()
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(team -> new TeamBrief(team.getId().toString(), team.getName(), team.getDescription()))
-                .toList();
-        return new TeamList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new TeamList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "get_team", description = "Get an agentic team with its roster — every agent of "
@@ -152,11 +153,11 @@ public class PlatformWorkspaceToolService {
     @Tool(name = "list_boards", description = "List your task boards with the agentic team each belongs to",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public BoardList listBoards() {
-        List<BoardBrief> items = boardRepository.findByUserId(PlatformToolsSupport.userId()).stream()
-                .limit(PlatformToolsSupport.MAX_LISTING)
+        var capped = PlatformToolsSupport.cap(boardRepository.findByUserId(PlatformToolsSupport.userId()).stream()
+                .limit(PlatformToolsSupport.MAX_LISTING + 1)
                 .map(PlatformWorkspaceToolService::toBoardBrief)
-                .toList();
-        return new BoardList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+                .toList());
+        return new BoardList(capped.items(), capped.truncated());
     }
 
     @Tool(name = "create_board",
@@ -206,11 +207,11 @@ public class PlatformWorkspaceToolService {
             spec = spec.and(ConnectorJobSpecs.hasConnection(
                     PlatformToolsSupport.parseUuid(connection, "connectionId").toString()));
         }
-        List<ConnectorJobItem> items = connectorJobRepository.findAll(spec, PageRequest.of(0,
-                        PlatformToolsSupport.MAX_LISTING, Sort.by("nextRunAt").ascending()))
-                .map(PlatformWorkspaceToolService::toConnectorJobItem)
+        var page = connectorJobRepository.findAll(spec, PageRequest.of(0,
+                PlatformToolsSupport.MAX_LISTING, Sort.by("nextRunAt").ascending()));
+        List<ConnectorJobItem> items = page.map(PlatformWorkspaceToolService::toConnectorJobItem)
                 .getContent();
-        return new ConnectorJobList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+        return new ConnectorJobList(items, PlatformToolsSupport.truncated(page));
     }
 
     @Tool(name = "pause_job", description = "Pause a connector job: the scheduler stops picking it "

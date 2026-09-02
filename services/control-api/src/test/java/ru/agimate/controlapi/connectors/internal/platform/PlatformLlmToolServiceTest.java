@@ -3,6 +3,7 @@ package ru.agimate.controlapi.connectors.internal.platform;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
 import ru.agimate.common.rest.error.ConflictStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
@@ -21,7 +22,6 @@ import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.service.AgentLlmService;
 import ru.agimate.controlapi.service.LlmProviderService;
-import ru.agimate.controlapi.service.dto.llm.LlmProviderCreateCommand;
 import ru.agimate.controlapi.service.dto.llm.LlmProviderUpdateCommand;
 import ru.agimate.controlapi.service.dto.llm.LlmUsageSnapshot;
 import ru.agimate.controlapi.service.llm.LlmQuotaService;
@@ -98,27 +98,32 @@ class PlatformLlmToolServiceTest {
     }
 
     @Test
-    @DisplayName("create_llm_provider: команда уходит со всеми полями, ключ в результат не попадает")
-    void createPassesTheCommandAndNeverReturnsTheKey() {
-        LlmProvider provider = provider(USER_ID);
-        when(llmProviderService.create(eq(USER_ID), any(LlmProviderCreateCommand.class)))
-                .thenReturn(provider);
+    @DisplayName("create_llm_provider: ничего не создаёт — возвращает setup-ссылку, ключ не параметр")
+    void createReturnsSetupLinkAndWritesNothing() {
+        ReflectionTestUtils.setField(llmTools, "frontendBaseUrl", "https://app.test");
 
-        Map<?, ?> result = (Map<?, ?>) handler.executeTool(ownerEnv(), "create_llm_provider", Map.of(
-                "name", "my-openai",
-                "providerType", "OPENAI",
-                "apiKey", "sk-secret-123456"));
+        Map<?, ?> result = (Map<?, ?>)
+                handler.executeTool(ownerEnv(), "create_llm_provider", Map.of(
+                        "name", "my-openai",
+                        "providerType", "OPENAI",
+                        "baseUrl", "https://api.openai.com/v1"));
 
-        ArgumentCaptor<LlmProviderCreateCommand> captor = ArgumentCaptor.forClass(LlmProviderCreateCommand.class);
-        verify(llmProviderService).create(eq(USER_ID), captor.capture());
-        LlmProviderCreateCommand cmd = captor.getValue();
-        assertEquals("my-openai", cmd.name());
-        assertEquals(LlmProviderType.OPENAI, cmd.providerType());
-        assertEquals("sk-secret-123456", cmd.apiKey(), "ключ присутствует в команде — сервис его шифрует");
-        assertNull(cmd.mediaTransport());
-        assertFalse(result.containsKey("apiKey"), "ключ никогда не появляется в результате");
-        assertEquals("sk-AbCd...WxYz", result.get("apiKeyMask"));
-        assertEquals(provider.getId().toString(), result.get("id"));
+        assertEquals("setup_required", result.get("status"));
+        String url = (String) result.get("setupUrl");
+        assertTrue(url.startsWith("https://app.test/llm-providers/new?providerType=OPENAI&name=my-openai"),
+                url);
+        assertTrue(url.contains("baseUrl="), url);
+        assertFalse(url.matches("(?i).*[?&](api)?key=.*"), "ссылка никогда не несёт ключ: " + url);
+        verifyNoInteractions(llmProviderService);
+    }
+
+    @Test
+    @DisplayName("create_llm_provider: OPENAI_COMPATIBLE без baseUrl — ошибка до возврата ссылки")
+    void createCompatibleRequiresBaseUrl() {
+        var ex = assertThrows(ConnectorException.class, () -> handler.executeTool(ownerEnv(),
+                "create_llm_provider", Map.of("name", "my-gateway", "providerType", "OPENAI_COMPATIBLE")));
+        assertTrue(ex.getMessage().contains("baseUrl"), ex.getMessage());
+        verifyNoInteractions(llmProviderService);
     }
 
     @Test
@@ -136,8 +141,8 @@ class PlatformLlmToolServiceTest {
     }
 
     @Test
-    @DisplayName("update_llm_provider без apiKey: в команде null — сервис сохраняет текущий ключ")
-    void updateWithoutApiKeyLeavesItNull() {
+    @DisplayName("update_llm_provider: apiKey не параметр тула — в команде всегда null, ротация через UI")
+    void updateNeverCarriesAnApiKey() {
         LlmProvider provider = provider(USER_ID);
         when(llmProviderService.requireOwned(provider.getId(), USER_ID)).thenReturn(provider);
         when(llmProviderService.update(eq(provider.getId()), eq(USER_ID),
@@ -149,7 +154,7 @@ class PlatformLlmToolServiceTest {
         ArgumentCaptor<LlmProviderUpdateCommand> captor = ArgumentCaptor.forClass(LlmProviderUpdateCommand.class);
         verify(llmProviderService).update(eq(provider.getId()), eq(USER_ID), captor.capture());
         LlmProviderUpdateCommand cmd = captor.getValue();
-        assertNull(cmd.apiKey(), "absent apiKey проходит как null — PATCH: ключ не трогается");
+        assertNull(cmd.apiKey(), "ключ всегда null — параметра нет, сервис сохраняет текущий ключ");
         assertEquals("renamed", cmd.name());
         assertNull(cmd.enabled());
     }
@@ -233,7 +238,25 @@ class PlatformLlmToolServiceTest {
     }
 
     @Test
-    @DisplayName("get_llm_usage: снапшот сервиса отображается в окна с квотой и остатком")
+    @DisplayName("list_llm_provider_models: search сужает до подстроки model/displayName до капа")
+    void modelSearchNarrowsBeforeTheCap() {
+        UUID providerId = UUID.randomUUID();
+        when(llmProviderService.requireOwned(providerId, USER_ID)).thenReturn(provider(USER_ID, providerId));
+        when(llmProviderModelRepository.findAllByLlmProviderIdOrderByModel(providerId)).thenReturn(List.of(
+                modelEntity("claude-3-5-sonnet", null),
+                modelEntity("gpt-4o", "GPT-4o"),
+                modelEntity("gpt-4o-mini", "GPT-4o Mini")));
+
+        Map<?, ?> result = (Map<?, ?>) handler.executeTool(ownerEnv(), "list_llm_provider_models",
+                Map.of("id", providerId.toString(), "search", "gpt-4o"));
+
+        List<?> models = (List<?>) result.get("models");
+        assertEquals(2, models.size(), "только модели с подстрокой в model или displayName");
+        assertEquals(false, result.get("truncated"));
+    }
+
+    @Test
+    @DisplayName("get_llm_usage: снапшот сервиса отображается в окна с квотой и остатком, сводка не усечена")
     void usageSnapshotIsMapped() {
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         UUID byokId = UUID.randomUUID();
@@ -246,6 +269,7 @@ class PlatformLlmToolServiceTest {
 
         List<?> items = (List<?>) result.get("items");
         assertEquals(1, items.size());
+        assertEquals(false, result.get("truncated"));
         Map<?, ?> item = (Map<?, ?>) items.get(0);
         assertEquals(byokId.toString(), item.get("providerId"));
         assertEquals("my-openrouter", item.get("providerName"));
@@ -321,5 +345,11 @@ class PlatformLlmToolServiceTest {
     private void stubOwnedAgent(UUID agentId) {
         when(agentRepository.findById(agentId)).thenReturn(Optional.of(
                 Agent.builder().id(agentId).userId(USER_ID).type(AgentType.GENERIC).build()));
+    }
+
+    private static ru.agimate.controlapi.database.entities.LlmProviderModel modelEntity(
+            String model, String displayName) {
+        return ru.agimate.controlapi.database.entities.LlmProviderModel.builder()
+                .id(UUID.randomUUID()).model(model).displayName(displayName).build();
     }
 }

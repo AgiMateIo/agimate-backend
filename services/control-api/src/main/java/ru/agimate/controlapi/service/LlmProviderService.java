@@ -30,7 +30,6 @@ import ru.agimate.controlapi.database.repositories.LlmProviderModelRepository;
 import ru.agimate.controlapi.database.repositories.LlmProviderRepository;
 import ru.agimate.controlapi.database.repositories.SecretRepository;
 import ru.agimate.controlapi.service.llm.discovery.LlmModelDiscoveryService;
-import ru.agimate.controlapi.service.dto.llm.LlmProviderCreateCommand;
 import ru.agimate.controlapi.service.dto.llm.LlmProviderUpdateCommand;
 import ru.agimate.controlapi.service.secret.SecretService;
 
@@ -168,14 +167,6 @@ public class LlmProviderService {
         return LlmProviderResponse.from(createInternal(userId, request.name(), request.providerType(),
                 request.baseUrl(), request.apiKey(), request.purposePriority(), request.extraBody(),
                 request.mediaTransport(), request.enabled()));
-    }
-
-    /** The command overload — the platform connector's entry point (no {@code controller/**} dependency). */
-    @Transactional
-    public LlmProvider create(UUID userId, LlmProviderCreateCommand command) {
-        return createInternal(userId, command.name(), command.providerType(), command.baseUrl(),
-                command.apiKey(), command.purposePriority(), command.extraBody(),
-                command.mediaTransport(), command.enabled());
     }
 
     private LlmProvider createInternal(UUID userId, String name, LlmProviderType providerType, String baseUrl,

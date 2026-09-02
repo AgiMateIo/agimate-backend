@@ -106,7 +106,11 @@ public class PlatformObservabilityToolService {
     @Tool(name = "list_runs",
             description = "List runs of your agents, newest first. Every filter is optional and they "
                     + "compose: agentId, sessionId, connectorCode, connectionId, name (substring of "
-                    + "the trigger's name), status (ENQUEUED, RUNNING, DONE, FAILED, CANCELLED)",
+                    + "the trigger's name), status (ENQUEUED, RUNNING, DONE, FAILED, CANCELLED), and "
+                    + "the time window since/until over the run's creation time (createdAt — not shown "
+                    + "on the cards). since/until: ISO local date-time without a timezone suffix, e.g. "
+                    + "2026-09-01T10:00:00, the clock the rows are stamped with; since is inclusive, "
+                    + "until is inclusive",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public RunList listRuns(
             @ToolParam(value = "Filter by agent public ID", required = false) String agentId,
@@ -115,7 +119,9 @@ public class PlatformObservabilityToolService {
             @ToolParam(value = "Filter by connection id", required = false) String connectionId,
             @ToolParam(value = "Filter by trigger name (substring)", required = false) String name,
             @ToolParam(value = "Filter by status: ENQUEUED, RUNNING, DONE, FAILED, CANCELLED",
-                    required = false) String status) {
+                    required = false) String status,
+            @ToolParam(value = "Only runs created at or after this moment", required = false) String since,
+            @ToolParam(value = "Only runs created at or before this moment", required = false) String until) {
         Page<AgentRunProjection> page = agentRunRepository.findRunsWithFilters(
                 PlatformToolsSupport.userId(), null,
                 PlatformToolsSupport.parseUuidOrNull(agentId, "agentId"),
@@ -126,11 +132,13 @@ public class PlatformObservabilityToolService {
                 PlatformToolsSupport.blankToNull(name),
                 PlatformToolsSupport.blankToNull(status) == null ? null
                         : PlatformToolsSupport.parseEnum(RunStatus.class, status, "status"),
+                PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
+                PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
                 PageRequest.of(0, PlatformToolsSupport.MAX_LISTING, Sort.by("createdAt").descending()));
         List<RunBrief> runItems = page.getContent().stream()
                 .map(this::toRunBrief)
                 .toList();
-        return new RunList(runItems, runItems.size() == PlatformToolsSupport.MAX_LISTING);
+        return new RunList(runItems, PlatformToolsSupport.truncated(page));
     }
 
     @Tool(name = "get_run",
@@ -141,6 +149,7 @@ public class PlatformObservabilityToolService {
         UUID id = PlatformToolsSupport.parseUuid(runId, "runId");
         return agentRunRepository.findRunsWithFilters(
                         PlatformToolsSupport.userId(), id, null, null, null, null, null, null, null,
+                        null, null,
                         PageRequest.of(0, 1))
                 .getContent().stream().findFirst()
                 .map(this::toRunBrief)
@@ -161,21 +170,28 @@ public class PlatformObservabilityToolService {
 
     @Tool(name = "list_sessions",
             description = "List your channel sessions (conversations with agents), freshest activity "
-                    + "first. Every filter is optional: agentId, channelId, connectorCode",
+                    + "first. Every filter is optional: agentId, channelId, connectorCode, and the "
+                    + "activity window since/until over lastActivityAt (the time the listing sorts "
+                    + "by). since/until: ISO local date-time without a timezone suffix, e.g. "
+                    + "2026-09-01T10:00:00, the clock the rows are stamped with; both inclusive",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public SessionList listSessions(
             @ToolParam(value = "Filter by agent public ID", required = false) String agentId,
             @ToolParam(value = "Filter by channel public ID", required = false) String channelId,
-            @ToolParam(value = "Filter by connector code", required = false) String connectorCode) {
+            @ToolParam(value = "Filter by connector code", required = false) String connectorCode,
+            @ToolParam(value = "Only sessions active at or after this moment", required = false) String since,
+            @ToolParam(value = "Only sessions active at or before this moment", required = false) String until) {
         Page<AgentSession> page = agentSessionService.list(PlatformToolsSupport.userId(),
                 PlatformToolsSupport.parseUuidOrNull(agentId, "agentId"),
                 PlatformToolsSupport.parseUuidOrNull(channelId, "channelId"),
                 PlatformToolsSupport.blankToNull(connectorCode),
+                PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
+                PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
                 0, PlatformToolsSupport.MAX_LISTING);
         List<SessionBrief> sessionItems = page.getContent().stream()
                 .map(this::toSessionBrief)
                 .toList();
-        return new SessionList(sessionItems, sessionItems.size() == PlatformToolsSupport.MAX_LISTING);
+        return new SessionList(sessionItems, PlatformToolsSupport.truncated(page));
     }
 
     @Tool(name = "get_session",
@@ -211,7 +227,10 @@ public class PlatformObservabilityToolService {
     @Tool(name = "list_tool_call_logs",
             description = "List your tool call logs, newest first. Every filter is optional: agentId, "
                     + "connectorCode, connectionId, name (substring of the tool name), accessEffect "
-                    + "(ALLOW or DENY), status (SUCCESS, ERROR, PENDING)",
+                    + "(ALLOW or DENY), status (SUCCESS, ERROR, PENDING), and the time window "
+                    + "since/until over the log's creation time (createdAt — the sort column). "
+                    + "since/until: ISO local date-time without a timezone suffix, e.g. "
+                    + "2026-09-01T10:00:00, the clock the rows are stamped with; both inclusive",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public ToolCallLogList listToolCallLogs(
             @ToolParam(value = "Filter by agent public ID", required = false) String agentId,
@@ -219,7 +238,9 @@ public class PlatformObservabilityToolService {
             @ToolParam(value = "Filter by connection id", required = false) String connectionId,
             @ToolParam(value = "Filter by tool name (substring)", required = false) String name,
             @ToolParam(value = "Filter by access effect: ALLOW or DENY", required = false) String accessEffect,
-            @ToolParam(value = "Filter by status: SUCCESS, ERROR, PENDING", required = false) String status) {
+            @ToolParam(value = "Filter by status: SUCCESS, ERROR, PENDING", required = false) String status,
+            @ToolParam(value = "Only logs created at or after this moment", required = false) String since,
+            @ToolParam(value = "Only logs created at or before this moment", required = false) String until) {
         // A blank filter is "not given", like every other optional filter in the module.
         ToolCallLogStatus statusValue = PlatformToolsSupport.blankToNull(status) == null ? null
                 : PlatformToolsSupport.parseEnum(ToolCallLogStatus.class, status, "status");
@@ -233,50 +254,67 @@ public class PlatformObservabilityToolService {
                 effect,
                 PlatformToolsSupport.blankToNull(name),
                 statusValue == null ? null : statusValue.name(),
+                PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
+                PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
                 PageRequest.of(0, PlatformToolsSupport.MAX_LISTING, Sort.by("createdAt").descending()));
         List<ToolCallLogItem> logItems = page.getContent().stream()
                 .map(this::toToolCallLogItem)
                 .toList();
-        return new ToolCallLogList(logItems, logItems.size() == PlatformToolsSupport.MAX_LISTING);
+        return new ToolCallLogList(logItems, PlatformToolsSupport.truncated(page));
     }
 
     @Tool(name = "list_trigger_logs",
             description = "List the inbound events (triggers) that reached your connectors, newest "
-                    + "first, with how many of your agents handled each",
+                    + "first, with how many of your agents handled each. Every filter is optional and "
+                    + "composes: connectorCode, agentId (triggers at least one run of that agent "
+                    + "reached), and the time window since/until over occurredAt (the sort column — "
+                    + "triggers without a recorded time drop out of a windowed listing). "
+                    + "since/until: ISO local date-time without a timezone suffix, e.g. "
+                    + "2026-09-01T10:00:00, the clock the rows are stamped with; both inclusive",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public TriggerLogList listTriggerLogs(
-            @ToolParam(value = "Filter by connector code", required = false) String connectorCode) {
+            @ToolParam(value = "Filter by connector code", required = false) String connectorCode,
+            @ToolParam(value = "Filter by agent public ID — only triggers that reached this agent",
+                    required = false) String agentId,
+            @ToolParam(value = "Only triggers occurred at or after this moment", required = false) String since,
+            @ToolParam(value = "Only triggers occurred at or before this moment", required = false) String until) {
         Page<TriggerLogWithAgentsCountProjection> page = triggerLogRepository.findByUserIdWithFilters(
                 PlatformToolsSupport.userId(), PlatformToolsSupport.blankToNull(connectorCode),
+                PlatformToolsSupport.parseUuidOrNull(agentId, "agentId"),
+                PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
+                PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
                 PageRequest.of(0, PlatformToolsSupport.MAX_LISTING, Sort.by("occurredAt").descending()));
         List<TriggerLogItem> triggerItems = page.getContent().stream()
                 .map(this::toTriggerLogItem)
                 .toList();
-        return new TriggerLogList(triggerItems, triggerItems.size() == PlatformToolsSupport.MAX_LISTING);
+        return new TriggerLogList(triggerItems, PlatformToolsSupport.truncated(page));
     }
 
     @Tool(name = "list_webhook_deliveries",
             description = "List the webhook deliveries to your WEBHOOK-type agents, newest first, "
-                    + "with the response status, duration and error of each",
+                    + "with the response status, duration and error of each. Every filter is optional: "
+                    + "agentId, and the time window since/until over deliveredAt (the sort column). "
+                    + "since/until: ISO local date-time without a timezone suffix, e.g. "
+                    + "2026-09-01T10:00:00, the clock the rows are stamped with; both inclusive",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public WebhookDeliveryList listWebhookDeliveries(
-            @ToolParam(value = "Filter by agent public ID", required = false) String agentId) {
+            @ToolParam(value = "Filter by agent public ID", required = false) String agentId,
+            @ToolParam(value = "Only deliveries at or after this moment", required = false) String since,
+            @ToolParam(value = "Only deliveries at or before this moment", required = false) String until) {
         // "Newest first" is a promise, so the order must be explicit — the repository returns rows
         // in insertion order otherwise, and the cap would make the window arbitrary. A blank filter
         // is the same as none, like every other listing.
         UUID agent = PlatformToolsSupport.parseUuidOrNull(agentId, "agentId");
-        Page<WebhookDeliveryLog> page = agent == null
-                ? webhookDeliveryLogRepository.findByUserId(PlatformToolsSupport.userId(),
-                        PageRequest.of(0, PlatformToolsSupport.MAX_LISTING,
-                                Sort.by("deliveredAt").descending()))
-                : webhookDeliveryLogRepository.findByUserIdAndAgentId(PlatformToolsSupport.userId(),
-                        agent,
-                        PageRequest.of(0, PlatformToolsSupport.MAX_LISTING,
-                                Sort.by("deliveredAt").descending()));
+        Page<WebhookDeliveryLog> page = webhookDeliveryLogRepository.findWithFilters(
+                PlatformToolsSupport.userId(), agent,
+                PlatformToolsSupport.parseLocalDateTimeOrNull(since, "since"),
+                PlatformToolsSupport.parseLocalDateTimeOrNull(until, "until"),
+                PageRequest.of(0, PlatformToolsSupport.MAX_LISTING,
+                        Sort.by("deliveredAt").descending()));
         List<WebhookDeliveryItem> deliveryItems = page.getContent().stream()
                 .map(this::toWebhookDeliveryItem)
                 .toList();
-        return new WebhookDeliveryList(deliveryItems, deliveryItems.size() == PlatformToolsSupport.MAX_LISTING);
+        return new WebhookDeliveryList(deliveryItems, PlatformToolsSupport.truncated(page));
     }
 
     // ---- run transcript ------------------------------------------------------------------
@@ -315,6 +353,7 @@ public class PlatformObservabilityToolService {
         UUID id = PlatformToolsSupport.parseUuid(runId, "runId");
         return agentRunRepository.findRunsWithFilters(
                         PlatformToolsSupport.userId(), id, null, null, null, null, null, null, null,
+                        null, null,
                         PageRequest.of(0, 1))
                 .getContent().stream().findFirst()
                 .orElseThrow(() -> new ConnectorException("Run not found: " + runId));

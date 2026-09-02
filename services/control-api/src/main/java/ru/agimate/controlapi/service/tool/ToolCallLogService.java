@@ -184,6 +184,7 @@ public class ToolCallLogService {
                         blankToNull(connectorCode), blankToNull(connectionId),
                         accessEffect, blankToNull(name),
                         status != null ? status.name() : null,
+                        null, null,
                         pageable)
                 .map(ToolCallLogResponse::from);
     }

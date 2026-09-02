@@ -44,7 +44,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -95,7 +94,7 @@ class PlatformObservabilityToolServiceTest {
     /** Владельческая проверка (owner check) рана: тот же запрос, что у manage getRun. */
     private static void stubOwnedRun(AgentRunRepository repository, UUID runId, AgentRunProjection projection) {
         when(repository.findRunsWithFilters(eq(USER_ID), eq(runId), isNull(), isNull(), isNull(), isNull(),
-                isNull(), isNull(), isNull(), any(Pageable.class)))
+                isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(projection)));
     }
 
@@ -111,7 +110,7 @@ class PlatformObservabilityToolServiceTest {
             when(projection.getResult()).thenReturn(
                     "created agent, key: agntapLrNHYBw8f3QtfDE9ueFPWbejAPskkSl21TwPYo9PHII1Oc6UfK_DD4CSDl");
             when(agentRunRepository.findRunsWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(projection)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_runs", Map.of());
@@ -132,7 +131,7 @@ class PlatformObservabilityToolServiceTest {
             AgentRunProjection projection = runProjection(runId, sessionId);
             when(agentRunRepository.findRunsWithFilters(eq(USER_ID), isNull(), eq(agentId), eq(sessionId),
                     isNull(), eq("telegram"), eq("conn-1"), eq("tick"), eq(RunStatus.RUNNING),
-                    any(Pageable.class)))
+                    isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(projection)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_runs",
@@ -166,6 +165,43 @@ class PlatformObservabilityToolServiceTest {
             assertTrue(ex.getMessage().contains("CANCELLED"));
             verifyNoInteractions(agentRunRepository);
         }
+
+        @Test
+        @DisplayName("since/until пробрасываются в репозиторий распарсенными LocalDateTime")
+        void forwardsTimeWindow() {
+            when(agentRunRepository.findRunsWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
+                    isNull(), isNull(), isNull(), isNull(),
+                    eq(LocalDateTime.of(2026, 9, 1, 10, 0)),
+                    eq(LocalDateTime.of(2026, 9, 2, 11, 30)), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            handler.executeTool(env(), "list_runs", Map.of(
+                    "since", "2026-09-01T10:00:00", "until", "2026-09-02T11:30:00"));
+
+            verify(agentRunRepository).findRunsWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
+                    isNull(), isNull(), isNull(), isNull(),
+                    eq(LocalDateTime.of(2026, 9, 1, 10, 0)),
+                    eq(LocalDateTime.of(2026, 9, 2, 11, 30)), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("мусорный since — ConnectorException без обращения к БД")
+        void garbageSinceRejected() {
+            var ex = assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "list_runs",
+                    Map.of("since", "yesterday")));
+            assertTrue(ex.getMessage().contains("Invalid since"));
+            verifyNoInteractions(agentRunRepository);
+        }
+
+        @Test
+        @DisplayName("since с временной зоной — отклоняется: окно привязано к локальным часам строк")
+        void offsetSinceRejected() {
+            var ex = assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "list_runs",
+                    Map.of("since", "2026-09-01T10:00:00+02:00")));
+            assertTrue(ex.getMessage().contains("Invalid since"), ex.getMessage());
+            assertTrue(ex.getMessage().contains("without a timezone suffix"), ex.getMessage());
+            verifyNoInteractions(agentRunRepository);
+        }
     }
 
     @Nested
@@ -177,7 +213,7 @@ class PlatformObservabilityToolServiceTest {
         void foreignRunReadsAsNotFound() {
             UUID runId = UUID.randomUUID();
             when(agentRunRepository.findRunsWithFilters(eq(USER_ID), eq(runId), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             var ex = assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "get_run",
@@ -248,7 +284,8 @@ class PlatformObservabilityToolServiceTest {
                     .userId(USER_ID).connectorCode("telegram").connectionId(connectionId)
                     .title("Hello").lastActivityAt(LocalDateTime.of(2025, 5, 5, 5, 5))
                     .build();
-            when(agentSessionService.list(eq(USER_ID), isNull(), isNull(), isNull(), eq(0), eq(100)))
+            when(agentSessionService.list(eq(USER_ID), isNull(), isNull(), isNull(), isNull(), isNull(),
+                    eq(0), eq(100)))
                     .thenReturn(new PageImpl<>(List.of(session)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_sessions", Map.of());
@@ -269,12 +306,14 @@ class PlatformObservabilityToolServiceTest {
         @DisplayName("agentId-фильтр пробрасывается в сервис")
         void passesAgentFilter() {
             UUID agentId = UUID.randomUUID();
-            when(agentSessionService.list(eq(USER_ID), eq(agentId), isNull(), isNull(), eq(0), eq(100)))
+            when(agentSessionService.list(eq(USER_ID), eq(agentId), isNull(), isNull(), isNull(), isNull(),
+                    eq(0), eq(100)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             handler.executeTool(env(), "list_sessions", Map.of("agentId", agentId.toString()));
 
-            verify(agentSessionService).list(eq(USER_ID), eq(agentId), isNull(), isNull(), eq(0), eq(100));
+            verify(agentSessionService).list(eq(USER_ID), eq(agentId), isNull(), isNull(), isNull(), isNull(),
+                    eq(0), eq(100));
         }
     }
 
@@ -368,7 +407,8 @@ class PlatformObservabilityToolServiceTest {
                     .build();
             log.setCreatedAt(LocalDateTime.of(2025, 1, 1, 9, 0));
             when(toolCallLogRepository.findWithFilters(eq(USER_ID), eq(agentId), eq("github"), eq("conn-9"),
-                    eq(AccessEffect.ALLOW), eq("issue"), eq("SUCCESS"), any(Pageable.class)))
+                    eq(AccessEffect.ALLOW), eq("issue"), eq("SUCCESS"), isNull(), isNull(),
+                    any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(log)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_tool_call_logs",
@@ -402,7 +442,7 @@ class PlatformObservabilityToolServiceTest {
             ToolCallLog pending = ToolCallLog.builder().id(UUID.randomUUID()).userId(USER_ID)
                     .agentId(UUID.randomUUID()).name("c").externalId("e3").build();
             when(toolCallLogRepository.findWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(success, error, pending)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_tool_call_logs", Map.of());
@@ -420,7 +460,7 @@ class PlatformObservabilityToolServiceTest {
                     .agentId(UUID.randomUUID()).name("x").externalId("e1")
                     .error("denied by policy").build();
             when(toolCallLogRepository.findWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(denied)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_tool_call_logs", Map.of());
@@ -438,7 +478,7 @@ class PlatformObservabilityToolServiceTest {
                     .output("{\"id\":\"a1\",\"name\":\"bot\",\"plaintextKey\":\"agnt_secret\"}")
                     .build();
             when(toolCallLogRepository.findWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(log)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_tool_call_logs", Map.of());
@@ -457,7 +497,7 @@ class PlatformObservabilityToolServiceTest {
                     .finishAt(LocalDateTime.now()).output("used sk-proj-abcdefghijklmnopqrstuvwxyz012345 for the call")
                     .build();
             when(toolCallLogRepository.findWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(log)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_tool_call_logs", Map.of());
@@ -474,7 +514,7 @@ class PlatformObservabilityToolServiceTest {
                     .agentId(UUID.randomUUID()).name("search").externalId("e1")
                     .finishAt(LocalDateTime.now()).output("just some text").build();
             when(toolCallLogRepository.findWithFilters(eq(USER_ID), isNull(), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(log)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_tool_call_logs", Map.of());
@@ -502,7 +542,8 @@ class PlatformObservabilityToolServiceTest {
             when(trigger.getInput()).thenReturn(Map.of(
                     "text", "use sk-proj-abcdefghijklmnopqrstuvwxyz012345 for the call",
                     "apiKey", "AIzaSyD-foreign-style-token"));
-            when(triggerLogRepository.findByUserIdWithFilters(eq(USER_ID), isNull(), any(Pageable.class)))
+            when(triggerLogRepository.findByUserIdWithFilters(eq(USER_ID), isNull(), isNull(), isNull(),
+                    isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(trigger)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_trigger_logs", Map.of());
@@ -525,7 +566,8 @@ class PlatformObservabilityToolServiceTest {
             when(trigger.getOccurredAt()).thenReturn(LocalDateTime.of(2025, 2, 2, 2, 2));
             when(trigger.getAgentsCount()).thenReturn(2L);
             when(trigger.getInput()).thenReturn(Map.of("text", "hi"));
-            when(triggerLogRepository.findByUserIdWithFilters(eq(USER_ID), isNull(), any(Pageable.class)))
+            when(triggerLogRepository.findByUserIdWithFilters(eq(USER_ID), isNull(), isNull(), isNull(),
+                    isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(trigger)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_trigger_logs", Map.of());
@@ -546,14 +588,28 @@ class PlatformObservabilityToolServiceTest {
         @Test
         @DisplayName("connectorCode-фильтр пробрасывается")
         void passesConnectorFilter() {
-            when(triggerLogRepository.findByUserIdWithFilters(eq(USER_ID), eq("telegram"),
-                    any(Pageable.class)))
+            when(triggerLogRepository.findByUserIdWithFilters(eq(USER_ID), eq("telegram"), isNull(),
+                    isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             handler.executeTool(env(), "list_trigger_logs", Map.of("connectorCode", "telegram"));
 
-            verify(triggerLogRepository).findByUserIdWithFilters(eq(USER_ID), eq("telegram"),
-                    any(Pageable.class));
+            verify(triggerLogRepository).findByUserIdWithFilters(eq(USER_ID), eq("telegram"), isNull(),
+                    isNull(), isNull(), any(Pageable.class));
+        }
+
+        @Test
+        @DisplayName("agentId-фильтр пробрасывается в репозиторий")
+        void passesAgentIdFilter() {
+            UUID agentId = UUID.randomUUID();
+            when(triggerLogRepository.findByUserIdWithFilters(eq(USER_ID), isNull(), eq(agentId), isNull(),
+                    isNull(), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            handler.executeTool(env(), "list_trigger_logs", Map.of("agentId", agentId.toString()));
+
+            verify(triggerLogRepository).findByUserIdWithFilters(eq(USER_ID), isNull(), eq(agentId), isNull(),
+                    isNull(), any(Pageable.class));
         }
     }
 
@@ -562,7 +618,7 @@ class PlatformObservabilityToolServiceTest {
     class ListWebhookDeliveries {
 
         @Test
-        @DisplayName("маппит доставку; без фильтра — findByUserId")
+        @DisplayName("маппит доставку без фильтров")
         void mapsDeliveryWithoutFilter() {
             UUID runId = UUID.randomUUID();
             AgentRun run = mock(AgentRun.class);
@@ -572,7 +628,8 @@ class PlatformObservabilityToolServiceTest {
                     .responseStatusCode(200).error(null).durationMs(42L)
                     .deliveredAt(LocalDateTime.of(2025, 3, 3, 3, 3))
                     .build();
-            when(webhookDeliveryLogRepository.findByUserId(eq(USER_ID), any(Pageable.class)))
+            when(webhookDeliveryLogRepository.findWithFilters(eq(USER_ID), isNull(), isNull(), isNull(),
+                    any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of(delivery)));
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(env(), "list_webhook_deliveries", Map.of());
@@ -592,41 +649,59 @@ class PlatformObservabilityToolServiceTest {
         @Test
         @DisplayName("запрос несёт явную сортировку «newest first»")
         void sortsByDeliveredAtDesc() {
-            when(webhookDeliveryLogRepository.findByUserId(eq(USER_ID), any(Pageable.class)))
+            when(webhookDeliveryLogRepository.findWithFilters(eq(USER_ID), isNull(), isNull(), isNull(),
+                    any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             handler.executeTool(env(), "list_webhook_deliveries", Map.of());
 
-            verify(webhookDeliveryLogRepository).findByUserId(eq(USER_ID), argThat(pageable ->
-                    pageable.getSort().getOrderFor("deliveredAt") != null
-                            && pageable.getSort().getOrderFor("deliveredAt").isDescending()));
+            verify(webhookDeliveryLogRepository).findWithFilters(eq(USER_ID), isNull(), isNull(), isNull(),
+                    argThat(pageable ->
+                            pageable.getSort().getOrderFor("deliveredAt") != null
+                                    && pageable.getSort().getOrderFor("deliveredAt").isDescending()));
         }
 
         @Test
         @DisplayName("пустой agentId-фильтр — то же, что без фильтра")
         void blankAgentFilterTreatedAsNone() {
-            when(webhookDeliveryLogRepository.findByUserId(eq(USER_ID), any(Pageable.class)))
+            when(webhookDeliveryLogRepository.findWithFilters(eq(USER_ID), isNull(), isNull(), isNull(),
+                    any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             handler.executeTool(env(), "list_webhook_deliveries", Map.of("agentId", ""));
 
-            verify(webhookDeliveryLogRepository).findByUserId(eq(USER_ID), any(Pageable.class));
-            verify(webhookDeliveryLogRepository, never()).findByUserIdAndAgentId(any(), any(), any());
+            verify(webhookDeliveryLogRepository).findWithFilters(eq(USER_ID), isNull(), isNull(), isNull(),
+                    any(Pageable.class));
         }
 
         @Test
-        @DisplayName("agentId-фильтр выбирает findByUserIdAndAgentId")
+        @DisplayName("agentId-фильтр пробрасывается в findWithFilters")
         void passesAgentFilter() {
             UUID agentId = UUID.randomUUID();
-            when(webhookDeliveryLogRepository.findByUserIdAndAgentId(eq(USER_ID), eq(agentId),
+            when(webhookDeliveryLogRepository.findWithFilters(eq(USER_ID), eq(agentId), isNull(), isNull(),
                     any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             handler.executeTool(env(), "list_webhook_deliveries", Map.of("agentId", agentId.toString()));
 
-            verify(webhookDeliveryLogRepository).findByUserIdAndAgentId(eq(USER_ID), eq(agentId),
+            verify(webhookDeliveryLogRepository).findWithFilters(eq(USER_ID), eq(agentId), isNull(), isNull(),
                     any(Pageable.class));
-            verify(webhookDeliveryLogRepository, never()).findByUserId(any(), any());
+        }
+
+        @Test
+        @DisplayName("since/until пробрасываются в единственный findWithFilters")
+        void forwardsTimeWindow() {
+            when(webhookDeliveryLogRepository.findWithFilters(eq(USER_ID), isNull(),
+                    eq(LocalDateTime.of(2026, 9, 1, 10, 0)),
+                    eq(LocalDateTime.of(2026, 9, 2, 11, 30)), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            handler.executeTool(env(), "list_webhook_deliveries", Map.of(
+                    "since", "2026-09-01T10:00:00", "until", "2026-09-02T11:30:00"));
+
+            verify(webhookDeliveryLogRepository).findWithFilters(eq(USER_ID), isNull(),
+                    eq(LocalDateTime.of(2026, 9, 1, 10, 0)),
+                    eq(LocalDateTime.of(2026, 9, 2, 11, 30)), any(Pageable.class));
         }
     }
 
@@ -748,7 +823,7 @@ class PlatformObservabilityToolServiceTest {
         void foreignRunReadsAsNotFound() {
             UUID runId = UUID.randomUUID();
             when(agentRunRepository.findRunsWithFilters(eq(USER_ID), eq(runId), isNull(), isNull(), isNull(),
-                    isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                    isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                     .thenReturn(new PageImpl<>(List.of()));
 
             var ex = assertThrows(ConnectorException.class, () -> handler.executeTool(env(), "get_run_turns",

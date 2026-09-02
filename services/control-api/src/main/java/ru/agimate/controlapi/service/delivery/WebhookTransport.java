@@ -174,12 +174,8 @@ public class WebhookTransport implements AgentTransport {
 
     @Transactional(readOnly = true)
     public Page<WebhookDeliveryLogResponse> getDeliveryLogs(UUID userId, UUID agentId, int page, int size) {
-        Page<WebhookDeliveryLog> logs;
-        if (agentId != null) {
-            logs = webhookDeliveryLogRepository.findByUserIdAndAgentId(userId, agentId, PageRequest.of(page, size));
-        } else {
-            logs = webhookDeliveryLogRepository.findByUserId(userId, PageRequest.of(page, size));
-        }
+        Page<WebhookDeliveryLog> logs = webhookDeliveryLogRepository.findWithFilters(
+                userId, agentId, null, null, PageRequest.of(page, size));
         return logs.map(WebhookDeliveryLogResponse::from);
     }
 

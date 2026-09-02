@@ -4,6 +4,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.data.domain.Pageable;
@@ -203,12 +204,14 @@ class PlatformAgentToolServiceTest {
         void listAgentSkillsOnSelfIsAllowed() {
             when(agentRepository.findById(SELF_AGENT_ID)).thenReturn(Optional.of(Agent.builder()
                     .id(SELF_AGENT_ID).userId(USER_ID).name("self").type(AgentType.MCP).build()));
-            when(agentSkillRepository.findByAgentId(SELF_AGENT_ID)).thenReturn(List.of());
+            when(agentSkillRepository.findByAgentId(eq(SELF_AGENT_ID), any(Pageable.class)))
+                    .thenReturn(Page.empty());
 
             Map<?, ?> result = (Map<?, ?>) handler.executeTool(selfEnv(),
                     "list_agent_skills", Map.of("agentId", SELF_AGENT_ID.toString()));
 
             assertEquals(List.of(), result.get("skills"));
+            assertEquals(false, result.get("truncated"));
         }
     }
 
@@ -490,9 +493,10 @@ class PlatformAgentToolServiceTest {
                     .id(agentId).userId(USER_ID).name("Bot").type(AgentType.GENERIC).build()));
             UUID skillA = UUID.randomUUID();
             UUID skillB = UUID.randomUUID();
-            when(agentSkillRepository.findByAgentId(agentId)).thenReturn(List.of(
-                    AgentSkill.builder().id(UUID.randomUUID()).agentId(agentId).skillId(skillA).build(),
-                    AgentSkill.builder().id(UUID.randomUUID()).agentId(agentId).skillId(skillB).build()));
+            when(agentSkillRepository.findByAgentId(eq(agentId), any(Pageable.class)))
+                    .thenReturn(new PageImpl<>(List.of(
+                            AgentSkill.builder().id(UUID.randomUUID()).agentId(agentId).skillId(skillA).build(),
+                            AgentSkill.builder().id(UUID.randomUUID()).agentId(agentId).skillId(skillB).build())));
             when(skillRepository.findByIdInNotDeleted(anyCollection())).thenReturn(List.of(
                     Skill.builder().id(skillA).name("Alpha").connectorCodes(List.of("telegram")).build(),
                     Skill.builder().id(skillB).name("Beta").connectorCodes(List.of("gmail")).build()));

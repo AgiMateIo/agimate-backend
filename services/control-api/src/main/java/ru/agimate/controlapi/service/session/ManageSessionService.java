@@ -56,7 +56,8 @@ public class ManageSessionService {
     public Page<SessionResponse> list(UUID userId, UUID agentId, UUID channelId, String connectorCode,
                                       int page, int size) {
         Page<AgentSession> sessions = agentSessionService.list(
-                userId, agentId, channelId, connectorCode, page, Math.min(size, MAX_PAGE_SIZE));
+                userId, agentId, channelId, connectorCode, null, null,
+                page, Math.min(size, MAX_PAGE_SIZE));
         return sessions.map(enricher(sessions.getContent()));
     }
 

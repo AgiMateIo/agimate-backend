@@ -94,7 +94,7 @@ public class PlatformAgentToolService {
                 ? agentRepository.searchForUser(PlatformToolsSupport.userId(), null, q, page)
                 : agentRepository.findByUserId(PlatformToolsSupport.userId(), page));
         var listed = agents.map(this::toAgentBrief).getContent();
-        return new AgentList(listed, listed.size() == PlatformToolsSupport.MAX_LISTING);
+        return new AgentList(listed, PlatformToolsSupport.truncated(agents));
     }
 
     @Tool(name = "get_agent",
@@ -124,7 +124,8 @@ public class PlatformAgentToolService {
                     + "the agent into an agentic team you own. skillIds binds skills at creation (their internal "
                     + "connectors are opened for the agent; a skill declaring an external connector needs its "
                     + "instance chosen first). Returns the agent's id and a link where the key is shown once in "
-                    + "the UI — secrets are never handled here",
+                    + "the UI — secrets are never handled here: a webhook auth header, if the endpoint needs "
+                    + "one, is entered by the user on the agent page the link opens",
             annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public CreatedAgent createAgent(
             @ToolParam("Agent name") String name,
@@ -133,8 +134,6 @@ public class PlatformAgentToolService {
             @ToolParam(value = "Agent type: GENERIC (default), CENTRIFUGO, MCP or WEBHOOK", required = false)
             String type,
             @ToolParam(value = "Webhook URL — required when type=WEBHOOK", required = false) String webhookUrl,
-            @ToolParam(value = "Webhook authorization header value (write-only, stored encrypted)", required = false)
-            String webhookAuthHeader,
             @ToolParam(value = "Agentic team public ID to place the agent in", required = false) String teamId,
             @ToolParam(value = "Skill public IDs to bind on creation", required = false) List<String> skillIds) {
         AgentType agentType = PlatformToolsSupport.parseAgentType(type);
@@ -142,10 +141,11 @@ public class PlatformAgentToolService {
                 .map(id -> PlatformToolsSupport.parseUuid(id, "skillIds")).toList();
         // WEBHOOK validation (webhookUrl required) is the service's job — the connector only blanks
         // empty strings and lets AgentService.validateWebhookFields refuse a WEBHOOK without an address.
+        // webhookAuthHeader is deliberately absent: a secret never travels through the model — the
+        // user enters it on the agent page (the same page the returned keyUrl opens).
         var command = new AgentCreateCommand(PlatformToolsSupport.requireText(name, "name"),
                 PlatformToolsSupport.blankToNull(description), PlatformToolsSupport.blankToNull(instructions),
-                agentType, PlatformToolsSupport.blankToNull(webhookUrl),
-                PlatformToolsSupport.blankToNull(webhookAuthHeader),
+                agentType, PlatformToolsSupport.blankToNull(webhookUrl), null,
                 PlatformToolsSupport.parseUuidOrNull(teamId, "teamId"), skills, null);
         var result = PlatformToolsSupport.domain(() -> agentService.create(PlatformToolsSupport.userId(), command));
         // The same second step the UI performs after creating an agent from a preset: a skill binding
@@ -163,11 +163,14 @@ public class PlatformAgentToolService {
     }
 
     @Tool(name = "update_agent",
-            description = "Update an agent: name, description, instructions, type, webhookUrl, "
-                    + "webhookAuthHeader, enabled. Omitted params are left unchanged; an empty string clears a "
+            description = "Update an agent: name, description, instructions, type, webhookUrl, enabled. "
+                    + "Omitted params are left unchanged; an empty string clears a "
                     + "string field except type, where an empty value means \"not sent\" (a type has no "
-                    + "cleared state). Switching type away from WEBHOOK clears webhookUrl and webhookAuthHeader "
-                    + "on the server. Changing type to a non-push type is refused while the agent has channels",
+                    + "cleared state). Switching type away from WEBHOOK clears webhookUrl and the stored "
+                    + "webhook auth header on the server. The auth header itself is never a tool parameter — "
+                    + "the user enters it on the agent page the keyUrl opens (replace only; clearing it "
+                    + "without leaving WEBHOOK is a UI action, not a tool one). "
+                    + "Changing type to a non-push type is refused while the agent has channels",
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public AgentDetail updateAgent(
             @ToolParam("Agent public ID") String agentId,
@@ -177,8 +180,6 @@ public class PlatformAgentToolService {
             @ToolParam(value = "New type: GENERIC, CENTRIFUGO, MCP or WEBHOOK", required = false) String type,
             @ToolParam(value = "New webhook URL; empty string clears (WEBHOOK requires it)", required = false)
             String webhookUrl,
-            @ToolParam(value = "New webhook auth header value (write-only; empty string clears)", required = false)
-            String webhookAuthHeader,
             @ToolParam(value = "Enable or disable the agent", required = false) Boolean enabled) {
         UUID id = PlatformToolsSupport.parseUuid(agentId, "agentId");
         PlatformToolsSupport.requireNotSelf(id);
@@ -188,10 +189,11 @@ public class PlatformAgentToolService {
         // Raw strings go through untouched — only the type enum is parsed here. A blank type is "not
         // sent" on the update path (there is no "clear" for a type): parseAgentType's blank→GENERIC
         // default belongs to create_agent alone — applying it here would silently rewrite a WEBHOOK
-        // agent into GENERIC and wipe its webhook configuration.
+        // agent into GENERIC and wipe its webhook configuration. The auth header is always "not sent":
+        // it is entered by the user on the agent page, never through the model.
         var command = new AgentUpdateCommand(name, description, instructions,
                 type != null && !type.isBlank() ? PlatformToolsSupport.parseAgentType(type) : null,
-                webhookUrl, webhookAuthHeader, enabled);
+                webhookUrl, null, enabled);
         PlatformToolsSupport.domain(() -> agentService.patch(id, PlatformToolsSupport.userId(), command));
         return getAgent(agentId);
     }
@@ -228,14 +230,19 @@ public class PlatformAgentToolService {
     @Tool(name = "list_agent_skills",
             description = "List the skills bound to an agent, with the satisfaction status of each: "
                     + "whether every connector the skill declares has a bound connection. An unsatisfied skill "
-                    + "is not given to the agent. Use list_agent_connections to see what is missing",
+                    + "is not given to the agent. Use list_agent_connections to see what is missing. "
+                    + "Newest bindings first, first 100",
             annotations = @ToolAnnotations(readOnlyHint = true, idempotentHint = true, openWorldHint = false))
     public AgentSkillList listAgentSkills(@ToolParam("Agent public ID") String agentId) {
         UUID id = PlatformToolsSupport.parseUuid(agentId, "agentId");
         // A read-only listing of your own skills is legitimate (get_agent has no self-guard either);
         // the guard is about managing, not about looking.
-        Agent agent = PlatformToolsSupport.ownedAgent(agentRepository, id);
-        List<UUID> skillIds = agentSkillRepository.findByAgentId(agent.getId()).stream()
+        PlatformToolsSupport.ownedAgent(agentRepository, id);
+        // Paged the same way the manage API pages the same rows (createdAt DESC) — the connector's
+        // page cap is MAX_LISTING, and truncation is reported on the record.
+        var page = agentSkillRepository.findByAgentId(id, PageRequest.of(0,
+                PlatformToolsSupport.MAX_LISTING, Sort.by("createdAt").descending()));
+        List<UUID> skillIds = page.getContent().stream()
                 .map(AgentSkill::getSkillId)
                 .toList();
         Map<UUID, Skill> skillsById = skillIds.isEmpty() ? Map.of()
@@ -244,15 +251,16 @@ public class PlatformAgentToolService {
         // Satisfaction is the service's computation: satisfiedSkillInstances resolves every bound skill
         // against the agent's connections and reports only the complete ones (skillId → bound instance
         // ids) — exactly "every declared connector has a bound connection". A skill absent from the map
-        // is unsatisfied and is not given to the agent.
-        Map<UUID, Set<UUID>> satisfiedInstances = agentSkillService.satisfiedSkillInstances(agent.getId());
+        // is unsatisfied and is not given to the agent. It is computed over all bindings — only the
+        // response is paged.
+        Map<UUID, Set<UUID>> satisfiedInstances = agentSkillService.satisfiedSkillInstances(id);
         List<AgentSkillBinding> items = skillIds.stream()
                 .map(skillsById::get)
                 .filter(Objects::nonNull)
                 .map(s -> new AgentSkillBinding(s.getId().toString(), s.getName(), s.getConnectorCodes(),
                         satisfiedInstances.containsKey(s.getId())))
                 .toList();
-        return new AgentSkillList(items);
+        return new AgentSkillList(items, PlatformToolsSupport.truncated(page));
     }
 
     @Tool(name = "delete_skill",
@@ -322,11 +330,10 @@ public class PlatformAgentToolService {
         if (connQ != null) {
             spec = spec.and(SkillSpecs.hasConnector(connQ));
         }
-        List<SkillBrief> items = skillRepository.findAll(spec, PageRequest.of(0,
-                        PlatformToolsSupport.MAX_LISTING, Sort.by("name").ascending()))
-                .map(this::toSkillBrief)
-                .getContent();
-        return new SkillList(items, items.size() == PlatformToolsSupport.MAX_LISTING);
+        var page = skillRepository.findAll(spec, PageRequest.of(0,
+                PlatformToolsSupport.MAX_LISTING, Sort.by("name").ascending()));
+        List<SkillBrief> items = page.map(this::toSkillBrief).getContent();
+        return new SkillList(items, PlatformToolsSupport.truncated(page));
     }
 
     @Tool(name = "get_skill", description = "Get a skill's full SKILL.md body and metadata",
@@ -420,14 +427,13 @@ public class PlatformAgentToolService {
         // agent with no way to reach its own files at all.
         UUID sessionId = Boolean.TRUE.equals(allConversations)
                 ? null : ConnectorEnvHolder.current().sessionId();
-        List<StoredFile> files = storedFileRepository.findVisible(PlatformToolsSupport.userId(), null,
-                        sessionId, PlatformToolsSupport.blankToNull(name), LocalDateTime.now(),
-                        PageRequest.of(0, PlatformToolsSupport.MAX_LISTING))
-                .getContent();
-        List<FileBrief> briefs = files.stream()
+        var page = storedFileRepository.findVisible(PlatformToolsSupport.userId(), null,
+                sessionId, PlatformToolsSupport.blankToNull(name), LocalDateTime.now(),
+                PageRequest.of(0, PlatformToolsSupport.MAX_LISTING));
+        List<FileBrief> briefs = page.getContent().stream()
                 .map(PlatformAgentToolService::toFileBrief)
                 .toList();
-        return new FileList(briefs, briefs.size() == PlatformToolsSupport.MAX_LISTING);
+        return new FileList(briefs, PlatformToolsSupport.truncated(page));
     }
 
 

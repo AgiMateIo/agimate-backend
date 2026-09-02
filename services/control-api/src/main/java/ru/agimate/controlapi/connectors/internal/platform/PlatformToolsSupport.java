@@ -1,5 +1,6 @@
 package ru.agimate.controlapi.connectors.internal.platform;
 
+import org.springframework.data.domain.Page;
 import ru.agimate.common.rest.error.BaseHttpStatusException;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvHolder;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
@@ -9,7 +10,10 @@ import ru.agimate.controlapi.database.enums.AgentType;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.SkillRepository;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -27,6 +31,23 @@ final class PlatformToolsSupport {
     static final int MAX_LISTING = 100;
 
     private PlatformToolsSupport() {
+    }
+
+    /** Accurate flag for Page-backed listings: {@code true} iff rows exist beyond the first page. */
+    static boolean truncated(Page<?> page) {
+        return page.hasNext();
+    }
+
+    /** The outcome of slicing an overflow fetch (fetched with {@code MAX_LISTING + 1}) to the cap. */
+    record Capped<T>(List<T> items, boolean truncated) {
+    }
+
+    /** Exactly {@link #MAX_LISTING} rows is NOT truncation — only an overflow past the cap is.
+     *  Fetch {@code MAX_LISTING + 1} rows, then slice here: the flag stays truthful at exactly 100. */
+    static <T> Capped<T> cap(List<T> fetched) {
+        return fetched.size() > MAX_LISTING
+                ? new Capped<>(fetched.subList(0, MAX_LISTING), true)
+                : new Capped<>(fetched, false);
     }
 
     /** The owning user of the current call; throws ConnectorException when env.userId is null
@@ -88,6 +109,24 @@ final class PlatformToolsSupport {
             return UUID.fromString(v);
         } catch (IllegalArgumentException e) {
             throw new ConnectorException("Invalid " + field + ": '" + value + "'");
+        }
+    }
+
+    /** Optional ISO local date-time (no timezone suffix), e.g. {@code 2026-09-01T10:00:00} — the
+     *  frame the rows are stamped with (the listing's own timestamps are in this format). An
+     *  offset-carrying ISO string is refused on purpose: converting it would silently shift the
+     *  window against rows written in the server's local clock. */
+    static LocalDateTime parseLocalDateTimeOrNull(String value, String field) {
+        String v = blankToNull(value);
+        if (v == null) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(v);
+        } catch (DateTimeParseException e) {
+            throw new ConnectorException("Invalid " + field + ": '" + value
+                    + "' — expected an ISO local date-time without a timezone suffix, "
+                    + "e.g. 2026-09-01T10:00:00 (the format of the timestamps this listing returns)");
         }
     }
 
