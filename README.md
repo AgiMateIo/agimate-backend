@@ -43,6 +43,38 @@ Details and the compose profiles: [docs/operations/local-stack.md](docs/operatio
 To run everything in containers instead, including `agent-worker`:
 `cd ops && docker compose --profile full up -d`.
 
+## Guardrails for agents
+
+An agent in this system works with live credentials against real infrastructure. The guardrails
+below are enforced by the platform itself, not left to the model's judgment, and they cover three
+questions: what an agent can reach, what it may treat as instructions, and what traces it leaves.
+
+- **Access begins only with an explicit binding.** A connection must be bound to the agent; without
+  an active binding, every tool and trigger on it is denied. Inside a binding the default flips to
+  allow, with per-tool and per-trigger rules narrowing the surface —
+  [channels-and-triggers.md](docs/architecture/channels-and-triggers.md).
+- **Tool output counts as untrusted data.** Tool results and external event payloads reach the
+  model wrapped as data, prefaced by a not-instructions marker with closing tags escaped, so the
+  wrapper can't be broken out of — [agents-and-runs.md](docs/architecture/agents-and-runs.md).
+- **Outbound requests target public addresses only.** When the destination is user-chosen — agent
+  webhooks, provider base URLs, MCP servers — the check is applied on the socket before the TLS
+  handshake starts, so neither a DNS reply nor a redirect can carry the request onto the internal
+  network — [outbound-http.md](docs/architecture/outbound-http.md).
+- **Secrets never leave the platform.** Each credential is encrypted with AES-256-GCM under its own
+  data key, which the platform key wraps; the entity and its owner are bound into the AAD. LLM keys
+  are never handed over: an external agent receives only provider and model metadata and runs under
+  its own key — [api-keys.md](docs/contracts/api-keys.md).
+- **Every action leaves a record.** Runs, trigger firings, tool calls, and webhook deliveries are
+  logged per agent and per user — `agent_runs`, `trigger_logs`, `tool_call_logs`,
+  `webhook_delivery_logs` — capturing what was invoked and how it ended.
+- **A run can be halted mid-flight.** Cancellation takes effect at a seam between steps, and a tool
+  marked open-world defines the point of no return: once such a call has been dispatched, stopping
+  the run won't undo it — [run-cancellation.md](docs/decisions/run-cancellation.md).
+
+Still on the roadmap rather than in the product: approvals involving a human, per-user encryption
+of stored content (planned — see [roadmap.md](docs/roadmap.md)), and any form of misuse monitoring.
+The deployment is yours — and so is responsibility for whatever oversight it has.
+
 ## Documentation
 
 [`docs/`](docs/) is organised by intent: `architecture/` (how it is put together and why),
