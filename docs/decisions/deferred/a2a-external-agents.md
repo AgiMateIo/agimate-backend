@@ -22,7 +22,7 @@ created: 2026-08-02
 **A2A** = агент↔агент. См. также `docs/decisions/acp-comparison.md`.
 
 Общение **наших** агентов между собой — отдельная задача без сетевого протокола, см.
-[agent-to-agent-internal.md](agent-to-agent-internal.md).
+[agent-to-agent-internal.md](../agent-to-agent-internal.md).
 
 ## A2A v1.0 — выжимка фактов (проверено по спеке, июль 2026)
 
