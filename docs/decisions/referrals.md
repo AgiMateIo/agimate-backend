@@ -1,6 +1,7 @@
 ---
 status: partial
 created: 2026-08-13
+implemented: 2026-08-13
 ---
 
 # Реферальные ссылки
