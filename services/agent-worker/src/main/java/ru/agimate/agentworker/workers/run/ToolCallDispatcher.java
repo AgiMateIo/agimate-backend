@@ -92,7 +92,7 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
      * Output of an open-world tool ({@code openWorldHint=true}) is third-party content (mail,
      * tickets, the web) and a prompt-injection channel: it gets wrapped in an untrusted-data marker.
      * The marker's meaning is explained by the system paragraph
-     * {@code ContextBuilder.TOOL_OUTPUT_GUIDANCE}; a closing tag inside the data is neutralised so
+     * {@code ResponseTemplates.toolOutputGuidance}; a closing tag inside the data is neutralised so
      * the payload cannot escape the wrapper. Applied after the worker's truncation
      * ({@code ToolCallWorkflowImpl}) — the wrapper is always intact.
      */

@@ -12,9 +12,9 @@ import java.util.Locale;
  * {@link MessageSource}. Per-deployment for now; a per-agent locale sourced from the run is the
  * eventual axis.
  *
- * <p>Mostly end-user notices, plus {@link #wrapUp()}, which the model reads rather than the user.
- * Its axis is strictly the dialogue's language, not the deployment's, so this is the right bundle
- * only while the two coincide — which is also why the key is {@code prompt.*}, not {@code notice.*}.
+ * <p>End-user notices ({@code notice.*}) plus the texts the model reads ({@code prompt.*}). The
+ * latter follow the dialogue's language, not the deployment's, so this is the right bundle for them
+ * only while the two coincide.
  */
 @Component
 public class ResponseTemplates {
@@ -76,7 +76,22 @@ public class ResponseTemplates {
         return get("prompt.wrap-up");
     }
 
-    private String get(String key) {
-        return messages.getMessage(key, null, locale);
+    /** Pins the block {@code tag} below as data, ahead of an untrusted prompt block. */
+    public String untrustedPreamble(String tag) {
+        return get("prompt.untrusted-preamble", tag);
+    }
+
+    /** System paragraph: output wrapped in {@code tag} is third-party data, not commands. */
+    public String toolOutputGuidance(String tag) {
+        return get("prompt.tool-output-guidance", tag);
+    }
+
+    /** System paragraph: a detached tool returns a task handle the model must neither re-invoke nor invent. */
+    public String detachedToolGuidance() {
+        return get("prompt.detached-tool-guidance");
+    }
+
+    private String get(String key, Object... args) {
+        return messages.getMessage(key, args.length == 0 ? null : args, locale);
     }
 }

@@ -34,6 +34,7 @@ public class AgentRunCore {
     private final DBOS dbos;
     private final AgentWorkerClient client;
     private final ContextMaterialsFetcher fetcher;
+    private final ContextBuilder contextBuilder;
     private final LlmCallWorkflow llm;
     private final ToolCallWorkflow tool;
     private final Queue llmQueue;
@@ -46,6 +47,7 @@ public class AgentRunCore {
         this.dbos = dbos;
         this.client = client;
         this.fetcher = new ContextMaterialsFetcher(client);
+        this.contextBuilder = new ContextBuilder(templates);
         this.llm = llm;
         this.tool = tool;
         this.llmQueue = llmQueue;
@@ -72,7 +74,7 @@ public class AgentRunCore {
      * needs the process to die mid-run) and the model calls already made keep their own checkpoints.
      */
     public PreparedContext prepareContext(String agentId, String runId) {
-        return ContextBuilder.build(fetcher.fetch(agentId, runId));
+        return contextBuilder.build(fetcher.fetch(agentId, runId));
     }
 
     /**

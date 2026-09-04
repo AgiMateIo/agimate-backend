@@ -44,7 +44,7 @@ public class LlmMessageMapper {
     /**
      * The «vision» framing for the current call: attachment stubs ({@code MediaStubs} on the backend)
      * are neutral, so it is the worker that explains the «you can / cannot see it» semantics — by
-     * analogy with {@code ContextBuilder.TOOL_OUTPUT_GUIDANCE}. Added only when the request carries
+     * analogy with {@code ResponseTemplates.toolOutputGuidance}. Added only when the request carries
      * image attachments.
      */
     static final String IMAGE_VISIBLE_GUIDANCE =

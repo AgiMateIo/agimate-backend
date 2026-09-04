@@ -2,9 +2,6 @@ package ru.agimate.agentworker.agent;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.support.ResourceBundleMessageSource;
-import ru.agimate.agentworker.config.AgentProperties;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -12,14 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ResponseTemplatesTest {
 
     private static ResponseTemplates templates(String lang) {
-        ResourceBundleMessageSource ms = new ResourceBundleMessageSource();
-        ms.setBasename("messages");
-        ms.setDefaultEncoding("UTF-8");
-        // Mirror application.yaml: unknown language → base bundle, not the JVM locale.
-        ms.setFallbackToSystemLocale(false);
-        AgentProperties props = new AgentProperties();
-        props.getResponse().setLanguage(lang);
-        return new ResponseTemplates(ms, props);
+        return TestTemplates.of(lang);
     }
 
     @Test
@@ -31,6 +21,14 @@ class ResponseTemplatesTest {
         assertNotEquals(templates("en").noModel(), templates("ru").noModel());
         // Model-facing тоже живёт в бандле — иначе он был бы захардкожен на одном языке.
         assertNotEquals(templates("en").wrapUp(), templates("ru").wrapUp());
+    }
+
+    @Test
+    @DisplayName("тег блока подставляется в преамбулу и guidance; фигурные скобки в detached-тексте целы")
+    void promptTextsTakeTheirArguments() {
+        assertTrue(templates("en").untrustedPreamble("mail").contains("<mail>"));
+        assertTrue(templates("ru").toolOutputGuidance("untrusted_tool_output").contains("<untrusted_tool_output>"));
+        assertTrue(templates("en").detachedToolGuidance().contains("{\"status\":\"detached\""));
     }
 
     @Test
