@@ -1,22 +1,20 @@
-package ru.agimate.agentworker.workers;
+package ru.agimate.agentworker.workers.run;
 
 import com.openai.errors.OpenAIIoException;
 import com.openai.errors.OpenAIRetryableException;
 import com.openai.errors.OpenAIServiceException;
-import dev.dbos.transact.context.DBOSContext;
 import io.grpc.Status;
-import dev.dbos.transact.workflow.Workflow;
-import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.chat.prompt.Prompt;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.FilePartRef;
+import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
@@ -27,32 +25,63 @@ import ru.agimate.agentworker.llm.ModelFactory;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 
 /**
- * LLM worker: one model request per queue item. Credentials are fetched inline (not via a step) so
- * the {@code api_key} never lands in a checkpointed step output. HTTP/API errors are returned as an
- * {@link Result} failure rather than thrown, so DBOS does not log them at ERROR.
+ * One model request, end to end: credentials fetched inline, attachment bytes inline, the
+ * provider call with transient-error retries, and error classification. Runs inside the run
+ * workflow's {@code llm_call} step ({@link LlmCallDispatcher}); shared across runs, so the
+ * {@link Semaphore} bounds concurrent provider requests per worker the way the dedicated LLM queue
+ * used to.
+ *
+ * <p>A failure is a {@link Reply} value, never an exception: DBOS would log a thrown one at ERROR
+ * with a stack trace, and the dispatcher turns it back into an exception in plain context.
  */
 @Slf4j
-@WorkflowClassName(Queues.LLM_CLASS)
-public class LlmCallWorkflowImpl implements LlmCallWorkflow {
+public class LlmCall {
+
+    /**
+     * @param assistant  the parsed reply; {@code null} on failure
+     * @param meta       provenance for the ledger (finish reason, model, call id, reasoning); {@code null} on failure
+     * @param usage      token counts for accounting; {@code null} when there is nothing to account
+     * @param statusCode HTTP status of a failed call; {@code null} for a non-HTTP failure
+     * @param message    the failure text
+     * @param userFacing {@code message} is already a notice for the user (a quota text, «no model
+     *                   configured») and must be surfaced verbatim
+     */
+    public record Reply(AgentChatMessage assistant, LlmMeta meta, LlmUsage usage,
+                        boolean failed, Integer statusCode, String message, boolean userFacing) {
+
+        static Reply ok(AgentChatMessage assistant, LlmMeta meta, LlmUsage usage) {
+            return new Reply(assistant, meta, usage, false, null, null, false);
+        }
+
+        static Reply failure(Integer statusCode, String message) {
+            return new Reply(null, null, null, true, statusCode, message, false);
+        }
+
+        static Reply userError(String message) {
+            return new Reply(null, null, null, true, null, message, true);
+        }
+    }
 
     private final AgentWorkerClient client;
     private final ModelFactory modelFactory;
     private final LlmMessageMapper mapper;
     private final ResponseTemplates templates;
+    private final Semaphore slots;
 
-    public LlmCallWorkflowImpl(AgentWorkerClient client, ModelFactory modelFactory,
-                               LlmMessageMapper mapper, ResponseTemplates templates) {
+    public LlmCall(AgentWorkerClient client, ModelFactory modelFactory, LlmMessageMapper mapper,
+                   ResponseTemplates templates, int concurrency) {
         this.client = client;
         this.modelFactory = modelFactory;
         this.mapper = mapper;
         this.templates = templates;
+        this.slots = new Semaphore(concurrency);
     }
 
-    @Override
-    @Workflow(name = Queues.LLM_WORKFLOW)
-    public Result llmCall(List<AgentChatMessage> messages, List<ToolDef> toolDefs, String agentId) {
+    /** @param callId minted by the caller, stable across replays — seeds the tool call ids and keys the usage row */
+    public Reply call(List<AgentChatMessage> messages, List<ToolDef> toolDefs, String agentId, String callId) {
         LlmCredentials creds;
         try {
             creds = client.getLlmCredentials(agentId);
@@ -62,7 +91,7 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             if (e.code() == Status.Code.RESOURCE_EXHAUSTED
                     && e.description() != null && !e.description().isBlank()) {
                 log.info("LLM quota exceeded: {}", e.description());
-                return Result.userError(e.description());
+                return Reply.userError(e.description());
             }
             // NOT_FOUND (no binding / the bound model is gone) and FAILED_PRECONDITION (the provider is
             // switched off) are all «the agent has no model», which the owner fixes in settings — a generic
@@ -70,15 +99,15 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
             // (agent uuids, provider internals), so the notice is authored here instead of passed through.
             if (e.code() == Status.Code.NOT_FOUND || e.code() == Status.Code.FAILED_PRECONDITION) {
                 log.warn("no usable chat model for agent {}: {}", agentId, e.getMessage());
-                return Result.userError(templates.noModel());
+                return Reply.userError(templates.noModel());
             }
             log.warn("LLM credentials unavailable: {}", e.getMessage());
-            return Result.failure(null, e.getMessage());
+            return Reply.failure(null, e.getMessage());
         }
         log.debug("LLM credentials: provider={} model={}", creds.getProviderType(), creds.getModel());
 
         // Model construction stays inside the try: an unsupported provider_type (or a mapping
-        // bug) must come back as a failure value, not escape the workflow past the error mapping.
+        // bug) must come back as a failure value, not escape past the error mapping.
         try {
             OpenAiChatModel model = modelFactory.build(creds);
             // The request body is assembled from these options alone — Spring AI 2.0 does not merge them
@@ -93,32 +122,31 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
                 log.info("chat model {} lacks image input — inbound images stay text stubs",
                         creds.getModel());
             }
-            // Attachment bytes are pulled inline (like the credentials) — they never enter the workflow input's DBOS checkpoint.
+            // Attachment bytes are pulled inline (like the credentials) — they never enter a checkpoint.
             Map<String, byte[]> mediaBytes = imageInput ? fetchImageBytes(messages, agentId) : Map.of();
             Prompt prompt = new Prompt(mapper.toSpringMessages(messages, mediaBytes, imageInput), options);
             ChatResponse response = callWithRetry(model, prompt);
-            String callId = currentCallId();
-            return Result.ok(mapper.fromResponse(response, callId), mapper.finishReason(response),
-                    creds.getModel(), callId, buildUsage(response, creds, callId),
+            LlmMeta meta = new LlmMeta(mapper.finishReason(response), creds.getModel(), callId,
                     mapper.reasoning(response));
+            return Reply.ok(mapper.fromResponse(response, callId), meta, buildUsage(response, creds, callId));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return Reply.failure(null, "interrupted while waiting for the model");
         } catch (Exception e) {
             OpenAIServiceException svc = findServiceException(e);
             if (svc != null) {
                 log.warn("LLM HTTP error (status={}): {}", svc.statusCode(), svc.getMessage());
-                return Result.failure(svc.statusCode(), nonBlankMessage(svc));
+                return Reply.failure(svc.statusCode(), nonBlankMessage(svc));
             }
             log.warn("LLM API error: {}", e.getMessage());
-            return Result.failure(null, nonBlankMessage(e));
+            return Reply.failure(null, nonBlankMessage(e));
         }
     }
 
     /**
-     * The call's tokens for usage accounting — the child workflow only <b>returns</b> them on
-     * {@link Result}; the loop surfaces them and the run wiring reports them to the backend (the sole
-     * writer of the run's backend-side records). Self-contained for reporting: carries
-     * {@code callId}/{@code model}/{@code providerId}. {@code null} when there is nothing to account
-     * for: no usage metadata, or an empty {@code provider_id} (an older control-api during a rolling
-     * deploy).
+     * Token counts, self-contained for reporting ({@code callId}/{@code model}/{@code providerId}).
+     * {@code null} when there is nothing to account for: no usage metadata, or an empty
+     * {@code provider_id} (an older control-api during a rolling deploy).
      */
     private static LlmUsage buildUsage(ChatResponse response, LlmCredentials creds, String callId) {
         if (creds.getProviderId().isBlank()) {
@@ -134,16 +162,16 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
                 intOrZero(usage.getCacheReadInputTokens()), intOrZero(usage.getCacheWriteInputTokens()));
     }
 
-    /**
-     * Image attachment bytes for every user message in the request ({@code fileId → bytes}) — inline,
-     * so they stay out of the checkpoint (like {@code api_key}). An unavailable file (NOT_FOUND or a
-     * failure) is skipped: the message text already carries a stub, so «vision» degrades but the run
-     * does not fail. In practice only the last user message has parts — the loop is cheap.
-     */
     private static boolean hasImageParts(List<AgentChatMessage> messages) {
         return messages.stream().anyMatch(m -> m.parts().stream().anyMatch(FilePartRef::isImage));
     }
 
+    /**
+     * Image attachment bytes for every user message in the request ({@code fileId → bytes}). An
+     * unavailable file (NOT_FOUND or a failure) is skipped: the message text already carries a stub,
+     * so «vision» degrades but the run does not fail. In practice only the last user message has
+     * parts — the loop is cheap.
+     */
     private Map<String, byte[]> fetchImageBytes(List<AgentChatMessage> messages, String agentId) {
         Map<String, byte[]> bytes = new LinkedHashMap<>();
         for (AgentChatMessage m : messages) {
@@ -165,11 +193,6 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
         return bytes;
     }
 
-    /** The LLM call's own workflow id; a seam for tests. */
-    String currentCallId() {
-        return DBOSContext.workflowId();
-    }
-
     private static int intOrZero(Number value) {
         return value == null ? 0 : value.intValue();
     }
@@ -181,29 +204,29 @@ public class LlmCallWorkflowImpl implements LlmCallWorkflow {
     /**
      * Transient provider errors (429/5xx/408, SDK network failures) are retried here — otherwise a
      * single provider blip kills the whole run along with the tool work accumulated in it. Other 4xx
-     * (401/403/400) are terminal and go straight to error mapping. Worst case this holds an llm-queue
-     * slot for {@value #MAX_ATTEMPTS} × request-timeout — a deliberate price.
+     * (401/403/400) are terminal and go straight to error mapping. The concurrency slot is held
+     * across the retries: worst case {@value #MAX_ATTEMPTS} × request-timeout — a deliberate price.
      */
-    private static ChatResponse callWithRetry(OpenAiChatModel model, Prompt prompt) {
-        long backoffMs = INITIAL_BACKOFF_MS;
-        for (int attempt = 1; ; attempt++) {
-            try {
-                return model.call(prompt);
-            } catch (Exception e) {
-                if (attempt >= MAX_ATTEMPTS || !transientProviderError(e)) {
-                    throw e;
-                }
-                long delayMs = Math.max(backoffMs, retryAfterMs(e));
-                log.info("LLM transient error (attempt {}/{}), retrying in {} ms: {}",
-                        attempt, MAX_ATTEMPTS, delayMs, e.getMessage());
+    private ChatResponse callWithRetry(OpenAiChatModel model, Prompt prompt) throws InterruptedException {
+        slots.acquire();
+        try {
+            long backoffMs = INITIAL_BACKOFF_MS;
+            for (int attempt = 1; ; attempt++) {
                 try {
+                    return model.call(prompt);
+                } catch (Exception e) {
+                    if (attempt >= MAX_ATTEMPTS || !transientProviderError(e)) {
+                        throw e;
+                    }
+                    long delayMs = Math.max(backoffMs, retryAfterMs(e));
+                    log.info("LLM transient error (attempt {}/{}), retrying in {} ms: {}",
+                            attempt, MAX_ATTEMPTS, delayMs, e.getMessage());
                     Thread.sleep(delayMs);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw e;
+                    backoffMs *= 2;
                 }
-                backoffMs *= 2;
             }
+        } finally {
+            slots.release();
         }
     }
 

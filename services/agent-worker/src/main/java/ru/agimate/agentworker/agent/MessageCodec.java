@@ -1,5 +1,6 @@
 package ru.agimate.agentworker.agent;
 
+import ru.agimate.agentworker.GetTurnResponse;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.ToolCallRec;
 import ru.agimate.agentworker.ToolResultRec;
@@ -79,6 +80,23 @@ public final class MessageCodec {
     }
 
     /** Assistant calls as proto records (shared converter for the channel projection and the turn journal). */
+    /** A ledger turn read back ({@code GetTurn}) as the message the loop would have built from the provider's reply. */
+    public static AgentChatMessage fromTurn(GetTurnResponse turn) {
+        return switch (turn.getRole()) {
+            case TURN_ROLE_ASSISTANT -> AgentChatMessage.assistant(turn.getText(), turn.getThinking(),
+                    turn.getToolCallsList().stream()
+                            .map(c -> new AgentChatMessage.ToolCall(c.getId(), c.getName(), c.getArgumentsJson()))
+                            .toList());
+            case TURN_ROLE_TOOL -> AgentChatMessage.toolResults(turn.getToolResultsList().stream()
+                    .map(r -> new AgentChatMessage.ToolResult(r.getId(), r.getName(), r.getOutputJson(), r.getFailed()))
+                    .toList());
+            case TURN_ROLE_USER -> AgentChatMessage.user(turn.getText());
+            case TURN_ROLE_SYSTEM -> AgentChatMessage.system(turn.getText());
+            case TURN_ROLE_UNSPECIFIED, UNRECOGNIZED ->
+                    throw new IllegalStateException("ledger turn without a role");
+        };
+    }
+
     public static List<ToolCallRec> toolCallRecs(List<AgentChatMessage.ToolCall> calls) {
         List<ToolCallRec> recs = new ArrayList<>(calls.size());
         for (AgentChatMessage.ToolCall call : calls) {

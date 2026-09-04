@@ -21,6 +21,8 @@ import ru.agimate.agentworker.GetLlmCredentialsRequest;
 import ru.agimate.agentworker.GetRunContextRequest;
 import ru.agimate.agentworker.RunContext;
 import ru.agimate.agentworker.GetToolResultRequest;
+import ru.agimate.agentworker.GetTurnRequest;
+import ru.agimate.agentworker.GetTurnResponse;
 import ru.agimate.agentworker.GetToolResultResponse;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.MessageKind;
@@ -236,9 +238,9 @@ public class AgentWorkerClient {
     }
 
     /**
-     * The canonical turn of a run ({@code agent_run_turns}); idempotent by (run_id, turn_index). Not
-     * a durable step at the caller — a turn is a projection of already-durable data, and a replay is
-     * deduplicated by the backend. {@code finishReason}/{@code model}/{@code callId} are nullable.
+     * The canonical turn of a run ({@code agent_run_turns}); idempotent by (run_id, turn_index) — a
+     * replay re-sends the same pair and the backend deduplicates.
+     * {@code finishReason}/{@code model}/{@code callId} are nullable.
      */
     public SaveTurnResponse saveTurn(String agentId, String runId, int turnIndex, TurnRole role,
                                      String text, String thinkingText,
@@ -261,6 +263,13 @@ public class AgentWorkerClient {
             return messageLog.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                     .saveTurn(request.build());
         });
+    }
+
+    /** One ledger turn back by {@code (run_id, turn_index)} — what a crash replay reads instead of a checkpoint. */
+    public GetTurnResponse getTurn(String agentId, String runId, int turnIndex) {
+        return call("GetTurn", () -> messageLog.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+                .getTurn(GetTurnRequest.newBuilder()
+                        .setAgentId(agentId).setRunId(runId).setTurnIndex(turnIndex).build()));
     }
 
     /**

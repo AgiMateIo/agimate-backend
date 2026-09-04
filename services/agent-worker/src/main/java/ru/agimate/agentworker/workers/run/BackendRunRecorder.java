@@ -16,12 +16,12 @@ import java.util.List;
 /**
  * The run wiring's side of the loop: the {@link RunRecorder} that turns every loop event into a
  * backend record — the prompt snapshot, the turn ledger, the channel's progress lines, token usage —
- * and answers the loop's two questions off records the run makes anyway. One object per run, so the
- * ledger's {@code turn_index} and the channel's {@code seq} each have a single owner and the loop
- * stays free of transport.
+ * and answers the loop's two questions off records the run makes anyway. Composes the run's two
+ * journals ({@link ChannelMessageLog}, {@link TurnLog}) and its {@link SteeringAbsorber}; only the
+ * channel log writes durable steps, the rest is best-effort and idempotent on the backend.
  *
- * <p>Only {@link ChannelMessageLog} writes durable steps; the rest is best-effort and idempotent on the
- * backend (a replay re-derives the same turn indexes and call ids).
+ * <p>The assistant turn is the one record this class does not write: it goes into the ledger
+ * inside the {@code llm_call} step ({@link LlmCallDispatcher}), before that step's checkpoint.
  */
 @Slf4j
 class BackendRunRecorder implements RunRecorder {
@@ -36,25 +36,15 @@ class BackendRunRecorder implements RunRecorder {
     private final String agentId;
     private final String runId;
 
-    BackendRunRecorder(AgentWorkerClient client, ChannelMessageLog messages, ToolRegistry registry,
-                       ResponseTemplates templates, String agentId, String runId) {
+    BackendRunRecorder(AgentWorkerClient client, ChannelMessageLog messages, TurnLog turns,
+                       ToolRegistry registry, ResponseTemplates templates, String agentId, String runId) {
         this.client = client;
         this.messages = messages;
-        this.turns = new TurnLog(client, agentId, runId);
+        this.turns = turns;
         this.steering = new SteeringAbsorber(client, turns, agentId, runId, templates.steeredPrefix());
         this.registry = registry;
         this.agentId = agentId;
         this.runId = runId;
-    }
-
-    /**
-     * Turn 0: the run's own inbound message without the ephemeral prefix — the persistent part of
-     * the turn. Not a loop event (the channel already showed the user their own message), so the
-     * wiring records it before the loop; without it a direct run's transcript, which has no channel
-     * history, would open with the answer.
-     */
-    void recordInbound(AgentChatMessage initialRequest) {
-        turns.record(initialRequest, null);
     }
 
     /**
@@ -72,8 +62,8 @@ class BackendRunRecorder implements RunRecorder {
     }
 
     /**
-     * Each turn as its own records: the assistant with its calls goes out before the dispatch (the
-     * ledger plus the channel's TOOL_CALL line), the results after it (the ledger plus a history-only
+     * Each turn as its own records: the assistant's calls go out to the channel before the dispatch
+     * (its ledger row was written by the step), the results after it (the ledger plus a history-only
      * TOOL_RESULT line) — the backend rebuilds later runs' history from that pair. An assistant turn
      * also confirms the steering absorbed before it: the model has provably seen the message.
      */
@@ -83,11 +73,13 @@ class BackendRunRecorder implements RunRecorder {
             steering.confirmOnAssistantTurn();
         }
         for (AgentChatMessage m : newMessages) {
-            turns.record(m, meta);
             switch (m.role()) {
                 case ASSISTANT -> MessageCodec.progressLines(m, registry.displayNames(m))
                         .forEach(messages::progress);
-                case TOOL -> messages.progress(MessageCodec.toolResultLine(m));
+                case TOOL -> {
+                    turns.record(m, null);
+                    messages.progress(MessageCodec.toolResultLine(m));
+                }
                 default -> { }
             }
         }

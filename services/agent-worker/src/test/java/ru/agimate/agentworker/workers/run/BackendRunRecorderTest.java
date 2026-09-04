@@ -36,6 +36,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,6 +50,7 @@ class RunRecorderTest {
 
     private final AgentWorkerClient client = mock(AgentWorkerClient.class);
     private ChannelMessageLog messages;
+    private TurnLog turns;
     private BackendRunRecorder recorder;
 
     @BeforeEach
@@ -66,7 +68,8 @@ class RunRecorderTest {
         ToolRegistry registry = ToolRegistry.build(List.of(ConnectorToolSpec.newBuilder()
                 .setConnectorCode("wx").setNamespace("wx").setName("get_weather").setConnectionId("conn-1")
                 .build()));
-        recorder = new BackendRunRecorder(client, messages, registry, TestTemplates.of("ru"), "agent-1", "run-1");
+        turns = new TurnLog(client, "agent-1", "run-1");
+        recorder = new BackendRunRecorder(client, messages, turns, registry, TestTemplates.of("ru"), "agent-1", "run-1");
     }
 
     private static AgentChatMessage assistantCalling() {
@@ -80,11 +83,13 @@ class RunRecorderTest {
     }
 
     @Test
-    @DisplayName("тул-ход: ассистент → журнал + TOOL_CALL-строка, результаты → журнал + TOOL_RESULT-строка")
+    @DisplayName("тул-ход: ассистент → TOOL_CALL-строка (его ход в журнал пишет шаг llm_call), результаты → журнал + TOOL_RESULT-строка")
     void toolTurnIsTwoLedgerRecordsAndTwoProgressLines() {
         LlmMeta meta = new LlmMeta("tool_calls", "gpt-5-mini", "call-9", null);
         messages.inbound();
-        recorder.recordInbound(AgentChatMessage.user("weather in Berlin?"));
+        turns.record(AgentChatMessage.user("weather in Berlin?"), null);
+        // What the llm_call step does before the recorder sees the turn.
+        turns.record(assistantCalling(), meta);
 
         recorder.onMessages(List.of(assistantCalling()), meta);
         recorder.onMessages(List.of(toolAnswer()), null);
@@ -111,6 +116,9 @@ class RunRecorderTest {
                 eq(""), any());
         assertEquals(1, callsTurn.getValue().getCallsCount());
         assertEquals(0, callsTurn.getValue().getResultsCount());
+        // The recorder never writes the assistant turn itself: one ledger row for it, from the step.
+        verify(client, times(1)).saveTurn(eq("agent-1"), eq("run-1"), anyInt(), eq(TurnRole.TURN_ROLE_ASSISTANT),
+                any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

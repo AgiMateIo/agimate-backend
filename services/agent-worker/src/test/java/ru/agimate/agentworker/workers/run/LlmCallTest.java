@@ -1,4 +1,4 @@
-package ru.agimate.agentworker.workers;
+package ru.agimate.agentworker.workers.run;
 
 import com.openai.core.http.Headers;
 import com.openai.errors.InternalServerException;
@@ -48,14 +48,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class LlmCallWorkflowImplTest {
+class LlmCallTest {
 
     private static RateLimitException rateLimit(Headers headers) {
         return RateLimitException.builder().headers(headers).build();
     }
 
     @Nested
-    @DisplayName("учёт usage — токены на Result (репорт делает диспатчер, не воркфлоу)")
+    @DisplayName("учёт usage — токены на Reply (репорт делает обвязка рана, не вызов)")
     class UsageReporting {
 
         private final AgentWorkerClient client = mock(AgentWorkerClient.class);
@@ -63,15 +63,9 @@ class LlmCallWorkflowImplTest {
         private final LlmMessageMapper mapper = mock(LlmMessageMapper.class);
         private final OpenAiChatModel model = mock(OpenAiChatModel.class);
 
-        /** Реальный DBOS-контекст в юнит-тесте недоступен — подменяем шов call id; runId — параметр. */
         private final ResponseTemplates templates = mock(ResponseTemplates.class);
 
-        private final LlmCallWorkflowImpl workflow = new LlmCallWorkflowImpl(client, modelFactory, mapper, templates) {
-            @Override
-            String currentCallId() {
-                return "wf-llm-77";
-            }
-        };
+        private final LlmCall llm = new LlmCall(client, modelFactory, mapper, templates, 3);
 
         private LlmCredentials creds(String providerId) {
             return LlmCredentials.newBuilder()
@@ -96,47 +90,47 @@ class LlmCallWorkflowImplTest {
         }
 
         @Test
-        @DisplayName("успешный вызов: usage на Result (provider_id + токены); воркфлоу сам не репортит")
+        @DisplayName("успешный вызов: usage на Reply (provider_id + токены); сам вызов не репортит")
         void carriesUsageOnResult() {
             stubSuccessfulCall("prov-1");
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
 
             assertFalse(result.failed());
-            // Provenance для журнала ходов: модель из кредов, callId = собственный workflow id вызова.
-            assertEquals("gpt-5-mini", result.model());
-            assertEquals("wf-llm-77", result.callId());
+            // Provenance для журнала ходов: модель из кредов, callId — тот, что дал вызывающий.
+            assertEquals("gpt-5-mini", result.meta().model());
+            assertEquals("run-1-0", result.meta().callId());
             LlmUsage usage = result.usage();
-            assertEquals("wf-llm-77", usage.callId());
+            assertEquals("run-1-0", usage.callId());
             assertEquals("prov-1", usage.providerId());
             assertEquals("gpt-5-mini", usage.model());
             assertEquals(100, usage.promptTokens());
             assertEquals(20, usage.completionTokens());
             assertEquals(0, usage.cacheReadTokens());
             assertEquals(0, usage.cacheWriteTokens());
-            // Репортит родитель (ран-обвязка из sink'а) — сам воркфлоу на бэк usage не шлёт.
+            // Репортит обвязка рана из рекордера — сам вызов на бэк usage не шлёт.
             verify(client, never()).reportLlmUsage(anyString(), anyString(), anyString(), anyString(),
                     anyString(), anyInt(), anyInt(), anyInt(), anyInt());
         }
 
         @Test
-        @DisplayName("finish_reason из ответа прокидывается в Result (терминальность решает диспатчер)")
+        @DisplayName("finish_reason из ответа прокидывается в meta (терминальность решает диспатчер)")
         void carriesFinishReason() {
             stubSuccessfulCall("prov-1");
             when(mapper.finishReason(any())).thenReturn("length");
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
 
             assertFalse(result.failed());
-            assertEquals("length", result.finishReason());
+            assertEquals("length", result.meta().finishReason());
         }
 
         @Test
-        @DisplayName("пустой provider_id (старый control-api) → usage не считается (null на Result)")
+        @DisplayName("пустой provider_id (старый control-api) → usage не считается (null на Reply)")
         void skipsUsageWithoutProviderId() {
             stubSuccessfulCall("");
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
 
             assertFalse(result.failed());
             assertNull(result.usage());
@@ -149,7 +143,7 @@ class LlmCallWorkflowImplTest {
             when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
                     "GetLlmCredentials", Status.RESOURCE_EXHAUSTED.withDescription(quota)));
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
 
             assertTrue(result.failed());
             assertTrue(result.userFacing());
@@ -168,7 +162,7 @@ class LlmCallWorkflowImplTest {
                 doThrow(new ControlApiCallException("GetLlmCredentials", status))
                         .when(client).getLlmCredentials("agent-1");
 
-                LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+                LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
 
                 assertTrue(result.failed());
                 assertTrue(result.userFacing());
@@ -184,7 +178,7 @@ class LlmCallWorkflowImplTest {
             when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
                     "GetLlmCredentials", Status.INTERNAL.withDescription("boom")));
 
-            LlmCallWorkflow.Result result = workflow.llmCall(List.of(), List.of(), "agent-1");
+            LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
 
             assertTrue(result.failed());
             assertFalse(result.userFacing());
@@ -237,17 +231,11 @@ class LlmCallWorkflowImplTest {
                         .build();
                 AgentWorkerClient client = mock(AgentWorkerClient.class);
                 when(client.getLlmCredentials("agent-1")).thenReturn(creds);
-                LlmCallWorkflowImpl workflow = new LlmCallWorkflowImpl(client,
-                        new ModelFactory(localTargetsAllowed()), new LlmMessageMapper(TestTemplates.of("ru")),
-                        mock(ResponseTemplates.class)) {
-                    @Override
-                    String currentCallId() {
-                        return "wf-llm-1";
-                    }
-                };
+                LlmCall llm = new LlmCall(client, new ModelFactory(localTargetsAllowed()),
+                        new LlmMessageMapper(TestTemplates.of("ru")), mock(ResponseTemplates.class), 1);
 
-                LlmCallWorkflow.Result result = workflow.llmCall(
-                        List.of(AgentChatMessage.user("привет")), List.of(), "agent-1");
+                LlmCall.Reply result = llm.call(
+                        List.of(AgentChatMessage.user("привет")), List.of(), "agent-1", "run-1-0");
 
                 assertFalse(result.failed(), () -> "вызов не дошёл: " + result.message());
                 String body = wireBody.get();
@@ -274,30 +262,30 @@ class LlmCallWorkflowImplTest {
     @Test
     @DisplayName("транзиентные: 429/5xx/сетевые (и в cause-цепочке); терминальные: 401 и не-SDK ошибки")
     void classifiesTransientErrors() {
-        assertTrue(LlmCallWorkflowImpl.transientProviderError(rateLimit(Headers.builder().build())));
-        assertTrue(LlmCallWorkflowImpl.transientProviderError(
+        assertTrue(LlmCall.transientProviderError(rateLimit(Headers.builder().build())));
+        assertTrue(LlmCall.transientProviderError(
                 InternalServerException.builder().statusCode(503).headers(Headers.builder().build()).build()));
-        assertTrue(LlmCallWorkflowImpl.transientProviderError(new OpenAIIoException("connect timed out")));
+        assertTrue(LlmCall.transientProviderError(new OpenAIIoException("connect timed out")));
         // Spring AI оборачивает исключения SDK — классификация ходит по cause-цепочке.
-        assertTrue(LlmCallWorkflowImpl.transientProviderError(
+        assertTrue(LlmCall.transientProviderError(
                 new RuntimeException(rateLimit(Headers.builder().build()))));
 
-        assertFalse(LlmCallWorkflowImpl.transientProviderError(
+        assertFalse(LlmCall.transientProviderError(
                 UnauthorizedException.builder().headers(Headers.builder().build()).build()));
-        assertFalse(LlmCallWorkflowImpl.transientProviderError(
+        assertFalse(LlmCall.transientProviderError(
                 new IllegalArgumentException("Unsupported provider_type")));
     }
 
     @Test
     @DisplayName("Retry-After уважается с потолком 30 с; отсутствие/мусор → 0")
     void parsesRetryAfter() {
-        assertEquals(7_000, LlmCallWorkflowImpl.retryAfterMs(
+        assertEquals(7_000, LlmCall.retryAfterMs(
                 rateLimit(Headers.builder().put("retry-after", "7").build())));
-        assertEquals(30_000, LlmCallWorkflowImpl.retryAfterMs(
+        assertEquals(30_000, LlmCall.retryAfterMs(
                 rateLimit(Headers.builder().put("retry-after", "3600").build())));
-        assertEquals(0, LlmCallWorkflowImpl.retryAfterMs(rateLimit(Headers.builder().build())));
-        assertEquals(0, LlmCallWorkflowImpl.retryAfterMs(
+        assertEquals(0, LlmCall.retryAfterMs(rateLimit(Headers.builder().build())));
+        assertEquals(0, LlmCall.retryAfterMs(
                 rateLimit(Headers.builder().put("retry-after", "Wed, 21 Oct 2026").build())));
-        assertEquals(0, LlmCallWorkflowImpl.retryAfterMs(new OpenAIIoException("io")));
+        assertEquals(0, LlmCall.retryAfterMs(new OpenAIIoException("io")));
     }
 }

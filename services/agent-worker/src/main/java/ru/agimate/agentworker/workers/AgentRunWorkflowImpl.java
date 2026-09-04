@@ -33,8 +33,7 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
     public void runAgent(AgentMessage message) {
         ChannelMessageLog messages = core.messageLog(message.agentId(), message.runId());
 
-        // Tag every run-body line with a short run id (the child LLM/tool workflows run on their own
-        // threads and won't carry it — that's fine, their lines are DEBUG detail).
+        // Tag every line of the run with a short run id — model and tool steps run on this thread too.
         try (MDC.MDCCloseable __ = MDC.putCloseable("run", shortRun(message.runId()))) {
             try {
                 runBody(message, messages);

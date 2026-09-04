@@ -166,4 +166,16 @@ class TurnLogTest {
         turns.record(AgentChatMessage.system("sys"), null);
         verifyNoInteractions(client);
     }
+
+    @Test
+    @DisplayName("record возвращает индекс; resumeAfter после реплея продолжает счёт за чекпоинтом")
+    void resumeAfterContinuesPastTheCheckpoint() {
+        stubOk();
+        TurnLog turns = turnLog();
+
+        assertEquals(0, turns.record(AgentChatMessage.user("hi"), null));
+        turns.resumeAfter(3);   // the replayed llm_call step says its turn sits at 3
+        assertEquals(4, turns.record(tool(), null));
+        assertEquals(-1, turns.record(AgentChatMessage.system("sys"), null));
+    }
 }

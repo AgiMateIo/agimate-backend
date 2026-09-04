@@ -13,8 +13,8 @@ import ru.agimate.agentworker.grpc.ControlApiCallException;
 /**
  * The run's single writer of channel-facing dialogue events ({@code SaveMessage}): inbound ack,
  * progress lines, the final answer and error notices — the projection the user sees, as opposed to
- * the turn ledger ({@link TurnLog}) the model reads back. Persistence and channel delivery both happen backend-side —
- * the worker only records what happened, in order.
+ * the turn ledger ({@link TurnLog}) the model reads back. Persistence and channel delivery both
+ * happen backend-side — the worker only records what happened, in order.
  *
  * <p>Each call is a durable step; the per-run {@code seq} counter increments deterministically
  * around the checkpoints, so a DBOS replay re-sends the same {@code (run_id, seq)} pairs and

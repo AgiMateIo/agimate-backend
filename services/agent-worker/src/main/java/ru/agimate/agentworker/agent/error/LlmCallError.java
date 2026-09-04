@@ -1,7 +1,7 @@
 package ru.agimate.agentworker.agent.error;
 
 /**
- * Raised by the dispatcher when the LLM workflow reports an HTTP/API error (returned as a
+ * Raised by the dispatcher when the model request reports an HTTP/API error (returned as a
  * failure value, not an exception, so DBOS never logs it at ERROR).
  * {@link ru.agimate.agentworker.workers.run.AgentRunCore} maps
  * this to an {@link AgentRunAborted}. A {@code null} {@code statusCode} means a non-HTTP API error.

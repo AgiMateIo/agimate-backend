@@ -46,7 +46,6 @@ agent:
     max-turns: 30
   concurrency:
     llm: 3
-    tool: 8
   app:
     url: "https://agimate.io"
     title: "AgiMate"

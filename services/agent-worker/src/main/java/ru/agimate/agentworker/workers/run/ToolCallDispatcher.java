@@ -3,25 +3,26 @@ package ru.agimate.agentworker.workers.run;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.dbos.transact.DBOS;
-import dev.dbos.transact.StartWorkflowOptions;
-import dev.dbos.transact.workflow.Queue;
-import dev.dbos.transact.workflow.WorkflowHandle;
 import lombok.extern.slf4j.Slf4j;
+import ru.agimate.agentworker.GetToolResultResponse;
+import ru.agimate.agentworker.ToolResultStatus;
 import ru.agimate.agentworker.agent.AgiMateAgent;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
-import ru.agimate.agentworker.workers.ToolCallWorkflow;
+import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Per-run {@link AgiMateAgent.ToolDispatcher}: enqueues every tool call in deterministic order first,
- * then awaits them, so they run concurrently on the tool queue while the enqueue order stays stable
- * across DBOS replays. Never throws for a tool failure — a failed call comes back as a failed
- * {@link AgentChatMessage.ToolResult}. Holds no persistence/output state.
+ * Per-run {@link AgiMateAgent.ToolDispatcher}: the turn's calls go through one {@code tool_calls}
+ * durable step ({@link ToolCallStep}), whose checkpoint is ids and statuses. The contents come from
+ * run memory in the normal path and from the backend by id on a crash replay; the worker-side
+ * notices (timeout, abandoned, detached) are regenerated. Never throws for a tool failure — a
+ * failed call comes back as a failed {@link AgentChatMessage.ToolResult}.
  */
 @Slf4j
 class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
@@ -29,17 +30,17 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final DBOS dbos;
-    private final ToolCallWorkflow tool;
-    private final Queue toolQueue;
+    private final ToolCallStep step;
+    private final AgentWorkerClient client;
     private final String agentId;
     private final String runId;
     private final ToolRegistry registry;
 
-    ToolCallDispatcher(DBOS dbos, ToolCallWorkflow tool, Queue toolQueue, String agentId, String runId,
+    ToolCallDispatcher(DBOS dbos, ToolCallStep step, AgentWorkerClient client, String agentId, String runId,
                        ToolRegistry registry) {
         this.dbos = dbos;
-        this.tool = tool;
-        this.toolQueue = toolQueue;
+        this.step = step;
+        this.client = client;
         this.agentId = agentId;
         this.runId = runId;
         this.registry = registry;
@@ -47,45 +48,72 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
 
     @Override
     public List<AgentChatMessage.ToolResult> dispatchAll(List<AgentChatMessage.ToolCall> calls) {
-        // Enqueue every call first (deterministic order), then await, so they run concurrently.
-        List<Pending> pending = new ArrayList<>(calls.size());
+        List<Planned> planned = new ArrayList<>(calls.size());
+        List<ToolCallStep.Call> toIssue = new ArrayList<>(calls.size());
         for (AgentChatMessage.ToolCall tc : calls) {
             // Minted by LlmMessageMapper in place of the provider's, so it is unique across the run
             // and stable across replays — the backend keys tool call idempotency on it.
-            String toolCallId = tc.id();
             ToolRegistry.BackendTool bt = registry.resolve(tc.name());
             if (bt == null) {
                 log.warn("model called unknown tool {}; {} available: {}", tc.name(), registry.names().size(), registry.names());
-                pending.add(new Pending(tc, toolCallId, null, failed(tc, toolCallId,
-                        "unknown tool name from model: " + tc.name() + "; available tools: " + registry.names()),
-                        false));
+                planned.add(new Planned(tc, null, failed(tc,
+                        "unknown tool name from model: " + tc.name() + "; available tools: " + registry.names())));
                 continue;
             }
-            WorkflowHandle<ToolCallWorkflow.Outcome, ? extends Exception> handle = dbos.startWorkflow(
-                    () -> tool.toolCall(bt.connectorCode(), bt.name(), tc.argumentsJson(), toolCallId, agentId, runId, bt.connectionId(), bt.timeoutSeconds()),
-                    new StartWorkflowOptions(toolQueue));
-            pending.add(new Pending(tc, toolCallId, handle, null, bt.openWorld()));
+            planned.add(new Planned(tc, bt, null));
+            toIssue.add(new ToolCallStep.Call(tc.id(), bt.connectorCode(), bt.connectionId(), bt.name(),
+                    tc.argumentsJson(), bt.timeoutSeconds()));
         }
 
-        List<AgentChatMessage.ToolResult> results = new ArrayList<>(pending.size());
-        for (Pending p : pending) {
+        List<AgentChatMessage.ToolResult> results = new ArrayList<>(planned.size());
+        if (toIssue.isEmpty()) {
+            planned.forEach(p -> results.add(p.immediate));
+            return results;
+        }
+        // Filled by the step body; empty after a replay, when the contents are re-read by id.
+        Map<String, String> held = new HashMap<>();
+        ToolCallStep.Outcomes outcomes = dbos.runStep(() -> step.run(toIssue, agentId, runId, held), "tool_calls");
+
+        for (Planned p : planned) {
             if (p.immediate != null) {
                 results.add(p.immediate);
                 continue;
             }
-            ToolCallWorkflow.Outcome outcome = WorkflowHandles.await(p.handle);
-            if (outcome.error() != null) {
-                results.add(failed(p.call, p.toolCallId(), outcome.error()));
-            } else {
-                String content = outcome.outputJson() != null && !outcome.outputJson().isEmpty()
-                        ? outcome.outputJson() : "null";
-                if (p.openWorld()) {
-                    content = wrapUntrusted(content);
-                }
-                results.add(new AgentChatMessage.ToolResult(p.toolCallId(), p.call.name(), content, false));
-            }
+            results.add(result(p, outcomes.of(p.call.id()), held));
         }
         return results;
+    }
+
+    private AgentChatMessage.ToolResult result(Planned p, ToolCallStep.Outcome outcome, Map<String, String> held) {
+        String id = p.call.id();
+        String name = p.tool.name();
+        return switch (outcome.status()) {
+            case SUCCESS -> {
+                String output = held.containsKey(id) ? held.get(id) : reread(id, ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS);
+                String content = output.isEmpty() ? "null" : ToolCallStep.truncateOutput(output, step.maxOutputChars());
+                yield new AgentChatMessage.ToolResult(id, p.call.name(), p.tool.openWorld() ? wrapUntrusted(content) : content, false);
+            }
+            case ERROR -> {
+                String error = held.containsKey(id) ? held.get(id) : reread(id, ToolResultStatus.TOOL_RESULT_STATUS_ERROR);
+                yield failed(p.call, ToolCallStep.errorNotice(name, error));
+            }
+            case DETACHED -> new AgentChatMessage.ToolResult(id, p.call.name(), ToolCallStep.detachedInterim(id), false);
+            case TIMEOUT -> failed(p.call, ToolCallStep.timeoutNotice(name, id, step.budgetSeconds(p.tool.timeoutSeconds())));
+            case ABANDONED -> failed(p.call, ToolCallStep.abandonedNotice(name, id));
+            case FAILED -> failed(p.call, ToolCallStep.errorNotice(name, outcome.error()));
+        };
+    }
+
+    /** The replay path: the checkpoint says the call settled with {@code expected}, the backend holds the content. */
+    private String reread(String toolCallId, ToolResultStatus expected) {
+        log.info("tool_calls replayed: reading result of {} back from the backend", toolCallId);
+        GetToolResultResponse result = client.getToolResult(agentId, toolCallId, runId);
+        if (result.getStatus() != expected) {
+            throw new IllegalStateException("tool call " + toolCallId + " checkpointed as " + expected
+                    + " but the backend answers " + result.getStatus());
+        }
+        return expected == ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS
+                ? result.getOutputJson().toStringUtf8() : result.getError();
     }
 
     /**
@@ -93,16 +121,15 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
      * tickets, the web) and a prompt-injection channel: it gets wrapped in an untrusted-data marker.
      * The marker's meaning is explained by the system paragraph
      * {@code ResponseTemplates.toolOutputGuidance}; a closing tag inside the data is neutralised so
-     * the payload cannot escape the wrapper. Applied after the worker's truncation
-     * ({@code ToolCallWorkflowImpl}) — the wrapper is always intact.
+     * the payload cannot escape the wrapper. Applied after the truncation — the wrapper is always intact.
      */
     static String wrapUntrusted(String content) {
         String tag = ContextBuilder.UNTRUSTED_TOOL_OUTPUT_TAG;
         return "<" + tag + ">\n" + ContextBuilder.neutralizeClosingTag(content, tag) + "\n</" + tag + ">";
     }
 
-    private static AgentChatMessage.ToolResult failed(AgentChatMessage.ToolCall tc, String toolCallId, String error) {
-        return new AgentChatMessage.ToolResult(toolCallId, tc.name(), errorJson(error), true);
+    private static AgentChatMessage.ToolResult failed(AgentChatMessage.ToolCall tc, String error) {
+        return new AgentChatMessage.ToolResult(tc.id(), tc.name(), errorJson(error), true);
     }
 
     /** {@code {"error": ...}} via Jackson so any control characters in the message stay valid JSON. */
@@ -114,10 +141,7 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
         }
     }
 
-    private record Pending(AgentChatMessage.ToolCall call,
-                           String toolCallId,
-                           WorkflowHandle<ToolCallWorkflow.Outcome, ? extends Exception> handle,
-                           AgentChatMessage.ToolResult immediate,
-                           boolean openWorld) {
+    private record Planned(AgentChatMessage.ToolCall call, ToolRegistry.BackendTool tool,
+                           AgentChatMessage.ToolResult immediate) {
     }
 }

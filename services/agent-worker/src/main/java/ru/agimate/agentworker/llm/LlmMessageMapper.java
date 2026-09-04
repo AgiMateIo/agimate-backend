@@ -200,8 +200,9 @@ public class LlmMessageMapper {
      * the repeating shape differs per stack (sglang, vLLM and Bedrock have each produced one), and
      * «looks unique» is not «is unique».
      *
-     * <p>Derived from the LLM call's workflow id, so a DBOS replay of that call mints the same ids
-     * for the same calls and the tool workflows keep deduplicating against the rows they created.
+     * <p>Derived from the call id the worker mints deterministically per run, so a DBOS replay of
+     * that call mints the same ids for the same calls and the backend keeps deduplicating against
+     * the rows they created.
      *
      * <p>Nine alphanumerics is the intersection of what providers accept: Mistral rejects anything
      * but {@code [a-zA-Z0-9]{9}} — an underscore included, so OpenAI's own {@code call_…} fails

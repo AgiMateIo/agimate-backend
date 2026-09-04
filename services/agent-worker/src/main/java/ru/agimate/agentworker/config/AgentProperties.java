@@ -75,10 +75,8 @@ public class AgentProperties {
     @Getter
     @Setter
     public static class Concurrency {
-        /** Concurrent model requests per worker. */
+        /** Concurrent model requests per worker (the {@code LlmCall} semaphore). */
         private int llm = 3;
-        /** Concurrent backend tool calls per worker. */
-        private int tool = 8;
     }
 
     /** Identity advertised to LLM providers (User-Agent + OpenRouter app attribution). */
@@ -104,8 +102,7 @@ public class AgentProperties {
         private Duration pollTimeout = Duration.ofSeconds(60);
         /**
          * Cap on one tool output, in chars; longer output is cut with an explicit truncation
-         * marker. Bounds both the model context (the output rides in every following turn) and
-         * the DBOS checkpoints (tool outcome + each {@code llm_call} child input).
+         * marker. Bounds the model context: the output rides in every following turn.
          */
         private int maxOutputChars = 64_000;
         /**

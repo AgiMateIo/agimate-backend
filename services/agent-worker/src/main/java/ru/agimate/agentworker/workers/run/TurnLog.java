@@ -15,14 +15,16 @@ import java.util.List;
  * Canonical full-fidelity turn ledger writer ({@code SaveTurn}): one record per inbound/assistant/tool
  * {@link AgentChatMessage}, uncapped. Created per run so it shares one {@code turn_index} counter.
  *
- * <p>Unlike {@link ChannelMessageLog}, these are <b>not</b> durable steps: a turn is a pure idempotent
- * projection of already-durable data (the LLM/tool child-workflow results), so a DBOS replay
- * re-derives and re-sends the same {@code (run_id, turn_index)} and the backend dedupes — no
- * checkpoint is added, so this needs no drain-before-deploy. The {@code turn_index} advances
- * deterministically (the system prompt is the only message that consumes none), so replay normally
- * reproduces it exactly. Steering is the accepted exception: the seam poll is not durable either,
- * so a replay may absorb a message at a different seam than the original — the backend's
- * first-write-wins dedupe then keeps the original transcript.
+ * <p>Unlike {@link ChannelMessageLog}, these are <b>not</b> durable steps of their own. The assistant
+ * turn is written inside the {@code llm_call} step, before its checkpoint commits, because the
+ * checkpoint keeps only the turn's index and a crash replay reads the reply back from here
+ * ({@code GetTurn}). The other turns are idempotent projections of data already durable elsewhere:
+ * a replay re-derives and re-sends the same {@code (run_id, turn_index)} and the backend dedupes.
+ * The {@code turn_index} advances deterministically (the system prompt is the only message that
+ * consumes none); on a replay the assistant's index comes from the checkpoint
+ * ({@link #resumeAfter}), which also covers steering — the seam poll is not durable, so a replay may
+ * absorb a message at a different seam than the original, and the backend's first-write-wins dedupe
+ * keeps the original transcript.
  *
  * <p>The write stays best-effort — a failure is logged and never fails the run — but the ledger is no
  * longer only observability: the backend assembles the history of later runs from it. A lost turn is
@@ -45,7 +47,8 @@ public class TurnLog {
     }
 
     /**
-     * Records a user, assistant or tool message. {@code meta} carries the LLM provenance for the
+     * Records a user, assistant or tool message and returns its {@code turn_index} ({@code -1} for
+     * the system prompt, which takes none). {@code meta} carries the LLM provenance for the
      * assistant turn ({@code null} for the inbound and tool turns — neither is produced by a model
      * call).
      *
@@ -54,19 +57,27 @@ public class TurnLog {
      * The run's own inbound turn is recorded by the run wiring before the loop, so it takes index 0
      * and the transcript reads as a dialogue rather than starting from the answer.
      */
-    public void record(AgentChatMessage m, LlmMeta meta) {
-        switch (m.role()) {
+    public int record(AgentChatMessage m, LlmMeta meta) {
+        return switch (m.role()) {
             case USER -> send(TurnRole.TURN_ROLE_USER, m.text(), List.of(), List.of(), null);
             case ASSISTANT -> send(TurnRole.TURN_ROLE_ASSISTANT, m.text(),
                     MessageCodec.toolCallRecs(m.toolCalls()), List.of(), meta);
             case TOOL -> send(TurnRole.TURN_ROLE_TOOL, null,
                     List.of(), MessageCodec.toolResultRecs(m.toolResults()), null);
-            case SYSTEM -> { /* the system prompt lives in the run's prompt snapshot, not per turn */ }
-        }
+            case SYSTEM -> -1; // the system prompt lives in the run's prompt snapshot, not per turn
+        };
     }
 
-    private void send(TurnRole role, String text,
-                      List<ToolCallRec> calls, List<ToolResultRec> results, LlmMeta meta) {
+    /** A replayed step reported its turn at {@code turnIndex}: the counter continues after it. */
+    public void resumeAfter(int turnIndex) {
+        if (turnIndex + 1 < this.turnIndex) {
+            log.warn("turn index moves backwards on replay: counter={} checkpoint={}", this.turnIndex, turnIndex);
+        }
+        this.turnIndex = turnIndex + 1;
+    }
+
+    private int send(TurnRole role, String text,
+                     List<ToolCallRec> calls, List<ToolResultRec> results, LlmMeta meta) {
         int n = turnIndex++;
         String finishReason = meta != null ? meta.finishReason() : null;
         String model = meta != null ? meta.model() : null;
@@ -84,5 +95,6 @@ public class TurnLog {
             // Losing the answer over a ledger write is the worse trade: the backend catches the hole.
             log.warn("saveTurn best-effort failed idx={} role={}: {}", n, role, e.getMessage());
         }
+        return n;
     }
 }

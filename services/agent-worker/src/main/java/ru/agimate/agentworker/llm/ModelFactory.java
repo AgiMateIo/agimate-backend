@@ -41,7 +41,7 @@ import java.util.Set;
  * bounded cache rather than a singleton; evicted idle clients self-reap (OkHttp evicts idle
  * connections after ~5 min and dispatcher threads after 60 s). A rotated api key simply becomes
  * a new cache entry. The request timeout is capped at {@link #REQUEST_TIMEOUT} (the SDK default
- * is 10 minutes, which would pin an {@code llm_calls} slot for that long on a hung provider).
+ * is 10 minutes, which would pin an {@code LlmCall} semaphore slot for that long on a hung provider).
  * App-identity headers are attached so the provider sees a stable {@code User-Agent} and
  * OpenRouter app attribution where applicable.
  */

@@ -1,7 +1,6 @@
 package ru.agimate.agentworker.workers.run;
 
 import dev.dbos.transact.DBOS;
-import dev.dbos.transact.workflow.Queue;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.WorkerMessageType;
 import ru.agimate.agentworker.agent.*;
@@ -15,8 +14,6 @@ import ru.agimate.agentworker.agent.error.RunCancelled;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.agent.context.PreparedContext;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
-import ru.agimate.agentworker.workers.LlmCallWorkflow;
-import ru.agimate.agentworker.workers.ToolCallWorkflow;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,8 +22,9 @@ import java.util.List;
  * The invariant run body: prepare the context, drive {@link AgiMateAgent}, record the answer,
  * report failures. History arrives pre-assembled in the {@link PreparedContext}; every loop event
  * becomes a backend record through the run's {@link BackendRunRecorder}, and the dialogue events among
- * them go out as durable steps of its {@link ChannelMessageLog}. LLM/tool calls are dispatched as child
- * workflows by {@link LlmCallDispatcher}/{@link ToolCallDispatcher}.
+ * them go out as durable steps of its {@link ChannelMessageLog}. Model requests and tool calls are
+ * durable steps of the run workflow ({@link LlmCallDispatcher}/{@link ToolCallDispatcher}) whose
+ * checkpoints hold identifiers, not the dialogue.
  */
 @Slf4j
 public class AgentRunCore {
@@ -35,23 +33,19 @@ public class AgentRunCore {
     private final AgentWorkerClient client;
     private final ContextMaterialsFetcher fetcher;
     private final ContextBuilder contextBuilder;
-    private final LlmCallWorkflow llm;
-    private final ToolCallWorkflow tool;
-    private final Queue llmQueue;
-    private final Queue toolQueue;
+    private final LlmCall llm;
+    private final ToolCallStep tools;
     private final ResponseTemplates templates;
     private final int maxTurns;
 
-    public AgentRunCore(DBOS dbos, AgentWorkerClient client, LlmCallWorkflow llm, ToolCallWorkflow tool,
-                        Queue llmQueue, Queue toolQueue, ResponseTemplates templates, int maxTurns) {
+    public AgentRunCore(DBOS dbos, AgentWorkerClient client, LlmCall llm, ToolCallStep tools,
+                        ResponseTemplates templates, int maxTurns) {
         this.dbos = dbos;
         this.client = client;
         this.fetcher = new ContextMaterialsFetcher(client);
         this.contextBuilder = new ContextBuilder(templates);
         this.llm = llm;
-        this.tool = tool;
-        this.llmQueue = llmQueue;
-        this.toolQueue = toolQueue;
+        this.tools = tools;
         this.templates = templates;
         this.maxTurns = maxTurns;
     }
@@ -86,7 +80,9 @@ public class AgentRunCore {
     public String run(String agentId, String runId, PreparedContext prepared, ChannelMessageLog messages,
                       String context) {
         ToolRegistry registry = prepared.registry();
-        BackendRunRecorder recorder = new BackendRunRecorder(client, messages, registry, templates, agentId, runId);
+        // One ledger counter for its three writers: the recorder, the steering absorber and the llm_call step.
+        TurnLog turns = new TurnLog(client, agentId, runId);
+        BackendRunRecorder recorder = new BackendRunRecorder(client, messages, turns, registry, templates, agentId, runId);
 
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
         AgentChatMessage modelRequest = withEphemeralPrefix(prepared.ephemeralUserPrefix(), initialRequest);
@@ -101,10 +97,13 @@ public class AgentRunCore {
         conv.add(modelRequest);
 
         AgiMateAgent agent = new AgiMateAgent(
-                new LlmCallDispatcher(dbos, llm, llmQueue, agentId),
-                new ToolCallDispatcher(dbos, tool, toolQueue, agentId, runId, registry),
+                new LlmCallDispatcher(dbos, llm, turns, client, agentId, runId),
+                new ToolCallDispatcher(dbos, tools, client, agentId, runId, registry),
                 registry.toolDefs(), maxTurns, templates.wrapUp(), recorder);
-        recorder.recordInbound(initialRequest);
+        // Turn 0: the inbound message without the ephemeral prefix — the persistent part of the turn.
+        // Not a loop event (the channel already showed the user their own message), so it is
+        // recorded here; without it a direct run's transcript would open with the answer.
+        turns.record(initialRequest, null);
         String answer;
         try {
             answer = agent.run(conv);
