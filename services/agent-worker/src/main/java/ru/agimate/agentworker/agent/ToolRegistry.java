@@ -46,16 +46,6 @@ public final class ToolRegistry {
         this.sanitizedToBackend = sanitizedToBackend;
     }
 
-    /** Reconstruct a registry from its serialized parts (used to restore a durable step result). */
-    public static ToolRegistry of(List<ToolDef> toolDefs, Map<String, BackendTool> backendMap) {
-        return new ToolRegistry(toolDefs, backendMap);
-    }
-
-    /** The sanitized-name → backend-routing map (for serializing a prepared context). */
-    public Map<String, BackendTool> backendMap() {
-        return sanitizedToBackend;
-    }
-
     /** Build from the flat {@code GetRunContext} tool list: each spec carries its own routing. */
     public static ToolRegistry build(List<ConnectorToolSpec> specs) {
         List<ToolDef> defs = new ArrayList<>();

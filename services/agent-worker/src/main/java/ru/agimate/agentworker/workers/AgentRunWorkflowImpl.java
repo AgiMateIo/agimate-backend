@@ -8,7 +8,7 @@ import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.workers.run.AgentRunCore;
 import ru.agimate.agentworker.workers.run.MessageLog;
-import ru.agimate.agentworker.workers.run.PreparedContext;
+import ru.agimate.agentworker.agent.context.PreparedContext;
 
 /**
  * The worker's entry point: control-api enqueues this workflow directly onto the partitioned

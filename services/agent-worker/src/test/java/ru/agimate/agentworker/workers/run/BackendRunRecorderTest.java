@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.MessageKind;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.ReportLlmUsageResponse;
@@ -20,11 +21,9 @@ import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
 import ru.agimate.agentworker.agent.model.LlmUsage;
-import ru.agimate.agentworker.agent.model.ToolDef;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -63,9 +62,9 @@ class RunRecorderTest {
                 any(), any(), any()))
                 .thenReturn(SaveTurnResponse.newBuilder().build());
         messages = new MessageLog(dbos, client, "agent-1", "run-1");
-        ToolRegistry registry = ToolRegistry.of(
-                List.of(new ToolDef("wx__get_weather", "weather", "{}")),
-                Map.of("wx__get_weather", new ToolRegistry.BackendTool("wx", "get_weather", "conn-1", false, 0)));
+        ToolRegistry registry = ToolRegistry.build(List.of(ConnectorToolSpec.newBuilder()
+                .setConnectorCode("wx").setNamespace("wx").setName("get_weather").setConnectionId("conn-1")
+                .build()));
         recorder = new BackendRunRecorder(client, messages, registry, "agent-1", "run-1");
     }
 

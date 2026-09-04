@@ -11,7 +11,6 @@ import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.FilePartRef;
-import ru.agimate.agentworker.workers.run.PreparedContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -95,8 +94,7 @@ public final class ContextBuilder {
                 registry.toolDefs().size(), history.size(), inboundParts.size());
         log.debug("tools: {}", registry.names());
 
-        return new PreparedContext(systemPrompt, userPrompt, ephemeralPrefix, history,
-                registry.toolDefs(), registry.backendMap(), inboundParts);
+        return new PreparedContext(systemPrompt, userPrompt, ephemeralPrefix, history, registry, inboundParts);
     }
 
     /** proto {@code FilePart} → the worker's {@link FilePartRef} (references only; bytes come via GetFile). */

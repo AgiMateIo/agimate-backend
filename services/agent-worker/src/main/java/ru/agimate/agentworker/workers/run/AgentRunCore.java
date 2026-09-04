@@ -13,6 +13,7 @@ import ru.agimate.agentworker.agent.error.LlmResponseIncomplete;
 import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.error.RunCancelled;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
+import ru.agimate.agentworker.agent.context.PreparedContext;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.workers.LlmCallWorkflow;
 import ru.agimate.agentworker.workers.ToolCallWorkflow;

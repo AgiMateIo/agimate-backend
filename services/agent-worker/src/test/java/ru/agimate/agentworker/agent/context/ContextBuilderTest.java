@@ -13,7 +13,6 @@ import ru.agimate.agentworker.ToolCallRec;
 import ru.agimate.agentworker.ToolResultRec;
 import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
-import ru.agimate.agentworker.workers.run.PreparedContext;
 
 import java.util.List;
 import java.util.Map;
@@ -155,9 +154,9 @@ class ContextBuilderTest {
                     List.of(trusted("", "hello")),
                     List.of(tool), List.of(), List.of()));
 
-            assertEquals(1, prepared.toolDefs().size());
-            assertEquals("board__get_tasks", prepared.toolDefs().get(0).name());
-            var backend = prepared.toolMap().get("board__get_tasks");
+            assertEquals(1, prepared.registry().toolDefs().size());
+            assertEquals("board__get_tasks", prepared.registry().toolDefs().get(0).name());
+            var backend = prepared.registry().resolve("board__get_tasks");
             assertEquals("board", backend.connectorCode());
             assertEquals("conn-1", backend.connectionId());
         }
