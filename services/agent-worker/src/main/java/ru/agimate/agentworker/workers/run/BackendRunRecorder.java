@@ -3,6 +3,7 @@ package ru.agimate.agentworker.workers.run;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.agent.MessageCodec;
+import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.agent.RunRecorder;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
@@ -36,11 +37,11 @@ class BackendRunRecorder implements RunRecorder {
     private final String runId;
 
     BackendRunRecorder(AgentWorkerClient client, MessageLog messages, ToolRegistry registry,
-                String agentId, String runId) {
+                       ResponseTemplates templates, String agentId, String runId) {
         this.client = client;
         this.messages = messages;
         this.turns = new TurnLog(client, agentId, runId);
-        this.steering = new SteeringAbsorber(client, turns, agentId, runId);
+        this.steering = new SteeringAbsorber(client, turns, agentId, runId, templates.steeredPrefix());
         this.registry = registry;
         this.agentId = agentId;
         this.runId = runId;

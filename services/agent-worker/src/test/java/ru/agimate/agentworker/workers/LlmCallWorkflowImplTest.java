@@ -17,6 +17,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import ru.agimate.agentworker.LlmCredentials;
 import ru.agimate.agentworker.agent.ResponseTemplates;
+import ru.agimate.agentworker.agent.TestTemplates;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmUsage;
 import ru.agimate.agentworker.config.AgentProperties;
@@ -237,7 +238,7 @@ class LlmCallWorkflowImplTest {
                 AgentWorkerClient client = mock(AgentWorkerClient.class);
                 when(client.getLlmCredentials("agent-1")).thenReturn(creds);
                 LlmCallWorkflowImpl workflow = new LlmCallWorkflowImpl(client,
-                        new ModelFactory(localTargetsAllowed()), new LlmMessageMapper(),
+                        new ModelFactory(localTargetsAllowed()), new LlmMessageMapper(TestTemplates.of("ru")),
                         mock(ResponseTemplates.class)) {
                     @Override
                     String currentCallId() {

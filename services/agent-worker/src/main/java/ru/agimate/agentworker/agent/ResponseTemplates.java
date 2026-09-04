@@ -91,6 +91,21 @@ public class ResponseTemplates {
         return get("prompt.detached-tool-guidance");
     }
 
+    /** Frames a message absorbed mid-run: it arrived while the model was working, not with the request. */
+    public String steeredPrefix() {
+        return get("prompt.steered-prefix");
+    }
+
+    /** System hint for a call carrying image attachments the model sees inline. */
+    public String imageVisible() {
+        return get("prompt.image-visible");
+    }
+
+    /** System hint for a call carrying image attachments a text-only model cannot see. */
+    public String imageNotVisible() {
+        return get("prompt.image-not-visible");
+    }
+
     private String get(String key, Object... args) {
         return messages.getMessage(key, args.length == 0 ? null : args, locale);
     }

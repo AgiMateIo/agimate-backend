@@ -86,7 +86,7 @@ public class AgentRunCore {
     public String run(String agentId, String runId, PreparedContext prepared, MessageLog messages,
                       String context) {
         ToolRegistry registry = prepared.registry();
-        BackendRunRecorder recorder = new BackendRunRecorder(client, messages, registry, agentId, runId);
+        BackendRunRecorder recorder = new BackendRunRecorder(client, messages, registry, templates, agentId, runId);
 
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
         AgentChatMessage modelRequest = withEphemeralPrefix(prepared.ephemeralUserPrefix(), initialRequest);

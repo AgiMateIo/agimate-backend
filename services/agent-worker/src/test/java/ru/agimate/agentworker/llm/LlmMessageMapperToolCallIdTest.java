@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import ru.agimate.agentworker.agent.TestTemplates;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 
 import java.util.List;
@@ -24,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("LlmMessageMapper — свои tool_call_id вместо провайдерских")
 class LlmMessageMapperToolCallIdTest {
 
-    private final LlmMessageMapper mapper = new LlmMessageMapper();
+    private final LlmMessageMapper mapper = new LlmMessageMapper(TestTemplates.of("ru"));
 
     private static ChatResponse response(AssistantMessage.ToolCall... toolCalls) {
         AssistantMessage assistant = AssistantMessage.builder()

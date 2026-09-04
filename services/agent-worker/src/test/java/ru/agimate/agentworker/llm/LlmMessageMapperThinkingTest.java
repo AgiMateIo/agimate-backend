@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
+import ru.agimate.agentworker.agent.TestTemplates;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 
 import java.util.LinkedHashMap;
@@ -26,7 +27,7 @@ class LlmMessageMapperThinkingTest {
 
     private static final String CALL_ID = "wf-llm-1";
 
-    private final LlmMessageMapper mapper = new LlmMessageMapper();
+    private final LlmMessageMapper mapper = new LlmMessageMapper(TestTemplates.of("ru"));
 
     /** As {@code OpenAiChatModel} builds it: the reasoning key is always present, empty when absent on the wire. */
     private static ChatResponse response(Map<String, Object> metadata) {

@@ -30,11 +30,13 @@ import static org.mockito.Mockito.when;
 @DisplayName("SteeringAbsorber")
 class SteeringAbsorberTest {
 
+    private static final String PREFIX = "while you were working:";
+
     @Mock
     private AgentWorkerClient client;
 
     private SteeringAbsorber absorber() {
-        return new SteeringAbsorber(client, new TurnLog(client, "agent-1", "run-1"), "agent-1", "run-1");
+        return new SteeringAbsorber(client, new TurnLog(client, "agent-1", "run-1"), "agent-1", "run-1", PREFIX);
     }
 
     private static ClaimSteeringResponse claim(String... runIds) {
@@ -53,7 +55,7 @@ class SteeringAbsorberTest {
         List<AgentChatMessage> absorbed = absorber().poll();
 
         assertEquals(1, absorbed.size());
-        assertEquals(SteeringAbsorber.STEERED_PREFIX + "\n\nтекст r1", absorbed.get(0).text());
+        assertEquals(PREFIX + "\n\nтекст r1", absorbed.get(0).text());
         verify(client).saveTurn(eq("agent-1"), eq("run-1"), anyInt(), any(), eq("текст r1"),
                 isNull(), anyList(), anyList(), isNull(), isNull(), isNull());
     }

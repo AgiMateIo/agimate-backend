@@ -17,6 +17,7 @@ import ru.agimate.agentworker.SavePromptResponse;
 import ru.agimate.agentworker.SaveTurnResponse;
 import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.TurnRole;
+import ru.agimate.agentworker.agent.TestTemplates;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.LlmMeta;
@@ -65,7 +66,7 @@ class RunRecorderTest {
         ToolRegistry registry = ToolRegistry.build(List.of(ConnectorToolSpec.newBuilder()
                 .setConnectorCode("wx").setNamespace("wx").setName("get_weather").setConnectionId("conn-1")
                 .build()));
-        recorder = new BackendRunRecorder(client, messages, registry, "agent-1", "run-1");
+        recorder = new BackendRunRecorder(client, messages, registry, TestTemplates.of("ru"), "agent-1", "run-1");
     }
 
     private static AgentChatMessage assistantCalling() {

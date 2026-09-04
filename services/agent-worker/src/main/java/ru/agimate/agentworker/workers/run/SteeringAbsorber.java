@@ -25,24 +25,24 @@ import java.util.Set;
 @Slf4j
 class SteeringAbsorber {
 
-    /** How an absorbed message is presented to the model: arrived mid-run, not part of the original request. */
-    static final String STEERED_PREFIX =
-            "Пока ты работал, от пользователя пришло новое сообщение. Учти его в текущей работе:";
-
     private final AgentWorkerClient client;
     private final TurnLog turns;
     private final String agentId;
     private final String runId;
+    /** How an absorbed message is presented to the model: arrived mid-run, not part of the original request. */
+    private final String steeredPrefix;
     /** Absorbed by this process — a re-fetched unconfirmed claim must not enter the conversation twice. */
     private final Set<String> absorbed = new LinkedHashSet<>();
     /** Awaiting {@code MarkSteered}; retried on every assistant turn until the backend accepts. */
     private final List<String> unconfirmed = new ArrayList<>();
 
-    SteeringAbsorber(AgentWorkerClient client, TurnLog turns, String agentId, String runId) {
+    SteeringAbsorber(AgentWorkerClient client, TurnLog turns, String agentId, String runId,
+                     String steeredPrefix) {
         this.client = client;
         this.turns = turns;
         this.agentId = agentId;
         this.runId = runId;
+        this.steeredPrefix = steeredPrefix;
     }
 
     /**
@@ -93,8 +93,8 @@ class SteeringAbsorber {
         }
     }
 
-    private static AgentChatMessage withFraming(AgentChatMessage bare) {
+    private AgentChatMessage withFraming(AgentChatMessage bare) {
         String base = bare.text() != null ? bare.text() : "";
-        return AgentChatMessage.user(STEERED_PREFIX + "\n\n" + base, bare.parts());
+        return AgentChatMessage.user(steeredPrefix + "\n\n" + base, bare.parts());
     }
 }

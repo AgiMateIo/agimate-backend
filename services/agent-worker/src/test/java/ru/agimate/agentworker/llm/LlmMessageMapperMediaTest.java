@@ -6,6 +6,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.content.MediaContent;
+import ru.agimate.agentworker.agent.TestTemplates;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.FilePartRef;
 
@@ -19,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("LlmMessageMapper — мультимодальный user-ход")
 class LlmMessageMapperMediaTest {
 
-    private final LlmMessageMapper mapper = new LlmMessageMapper();
+    private final LlmMessageMapper mapper = new LlmMessageMapper(TestTemplates.of("ru"));
 
     @Test
     @DisplayName("image-part с байтами → UserMessage с одним Media + guidance «видишь напрямую»")
@@ -35,7 +36,7 @@ class LlmMessageMapperMediaTest {
         assertEquals(1, ((MediaContent) msg).getMedia().size());
         assertEquals("image/png", ((MediaContent) msg).getMedia().get(0).getMimeType().toString());
         SystemMessage guidance = assertInstanceOf(SystemMessage.class, out.get(0));
-        assertEquals(LlmMessageMapper.IMAGE_VISIBLE_GUIDANCE, guidance.getText());
+        assertEquals(TestTemplates.of("ru").imageVisible(), guidance.getText());
     }
 
     @Test
@@ -50,7 +51,7 @@ class LlmMessageMapperMediaTest {
         UserMessage msg = assertInstanceOf(UserMessage.class, out.get(1));
         assertTrue(((MediaContent) msg).getMedia().isEmpty());
         SystemMessage guidance = assertInstanceOf(SystemMessage.class, out.get(0));
-        assertEquals(LlmMessageMapper.IMAGE_NOT_VISIBLE_GUIDANCE, guidance.getText());
+        assertEquals(TestTemplates.of("ru").imageNotVisible(), guidance.getText());
     }
 
     @Test
@@ -63,7 +64,7 @@ class LlmMessageMapperMediaTest {
         List<Message> out = mapper.toSpringMessages(List.of(system, user), Map.of(), false);
 
         assertEquals("ты — ассистент", ((SystemMessage) out.get(0)).getText());
-        assertEquals(LlmMessageMapper.IMAGE_NOT_VISIBLE_GUIDANCE, ((SystemMessage) out.get(1)).getText());
+        assertEquals(TestTemplates.of("ru").imageNotVisible(), ((SystemMessage) out.get(1)).getText());
         assertInstanceOf(UserMessage.class, out.get(2));
     }
 

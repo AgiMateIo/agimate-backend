@@ -14,6 +14,7 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.MimeType;
 import lombok.extern.slf4j.Slf4j;
+import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.FilePartRef;
 import ru.agimate.agentworker.agent.model.ToolDef;
@@ -42,21 +43,15 @@ public class LlmMessageMapper {
     private static final int ID_LENGTH = 9;
 
     /**
-     * The «vision» framing for the current call: attachment stubs ({@code MediaStubs} on the backend)
-     * are neutral, so it is the worker that explains the «you can / cannot see it» semantics — by
-     * analogy with {@code ResponseTemplates.toolOutputGuidance}. Added only when the request carries
-     * image attachments.
+     * The «vision» framing ({@code prompt.image-*}): attachment stubs ({@code MediaStubs} on the
+     * backend) are neutral, so it is the worker that explains the «you can / cannot see it»
+     * semantics, added only when the request carries image attachments.
      */
-    static final String IMAGE_VISIBLE_GUIDANCE =
-            "Изображения, приложенные к сообщениям, поданы тебе напрямую — ты видишь их сам. "
-            + "id (agf_…) из описания файла нужен только чтобы сослаться на файл в инструментах "
-            + "или ответе; скачивать или читать по id уже видимую картинку не нужно.";
+    private final ResponseTemplates templates;
 
-    static final String IMAGE_NOT_VISIBLE_GUIDANCE =
-            "Твоя модель не принимает изображения на вход: приложенные картинки тебе НЕ видны, "
-            + "ты видишь только их текстовые описания с id (agf_…). Чтобы узнать содержимое "
-            + "картинки, вызови инструмент чтения изображений (например media.read_image) с этим "
-            + "id; для редактирования или пересылки передавай id соответствующему инструменту.";
+    public LlmMessageMapper(ResponseTemplates templates) {
+        this.templates = templates;
+    }
 
     public List<Message> toSpringMessages(List<AgentChatMessage> messages) {
         return toSpringMessages(messages, Map.of(), true);
@@ -69,8 +64,8 @@ public class LlmMessageMapper {
      * text already carries a stub.
      *
      * <p>{@code imageInputSupported=false} (a chat model with no image in {@code input_modalities}) —
-     * media is not mixed in at all, and when image attachments are present the system hint
-     * {@link #IMAGE_NOT_VISIBLE_GUIDANCE} is added instead of {@link #IMAGE_VISIBLE_GUIDANCE}.
+     * media is not mixed in at all, and when image attachments are present the «not visible» hint
+     * is added instead of the «visible» one.
      */
     public List<Message> toSpringMessages(List<AgentChatMessage> messages, Map<String, byte[]> mediaBytes,
                                           boolean imageInputSupported) {
@@ -101,7 +96,7 @@ public class LlmMessageMapper {
         if (hasImageParts(messages)) {
             // After the leading system messages, before the dialogue — the visibility framing for this call.
             out.add(leadingSystemCount(out),
-                    new SystemMessage(imageInputSupported ? IMAGE_VISIBLE_GUIDANCE : IMAGE_NOT_VISIBLE_GUIDANCE));
+                    new SystemMessage(imageInputSupported ? templates.imageVisible() : templates.imageNotVisible()));
         }
         return out;
     }
