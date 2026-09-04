@@ -25,7 +25,7 @@ import java.util.List;
  * The invariant run body: prepare the context, drive {@link AgiMateAgent}, record the answer,
  * report failures. History arrives pre-assembled in the {@link PreparedContext}; every loop event
  * becomes a backend record through the run's {@link BackendRunRecorder}, and the dialogue events among
- * them go out as durable steps of its {@link MessageLog}. LLM/tool calls are dispatched as child
+ * them go out as durable steps of its {@link ChannelMessageLog}. LLM/tool calls are dispatched as child
  * workflows by {@link LlmCallDispatcher}/{@link ToolCallDispatcher}.
  */
 @Slf4j
@@ -57,8 +57,8 @@ public class AgentRunCore {
     }
 
     /** The run's dialogue-event writer; created here so the workflow shares one seq counter. */
-    public MessageLog messageLog(String agentId, String runId) {
-        return new MessageLog(dbos, client, agentId, runId);
+    public ChannelMessageLog messageLog(String agentId, String runId) {
+        return new ChannelMessageLog(dbos, client, agentId, runId);
     }
 
     /**
@@ -83,7 +83,7 @@ public class AgentRunCore {
      * delivers). Ephemeral blocks (memory notes) are prepended to the model turn and stay out of the
      * dialogue history that feeds later runs — the turn ledger and the prompt snapshot keep them.
      */
-    public String run(String agentId, String runId, PreparedContext prepared, MessageLog messages,
+    public String run(String agentId, String runId, PreparedContext prepared, ChannelMessageLog messages,
                       String context) {
         ToolRegistry registry = prepared.registry();
         BackendRunRecorder recorder = new BackendRunRecorder(client, messages, registry, templates, agentId, runId);
@@ -182,7 +182,7 @@ public class AgentRunCore {
      * event when present; the system detail always reaches the backend via
      * {@code WorkerControl.SendMessage}.
      */
-    public void reportFailure(MessageLog messages, AgentRunAborted exc) {
+    public void reportFailure(ChannelMessageLog messages, AgentRunAborted exc) {
         // Best-effort: the channel may be unreachable, but the system report below must go out regardless.
         if (exc.userNotice() != null && !exc.userNotice().isEmpty()) {
             try {
@@ -199,7 +199,7 @@ public class AgentRunCore {
      * likely cause is control-api being unreachable, so either send may fail as well — both are
      * swallowed so the original exception (rethrown by the caller) stays the recorded failure.
      */
-    public void reportInfraFailure(MessageLog messages, String systemDetail) {
+    public void reportInfraFailure(ChannelMessageLog messages, String systemDetail) {
         try {
             messages.error(templates.infraError());
         } catch (Exception e) {

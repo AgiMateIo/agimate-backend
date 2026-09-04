@@ -11,7 +11,7 @@ implemented: 2026-08-11
 
 Реализация: `RunCancellationService` + `ManageRunController` (запрос), `MessageLogPersistence`
 (проекция статуса), `ToolGatewayGrpcService`/`ToolExecutionService` (тулы), `AgiMateAgent` +
-`MessageLog` + `AgentRunCore` (цикл воркера). Текущее поведение протокола —
+`ChannelMessageLog` + `AgentRunCore` (цикл воркера). Текущее поведение протокола —
 [../contracts/worker-protocol.md](../contracts/worker-protocol.md), раздел «Отмена».
 
 ## Что было до
@@ -303,7 +303,7 @@ agent_runs:
   они стартуют, иначе пользователь остановит один, а следом поедет следующий.
 - **`GetToolResult` — ещё и признак жизни.** Он продлевает `last_activity_at`; терминальный
   `CANCELLED` в ответе не ломает эту логику, потому что `touchRun` стоит до ветвления по статусу.
-- **Флаг отмены у воркера липкий.** `MessageLog` копит его через `|=`: переигранный DBOS-шаг вернёт
+- **Флаг отмены у воркера липкий.** `ChannelMessageLog` копит его через `|=`: переигранный DBOS-шаг вернёт
   своё старое чекпоинтнутое значение и иначе «раз-отменил» бы ран на середине.
 
 ## Источники

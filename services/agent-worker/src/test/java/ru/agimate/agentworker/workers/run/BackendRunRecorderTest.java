@@ -48,7 +48,7 @@ import static org.mockito.Mockito.when;
 class RunRecorderTest {
 
     private final AgentWorkerClient client = mock(AgentWorkerClient.class);
-    private MessageLog messages;
+    private ChannelMessageLog messages;
     private BackendRunRecorder recorder;
 
     @BeforeEach
@@ -62,7 +62,7 @@ class RunRecorderTest {
         when(client.saveTurn(anyString(), anyString(), anyInt(), any(), any(), any(), any(), any(),
                 any(), any(), any()))
                 .thenReturn(SaveTurnResponse.newBuilder().build());
-        messages = new MessageLog(dbos, client, "agent-1", "run-1");
+        messages = new ChannelMessageLog(dbos, client, "agent-1", "run-1");
         ToolRegistry registry = ToolRegistry.build(List.of(ConnectorToolSpec.newBuilder()
                 .setConnectorCode("wx").setNamespace("wx").setName("get_weather").setConnectionId("conn-1")
                 .build()));

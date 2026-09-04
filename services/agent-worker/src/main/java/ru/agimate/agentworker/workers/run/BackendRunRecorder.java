@@ -20,7 +20,7 @@ import java.util.List;
  * ledger's {@code turn_index} and the channel's {@code seq} each have a single owner and the loop
  * stays free of transport.
  *
- * <p>Only {@link MessageLog} writes durable steps; the rest is best-effort and idempotent on the
+ * <p>Only {@link ChannelMessageLog} writes durable steps; the rest is best-effort and idempotent on the
  * backend (a replay re-derives the same turn indexes and call ids).
  */
 @Slf4j
@@ -29,14 +29,14 @@ class BackendRunRecorder implements RunRecorder {
     private static final ObjectMapper PROMPT_MAPPER = new ObjectMapper();
 
     private final AgentWorkerClient client;
-    private final MessageLog messages;
+    private final ChannelMessageLog messages;
     private final TurnLog turns;
     private final SteeringAbsorber steering;
     private final ToolRegistry registry;
     private final String agentId;
     private final String runId;
 
-    BackendRunRecorder(AgentWorkerClient client, MessageLog messages, ToolRegistry registry,
+    BackendRunRecorder(AgentWorkerClient client, ChannelMessageLog messages, ToolRegistry registry,
                        ResponseTemplates templates, String agentId, String runId) {
         this.client = client;
         this.messages = messages;

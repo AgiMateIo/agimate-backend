@@ -15,7 +15,7 @@ import java.util.List;
  * Canonical full-fidelity turn ledger writer ({@code SaveTurn}): one record per inbound/assistant/tool
  * {@link AgentChatMessage}, uncapped. Created per run so it shares one {@code turn_index} counter.
  *
- * <p>Unlike {@link MessageLog}, these are <b>not</b> durable steps: a turn is a pure idempotent
+ * <p>Unlike {@link ChannelMessageLog}, these are <b>not</b> durable steps: a turn is a pure idempotent
  * projection of already-durable data (the LLM/tool child-workflow results), so a DBOS replay
  * re-derives and re-sends the same {@code (run_id, turn_index)} and the backend dedupes — no
  * checkpoint is added, so this needs no drain-before-deploy. The {@code turn_index} advances

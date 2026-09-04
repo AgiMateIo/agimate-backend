@@ -48,7 +48,7 @@ The package root is what DBOS sees: the three workflow pairs and `Queues`. The r
 (`ContextMaterialsFetcher`: one `GetRunContext(agent_id, run_id)` call → pure
 `ContextBuilder.build` render → `PreparedContext`; deliberately **not** a durable step, so the
 assembled dialogue never lands in the DBOS system database), the loop, and failure reporting — delegating the
-distinct concerns to collaborators: `MessageLog` (the run's single writer of dialogue events —
+distinct concerns to collaborators: `ChannelMessageLog` (the run's single writer of dialogue events —
 inbound ack, progress, answer, error — one `save_message` durable step per event with a
 deterministic per-run `seq`, so replays dedupe backend-side) and
 `LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared
@@ -59,8 +59,8 @@ through one injected `RunRecorder` — `onStart` (the turn-1 message list, befor
 count) — and asks it two questions (`cancelRequested`, `pollSteering`). `BackendRunRecorder` is the run's
 implementation: it projects each event into a backend side-record — `SavePrompt` →
 `agent_runs.prompt` (start snapshot, first-write-wins), `SaveTurn` → `agent_run_turns` (via
-`TurnLog`), the channel's progress lines (via `MessageLog`) and `ReportLlmUsage` — and answers the
-questions off records the run makes anyway (`MessageLog`'s cancel flag, `SteeringAbsorber`). The
+`TurnLog`), the channel's progress lines (via `ChannelMessageLog`) and `ReportLlmUsage` — and answers the
+questions off records the run makes anyway (`ChannelMessageLog`'s cancel flag, `SteeringAbsorber`). The
 parent is the sole writer of backend side-records, symmetric with `SaveMessage`. Output of tools with MCP `openWorldHint=true` (external-world
 content — mail, tickets, web; a prompt-injection channel) is wrapped by the dispatcher in
 `<untrusted_tool_output>` with the closing tag neutralized inside the payload; the wrapper's

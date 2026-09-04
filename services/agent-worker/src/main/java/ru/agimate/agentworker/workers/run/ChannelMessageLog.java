@@ -11,8 +11,9 @@ import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.grpc.ControlApiCallException;
 
 /**
- * The run's single writer of dialogue events ({@code SaveMessage}): inbound ack, progress lines,
- * the final answer and error notices. Persistence and channel delivery both happen backend-side —
+ * The run's single writer of channel-facing dialogue events ({@code SaveMessage}): inbound ack,
+ * progress lines, the final answer and error notices — the projection the user sees, as opposed to
+ * the turn ledger ({@link TurnLog}) the model reads back. Persistence and channel delivery both happen backend-side —
  * the worker only records what happened, in order.
  *
  * <p>Each call is a durable step; the per-run {@code seq} counter increments deterministically
@@ -20,7 +21,7 @@ import ru.agimate.agentworker.grpc.ControlApiCallException;
  * the backend dedupes instead of double-posting. Created per run (not a Spring bean).
  */
 @Slf4j
-public class MessageLog {
+public class ChannelMessageLog {
 
     /** A durable step must not checkpoint proto, so the answer is reduced to its flags. */
     private record SaveOutcome(boolean duplicate, boolean cancelled, boolean steered) {}
@@ -33,7 +34,7 @@ public class MessageLog {
     private boolean cancelRequested;
     private boolean steered;
 
-    public MessageLog(DBOS dbos, AgentWorkerClient client, String agentId, String runId) {
+    public ChannelMessageLog(DBOS dbos, AgentWorkerClient client, String agentId, String runId) {
         this.dbos = dbos;
         this.client = client;
         this.agentId = agentId;

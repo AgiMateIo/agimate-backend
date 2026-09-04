@@ -209,7 +209,7 @@ public class AgentWorkerClient {
                 .build()));
     }
 
-    // ---- MessageLog --------------------------------------------------------------
+    // ---- ChannelMessageLog --------------------------------------------------------------
 
     /**
      * Records a dialogue event; idempotent by (run_id, seq) — persistence and delivery happen on the

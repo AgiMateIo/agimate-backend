@@ -7,7 +7,7 @@ import org.slf4j.MDC;
 import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.workers.run.AgentRunCore;
-import ru.agimate.agentworker.workers.run.MessageLog;
+import ru.agimate.agentworker.workers.run.ChannelMessageLog;
 import ru.agimate.agentworker.agent.context.PreparedContext;
 
 /**
@@ -31,7 +31,7 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
     @Override
     @Workflow(name = Queues.RUN_WORKFLOW)
     public void runAgent(AgentMessage message) {
-        MessageLog messages = core.messageLog(message.agentId(), message.runId());
+        ChannelMessageLog messages = core.messageLog(message.agentId(), message.runId());
 
         // Tag every run-body line with a short run id (the child LLM/tool workflows run on their own
         // threads and won't carry it — that's fine, their lines are DEBUG detail).
@@ -54,7 +54,7 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
         }
     }
 
-    private void runBody(AgentMessage message, MessageLog messages) {
+    private void runBody(AgentMessage message, ChannelMessageLog messages) {
         log.info("run started: agent={} run={}", message.agentId(), message.runId());
 
         // The «agent received it» ack — the first durable dialogue step (seq 0), before the context is
