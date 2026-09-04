@@ -13,7 +13,7 @@ Module: `services/agent-worker`. Entry point: `AgentWorkerApplication`.
 Two layers, kept deliberately separate (mirrors the Python worker):
 
 - **Pure logic** (`agent/`, `dto/`, `llm/`) — no DBOS, no transport; unit-tested.
-- **DBOS surface** (`workers/`, `config/DbosRuntime`) — durable workflows/steps + queue wiring.
+- **DBOS surface** (`workers/`, `config/DbosRuntime`) — the run workflow, its durable steps, queue wiring.
 
 ### `agent/` — pure logic
 Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
@@ -23,7 +23,7 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 | `model/AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
 | `MessageCodec` | Typed channel-facing progress lines (`ProgressLine{type, text}`) for `SaveMessage`; a tool turn's lines also carry its structural `ToolTurn`. Also exposes shared `AgentChatMessage`→proto `tool_calls`/`tool_results` converters reused by the turn ledger. |
-| `workers/run/TurnLog` | Canonical full-fidelity turn ledger writer (`SaveTurn` → `agent_run_turns`): one record per inbound/assistant/tool `AgentChatMessage`, uncapped, all runs. `turn_index` 0 is the inbound turn without its ephemeral prefix (the persistent part — later runs read the ledger back as history), recorded by `BackendRunRecorder` before the loop; the system prompt is never a turn (it lives in `agent_runs.prompt`). Assistant turns also carry LLM provenance (`finish_reason`/`model`/`call_id`) and the reasoning text (`thinking_text`) via `LlmMeta` — `call_id` joins to `llm_usage_log`; tool turns leave both null. Plain idempotent call (not a durable step) — a turn is a projection of already-durable child-workflow results; replay dedupes on `(run_id, turn_index)`. Best-effort. |
+| `workers/run/TurnLog` | Canonical full-fidelity turn ledger writer (`SaveTurn` → `agent_run_turns`): one record per inbound/assistant/tool `AgentChatMessage`, uncapped, all runs; one counter per run shared by its three writers (`AgentRunCore` for turn 0, the `llm_call` step for the assistant, `BackendRunRecorder`/`SteeringAbsorber` for the rest). `turn_index` 0 is the inbound turn without its ephemeral prefix (the persistent part — later runs read the ledger back as history); the system prompt is never a turn (it lives in `agent_runs.prompt`). Assistant turns also carry LLM provenance (`finish_reason`/`model`/`call_id`) and the reasoning text (`thinking_text`) via `LlmMeta` — `call_id` joins to `llm_usage_log`; tool turns leave both null. The assistant turn is written inside the `llm_call` step before its checkpoint commits (a replay reads it back with `GetTurn`, `resumeAfter` re-syncs the counter); the other turns are plain idempotent calls, deduped on `(run_id, turn_index)`. Best-effort. |
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id, openWorld)`; `{namespace}.{name}` naming; schema parsing. |
 | `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). When the run has open-world tools it appends a system paragraph pinning tool output as data. |
 | `context/ContextMaterials` | The `GetRunContext` payload as fetched (ordered blocks + tools), consumed by `ContextBuilder`. |
@@ -37,13 +37,25 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 back to us to dispatch on a separate queue instead of Spring AI auto-executing them.
 
 ### `workers/` — DBOS surface
-| Workflow | Queue | Role |
-|---|---|---|
-| `AgentRunWorkflow.runAgent` | `agent_exec` | **Entry point + run stage**: enqueued directly by control-api (`workflow_id == runId`, partitioned by session, concurrency=1 → one writer per session); drives `AgentRunCore` (the run body is uniform — dialogue vs trigger is server-side policy). |
-| `LlmCallWorkflow.llmCall` | `llm_calls` | One model request; credentials fetched inline (never checkpointed). Returns token usage on its `Result` — the child only counts; the loop surfaces it and the run wiring emits `ReportLlmUsage`. |
-| `ToolCallWorkflow.toolCall` | `tool_calls` | One backend tool call (`ExecuteToolAsync` + poll `GetToolResult`); never raises. A call still pending at `detach-after` is detached (`DetachTool`): the model gets an interim task handle, the result returns later as a `tool_completed` trigger. |
+One workflow, `AgentRunWorkflow.runAgent` on the `agent_exec` queue: enqueued directly by control-api
+(`workflow_id == runId`, partitioned by session, concurrency=1 → one writer per session); drives
+`AgentRunCore` (the run body is uniform — dialogue vs trigger is server-side policy). Everything
+else is a durable step of that workflow, and every checkpoint holds identifiers, not the dialogue
+([decisions/dbos-ids-only.md](../decisions/dbos-ids-only.md)):
 
-The package root is what DBOS sees: the three workflow pairs and `Queues`. The run-body machinery lives in `workers/run`:
+| Step | Body | Checkpoint |
+|---|---|---|
+| `save_message` | `ChannelMessageLog` — one per dialogue event | `duplicate`/`cancelled`/`steered` flags |
+| `llm_call` | `LlmCall` — credentials inline, the provider request under a per-worker semaphore (`concurrency.llm`), retries on 429/5xx; then `SaveTurn` of the assistant turn | `call_id` (`runId-n`), `turn_index`, `finish_reason`, model, token counts, or the provider's failure |
+| `tool_calls` | `ToolCallStep` — `ExecuteToolAsync` for every call of the turn, then a round-robin poll of `GetToolResult`; a call still pending at `detach-after` is detached (`DetachTool`), the model gets an interim task handle and the result returns later as a `tool_completed` trigger | id + status per call (SUCCESS/ERROR/DETACHED/TIMEOUT/ABANDONED/FAILED) |
+| `report_failure` | `SendMessage` with the run's outcome | `true` |
+
+The reply of a step lives in run memory; a crash replay re-reads it by id (`GetTurn`,
+`GetToolResult`) and regenerates the worker's own notices. The backend executes tools
+concurrently from the moment they are issued, so one polling loop is as parallel as one
+workflow per call used to be.
+
+The package root is what DBOS sees: the run workflow pair and `Queues`. The run-body machinery lives in `workers/run`:
 `AgentRunCore` holds the invariant run body — the context fetch
 (`ContextMaterialsFetcher`: one `GetRunContext(agent_id, run_id)` call → pure
 `ContextBuilder.build` render → `PreparedContext`; deliberately **not** a durable step, so the
@@ -51,15 +63,16 @@ assembled dialogue never lands in the DBOS system database), the loop, and failu
 distinct concerns to collaborators: `ChannelMessageLog` (the run's single writer of dialogue events —
 inbound ack, progress, answer, error — one `save_message` durable step per event with a
 deterministic per-run `seq`, so replays dedupe backend-side) and
-`LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared
-`WorkflowHandles` await). `LlmCallDispatcher` is a pure data-returner: token usage and the
-truncation `incompleteReason` ride up on the `LlmReply`. `AgiMateAgent` surfaces all loop events
+`LlmCallDispatcher`/`ToolCallDispatcher` wrapping `LlmCall`/`ToolCallStep` into the
+`llm_call`/`tool_calls` steps and owning the replay branch. `LlmCallDispatcher` is a pure
+data-returner: token usage and the truncation `incompleteReason` ride up on the `LlmReply`. `AgiMateAgent` surfaces all loop events
 through one injected `RunRecorder` — `onStart` (the turn-1 message list, before the first call),
 `onMessages` (each turn), `onUsage` (per-call tokens, before aborting a truncated turn so they still
 count) — and asks it two questions (`cancelRequested`, `pollSteering`). `BackendRunRecorder` is the run's
 implementation: it projects each event into a backend side-record — `SavePrompt` →
 `agent_runs.prompt` (start snapshot, first-write-wins), `SaveTurn` → `agent_run_turns` (via
-`TurnLog`), the channel's progress lines (via `ChannelMessageLog`) and `ReportLlmUsage` — and answers the
+`TurnLog`; the assistant turn excepted — the `llm_call` step writes it), the channel's progress
+lines (via `ChannelMessageLog`) and `ReportLlmUsage` — and answers the
 questions off records the run makes anyway (`ChannelMessageLog`'s cancel flag, `SteeringAbsorber`). The
 parent is the sole writer of backend side-records, symmetric with `SaveMessage`. Output of tools with MCP `openWorldHint=true` (external-world
 content — mail, tickets, web; a prompt-injection channel) is wrapped by the dispatcher in
@@ -123,15 +136,15 @@ single-writer'а и контрактное требование к трансп�
 ## Configuration
 Bound from `application.yaml` under `agent.*`; every value is overridable via env (relaxed
 binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example`. Key sections:
-`grpc` (target/tls/auth-token), `agent` (id/max-turns), `concurrency` (agent-runs/llm/tool),
+`grpc` (target/tls/auth-token), `agent` (id/max-turns), `concurrency` (`llm` — the per-worker semaphore around provider requests),
 `session` (run-ttl-seconds), `tool` (poll-timeout — дефолтный бюджет ожидания результата тул-вызова;
 спек тула может заявить свой `timeout_seconds` (кламп 30 мин) — тогда он побеждает; таймаут
 не отменяет джобу на бэке, модель получает явное «could still complete»; detach-after — grace
 ожидания до детача (дефолт 10 с, ≤0 выключает): не уложившийся вызов отцепляется, модель получает
 task handle, результат приедет триггером `tool_completed`; бюджеты остаются потолком блокирующего
 фолбэка при недоступном `DetachTool`; max-output-chars — потолок
-вывода одного тула: гигантский вывод раздувает контекст всех последующих turns и DBOS-чекпоинты,
-поэтому обрезается с явной пометкой ещё внутри durable-шага), `response` (`language` —
+вывода одного тула: гигантский вывод раздувает контекст всех последующих turns, поэтому обрезается
+с явной пометкой), `response` (`language` —
 язык пользовательских нотисов), `dbos` (system database — must match control-api's;
 `retention` — сколько хранить завершённые воркфлоу с чекпоинтами, 0 отключает).
 

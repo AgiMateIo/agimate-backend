@@ -322,7 +322,7 @@ Range-запросы: перемотка видео и докачка на `/fil
   в чекпоинт уезжает ссылка, содержимое — никогда). Новый RPC `AgentContext.GetFile` (server-streaming
   чанки 128 KB) отдаёт содержимое воркеру с ownership-гейтом `file.user_id == agent.user_id`.
 - **Воркер → LLM**. `inbound_parts` доезжают до `AgentChatMessage.parts` (только ссылки). Байты
-  image-вложений воркер тянет `GetFile`'ом **inline при llm_call** — как `api_key`, вне чекпоинта —
+  image-вложений воркер тянет `GetFile`'ом **внутри шага llm_call** — как `api_key`, вне чекпоинта —
   и подаёт в модель через Spring AI `Media` (`LlmMessageMapper`). Недоступный файл (NOT_FOUND/сбой) →
   без Media, текст со стабом (деградация, ран не падает). Не-image (pdf/zip…) в модель не подаётся —
   только стаб; агент может переслать его attach-конвенцией.

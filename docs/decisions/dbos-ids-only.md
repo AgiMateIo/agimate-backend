@@ -1,6 +1,7 @@
 ---
-status: accepted
+status: implemented
 created: 2026-09-04
+implemented: 2026-09-04
 ---
 
 # В DBOS — только идентификаторы
@@ -187,29 +188,29 @@ JSON. Записи с `List` внутри уже ходят через него 
 
 - [x] Порядок в agent-worker перед изменением: `RunRecorder`/`BackendRunRecorder`, `PreparedContext`
       в `agent/context`, тексты модели в бандле (три коммита, 2026-09-03…04)
-- [ ] Протокол: `MessageLog.GetTurn` в `message_log.proto`; комментарии к `call_id` в
+- [x] Протокол: `MessageLog.GetTurn` в `message_log.proto`; комментарии к `call_id` в
       `ReportLlmUsageRequest` и `SaveTurnRequest` — воркер чеканит, не DBOS
-- [ ] control-api: `GetTurn` в `MessageLogGrpcService` поверх `AgentRunTurnRepository`
+- [x] control-api: `GetTurn` в `MessageLogGrpcService` поверх `AgentRunTurnRepository`
       (`findByRunIdAndTurnIndex`), проверка агента, `thinking` из `thinking_text`, тест
-- [ ] agent-worker: `LlmCallStep` в `llm/` из тела `LlmCallWorkflowImpl` — креды inline, семафор
-      вокруг запроса, `callId = runId-n` (n считает диспетчер, включая реплеенные вызовы),
-      `SaveTurn` внутри, держатель ответа; тест переезжает; round-trip выхода через
-      `DBOSJavaSerializer`
-- [ ] agent-worker: `LlmCallDispatcher` — `runStep("llm_call")`, ветка реплея через `GetTurn`,
+- [x] agent-worker: `workers/run/LlmCall` из тела `LlmCallWorkflowImpl` (не в `llm/` — класс ходит
+      на бэк за кредами и файлами) — креды inline, семафор вокруг запроса; `SaveTurn`, держатель
+      ответа и `callId = runId-n` (n считает диспетчер, включая реплеенные вызовы) — в
+      `LlmCallDispatcher`; тест переезжает; round-trip выхода через `DBOSJavaSerializer`
+- [x] agent-worker: `LlmCallDispatcher` — `runStep("llm_call")`, ветка реплея через `GetTurn`,
       сдвиг счётчика `TurnLog`; тест реплея на фейковом DBOS, чей `runStep` отдаёт выход, не вызывая
       supplier
-- [ ] agent-worker: `TurnLog` создаётся в `AgentRunCore` и передаётся диспетчеру, рекордеру и
+- [x] agent-worker: `TurnLog` создаётся в `AgentRunCore` и передаётся диспетчеру, рекордеру и
       `SteeringAbsorber`; нулевой ход пишет `AgentRunCore` напрямую, `recordInbound` уходит;
       рекордер не пишет `ASSISTANT`
-- [ ] agent-worker: `MessageLog` → `ChannelMessageLog` — чтобы пара журналов (канальная проекция
+- [x] agent-worker: `MessageLog` → `ChannelMessageLog` — чтобы пара журналов (канальная проекция
       и журнал ходов) читалась именами; отдельный коммит `refactor`
-- [ ] agent-worker: `ToolCallStep` — `ExecuteToolAsync` для всех, опрос по кругу с per-call detach и
+- [x] agent-worker: `ToolCallStep` — `ExecuteToolAsync` для всех, опрос по кругу с per-call detach и
       бюджетом, выход `ToolOutcomes`; `ToolCallDispatcher` берёт содержимое из памяти или
       `GetToolResult`; тесты: несколько вызовов, detach, таймаут, реплей, round-trip выхода
-- [ ] agent-worker: снос `LlmCallWorkflow*`, `ToolCallWorkflow*`, `WorkflowHandles`, очередей
+- [x] agent-worker: снос `LlmCallWorkflow*`, `ToolCallWorkflow*`, `WorkflowHandles`, очередей
       `llm_calls`/`tool_calls`, `Queues.LLM_*`/`TOOL_*`, `concurrency.tool`; `DbosRuntime` слушает
       только `agent_exec`
-- [ ] Документация: `worker-protocol.md` (`GetTurn`, определение `call_id`, «inline при llm_call» →
+- [x] Документация: `worker-protocol.md` (`GetTurn`, определение `call_id`, «inline при llm_call» →
       «в шаге llm_call»), `agent-worker.md` (таблица воркфлоу → один воркфлоу с шагами, конфиг,
       javadoc `maxOutputChars`), `deploy.md` (минус `AGENT_CONCURRENCY_TOOL`), `files.md`,
       `reasoning-content.md` (причина держать рассуждение вне сообщения — теперь журнал, не

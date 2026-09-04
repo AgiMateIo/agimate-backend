@@ -61,7 +61,7 @@ updated: 2026-08-21
 | Листинг тулов | `ToolDefinitionService`, ветка `STATIC` → рефлексия по хендлеру (`ToolSchemaReflector`) |
 | ABAC | `agent_connections` (доступность) + `agent_connection_policies` (точечный DENY на тул) |
 | Аудит | `tool_call_logs` — вход, выход, ошибка, время |
-| Бюджет ожидания | `@Tool(timeoutSeconds)` → `timeout_seconds` в `ToolSpec` → `ToolCallWorkflowImpl` (клэмп 30 минут) |
+| Бюджет ожидания | `@Tool(timeoutSeconds)` → `timeout_seconds` в `ToolSpec` → `ToolCallStep` (клэмп 30 минут) |
 
 Ни gRPC-протокол воркера, ни dispatch, ни DBOS-слой не трогаются.
 
@@ -208,7 +208,7 @@ TerminalConnectorService.getTools(ConnectorEnv env)
 В серверном дизайне длинные команды упираются в `agent.tool.poll-timeout`, потому что BACKEND-тул
 держит поток `toolExecutor`. Здесь исполнение на устройстве, control-api не держит ничего — ждёт
 только воркер, и ждать он умеет по декларации: `@Tool(timeoutSeconds)` доезжает до
-`ToolCallWorkflowImpl` с клэмпом 30 минут. Поэтому `run_command` может честно объявить ~5 минут, и
+`ToolCallStep` с клэмпом 30 минут. Поэтому `run_command` может честно объявить ~5 минут, и
 `npm install` в бюджет влезет.
 
 Обратная сторона — **офлайн-приложение**: push уходит в Centrifugo в никуда, и агент молча ждёт весь
