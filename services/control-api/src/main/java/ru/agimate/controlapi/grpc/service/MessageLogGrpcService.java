@@ -27,7 +27,6 @@ import ru.agimate.agentworker.ToolCallRec;
 import ru.agimate.agentworker.ToolResultRec;
 import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.TurnRole;
-import java.util.Map;
 import java.util.UUID;
 
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.handleError;
@@ -161,24 +160,25 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
             b.setText(turn.getText());
         }
         if (turn.getToolCalls() != null) {
-            turn.getToolCalls().forEach(c -> b.addToolCalls(ToolCallRec.newBuilder()
-                    .setId(string(c, "id"))
-                    .setName(string(c, "name"))
-                    .setArgumentsJson(string(c, "argumentsJson"))));
+            turn.getToolCalls().stream().map(ToolTurnRecord.Call::fromRow).forEach(c -> b.addToolCalls(
+                    ToolCallRec.newBuilder()
+                            .setId(nullToEmpty(c.id()))
+                            .setName(nullToEmpty(c.name()))
+                            .setArgumentsJson(nullToEmpty(c.argumentsJson()))));
         }
         if (turn.getToolResults() != null) {
-            turn.getToolResults().forEach(r -> b.addToolResults(ToolResultRec.newBuilder()
-                    .setId(string(r, "id"))
-                    .setName(string(r, "name"))
-                    .setOutputJson(string(r, "outputJson"))
-                    .setFailed(Boolean.TRUE.equals(r.get("failed")))));
+            turn.getToolResults().stream().map(ToolTurnRecord.Result::fromRow).forEach(r -> b.addToolResults(
+                    ToolResultRec.newBuilder()
+                            .setId(nullToEmpty(r.id()))
+                            .setName(nullToEmpty(r.name()))
+                            .setOutputJson(nullToEmpty(r.outputJson()))
+                            .setFailed(r.failed())));
         }
         return b.build();
     }
 
-    private static String string(Map<String, Object> map, String key) {
-        Object value = map.get(key);
-        return value == null ? "" : value.toString();
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private static TurnRole toProto(AgentTurnRole role) {

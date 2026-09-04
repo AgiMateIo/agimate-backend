@@ -79,7 +79,6 @@ public final class MessageCodec {
         return new ProgressLine(ProgressType.PROGRESS_TYPE_TOOL_RESULT, "", turn);
     }
 
-    /** Assistant calls as proto records (shared converter for the channel projection and the turn journal). */
     /** A ledger turn read back ({@code GetTurn}) as the message the loop would have built from the provider's reply. */
     public static AgentChatMessage fromTurn(GetTurnResponse turn) {
         return switch (turn.getRole()) {
@@ -97,6 +96,7 @@ public final class MessageCodec {
         };
     }
 
+    /** Assistant calls as proto records (shared converter for the channel projection and the turn journal). */
     public static List<ToolCallRec> toolCallRecs(List<AgentChatMessage.ToolCall> calls) {
         List<ToolCallRec> recs = new ArrayList<>(calls.size());
         for (AgentChatMessage.ToolCall call : calls) {

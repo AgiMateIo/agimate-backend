@@ -136,10 +136,10 @@ public class LlmCall {
             OpenAIServiceException svc = findServiceException(e);
             if (svc != null) {
                 log.warn("LLM HTTP error (status={}): {}", svc.statusCode(), svc.getMessage());
-                return Reply.failure(svc.statusCode(), nonBlankMessage(svc));
+                return Reply.failure(svc.statusCode(), Failures.message(svc));
             }
             log.warn("LLM API error: {}", e.getMessage());
-            return Reply.failure(null, nonBlankMessage(e));
+            return Reply.failure(null, Failures.message(e));
         }
     }
 
@@ -258,12 +258,6 @@ public class LlmCall {
         } catch (Exception e) {
             return 0;
         }
-    }
-
-    /** The exception's message, or its class name when the message is absent. */
-    private static String nonBlankMessage(Throwable t) {
-        String msg = t.getMessage();
-        return (msg != null && !msg.isBlank()) ? msg : t.getClass().getSimpleName();
     }
 
     /** Walk the cause chain for an OpenAI service exception carrying an HTTP status. */

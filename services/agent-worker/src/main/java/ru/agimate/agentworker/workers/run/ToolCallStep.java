@@ -105,7 +105,7 @@ public class ToolCallStep {
                         call.toolName(), call.argsJson().getBytes(StandardCharsets.UTF_8), agentId, runId);
             } catch (Exception e) {
                 log.warn("tool {} (connector={}) could not be issued: {}", call.toolName(), call.connectorCode(), e.getMessage());
-                settled.add(new Outcome(call.toolCallId(), Status.FAILED, nonBlankMessage(e)));
+                settled.add(new Outcome(call.toolCallId(), Status.FAILED, Failures.message(e)));
                 continue;
             }
             long budgetMs = effectiveTimeoutMs(call.timeoutSeconds(), pollTimeoutMs);
@@ -123,7 +123,7 @@ public class ToolCallStep {
                     outcome = pollOnce(p, agentId, runId, held);
                 } catch (Exception e) {
                     log.warn("tool {} (id={}) could not be followed: {}", p.call.toolName(), p.call.toolCallId(), e.getMessage());
-                    outcome = new Outcome(p.call.toolCallId(), Status.FAILED, nonBlankMessage(e));
+                    outcome = new Outcome(p.call.toolCallId(), Status.FAILED, Failures.message(e));
                 }
                 if (outcome != null) {
                     settled.add(outcome);
@@ -284,10 +284,5 @@ public class ToolCallStep {
         return output.substring(0, cut)
                 + "\n…[tool output truncated by worker: " + output.length()
                 + " chars total, first " + cut + " shown]";
-    }
-
-    private static String nonBlankMessage(Throwable t) {
-        String msg = t.getMessage();
-        return msg != null && !msg.isBlank() ? msg : t.getClass().getSimpleName();
     }
 }

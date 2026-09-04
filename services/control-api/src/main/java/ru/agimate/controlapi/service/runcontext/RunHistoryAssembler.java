@@ -147,22 +147,16 @@ public class RunHistoryAssembler {
 
     private static List<ToolTurnRecord.Call> calls(AgentRunTurn turn) {
         return turn.getToolCalls().stream()
-                .map(c -> new ToolTurnRecord.Call(
-                        string(c, "id"), string(c, "name"), cap(string(c, "argumentsJson"))))
+                .map(ToolTurnRecord.Call::fromRow)
+                .map(c -> new ToolTurnRecord.Call(c.id(), c.name(), cap(c.argumentsJson())))
                 .toList();
     }
 
     private static List<ToolTurnRecord.Result> results(AgentRunTurn turn) {
         return turn.getToolResults().stream()
-                .map(r -> new ToolTurnRecord.Result(
-                        string(r, "id"), string(r, "name"), cap(string(r, "outputJson")),
-                        Boolean.TRUE.equals(r.get("failed"))))
+                .map(ToolTurnRecord.Result::fromRow)
+                .map(r -> new ToolTurnRecord.Result(r.id(), r.name(), cap(r.outputJson()), r.failed()))
                 .toList();
-    }
-
-    private static String string(Map<String, Object> map, String key) {
-        Object value = map.get(key);
-        return value == null ? null : value.toString();
     }
 
     private static boolean hasText(AgentRunTurn turn) {
