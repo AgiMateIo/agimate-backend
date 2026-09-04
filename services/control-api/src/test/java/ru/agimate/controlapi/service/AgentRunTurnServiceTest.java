@@ -23,6 +23,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -200,6 +201,37 @@ class AgentRunTurnServiceTest {
 
             assertTrue(service.isLedgerIntact(RUN_ID));
             verify(turnRepository, never()).countByRunId(RUN_ID);
+        }
+    }
+
+    @Nested
+    @DisplayName("get — ход по ключу журнала (GetTurn)")
+    class GetTurn {
+
+        @Test
+        @DisplayName("ход агента возвращается как есть")
+        void returnsOwnTurn() {
+            AgentRunTurn turn = AgentRunTurn.builder().agentId(AGENT_ID).runId(RUN_ID).turnIndex(3).build();
+            when(turnRepository.findByRunIdAndTurnIndex(RUN_ID, 3)).thenReturn(Optional.of(turn));
+
+            assertSame(turn, service.get(AGENT_ID, RUN_ID, 3));
+        }
+
+        @Test
+        @DisplayName("нет хода → NotFoundStatusException")
+        void notFound() {
+            when(turnRepository.findByRunIdAndTurnIndex(RUN_ID, 3)).thenReturn(Optional.empty());
+
+            assertThrows(NotFoundStatusException.class, () -> service.get(AGENT_ID, RUN_ID, 3));
+        }
+
+        @Test
+        @DisplayName("ход чужого агента → BadRequestStatusException")
+        void foreignAgent() {
+            AgentRunTurn turn = AgentRunTurn.builder().agentId(UUID.randomUUID()).runId(RUN_ID).turnIndex(3).build();
+            when(turnRepository.findByRunIdAndTurnIndex(RUN_ID, 3)).thenReturn(Optional.of(turn));
+
+            assertThrows(BadRequestStatusException.class, () -> service.get(AGENT_ID, RUN_ID, 3));
         }
     }
 }

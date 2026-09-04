@@ -14,11 +14,16 @@ option java_outer_classname = "MessageLogProto";
 service MessageLog {
   rpc SaveMessage(SaveMessageRequest) returns (SaveMessageResponse);
   // The canonical full-fidelity turn of a run (agent_run_turns): one record per worker
-  // AgentChatMessage (assistant/tool), uncapped. Unlike SaveMessage this is not a durable step: a
-  // turn is an idempotent projection of already-durable data (results of child LLM/tool workflows),
-  // so a replay re-sends the same (run_id, turn_index) pair and the backend deduplicates. No
-  // delivery.
+  // AgentChatMessage (user/assistant/tool), uncapped. Not a durable step of its own: the assistant
+  // turn is written inside the llm_call step before its checkpoint commits, the others are
+  // idempotent projections of data already durable elsewhere — a replay re-sends the same
+  // (run_id, turn_index) pair and the backend deduplicates. No delivery.
   rpc SaveTurn(SaveTurnRequest) returns (SaveTurnResponse);
+  // One turn back, by (run_id, turn_index). The DBOS checkpoint of an llm_call step keeps only the
+  // turn's index, so a crash replay re-reads the assistant's reply from here instead of from the
+  // checkpoint. Uncapped, verbatim: the tool call arguments must equal what ExecuteToolAsync saw.
+  // NOT_FOUND when the turn was never written.
+  rpc GetTurn(GetTurnRequest) returns (GetTurnResponse);
   // Snapshot of the run's starting prompt (agent_runs.prompt): the message list exactly as it went
   // into the first LLM call — system + history + trigger message (with the ephemeral prefix). Sent
   // once before the loop; subsequent turns go separately via SaveTurn. Not a durable step,
@@ -93,7 +98,7 @@ message SaveTurnRequest {
   repeated ToolResultRec tool_results = 8;  // on a tool turn
   string finish_reason = 9;            // 1b; empty = null
   string model = 10;                   // 1b; empty = null
-  string call_id = 11;                 // 1b; links to llm_usage_log; empty = null
+  string call_id = 11;                 // the worker-minted id of the turn's LLM call (run_id + ordinal); links to llm_usage_log; empty = null
   // The turn's reasoning content, uncapped; empty = the model did not reason. Assistant turns only.
   // The channel's 💭 marker is driven by the same emptiness, so no separate flag travels.
   string thinking_text = 12;
@@ -101,6 +106,23 @@ message SaveTurnRequest {
 
 message SaveTurnResponse {
   bool duplicate = 1;                  // (run_id, turn_index) already written — replay/retry
+}
+
+message GetTurnRequest {
+  string agent_id = 1;
+  string run_id = 2;
+  int32 turn_index = 3;
+}
+
+// Mirrors SaveTurnRequest minus the LLM telemetry and minus thinking_text: the loop never reads the
+// reasoning, and it is the largest field. `thinking` stays — the channel's 💭 line is a durable step of
+// its own, so a replay must derive the same progress lines from this turn as the original run did.
+message GetTurnResponse {
+  TurnRole role = 1;
+  string text = 2;
+  bool thinking = 3;                   // thinking_text was non-empty
+  repeated ToolCallRec tool_calls = 4;
+  repeated ToolResultRec tool_results = 5;
 }
 
 message SavePromptRequest {

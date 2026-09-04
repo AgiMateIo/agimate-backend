@@ -18,7 +18,7 @@ service AgentContext {
   // effect on the next turn.
   rpc GetLlmCredentials(GetLlmCredentialsRequest) returns (LlmCredentials);
   // Token accounting: best-effort report from the worker after each successful LLM call.
-  // Idempotent by call_id (the DBOS workflow id of the LLM call) — a repeat returns duplicate=true.
+  // Idempotent by call_id (minted by the worker per LLM call) — a repeat returns duplicate=true.
   rpc ReportLlmUsage(ReportLlmUsageRequest) returns (ReportLlmUsageResponse);
   // Contents of an inbound attachment (image and the like), chunked. Like api_key, it is pulled
   // inline during llm_call and never enters a DBOS checkpoint; RunContext carries references only
@@ -152,7 +152,7 @@ message LlmCredentials {
 }
 
 message ReportLlmUsageRequest {
-  string call_id = 1;             // the LLM call's DBOS workflow id — the idempotency key
+  string call_id = 1;             // worker-minted id of the LLM call (run_id + ordinal, stable across replays) — the idempotency key
   string agent_id = 2;
   string run_id = 3;              // agent_runs.id (parent workflow), empty if unknown
   string provider_id = 4;         // echo of LlmCredentials.provider_id

@@ -56,6 +56,8 @@ public interface AgentRunTurnRepository extends JpaRepository<AgentRunTurn, UUID
 
     long countByRunId(UUID runId);
 
+    Optional<AgentRunTurn> findByRunIdAndTurnIndex(UUID runId, int turnIndex);
+
     /** The last turn of a run — its {@code turn_index} closes the contiguity check, its role the pairing one. */
     Optional<AgentRunTurn> findFirstByRunIdOrderByTurnIndexDesc(UUID runId);
 }

@@ -70,6 +70,20 @@ public class AgentRunTurnService {
     }
 
     /**
+     * One turn by its ledger key — what a DBOS replay reads instead of a checkpoint ({@code GetTurn}).
+     * Ownership is checked on the turn row itself: it carries {@code agent_id}, so no join is needed.
+     */
+    @Transactional(readOnly = true)
+    public AgentRunTurn get(UUID agentId, UUID runId, int turnIndex) {
+        AgentRunTurn turn = turnRepository.findByRunIdAndTurnIndex(runId, turnIndex)
+                .orElseThrow(() -> new NotFoundStatusException("Turn not found: " + runId + "/" + turnIndex));
+        if (!turn.getAgentId().equals(agentId)) {
+            throw new BadRequestStatusException("Run " + runId + " does not belong to agent " + agentId);
+        }
+        return turn;
+    }
+
+    /**
      * Whether the run's ledger can be replayed as the history of a later run. Called once, when the
      * run finishes — {@code SaveTurn} is best-effort, and a hole here becomes a {@code tool_use} with
      * no {@code tool_result} in someone else's context, which providers reject whole.

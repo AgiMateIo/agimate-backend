@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.controlapi.database.entities.AgentRunTurn;
 import ru.agimate.controlapi.database.enums.AgentTurnRole;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.grpc.mapper.MessageKindMapper;
@@ -12,6 +13,8 @@ import ru.agimate.controlapi.service.AgentRunPromptService;
 import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.channel.MessageLogService;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
+import ru.agimate.agentworker.GetTurnRequest;
+import ru.agimate.agentworker.GetTurnResponse;
 import ru.agimate.agentworker.MessageLogGrpc;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.SaveMessageRequest;
@@ -20,9 +23,11 @@ import ru.agimate.agentworker.SavePromptRequest;
 import ru.agimate.agentworker.SavePromptResponse;
 import ru.agimate.agentworker.SaveTurnRequest;
 import ru.agimate.agentworker.SaveTurnResponse;
+import ru.agimate.agentworker.ToolCallRec;
+import ru.agimate.agentworker.ToolResultRec;
 import ru.agimate.agentworker.ToolTurn;
 import ru.agimate.agentworker.TurnRole;
-
+import java.util.Map;
 import java.util.UUID;
 
 import static ru.agimate.controlapi.grpc.support.GrpcSupport.handleError;
@@ -102,6 +107,22 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
     }
 
     @Override
+    public void getTurn(GetTurnRequest request, StreamObserver<GetTurnResponse> responseObserver) {
+        try {
+            UUID agentId = parseUuid(request.getAgentId(), "agent_id");
+            UUID runId = parseUuid(request.getRunId(), "run_id");
+            if (request.getTurnIndex() < 0) {
+                throw new BadRequestStatusException("turn_index must be >= 0");
+            }
+            responseObserver.onNext(toProto(agentRunTurnService.get(agentId, runId, request.getTurnIndex())));
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            handleError(e, responseObserver, "GetTurn agent=" + request.getAgentId()
+                    + " run=" + request.getRunId() + " turn=" + request.getTurnIndex());
+        }
+    }
+
+    @Override
     public void savePrompt(SavePromptRequest request, StreamObserver<SavePromptResponse> responseObserver) {
         try {
             UUID agentId = parseUuid(request.getAgentId(), "agent_id");
@@ -128,6 +149,44 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
             case TURN_ROLE_TOOL -> AgentTurnRole.TOOL;
             case TURN_ROLE_UNSPECIFIED, UNRECOGNIZED ->
                     throw new BadRequestStatusException("role is required");
+        };
+    }
+
+    /** Verbatim, no caps: a replay re-issues {@code ExecuteToolAsync} with these arguments, and the backend compares them. */
+    static GetTurnResponse toProto(AgentRunTurn turn) {
+        GetTurnResponse.Builder b = GetTurnResponse.newBuilder()
+                .setRole(toProto(turn.getRole()))
+                .setThinking(turn.getThinkingText() != null && !turn.getThinkingText().isEmpty());
+        if (turn.getText() != null) {
+            b.setText(turn.getText());
+        }
+        if (turn.getToolCalls() != null) {
+            turn.getToolCalls().forEach(c -> b.addToolCalls(ToolCallRec.newBuilder()
+                    .setId(string(c, "id"))
+                    .setName(string(c, "name"))
+                    .setArgumentsJson(string(c, "argumentsJson"))));
+        }
+        if (turn.getToolResults() != null) {
+            turn.getToolResults().forEach(r -> b.addToolResults(ToolResultRec.newBuilder()
+                    .setId(string(r, "id"))
+                    .setName(string(r, "name"))
+                    .setOutputJson(string(r, "outputJson"))
+                    .setFailed(Boolean.TRUE.equals(r.get("failed")))));
+        }
+        return b.build();
+    }
+
+    private static String string(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value == null ? "" : value.toString();
+    }
+
+    private static TurnRole toProto(AgentTurnRole role) {
+        return switch (role) {
+            case SYSTEM -> TurnRole.TURN_ROLE_SYSTEM;
+            case USER -> TurnRole.TURN_ROLE_USER;
+            case ASSISTANT -> TurnRole.TURN_ROLE_ASSISTANT;
+            case TOOL -> TurnRole.TURN_ROLE_TOOL;
         };
     }
 
