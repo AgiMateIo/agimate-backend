@@ -15,7 +15,7 @@ import java.util.List;
  * @param systemBlocks ordered system-prompt blocks (stable-first — the order is the contract)
  * @param userBlocks   ordered user-turn blocks; the run's main prompt is the last one
  * @param tools        tool specs, already scoped and ABAC-gated by the backend
- * @param history      session history «as the user saw it» (completed runs only, pre-filtered)
+ * @param history      session history from the turn ledger, already windowed and filtered
  * @param inboundParts inbound attachment refs of this run's dialogue turn (bytes via GetFile)
  */
 public record ContextMaterials(

@@ -107,10 +107,10 @@ public final class ContextBuilder {
     }
 
     /**
-     * History «as the user saw it»: INBOUND → user, everything else → assistant text. A tool turn
-     * carrying {@code tool_turn} (v2.1) is expanded into the native pair
-     * {@code assistant(tool_calls)} + {@code tool(results)} — the model sees past calls through the
-     * same channel it is required to call through, rather than as imitated text.
+     * Ledger history as model turns: INBOUND → user, everything else → assistant text. A tool turn
+     * carrying {@code tool_turn} is expanded into the native pair {@code assistant(tool_calls)} +
+     * {@code tool(results)} — the model sees past calls through the same channel it is required to
+     * call through, rather than as imitated text.
      *
      * <p>A turn arrives as two adjacent records: first calls (tool_use), then results (tool_result);
      * the calls record consumes the following results record by look-ahead. An orphaned results

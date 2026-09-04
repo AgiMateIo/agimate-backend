@@ -22,7 +22,7 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 |---|---|
 | `model/AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
-| `MessageCodec` | Typed channel-facing progress lines (`ProgressLine{type, text}`) for `SaveMessage`; history persistence is text-only since v2 (raw transcript lives in DBOS checkpoints). Also exposes shared `AgentChatMessage`→proto `tool_calls`/`tool_results` converters reused by the turn ledger. |
+| `MessageCodec` | Typed channel-facing progress lines (`ProgressLine{type, text}`) for `SaveMessage`; a tool turn's lines also carry its structural `ToolTurn`. Also exposes shared `AgentChatMessage`→proto `tool_calls`/`tool_results` converters reused by the turn ledger. |
 | `workers/run/TurnLog` | Canonical full-fidelity turn ledger writer (`SaveTurn` → `agent_run_turns`): one record per inbound/assistant/tool `AgentChatMessage`, uncapped, all runs. `turn_index` 0 is the inbound turn without its ephemeral prefix (the persistent part — later runs read the ledger back as history), recorded by `BackendRunRecorder` before the loop; the system prompt is never a turn (it lives in `agent_runs.prompt`). Assistant turns also carry LLM provenance (`finish_reason`/`model`/`call_id`) and the reasoning text (`thinking_text`) via `LlmMeta` — `call_id` joins to `llm_usage_log`; tool turns leave both null. Plain idempotent call (not a durable step) — a turn is a projection of already-durable child-workflow results; replay dedupes on `(run_id, turn_index)`. Best-effort. |
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id, openWorld)`; `{namespace}.{name}` naming; schema parsing. |
 | `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). When the run has open-world tools it appends a system paragraph pinning tool output as data. |
@@ -111,7 +111,7 @@ serialization is `PORTABLE`. control-api enqueues the run-stage workflow directl
 `workflow_id == runId` (delivery dedupes on it), partition key — the run's `sessionId`
 (direct run — its own `runId`).
 
-### Session serialization (протокол v2, без steering и без registry)
+### Session serialization
 Воркер не знает `sessionId` — партицию задаёт продюсер при enqueue. Партиционированная
 очередь (concurrency=1 → один исполняющийся ран на сессию) — единственный механизм
 single-writer'а и контрактное требование к транспорту; регистрационного хэндшейка
@@ -123,7 +123,7 @@ single-writer'а и контрактное требование к трансп�
 ## Configuration
 Bound from `application.yaml` under `agent.*`; every value is overridable via env (relaxed
 binding, e.g. `AGENT_GRPC_TARGET`, `AGENT_DBOS_DATABASE_URL`). See `.env.example`. Key sections:
-`grpc` (target/tls/auth-token), `agent` (id/workflow-id), `concurrency` (agent-runs/llm/tool),
+`grpc` (target/tls/auth-token), `agent` (id/max-turns), `concurrency` (agent-runs/llm/tool),
 `session` (run-ttl-seconds), `tool` (poll-timeout — дефолтный бюджет ожидания результата тул-вызова;
 спек тула может заявить свой `timeout_seconds` (кламп 30 мин) — тогда он побеждает; таймаут
 не отменяет джобу на бэке, модель получает явное «could still complete»; detach-after — grace

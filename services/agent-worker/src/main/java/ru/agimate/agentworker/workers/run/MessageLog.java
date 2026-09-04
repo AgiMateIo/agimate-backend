@@ -40,12 +40,12 @@ public class MessageLog {
         this.runId = runId;
     }
 
-    /** The «agent received it» ack (seq 0, before prepare_context): no text is sent, the backend takes the canonical form itself. */
+    /** The «agent received it» ack (seq 0, before the context fetch): no text is sent, the backend takes the canonical form itself. */
     public void inbound() {
         send(MessageKind.MESSAGE_KIND_INBOUND, ProgressType.PROGRESS_TYPE_UNSPECIFIED, "", null);
     }
 
-    /** A progress line; under TOOL_CALL it carries the structural record of the tool turn (v2.1) for history. */
+    /** A progress line; a tool turn's lines also carry its structural record for history. */
     public void progress(MessageCodec.ProgressLine line) {
         send(MessageKind.MESSAGE_KIND_PROGRESS, line.type(), line.text(), line.toolTurn());
     }

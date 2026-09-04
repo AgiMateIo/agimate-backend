@@ -187,7 +187,7 @@ public class AgiMateAgent {
                     notify(List.of(assistant), reply.meta());
                 }
                 case DISPATCH -> {
-                    // Calls now, results after the dispatch: two separate records is the point of v2.1a.
+                    // Calls now, results after the dispatch: the channel shows a call the moment it is made.
                     notify(List.of(assistant), reply.meta());
                     // The cheapest place to stop: decided, but nothing sent yet — later it is irreversible.
                     if (recorder.cancelRequested()) {

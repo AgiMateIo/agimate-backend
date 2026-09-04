@@ -5,11 +5,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
 /**
- * The worker's own message model — used both to drive the turn loop and, via
- * {@link ru.agimate.agentworker.agent.MessageCodec}, to (de)serialize session history. Deliberately
- * independent of Spring AI
- * (greenfield: the Java worker owns its history JSON) and mapped to Spring AI messages only at
- * model-call time. One instance is one conversation turn message.
+ * The worker's own message model, driving the turn loop and the records it leaves. Deliberately
+ * independent of Spring AI, mapped to its messages only at model-call time. One instance is one
+ * conversation turn message.
  *
  * <p>{@code ignoreUnknown} keeps old history readable after the format gains fields; the compact
  * constructor normalizes absent lists so consumers can stream them unguarded.

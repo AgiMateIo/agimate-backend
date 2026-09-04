@@ -10,14 +10,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Pure text projections of loop messages for the channel progress stream ({@code SaveMessage}).
- * No DBOS or transport here. History persistence is text-only since protocol v2 — the raw LLM
- * transcript lives in DBOS checkpoints, not in the session store. Exception (v2.1): the tool
- * turn additionally carries a structured {@link ToolTurn} — the backend feeds it to the next
- * runs' history as native tool_use/tool_result, because the {@code 🔧}-text projection teaches
- * the model to imitate tool calls as text instead of calling them. The turn is split across two
- * lines (v2.1a): the TOOL_CALL line ({@link #progressLines}) carries the calls and is emitted
- * before dispatch; the TOOL_RESULT line ({@link #toolResultLine}) carries the results afterwards.
+ * Projections of loop messages for the channel progress stream ({@code SaveMessage}); no DBOS or
+ * transport here. A tool turn goes out as two lines: TOOL_CALL ({@link #progressLines}) with the
+ * calls before the dispatch, TOOL_RESULT ({@link #toolResultLine}) with the results after it. Both
+ * carry a structured {@link ToolTurn} besides the text — the {@code 🔧}-text alone taught models to
+ * imitate tool calls as text instead of calling them.
  */
 public final class MessageCodec {
 

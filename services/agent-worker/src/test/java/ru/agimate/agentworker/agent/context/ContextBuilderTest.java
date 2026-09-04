@@ -273,7 +273,7 @@ class ContextBuilderTest {
         }
 
         @Test
-        @DisplayName("v2.1a: осиротевшая results-запись (calls-половину срезало окном) отбрасывается")
+        @DisplayName("осиротевшая results-запись (calls-половину срезало окном) отбрасывается")
         void orphanResultsRowDropped() {
             HistoryMessage orphanResults = HistoryMessage.newBuilder()
                     .setKind(MessageKind.MESSAGE_KIND_PROGRESS)

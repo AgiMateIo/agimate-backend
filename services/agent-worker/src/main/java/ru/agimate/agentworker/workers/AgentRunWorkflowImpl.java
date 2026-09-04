@@ -58,13 +58,13 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
         log.info("run started: agent={} run={}", message.agentId(), message.runId());
 
         // The «agent received it» ack — the first durable dialogue step (seq 0), before the context is
-        // assembled: recording receipt does not depend on prepare_context succeeding. On the backend the
-        // same step moves the run's status to RUNNING (the projection of the SaveMessage stream).
+        // fetched: recording receipt does not depend on the fetch succeeding. On the backend the same
+        // step moves the run's status to RUNNING (the projection of the SaveMessage stream).
         messages.inbound();
 
         // Cancelled while it was still queued: nothing has happened yet, so there is nothing to report.
-        // Leaving before prepare_context also saves a full GetRunContext, and — more visibly — keeps the
-        // channel from collecting one «stopped» line per run standing in the partition.
+        // Leaving here also saves a full GetRunContext, and — more visibly — keeps the channel from
+        // collecting one «stopped» line per run standing in the partition.
         if (messages.isCancelRequested()) {
             log.info("run cancelled before it started");
             return;

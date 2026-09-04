@@ -59,7 +59,6 @@ public class AgentProperties {
     @Setter
     public static class Agent {
         private String id = "agent-default";
-        private String workflowId = "wf-default";
         /**
          * Cap on agent-loop turns per run (one turn = one LLM call). Near the cap the loop
          * soft-lands: a wrap-up notice is injected and the final turn runs tool-less, so the

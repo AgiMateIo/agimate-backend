@@ -52,10 +52,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * Blocking gRPC facade over control-api's worker services. Exposes only the RPCs the
- * worker actually uses (unlike the Python "full SDK mirror"), returning the generated
- * protobuf messages directly. The per-request {@code workflow_id} comes from config;
- * a per-call deadline is applied to every unary RPC.
+ * Blocking gRPC facade over control-api's worker services. Exposes only the RPCs the worker
+ * actually uses, returning the generated protobuf messages directly; a per-call deadline is
+ * applied to every unary RPC.
  *
  * <p>{@code getToolResult} is polled by the tool worker and intentionally carries no
  * deadline of its own — its polling budget is enforced by the caller.
@@ -84,10 +83,6 @@ public class AgentWorkerClient {
 
     private long timeoutMs() {
         return props.getGrpc().getRequestTimeout().toMillis();
-    }
-
-    private String workflowId() {
-        return props.getAgent().getWorkflowId();
     }
 
     private AgentContextGrpc.AgentContextBlockingStub ctx() {
@@ -149,7 +144,7 @@ public class AgentWorkerClient {
 
     public LlmCredentials getLlmCredentials(String agentId) {
         return call("GetLlmCredentials", () -> ctx().getLlmCredentials(GetLlmCredentialsRequest.newBuilder()
-                .setWorkflowId(workflowId()).setAgentId(agentId).build()));
+                .setAgentId(agentId).build()));
     }
 
     /**
@@ -218,8 +213,8 @@ public class AgentWorkerClient {
 
     /**
      * Records a dialogue event; idempotent by (run_id, seq) — persistence and delivery happen on the
-     * backend. {@code toolTurn} (nullable) is the structural record of a tool turn under
-     * PROGRESS/TOOL_CALL (v2.1).
+     * backend. {@code toolTurn} (nullable) is the structural record of a tool turn under a
+     * PROGRESS line.
      */
     public SaveMessageResponse saveMessage(String agentId, String runId, int seq,
                                            MessageKind kind, ProgressType progressType, String text,
@@ -243,8 +238,7 @@ public class AgentWorkerClient {
     /**
      * The canonical turn of a run ({@code agent_run_turns}); idempotent by (run_id, turn_index). Not
      * a durable step at the caller — a turn is a projection of already-durable data, and a replay is
-     * deduplicated by the backend. {@code finishReason}/{@code model}/{@code callId} are nullable
-     * (stage 1b).
+     * deduplicated by the backend. {@code finishReason}/{@code model}/{@code callId} are nullable.
      */
     public SaveTurnResponse saveTurn(String agentId, String runId, int turnIndex, TurnRole role,
                                      String text, String thinkingText,
@@ -296,7 +290,6 @@ public class AgentWorkerClient {
                         .setToolName(toolName)
                         .setInput(ByteString.copyFrom(input))
                         .setAgentId(agentId)
-                        .setWorkflowId(workflowId())
                         .setRunId(runId)
                         .build()));
     }
