@@ -23,11 +23,11 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 | `model/AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
 | `MessageCodec` | Typed channel-facing progress lines (`ProgressLine{type, text}`) for `SaveMessage`; history persistence is text-only since v2 (raw transcript lives in DBOS checkpoints). Also exposes shared `AgentChatMessage`→proto `tool_calls`/`tool_results` converters reused by the turn ledger. |
-| `workers/run/TurnLog` | Canonical full-fidelity turn ledger writer (`SaveTurn` → `agent_run_turns`): one record per inbound/assistant/tool `AgentChatMessage`, uncapped, all runs. `turn_index` 0 is the inbound turn as the model received it (ephemeral prefix included), recorded by `AgentRunCore` before the loop; the system prompt is never a turn (it lives in `agent_runs.prompt`). Assistant turns also carry LLM provenance (`finish_reason`/`model`/`call_id`) and the reasoning text (`thinking_text`) via `LlmMeta` — `call_id` joins to `llm_usage_log`; tool turns leave both null. Plain idempotent call (not a durable step) — a turn is a projection of already-durable child-workflow results; replay dedupes on `(run_id, turn_index)`. Best-effort. |
+| `workers/run/TurnLog` | Canonical full-fidelity turn ledger writer (`SaveTurn` → `agent_run_turns`): one record per inbound/assistant/tool `AgentChatMessage`, uncapped, all runs. `turn_index` 0 is the inbound turn without its ephemeral prefix (the persistent part — later runs read the ledger back as history), recorded by `BackendRunRecorder` before the loop; the system prompt is never a turn (it lives in `agent_runs.prompt`). Assistant turns also carry LLM provenance (`finish_reason`/`model`/`call_id`) and the reasoning text (`thinking_text`) via `LlmMeta` — `call_id` joins to `llm_usage_log`; tool turns leave both null. Plain idempotent call (not a durable step) — a turn is a projection of already-durable child-workflow results; replay dedupes on `(run_id, turn_index)`. Best-effort. |
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id, openWorld)`; `{namespace}.{name}` naming; schema parsing. |
 | `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). When the run has open-world tools it appends a system paragraph pinning tool output as data. |
 | `context/ContextMaterials` | The `GetRunContext` payload as fetched (ordered blocks + tools), consumed by `ContextBuilder`. |
-| `AgiMateAgent` | The manual turn-loop (LLM call + tool dispatch injected). Loop events go out through one injected `RunObserver` — `onStart` (turn-1 prompt snapshot), `onMessages` (each turn), `onUsage` (per-call tokens), `pollSteering` (seam absorption of the session's queued messages; resets the turn budget, max 5 resets per run); default no-ops, wired by `AgentRunCore`. |
+| `AgiMateAgent` | The manual turn-loop (LLM call + tool dispatch injected). Loop events go out through one injected `RunRecorder` — `onStart` (turn-1 prompt snapshot), `onMessages` (each turn), `onUsage` (per-call tokens), `pollSteering` (seam absorption of the session's queued messages; resets the turn budget, max 5 resets per run); default no-ops, wired by `AgentRunCore`. |
 | `AgentRunner` | Assemble the message list, map terminal failures to `AgentRunAborted`. |
 
 ### `llm/` — Spring AI (OpenAI)
@@ -54,12 +54,14 @@ deterministic per-run `seq`, so replays dedupe backend-side) and
 `LlmCallDispatcher`/`ToolCallDispatcher` binding the LLM/tool queues (shared
 `WorkflowHandles` await). `LlmCallDispatcher` is a pure data-returner: token usage and the
 truncation `incompleteReason` ride up on the `LlmReply`. `AgiMateAgent` surfaces all loop events
-through one injected `RunObserver` — `onStart` (the turn-1 message list, before the first call),
+through one injected `RunRecorder` — `onStart` (the turn-1 message list, before the first call),
 `onMessages` (each turn), `onUsage` (per-call tokens, before aborting a truncated turn so they still
-count); `AgentRunCore` implements it and projects each into a backend side-record — `SavePrompt` →
-`agent_runs.prompt` (start snapshot, first-write-wins), `SaveTurn` → `agent_run_turns`, and
-`ReportLlmUsage`. The parent is the sole writer of backend side-records, symmetric with
-`SaveMessage`. Output of tools with MCP `openWorldHint=true` (external-world
+count) — and asks it two questions (`cancelRequested`, `pollSteering`). `BackendRunRecorder` is the run's
+implementation: it projects each event into a backend side-record — `SavePrompt` →
+`agent_runs.prompt` (start snapshot, first-write-wins), `SaveTurn` → `agent_run_turns` (via
+`TurnLog`), the channel's progress lines (via `MessageLog`) and `ReportLlmUsage` — and answers the
+questions off records the run makes anyway (`MessageLog`'s cancel flag, `SteeringAbsorber`). The
+parent is the sole writer of backend side-records, symmetric with `SaveMessage`. Output of tools with MCP `openWorldHint=true` (external-world
 content — mail, tickets, web; a prompt-injection channel) is wrapped by the dispatcher in
 `<untrusted_tool_output>` with the closing tag neutralized inside the payload; the wrapper's
 semantics are pinned by the `ContextBuilder` system paragraph. History arrives pre-assembled in `PreparedContext.history`
@@ -140,7 +142,7 @@ task handle, результат приедет триггером `tool_complete
 `agent.response.language` (BCP-47, дефолт `en`; в комплекте `en` и `ru`). Неизвестный язык падает
 в базовый бандл (`messages.properties`, английский) — `spring.messages.fallback-to-system-locale:
 false`, поэтому JVM-локаль не влияет. Per-deploy: один язык на воркер; `ResponseTemplates`
-резолвит локаль один раз и отдаёт нотисы `AgentRunner`/`AgentRunCore`. Per-agent локаль (из рана) —
+резолвит локаль один раз и отдаёт нотисы `AgentRunCore`. Per-agent локаль (из рана) —
 на будущее.
 
 В том же бандле лежит один текст **не для пользователя, а для модели** — нотис мягкой посадки

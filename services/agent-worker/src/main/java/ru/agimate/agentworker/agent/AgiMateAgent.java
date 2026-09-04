@@ -95,19 +95,19 @@ public class AgiMateAgent {
     private final List<ToolDef> toolDefs;
     private final int maxTurns;
     private final String wrapUpNotice;
-    private final RunObserver observer;
+    private final RunRecorder recorder;
 
     /** @param wrapUpNotice the soft landing's «finish with what you have», resolved by the caller
      *                      ({@code ResponseTemplates.wrapUp}) — the model reads it, so it follows
      *                      the dialogue's language, not this class */
     public AgiMateAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, List<ToolDef> toolDefs,
-                       int maxTurns, String wrapUpNotice, RunObserver observer) {
+                       int maxTurns, String wrapUpNotice, RunRecorder recorder) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
         this.toolDefs = toolDefs;
         this.maxTurns = maxTurns;
         this.wrapUpNotice = wrapUpNotice;
-        this.observer = observer != null ? observer : RunObserver.NOOP;
+        this.recorder = recorder != null ? recorder : RunRecorder.NOOP;
     }
 
     /**
@@ -125,7 +125,7 @@ public class AgiMateAgent {
         while (turnBudget.next()) {
             // The seam: the message list is whole here, so the run can be left loadable. Cancellation
             // goes first — a stop must not absorb new work on its way out.
-            if (observer.cancelRequested()) {
+            if (recorder.cancelRequested()) {
                 log.info("turn {}: cancelled — stopping at the seam", turnBudget.current());
                 throw new RunCancelled(List.copyOf(executed));
             }
@@ -190,7 +190,7 @@ public class AgiMateAgent {
                     // Calls now, results after the dispatch: two separate records is the point of v2.1a.
                     notify(List.of(assistant), reply.meta());
                     // The cheapest place to stop: decided, but nothing sent yet — later it is irreversible.
-                    if (observer.cancelRequested()) {
+                    if (recorder.cancelRequested()) {
                         log.info("turn {}: cancelled — {} call(s) not made", turn, assistant.toolCalls().size());
                         recordResults(messages, cancelledResults(assistant.toolCalls()));
                         throw new RunCancelled(List.copyOf(executed));
@@ -231,7 +231,7 @@ public class AgiMateAgent {
         if (!budget.canSteer()) {
             return false;
         }
-        List<AgentChatMessage> absorbed = observer.pollSteering();
+        List<AgentChatMessage> absorbed = recorder.pollSteering();
         if (absorbed.isEmpty()) {
             return false;
         }
@@ -303,17 +303,17 @@ public class AgiMateAgent {
     }
 
     private void notify(List<AgentChatMessage> newMessages, LlmMeta meta) {
-        observer.onMessages(newMessages, meta);
+        recorder.onMessages(newMessages, meta);
     }
 
     private void notifyUsage(LlmUsage usage) {
         if (usage != null) {
-            observer.onUsage(usage);
+            recorder.onUsage(usage);
         }
     }
 
     /** Immutable copy — the loop mutates {@code messages}, the snapshot must be turn-1 state. */
     private void notifyStart(List<AgentChatMessage> messages) {
-        observer.onStart(List.copyOf(messages));
+        recorder.onStart(List.copyOf(messages));
     }
 }

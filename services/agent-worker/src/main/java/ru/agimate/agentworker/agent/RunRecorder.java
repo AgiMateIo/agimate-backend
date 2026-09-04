@@ -7,11 +7,13 @@ import ru.agimate.agentworker.agent.model.LlmUsage;
 import java.util.List;
 
 /**
- * Observer of the run's loop events — the run wiring projects each into a backend side-record,
- * so the loop stays pure and the parent stays the sole writer. Default no-ops let a caller (or
- * test) handle only the events it cares about; {@link #NOOP} ignores all.
+ * The loop's recorder: takes every loop event to keep (the run wiring turns each into a backend
+ * side-record) and answers the loop's two questions — cancelled? anything steered in? — from what
+ * it learned while recording, so the loop stays pure and the parent stays the sole writer.
+ * Default no-ops let a caller (or test) handle only the events it cares about; {@link #NOOP}
+ * ignores all.
  */
-public interface RunObserver {
+public interface RunRecorder {
     /**
      * Fires once with the initial message list <b>before</b> the first model call — exactly what
      * the LLM sees on turn 1 (system + history + trigger). Snapshotted into {@code agent_runs.prompt}.
@@ -45,5 +47,5 @@ public interface RunObserver {
         return List.of();
     }
 
-    RunObserver NOOP = new RunObserver() {};
+    RunRecorder NOOP = new RunRecorder() {};
 }

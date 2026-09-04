@@ -29,8 +29,8 @@ class AgiMateAgentTest {
     private static final String WRAP_UP = "wrap up now";
 
     private static AgiMateAgent agent(AgiMateAgent.LlmCaller llm, AgiMateAgent.ToolDispatcher dispatcher,
-                                      RunObserver observer, int maxTurns) {
-        return new AgiMateAgent(llm, dispatcher, List.of(), maxTurns, WRAP_UP, observer);
+                                      RunRecorder recorder, int maxTurns) {
+        return new AgiMateAgent(llm, dispatcher, List.of(), maxTurns, WRAP_UP, recorder);
     }
 
     private static AgiMateAgent.LlmReply reply(AgentChatMessage message) {
@@ -45,7 +45,7 @@ class AgiMateAgentTest {
             calls.incrementAndGet();
             return reply(AgentChatMessage.assistant("не должно случиться", false, List.of()));
         };
-        RunObserver cancelled = new RunObserver() {
+        RunRecorder cancelled = new RunRecorder() {
             @Override
             public boolean cancelRequested() {
                 return true;
@@ -70,7 +70,7 @@ class AgiMateAgentTest {
             return List.of(new AgentChatMessage.ToolResult(c.get(0).id(), c.get(0).name(), "{}", false));
         };
         List<AgentChatMessage> projected = new ArrayList<>();
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public void onMessages(List<AgentChatMessage> msgs, LlmMeta meta) {
                 projected.addAll(msgs);
@@ -84,7 +84,7 @@ class AgiMateAgentTest {
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         RunCancelled stop = assertThrows(RunCancelled.class,
-                () -> agent(llm, dispatcher, observer, 10).run(conv));
+                () -> agent(llm, dispatcher, recorder, 10).run(conv));
 
         // Ход дошёл до конца: вызовы и результаты — обе записи, ни одного tool_use без ответа.
         assertEquals(2, projected.size());
@@ -103,7 +103,7 @@ class AgiMateAgentTest {
             return List.of();
         };
         // На первом шве отмены ещё нет, к моменту диспатча — уже да.
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             private int seen;
 
             @Override
@@ -114,7 +114,7 @@ class AgiMateAgentTest {
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         RunCancelled stop = assertThrows(RunCancelled.class,
-                () -> agent(llm, dispatcher, observer, 10).run(conv));
+                () -> agent(llm, dispatcher, recorder, 10).run(conv));
 
         assertFalse(dispatched.get());
         assertTrue(stop.executedTools().isEmpty());
@@ -137,7 +137,7 @@ class AgiMateAgentTest {
                     new AgentChatMessage.ToolResult("b", "sheets.add_rows", null, true),
                     new AgentChatMessage.ToolResult("c", "telegram.send_message", "{}", false));
         };
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public boolean cancelRequested() {
                 return cancelled.get();
@@ -145,7 +145,7 @@ class AgiMateAgentTest {
         };
 
         RunCancelled stop = assertThrows(RunCancelled.class,
-                () -> agent(llm, dispatcher, observer, 10)
+                () -> agent(llm, dispatcher, recorder, 10)
                         .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
 
         assertEquals(List.of("telegram.send_message"), stop.executedTools());
@@ -155,7 +155,7 @@ class AgiMateAgentTest {
     @DisplayName("квитанция не тянет тулы из истории прошлых ранов")
     void receiptIgnoresHistory() {
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> reply(AgentChatMessage.assistant("ответ", false, List.of()));
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public boolean cancelRequested() {
                 return true;
@@ -169,7 +169,7 @@ class AgiMateAgentTest {
                 AgentChatMessage.user("hi")));
 
         RunCancelled stop = assertThrows(RunCancelled.class,
-                () -> agent(llm, c -> List.of(), observer, 10).run(conv));
+                () -> agent(llm, c -> List.of(), recorder, 10).run(conv));
 
         assertTrue(stop.executedTools().isEmpty());
     }
@@ -194,13 +194,13 @@ class AgiMateAgentTest {
                 new AgentChatMessage.ToolResult("id1", "t", "{\"ok\":true}", false));
 
         List<AgentChatMessage> newMsgs = new ArrayList<>();
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public void onMessages(List<AgentChatMessage> msgs, LlmMeta meta) {
                 newMsgs.addAll(msgs);
             }
         };
-        AgiMateAgent agent = agent(llm, dispatcher, observer, 10);
+        AgiMateAgent agent = agent(llm, dispatcher, recorder, 10);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertEquals("final", agent.run(conv));
@@ -211,8 +211,8 @@ class AgiMateAgentTest {
     }
 
     @Test
-    @DisplayName("meta вызова прокидывается в observer на assistant-ход; на tool-ход meta null")
-    void metaReachesObserverForAssistantOnly() {
+    @DisplayName("meta вызова прокидывается в recorder на assistant-ход; на tool-ход meta null")
+    void metaReachesRecorderForAssistantOnly() {
         LlmMeta meta = new LlmMeta("tool_calls", "gpt-5-mini", "wf-llm-1", null);
         AtomicInteger turn = new AtomicInteger();
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> turn.getAndIncrement() == 0
@@ -227,7 +227,7 @@ class AgiMateAgentTest {
 
         List<LlmMeta> metas = new ArrayList<>();
         List<AgentChatMessage.Role> roles = new ArrayList<>();
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public void onMessages(List<AgentChatMessage> msgs, LlmMeta m) {
                 msgs.forEach(x -> {
@@ -236,7 +236,7 @@ class AgiMateAgentTest {
                 });
             }
         };
-        agent(llm, dispatcher, observer, 10).run(new ArrayList<>(List.of(AgentChatMessage.user("hi"))));
+        agent(llm, dispatcher, recorder, 10).run(new ArrayList<>(List.of(AgentChatMessage.user("hi"))));
 
         // assistant(tool) → meta вызова; tool-результаты → null; assistant(final) → своя meta.
         assertEquals(List.of(AgentChatMessage.Role.ASSISTANT, AgentChatMessage.Role.TOOL,
@@ -247,21 +247,21 @@ class AgiMateAgentTest {
     }
 
     @Test
-    @DisplayName("usage вызова сурфейсится в observer.onUsage (happy path)")
-    void usageSurfacedToObserver() {
+    @DisplayName("usage вызова сурфейсится в recorder.onUsage (happy path)")
+    void usageSurfacedToRecorder() {
         LlmUsage usage = new LlmUsage("wf-1", "prov", "gpt-5-mini", 100, 20, 0, 0);
         AgiMateAgent.LlmCaller llm = (msgs, defs) -> new AgiMateAgent.LlmReply(
                 AgentChatMessage.assistant("done", false, List.of()), null, usage, null,
                 AgiMateAgent.Completion.STOP);
         List<LlmUsage> got = new ArrayList<>();
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public void onUsage(LlmUsage u) {
                 got.add(u);
             }
         };
 
-        agent(llm, calls -> List.of(), observer, 10)
+        agent(llm, calls -> List.of(), recorder, 10)
                 .run(new ArrayList<>(List.of(AgentChatMessage.user("hi"))));
 
         assertEquals(List.of(usage), got);
@@ -275,14 +275,14 @@ class AgiMateAgentTest {
                 AgentChatMessage.assistant("обрезано", false, List.of()), null, usage,
                 LlmResponseIncomplete.Reason.LENGTH, AgiMateAgent.Completion.UNKNOWN);
         List<LlmUsage> got = new ArrayList<>();
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public void onUsage(LlmUsage u) {
                 got.add(u);
             }
         };
 
-        assertThrows(LlmResponseIncomplete.class, () -> agent(llm, calls -> List.of(), observer, 10)
+        assertThrows(LlmResponseIncomplete.class, () -> agent(llm, calls -> List.of(), recorder, 10)
                 .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
         assertEquals(List.of(usage), got);
     }
@@ -296,13 +296,13 @@ class AgiMateAgentTest {
             return reply(AgentChatMessage.assistant("done", false, List.of()));
         };
         List<List<AgentChatMessage>> snapshots = new ArrayList<>();
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public void onStart(List<AgentChatMessage> messages) {
                 snapshots.add(messages);
             }
         };
-        AgiMateAgent agent = agent(llm, c -> List.of(), observer, 10);
+        AgiMateAgent agent = agent(llm, c -> List.of(), recorder, 10);
 
         List<AgentChatMessage> start = List.of(
                 AgentChatMessage.system("sys"),
@@ -443,14 +443,14 @@ class AgiMateAgentTest {
                 ? reply(AgentChatMessage.assistant("   ", false, List.of()))
                 : reply(AgentChatMessage.assistant("готово", false, List.of()));
         List<AgentChatMessage> projected = new ArrayList<>();
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public void onMessages(List<AgentChatMessage> msgs, LlmMeta m) {
                 projected.addAll(msgs);
             }
         };
 
-        assertEquals("готово", agent(llm, calls -> List.of(), observer, 10)
+        assertEquals("готово", agent(llm, calls -> List.of(), recorder, 10)
                 .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
         assertEquals(List.of("готово"), projected.stream().map(AgentChatMessage::text).toList());
     }
@@ -543,7 +543,7 @@ class AgiMateAgentTest {
         };
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id1", "t", "{}", false));
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             private int polls;
 
             @Override
@@ -552,7 +552,7 @@ class AgiMateAgentTest {
             }
         };
 
-        assertEquals("учёл", agent(llm, dispatcher, observer, 10)
+        assertEquals("учёл", agent(llm, dispatcher, recorder, 10)
                 .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
         // Второй вызов модели видит поглощённое сообщение последним — после результатов тулов.
         List<AgentChatMessage> second = sent.get(1);
@@ -573,7 +573,7 @@ class AgiMateAgentTest {
         };
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id", "t", "{}", false));
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             private int polls;
 
             @Override
@@ -583,7 +583,7 @@ class AgiMateAgentTest {
             }
         };
         AgiMateAgent agent = new AgiMateAgent(llm, dispatcher,
-                List.of(new ToolDef("t", "tool", "{}")), 4, WRAP_UP, observer);
+                List.of(new ToolDef("t", "tool", "{}")), 4, WRAP_UP, recorder);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertEquals("вот что успел", agent.run(conv));
@@ -611,7 +611,7 @@ class AgiMateAgentTest {
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id", "t", "{}", false));
         AtomicInteger polls = new AtomicInteger();
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public List<AgentChatMessage> pollSteering() {
                 polls.incrementAndGet();
@@ -619,7 +619,7 @@ class AgiMateAgentTest {
             }
         };
         // maxTurns=2 → мягкой посадки нет; каждый опрос приносит сообщение и сбрасывает бюджет.
-        AgiMateAgent agent = agent(llm, dispatcher, observer, 2);
+        AgiMateAgent agent = agent(llm, dispatcher, recorder, 2);
 
         assertThrows(MaxTurnsExceeded.class,
                 () -> agent.run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
@@ -633,7 +633,7 @@ class AgiMateAgentTest {
     @DisplayName("стиринг: отмена первее — стоп не поглощает новую работу")
     void cancellationWinsOverSteering() {
         AtomicBoolean polled = new AtomicBoolean();
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             @Override
             public boolean cancelRequested() {
                 return true;
@@ -648,7 +648,7 @@ class AgiMateAgentTest {
 
         assertThrows(RunCancelled.class,
                 () -> agent((msgs, defs) -> reply(AgentChatMessage.assistant("нет", false, List.of())),
-                        c -> List.of(), observer, 10)
+                        c -> List.of(), recorder, 10)
                         .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
         assertFalse(polled.get());
     }
@@ -657,7 +657,7 @@ class AgiMateAgentTest {
     @DisplayName("стиринг: поглощение на первом шве попадает в снимок промпта (onStart после опроса)")
     void firstSeamAbsorptionLandsInTheSnapshot() {
         List<AgentChatMessage> snapshot = new ArrayList<>();
-        RunObserver observer = new RunObserver() {
+        RunRecorder recorder = new RunRecorder() {
             private int polls;
 
             @Override
@@ -673,7 +673,7 @@ class AgiMateAgentTest {
         AgiMateAgent.LlmCaller llm = (msgs, defs) ->
                 reply(AgentChatMessage.assistant("готово", false, List.of()));
 
-        assertEquals("готово", agent(llm, c -> List.of(), observer, 10)
+        assertEquals("готово", agent(llm, c -> List.of(), recorder, 10)
                 .run(new ArrayList<>(List.of(AgentChatMessage.user("hi")))));
         assertEquals("ждало в очереди", snapshot.get(snapshot.size() - 1).text());
     }
