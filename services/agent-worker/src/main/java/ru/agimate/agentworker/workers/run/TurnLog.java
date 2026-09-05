@@ -26,11 +26,10 @@ import java.util.List;
  * absorb a message at a different seam than the original, and the backend's first-write-wins dedupe
  * keeps the original transcript.
  *
- * <p>The write stays best-effort — a failure is logged and never fails the run — but the ledger is no
- * longer only observability: the backend assembles the history of later runs from it. A lost turn is
- * therefore not a cosmetic hole; it is caught on the backend when the run finishes (the contiguity of
- * {@code turn_index} and the pairing of the last turn), and a run that fails the check is left out of
- * history whole rather than handed over broken.
+ * <p>The write is best-effort, but the ledger is no longer only observability: the backend assembles
+ * later runs' history from it. A lost turn is caught when the run finishes (contiguity of
+ * {@code turn_index}, pairing of the last turn), and such a run is left out of history whole rather
+ * than handed over broken.
  */
 @Slf4j
 public class TurnLog {

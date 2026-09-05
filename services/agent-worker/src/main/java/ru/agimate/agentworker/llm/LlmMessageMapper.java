@@ -206,11 +206,9 @@ public class LlmMessageMapper {
      *
      * <p>Nine alphanumerics is the intersection of what providers accept: Mistral rejects anything
      * but {@code [a-zA-Z0-9]{9}} — an underscore included, so OpenAI's own {@code call_…} fails
-     * there — OpenAI caps the id at 40 characters, and the rest do not look. 62^9 ≈ 1.4e16 makes a
-     * collision unreachable across one agent's calls, which is the whole scope an id has to be
-     * unique in: the backend addresses a call by {@code (agent_id, external_id)}. That address is
-     * what nine characters are enough for — a lookup by the id alone would not be safe at this
-     * length.
+     * there — OpenAI caps the id at 40 characters, and the rest do not look. That is enough only
+     * because a call is addressed by {@code (agent_id, external_id)}: 62^9 makes a collision
+     * unreachable within one agent, while a lookup by the id alone would not be safe at this length.
      *
      * @param callId blank outside DBOS, where there is no replay to stay consistent with and a
      *               random seed does just as well

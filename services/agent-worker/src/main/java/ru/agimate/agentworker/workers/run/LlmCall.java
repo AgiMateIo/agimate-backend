@@ -110,9 +110,8 @@ public class LlmCall {
         // bug) must come back as a failure value, not escape past the error mapping.
         try {
             OpenAiChatModel model = modelFactory.build(creds);
-            // The request body is assembled from these options alone — Spring AI 2.0 does not merge them
-            // with the model's defaults — so they are built by the factory, next to the client (a body field
-            // set only on the client's defaults never leaves; that is how extra_body used to go missing).
+            // Built by the factory, next to the client: the request body is assembled from these options
+            // alone (see ModelFactory's class javadoc).
             OpenAiChatOptions options = modelFactory.requestOptions(creds, mapper.toolCallbacks(toolDefs));
             // Whether to attach pictures inline is decided per call, from the model's input_modalities in the
             // credentials; an empty list means the model registry does not know the model → we attach optimistically.

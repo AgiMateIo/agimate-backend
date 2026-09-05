@@ -25,9 +25,9 @@ import java.util.Set;
  * tool turn notifies twice — the calls before the dispatch, the results after — so the backend can
  * show a call the moment it is made, ahead of its possibly slow execution.
  *
- * <p>Four policies keep a degenerate turn from passing for an answer, each documented where it
- * lives: cancellation (two cooperative checks below), steering ({@link #absorbSteering}), the turn
- * budget and its soft landing ({@link TurnBudget}), and the empty-reply guard. The last exists
+ * <p>Four policies keep a degenerate turn from passing for an answer: cancellation (two cooperative
+ * checks below), steering ({@link #absorbSteering}), the turn budget and its soft landing
+ * ({@link TurnBudget}), and the empty-reply guard. The last exists
  * because reasoning models behind OpenAI-compatible gateways can spend the whole generation on
  * {@code reasoning_content} and return an empty {@code content} with {@code finish_reason: stop};
  * nothing marks that as a failure, so without the guard a run ends «successfully» into silence.
