@@ -48,18 +48,18 @@ class LlmCallDispatcher implements AgiMateAgent.LlmCaller {
     }
 
     private final DBOS dbos;
-    private final LlmCall llm;
-    private final TurnLog turns;
+    private final LlmCall llmCall;
+    private final TurnLog turnLog;
     private final AgentWorkerClient client;
     private final String agentId;
     private final String runId;
     private int calls = 0;
 
-    LlmCallDispatcher(DBOS dbos, LlmCall llm, TurnLog turns, AgentWorkerClient client,
+    LlmCallDispatcher(DBOS dbos, LlmCall llmCall, TurnLog turnLog, AgentWorkerClient client,
                       String agentId, String runId) {
         this.dbos = dbos;
-        this.llm = llm;
-        this.turns = turns;
+        this.llmCall = llmCall;
+        this.turnLog = turnLog;
         this.client = client;
         this.agentId = agentId;
         this.runId = runId;
@@ -71,11 +71,11 @@ class LlmCallDispatcher implements AgiMateAgent.LlmCaller {
         // Set by the step body, so it stays empty exactly when the step was replayed from its checkpoint.
         AtomicReference<LlmCall.Reply> held = new AtomicReference<>();
         Checkpoint checkpoint = dbos.runStep(() -> {
-            LlmCall.Reply reply = llm.call(messages, toolDefs, agentId, callId);
+            LlmCall.Reply reply = llmCall.call(messages, toolDefs, agentId, callId);
             if (reply.failed()) {
                 return Checkpoint.failure(reply, callId);
             }
-            int turnIndex = turns.record(reply.assistant(), reply.meta());
+            int turnIndex = turnLog.record(reply.assistant(), reply.meta());
             held.set(reply);
             return Checkpoint.ok(callId, turnIndex, reply.meta(), reply.usage());
         }, "llm_call");
@@ -95,7 +95,7 @@ class LlmCallDispatcher implements AgiMateAgent.LlmCaller {
         } else {
             log.info("llm_call {} replayed: reading turn {} back from the ledger", callId, checkpoint.turnIndex());
             assistant = MessageCodec.fromTurn(client.getTurn(agentId, runId, checkpoint.turnIndex()));
-            turns.resumeAfter(checkpoint.turnIndex());
+            turnLog.resumeAfter(checkpoint.turnIndex());
             // The reasoning is not re-read: the loop never uses it and the ledger already has it.
             meta = new LlmMeta(checkpoint.finishReason(), checkpoint.model(), callId, null);
         }

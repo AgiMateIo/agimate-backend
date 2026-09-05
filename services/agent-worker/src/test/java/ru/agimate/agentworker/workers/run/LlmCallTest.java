@@ -65,7 +65,7 @@ class LlmCallTest {
 
         private final ResponseTemplates templates = mock(ResponseTemplates.class);
 
-        private final LlmCall llm = new LlmCall(client, modelFactory, mapper, templates, 3);
+        private final LlmCall llmCall = new LlmCall(client, modelFactory, mapper, templates, 3);
 
         private LlmCredentials creds(String providerId) {
             return LlmCredentials.newBuilder()
@@ -94,7 +94,7 @@ class LlmCallTest {
         void carriesUsageOnResult() {
             stubSuccessfulCall("prov-1");
 
-            LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
+            LlmCall.Reply result = llmCall.call(List.of(), List.of(), "agent-1", "run-1-0");
 
             assertFalse(result.failed());
             // Provenance для журнала ходов: модель из кредов, callId — тот, что дал вызывающий.
@@ -119,7 +119,7 @@ class LlmCallTest {
             stubSuccessfulCall("prov-1");
             when(mapper.finishReason(any())).thenReturn("length");
 
-            LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
+            LlmCall.Reply result = llmCall.call(List.of(), List.of(), "agent-1", "run-1-0");
 
             assertFalse(result.failed());
             assertEquals("length", result.meta().finishReason());
@@ -130,7 +130,7 @@ class LlmCallTest {
         void skipsUsageWithoutProviderId() {
             stubSuccessfulCall("");
 
-            LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
+            LlmCall.Reply result = llmCall.call(List.of(), List.of(), "agent-1", "run-1-0");
 
             assertFalse(result.failed());
             assertNull(result.usage());
@@ -143,7 +143,7 @@ class LlmCallTest {
             when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
                     "GetLlmCredentials", Status.RESOURCE_EXHAUSTED.withDescription(quota)));
 
-            LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
+            LlmCall.Reply result = llmCall.call(List.of(), List.of(), "agent-1", "run-1-0");
 
             assertTrue(result.failed());
             assertTrue(result.userFacing());
@@ -162,7 +162,7 @@ class LlmCallTest {
                 doThrow(new ControlApiCallException("GetLlmCredentials", status))
                         .when(client).getLlmCredentials("agent-1");
 
-                LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
+                LlmCall.Reply result = llmCall.call(List.of(), List.of(), "agent-1", "run-1-0");
 
                 assertTrue(result.failed());
                 assertTrue(result.userFacing());
@@ -178,7 +178,7 @@ class LlmCallTest {
             when(client.getLlmCredentials("agent-1")).thenThrow(new ControlApiCallException(
                     "GetLlmCredentials", Status.INTERNAL.withDescription("boom")));
 
-            LlmCall.Reply result = llm.call(List.of(), List.of(), "agent-1", "run-1-0");
+            LlmCall.Reply result = llmCall.call(List.of(), List.of(), "agent-1", "run-1-0");
 
             assertTrue(result.failed());
             assertFalse(result.userFacing());
@@ -231,10 +231,10 @@ class LlmCallTest {
                         .build();
                 AgentWorkerClient client = mock(AgentWorkerClient.class);
                 when(client.getLlmCredentials("agent-1")).thenReturn(creds);
-                LlmCall llm = new LlmCall(client, new ModelFactory(localTargetsAllowed()),
+                LlmCall llmCall = new LlmCall(client, new ModelFactory(localTargetsAllowed()),
                         new LlmMessageMapper(TestTemplates.of("ru")), mock(ResponseTemplates.class), 1);
 
-                LlmCall.Reply result = llm.call(
+                LlmCall.Reply result = llmCall.call(
                         List.of(AgentChatMessage.user("привет")), List.of(), "agent-1", "run-1-0");
 
                 assertFalse(result.failed(), () -> "вызов не дошёл: " + result.message());

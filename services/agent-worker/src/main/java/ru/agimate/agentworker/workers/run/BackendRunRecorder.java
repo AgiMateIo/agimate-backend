@@ -29,19 +29,19 @@ class BackendRunRecorder implements RunRecorder {
     private static final ObjectMapper PROMPT_MAPPER = new ObjectMapper();
 
     private final AgentWorkerClient client;
-    private final ChannelMessageLog messages;
-    private final TurnLog turns;
+    private final ChannelMessageLog channelLog;
+    private final TurnLog turnLog;
     private final SteeringAbsorber steering;
     private final ToolRegistry registry;
     private final String agentId;
     private final String runId;
 
-    BackendRunRecorder(AgentWorkerClient client, ChannelMessageLog messages, TurnLog turns,
+    BackendRunRecorder(AgentWorkerClient client, ChannelMessageLog channelLog, TurnLog turnLog,
                        ToolRegistry registry, ResponseTemplates templates, String agentId, String runId) {
         this.client = client;
-        this.messages = messages;
-        this.turns = turns;
-        this.steering = new SteeringAbsorber(client, turns, agentId, runId, templates.steeredPrefix());
+        this.channelLog = channelLog;
+        this.turnLog = turnLog;
+        this.steering = new SteeringAbsorber(client, turnLog, agentId, runId, templates.steeredPrefix());
         this.registry = registry;
         this.agentId = agentId;
         this.runId = runId;
@@ -75,10 +75,10 @@ class BackendRunRecorder implements RunRecorder {
         for (AgentChatMessage m : newMessages) {
             switch (m.role()) {
                 case ASSISTANT -> MessageCodec.progressLines(m, registry.displayNames(m))
-                        .forEach(messages::progress);
+                        .forEach(channelLog::progress);
                 case TOOL -> {
-                    turns.record(m, null);
-                    messages.progress(MessageCodec.toolResultLine(m));
+                    turnLog.record(m, null);
+                    channelLog.progress(MessageCodec.toolResultLine(m));
                 }
                 default -> { }
             }
@@ -103,7 +103,7 @@ class BackendRunRecorder implements RunRecorder {
 
     @Override
     public boolean cancelRequested() {
-        return messages.isCancelRequested();
+        return channelLog.isCancelRequested();
     }
 
     @Override

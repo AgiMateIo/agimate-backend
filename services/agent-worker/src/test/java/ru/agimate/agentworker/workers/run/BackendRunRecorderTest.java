@@ -49,8 +49,8 @@ import static org.mockito.Mockito.when;
 class RunRecorderTest {
 
     private final AgentWorkerClient client = mock(AgentWorkerClient.class);
-    private ChannelMessageLog messages;
-    private TurnLog turns;
+    private ChannelMessageLog channelLog;
+    private TurnLog turnLog;
     private BackendRunRecorder recorder;
 
     @BeforeEach
@@ -64,12 +64,12 @@ class RunRecorderTest {
         when(client.saveTurn(anyString(), anyString(), anyInt(), any(), any(), any(), any(), any(),
                 any(), any(), any()))
                 .thenReturn(SaveTurnResponse.newBuilder().build());
-        messages = new ChannelMessageLog(dbos, client, "agent-1", "run-1");
+        channelLog = new ChannelMessageLog(dbos, client, "agent-1", "run-1");
         ToolRegistry registry = ToolRegistry.build(List.of(ConnectorToolSpec.newBuilder()
                 .setConnectorCode("wx").setNamespace("wx").setName("get_weather").setConnectionId("conn-1")
                 .build()));
-        turns = new TurnLog(client, "agent-1", "run-1");
-        recorder = new BackendRunRecorder(client, messages, turns, registry, TestTemplates.of("ru"), "agent-1", "run-1");
+        turnLog = new TurnLog(client, "agent-1", "run-1");
+        recorder = new BackendRunRecorder(client, channelLog, turnLog, registry, TestTemplates.of("ru"), "agent-1", "run-1");
     }
 
     private static AgentChatMessage assistantCalling() {
@@ -86,10 +86,10 @@ class RunRecorderTest {
     @DisplayName("тул-ход: ассистент → TOOL_CALL-строка (его ход в журнал пишет шаг llm_call), результаты → журнал + TOOL_RESULT-строка")
     void toolTurnIsTwoLedgerRecordsAndTwoProgressLines() {
         LlmMeta meta = new LlmMeta("tool_calls", "gpt-5-mini", "call-9", null);
-        messages.inbound();
-        turns.record(AgentChatMessage.user("weather in Berlin?"), null);
+        channelLog.inbound();
+        turnLog.record(AgentChatMessage.user("weather in Berlin?"), null);
         // What the llm_call step does before the recorder sees the turn.
-        turns.record(assistantCalling(), meta);
+        turnLog.record(assistantCalling(), meta);
 
         recorder.onMessages(List.of(assistantCalling()), meta);
         recorder.onMessages(List.of(toolAnswer()), null);
@@ -158,7 +158,7 @@ class RunRecorderTest {
                 .thenReturn(SaveMessageResponse.newBuilder().build());
 
         assertFalse(recorder.cancelRequested());
-        messages.inbound();
+        channelLog.inbound();
         assertTrue(recorder.cancelRequested());
         recorder.onMessages(List.of(toolAnswer()), null);
         assertTrue(recorder.cancelRequested());

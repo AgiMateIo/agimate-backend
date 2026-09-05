@@ -72,14 +72,14 @@ public class AgentWorkerClient {
     private final AgentProperties props;
     private final AgentContextGrpc.AgentContextBlockingStub agentContext;
     private final MessageLogGrpc.MessageLogBlockingStub messageLog;
-    private final ToolGatewayGrpc.ToolGatewayBlockingStub tools;
+    private final ToolGatewayGrpc.ToolGatewayBlockingStub toolGateway;
     private final WorkerControlGrpc.WorkerControlBlockingStub workerControl;
 
     public AgentWorkerClient(Channel controlApiAuthedChannel, AgentProperties props) {
         this.props = props;
         this.agentContext = AgentContextGrpc.newBlockingStub(controlApiAuthedChannel);
         this.messageLog = MessageLogGrpc.newBlockingStub(controlApiAuthedChannel);
-        this.tools = ToolGatewayGrpc.newBlockingStub(controlApiAuthedChannel);
+        this.toolGateway = ToolGatewayGrpc.newBlockingStub(controlApiAuthedChannel);
         this.workerControl = WorkerControlGrpc.newBlockingStub(controlApiAuthedChannel);
     }
 
@@ -291,7 +291,7 @@ public class AgentWorkerClient {
     public ExecuteToolAsyncAck executeToolAsync(
             String toolCallId, String connectorCode, String connectionId, String toolName,
             byte[] input, String agentId, String runId) {
-        return call("ExecuteToolAsync", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+        return call("ExecuteToolAsync", () -> toolGateway.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .executeToolAsync(ExecuteToolRequest.newBuilder()
                         .setToolCallId(toolCallId)
                         .setConnectorCode(connectorCode)
@@ -308,7 +308,7 @@ public class AgentWorkerClient {
      * {@code runId} is the run's sign of life for the backend (it extends {@code last_activity_at}).
      */
     public GetToolResultResponse getToolResult(String agentId, String toolCallId, String runId) {
-        return call("GetToolResult", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+        return call("GetToolResult", () -> toolGateway.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .getToolResult(GetToolResultRequest.newBuilder()
                         .setAgentId(agentId).setToolCallId(toolCallId).setRunId(runId).build()));
     }
@@ -319,7 +319,7 @@ public class AgentWorkerClient {
      * finished first.
      */
     public DetachToolResponse detachTool(String agentId, String toolCallId, String runId) {
-        return call("DetachTool", () -> tools.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
+        return call("DetachTool", () -> toolGateway.withDeadlineAfter(timeoutMs(), TimeUnit.MILLISECONDS)
                 .detachTool(DetachToolRequest.newBuilder()
                         .setAgentId(agentId).setToolCallId(toolCallId).setRunId(runId).build()));
     }

@@ -35,7 +35,7 @@ class TurnLogTest {
     @Mock
     private AgentWorkerClient client;
 
-    private TurnLog turnLog() {
+    private TurnLog newTurnLog() {
         return new TurnLog(client, "agent-1", "run-1");
     }
 
@@ -61,10 +61,10 @@ class TurnLogTest {
     @DisplayName("assistant → TOOL_CALL-запись с вызовами + meta (finish/model/call); tool → TOOL_RESULT без meta")
     void recordsAssistantThenToolWithSequentialIndices() {
         stubOk();
-        TurnLog turns = turnLog();
+        TurnLog turnLog = newTurnLog();
 
-        turns.record(assistant(), META);
-        turns.record(tool(), null);
+        turnLog.record(assistant(), META);
+        turnLog.record(tool(), null);
 
         ArgumentCaptor<Integer> idx = ArgumentCaptor.forClass(Integer.class);
         ArgumentCaptor<TurnRole> role = ArgumentCaptor.forClass(TurnRole.class);
@@ -96,10 +96,10 @@ class TurnLogTest {
     @DisplayName("входящий ход → USER-запись без тулов и meta; assistant после него получает индекс 1")
     void recordsInboundTurnFirst() {
         stubOk();
-        TurnLog turns = turnLog();
+        TurnLog turnLog = newTurnLog();
 
-        turns.record(AgentChatMessage.user("посчитай кэшбек"), null);
-        turns.record(assistant(), META);
+        turnLog.record(AgentChatMessage.user("посчитай кэшбек"), null);
+        turnLog.record(assistant(), META);
 
         ArgumentCaptor<Integer> idx = ArgumentCaptor.forClass(Integer.class);
         ArgumentCaptor<TurnRole> role = ArgumentCaptor.forClass(TurnRole.class);
@@ -122,10 +122,10 @@ class TurnLogTest {
     @DisplayName("system-промпт не проецируется и не тратит индекс: он есть в снимке промпта рана")
     void skipsSystem() {
         stubOk();
-        TurnLog turns = turnLog();
+        TurnLog turnLog = newTurnLog();
 
-        turns.record(AgentChatMessage.system("sys"), null);
-        turns.record(assistant(), META);
+        turnLog.record(AgentChatMessage.system("sys"), null);
+        turnLog.record(assistant(), META);
 
         ArgumentCaptor<Integer> idx = ArgumentCaptor.forClass(Integer.class);
         verify(client, times(1)).saveTurn(anyString(), anyString(), idx.capture(), any(), any(),
@@ -137,10 +137,10 @@ class TurnLogTest {
     @DisplayName("текст рассуждения берётся из meta, а не из сообщения; на tool-ходе его нет")
     void passesThinkingTextFromMeta() {
         stubOk();
-        TurnLog turns = turnLog();
+        TurnLog turnLog = newTurnLog();
 
-        turns.record(assistant(), META);
-        turns.record(tool(), null);
+        turnLog.record(assistant(), META);
+        turnLog.record(tool(), null);
 
         ArgumentCaptor<String> thinkingText = ArgumentCaptor.forClass(String.class);
         verify(client, times(2)).saveTurn(anyString(), anyString(), anyInt(), any(), any(),
@@ -156,14 +156,14 @@ class TurnLogTest {
                 any(), any(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("control-api down"));
 
-        assertDoesNotThrow(() -> turnLog().record(assistant(), META));
+        assertDoesNotThrow(() -> newTurnLog().record(assistant(), META));
     }
 
     @Test
     @DisplayName("один system-ход не дергает клиента вовсе")
     void systemAloneNoClientCall() {
-        TurnLog turns = turnLog();
-        turns.record(AgentChatMessage.system("sys"), null);
+        TurnLog turnLog = newTurnLog();
+        turnLog.record(AgentChatMessage.system("sys"), null);
         verifyNoInteractions(client);
     }
 
@@ -171,11 +171,11 @@ class TurnLogTest {
     @DisplayName("record возвращает индекс; resumeAfter после реплея продолжает счёт за чекпоинтом")
     void resumeAfterContinuesPastTheCheckpoint() {
         stubOk();
-        TurnLog turns = turnLog();
+        TurnLog turnLog = newTurnLog();
 
-        assertEquals(0, turns.record(AgentChatMessage.user("hi"), null));
-        turns.resumeAfter(3);   // the replayed llm_call step says its turn sits at 3
-        assertEquals(4, turns.record(tool(), null));
-        assertEquals(-1, turns.record(AgentChatMessage.system("sys"), null));
+        assertEquals(0, turnLog.record(AgentChatMessage.user("hi"), null));
+        turnLog.resumeAfter(3);   // the replayed llm_call step says its turn sits at 3
+        assertEquals(4, turnLog.record(tool(), null));
+        assertEquals(-1, turnLog.record(AgentChatMessage.system("sys"), null));
     }
 }

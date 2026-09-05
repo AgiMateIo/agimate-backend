@@ -31,16 +31,16 @@ public class DbosRetentionJob {
             .toList();
 
     private final DbosRuntime runtime;
-    private final AgentProperties.Dbos dbos;
+    private final AgentProperties.Dbos dbosProps;
 
     public DbosRetentionJob(DbosRuntime runtime, AgentProperties props) {
         this.runtime = runtime;
-        this.dbos = props.getDbos();
+        this.dbosProps = props.getDbos();
     }
 
     @Scheduled(initialDelay = INITIAL_DELAY_MS, fixedDelay = FIXED_DELAY_MS)
     public void purgeExpired() {
-        Duration retention = dbos.getRetention();
+        Duration retention = dbosProps.getRetention();
         if (retention == null || retention.isZero() || retention.isNegative()) {
             return;
         }

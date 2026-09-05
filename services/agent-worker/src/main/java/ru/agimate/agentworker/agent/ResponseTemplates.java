@@ -19,11 +19,11 @@ import java.util.Locale;
 @Component
 public class ResponseTemplates {
 
-    private final MessageSource messages;
+    private final MessageSource messageSource;
     private final Locale locale;
 
-    public ResponseTemplates(MessageSource messages, AgentProperties props) {
-        this.messages = messages;
+    public ResponseTemplates(MessageSource messageSource, AgentProperties props) {
+        this.messageSource = messageSource;
         this.locale = Locale.forLanguageTag(props.getResponse().getLanguage());
     }
 
@@ -107,6 +107,6 @@ public class ResponseTemplates {
     }
 
     private String get(String key, Object... args) {
-        return messages.getMessage(key, args.length == 0 ? null : args, locale);
+        return messageSource.getMessage(key, args.length == 0 ? null : args, locale);
     }
 }

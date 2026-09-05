@@ -26,7 +26,7 @@ import java.util.Set;
 class SteeringAbsorber {
 
     private final AgentWorkerClient client;
-    private final TurnLog turns;
+    private final TurnLog turnLog;
     private final String agentId;
     private final String runId;
     /** How an absorbed message is presented to the model: arrived mid-run, not part of the original request. */
@@ -36,10 +36,10 @@ class SteeringAbsorber {
     /** Awaiting {@code MarkSteered}; retried on every assistant turn until the backend accepts. */
     private final List<String> unconfirmed = new ArrayList<>();
 
-    SteeringAbsorber(AgentWorkerClient client, TurnLog turns, String agentId, String runId,
+    SteeringAbsorber(AgentWorkerClient client, TurnLog turnLog, String agentId, String runId,
                      String steeredPrefix) {
         this.client = client;
-        this.turns = turns;
+        this.turnLog = turnLog;
         this.agentId = agentId;
         this.runId = runId;
         this.steeredPrefix = steeredPrefix;
@@ -67,7 +67,7 @@ class SteeringAbsorber {
             }
             AgentChatMessage bare = AgentChatMessage.user(
                     m.getText(), ContextBuilder.mapParts(m.getPartsList()));
-            turns.record(bare, null);
+            turnLog.record(bare, null);
             result.add(withFraming(bare));
             unconfirmed.add(m.getRunId());
         }

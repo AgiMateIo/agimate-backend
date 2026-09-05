@@ -33,25 +33,25 @@ public class AgentRunCore {
     private final AgentWorkerClient client;
     private final ContextMaterialsFetcher fetcher;
     private final ContextBuilder contextBuilder;
-    private final LlmCall llm;
-    private final ToolCallStep tools;
+    private final LlmCall llmCall;
+    private final ToolCallStep toolStep;
     private final ResponseTemplates templates;
     private final int maxTurns;
 
-    public AgentRunCore(DBOS dbos, AgentWorkerClient client, LlmCall llm, ToolCallStep tools,
+    public AgentRunCore(DBOS dbos, AgentWorkerClient client, LlmCall llmCall, ToolCallStep toolStep,
                         ResponseTemplates templates, int maxTurns) {
         this.dbos = dbos;
         this.client = client;
         this.fetcher = new ContextMaterialsFetcher(client);
         this.contextBuilder = new ContextBuilder(templates);
-        this.llm = llm;
-        this.tools = tools;
+        this.llmCall = llmCall;
+        this.toolStep = toolStep;
         this.templates = templates;
         this.maxTurns = maxTurns;
     }
 
     /** The run's dialogue-event writer; created here so the workflow shares one seq counter. */
-    public ChannelMessageLog messageLog(String agentId, String runId) {
+    public ChannelMessageLog channelLog(String agentId, String runId) {
         return new ChannelMessageLog(dbos, client, agentId, runId);
     }
 
@@ -73,16 +73,16 @@ public class AgentRunCore {
 
     /**
      * Run the agent loop body: history and the user prompt come from {@code prepared}, per-turn
-     * progress and the final answer are recorded via {@code messages} (the backend persists and
+     * progress and the final answer are recorded via {@code channelLog} (the backend persists and
      * delivers). Ephemeral blocks (memory notes) are prepended to the model turn and stay out of the
      * dialogue history that feeds later runs — the turn ledger and the prompt snapshot keep them.
      */
-    public String run(String agentId, String runId, PreparedContext prepared, ChannelMessageLog messages,
+    public String run(String agentId, String runId, PreparedContext prepared, ChannelMessageLog channelLog,
                       String context) {
         ToolRegistry registry = prepared.registry();
         // One ledger counter for its three writers: the recorder, the steering absorber and the llm_call step.
-        TurnLog turns = new TurnLog(client, agentId, runId);
-        BackendRunRecorder recorder = new BackendRunRecorder(client, messages, turns, registry, templates, agentId, runId);
+        TurnLog turnLog = new TurnLog(client, agentId, runId);
+        BackendRunRecorder recorder = new BackendRunRecorder(client, channelLog, turnLog, registry, templates, agentId, runId);
 
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
         AgentChatMessage modelRequest = withEphemeralPrefix(prepared.ephemeralUserPrefix(), initialRequest);
@@ -97,13 +97,13 @@ public class AgentRunCore {
         conv.add(modelRequest);
 
         AgiMateAgent agent = new AgiMateAgent(
-                new LlmCallDispatcher(dbos, llm, turns, client, agentId, runId),
-                new ToolCallDispatcher(dbos, tools, client, agentId, runId, registry),
+                new LlmCallDispatcher(dbos, llmCall, turnLog, client, agentId, runId),
+                new ToolCallDispatcher(dbos, toolStep, client, agentId, runId, registry),
                 registry.toolDefs(), maxTurns, templates.wrapUp(), recorder);
         // Turn 0: the inbound message without the ephemeral prefix — the persistent part of the turn.
         // Not a loop event (the channel already showed the user their own message), so it is
         // recorded here; without it a direct run's transcript would open with the answer.
-        turns.record(initialRequest, null);
+        turnLog.record(initialRequest, null);
         String answer;
         try {
             answer = agent.run(conv);
@@ -115,7 +115,7 @@ public class AgentRunCore {
         } catch (MaxTurnsExceeded | EmptyAnswerExhausted | LlmResponseIncomplete | LlmCallError e) {
             throw abortFor(e, context);
         }
-        messages.answer(answer);
+        channelLog.answer(answer);
         return answer;
     }
 
@@ -181,11 +181,11 @@ public class AgentRunCore {
      * event when present; the system detail always reaches the backend via
      * {@code WorkerControl.SendMessage}.
      */
-    public void reportFailure(ChannelMessageLog messages, AgentRunAborted exc) {
+    public void reportFailure(ChannelMessageLog channelLog, AgentRunAborted exc) {
         // Best-effort: the channel may be unreachable, but the system report below must go out regardless.
         if (exc.userNotice() != null && !exc.userNotice().isEmpty()) {
             try {
-                messages.error(exc.userNotice());
+                channelLog.error(exc.userNotice());
             } catch (Exception e) {
                 log.warn("failed to send abort notice to the channel: {}", e.getMessage());
             }
@@ -198,9 +198,9 @@ public class AgentRunCore {
      * likely cause is control-api being unreachable, so either send may fail as well — both are
      * swallowed so the original exception (rethrown by the caller) stays the recorded failure.
      */
-    public void reportInfraFailure(ChannelMessageLog messages, String systemDetail) {
+    public void reportInfraFailure(ChannelMessageLog channelLog, String systemDetail) {
         try {
-            messages.error(templates.infraError());
+            channelLog.error(templates.infraError());
         } catch (Exception e) {
             log.warn("failed to send infra-error notice to the channel: {}", e.getMessage());
         }

@@ -87,10 +87,10 @@ class LlmCallDispatcherTest {
     class Step {
 
         private final DBOS dbos = mock(DBOS.class);
-        private final LlmCall llm = mock(LlmCall.class);
+        private final LlmCall llmCall = mock(LlmCall.class);
         private final AgentWorkerClient client = mock(AgentWorkerClient.class);
-        private final TurnLog turns = new TurnLog(client, "agent-1", "run-1");
-        private final LlmCallDispatcher dispatcher = new LlmCallDispatcher(dbos, llm, turns, client, "agent-1", "run-1");
+        private final TurnLog turnLog = new TurnLog(client, "agent-1", "run-1");
+        private final LlmCallDispatcher dispatcher = new LlmCallDispatcher(dbos, llmCall, turnLog, client, "agent-1", "run-1");
 
         private static final AgentChatMessage ASSISTANT = AgentChatMessage.assistant("looking it up", true,
                 List.of(new AgentChatMessage.ToolCall("c1", "wx__get_weather", "{\"city\":\"Berlin\"}")));
@@ -112,7 +112,7 @@ class LlmCallDispatcherTest {
         @DisplayName("обычный путь: ход ассистента в журнал внутри шага, чекпоинт — id и числа, ответ из памяти")
         void normalPathWritesTurnInsideTheStep() throws Exception {
             stepRuns();
-            when(llm.call(any(), any(), eq("agent-1"), eq("run-1-0"))).thenReturn(LlmCall.Reply.ok(ASSISTANT, META, USAGE));
+            when(llmCall.call(any(), any(), eq("agent-1"), eq("run-1-0"))).thenReturn(LlmCall.Reply.ok(ASSISTANT, META, USAGE));
             when(client.saveTurn(any(), any(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenReturn(SaveTurnResponse.newBuilder().build());
 
@@ -153,15 +153,15 @@ class LlmCallDispatcherTest {
             assertEquals("run-1-0", reply.meta().callId());
             assertNull(reply.meta().reasoning());
             assertEquals(USAGE, reply.usage());
-            verifyNoInteractions(llm);
-            assertEquals(5, turns.record(AgentChatMessage.toolResults(List.of()), null));
+            verifyNoInteractions(llmCall);
+            assertEquals(5, turnLog.record(AgentChatMessage.toolResults(List.of()), null));
         }
 
         @Test
         @DisplayName("отказ провайдера: чекпоинт с кодом и текстом, LlmCallError без хода в журнале")
         void failureBecomesAnError() throws Exception {
             stepRuns();
-            when(llm.call(any(), any(), eq("agent-1"), eq("run-1-0"))).thenReturn(LlmCall.Reply.failure(503, "upstream down"));
+            when(llmCall.call(any(), any(), eq("agent-1"), eq("run-1-0"))).thenReturn(LlmCall.Reply.failure(503, "upstream down"));
 
             LlmCallError error = assertThrows(LlmCallError.class,
                     () -> dispatcher.call(List.of(AgentChatMessage.user("hi")), List.of()));
@@ -180,12 +180,12 @@ class LlmCallDispatcherTest {
             dispatcher.call(List.of(), List.of());
 
             stepRuns();
-            when(llm.call(any(), any(), eq("agent-1"), eq("run-1-1"))).thenReturn(LlmCall.Reply.ok(ASSISTANT, META, null));
+            when(llmCall.call(any(), any(), eq("agent-1"), eq("run-1-1"))).thenReturn(LlmCall.Reply.ok(ASSISTANT, META, null));
             when(client.saveTurn(any(), any(), anyInt(), any(), any(), any(), any(), any(), any(), any(), any()))
                     .thenReturn(SaveTurnResponse.newBuilder().build());
             dispatcher.call(List.of(), List.of());
 
-            verify(llm).call(any(), any(), eq("agent-1"), eq("run-1-1"));
+            verify(llmCall).call(any(), any(), eq("agent-1"), eq("run-1-1"));
         }
     }
 }
