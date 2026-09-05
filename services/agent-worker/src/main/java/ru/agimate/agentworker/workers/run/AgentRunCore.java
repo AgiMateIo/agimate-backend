@@ -13,13 +13,16 @@ import ru.agimate.agentworker.agent.error.MaxTurnsExceeded;
 import ru.agimate.agentworker.agent.error.RunCancelled;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.agent.context.PreparedContext;
+import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The invariant run body: prepare the context, drive {@link AgiMateAgent}, record the answer,
+ * The run's lifecycle, uniform for dialogue and trigger runs (which is which is server-side
+ * policy, ContextSpec): acknowledge receipt, leave early if the run was cancelled or steered
+ * while queued, fetch and render the context, drive {@link AgiMateAgent}, record the answer,
  * report failures. History arrives pre-assembled in the {@link PreparedContext}; every loop event
  * becomes a backend record through the run's {@link BackendRunRecorder}, and the dialogue events among
  * them go out as durable steps of its {@link ChannelMessageLog}. Model requests and tool calls are
@@ -50,9 +53,54 @@ public class AgentRunCore {
         this.maxTurns = maxTurns;
     }
 
-    /** The run's dialogue-event writer; created here so the workflow shares one seq counter. */
-    public ChannelMessageLog channelLog(String agentId, String runId) {
-        return new ChannelMessageLog(dbos, client, agentId, runId);
+    /**
+     * Run one agent run to its end. A soft abort ({@link AgentRunAborted}) is reported to the user
+     * and the backend and ends the run quietly; anything else is reported best-effort and rethrown,
+     * so the workflow goes to ERROR — terminally, since recovery only replays PENDING.
+     */
+    public void run(AgentMessage message) {
+        String agentId = message.agentId();
+        String runId = message.runId();
+        // Created once per run: the workflow's dialogue events share one seq counter.
+        ChannelMessageLog channelLog = new ChannelMessageLog(dbos, client, agentId, runId);
+        try {
+            log.info("run started: agent={} run={}", agentId, runId);
+
+            // The «agent received it» ack — the first durable dialogue step (seq 0), before the context is
+            // fetched: recording receipt does not depend on the fetch succeeding. On the backend the same
+            // step moves the run's status to RUNNING (the projection of the SaveMessage stream).
+            channelLog.inbound();
+
+            // Cancelled while it was still queued: nothing has happened yet, so there is nothing to report.
+            // Leaving here also saves a full GetRunContext, and — more visibly — keeps the channel from
+            // collecting one «stopped» line per run standing in the partition.
+            if (channelLog.isCancelRequested()) {
+                log.info("run cancelled before it started");
+                return;
+            }
+
+            // Absorbed by an earlier run of the session (steering): the message was answered before this
+            // workflow ever reached the front of the partition — leave as quietly as a queued cancellation.
+            // The backend answers steered=true only when the absorption was confirmed AND the main finished
+            // DONE/CANCELLED, so a failed main never silences the message.
+            if (channelLog.isSteered()) {
+                log.info("run steered into an earlier run of the session");
+                return;
+            }
+
+            PreparedContext prepared = prepareContext(agentId, runId);
+            channelLog.answer(runLoop(agentId, runId, prepared, channelLog));
+            log.info("run finished");
+        } catch (AgentRunAborted e) {
+            log.warn(e.systemDetail());
+            reportFailure(channelLog, e);
+        } catch (Exception e) {
+            // An infra error (a step's retries exhausted and the like): a best-effort notice so the user is
+            // not left in silence, then a rethrow — the workflow's ERROR status is preserved.
+            reportInfraFailure(channelLog,
+                    "agent run infra failure: agent_id=" + agentId + " run=" + runId + ": " + e);
+            throw e;
+        }
     }
 
     /**
@@ -67,22 +115,22 @@ public class AgentRunCore {
      * started with, and fails outright if the agent was disabled meanwhile. Both are rare (a replay
      * needs the process to die mid-run) and the model calls already made keep their own checkpoints.
      */
-    public PreparedContext prepareContext(String agentId, String runId) {
+    private PreparedContext prepareContext(String agentId, String runId) {
         return contextBuilder.build(fetcher.fetch(agentId, runId));
     }
 
     /**
-     * Run the agent loop body: history and the user prompt come from {@code prepared}, per-turn
-     * progress and the final answer are recorded via {@code channelLog} (the backend persists and
-     * delivers). Ephemeral blocks (memory notes) are prepended to the model turn and stay out of the
-     * dialogue history that feeds later runs — the turn ledger and the prompt snapshot keep them.
+     * The agent loop: history and the user prompt come from {@code prepared}, per-turn progress is
+     * recorded via {@code channelLog} (the backend persists and delivers); the final answer is
+     * returned for the caller to record. Ephemeral blocks (memory notes) are prepended to the model
+     * turn and stay out of the dialogue history that feeds later runs — the turn ledger and the
+     * prompt snapshot keep them.
      */
-    public String run(String agentId, String runId, PreparedContext prepared, ChannelMessageLog channelLog,
-                      String context) {
-        ToolRegistry registry = prepared.registry();
+    private String runLoop(String agentId, String runId, PreparedContext prepared, ChannelMessageLog channelLog) {
+        ToolRegistry toolRegistry = prepared.toolRegistry();
         // One ledger counter for its three writers: the recorder, the steering absorber and the llm_call step.
         TurnLog turnLog = new TurnLog(client, agentId, runId);
-        BackendRunRecorder recorder = new BackendRunRecorder(client, channelLog, turnLog, registry, templates, agentId, runId);
+        BackendRunRecorder recorder = new BackendRunRecorder(client, channelLog, turnLog, toolRegistry, templates, agentId, runId);
 
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
         AgentChatMessage modelRequest = withEphemeralPrefix(prepared.ephemeralUserPrefix(), initialRequest);
@@ -98,25 +146,22 @@ public class AgentRunCore {
 
         AgiMateAgent agent = new AgiMateAgent(
                 new LlmCallDispatcher(dbos, llmCall, turnLog, client, agentId, runId),
-                new ToolCallDispatcher(dbos, toolStep, client, agentId, runId, registry),
-                registry.toolDefs(), maxTurns, templates.wrapUp(), recorder);
+                new ToolCallDispatcher(dbos, toolStep, client, agentId, runId, toolRegistry),
+                toolRegistry.toolDefs(), maxTurns, templates.wrapUp(), recorder);
         // Turn 0: the inbound message without the ephemeral prefix — the persistent part of the turn.
         // Not a loop event (the channel already showed the user their own message), so it is
         // recorded here; without it a direct run's transcript would open with the answer.
         turnLog.record(initialRequest, null);
-        String answer;
         try {
-            answer = agent.run(conv);
+            return agent.run(conv);
         } catch (RunCancelled e) {
             // A stop ends the run with an ANSWER, not an ERROR: that is what marks the run completed, so
             // the next run sees it was interrupted instead of suffering unexplained amnesia.
-            answer = cancellationNotice(e);
             log.info("run cancelled by the user after {} executed tool(s)", e.executedTools().size());
+            return cancellationNotice(e);
         } catch (MaxTurnsExceeded | EmptyAnswerExhausted | LlmResponseIncomplete | LlmCallError e) {
-            throw abortFor(e, context);
+            throw abortFor(e, "for agent_id=" + agentId + " run=" + runId);
         }
-        channelLog.answer(answer);
-        return answer;
     }
 
     /** The user notice for each terminal loop failure; the system detail keeps the loop's own message. */
@@ -181,7 +226,7 @@ public class AgentRunCore {
      * event when present; the system detail always reaches the backend via
      * {@code WorkerControl.SendMessage}.
      */
-    public void reportFailure(ChannelMessageLog channelLog, AgentRunAborted exc) {
+    private void reportFailure(ChannelMessageLog channelLog, AgentRunAborted exc) {
         // Best-effort: the channel may be unreachable, but the system report below must go out regardless.
         if (exc.userNotice() != null && !exc.userNotice().isEmpty()) {
             try {
@@ -198,7 +243,7 @@ public class AgentRunCore {
      * likely cause is control-api being unreachable, so either send may fail as well — both are
      * swallowed so the original exception (rethrown by the caller) stays the recorded failure.
      */
-    public void reportInfraFailure(ChannelMessageLog channelLog, String systemDetail) {
+    private void reportInfraFailure(ChannelMessageLog channelLog, String systemDetail) {
         try {
             channelLog.error(templates.infraError());
         } catch (Exception e) {

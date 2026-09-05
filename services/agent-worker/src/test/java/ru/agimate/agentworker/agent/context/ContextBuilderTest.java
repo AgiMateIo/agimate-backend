@@ -146,7 +146,7 @@ class ContextBuilderTest {
     class Tools {
 
         @Test
-        @DisplayName("тулы из плоского списка попадают в registry с неймспейсом и роутингом")
+        @DisplayName("тулы из плоского списка попадают в toolRegistry с неймспейсом и роутингом")
         void buildsRegistry() {
             ConnectorToolSpec tool = ConnectorToolSpec.newBuilder()
                     .setName("get_tasks")
@@ -159,9 +159,9 @@ class ContextBuilderTest {
                     List.of(trusted("", "hello")),
                     List.of(tool), List.of(), List.of()));
 
-            assertEquals(1, prepared.registry().toolDefs().size());
-            assertEquals("board__get_tasks", prepared.registry().toolDefs().get(0).name());
-            var backend = prepared.registry().resolve("board__get_tasks");
+            assertEquals(1, prepared.toolRegistry().toolDefs().size());
+            assertEquals("board__get_tasks", prepared.toolRegistry().toolDefs().get(0).name());
+            var backend = prepared.toolRegistry().resolve("board__get_tasks");
             assertEquals("board", backend.connectorCode());
             assertEquals("conn-1", backend.connectionId());
         }

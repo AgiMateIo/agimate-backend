@@ -4,83 +4,34 @@ import dev.dbos.transact.workflow.Workflow;
 import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
-import ru.agimate.agentworker.agent.error.AgentRunAborted;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.workers.run.AgentRunCore;
-import ru.agimate.agentworker.workers.run.ChannelMessageLog;
-import ru.agimate.agentworker.agent.context.PreparedContext;
 
 /**
  * The worker's entry point: control-api enqueues this workflow directly onto the partitioned
  * {@code agent_exec} queue ({@code workflow_id == runId}, partition — the run's session), so
  * one run per session executes at a time — single-writer is the queue's contract, no
  * registration handshake. Run lifecycle status is a backend-side projection of this run's
- * {@code SaveMessage} stream. The body is uniform — dialogue vs trigger is server-side policy
- * (ContextSpec), the worker renders blocks and runs the loop via {@link AgentRunCore}.
+ * {@code SaveMessage} stream. This class keeps only what the DBOS surface needs — the workflow
+ * annotation and the log tag on the run's thread; the run itself is {@link AgentRunCore#run}.
  */
 @Slf4j
 @WorkflowClassName(Queues.RUN_CLASS)
 public class AgentRunWorkflowImpl implements AgentRunWorkflow {
 
-    private final AgentRunCore core;
+    private final AgentRunCore agentRunCore;
 
-    public AgentRunWorkflowImpl(AgentRunCore core) {
-        this.core = core;
+    public AgentRunWorkflowImpl(AgentRunCore agentRunCore) {
+        this.agentRunCore = agentRunCore;
     }
 
     @Override
     @Workflow(name = Queues.RUN_WORKFLOW)
     public void runAgent(AgentMessage message) {
-        ChannelMessageLog channelLog = core.channelLog(message.agentId(), message.runId());
-
         // Tag every line of the run with a short run id — model and tool steps run on this thread too.
         try (MDC.MDCCloseable __ = MDC.putCloseable("run", shortRun(message.runId()))) {
-            try {
-                runBody(message, channelLog);
-                log.info("run finished");
-            } catch (AgentRunAborted e) {
-                log.warn(e.systemDetail());
-                core.reportFailure(channelLog, e);
-            } catch (Exception e) {
-                // An infra error (a step's retries exhausted and the like): the workflow goes to ERROR —
-                // terminally, since recovery only replays PENDING. A best-effort notice so the user is not
-                // left in silence, then a rethrow — the ERROR status is preserved.
-                core.reportInfraFailure(channelLog,
-                        "agent run infra failure: agent_id=" + message.agentId()
-                        + " run=" + message.runId() + ": " + e);
-                throw e;
-            }
+            agentRunCore.run(message);
         }
-    }
-
-    private void runBody(AgentMessage message, ChannelMessageLog channelLog) {
-        log.info("run started: agent={} run={}", message.agentId(), message.runId());
-
-        // The «agent received it» ack — the first durable dialogue step (seq 0), before the context is
-        // fetched: recording receipt does not depend on the fetch succeeding. On the backend the same
-        // step moves the run's status to RUNNING (the projection of the SaveMessage stream).
-        channelLog.inbound();
-
-        // Cancelled while it was still queued: nothing has happened yet, so there is nothing to report.
-        // Leaving here also saves a full GetRunContext, and — more visibly — keeps the channel from
-        // collecting one «stopped» line per run standing in the partition.
-        if (channelLog.isCancelRequested()) {
-            log.info("run cancelled before it started");
-            return;
-        }
-
-        // Absorbed by an earlier run of the session (steering): the message was answered before this
-        // workflow ever reached the front of the partition — leave as quietly as a queued cancellation.
-        // The backend answers steered=true only when the absorption was confirmed AND the main finished
-        // DONE/CANCELLED, so a failed main never silences the message.
-        if (channelLog.isSteered()) {
-            log.info("run steered into an earlier run of the session");
-            return;
-        }
-
-        PreparedContext prepared = core.prepareContext(message.agentId(), message.runId());
-        core.run(message.agentId(), message.runId(), prepared, channelLog,
-                "for agent_id=" + message.agentId() + " run=" + message.runId());
     }
 
     /**

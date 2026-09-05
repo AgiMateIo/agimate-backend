@@ -22,7 +22,7 @@ public record PreparedContext(
         String userPrompt,
         String ephemeralUserPrefix,
         List<AgentChatMessage> history,
-        ToolRegistry registry,
+        ToolRegistry toolRegistry,
         List<FilePartRef> inboundParts) {
 
     public PreparedContext {

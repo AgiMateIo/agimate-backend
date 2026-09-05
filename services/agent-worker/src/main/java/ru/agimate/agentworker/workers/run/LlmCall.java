@@ -115,7 +115,7 @@ public class LlmCall {
             // set only on the client's defaults never leaves; that is how extra_body used to go missing).
             OpenAiChatOptions options = modelFactory.requestOptions(creds, mapper.toolCallbacks(toolDefs));
             // Whether to attach pictures inline is decided per call, from the model's input_modalities in the
-            // credentials; an empty list means the registry does not know the model → we attach optimistically.
+            // credentials; an empty list means the model registry does not know the model → we attach optimistically.
             boolean imageInput = creds.getInputModalitiesList().isEmpty()
                     || creds.getInputModalitiesList().contains("image");
             if (!imageInput && hasImageParts(messages)) {

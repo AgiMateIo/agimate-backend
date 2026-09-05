@@ -199,7 +199,7 @@ class LlmCallTest {
          * The one check that cannot be replaced by asserting on options: the assembled request is what a
          * provider actually receives. Spring AI 2.0 builds the body from the prompt's options alone, so
          * a field set only on the client's default options leaves no trace here — extra_body travelled
-         * that dead path from the model registry's arrival until this test. OpenRouter-style extensions
+         * that dead path from the model toolRegistry's arrival until this test. OpenRouter-style extensions
          * (provider routing, require_parameters) are unknown to the OpenAI schema and reach the provider
          * through extra_body or not at all. A local stub server stands in for the provider; no network.
          */
