@@ -8,7 +8,7 @@ import java.util.List;
 
 /**
  * The run context rendered once before the loop and held in memory for its duration — never
- * checkpointed (see {@code AgentRunCore.prepareContext}).
+ * checkpointed (see {@code AgentRunner.prepareContext}).
  *
  * @param systemPrompt        rendered system prompt (ordered blocks with tags)
  * @param userPrompt          rendered persistent part of the user turn (what the ledger keeps)

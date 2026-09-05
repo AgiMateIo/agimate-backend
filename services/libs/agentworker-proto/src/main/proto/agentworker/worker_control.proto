@@ -18,7 +18,7 @@ service WorkerControl {
   // A system detail about a run's outcome, destined for the backend log and nowhere else. Despite
   // the name, nothing reaches the user: user-visible messages go through MessageLog into the
   // dialogue channel. The worker calls this as a durable step on a soft abort and on an infra
-  // failure (AgentRunCore.sendSystemReport), best-effort: a failure of the report itself must not
+  // failure (AgentRunner.sendSystemReport), best-effort: a failure of the report itself must not
   // mask the run's outcome.
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
 }

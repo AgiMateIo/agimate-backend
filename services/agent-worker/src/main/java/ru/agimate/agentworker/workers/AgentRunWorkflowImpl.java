@@ -5,7 +5,7 @@ import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import ru.agimate.agentworker.dto.AgentMessage;
-import ru.agimate.agentworker.workers.run.AgentRunCore;
+import ru.agimate.agentworker.workers.run.AgentRunner;
 
 /**
  * The worker's entry point: control-api enqueues this workflow directly onto the partitioned
@@ -13,16 +13,16 @@ import ru.agimate.agentworker.workers.run.AgentRunCore;
  * one run per session executes at a time — single-writer is the queue's contract, no
  * registration handshake. Run lifecycle status is a backend-side projection of this run's
  * {@code SaveMessage} stream. This class keeps only what the DBOS surface needs — the workflow
- * annotation and the log tag on the run's thread; the run itself is {@link AgentRunCore#run}.
+ * annotation and the log tag on the run's thread; the run itself is {@link AgentRunner#run}.
  */
 @Slf4j
 @WorkflowClassName(Queues.RUN_CLASS)
 public class AgentRunWorkflowImpl implements AgentRunWorkflow {
 
-    private final AgentRunCore agentRunCore;
+    private final AgentRunner agentRunner;
 
-    public AgentRunWorkflowImpl(AgentRunCore agentRunCore) {
-        this.agentRunCore = agentRunCore;
+    public AgentRunWorkflowImpl(AgentRunner agentRunner) {
+        this.agentRunner = agentRunner;
     }
 
     @Override
@@ -30,7 +30,7 @@ public class AgentRunWorkflowImpl implements AgentRunWorkflow {
     public void runAgent(AgentMessage message) {
         // Tag every line of the run with a short run id — model and tool steps run on this thread too.
         try (MDC.MDCCloseable __ = MDC.putCloseable("run", shortRun(message.runId()))) {
-            agentRunCore.run(message);
+            agentRunner.run(message);
         }
     }
 

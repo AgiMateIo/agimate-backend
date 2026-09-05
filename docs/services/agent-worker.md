@@ -23,11 +23,11 @@ Vocabulary types live in `agent/model`, the loop's exceptions in `agent/error`.
 | `model/AgentChatMessage` | The worker's own message model (greenfield history — not pydantic-ai). |
 | `model/ToolDef` | A tool definition as the LLM sees it (sanitized name + JSON Schema). |
 | `MessageCodec` | Typed channel-facing progress lines (`ProgressLine{type, text}`) for `SaveMessage`; a tool turn's lines also carry its structural `ToolTurn`. Also exposes shared `AgentChatMessage`→proto `tool_calls`/`tool_results` converters reused by the turn ledger. |
-| `workers/run/TurnLog` | Canonical full-fidelity turn ledger writer (`SaveTurn` → `agent_run_turns`): one record per inbound/assistant/tool `AgentChatMessage`, uncapped, all runs; one counter per run shared by its three writers (`AgentRunCore` for turn 0, the `llm_call` step for the assistant, `BackendRunRecorder`/`SteeringAbsorber` for the rest). `turn_index` 0 is the inbound turn without its ephemeral prefix (the persistent part — later runs read the ledger back as history); the system prompt is never a turn (it lives in `agent_runs.prompt`). Assistant turns also carry LLM provenance (`finish_reason`/`model`/`call_id`) and the reasoning text (`thinking_text`) via `LlmMeta` — `call_id` joins to `llm_usage_log`; tool turns leave both null. The assistant turn is written inside the `llm_call` step before its checkpoint commits (a replay reads it back with `GetTurn`, `resumeAfter` re-syncs the counter); the other turns are plain idempotent calls, deduped on `(run_id, turn_index)`. Best-effort. |
+| `workers/run/TurnLog` | Canonical full-fidelity turn ledger writer (`SaveTurn` → `agent_run_turns`): one record per inbound/assistant/tool `AgentChatMessage`, uncapped, all runs; one counter per run shared by its three writers (`AgentRunner` for turn 0, the `llm_call` step for the assistant, `BackendRunRecorder`/`SteeringAbsorber` for the rest). `turn_index` 0 is the inbound turn without its ephemeral prefix (the persistent part — later runs read the ledger back as history); the system prompt is never a turn (it lives in `agent_runs.prompt`). Assistant turns also carry LLM provenance (`finish_reason`/`model`/`call_id`) and the reasoning text (`thinking_text`) via `LlmMeta` — `call_id` joins to `llm_usage_log`; tool turns leave both null. The assistant turn is written inside the `llm_call` step before its checkpoint commits (a replay reads it back with `GetTurn`, `resumeAfter` re-syncs the counter); the other turns are plain idempotent calls, deduped on `(run_id, turn_index)`. Best-effort. |
 | `ToolRegistry` | Sanitized LLM name ↔ backend `(connector_code, name, connection_id, openWorld)`; `{namespace}.{name}` naming; schema parsing. |
 | `context/ContextBuilder` | Pure renderer of backend-assembled blocks: tags (`<name attrs>`), untrusted wrapping with preamble, ephemeral user-suffix split. The assembly policy lives server-side (`ContextSpec` in control-api). When the run has open-world tools it appends a system paragraph pinning tool output as data. |
 | `context/ContextMaterials` | The `GetRunContext` payload as fetched (ordered blocks + tools), consumed by `ContextBuilder`. |
-| `AgiMateAgent` | The manual turn-loop (LLM call + tool dispatch injected). Loop events go out through one injected `RunRecorder` — `onStart` (turn-1 prompt snapshot), `onMessages` (each turn), `onUsage` (per-call tokens), `pollSteering` (seam absorption of the session's queued messages; resets the turn budget, max 5 resets per run); default no-ops, wired by `AgentRunCore`. |
+| `AgiMateAgent` | The manual turn-loop (LLM call + tool dispatch injected). Loop events go out through one injected `RunRecorder` — `onStart` (turn-1 prompt snapshot), `onMessages` (each turn), `onUsage` (per-call tokens), `pollSteering` (seam absorption of the session's queued messages; resets the turn budget, max 5 resets per run); default no-ops, wired by `AgentRunner`. |
 | `AgentRunner` | Assemble the message list, map terminal failures to `AgentRunAborted`. |
 
 ### `llm/` — Spring AI (OpenAI)
@@ -39,7 +39,8 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 ### `workers/` — DBOS surface
 One workflow, `AgentRunWorkflow.runAgent` on the `agent_exec` queue: enqueued directly by control-api
 (`workflow_id == runId`, partitioned by session, concurrency=1 → one writer per session); drives
-`AgentRunCore` (the run body is uniform — dialogue vs trigger is server-side policy). Everything
+`AgentRunner`, which owns the whole run lifecycle — the workflow class keeps only the annotation and
+the log tag (the run body is uniform — dialogue vs trigger is server-side policy). Everything
 else is a durable step of that workflow, and every checkpoint holds identifiers, not the dialogue
 ([decisions/dbos-ids-only.md](../decisions/dbos-ids-only.md)):
 
@@ -56,7 +57,7 @@ concurrently from the moment they are issued, so one polling loop is as parallel
 workflow per call used to be.
 
 The package root is what DBOS sees: the run workflow pair and `Queues`. The run-body machinery lives in `workers/run`:
-`AgentRunCore` holds the invariant run body — the context fetch
+`AgentRunner` holds the invariant run body — the context fetch
 (`ContextMaterialsFetcher`: one `GetRunContext(agent_id, run_id)` call → pure
 `ContextBuilder.build` render → `PreparedContext`; deliberately **not** a durable step, so the
 assembled dialogue never lands in the DBOS system database), the loop, and failure reporting — delegating the
@@ -155,7 +156,7 @@ task handle, результат приедет триггером `tool_complete
 `agent.response.language` (BCP-47, дефолт `en`; в комплекте `en` и `ru`). Неизвестный язык падает
 в базовый бандл (`messages.properties`, английский) — `spring.messages.fallback-to-system-locale:
 false`, поэтому JVM-локаль не влияет. Per-deploy: один язык на воркер; `ResponseTemplates`
-резолвит локаль один раз и отдаёт нотисы `AgentRunCore`. Per-agent локаль (из рана) —
+резолвит локаль один раз и отдаёт нотисы `AgentRunner`. Per-agent локаль (из рана) —
 на будущее.
 
 В том же бандле лежат тексты **не для пользователя, а для модели** — ключи `prompt.*`: нотис

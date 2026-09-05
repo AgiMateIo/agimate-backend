@@ -10,7 +10,7 @@ import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 import ru.agimate.agentworker.llm.LlmMessageMapper;
 import ru.agimate.agentworker.llm.ModelFactory;
-import ru.agimate.agentworker.workers.run.AgentRunCore;
+import ru.agimate.agentworker.workers.run.AgentRunner;
 import ru.agimate.agentworker.workers.run.LlmCall;
 import ru.agimate.agentworker.workers.run.ToolCallStep;
 import ru.agimate.agentworker.workers.AgentRunWorkflow;
@@ -72,11 +72,11 @@ public class DbosRuntime implements SmartLifecycle {
                 .withPartitioningEnabled(true)
                 .withConcurrency(1));
 
-        AgentRunCore core = new AgentRunCore(dbos, client,
+        AgentRunner runner = new AgentRunner(dbos, client,
                 new LlmCall(client, modelFactory, mapper, templates, props.getConcurrency().getLlm()),
                 new ToolCallStep(client, props.getTool()), templates, props.getAgent().getMaxTurns());
         dbos.registerProxy(AgentRunWorkflow.class,
-                new AgentRunWorkflowImpl(core), Queues.INSTANCE);
+                new AgentRunWorkflowImpl(runner), Queues.INSTANCE);
     }
 
     /** The launched DBOS instance — for infra jobs using its public admin API (retention). */

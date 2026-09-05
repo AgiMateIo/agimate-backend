@@ -30,7 +30,7 @@ import java.util.List;
  * checkpoints hold identifiers, not the dialogue.
  */
 @Slf4j
-public class AgentRunCore {
+public class AgentRunner {
 
     private final DBOS dbos;
     private final AgentWorkerClient client;
@@ -41,7 +41,7 @@ public class AgentRunCore {
     private final ResponseTemplates templates;
     private final int maxTurns;
 
-    public AgentRunCore(DBOS dbos, AgentWorkerClient client, LlmCall llmCall, ToolCallStep toolStep,
+    public AgentRunner(DBOS dbos, AgentWorkerClient client, LlmCall llmCall, ToolCallStep toolStep,
                         ResponseTemplates templates, int maxTurns) {
         this.dbos = dbos;
         this.client = client;
