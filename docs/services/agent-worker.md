@@ -38,9 +38,9 @@ back to us to dispatch on a separate queue instead of Spring AI auto-executing t
 
 ### `workers/` — DBOS surface
 One workflow, `AgentRunWorkflow.runAgent` on the `agent_exec` queue: enqueued directly by control-api
-(`workflow_id == runId`, partitioned by session, concurrency=1 → one writer per session); drives
-`AgentRunner`, which owns the whole run lifecycle — the workflow class keeps only the annotation and
-the log tag (the run body is uniform — dialogue vs trigger is server-side policy). Everything
+(`workflow_id == runId`, partitioned by session, concurrency=1 → one writer per session). Its sole
+implementation is `AgentRunner`, which owns the whole run lifecycle (uniform — dialogue vs trigger
+is server-side policy); the DBOS surface on it is two annotations and the log tag. Everything
 else is a durable step of that workflow, and every checkpoint holds identifiers, not the dialogue
 ([decisions/dbos-ids-only.md](../decisions/dbos-ids-only.md)):
 
@@ -56,8 +56,9 @@ The reply of a step lives in run memory; a crash replay re-reads it by id (`GetT
 concurrently from the moment they are issued, so one polling loop is as parallel as one
 workflow per call used to be.
 
-The package root is what DBOS sees: the run workflow pair and `Queues`. The run-body machinery lives in `workers/run`:
-`AgentRunner` holds the invariant run body — the context fetch
+The package root holds the producer contract: the `AgentRunWorkflow` interface and `Queues`. The
+implementation and its machinery live in `workers/run`: `AgentRunner` is the workflow class
+(`@WorkflowClassName`/`@Workflow`) and holds the invariant run body — the context fetch
 (`ContextMaterialsFetcher`: one `GetRunContext(agent_id, run_id)` call → pure
 `ContextBuilder.build` render → `PreparedContext`; deliberately **not** a durable step, so the
 assembled dialogue never lands in the DBOS system database), the loop, and failure reporting — delegating the

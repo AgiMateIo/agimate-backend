@@ -1,7 +1,10 @@
 package ru.agimate.agentworker.workers.run;
 
 import dev.dbos.transact.DBOS;
+import dev.dbos.transact.workflow.Workflow;
+import dev.dbos.transact.workflow.WorkflowClassName;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import ru.agimate.agentworker.WorkerMessageType;
 import ru.agimate.agentworker.agent.*;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
@@ -15,22 +18,27 @@ import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.agent.context.PreparedContext;
 import ru.agimate.agentworker.dto.AgentMessage;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
+import ru.agimate.agentworker.workers.AgentRunWorkflow;
+import ru.agimate.agentworker.workers.Queues;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The run's lifecycle, uniform for dialogue and trigger runs (which is which is server-side
- * policy, ContextSpec): acknowledge receipt, leave early if the run was cancelled or steered
- * while queued, fetch and render the context, drive {@link AgiMateAgent}, record the answer,
- * report failures. History arrives pre-assembled in the {@link PreparedContext}; every loop event
- * becomes a backend record through the run's {@link BackendRunRecorder}, and the dialogue events among
- * them go out as durable steps of its {@link ChannelMessageLog}. Model requests and tool calls are
- * durable steps of the run workflow ({@link LlmCallDispatcher}/{@link ToolCallDispatcher}) whose
- * checkpoints hold identifiers, not the dialogue.
+ * The worker's only workflow, and the whole run lifecycle behind it. Its queue partition is the
+ * run's session with concurrency 1 — single-writer is the queue's contract, not a registration
+ * handshake; run status is a backend-side projection of this run's {@code SaveMessage} stream.
+ *
+ * <p>The lifecycle is uniform for dialogue and trigger runs (which is which is server-side policy,
+ * ContextSpec): ack, leave early if cancelled or steered while queued, render the context, drive
+ * {@link AgiMateAgent}, record the answer, report failures. Loop events become backend records
+ * through {@link BackendRunRecorder}, the dialogue ones as durable steps of
+ * {@link ChannelMessageLog}; the checkpoints of {@link LlmCallDispatcher} and
+ * {@link ToolCallDispatcher} hold identifiers, not the dialogue.
  */
 @Slf4j
-public class AgentRunner {
+@WorkflowClassName(Queues.RUN_CLASS)
+public class AgentRunner implements AgentRunWorkflow {
 
     private final DBOS dbos;
     private final AgentWorkerClient client;
@@ -53,12 +61,30 @@ public class AgentRunner {
         this.maxTurns = maxTurns;
     }
 
+    @Override
+    @Workflow(name = Queues.RUN_WORKFLOW)
+    public void runAgent(AgentMessage message) {
+        // Tag every line of the run with a short run id — model and tool steps run on this thread too.
+        try (MDC.MDCCloseable __ = MDC.putCloseable("run", shortRun(message.runId()))) {
+            run(message);
+        }
+    }
+
+    /**
+     * Last 8 hex of the run's UUID — enough to correlate a run's lines in the console. Taken from
+     * the tail (random {@code rand_b}), not the head: run ids are UUIDv7, whose leading hex encode
+     * the millisecond clock and stay identical for runs within the same ~65s window.
+     */
+    private static String shortRun(String runId) {
+        return runId != null && runId.length() >= 8 ? runId.substring(runId.length() - 8) : runId;
+    }
+
     /**
      * Run one agent run to its end. A soft abort ({@link AgentRunAborted}) is reported to the user
      * and the backend and ends the run quietly; anything else is reported best-effort and rethrown,
      * so the workflow goes to ERROR — terminally, since recovery only replays PENDING.
      */
-    public void run(AgentMessage message) {
+    private void run(AgentMessage message) {
         String agentId = message.agentId();
         String runId = message.runId();
         // Created once per run: the workflow's dialogue events share one seq counter.
@@ -66,30 +92,26 @@ public class AgentRunner {
         try {
             log.info("run started: agent={} run={}", agentId, runId);
 
-            // The «agent received it» ack — the first durable dialogue step (seq 0), before the context is
-            // fetched: recording receipt does not depend on the fetch succeeding. On the backend the same
-            // step moves the run's status to RUNNING (the projection of the SaveMessage stream).
+            // The «agent received it» ack — seq 0, before the context is fetched: receipt must not depend
+            // on the fetch succeeding. On the backend this same step moves the run's status to RUNNING.
             channelLog.inbound();
 
-            // Cancelled while it was still queued: nothing has happened yet, so there is nothing to report.
-            // Leaving here also saves a full GetRunContext, and — more visibly — keeps the channel from
-            // collecting one «stopped» line per run standing in the partition.
+            // Cancelled while queued: nothing happened, so there is nothing to report. Leaving before the
+            // fetch also keeps the channel from collecting one «stopped» line per run left in the partition.
             if (channelLog.isCancelRequested()) {
                 log.info("run cancelled before it started");
                 return;
             }
 
-            // Absorbed by an earlier run of the session (steering): the message was answered before this
-            // workflow ever reached the front of the partition — leave as quietly as a queued cancellation.
-            // The backend answers steered=true only when the absorption was confirmed AND the main finished
+            // Absorbed by an earlier run of the session (steering) — leave as quietly as a queued
+            // cancellation. The backend answers steered=true only once the main run finished
             // DONE/CANCELLED, so a failed main never silences the message.
             if (channelLog.isSteered()) {
                 log.info("run steered into an earlier run of the session");
                 return;
             }
 
-            PreparedContext prepared = prepareContext(agentId, runId);
-            channelLog.answer(runLoop(agentId, runId, prepared, channelLog));
+            channelLog.answer(driveAgent(agentId, runId, channelLog));
             log.info("run finished");
         } catch (AgentRunAborted e) {
             log.warn(e.systemDetail());
@@ -104,29 +126,25 @@ public class AgentRunner {
     }
 
     /**
-     * Fetch the backend-assembled run context ({@code GetRunContext}) and render it into the
-     * prompt + tool registry. The assembly policy lives server-side (ContextSpec); the worker only
-     * renders the blocks.
+     * Fetch the backend-assembled run context ({@code GetRunContext}) and render it into the prompt
+     * + tool registry; the assembly policy lives server-side (ContextSpec).
      *
-     * <p>Deliberately not a durable step: that checkpoint held the whole assembled conversation —
-     * system prompt, the user's message, memory notes and the entire history window — which made
-     * the DBOS system database a second store of the dialogue. The price is paid by a crash replay:
-     * it re-fetches instead of restoring, so it gets today's context rather than the one the run
-     * started with, and fails outright if the agent was disabled meanwhile. Both are rare (a replay
-     * needs the process to die mid-run) and the model calls already made keep their own checkpoints.
+     * <p>Deliberately not a durable step: that checkpoint held the whole assembled conversation,
+     * making the DBOS system database a second store of the dialogue. A crash replay therefore
+     * re-fetches instead of restoring — it gets today's context, and fails outright if the agent was
+     * disabled meanwhile. Both are rare, and the model calls already made keep their checkpoints.
      */
     private PreparedContext prepareContext(String agentId, String runId) {
         return contextBuilder.build(fetcher.fetch(agentId, runId));
     }
 
     /**
-     * The agent loop: history and the user prompt come from {@code prepared}, per-turn progress is
-     * recorded via {@code channelLog} (the backend persists and delivers); the final answer is
-     * returned for the caller to record. Ephemeral blocks (memory notes) are prepended to the model
-     * turn and stay out of the dialogue history that feeds later runs — the turn ledger and the
-     * prompt snapshot keep them.
+     * The body of a run that is actually going to happen: render the context, assemble the per-run
+     * machinery (turn ledger, recorder, dispatchers) and drive the agent to its answer. Per-turn
+     * progress is recorded via {@code channelLog}; the final answer is returned for the caller.
      */
-    private String runLoop(String agentId, String runId, PreparedContext prepared, ChannelMessageLog channelLog) {
+    private String driveAgent(String agentId, String runId, ChannelMessageLog channelLog) {
+        PreparedContext prepared = prepareContext(agentId, runId);
         ToolRegistry toolRegistry = prepared.toolRegistry();
         // One ledger counter for its three writers: the recorder, the steering absorber and the llm_call step.
         TurnLog turnLog = new TurnLog(client, agentId, runId);
@@ -135,10 +153,8 @@ public class AgentRunner {
         AgentChatMessage initialRequest = AgentChatMessage.user(prepared.userPrompt(), prepared.inboundParts());
         AgentChatMessage modelRequest = withEphemeralPrefix(prepared.ephemeralUserPrefix(), initialRequest);
 
-        // The model-side list: system + backend-assembled history + the trigger (with its ephemeral
-        // prefix, if any). The system prompt is rebuilt every run — otherwise a history-trim could
-        // drop it, and a spec change would only take effect on the next run. The trigger already
-        // carries the ephemeral block from withEphemeralPrefix, so the model sees it once.
+        // The system prompt is rebuilt every run — otherwise a history-trim could drop it, and a
+        // spec change would only take effect on the next run.
         List<AgentChatMessage> conv = new ArrayList<>();
         conv.add(AgentChatMessage.system(prepared.systemPrompt()));
         conv.addAll(prepared.history());
@@ -148,8 +164,7 @@ public class AgentRunner {
                 new LlmCallDispatcher(dbos, llmCall, turnLog, client, agentId, runId),
                 new ToolCallDispatcher(dbos, toolStep, client, agentId, runId, toolRegistry),
                 toolRegistry.toolDefs(), maxTurns, templates.wrapUp(), recorder);
-        // Turn 0: the inbound message without the ephemeral prefix — the persistent part of the turn.
-        // Not a loop event (the channel already showed the user their own message), so it is
+        // Turn 0: the inbound message without the ephemeral prefix. Not a loop event, so it is
         // recorded here; without it a direct run's transcript would open with the answer.
         turnLog.record(initialRequest, null);
         try {
@@ -206,10 +221,9 @@ public class AgentRunner {
     }
 
     /**
-     * Model-facing user turn: the ephemeral block (memory notes etc.) prepended before the user's
-     * message, if any — reference data goes ahead of the request the model must act on. The prefix
-     * reaches the model and the prompt snapshot ({@code agent_runs.prompt}), which answers «what did
-     * the model see». The turn ledger keeps the message without it: later runs read the ledger back as
+     * The ephemeral block (memory notes etc.) prepended to the user's message — reference data goes
+     * ahead of the request the model must act on. It reaches the model and the prompt snapshot
+     * ({@code agent_runs.prompt}) but not the turn ledger: later runs read the ledger back as
      * history, and today's notes must not settle into tomorrow's context.
      */
     private static AgentChatMessage withEphemeralPrefix(String prefix, AgentChatMessage initialRequest) {
@@ -222,9 +236,8 @@ public class AgentRunner {
     }
 
     /**
-     * Report a terminal soft-abort to both sides. The user notice goes out as an ERROR dialogue
-     * event when present; the system detail always reaches the backend via
-     * {@code WorkerControl.SendMessage}.
+     * Report a terminal soft-abort to both sides: the user notice as an ERROR dialogue event when
+     * present, the system detail always to the backend.
      */
     private void reportFailure(ChannelMessageLog channelLog, AgentRunAborted exc) {
         // Best-effort: the channel may be unreachable, but the system report below must go out regardless.
@@ -239,9 +252,9 @@ public class AgentRunner {
     }
 
     /**
-     * Best-effort report of an unexpected infra failure before the workflow goes to ERROR. The
-     * likely cause is control-api being unreachable, so either send may fail as well — both are
-     * swallowed so the original exception (rethrown by the caller) stays the recorded failure.
+     * Reported before the workflow goes to ERROR. The likely cause is control-api being unreachable,
+     * so either send may fail too — both are swallowed so the original exception, rethrown by the
+     * caller, stays the recorded failure.
      */
     private void reportInfraFailure(ChannelMessageLog channelLog, String systemDetail) {
         try {
@@ -253,11 +266,10 @@ public class AgentRunner {
     }
 
     /**
-     * The system detail of a run's outcome, sent to the backend as a durable step (a crash replay
-     * does not duplicate the report) and best-effort: a failure of the report itself must not mask
-     * the run's outcome. {@code type} sets the level on the backend — MESSAGE (an expected abort →
-     * INFO) or ERROR (an infra failure). The step's result is a boolean: a proto response must never
-     * go into a checkpoint.
+     * The system detail of a run's outcome. A durable step, so a crash replay does not duplicate it,
+     * and best-effort, so a failed report does not mask the outcome it reports. {@code type} sets the
+     * backend-side level — MESSAGE (an expected abort) or ERROR (infra). The step returns a boolean:
+     * a proto response must never go into a checkpoint.
      */
     private void sendSystemReport(WorkerMessageType type, String detail) {
         try {
