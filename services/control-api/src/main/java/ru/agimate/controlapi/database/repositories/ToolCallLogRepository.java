@@ -81,6 +81,8 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
             """)
     long countLiveDetached(@Param("agentId") UUID agentId, @Param("cutoff") LocalDateTime cutoff);
 
+    // CAST on the since/until null checks: pgjdbc sends a timestamp bind with an unspecified type
+    // oid, and Postgres cannot infer one from a bare "? IS NULL" (42P18).
     /**
      * {@code status} is a string {@link ru.agimate.controlapi.controller.manage.dto.ToolCallStatus}
      * ({@code SUCCESS}/{@code ERROR}/{@code PENDING}), derived from {@code finish_at}/{@code error}.
@@ -98,8 +100,8 @@ public interface ToolCallLogRepository extends JpaRepository<ToolCallLog, UUID> 
                  OR (:status = 'SUCCESS' AND t.finishAt IS NOT NULL AND t.error IS NULL)
                  OR (:status = 'ERROR'   AND t.error IS NOT NULL)
                  OR (:status = 'PENDING' AND t.finishAt IS NULL AND t.error IS NULL))
-            AND (:since IS NULL OR t.createdAt >= :since)
-            AND (:until IS NULL OR t.createdAt <= :until)
+            AND (CAST(:since AS LocalDateTime) IS NULL OR t.createdAt >= :since)
+            AND (CAST(:until AS LocalDateTime) IS NULL OR t.createdAt <= :until)
             ORDER BY t.createdAt DESC
             """)
     Page<ToolCallLog> findWithFilters(@Param("userId") UUID userId,

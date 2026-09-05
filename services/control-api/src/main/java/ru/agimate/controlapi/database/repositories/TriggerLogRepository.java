@@ -14,6 +14,8 @@ import java.util.UUID;
 
 public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
 
+    // CAST on the since/until null checks: pgjdbc sends a timestamp bind with an unspecified type
+    // oid, and Postgres cannot infer one from a bare "? IS NULL" (42P18).
     @Query("""
             SELECT t.id AS id, t.connectorCode AS connectorCode, t.connectionId AS connectionId,
                    t.externalId AS externalId, t.name AS name,
@@ -24,8 +26,8 @@ public interface TriggerLogRepository extends JpaRepository<TriggerLog, UUID> {
             AND (:connectorCode IS NULL OR t.connectorCode = :connectorCode)
             AND (:agentId IS NULL OR EXISTS (
                     SELECT 1 FROM AgentRun ar WHERE ar.triggerLog = t AND ar.agent.id = :agentId))
-            AND (:since IS NULL OR t.occurredAt >= :since)
-            AND (:until IS NULL OR t.occurredAt <= :until)
+            AND (CAST(:since AS LocalDateTime) IS NULL OR t.occurredAt >= :since)
+            AND (CAST(:until AS LocalDateTime) IS NULL OR t.occurredAt <= :until)
             """)
     Page<TriggerLogWithAgentsCountProjection> findByUserIdWithFilters(
             @Param("userId") UUID userId,

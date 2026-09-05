@@ -12,6 +12,8 @@ import java.util.UUID;
 
 public interface WebhookDeliveryLogRepository extends JpaRepository<WebhookDeliveryLog, UUID> {
 
+    // CAST on the since/until null checks: pgjdbc sends a timestamp bind with an unspecified type
+    // oid, and Postgres cannot infer one from a bare "? IS NULL" (42P18).
     /**
      * The deliveries of the user's webhook agents, newest first, optionally narrowed to one agent
      * and to a {@code deliveredAt} window. {@code agentId}/{@code since}/{@code until} are optional
@@ -23,8 +25,8 @@ public interface WebhookDeliveryLogRepository extends JpaRepository<WebhookDeliv
             JOIN tla.triggerLog tl
             WHERE tl.userId = :userId
             AND (:agentId IS NULL OR tla.agent.id = :agentId)
-            AND (:since IS NULL OR w.deliveredAt >= :since)
-            AND (:until IS NULL OR w.deliveredAt <= :until)
+            AND (CAST(:since AS LocalDateTime) IS NULL OR w.deliveredAt >= :since)
+            AND (CAST(:until AS LocalDateTime) IS NULL OR w.deliveredAt <= :until)
             ORDER BY w.deliveredAt DESC
             """)
     Page<WebhookDeliveryLog> findWithFilters(@Param("userId") UUID userId,

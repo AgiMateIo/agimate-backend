@@ -137,6 +137,8 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
                     @Param("mainRunId") UUID mainRunId,
                     @Param("now") LocalDateTime now);
 
+    // CAST on the since/until null checks: pgjdbc sends a timestamp bind with an unspecified type
+    // oid, and Postgres cannot infer one from a bare "? IS NULL" (42P18).
     /**
      * Listing for the runs view: a run joined to the event that produced it. Every filter is
      * optional — {@code agentId} included, so the same query serves «this agent's runs», «this
@@ -168,8 +170,8 @@ public interface AgentRunRepository extends JpaRepository<AgentRun, UUID> {
             AND (:connectionId IS NULL OR tl.connectionId = :connectionId)
             AND (:name IS NULL OR LOWER(tl.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))
             AND (:status IS NULL OR a.status = :status)
-            AND (:since IS NULL OR a.createdAt >= :since)
-            AND (:until IS NULL OR a.createdAt <= :until)
+            AND (CAST(:since AS LocalDateTime) IS NULL OR a.createdAt >= :since)
+            AND (CAST(:until AS LocalDateTime) IS NULL OR a.createdAt <= :until)
             ORDER BY a.createdAt DESC
             """)
     Page<AgentRunProjection> findRunsWithFilters(@Param("userId") UUID userId,
