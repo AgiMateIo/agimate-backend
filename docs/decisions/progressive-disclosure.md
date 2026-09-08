@@ -577,9 +577,10 @@ MCP-тул, раскрытый среди рана, должен получит�
       кроме `persist-memory` и `media` (2026-09-08)
 - [x] Разгон первых опросов в `ToolCallStep` (50 → 100 → 200 → 500 мс) — отдельный коммит, общая
       правка (2026-09-08)
-- [ ] Proto, только добавления: в `ConnectorToolSpec` — enum `disclosure` (`UNSPECIFIED` = EAGER),
+- [x] Proto, только добавления: в `ConnectorToolSpec` — enum `disclosure` (`UNSPECIFIED` = EAGER),
       `summary`, `llm_name`; в `ToolResultRec` — вид материала контекста (`NONE | TOOLS | SKILL`)
-- [ ] Воркер (выкатывается первым): `ToolRegistry` изменяемый — LAZY-спеки сразу в маршрутной карте,
+      (2026-09-08)
+- [x] Воркер (выкатывается первым, 2026-09-08): `ToolRegistry` изменяемый — LAZY-спеки сразу в маршрутной карте,
       но не в `toolDefs`; `BackendTool` несёт `_meta`; имя из `llm_name`, своя санитизация — фолбэк;
       `AgiMateAgent` читает `toolDefs` через реестр на каждом ходу; `ToolCallDispatcher` разбирает
       дельту по маркеру `_meta` из сырого `held` до `truncateOutput` и на реплее из `reread`, модели —
