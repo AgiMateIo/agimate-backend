@@ -57,10 +57,13 @@ conditionals inside the assembly.
 - **O(1) table of contents** (see baskets above).
 - **Trust boundary.** Trusted instructions reach the model only via the system prompt;
   external event payloads are always wrapped as untrusted data in the user turn.
-- **Checkpoint shape is frozen.** `PreparedContext` (and `ToolRegistry`'s serialized parts)
-  are DBOS durable-step results: FQCN and field shape must not change across deploys —
-  in-flight runs replay the serialized result. Evolve the assembly *behind* the seam, not the
-  seam's output type.
+- **Checkpoints hold identifiers, not context.** `GetRunContext` is deliberately *not* a
+  durable step: a crash replay re-fetches today's context instead of restoring a serialized
+  one, so `PreparedContext` and `ToolRegistry` are free to change shape between deploys and
+  even within a run (progressive disclosure grows the registry mid-run). What DBOS keeps is
+  ids and statuses — the turn index of an LLM call, the outcome of a tool call — and the
+  content is re-read from the backend (`GetTurn`, `GetToolResult`). See
+  [`../decisions/dbos-ids-only.md`](../decisions/dbos-ids-only.md).
 
 ## Roadmap (priority order)
 
@@ -71,9 +74,12 @@ conditionals inside the assembly.
    the agent entirely.
 2. **Environment manifest** — an O(1) table of contents of the agent's world (channels,
    activity, memory size, current time) in every profile.
-3. **tool_search / deferred tools** — the model gets a small active toolset + a search tool
-   over the full catalog; extends `ToolRegistry` + `ContextBuilder` with an active/deferred
-   split.
+3. **Deferred tools and skill bodies** — accepted as
+   [`../decisions/progressive-disclosure.md`](../decisions/progressive-disclosure.md): an
+   `EAGER|LAZY` axis on connectors and skills, lazy tools listed by name and summary only, the
+   `system` connector's `describe_tools`/`load_skill` disclosing on demand, the disclosed set
+   derived from the history window. A search over the catalog stays open there for
+   catalogs of hundreds of tools.
 4. **Token budget & history compaction** — per-part size accounting in `ContextBuilder`; a
    history builder appears together with compaction (deliberately not created empty today).
 
@@ -90,10 +96,12 @@ ahead of the user's message. LLM
 credentials deliberately stay a separate inline RPC — fetched per call, the api_key neither enters
 a checkpoint nor outlives the call.
 
-Stage 3 (`SaveMessage`) makes the worker the single writer of dialogue events: history is the
-dialogue «as the user saw it» (INBOUND/PROGRESS/ANSWER/ERROR text, no tool_call/thinking
-payloads — the raw transcript lives in DBOS checkpoints), only completed runs are visible
-(`completed=true` is set by the final ANSWER), and `GetRunContext.history` returns the filtered
-tail (`historyDetail` per ContextSpec preset). Channel delivery is a backend-side projection of
-the same record. See
+Stage 3 (`SaveMessage`, `SaveTurn`) makes the worker the single writer of both records: the
+channel projection (`channel_session_messages`, the dialogue «as the user saw it») and the
+canonical turn ledger (`agent_run_turns`, the model's own message list, tool turns included).
+`GetRunContext.history` is assembled from the ledger, not the projection: finished runs whose
+ledger is intact, a window counted in runs, the parts (`DIALOG`/`TOOLS`/`REASONING`) chosen by
+the ContextSpec preset, tool turns handed back as native `tool_use`/`tool_result` pairs. Channel
+delivery is a backend-side projection of the same record. See
+[`../decisions/history-from-turn-ledger.md`](../decisions/history-from-turn-ledger.md) and
 [`../contracts/worker-protocol.md`](../contracts/worker-protocol.md).
