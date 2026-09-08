@@ -181,7 +181,7 @@ enum Disclosure {
   DISCLOSURE_UNSPECIFIED = 0;
   DISCLOSURE_EAGER = 1;
   // Listed to the model by name and summary only; input_schema is empty and the tool is not
-  // callable until a describe_tools result discloses its full spec.
+  // callable until a load_tools result discloses its full spec.
   DISCLOSURE_LAZY = 2;
 }
 
@@ -210,7 +210,7 @@ message ConnectorToolSpec {
   // The listing line of a LAZY tool (≤160 chars, computed by the backend); empty for EAGER.
   string summary = 13 [json_name = "summary"];
   // The model-facing name ({namespace}__{name} sanitized, collisions resolved), computed by the
-  // backend so the same name stands in the listing, in describe_tools arguments and in the turn
+  // backend so the same name stands in the listing, in load_tools arguments and in the turn
   // ledger. Empty against an older control-api — the worker then sanitizes {namespace}.{name} itself.
   string llm_name = 14 [json_name = "llmName"];
 }

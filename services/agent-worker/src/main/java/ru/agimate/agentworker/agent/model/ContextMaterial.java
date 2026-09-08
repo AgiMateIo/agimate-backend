@@ -9,7 +9,7 @@ package ru.agimate.agentworker.agent.model;
 public enum ContextMaterial {
     /** An ordinary result. */
     NONE,
-    /** A {@code describe_tools} delta: the raw output carries specs, the model sees the disclosed names. */
+    /** A {@code load_tools} delta: the raw output carries specs, the model sees the disclosed names. */
     TOOLS,
     /** A skill body ({@code load_skill}): handed to the model as is, exempt from the history cap. */
     SKILL;

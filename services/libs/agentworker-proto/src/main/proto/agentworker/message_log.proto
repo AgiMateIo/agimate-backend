@@ -156,7 +156,7 @@ message ToolCallRec {
 // marks it from the tool spec's _meta, the backend's history assembler reads it off the ledger row.
 enum ContextMaterial {
   CONTEXT_MATERIAL_NONE = 0;
-  // A describe_tools delta: output_json lists the disclosed llm_names — the next run's context
+  // A load_tools delta: output_json lists the disclosed llm_names — the next run's context
   // ships those tools as EAGER.
   CONTEXT_MATERIAL_TOOLS = 1;
   // A skill body (load_skill): exempt from the history cap so the next run still sees it whole.

@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 /**
  * The one rule for a tool's LLM-facing name, shared by control-api (which computes
  * {@code ConnectorToolSpec.llm_name}) and the worker (which falls back to it against an older
- * control-api). The same name must stand in the run's tool listing, in {@code describe_tools}
+ * control-api). The same name must stand in the run's tool listing, in {@code load_tools}
  * arguments and in the turn ledger — a one-character drift between the two sides would break the
  * history match, so the code is shared rather than the description of it.
  */

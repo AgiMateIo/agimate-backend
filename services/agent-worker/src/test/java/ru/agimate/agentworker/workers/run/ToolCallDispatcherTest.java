@@ -176,7 +176,7 @@ class ToolCallDispatcherTest {
     }
 
     @Nested
-    @DisplayName("дельта контекста: результат describe_tools раскрывает тулы, модель видит имена")
+    @DisplayName("дельта контекста: результат load_tools раскрывает тулы, модель видит имена")
     class Disclosure {
 
         private static final String SCHEMA = "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}}}";
@@ -185,15 +185,15 @@ class ToolCallDispatcherTest {
         private final AgentWorkerClient client = mock(AgentWorkerClient.class);
         private final ToolCallStep step = mock(ToolCallStep.class);
         private final ToolRegistry registry = ToolRegistry.build(List.of(
-                ConnectorToolSpec.newBuilder().setConnectorCode("tool-deferral").setNamespace("tool-deferral")
-                        .setName("describe_tools").setConnectionId("conn-0")
+                ConnectorToolSpec.newBuilder().setConnectorCode("tool-loader").setNamespace("tool-loader")
+                        .setName("load_tools").setConnectionId("conn-0")
                         .putMeta(ToolRegistry.META_CONTEXT_MATERIAL, "tools").build(),
                 ConnectorToolSpec.newBuilder().setConnectorCode("platform").setNamespace("platform").setName("agent_list")
                         .setConnectionId("conn-1").setLlmName("platform__agent_list")
                         .setDisclosure(ru.agimate.agentworker.Disclosure.DISCLOSURE_LAZY).build()));
         private final ToolCallDispatcher dispatcher = new ToolCallDispatcher(dbos, step, client, "agent-1", "run-1", registry);
         private final List<AgentChatMessage.ToolCall> call = List.of(
-                new AgentChatMessage.ToolCall("d", "tool-deferral__describe_tools", "{\"names\":[\"platform__agent_list\",\"nope\"]}"));
+                new AgentChatMessage.ToolCall("d", "tool-loader__load_tools", "{\"names\":[\"platform__agent_list\",\"nope\"]}"));
 
         private static String delta() throws Exception {
             ConnectorToolSpec full = ConnectorToolSpec.newBuilder().setConnectorCode("platform").setNamespace("platform")
@@ -244,13 +244,13 @@ class ToolCallDispatcherTest {
         }
 
         @Test
-        @DisplayName("вызов ещё не раскрытого тула отвечается подсказкой про describe_tools, не «unknown»")
+        @DisplayName("вызов ещё не раскрытого тула отвечается подсказкой про load_tools, не «unknown»")
         void deferredToolPointsAtDescribe() {
             List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(
                     List.of(new AgentChatMessage.ToolCall("x", "platform__agent_list", "{}")));
 
             assertTrue(results.get(0).failed());
-            assertTrue(results.get(0).contentJson().contains("describe_tools"));
+            assertTrue(results.get(0).contentJson().contains("load_tools"));
             assertFalse(results.get(0).contentJson().contains("unknown"));
             verifyNoInteractions(dbos);
         }

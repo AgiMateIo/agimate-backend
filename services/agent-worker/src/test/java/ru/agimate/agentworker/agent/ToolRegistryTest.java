@@ -116,13 +116,13 @@ class ToolRegistryTest {
         @DisplayName("the context-material marker in _meta reaches BackendTool")
         void materialFromMeta() {
             ToolRegistry reg = ToolRegistry.build(List.of(
-                    spec("describe_tools", "tool-deferral", "tool-deferral", "c", null).toBuilder()
+                    spec("load_tools", "tool-loader", "tool-loader", "c", null).toBuilder()
                             .putMeta(ToolRegistry.META_CONTEXT_MATERIAL, "tools").build(),
                     spec("load_skill", "skill-loader", "skill-loader", "c", null).toBuilder()
                             .putMeta(ToolRegistry.META_CONTEXT_MATERIAL, "skill").build(),
                     spec("now", "time", "time", "c", null)));
 
-            assertEquals(ContextMaterial.TOOLS, reg.resolve("tool-deferral__describe_tools").material());
+            assertEquals(ContextMaterial.TOOLS, reg.resolve("tool-loader__load_tools").material());
             assertEquals(ContextMaterial.SKILL, reg.resolve("skill-loader__load_skill").material());
             assertEquals(ContextMaterial.NONE, reg.resolve("time__now").material());
         }

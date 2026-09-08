@@ -25,7 +25,7 @@ import java.util.Map;
  * worker sanitizes it itself — the same rule, the same result.
  *
  * <p>Progressive disclosure: a LAZY spec arrives without a schema and is routed but not callable —
- * it is not in {@link #toolDefs()} until a {@code describe_tools} result {@link #disclose discloses}
+ * it is not in {@link #toolDefs()} until a {@code load_tools} result {@link #disclose discloses}
  * its full spec. The registry therefore grows during a run; the loop reads {@link #toolDefs()}
  * afresh every turn. Nothing here is checkpointed: a replay rebuilds it from {@code GetRunContext}
  * and re-applies the deltas it re-reads from the backend.
@@ -71,7 +71,7 @@ public final class ToolRegistry {
     }
 
     /**
-     * Apply a {@code describe_tools} delta: the specs become callable with their full schema. A spec
+     * Apply a {@code load_tools} delta: the specs become callable with their full schema. A spec
      * the run context never listed is registered too — the backend is the authority on the scope.
      *
      * @return the LLM-facing names of every spec in the delta, already-callable ones included

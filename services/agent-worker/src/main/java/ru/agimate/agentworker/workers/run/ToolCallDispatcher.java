@@ -165,7 +165,7 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
     }
 
     static String deferredNotice(String name) {
-        return "tool " + name + " is listed but not described yet: call describe_tools with its name"
+        return "tool " + name + " is listed but not described yet: call load_tools with its name"
                 + " (batch every tool you will need) and then call it with the arguments its schema defines";
     }
 

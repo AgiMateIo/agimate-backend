@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The {@code describe_tools} result as the worker reads it. The backend answers
+ * The {@code load_tools} result as the worker reads it. The backend answers
  * {@code {"tools": [<ConnectorToolSpec as proto JSON>], "unknown": [...]}} — the same specs it puts
  * into {@code GetRunContext}, so there is one shape and one mapper on each side. The model never
  * sees the schemas in the message: they go into the request's {@code tools} array, and the message

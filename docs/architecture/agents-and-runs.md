@@ -77,7 +77,7 @@ conditionals inside the assembly.
 3. **Deferred tools and skill bodies** — accepted as
    [`../decisions/progressive-disclosure.md`](../decisions/progressive-disclosure.md): an
    `EAGER|LAZY` axis on connectors, tools and skills, lazy tools listed by name and summary only,
-   the `skill-loader`/`tool-deferral` connectors' `load_skill`/`describe_tools` disclosing on
+   the `skill-loader`/`tool-loader` connectors' `load_skill`/`load_tools` disclosing on
    demand, the disclosed set derived from the history window by the backend-computed `llm_name`. A search over the catalog stays open there for
    catalogs of hundreds of tools.
 4. **Token budget & history compaction** — per-part size accounting in `ContextBuilder`; a

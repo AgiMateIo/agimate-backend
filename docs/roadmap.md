@@ -27,8 +27,8 @@
   чужих людей к Астрологу в телеграме» упирается именно в это.
   → [agent-participants.md](decisions/agent-participants.md)
 - **Постепенное раскрытие контекста.** Тела навыков и схемы тулов по требованию: ось `EAGER|LAZY`
-  на коннекторе, туле и навыке, коннекторы `skill-loader` (`load_skill`) и `tool-deferral`
-  (`describe_tools`), подключаемые через одноимённые навыки как память; у агента без них всё едет
+  на коннекторе, туле и навыке, коннекторы `skill-loader` (`load_skill`) и `tool-loader`
+  (`load_tools`), подключаемые через одноимённые навыки как память; у агента без них всё едет
   как сегодня, по осям. Раскрытое между ранами выводится из окна истории по `llm_name`, которое
   считает control-api. Выкатка воркера первой. Ветка `feature/progressive-disclosure`.
   → [progressive-disclosure.md](decisions/progressive-disclosure.md)
