@@ -564,17 +564,19 @@ MCP-тул, раскрытый среди рана, должен получит�
 меняет поведения: без раскрывающей коннекции работает фолбэк EAGER. Ветка
 `feature/progressive-disclosure`, коммиты атомарные.
 
-- [ ] Замер на живом ране: debug-лог байтов системных блоков, схем и описаний тулов в
-      `RunContextService.build()`, отдельно для MCP-инстансов; снять цифры по personal-assistant,
-      health-diary, platform-admin. Порог на описание своего `@Tool` фиксируется по этому замеру
+- [x] Debug-лог байтов системных блоков, схем и описаний тулов в `RunContextService.build()`,
+      отдельно для MCP-инстансов — `ContextSizeReport` (2026-09-08)
+- [ ] Снять цифры на живом ране по personal-assistant, health-diary, platform-admin
+      (`logging.level.ru.agimate.controlapi.service.runcontext=debug`). Порог на описание своего
+      `@Tool` фиксируется по этому замеру
 - [x] Выбрать транспорт раскрытия, обновить документ до `status: accepted` (2026-09-08)
 - [x] Устаревшие инварианты в `docs/architecture/agents-and-runs.md` («Checkpoint shape is frozen»,
       «история без tool_call-ходов») приведены к решениям «только id в чекпоинтах» и «история из
       журнала ходов» (2026-09-08)
 - [x] Уточнения плана: два коннектора по оси, ось на `@Tool`, `llm_name` на бэкенде, навыки `lazy`
       кроме `persist-memory` и `media` (2026-09-08)
-- [ ] Разгон первых опросов в `ToolCallStep` (50 → 100 → 200 → 500 мс) — отдельный коммит, общая
-      правка
+- [x] Разгон первых опросов в `ToolCallStep` (50 → 100 → 200 → 500 мс) — отдельный коммит, общая
+      правка (2026-09-08)
 - [ ] Proto, только добавления: в `ConnectorToolSpec` — enum `disclosure` (`UNSPECIFIED` = EAGER),
       `summary`, `llm_name`; в `ToolResultRec` — вид материала контекста (`NONE | TOOLS | SKILL`)
 - [ ] Воркер (выкатывается первым): `ToolRegistry` изменяемый — LAZY-спеки сразу в маршрутной карте,
