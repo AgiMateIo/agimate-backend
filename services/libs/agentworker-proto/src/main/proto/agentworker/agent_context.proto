@@ -175,6 +175,16 @@ message ToolAnnotations {
   bool open_world_hint = 4 [json_name = "openWorldHint"];
 }
 
+// Progressive disclosure axis of a tool (docs/decisions/progressive-disclosure.md). UNSPECIFIED
+// reads as EAGER: an older control-api never sets the field.
+enum Disclosure {
+  DISCLOSURE_UNSPECIFIED = 0;
+  DISCLOSURE_EAGER = 1;
+  // Listed to the model by name and summary only; input_schema is empty and the tool is not
+  // callable until a describe_tools result discloses its full spec.
+  DISCLOSURE_LAZY = 2;
+}
+
 // MCP-compatible tool description (mirrors ConnectorToolSpec in control-api).
 message ConnectorToolSpec {
   string name = 1;
@@ -196,4 +206,11 @@ message ConnectorToolSpec {
   // The worker's budget for awaiting the tool result, in seconds. 0 — the worker's default
   // (agent.tool.poll-timeout); the worker clamps the value from above (30 min).
   uint32 timeout_seconds = 11 [json_name = "timeoutSeconds"];
+  Disclosure disclosure = 12 [json_name = "disclosure"];
+  // The listing line of a LAZY tool (≤160 chars, computed by the backend); empty for EAGER.
+  string summary = 13 [json_name = "summary"];
+  // The model-facing name ({namespace}__{name} sanitized, collisions resolved), computed by the
+  // backend so the same name stands in the listing, in describe_tools arguments and in the turn
+  // ledger. Empty against an older control-api — the worker then sanitizes {namespace}.{name} itself.
+  string llm_name = 14 [json_name = "llmName"];
 }

@@ -28,6 +28,9 @@ dependencies {
     api("io.grpc:grpc-protobuf")
     api("io.grpc:grpc-stub")
     api("com.google.protobuf:protobuf-java")
+    // JsonFormat: the describe_tools delta carries ConnectorToolSpec as proto JSON — printed by
+    // control-api, parsed by the worker, one shape on both sides.
+    api("com.google.protobuf:protobuf-java-util")
 
     // Needed only to compile the generated gRPC stubs (@javax.annotation.Generated).
     compileOnly("org.apache.tomcat:annotations-api:6.0.53")

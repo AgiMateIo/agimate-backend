@@ -24,6 +24,7 @@ allprojects {
                 implementation("io.grpc:grpc-inprocess:1.68.1")
                 implementation("io.grpc:grpc-testing:1.68.1")
                 implementation("com.google.protobuf:protobuf-java:3.25.5")
+                implementation("com.google.protobuf:protobuf-java-util:3.25.5")
 
                 implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
                 implementation("org.springframework.boot:spring-boot-dependencies")

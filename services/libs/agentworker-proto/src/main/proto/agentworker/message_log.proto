@@ -152,11 +152,23 @@ message ToolCallRec {
   string arguments_json = 3;           // raw JSON arguments
 }
 
+// What a tool result is to the context (docs/decisions/progressive-disclosure.md): the worker
+// marks it from the tool spec's _meta, the backend's history assembler reads it off the ledger row.
+enum ContextMaterial {
+  CONTEXT_MATERIAL_NONE = 0;
+  // A describe_tools delta: output_json lists the disclosed llm_names — the next run's context
+  // ships those tools as EAGER.
+  CONTEXT_MATERIAL_TOOLS = 1;
+  // A skill body (load_skill): exempt from the history cap so the next run still sees it whole.
+  CONTEXT_MATERIAL_SKILL = 2;
+}
+
 message ToolResultRec {
   string id = 1;                       // = ToolCallRec.id
   string name = 2;
   string output_json = 3;              // raw JSON result (or {"error": ...} when failed)
   bool failed = 4;
+  ContextMaterial material = 5;
 }
 
 // History — for RunContext.history. The backend has already picked the runs and the parts; the
