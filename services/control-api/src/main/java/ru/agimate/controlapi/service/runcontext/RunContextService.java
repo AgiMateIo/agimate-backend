@@ -240,11 +240,13 @@ public class RunContextService {
         // this one (docs/decisions/agent-sessions.md, historyScope).
         List<RunHistoryMessage> history = historyAssembler.assemble(
                 Channels.sessionIdOf(channels), effective.historyLimit(), effective.historyParts());
-        log.debug("run context agent={} trigger={} spec={} blocks={}/{} tools={} history={} parts={}",
-                agentId, triggerId, spec, systemBlocks.size(), userBlocks.size(), tools.size(),
-                history.size(), inboundParts.size());
-        return new RunContextView(List.copyOf(systemBlocks), List.copyOf(userBlocks), tools, history,
-                inboundParts);
+        RunContextView view = new RunContextView(List.copyOf(systemBlocks), List.copyOf(userBlocks), tools,
+                history, inboundParts);
+        if (log.isDebugEnabled()) {
+            log.debug("run context agent={} trigger={} spec={} parts={} size: {}",
+                    agentId, triggerId, spec, inboundParts.size(), ContextSizeReport.of(view));
+        }
+        return view;
     }
 
     // ===== Skills =====
