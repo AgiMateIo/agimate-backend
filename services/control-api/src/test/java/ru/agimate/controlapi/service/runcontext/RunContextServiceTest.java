@@ -48,6 +48,7 @@ import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -99,6 +100,7 @@ class RunContextServiceTest {
 
     private MemoryLikeHandler memoryHandler;
     private TimeLikeHandler timeHandler;
+    private RunCatalog catalog;
     private RunContextService service;
 
     @BeforeEach
@@ -110,10 +112,12 @@ class RunContextServiceTest {
         // A mock answers null for a record; every build() reads the history, so the empty one is the default.
         lenient().when(historyAssembler.assemble(any(), anyInt(), any())).thenReturn(RunHistory.empty());
         ConnectorRegistry registry = new ConnectorRegistry(List.of(memoryHandler, timeHandler));
-        service = new RunContextService(agentRunRepository, agentRepository,
-                agenticTeamRepository, agentSkillRepository, agentSkillService, skillRepository,
-                connectionRepository, connectorRepository, connectionToolRepository,
-                registry, new ConnectorEnvFactory(null, null), channelRepository, channelHandlerRegistry,
+        ConnectorEnvFactory envFactory = new ConnectorEnvFactory(null, null);
+        catalog = new RunCatalog(agentRunRepository, agentRepository, agentSkillRepository, agentSkillService,
+                skillRepository, connectionRepository, connectorRepository, connectionToolRepository,
+                registry, envFactory, channelRepository, channelHandlerRegistry);
+        service = new RunContextService(catalog, agentRepository, agenticTeamRepository,
+                registry, envFactory, channelRepository, channelHandlerRegistry,
                 inboundTextResolver, historyAssembler,
                 // Язык-первоисточник: переводов нет, блоки промпта совпадают с константами в коде.
                 new PromptTexts(new ContentProperties()));
@@ -149,6 +153,8 @@ class RunContextServiceTest {
 
     private void stubRun(AgentRun run) {
         when(agentRunRepository.findById(TRIGGER_ID)).thenReturn(Optional.of(run));
+        // The assembly re-reads the agent by id once the catalogue has checked the run belongs to it.
+        lenient().when(agentRepository.findById(AGENT_ID)).thenReturn(Optional.of(run.getAgent()));
     }
 
     private void stubSkills(List<AgentSkillWithConnectorsResponse> skills) {
@@ -576,6 +582,176 @@ class RunContextServiceTest {
             stubRun(run(agent(), triggerLog("time", "due"), null));
             assertThrows(BadRequestStatusException.class,
                     () -> service.build(UUID.randomUUID(), TRIGGER_ID));
+        }
+    }
+
+    @Nested
+    @DisplayName("Постепенное раскрытие")
+    class ProgressiveDisclosure {
+
+        private static final UUID LOADER_CONNECTION_ID = UUID.randomUUID();
+        private final UUID memorySkill = UUID.randomUUID();
+        private final UUID loaderSkill = UUID.randomUUID();
+
+        private Connection loaderConnection(String code) {
+            return Connection.builder().id(LOADER_CONNECTION_ID).userId(USER_ID).connectorCode(code).build();
+        }
+
+        /** A memory skill (its connector LAZY) and, optionally, a loader skill bringing the loader connection. */
+        private void stubScope(String loaderCode, Disclosure memorySkillAxis) {
+            List<AgentSkillWithConnectorsResponse> skills = new ArrayList<>();
+            skills.add(new AgentSkillWithConnectorsResponse(memorySkill, "Memory", "d", List.of("persist-memory"), memorySkillAxis));
+            Map<UUID, java.util.Set<UUID>> satisfied = new java.util.HashMap<>();
+            satisfied.put(memorySkill, java.util.Set.of(CONNECTION_ID));
+            List<Connection> connections = new ArrayList<>(List.of(memoryConnection()));
+            if (loaderCode != null) {
+                skills.add(new AgentSkillWithConnectorsResponse(loaderSkill, loaderCode, "d", List.of(loaderCode), Disclosure.EAGER));
+                satisfied.put(loaderSkill, java.util.Set.of(LOADER_CONNECTION_ID));
+                connections.add(loaderConnection(loaderCode));
+                Connector loader = new Connector();
+                loader.setCode(loaderCode);
+                loader.setDefinitionBinding(DefinitionBinding.STATIC);
+                lenient().when(connectorRepository.findById(loaderCode)).thenReturn(Optional.of(loader));
+            }
+            List<AgentSkill> refs = skills.stream().map(sk -> {
+                AgentSkill ref = new AgentSkill();
+                ref.setSkillId(sk.skillId());
+                return ref;
+            }).toList();
+            when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(refs);
+            when(agentSkillService.resolveSkillsById(anyList())).thenReturn(skills.stream()
+                    .collect(java.util.stream.Collectors.toMap(AgentSkillWithConnectorsResponse::skillId, sk -> sk)));
+            when(agentSkillService.satisfiedSkillInstances(AGENT_ID)).thenReturn(satisfied);
+            when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(connections);
+            lenient().when(memoryHandler.promptBlocks(any(ConnectorEnv.class))).thenReturn(List.of());
+            Connector memory = new Connector();
+            memory.setCode("persist-memory");
+            memory.setDefinitionBinding(DefinitionBinding.STATIC);
+            memory.setDisclosure(Disclosure.LAZY);
+            when(connectorRepository.findById("persist-memory")).thenReturn(Optional.of(memory));
+            when(memoryHandler.getTools(any(ConnectorEnv.class))).thenReturn(Map.of(
+                    "get_memory", new ConnectorToolSpec("get_memory", null, "Get memory. With detail.",
+                            ru.agimate.controlapi.connectors.core.dto.JsonSchema.object(Map.of(), null, null),
+                            null, null, null, null)));
+            lenient().when(skillRepository.findByIdNotDeleted(memorySkill)).thenReturn(Optional.of(
+                    ru.agimate.controlapi.database.entities.Skill.builder().id(memorySkill).name("Memory")
+                            .mdContent("memory body").build()));
+            lenient().when(skillRepository.findByIdNotDeleted(loaderSkill)).thenReturn(Optional.of(
+                    ru.agimate.controlapi.database.entities.Skill.builder().id(loaderSkill).name("loader")
+                            .mdContent("loader body").build()));
+        }
+
+        private void stubDialogue() {
+            Channels channels = Channels.ofPrompt(new ChannelInfo(CHANNEL_ID, SESSION_ID, null));
+            stubRun(run(agent(), triggerLog("webchat", "message_received"), channels));
+            when(inboundTextResolver.resolve(any(), any())).thenReturn(Optional.of(InboundMessage.text("hi")));
+        }
+
+        private RunTool memoryTool(RunContextView view) {
+            return view.tools().stream().filter(t -> t.connectorCode().equals("persist-memory")).findFirst().orElseThrow();
+        }
+
+        @Test
+        @DisplayName("без tool-loader ось не читается: LAZY-коннектор едет EAGER, листинга нет")
+        void eagerWithoutLoader() {
+            stubDialogue();
+            stubScope(null, Disclosure.EAGER);
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            assertEquals(Disclosure.EAGER, memoryTool(view).disclosure());
+            assertTrue(view.systemBlocks().stream().noneMatch(b -> b.name().equals("deferred_tools")));
+        }
+
+        @Test
+        @DisplayName("с tool-loader LAZY-тул едет вывеской: summary из первой фразы, строка в deferred_tools")
+        void lazyWithLoader() {
+            stubDialogue();
+            stubScope(RunCatalog.TOOL_LOADER, Disclosure.EAGER);
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            RunTool tool = memoryTool(view);
+            assertEquals(Disclosure.LAZY, tool.disclosure());
+            assertEquals("Get memory.", tool.summary());
+            RunBlock listing = view.systemBlocks().stream().filter(b -> b.name().equals("deferred_tools")).findFirst().orElseThrow();
+            assertEquals("- persist-memory__get_memory: Get memory.", listing.content());
+        }
+
+        @Test
+        @DisplayName("тул, раскрытый в окне истории, едет EAGER и из листинга уходит")
+        void disclosedByHistory() {
+            stubDialogue();
+            stubScope(RunCatalog.TOOL_LOADER, Disclosure.EAGER);
+            when(historyAssembler.assemble(any(), anyInt(), any())).thenReturn(
+                    new RunHistory(List.of(), List.of("persist-memory__get_memory"), RunHistoryAssembler.DISCLOSED_BUDGET_BYTES));
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            assertEquals(Disclosure.EAGER, memoryTool(view).disclosure());
+            assertTrue(view.systemBlocks().stream().noneMatch(b -> b.name().equals("deferred_tools")));
+        }
+
+        @Test
+        @DisplayName("бюджет из истории исчерпан — раскрытие не применяется")
+        void budgetExhausted() {
+            stubDialogue();
+            stubScope(RunCatalog.TOOL_LOADER, Disclosure.EAGER);
+            when(historyAssembler.assemble(any(), anyInt(), any())).thenReturn(
+                    new RunHistory(List.of(), List.of("persist-memory__get_memory"), 0));
+
+            assertEquals(Disclosure.LAZY, memoryTool(service.build(AGENT_ID, TRIGGER_ID)).disclosure());
+        }
+
+        @Test
+        @DisplayName("триггерный ран раскрывает тулы коннектора события наперёд, независимо от оси")
+        void triggerRunDisclosesEventConnectorUpfront() {
+            stubRun(run(agent(), triggerLog("persist-memory", "consolidate"), null));
+            stubScope(RunCatalog.TOOL_LOADER, Disclosure.EAGER);
+
+            assertEquals(Disclosure.EAGER, memoryTool(service.build(AGENT_ID, TRIGGER_ID)).disclosure());
+        }
+
+        @Test
+        @DisplayName("с skill-loader тело LAZY-навыка не едет, в листинге навыков он помечен; без — едет как раньше")
+        void lazySkillBody() {
+            stubDialogue();
+            stubScope(RunCatalog.SKILL_LOADER, Disclosure.LAZY);
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            List<String> bodies = view.systemBlocks().stream().filter(b -> b.name().equals("skill")).map(RunBlock::content).toList();
+            assertEquals(List.of("loader body"), bodies);
+            RunBlock skills = view.systemBlocks().stream().filter(b -> b.name().equals("skills")).findFirst().orElseThrow();
+            assertTrue(skills.content().contains("  name: Memory\n  description: d\n  connector_codes: persist-memory\n  disclosure: lazy"));
+            // The tool axis is untouched by the skill loader: the memory tool stays EAGER.
+            assertEquals(Disclosure.EAGER, memoryTool(view).disclosure());
+        }
+
+        @Test
+        @DisplayName("без skill-loader тело LAZY-навыка едет, и листинг навыков без пометки")
+        void lazySkillBodyWithoutLoader() {
+            stubDialogue();
+            stubScope(null, Disclosure.LAZY);
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            List<String> bodies = view.systemBlocks().stream().filter(b -> b.name().equals("skill")).map(RunBlock::content).toList();
+            assertEquals(List.of("memory body"), bodies);
+            RunBlock skills = view.systemBlocks().stream().filter(b -> b.name().equals("skills")).findFirst().orElseThrow();
+            assertFalse(skills.content().contains("disclosure"));
+        }
+
+        @Test
+        @DisplayName("триггерный ран: тело подошедшего LAZY-навыка едет наперёд даже при skill-loader")
+        void triggerRunDisclosesMatchedBodyUpfront() {
+            stubRun(run(agent(), triggerLog("persist-memory", "consolidate"), null));
+            stubScope(RunCatalog.SKILL_LOADER, Disclosure.LAZY);
+
+            RunContextView view = service.build(AGENT_ID, TRIGGER_ID);
+
+            List<String> bodies = view.systemBlocks().stream().filter(b -> b.name().equals("skill")).map(RunBlock::content).toList();
+            assertEquals(List.of("memory body"), bodies);
         }
     }
 }

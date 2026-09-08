@@ -6,57 +6,37 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.agimate.common.rest.error.BadRequestStatusException;
-import ru.agimate.common.rest.error.NotFoundStatusException;
+import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.ConnectorEnvFactory;
 import ru.agimate.controlapi.connectors.core.ConnectorException;
 import ru.agimate.controlapi.connectors.core.ConnectorRegistry;
 import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
-import ru.agimate.controlapi.connectors.core.ToolProvider;
-import ru.agimate.controlapi.connectors.core.TriggerProvider;
-import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
-import ru.agimate.controlapi.connectors.core.dto.TriggerSpec;
-import ru.agimate.controlapi.connectors.core.ConnectionToolMapper;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
 import ru.agimate.controlapi.database.entities.Agent;
-import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.AgenticTeam;
 import ru.agimate.controlapi.database.entities.Connection;
-import ru.agimate.controlapi.database.entities.Connector;
-import ru.agimate.controlapi.database.entities.Skill;
-import ru.agimate.controlapi.database.entities.AgentRun;
-import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
+import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
-import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
 import ru.agimate.controlapi.database.repositories.AgenticTeamRepository;
 import ru.agimate.controlapi.database.repositories.ChannelRepository;
-import ru.agimate.controlapi.database.repositories.ConnectionRepository;
-import ru.agimate.controlapi.database.repositories.ConnectionToolRepository;
-import ru.agimate.controlapi.database.repositories.ConnectorRepository;
-import ru.agimate.controlapi.database.repositories.SkillRepository;
-import ru.agimate.controlapi.database.repositories.AgentRunRepository;
-import ru.agimate.controlapi.service.AgentSkillService;
 import ru.agimate.controlapi.service.channel.InboundTextResolver;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandler;
 import ru.agimate.controlapi.service.channel.handler.ChannelHandlerRegistry;
 import ru.agimate.controlapi.service.channel.handler.dto.InboundMessage;
-import ru.agimate.controlapi.service.seed.PromptTexts;
 import ru.agimate.controlapi.service.channel.handler.dto.Part;
+import ru.agimate.controlapi.service.seed.PromptTexts;
 import ru.agimate.controlapi.service.trigger.Channels;
-import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
-import ru.agimate.agentworker.ToolNames;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -65,12 +45,18 @@ import java.util.UUID;
  * Assembly of a run's context for {@code GetRunContext}: the policy ({@link ContextSpec}) is chosen
  * from the route's channel snapshot ({@code agent_runs.channels}), the blocks are collected from the
  * agent's spec, the {@link PromptBlockProvider} connectors, the team and the skills; the tools are
- * scoped by skills. The worker receives finished, ordered blocks and merely renders them.
+ * scoped by skills ({@link RunCatalog}). The worker receives finished, ordered blocks and merely
+ * renders them.
  *
  * <p>The order of the system blocks is part of the contract (stable ones first, friendly to the
  * prompt cache): agent → the agent's instructions → connector blocks → team → skills → skill bodies
- * (in a dialogue all of them, in a trigger run the ones matching the event's connector) → trigger
- * guidance. The run's main prompt is the last user block.
+ * (in a dialogue all of them, in a trigger run the ones matching the event's connector) → deferred
+ * tools → trigger guidance. The run's main prompt is the last user block.
+ *
+ * <p>Progressive disclosure ({@code docs/decisions/progressive-disclosure.md}) is decided here, on
+ * the wire form: a LAZY tool ships without its schema and with a summary, a LAZY skill without its
+ * body — but only when the run has the disclosing connector for that axis, and never for what the
+ * history window shows was already disclosed, or what a trigger run needs up front.
  */
 @Slf4j
 @Service
@@ -120,15 +106,9 @@ public class RunContextService {
             .enable(SerializationFeature.INDENT_OUTPUT)
             .enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 
-    private final AgentRunRepository agentRunRepository;
+    private final RunCatalog runCatalog;
     private final AgentRepository agentRepository;
     private final AgenticTeamRepository agenticTeamRepository;
-    private final AgentSkillRepository agentSkillRepository;
-    private final AgentSkillService agentSkillService;
-    private final SkillRepository skillRepository;
-    private final ConnectionRepository connectionRepository;
-    private final ConnectorRepository connectorRepository;
-    private final ConnectionToolRepository connectionToolRepository;
     private final ConnectorRegistry connectorRegistry;
     private final ConnectorEnvFactory envFactory;
     private final ChannelRepository channelRepository;
@@ -138,61 +118,36 @@ public class RunContextService {
     private final PromptTexts promptTexts;
 
     public RunContextView build(UUID agentId, UUID triggerId) {
-        AgentRun run = agentRunRepository.findById(triggerId)
-                .orElseThrow(() -> new NotFoundStatusException("Run not found: " + triggerId));
-        Agent agent = run.getAgent();
-        if (!agent.getId().equals(agentId)) {
-            throw new BadRequestStatusException("Run " + triggerId + " does not belong to agent " + agentId);
-        }
-        if (!agent.isEnabled()) {
-            throw new BadRequestStatusException("Agent is disabled: " + agentId);
-        }
+        RunCatalog.Catalog catalog = runCatalog.forRun(agentId, triggerId);
+        Agent agent = agentRepository.findById(agentId).orElseThrow();
+        ContextSpec spec = catalog.spec();
+        EffectiveContext effective = catalog.effective();
+        Trigger trigger = catalog.trigger();
+        Channels channels = catalog.channels();
+        List<AgentSkillWithConnectorsResponse> listed = catalog.skills();
 
-        Channels channels = ChannelsCodec.fromMap(run.getChannels());
-        ContextSpec spec = channels != null && channels.prompt() != null
-                ? ContextSpec.DIALOGUE
-                : ContextSpec.SYSTEM_TRIGGER;
-        Trigger trigger = Trigger.fromLog(run.getTriggerLog());
-        // Directives come only from the connector code's static declaration (the registry); dynamic
-        // triggers (connection_triggers) and the payload never reach here — an unfamiliar name = the base preset.
-        EffectiveContext effective = EffectiveContext.of(spec, declaredDirectives(trigger));
+        // The channel's session, not the run's: a trigger run has one too now, but «the agent
+        // remembers the previous events of its connection» is a separate decision, and it is not
+        // this one (docs/decisions/agent-sessions.md, historyScope). Assembled before the tools: the
+        // window says what is already disclosed.
+        RunHistory history = historyAssembler.assemble(
+                Channels.sessionIdOf(channels), effective.historyLimit(), effective.historyParts());
+        List<RunTool> tools = wireTools(catalog, history);
 
-        // Skills: the tools come from ALL of the agent's skills — the content of a task delegated through a
-        // trigger has nothing to do with the event's connector (a task from the board may require media). The
-        // bodies: in a dialogue all of them (skills define behaviour there too), in a trigger run they are
-        // scoped by the event's connector.
-        // Only satisfied skills reach the agent: a skill whose connector has no reachable instance would
-        // promise tools that are not in the context. The same map carries the instances themselves — the
-        // gate is «this connection», not «any connection of that code».
-        Map<UUID, Set<UUID>> satisfied = agentSkillService.satisfiedSkillInstances(agentId);
-        List<AgentSkillWithConnectorsResponse> listed = listedSkills(agentId).stream()
-                .filter(skill -> satisfied.containsKey(skill.skillId()))
-                .toList();
+        // The bodies: in a dialogue all of them (skills define behaviour there too), in a trigger run
+        // they are scoped by the event's connector. With a skill-loader in scope a LAZY body is
+        // withheld — except up front, where there is no window to disclose from.
         List<AgentSkillWithConnectorsResponse> scoped = switch (spec.skillBodies()) {
             case ALL -> listed;
             case MATCHED -> matchedSkills(listed, trigger);
         };
-        Set<UUID> requiredConnections = new LinkedHashSet<>();
-        if (effective.skillTools()) {
-            listed.forEach(skill -> requiredConnections.addAll(satisfied.getOrDefault(skill.skillId(), Set.of())));
-        }
+        boolean withholdLazyBodies = catalog.skillsOnDemand() && !spec.disclosesUpfront();
+        List<AgentSkillWithConnectorsResponse> bodies = withholdLazyBodies
+                ? scoped.stream().filter(s -> s.disclosure() != Disclosure.LAZY).toList()
+                : scoped;
 
-        List<Connection> connections = connectionRepository.findActiveBoundToAgent(agentId);
-        UUID promptChannelId = channels != null && channels.prompt() != null
-                ? channels.prompt().channelId() : null;
-        UUID promptSessionId = channels != null && channels.prompt() != null
-                ? channels.prompt().sessionId() : null;
-        // A channel that brings its own tools (the IDE connector) mixes the prompt channel's connector in past
-        // the skill gate — «the channel brings tools», for as long as the conversation comes from that channel.
-        // It returns that channel's connection so its tools are listed session-aware (session-scoped MCP from the IDE).
-        UUID sessionAwareConnectionId = addPromptChannelTools(promptChannelId, requiredConnections);
-        // ownConnectionTools: the event's connection (that one specifically, not every connection of its code —
-        // INSTANCE) enters the selection past the skill gate.
-        UUID ownConnectionId = effective.ownConnectionTools()
-                ? tryParseUuid(trigger.connectionId()) : null;
-
-        List<RunTool> tools = collectTools(connections, requiredConnections, ownConnectionId,
-                sessionAwareConnectionId, promptSessionId);
+        UUID promptChannelId = channels != null && channels.prompt() != null ? channels.prompt().channelId() : null;
+        UUID promptSessionId = channels != null && channels.prompt() != null ? channels.prompt().sessionId() : null;
 
         List<RunBlock> systemBlocks = new ArrayList<>();
         List<RunBlock> userBlocks = new ArrayList<>();
@@ -201,12 +156,13 @@ public class RunContextService {
         if (agent.getInstructions() != null && !agent.getInstructions().isBlank()) {
             systemBlocks.add(RunBlock.trusted("", "agent", agent.getInstructions().strip(), Map.of()));
         }
-        collectConnectorBlocks(connections, agent, promptChannelId, promptSessionId, systemBlocks, userBlocks);
+        collectConnectorBlocks(catalog.connections(), agent, promptChannelId, promptSessionId, systemBlocks, userBlocks);
         teamBlock(agent).ifPresent(systemBlocks::add);
         if (!listed.isEmpty()) {
-            systemBlocks.add(skillsBlock(listed));
+            systemBlocks.add(skillsBlock(listed, catalog.skillsOnDemand()));
         }
-        systemBlocks.addAll(skillBodyBlocks(scoped));
+        systemBlocks.addAll(skillBodyBlocks(bodies));
+        deferredToolsBlock(tools).ifPresent(systemBlocks::add);
         if (!tools.isEmpty()) {
             systemBlocks.add(RunBlock.trusted("tool_guidance", "guidance",
                     promptTexts.get(PromptTexts.RUN_TOOL_CALL_GUIDANCE, TOOL_CALL_GUIDANCE), Map.of()));
@@ -237,11 +193,6 @@ public class RunContextService {
             userBlocks.add(triggerMainBlock(effective, trigger));
         }
 
-        // The channel's session, not the run's: a trigger run has one too now, but «the agent
-        // remembers the previous events of its connection» is a separate decision, and it is not
-        // this one (docs/decisions/agent-sessions.md, historyScope).
-        RunHistory history = historyAssembler.assemble(
-                Channels.sessionIdOf(channels), effective.historyLimit(), effective.historyParts());
         RunContextView view = new RunContextView(List.copyOf(systemBlocks), List.copyOf(userBlocks), tools,
                 history.messages(), inboundParts);
         if (log.isDebugEnabled()) {
@@ -251,15 +202,63 @@ public class RunContextService {
         return view;
     }
 
-    // ===== Skills =====
+    // ===== Tools on the wire =====
 
-    private List<AgentSkillWithConnectorsResponse> listedSkills(UUID agentId) {
-        List<UUID> skillIds = agentSkillRepository.findByAgentId(agentId).stream()
-                .map(AgentSkill::getSkillId)
-                .toList();
-        Map<UUID, AgentSkillWithConnectorsResponse> resolved = agentSkillService.resolveSkillsById(skillIds);
-        return skillIds.stream().map(resolved::get).filter(Objects::nonNull).toList();
+    /**
+     * The wire form of every tool. Without a tool-loader in scope everything is EAGER, as before the
+     * axis existed. With one, a LAZY tool ships as a listing line — unless the event's own connector
+     * needs it up front (a trigger run has no window to disclose from), or the window shows the model
+     * already called or had it described, newest first while the disclosure budget lasts.
+     */
+    private static List<RunTool> wireTools(RunCatalog.Catalog catalog, RunHistory history) {
+        if (!catalog.toolsOnDemand()) {
+            return catalog.tools().stream().map(RunTool::eager).toList();
+        }
+        Set<String> disclosed = new HashSet<>();
+        int budget = history.budgetLeft();
+        for (String name : history.disclosedTools()) {
+            RunTool tool = catalog.tool(name);
+            if (tool == null || tool.disclosure() != Disclosure.LAZY) {
+                continue; // gone, or eager anyway — costs nothing
+            }
+            int size = schemaBytes(tool);
+            if (size > budget) {
+                log.debug("disclosure budget exhausted at {}: {} bytes left", name, budget);
+                break;
+            }
+            budget -= size;
+            disclosed.add(name);
+        }
+        String upfrontConnector = catalog.spec() != null && catalog.spec().disclosesUpfront() && catalog.trigger() != null
+                ? catalog.trigger().connectorCode() : null;
+        List<RunTool> wire = new ArrayList<>(catalog.tools().size());
+        for (RunTool tool : catalog.tools()) {
+            boolean lazy = tool.disclosure() == Disclosure.LAZY
+                    && !disclosed.contains(tool.llmName())
+                    && !tool.connectorCode().equals(upfrontConnector);
+            wire.add(lazy ? tool.lazy(Summaries.of(tool.spec().description())) : tool.eager());
+        }
+        return wire;
     }
+
+    private static int schemaBytes(RunTool tool) {
+        return tool.spec().inputSchema() == null ? 0
+                : JsonUtils.writeValueAsString(tool.spec().inputSchema()).getBytes(StandardCharsets.UTF_8).length;
+    }
+
+    /** The listing of deferred tools: {@code llm_name: summary} per line — the name the model passes to {@code load_tools}. */
+    private static Optional<RunBlock> deferredToolsBlock(List<RunTool> tools) {
+        List<String> lines = tools.stream()
+                .filter(t -> t.disclosure() == Disclosure.LAZY)
+                .map(t -> "- " + t.llmName() + (t.summary().isEmpty() ? "" : ": " + t.summary()))
+                .toList();
+        if (lines.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(RunBlock.trusted("deferred_tools", "guidance", String.join("\n", lines), Map.of()));
+    }
+
+    // ===== Skills =====
 
     /** A skill matches the trigger when its connector_codes contain the event's connectorCode. */
     private static List<AgentSkillWithConnectorsResponse> matchedSkills(
@@ -272,19 +271,24 @@ public class RunContextService {
     private List<RunBlock> skillBodyBlocks(List<AgentSkillWithConnectorsResponse> scoped) {
         List<RunBlock> blocks = new ArrayList<>();
         for (AgentSkillWithConnectorsResponse ref : scoped) {
-            Skill skill = skillRepository.findByIdNotDeleted(ref.skillId()).orElse(null);
-            if (skill == null || skill.getMdContent() == null || skill.getMdContent().isBlank()) {
+            String body = runCatalog.skillBody(ref);
+            if (body == null) {
                 continue;
             }
-            Map<String, String> attrs = skill.getName() == null || skill.getName().isBlank()
+            Map<String, String> attrs = ref.skillName() == null || ref.skillName().isBlank()
                     ? Map.of()
-                    : Map.of("name", skill.getName());
-            blocks.add(RunBlock.trusted("skill", "skill", skill.getMdContent().strip(), attrs));
+                    : Map.of("name", ref.skillName());
+            blocks.add(RunBlock.trusted("skill", "skill", body.strip(), attrs));
         }
         return blocks;
     }
 
-    private static RunBlock skillsBlock(List<AgentSkillWithConnectorsResponse> skills) {
+    /**
+     * The catalogue of skills. With a skill-loader in scope a LAZY skill is marked as such, so the
+     * model knows its body is one {@code load_skill} away; without one the block is byte-identical
+     * to what it always was.
+     */
+    private static RunBlock skillsBlock(List<AgentSkillWithConnectorsResponse> skills, boolean onDemand) {
         List<String> lines = new ArrayList<>();
         for (AgentSkillWithConnectorsResponse s : skills) {
             lines.add("- skill_id: " + s.skillId());
@@ -296,6 +300,9 @@ public class RunContextService {
             }
             if (!s.connectorCodes().isEmpty()) {
                 lines.add("  connector_codes: " + String.join(", ", s.connectorCodes()));
+            }
+            if (onDemand && s.disclosure() == Disclosure.LAZY) {
+                lines.add("  disclosure: lazy");
             }
         }
         return RunBlock.trusted("skills", "skill", String.join("\n", lines), Map.of());
@@ -407,7 +414,11 @@ public class RunContextService {
                 .orElse(false);
     }
 
-    /** Inbound attachments → {@link InboundPart} references (only image/video/audio/file reach the context). */
+    /**
+     * The dialogue's text: extracted by the same {@code ChannelHandler.handleInput} as at dispatch
+     * ({@link InboundTextResolver}). It falls back to the untrusted event block when the channel or
+     * handler is gone or no text could be extracted.
+     */
     private RunBlock dialoguePromptBlock(Optional<InboundMessage> inbound, Trigger trigger) {
         return inbound.map(InboundMessage::text)
                 .filter(text -> text != null && !text.isBlank())
@@ -419,12 +430,7 @@ public class RunContextService {
                 });
     }
 
-    /**
-     * The event's main block, per {@link EffectiveContext#presentation()}: {@code PROMPT} means
-     * trusted text from {@code data[promptParam]} (declarable by internal connectors only, guarded at
-     * bootstrap; the text is authored by the agent or the platform), and empty or non-string falls
-     * back to the untrusted event.
-     */
+    /** Inbound attachments → {@link InboundPart} references (only image/video/audio/file reach the context). */
     private static List<InboundPart> inboundParts(Optional<InboundMessage> inbound) {
         return inbound.map(m -> m.parts().stream()
                         .map(p -> new InboundPart(p.storageRef(), p.type(), p.mime(), p.size(), partName(p)))
@@ -437,7 +443,12 @@ public class RunContextService {
         return name != null ? name.toString() : "";
     }
 
-    /** The trigger's static directives from the registry ({@code null} — undeclared or a dynamic trigger). */
+    /**
+     * The event's main block, per {@link EffectiveContext#presentation()}: {@code PROMPT} means
+     * trusted text from {@code data[promptParam]} (declarable by internal connectors only, guarded at
+     * bootstrap; the text is authored by the agent or the platform), and empty or non-string falls
+     * back to the untrusted event.
+     */
     private static RunBlock triggerMainBlock(EffectiveContext effective, Trigger trigger) {
         if (effective.presentation() != ContextDirectives.Presentation.PROMPT) {
             return eventBlock(trigger);
@@ -457,32 +468,6 @@ public class RunContextService {
     }
 
     /** The event as data: an untrusted block, with the wrapper and preamble applied by the worker's renderer. */
-    private ContextDirectives declaredDirectives(Trigger trigger) {
-        return connectorRegistry.findCapability(trigger.connectorCode(), TriggerProvider.class)
-                .map(TriggerProvider::getTriggers)
-                .map(triggers -> triggers.get(trigger.name()))
-                .map(TriggerSpec::context)
-                .orElse(null);
-    }
-
-    private static UUID tryParseUuid(String value) {
-        if (value == null) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
-    }
-
-    /**
-     * If the prompt channel brings its own tools ({@link ChannelHandler#contributesPromptTools}), its
-     * connection is added to {@code requiredConnections} — {@link #collectTools} then picks up that
-     * binding's tools regardless of the agent's skills.
-     *
-     * @return the connection of that channel (a session-aware listing), or {@code null}
-     */
     private static RunBlock eventBlock(Trigger trigger) {
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("connectorCode", trigger.connectorCode());
@@ -501,98 +486,5 @@ public class RunContextService {
         attrs.put("connector", trigger.connectorCode());
         attrs.put("name", trigger.name());
         return new RunBlock("event", "connector:" + trigger.connectorCode(), content, attrs, false, false);
-    }
-
-
-    // ===== Tools =====
-
-    /**
-     * Tools of the connections the scoped skills point at, plus
-     * {@code ownConnectionId} (the event's connection under {@code ownConnectionTools} — addressed
-     * directly, bypassing the skill gate). For {@code sessionAwareConnectionId} (the connection of a
-     * prompt channel that brings tools) the STATIC listing gets an env carrying
-     * {@code promptSessionId}, so the connector can return session-scoped tools (MCP from the IDE).
-     *
-     * <p>A connector with {@link ToolProvider#sessionScopedTools()} enters the selection through that
-     * connection only: a skill declaring it as required still gates on the connection being there,
-     * but its tools belong to the live session, and elsewhere they would only be schemas that always
-     * fail.
-     */
-    private UUID addPromptChannelTools(UUID promptChannelId, Set<UUID> requiredConnections) {
-        if (promptChannelId == null) {
-            return null;
-        }
-        return channelRepository.findByIdAndDeletedAtIsNull(promptChannelId)
-                .filter(channel -> channelHandlerRegistry.find(channel.getChannelHandler())
-                        .filter(ChannelHandler::contributesPromptTools).isPresent())
-                .map(channel -> {
-                    requiredConnections.add(channel.getConnectionId());
-                    return channel.getConnectionId();
-                })
-                .orElse(null);
-    }
-
-    /**
-     * The instance's namespace for the LLM-facing tool name ({@code {namespace}.{name}}): external
-     * instances → {@code full_code}; internal mode rows → {@code connector_code}. «Internal vs
-     * external» is knowledge of the registry (the handler's type), not a field on the connection.
-     */
-    private List<RunTool> collectTools(List<Connection> connections, Set<UUID> requiredConnections,
-                                       UUID ownConnectionId, UUID sessionAwareConnectionId,
-                                       UUID promptSessionId) {
-        List<RunTool> tools = new ArrayList<>();
-        // Names are minted in listing order: the worker's fallback walks the same list the same way.
-        Set<String> llmNames = new HashSet<>();
-        for (Connection connection : connections) {
-            if (!requiredConnections.contains(connection.getId())
-                    && !connection.getId().equals(ownConnectionId)) {
-                continue;
-            }
-            Connector connector = connectorRepository.findById(connection.getConnectorCode()).orElse(null);
-            if (connector == null || connector.getDefinitionBinding() == null) {
-                continue;
-            }
-            boolean ownSession = connection.getId().equals(sessionAwareConnectionId);
-            ConnectorEnv listingEnv = ownSession
-                    ? envFactory.internal(connection.getId().toString(), null, null, null, null, promptSessionId)
-                    : ConnectorEnvFactory.listing(connection.getId());
-            Map<String, ConnectorToolSpec> specs = switch (connector.getDefinitionBinding()) {
-                case STATIC -> connectorRegistry
-                        .findCapability(connection.getConnectorCode(), ToolProvider.class)
-                        .filter(p -> ownSession || !p.sessionScopedTools())
-                        .map(p -> p.getTools(listingEnv))
-                        .orElse(Map.of());
-                case DYNAMIC -> dynamicTools(connection.getId());
-            };
-            String namespace = namespaceOf(connection);
-            specs.forEach((name, spec) -> {
-                String llmName = ToolNames.unique(llmNames, ToolNames.sanitize(
-                        (namespace.isBlank() ? connection.getConnectorCode() : namespace) + "." + name));
-                llmNames.add(llmName);
-                tools.add(new RunTool(spec, connection.getConnectorCode(), connection.getId().toString(),
-                        namespace, llmName));
-            });
-        }
-        return tools;
-    }
-
-    private Map<String, ConnectorToolSpec> dynamicTools(UUID connectionId) {
-        Map<String, ConnectorToolSpec> tools = new LinkedHashMap<>();
-        connectionToolRepository.findActiveByConnectionId(connectionId)
-                .forEach(tool -> tools.put(tool.getName(), ConnectionToolMapper.toSpec(tool)));
-        return tools;
-    }
-
-    /**
-     * The dialogue's text: extracted by the same {@code ChannelHandler.handleInput} as at dispatch
-     * ({@link InboundTextResolver}). It falls back to the untrusted event block when the channel or
-     * handler is gone or no text could be extracted.
-     */
-    private String namespaceOf(Connection connection) {
-        boolean internal = connectorRegistry.findHandler(connection.getConnectorCode())
-                .map(InternalConnectorHandler.class::isInstance)
-                .orElse(false);
-        String ns = internal ? connection.getConnectorCode() : connection.getFullCode();
-        return ns == null ? "" : ns;
     }
 }

@@ -592,12 +592,15 @@ MCP-тул, раскрытый среди рана, должен получит�
       `disclosure: lazy` во фронтматтере сидовых `SKILL.md`; `llm_name` считается на `RunTool`
       общим `ToolNames` и уезжает в proto. Эффективная ось, `summary` и параметр `ContextSpec` —
       в шаге каталога, где они читаются
-- [ ] control-api, история: `RunHistoryAssembler.assemble` возвращает сообщения и раскрытое множество
-      (имена ходов → каталог рана); освобождение результатов вида `SKILL` от 4 КБ с пределом 32 КБ,
-      новейший `load_skill` на навык; бюджет 96 КБ; в `build()` история загружается до `collectTools`
-- [ ] control-api, каталог рана: сборка тулов и гейт навыков выносятся из `RunContextService` так,
-      чтобы их звал и `GetRunContext`, и мета-тулы по `env.runId`; фолбэк EAGER по осям
-      вычисляется после гейта; LAZY-спеки без `inputSchema`; листинг вывесок системным блоком
+- [x] control-api, история (2026-09-08): `RunHistoryAssembler.assemble` возвращает `RunHistory` —
+      сообщения, раскрытое множество (имена ходов, новейшие первыми) и остаток бюджета;
+      результаты вида `SKILL` освобождены от 4 КБ с пределом 32 КБ, новейший `load_skill` на навык;
+      бюджет 96 КБ; `material` на строке ledger'а
+- [x] control-api, каталог рана (2026-09-08): `RunCatalog` — гейт навыков, сборка тулов, объявленная
+      ось на `RunTool`, `forRun`/`forAgent`; `RunContextService` решает форму на проводе: фолбэк по
+      осям (`skill-loader`/`tool-loader` в `requiredConnections`), раскрытие из окна в бюджет,
+      наперёд в `SYSTEM_TRIGGER` (`ContextSpec.disclosesUpfront`), LAZY без `inputSchema` и с
+      `summary` (первая фраза, 160), блок `deferred_tools`, пометка `disclosure: lazy` в `skills`
 - [ ] Коннекторы `skill-loader` (`load_skill(names[])`) и `tool-loader`
       (`load_tools(names[])`): фасад + `*ToolService`, дельта в `output_json`, маркер в `_meta`,
       промах по имени — ошибка с перечнем ближайших; тексты в `connectors.properties`; сидовые навыки

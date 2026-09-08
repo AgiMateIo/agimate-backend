@@ -2,6 +2,7 @@ package ru.agimate.controlapi.grpc.mapper;
 
 import lombok.experimental.UtilityClass;
 import ru.agimate.controlapi.connectors.core.dto.ToolAnnotationsSpec;
+import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.controlapi.service.runcontext.InboundPart;
 import ru.agimate.controlapi.service.runcontext.RunBlock;
@@ -61,7 +62,15 @@ public class RunContextMapper {
         if (spec.description() != null) {
             builder.setDescription(spec.description());
         }
-        if (spec.inputSchema() != null) {
+        // A LAZY tool is listed, not callable: no schema, a summary instead. Everything else stays —
+        // the worker routes by connector/connection, reads _meta for the material marker, and decides
+        // its guidance paragraphs over annotations of the full set, deferred tools included.
+        boolean lazy = tool.disclosure() == Disclosure.LAZY;
+        builder.setDisclosure(lazy ? ru.agimate.agentworker.Disclosure.DISCLOSURE_LAZY
+                : ru.agimate.agentworker.Disclosure.DISCLOSURE_EAGER);
+        if (lazy) {
+            builder.setSummary(nullToEmpty(tool.summary()));
+        } else if (spec.inputSchema() != null) {
             builder.setInputSchema(toJsonBytes(spec.inputSchema()));
         }
         if (spec.outputSchema() != null) {

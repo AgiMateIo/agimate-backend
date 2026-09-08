@@ -15,14 +15,14 @@ public enum ContextSpec {
      * behaviour in a dialogue too (media iteration discipline, memory note rules), not only in
      * trigger runs; the bodies are stable and friendly to the prompt cache.
      */
-    DIALOGUE(SkillBodies.ALL, false, Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS)),
+    DIALOGUE(SkillBodies.ALL, false, Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS), false),
 
     /**
      * Autonomous handling of an event: bodies only of the skills that matched the trigger (they are
      * the instruction for handling the event), tools from every skill, plus the trigger-guidance
      * block.
      */
-    SYSTEM_TRIGGER(SkillBodies.MATCHED, true, Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS));
+    SYSTEM_TRIGGER(SkillBodies.MATCHED, true, Set.of(HistoryPart.DIALOG, HistoryPart.TOOLS), true);
 
     /** Which skill bodies are injected into the system prompt. */
     public enum SkillBodies {
@@ -51,11 +51,13 @@ public enum ContextSpec {
     private final SkillBodies skillBodies;
     private final boolean triggerGuidance;
     private final Set<HistoryPart> historyParts;
+    private final boolean upfront;
 
-    ContextSpec(SkillBodies skillBodies, boolean triggerGuidance, Set<HistoryPart> historyParts) {
+    ContextSpec(SkillBodies skillBodies, boolean triggerGuidance, Set<HistoryPart> historyParts, boolean upfront) {
         this.skillBodies = skillBodies;
         this.triggerGuidance = triggerGuidance;
         this.historyParts = historyParts;
+        this.upfront = upfront;
     }
 
     public SkillBodies skillBodies() {
@@ -68,5 +70,15 @@ public enum ContextSpec {
 
     public Set<HistoryPart> historyParts() {
         return historyParts;
+    }
+
+    /**
+     * Progressive disclosure happens up front rather than on demand: the selected skill bodies and
+     * the event connector's tool schemas ship whole whatever their axis says. A trigger run has no
+     * user waiting, so an extra disclosure turn is pure loss — and no history window of its own to
+     * derive the disclosed set from.
+     */
+    public boolean disclosesUpfront() {
+        return upfront;
     }
 }

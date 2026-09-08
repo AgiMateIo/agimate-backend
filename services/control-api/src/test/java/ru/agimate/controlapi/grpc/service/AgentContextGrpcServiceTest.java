@@ -40,6 +40,7 @@ import ru.agimate.controlapi.service.runcontext.RunContextService;
 import ru.agimate.controlapi.service.runcontext.RunContextView;
 import ru.agimate.controlapi.service.runcontext.RunHistoryMessage;
 import ru.agimate.controlapi.service.runcontext.RunTool;
+import ru.agimate.controlapi.database.enums.Disclosure;
 
 import java.util.List;
 import java.util.Map;
@@ -101,7 +102,7 @@ class AgentContextGrpcServiceTest {
                 List.of(new RunBlock("event", "connector:time", "{}", Map.of(), false, true)),
                 List.of(new RunTool(
                         new ConnectorToolSpec("get_tasks", null, "desc", null, null, null, null, null),
-                        "board", "conn-1", "board", "board__get_tasks")),
+                        "board", "conn-1", "board", "board__get_tasks", Disclosure.EAGER, null)),
                 List.of(
                         new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "привет"),
                         new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks"),
