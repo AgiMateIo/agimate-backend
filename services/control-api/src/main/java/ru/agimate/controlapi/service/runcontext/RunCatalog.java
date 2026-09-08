@@ -47,6 +47,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -182,6 +183,17 @@ public class RunCatalog {
                 .map(Skill::getMdContent)
                 .filter(body -> !body.isBlank())
                 .orElse(null);
+    }
+
+    /** The body of the bound skill named {@code name} — the form the connector layer uses, no DTO crossing. */
+    public Optional<String> skillBody(Catalog catalog, String name) {
+        AgentSkillWithConnectorsResponse skill = catalog.skill(name);
+        return skill == null ? Optional.empty() : Optional.ofNullable(skillBody(skill));
+    }
+
+    /** Names of the bound skills, for a miss message. */
+    public List<String> skillNames(Catalog catalog) {
+        return catalog.skills().stream().map(AgentSkillWithConnectorsResponse::skillName).filter(Objects::nonNull).toList();
     }
 
     // ===== Skills =====

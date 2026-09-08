@@ -53,7 +53,9 @@ public class SystemSkillBootstrap {
             "media",
             "platform",
             "sheets",
-            "acp");
+            "acp",
+            "skill-loader",
+            "tool-loader");
 
     private final SkillRepository skillRepository;
     private final SeedContentLocator seedContentLocator;

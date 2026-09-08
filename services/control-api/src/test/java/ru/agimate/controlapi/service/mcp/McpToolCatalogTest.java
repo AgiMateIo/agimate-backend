@@ -190,4 +190,19 @@ class McpToolCatalogTest {
         // The MCP connection's tools are still there — the catalog merges all bindings.
         assertTrue(result.containsKey("mcp_context7__get-docs"));
     }
+
+    @Test
+    @DisplayName("ось disclosure MCP-каталога не касается: у LAZY-коннектора схемы отдаются целиком")
+    void lazyAxisDoesNotReachMcpClients() {
+        when(connectorRepository.findById("mcp")).thenReturn(Optional.of(Connector.builder()
+                .code("mcp")
+                .definitionBinding(DefinitionBinding.DYNAMIC)
+                .disclosure(ru.agimate.controlapi.database.enums.Disclosure.LAZY)
+                .build()));
+        connectionTools("resolve-library-id");
+
+        Map<String, McpToolCatalog.ToolEntry> result = catalog.forAgent(agent);
+
+        assertEquals(JsonSchema.any(null), result.get("mcp_context7__resolve-library-id").spec().inputSchema());
+    }
 }

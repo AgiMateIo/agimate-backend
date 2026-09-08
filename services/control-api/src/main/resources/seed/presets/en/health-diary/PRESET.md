@@ -2,7 +2,7 @@
 name: health-diary
 title: Health diary
 description: A diary of blood pressure, pulse, blood sugar and weight — logs readings by voice or from a photo of the device, reminds you to measure and prepares a chart for the doctor's visit.
-skills: [sheets, media, time, persist-memory]
+skills: [sheets, media, time, persist-memory, skill-loader, tool-loader]
 sortOrder: 12
 ---
 
