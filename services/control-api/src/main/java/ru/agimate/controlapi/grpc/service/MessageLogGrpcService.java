@@ -14,6 +14,7 @@ import ru.agimate.controlapi.service.AgentRunTurnService;
 import ru.agimate.controlapi.service.channel.MessageLogService;
 import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 import ru.agimate.agentworker.GetTurnRequest;
+import ru.agimate.controlapi.grpc.mapper.ContextMaterialMapper;
 import ru.agimate.agentworker.GetTurnResponse;
 import ru.agimate.agentworker.MessageLogGrpc;
 import ru.agimate.agentworker.ProgressType;
@@ -91,7 +92,7 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
                             .toList(),
                     request.getToolResultsList().stream()
                             .map(r -> new ToolTurnRecord.Result(r.getId(), r.getName(), r.getOutputJson(),
-                                    r.getFailed()))
+                                    r.getFailed(), ContextMaterialMapper.toDomain(r.getMaterial())))
                             .toList(),
                     request.getFinishReason(), request.getModel(), request.getCallId());
 
@@ -172,7 +173,8 @@ public class MessageLogGrpcService extends MessageLogGrpc.MessageLogImplBase {
                             .setId(nullToEmpty(r.id()))
                             .setName(nullToEmpty(r.name()))
                             .setOutputJson(nullToEmpty(r.outputJson()))
-                            .setFailed(r.failed())));
+                            .setFailed(r.failed())
+                            .setMaterial(ContextMaterialMapper.toProto(r.material()))));
         }
         return b.build();
     }

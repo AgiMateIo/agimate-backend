@@ -58,6 +58,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -106,6 +107,8 @@ class RunContextServiceTest {
         lenient().when(memoryHandler.connectorCode()).thenReturn("persist-memory");
         timeHandler = mock(TimeLikeHandler.class);
         lenient().when(timeHandler.connectorCode()).thenReturn("time");
+        // A mock answers null for a record; every build() reads the history, so the empty one is the default.
+        lenient().when(historyAssembler.assemble(any(), anyInt(), any())).thenReturn(RunHistory.empty());
         ConnectorRegistry registry = new ConnectorRegistry(List.of(memoryHandler, timeHandler));
         service = new RunContextService(agentRunRepository, agentRepository,
                 agenticTeamRepository, agentSkillRepository, agentSkillService, skillRepository,
@@ -534,7 +537,8 @@ class RunContextServiceTest {
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(List.of());
             RunHistoryMessage answer = new RunHistoryMessage(ChannelSessionMessageKind.ANSWER, "old answer");
             when(historyAssembler.assemble(SESSION_ID, EffectiveContext.DEFAULT_HISTORY_LIMIT,
-                    ContextSpec.SYSTEM_TRIGGER.historyParts())).thenReturn(List.of(answer));
+                    ContextSpec.SYSTEM_TRIGGER.historyParts()))
+                    .thenReturn(new RunHistory(List.of(answer), List.of(), RunHistoryAssembler.DISCLOSED_BUDGET_BYTES));
 
             assertEquals(List.of(answer), service.build(AGENT_ID, TRIGGER_ID).history());
         }

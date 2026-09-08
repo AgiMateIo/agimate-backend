@@ -12,6 +12,7 @@ import ru.agimate.controlapi.database.enums.AgentTurnRole;
 import ru.agimate.controlapi.database.enums.ChannelSessionMessageKind;
 import ru.agimate.controlapi.database.repositories.AgentRunRepository;
 import ru.agimate.controlapi.database.repositories.AgentRunTurnRepository;
+import ru.agimate.controlapi.service.dto.ToolTurnRecord;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,6 +74,13 @@ class RunHistoryAssemblerTest {
         return t;
     }
 
+    private static AgentRunTurn materialTurn(UUID runId, int index, String id, String material, String output) {
+        AgentRunTurn t = turn(runId, index, AgentTurnRole.TOOL, null);
+        t.setToolResults(List.of(Map.of("id", id, "name", "loader", "outputJson", output, "failed", false,
+                "material", material)));
+        return t;
+    }
+
     @Nested
     @DisplayName("Раскладка ходов")
     class Layout {
@@ -88,7 +96,7 @@ class RunHistoryAssemblerTest {
                     turn(newer, 0, AgentTurnRole.USER, "второй вопрос"),
                     turn(newer, 1, AgentTurnRole.ASSISTANT, "второй ответ")));
 
-            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20, ALL_PARTS);
+            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20, ALL_PARTS).messages();
 
             assertEquals(List.of(
                     new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "первый вопрос"),
@@ -108,7 +116,7 @@ class RunHistoryAssemblerTest {
                     resultTurn(runId, 2, "{\"tasks\":[]}"),
                     turn(runId, 3, AgentTurnRole.ASSISTANT, "доска пуста")));
 
-            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20, ALL_PARTS);
+            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20, ALL_PARTS).messages();
 
             assertEquals(4, history.size());
             RunHistoryMessage calls = history.get(1);
@@ -128,7 +136,7 @@ class RunHistoryAssemblerTest {
                     turn(runId, 0, AgentTurnRole.USER, "вопрос"),
                     turn(runId, 1, AgentTurnRole.ASSISTANT, "  ")));
 
-            assertEquals(1, assembler.assemble(SESSION_ID, 20, ALL_PARTS).size());
+            assertEquals(1, assembler.assemble(SESSION_ID, 20, ALL_PARTS).messages().size());
         }
     }
 
@@ -147,7 +155,7 @@ class RunHistoryAssemblerTest {
                     turn(runId, 3, AgentTurnRole.ASSISTANT, "доска пуста")));
 
             List<RunHistoryMessage> history =
-                    assembler.assemble(SESSION_ID, 20, Set.of(ContextSpec.HistoryPart.DIALOG));
+                    assembler.assemble(SESSION_ID, 20, Set.of(ContextSpec.HistoryPart.DIALOG)).messages();
 
             assertEquals(List.of(
                     new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "что на доске?"),
@@ -166,7 +174,7 @@ class RunHistoryAssemblerTest {
                     turn(runId, 3, AgentTurnRole.ASSISTANT, "доска пуста")));
 
             List<RunHistoryMessage> history =
-                    assembler.assemble(SESSION_ID, 20, Set.of(ContextSpec.HistoryPart.TOOLS));
+                    assembler.assemble(SESSION_ID, 20, Set.of(ContextSpec.HistoryPart.TOOLS)).messages();
 
             assertEquals(2, history.size());
             assertTrue(history.stream().allMatch(m -> m.toolTurn() != null));
@@ -182,7 +190,7 @@ class RunHistoryAssemblerTest {
 
             List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20,
                     Set.of(ContextSpec.HistoryPart.DIALOG, ContextSpec.HistoryPart.TOOLS,
-                            ContextSpec.HistoryPart.REASONING));
+                            ContextSpec.HistoryPart.REASONING)).messages();
 
             assertTrue(history.stream().noneMatch(m -> m.text().contains("рассуждений")));
         }
@@ -201,7 +209,7 @@ class RunHistoryAssemblerTest {
                     callTurn(runId, 0, "смотрю", "board.get_tasks"),
                     resultTurn(runId, 1, huge)));
 
-            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20, ALL_PARTS);
+            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20, ALL_PARTS).messages();
 
             String output = history.get(1).toolTurn().results().get(0).outputJson();
             assertTrue(output.endsWith("…[truncated]"));
@@ -220,7 +228,7 @@ class RunHistoryAssemblerTest {
             turns.add(turn(newer, 0, AgentTurnRole.USER, "свежий вопрос"));
             stubRuns(List.of(newer, older), turns);
 
-            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20, ALL_PARTS);
+            List<RunHistoryMessage> history = assembler.assemble(SESSION_ID, 20, ALL_PARTS).messages();
 
             assertEquals(List.of(new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "свежий вопрос")),
                     history);
@@ -234,14 +242,14 @@ class RunHistoryAssemblerTest {
         @Test
         @DisplayName("прямой ран без сессии — истории нет и запросов нет")
         void noSession() {
-            assertTrue(assembler.assemble(null, 20, ALL_PARTS).isEmpty());
+            assertTrue(assembler.assemble(null, 20, ALL_PARTS).messages().isEmpty());
             verifyNoInteractions(agentRunRepository, turnRepository);
         }
 
         @Test
         @DisplayName("окно 0 — журнал не читается вовсе")
         void zeroWindow() {
-            assertTrue(assembler.assemble(SESSION_ID, 0, ALL_PARTS).isEmpty());
+            assertTrue(assembler.assemble(SESSION_ID, 0, ALL_PARTS).messages().isEmpty());
             verifyNoInteractions(agentRunRepository, turnRepository);
         }
 
@@ -250,8 +258,88 @@ class RunHistoryAssemblerTest {
         void noEligibleRuns() {
             when(agentRunRepository.findHistoryRunIds(eq(SESSION_ID), any())).thenReturn(List.of());
 
-            assertTrue(assembler.assemble(SESSION_ID, 20, ALL_PARTS).isEmpty());
+            assertTrue(assembler.assemble(SESSION_ID, 20, ALL_PARTS).messages().isEmpty());
             verify(turnRepository, never()).findByRunIdInOrderByRunIdAscTurnIndexAsc(anyList());
+        }
+    }
+
+    @Nested
+    @DisplayName("Раскрытие из окна")
+    class Disclosure {
+
+        @Test
+        @DisplayName("вызванные и описанные тулы — раскрытое множество, новейшие первыми, без дублей")
+        void disclosedToolsNewestFirst() {
+            UUID older = UUID.randomUUID();
+            UUID newer = UUID.randomUUID();
+            stubRuns(List.of(newer, older), List.of(
+                    callTurn(older, 0, "", "platform__agent_list"),
+                    materialTurn(older, 1, "c1", "TOOLS",
+                            "{\"disclosed\":[\"platform__agent_get\",\"platform__agent_list\"],\"unknown\":[\"x\"]}"),
+                    callTurn(newer, 0, "", "time__now")));
+
+            RunHistory history = assembler.assemble(SESSION_ID, 20, ALL_PARTS);
+
+            assertEquals(List.of("time__now", "platform__agent_list", "platform__agent_get"), history.disclosedTools());
+        }
+
+        @Test
+        @DisplayName("без TOOLS в частях раскрытого множества нет: модель не увидит вызовов, платить не за что")
+        void nothingDisclosedWithoutToolsPart() {
+            UUID runId = UUID.randomUUID();
+            stubRuns(List.of(runId), List.of(callTurn(runId, 0, "", "platform__agent_list")));
+
+            RunHistory history = assembler.assemble(SESSION_ID, 20, Set.of(ContextSpec.HistoryPart.DIALOG));
+
+            assertTrue(history.disclosedTools().isEmpty());
+            assertEquals(RunHistoryAssembler.DISCLOSED_BUDGET_BYTES, history.budgetLeft());
+        }
+
+        @Test
+        @DisplayName("тело навыка не режется на 4 КБ, старая копия того же навыка — режется")
+        void skillBodyKeptWholeNewestOnly() {
+            UUID older = UUID.randomUUID();
+            UUID newer = UUID.randomUUID();
+            String body = "{\"skills\":[{\"name\":\"platform\",\"body\":\""
+                    + "x".repeat(RunHistoryAssembler.TOOL_JSON_CONTEXT_CAP * 2) + "\"}]}";
+            stubRuns(List.of(newer, older), List.of(
+                    callTurn(older, 0, "", "skill-loader__load_skill"),
+                    materialTurn(older, 1, "c1", "SKILL", body),
+                    callTurn(newer, 0, "", "skill-loader__load_skill"),
+                    materialTurn(newer, 1, "c1", "SKILL", body)));
+
+            RunHistory history = assembler.assemble(SESSION_ID, 20, ALL_PARTS);
+
+            String old = history.messages().get(1).toolTurn().results().get(0).outputJson();
+            String fresh = history.messages().get(3).toolTurn().results().get(0).outputJson();
+            assertTrue(old.endsWith("…[truncated]"));
+            assertEquals(body, fresh);
+            assertEquals(ToolTurnRecord.Material.SKILL, history.messages().get(3).toolTurn().results().get(0).material());
+            assertEquals(RunHistoryAssembler.DISCLOSED_BUDGET_BYTES - body.getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
+                    history.budgetLeft());
+        }
+
+        @Test
+        @DisplayName("бюджет: тело, не влезшее после более свежих, режется как обычный результат")
+        void budgetEvictsOldestBody() {
+            UUID older = UUID.randomUUID();
+            UUID newer = UUID.randomUUID();
+            String big = "x".repeat(RunHistoryAssembler.DISCLOSED_BUDGET_BYTES - 100);
+            String oldBody = "{\"skills\":[{\"name\":\"sheets\",\"body\":\"" + big + "\"}]}";
+            String newBody = "{\"skills\":[{\"name\":\"platform\",\"body\":\"" + big + "\"}]}";
+            stubRuns(List.of(newer, older), List.of(
+                    callTurn(older, 0, "", "skill-loader__load_skill"),
+                    materialTurn(older, 1, "c1", "SKILL", oldBody),
+                    callTurn(newer, 0, "", "skill-loader__load_skill"),
+                    materialTurn(newer, 1, "c1", "SKILL", newBody)));
+
+            RunHistory history = assembler.assemble(SESSION_ID, 20, ALL_PARTS);
+
+            String old = history.messages().get(1).toolTurn().results().get(0).outputJson();
+            String fresh = history.messages().get(3).toolTurn().results().get(0).outputJson();
+            assertTrue(old.endsWith("…[truncated]"));
+            // The newest body itself is bounded by the skill cap, not by the whole budget.
+            assertEquals(RunHistoryAssembler.SKILL_BODY_CONTEXT_CAP + "…[truncated]".length(), fresh.length());
         }
     }
 }

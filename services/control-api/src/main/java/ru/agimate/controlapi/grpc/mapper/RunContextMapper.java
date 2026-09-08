@@ -106,7 +106,8 @@ public class RunContextMapper {
                     .setId(nullToEmpty(result.id()))
                     .setName(nullToEmpty(result.name()))
                     .setOutputJson(nullToEmpty(result.outputJson()))
-                    .setFailed(result.failed()));
+                    .setFailed(result.failed())
+                    .setMaterial(ContextMaterialMapper.toProto(result.material())));
         }
         return builder.build();
     }
