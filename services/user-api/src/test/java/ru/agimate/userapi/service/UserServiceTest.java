@@ -8,6 +8,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -16,6 +17,7 @@ import org.springframework.data.jpa.domain.Specification;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.UserRole;
+import ru.agimate.userapi.config.SignupProperties;
 import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.repositories.UserRepository;
 
@@ -41,6 +43,9 @@ class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Spy
+    private SignupProperties signupProperties = new SignupProperties();
 
     @InjectMocks
     private UserService service;
@@ -78,6 +83,47 @@ class UserServiceTest {
             UserEntity created = service.createUser("new@example.com", "New", "User", "new", referrer);
 
             assertEquals(referrer, created.getReferredBy());
+        }
+
+        @Test
+        @DisplayName("в пределах суточной квоты аккаунт заводится сразу как USER")
+        void admitsWithinDailyQuota() {
+            signupProperties.setDailyAdmissions(10);
+            when(userRepository.countByCreatedAtGreaterThanEqual(any())).thenReturn(9L);
+            when(userRepository.existsByReferralCode(any())).thenReturn(false);
+            when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            UserEntity created = service.createUser("new@example.com", null, null, "new", null);
+
+            assertEquals(UserRole.USER, created.getRole());
+            verify(userRepository).lockDailyAdmissions();
+        }
+
+        @Test
+        @DisplayName("исчерпанная квота оставляет аккаунт гостем")
+        void leavesGuestWhenQuotaIsSpent() {
+            signupProperties.setDailyAdmissions(10);
+            when(userRepository.countByCreatedAtGreaterThanEqual(any())).thenReturn(10L);
+            when(userRepository.existsByReferralCode(any())).thenReturn(false);
+            when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            UserEntity created = service.createUser("new@example.com", null, null, "new", null);
+
+            assertEquals(UserRole.GUEST, created.getRole());
+        }
+
+        @Test
+        @DisplayName("нулевая квота: автомата нет, регистрации дня не считаются")
+        void countsNothingWhenQuotaIsZero() {
+            signupProperties.setDailyAdmissions(0);
+            when(userRepository.existsByReferralCode(any())).thenReturn(false);
+            when(userRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+            UserEntity created = service.createUser("new@example.com", null, null, "new", null);
+
+            assertEquals(UserRole.GUEST, created.getRole());
+            verify(userRepository, never()).countByCreatedAtGreaterThanEqual(any());
+            verify(userRepository, never()).lockDailyAdmissions();
         }
     }
 

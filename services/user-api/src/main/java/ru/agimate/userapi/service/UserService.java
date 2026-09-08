@@ -11,11 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.agimate.common.rest.error.BadRequestStatusException;
 import ru.agimate.common.rest.error.NotFoundStatusException;
 import ru.agimate.common.security.UserRole;
+import ru.agimate.userapi.config.SignupProperties;
 import ru.agimate.userapi.database.entities.UserEntity;
 import ru.agimate.userapi.database.repositories.UserRepository;
 import ru.agimate.userapi.database.repositories.UserSpecs;
 import ru.agimate.userapi.util.ReferralCodes;
 
+import java.time.LocalDate;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +32,7 @@ public class UserService {
     private static final int REFERRAL_CODE_ATTEMPTS = 3;
 
     private final UserRepository userRepository;
+    private final SignupProperties signupProperties;
 
     /**
      * Addresses are compared folded, and folded is how they are stored — see {@link #fold}. The whole
@@ -67,6 +70,10 @@ public class UserService {
     }
 
     /**
+     * The single funnel into {@code users}: both the provider login meeting an unknown address and a
+     * registration confirmed by letter end up here, which is what makes the daily quota below a rule
+     * of the platform rather than a rule of one entry point.
+     *
      * @param referredBy who invited them, or null — set here and never again, so that following
      *                   somebody's link later cannot re-attribute an account that already exists
      */
@@ -74,9 +81,36 @@ public class UserService {
     public UserEntity createUser(String email, String firstName, String lastName, String displayName,
                                  UUID referredBy) {
         UserEntity userEntity = new UserEntity(fold(email), firstName, lastName, displayName);
+        userEntity.setRole(admissionRole());
         userEntity.setReferralCode(freeReferralCode());
         userEntity.setReferredBy(referredBy);
         return userRepository.save(userEntity);
+    }
+
+    /**
+     * The first {@code app.signup.daily-admissions} registrations of the day walk in; everybody
+     * after them waits for an administrator, the way every account did before the quota existed
+     * (docs/decisions/signup-quota.md).
+     *
+     * <p>Counted are the registrations of the day, not the admissions: a guest of yesterday promoted
+     * by hand this morning does not spend a place. The day is the JVM's — {@code created_at} is
+     * stamped by Hibernate rather than by the database, so the two ends of this comparison are read
+     * off the same clock.
+     */
+    private UserRole admissionRole() {
+        int quota = signupProperties.getDailyAdmissions();
+        if (quota <= 0) {
+            return UserRole.GUEST;
+        }
+
+        userRepository.lockDailyAdmissions();
+        long today = userRepository.countByCreatedAtGreaterThanEqual(LocalDate.now().atStartOfDay());
+        if (today < quota) {
+            return UserRole.USER;
+        }
+
+        log.info("daily signup quota {} is spent — the account being created waits for approval", quota);
+        return UserRole.GUEST;
     }
 
     /**

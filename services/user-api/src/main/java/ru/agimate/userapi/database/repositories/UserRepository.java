@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 import ru.agimate.userapi.database.entities.UserEntity;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,4 +32,17 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID>, JpaSpec
     boolean existsByReferralCode(String referralCode);
 
     long countByReferredBy(UUID referrerId);
+
+    /** Registrations since the given moment, whatever role they ended up with. */
+    long countByCreatedAtGreaterThanEqual(LocalDateTime from);
+
+    /**
+     * Serializes the daily admission decision until the caller's transaction ends: counting the
+     * registrations of the day and inserting one more are two statements, and two signups landing
+     * between them would both see the same place free. The key names this decision and nothing
+     * else. The lock is taken through a select of its own because the function returns
+     * {@code void}, which is not a column Hibernate can map.
+     */
+    @Query(value = "SELECT 1 FROM (SELECT pg_advisory_xact_lock(4210)) locked", nativeQuery = true)
+    int lockDailyAdmissions();
 }

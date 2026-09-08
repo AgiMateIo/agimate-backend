@@ -148,6 +148,11 @@ jwt:
   nativeRefreshExpiration: 5184000 # 60 days
 
 app:
+  signup:
+    # Сколько зарегистрировавшихся за сутки платформа впускает сама: они заводятся сразу с ролью
+    # USER, остальные — GUEST в ожидании администратора. 0 = автомата нет, впускает только админ.
+    # См. docs/decisions/signup-quota.md. В проде — env APP_SIGNUP_DAILY_ADMISSIONS.
+    daily-admissions: 10
   content:
     # Язык системного контента установки — тем же именем и тем же env APP_CONTENT_LANGUAGE, что и в
     # control-api: язык у установки один, а два понятия для него разъехались бы.
