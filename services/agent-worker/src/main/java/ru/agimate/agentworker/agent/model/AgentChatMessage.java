@@ -41,10 +41,21 @@ public record AgentChatMessage(
     public record ToolCall(String id, String name, String argumentsJson) {}
 
     /**
-     * A tool call's result. {@code contentJson} is the raw JSON the tool returned (or an
-     * {@code {"error": ...}} object when {@code failed}).
+     * A tool call's result. {@code contentJson} is what the model reads: the raw JSON the tool
+     * returned, an {@code {"error": ...}} object when {@code failed}, or the compact names list of
+     * a disclosure delta. {@code material} says what the result is to the context (the ledger
+     * keeps it); the four-argument form is an ordinary result.
      */
-    public record ToolResult(String id, String name, String contentJson, boolean failed) {}
+    public record ToolResult(String id, String name, String contentJson, boolean failed, ContextMaterial material) {
+
+        public ToolResult {
+            material = material != null ? material : ContextMaterial.NONE;
+        }
+
+        public ToolResult(String id, String name, String contentJson, boolean failed) {
+            this(id, name, contentJson, failed, ContextMaterial.NONE);
+        }
+    }
 
     public static AgentChatMessage system(String text) {
         return new AgentChatMessage(Role.SYSTEM, text, false, List.of(), List.of(), List.of());

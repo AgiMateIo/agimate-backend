@@ -8,6 +8,7 @@ import ru.agimate.agentworker.PromptBlock;
 import ru.agimate.agentworker.ToolCallRec;
 import ru.agimate.agentworker.ToolResultRec;
 import ru.agimate.agentworker.ToolTurn;
+import ru.agimate.agentworker.agent.MessageCodec;
 import ru.agimate.agentworker.agent.ResponseTemplates;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
@@ -134,8 +135,7 @@ public final class ContextBuilder {
                 .toList();
         Map<String, AgentChatMessage.ToolResult> byId = new java.util.HashMap<>();
         for (ToolResultRec r : resultRecs) {
-            byId.put(r.getId(), new AgentChatMessage.ToolResult(
-                    r.getId(), r.getName(), r.getOutputJson(), r.getFailed()));
+            byId.put(r.getId(), MessageCodec.fromRec(r));
         }
         List<AgentChatMessage.ToolResult> results = calls.stream()
                 .map(c -> byId.getOrDefault(c.id(), new AgentChatMessage.ToolResult(

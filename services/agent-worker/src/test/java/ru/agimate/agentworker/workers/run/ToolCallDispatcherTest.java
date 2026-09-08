@@ -14,6 +14,8 @@ import ru.agimate.agentworker.ToolAnnotations;
 import ru.agimate.agentworker.ToolResultStatus;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.ContextMaterial;
+import com.google.protobuf.util.JsonFormat;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
 import java.util.List;
@@ -21,6 +23,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -169,6 +172,88 @@ class ToolCallDispatcherTest {
             assertTrue(results.get(0).failed());
             assertTrue(results.get(0).contentJson().contains("unknown tool name"));
             verifyNoInteractions(dbos);
+        }
+    }
+
+    @Nested
+    @DisplayName("дельта контекста: результат describe_tools раскрывает тулы, модель видит имена")
+    class Disclosure {
+
+        private static final String SCHEMA = "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}}}";
+
+        private final DBOS dbos = mock(DBOS.class);
+        private final AgentWorkerClient client = mock(AgentWorkerClient.class);
+        private final ToolCallStep step = mock(ToolCallStep.class);
+        private final ToolRegistry registry = ToolRegistry.build(List.of(
+                ConnectorToolSpec.newBuilder().setConnectorCode("tool-deferral").setNamespace("tool-deferral")
+                        .setName("describe_tools").setConnectionId("conn-0")
+                        .putMeta(ToolRegistry.META_CONTEXT_MATERIAL, "tools").build(),
+                ConnectorToolSpec.newBuilder().setConnectorCode("platform").setNamespace("platform").setName("agent_list")
+                        .setConnectionId("conn-1").setLlmName("platform__agent_list")
+                        .setDisclosure(ru.agimate.agentworker.Disclosure.DISCLOSURE_LAZY).build()));
+        private final ToolCallDispatcher dispatcher = new ToolCallDispatcher(dbos, step, client, "agent-1", "run-1", registry);
+        private final List<AgentChatMessage.ToolCall> call = List.of(
+                new AgentChatMessage.ToolCall("d", "tool-deferral__describe_tools", "{\"names\":[\"platform__agent_list\",\"nope\"]}"));
+
+        private static String delta() throws Exception {
+            ConnectorToolSpec full = ConnectorToolSpec.newBuilder().setConnectorCode("platform").setNamespace("platform")
+                    .setName("agent_list").setConnectionId("conn-1").setLlmName("platform__agent_list")
+                    .setDescription("List the agents").setInputSchema(ByteString.copyFromUtf8(SCHEMA)).build();
+            return "{\"tools\":[" + JsonFormat.printer().print(full) + "],\"unknown\":[\"nope\"]}";
+        }
+
+        @SuppressWarnings("unchecked")
+        private void stepReturns(String output) throws Exception {
+            when(step.run(any(), any(), any(), any())).thenAnswer(inv -> {
+                inv.getArgument(3, Map.class).put("d", output);
+                return new ToolCallStep.Outcomes(List.of(new ToolCallStep.Outcome("d", ToolCallStep.Status.SUCCESS, null)));
+            });
+            when(dbos.runStep(any(ThrowingSupplier.class), eq("tool_calls")))
+                    .thenAnswer(inv -> inv.getArgument(0, ThrowingSupplier.class).execute());
+        }
+
+        @Test
+        @DisplayName("схемы уходят в реестр, модели — компактный список имён, результат помечен TOOLS")
+        void appliesDelta() throws Exception {
+            stepReturns(delta());
+            assertNull(registry.resolve("platform__agent_list"));
+
+            List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(call);
+
+            assertEquals("{\"disclosed\":[\"platform__agent_list\"],\"unknown\":[\"nope\"]}", results.get(0).contentJson());
+            assertEquals(ContextMaterial.TOOLS, results.get(0).material());
+            assertEquals("List the agents", registry.toolDefs().get(1).description());
+            assertEquals("platform", registry.resolve("platform__agent_list").connectorCode());
+            verify(step, never()).maxOutputChars(); // разбор до обрезки — обрезка не звалась
+        }
+
+        @Test
+        @DisplayName("реплей: дельта перечитывается по id и применяется так же")
+        @SuppressWarnings("unchecked")
+        void replayReappliesDelta() throws Exception {
+            when(dbos.runStep(any(ThrowingSupplier.class), eq("tool_calls"))).thenReturn(
+                    new ToolCallStep.Outcomes(List.of(new ToolCallStep.Outcome("d", ToolCallStep.Status.SUCCESS, null))));
+            when(client.getToolResult("agent-1", "d", "run-1")).thenReturn(GetToolResultResponse.newBuilder()
+                    .setStatus(ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS)
+                    .setOutputJson(ByteString.copyFromUtf8(delta())).build());
+
+            List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(call);
+
+            assertEquals(ContextMaterial.TOOLS, results.get(0).material());
+            assertEquals("platform", registry.resolve("platform__agent_list").connectorCode());
+        }
+
+        @Test
+        @DisplayName("вывод, который не разбирается как дельта, уходит модели текстом без пометки")
+        void malformedDeltaFallsBack() throws Exception {
+            when(step.maxOutputChars()).thenReturn(1000);
+            stepReturns("{\"error\":\"not today\"}");
+
+            List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(call);
+
+            assertEquals("{\"error\":\"not today\"}", results.get(0).contentJson());
+            assertEquals(ContextMaterial.NONE, results.get(0).material());
+            assertNull(registry.resolve("platform__agent_list"));
         }
     }
 }

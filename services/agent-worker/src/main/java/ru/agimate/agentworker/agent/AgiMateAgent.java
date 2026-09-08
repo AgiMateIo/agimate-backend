@@ -14,6 +14,7 @@ import ru.agimate.agentworker.agent.model.ToolDef;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Minimal agent turn-loop over {@link AgentChatMessage}. Drives a model conversation manually so
@@ -92,15 +93,17 @@ public class AgiMateAgent {
 
     private final LlmCaller llmCaller;
     private final ToolDispatcher toolDispatcher;
-    private final List<ToolDef> toolDefs;
+    private final Supplier<List<ToolDef>> toolDefs;
     private final int maxTurns;
     private final String wrapUpNotice;
     private final RunRecorder recorder;
 
-    /** @param wrapUpNotice the soft landing's «finish with what you have», resolved by the caller
+    /** @param toolDefs     the tools the model may call, read afresh every turn: a disclosure
+     *                      result grows the set mid-run ({@link ToolRegistry#disclose})
+     *  @param wrapUpNotice the soft landing's «finish with what you have», resolved by the caller
      *                      ({@code ResponseTemplates.wrapUp}) — the model reads it, so it follows
      *                      the dialogue's language, not this class */
-    public AgiMateAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, List<ToolDef> toolDefs,
+    public AgiMateAgent(LlmCaller llmCaller, ToolDispatcher toolDispatcher, Supplier<List<ToolDef>> toolDefs,
                        int maxTurns, String wrapUpNotice, RunRecorder recorder) {
         this.llmCaller = llmCaller;
         this.toolDispatcher = toolDispatcher;
@@ -149,7 +152,7 @@ public class AgiMateAgent {
                 messages.add(injectedWrapUp);
             }
             log.info("turn {}/{}: requesting LLM{}", turn, turnBudget.max(), turnBudget.toolless() ? " (tool-less final)" : "");
-            LlmReply reply = llmCaller.call(messages, turnBudget.toolless() ? List.of() : toolDefs);
+            LlmReply reply = llmCaller.call(messages, turnBudget.toolless() ? List.of() : toolDefs.get());
             // Before any decision: a truncated call has already spent its tokens while the turn is
             // about to break off.
             notifyUsage(reply.usage());

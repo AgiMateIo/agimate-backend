@@ -163,7 +163,7 @@ public class AgentRunner implements AgentRunWorkflow {
         AgiMateAgent agent = new AgiMateAgent(
                 new LlmCallDispatcher(dbos, llmCall, turnLog, client, agentId, runId),
                 new ToolCallDispatcher(dbos, toolStep, client, agentId, runId, toolRegistry),
-                toolRegistry.toolDefs(), maxTurns, templates.wrapUp(), recorder);
+                toolRegistry::toolDefs, maxTurns, templates.wrapUp(), recorder);
         // Turn 0: the inbound message without the ephemeral prefix. Not a loop event, so it is
         // recorded here; without it a direct run's transcript would open with the answer.
         turnLog.record(initialRequest, null);

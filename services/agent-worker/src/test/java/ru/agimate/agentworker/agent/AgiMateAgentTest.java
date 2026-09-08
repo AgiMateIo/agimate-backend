@@ -30,7 +30,7 @@ class AgiMateAgentTest {
 
     private static AgiMateAgent agent(AgiMateAgent.LlmCaller llm, AgiMateAgent.ToolDispatcher dispatcher,
                                       RunRecorder recorder, int maxTurns) {
-        return new AgiMateAgent(llm, dispatcher, List.of(), maxTurns, WRAP_UP, recorder);
+        return new AgiMateAgent(llm, dispatcher, List::of, maxTurns, WRAP_UP, recorder);
     }
 
     private static AgiMateAgent.LlmReply reply(AgentChatMessage message) {
@@ -342,7 +342,7 @@ class AgiMateAgentTest {
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id", "t", "{}", false));
         AgiMateAgent agent = new AgiMateAgent(llm, dispatcher,
-                List.of(new ToolDef("t", "tool", "{}")), 4, WRAP_UP, null);
+                () -> List.of(new ToolDef("t", "tool", "{}")), 4, WRAP_UP, null);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertEquals("вот что успел", agent.run(conv));
@@ -369,7 +369,7 @@ class AgiMateAgentTest {
         AgiMateAgent.ToolDispatcher dispatcher = calls -> List.of(
                 new AgentChatMessage.ToolResult("id", "t", "{}", false));
         List<ToolDef> defs = List.of(new ToolDef("t", "tool", "{}"));
-        AgiMateAgent agent = new AgiMateAgent(llm, dispatcher, defs, 2, WRAP_UP, null);
+        AgiMateAgent agent = new AgiMateAgent(llm, dispatcher, () -> defs, 2, WRAP_UP, null);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertThrows(MaxTurnsExceeded.class, () -> agent.run(conv));
@@ -583,7 +583,7 @@ class AgiMateAgentTest {
             }
         };
         AgiMateAgent agent = new AgiMateAgent(llm, dispatcher,
-                List.of(new ToolDef("t", "tool", "{}")), 4, WRAP_UP, recorder);
+                () -> List.of(new ToolDef("t", "tool", "{}")), 4, WRAP_UP, recorder);
         List<AgentChatMessage> conv = new ArrayList<>(List.of(AgentChatMessage.user("hi")));
 
         assertEquals("вот что успел", agent.run(conv));

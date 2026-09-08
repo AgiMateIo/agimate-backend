@@ -7,9 +7,11 @@ import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.GetToolResultResponse;
 import ru.agimate.agentworker.ToolResultStatus;
 import ru.agimate.agentworker.agent.AgiMateAgent;
+import ru.agimate.agentworker.agent.ContextDelta;
 import ru.agimate.agentworker.agent.ToolRegistry;
 import ru.agimate.agentworker.agent.context.ContextBuilder;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
+import ru.agimate.agentworker.agent.model.ContextMaterial;
 import ru.agimate.agentworker.grpc.AgentWorkerClient;
 
 import java.util.ArrayList;
@@ -23,6 +25,11 @@ import java.util.Map;
  * run memory in the normal path and from the backend by id on a crash replay; the worker-side
  * notices (timeout, abandoned, detached) are regenerated. Never throws for a tool failure — a
  * failed call comes back as a failed {@link AgentChatMessage.ToolResult}.
+ *
+ * <p>A result marked as a context delta ({@link ContextMaterial#TOOLS}) is applied to the registry
+ * on the way through: the specs go into the tool list, the model reads the names. Parsed from the
+ * raw output, before the truncation cap — a delta of eighty schemas is bigger than the cap — and
+ * on a replay from the re-read output, so the registry ends up the same.
  */
 @Slf4j
 class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
@@ -90,8 +97,12 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
         return switch (outcome.status()) {
             case SUCCESS -> {
                 String output = held.containsKey(id) ? held.get(id) : reread(id, ToolResultStatus.TOOL_RESULT_STATUS_SUCCESS);
+                if (p.tool.material() == ContextMaterial.TOOLS) {
+                    yield disclosure(p.call, output);
+                }
                 String content = output.isEmpty() ? "null" : ToolCallStep.truncateOutput(output, step.maxOutputChars());
-                yield new AgentChatMessage.ToolResult(id, p.call.name(), p.tool.openWorld() ? wrapUntrusted(content) : content, false);
+                yield new AgentChatMessage.ToolResult(id, p.call.name(),
+                        p.tool.openWorld() ? wrapUntrusted(content) : content, false, p.tool.material());
             }
             case ERROR -> {
                 String error = held.containsKey(id) ? held.get(id) : reread(id, ToolResultStatus.TOOL_RESULT_STATUS_ERROR);
@@ -102,6 +113,25 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
             case ABANDONED -> failed(p.call, ToolCallStep.abandonedNotice(name, id));
             case FAILED -> failed(p.call, ToolCallStep.errorNotice(name, outcome.error()));
         };
+    }
+
+    /**
+     * A delta applied: the registry grows, the model gets the names. An output that does not parse
+     * is handed over as ordinary text — the model then reads what the backend said, and the ledger
+     * does not claim a disclosure that did not happen.
+     */
+    private AgentChatMessage.ToolResult disclosure(AgentChatMessage.ToolCall call, String output) {
+        ContextDelta delta;
+        try {
+            delta = ContextDelta.parse(output);
+        } catch (IllegalArgumentException e) {
+            log.warn("tool {} is marked as a context delta but its output is not one: {}", call.name(), e.getMessage());
+            String content = output.isEmpty() ? "null" : ToolCallStep.truncateOutput(output, step.maxOutputChars());
+            return new AgentChatMessage.ToolResult(call.id(), call.name(), content, false);
+        }
+        List<String> disclosed = registry.disclose(delta.tools());
+        return new AgentChatMessage.ToolResult(call.id(), call.name(),
+                ContextDelta.modelFacing(disclosed, delta.unknown()), false, ContextMaterial.TOOLS);
     }
 
     /** The replay path: the checkpoint says the call settled with {@code expected}, the backend holds the content. */

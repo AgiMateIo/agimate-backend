@@ -69,6 +69,21 @@ class MessageCodecTest {
     }
 
     @Test
+    @DisplayName("material результата едет в ToolResultRec и возвращается из него")
+    void materialRoundTrip() {
+        AgentChatMessage results = AgentChatMessage.toolResults(List.of(
+                new AgentChatMessage.ToolResult("id1", "skill-loader__load_skill", "{\"skills\":[]}", false,
+                        ru.agimate.agentworker.agent.model.ContextMaterial.SKILL),
+                new AgentChatMessage.ToolResult("id2", "time__now", "{}", false)));
+
+        List<ru.agimate.agentworker.ToolResultRec> recs = MessageCodec.toolResultRecs(results.toolResults());
+
+        assertEquals(ru.agimate.agentworker.ContextMaterial.CONTEXT_MATERIAL_SKILL, recs.get(0).getMaterial());
+        assertEquals(ru.agimate.agentworker.ContextMaterial.CONTEXT_MATERIAL_NONE, recs.get(1).getMaterial());
+        assertEquals(ru.agimate.agentworker.agent.model.ContextMaterial.SKILL, MessageCodec.fromRec(recs.get(0)).material());
+    }
+
+    @Test
     @DisplayName("финальный ответ без тулов не эхоится progress-строками (уйдёт как ANSWER)")
     void finalAnswerNotEchoed() {
         AgentChatMessage assistant = AgentChatMessage.assistant("the answer", false, List.of());

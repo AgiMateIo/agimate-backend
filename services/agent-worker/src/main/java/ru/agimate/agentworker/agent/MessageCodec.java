@@ -1,5 +1,6 @@
 package ru.agimate.agentworker.agent;
 
+import ru.agimate.agentworker.ContextMaterial;
 import ru.agimate.agentworker.GetTurnResponse;
 import ru.agimate.agentworker.ProgressType;
 import ru.agimate.agentworker.ToolCallRec;
@@ -87,7 +88,7 @@ public final class MessageCodec {
                             .map(c -> new AgentChatMessage.ToolCall(c.getId(), c.getName(), c.getArgumentsJson()))
                             .toList());
             case TURN_ROLE_TOOL -> AgentChatMessage.toolResults(turn.getToolResultsList().stream()
-                    .map(r -> new AgentChatMessage.ToolResult(r.getId(), r.getName(), r.getOutputJson(), r.getFailed()))
+                    .map(MessageCodec::fromRec)
                     .toList());
             case TURN_ROLE_USER -> AgentChatMessage.user(turn.getText());
             case TURN_ROLE_SYSTEM -> AgentChatMessage.system(turn.getText());
@@ -118,9 +119,32 @@ public final class MessageCodec {
                     .setName(nullToEmpty(result.name()))
                     .setOutputJson(nullToEmpty(result.contentJson()))
                     .setFailed(result.failed())
+                    .setMaterial(toProto(result.material()))
                     .build());
         }
         return recs;
+    }
+
+    /** A ledger result record as the loop's result, material included. */
+    public static AgentChatMessage.ToolResult fromRec(ToolResultRec rec) {
+        return new AgentChatMessage.ToolResult(rec.getId(), rec.getName(), rec.getOutputJson(), rec.getFailed(),
+                fromProto(rec.getMaterial()));
+    }
+
+    static ContextMaterial toProto(ru.agimate.agentworker.agent.model.ContextMaterial material) {
+        return switch (material) {
+            case NONE -> ContextMaterial.CONTEXT_MATERIAL_NONE;
+            case TOOLS -> ContextMaterial.CONTEXT_MATERIAL_TOOLS;
+            case SKILL -> ContextMaterial.CONTEXT_MATERIAL_SKILL;
+        };
+    }
+
+    static ru.agimate.agentworker.agent.model.ContextMaterial fromProto(ContextMaterial material) {
+        return switch (material) {
+            case CONTEXT_MATERIAL_TOOLS -> ru.agimate.agentworker.agent.model.ContextMaterial.TOOLS;
+            case CONTEXT_MATERIAL_SKILL -> ru.agimate.agentworker.agent.model.ContextMaterial.SKILL;
+            case CONTEXT_MATERIAL_NONE, UNRECOGNIZED -> ru.agimate.agentworker.agent.model.ContextMaterial.NONE;
+        };
     }
 
     /** The {@code tool_use} half of a turn: preamble plus the assistant's calls, without results. */
