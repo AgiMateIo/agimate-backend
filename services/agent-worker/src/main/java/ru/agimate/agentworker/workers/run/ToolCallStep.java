@@ -38,6 +38,12 @@ import java.util.Map;
 @Slf4j
 public class ToolCallStep {
 
+    /**
+     * The first polls come fast: a tool that answers in 10 ms (time.now, a memory note, a context
+     * disclosure) used to cost the run the whole first interval. The ramp settles at the steady
+     * interval within a second, so a slow tool pays only three extra requests.
+     */
+    private static final long[] POLL_RAMP_MS = {50, 100, 200};
     private static final long POLL_INTERVAL_MS = 500;
     /** After the first minute of waiting we poll less often: long tools do not deserve 2 rps of gRPC. */
     private static final long SLOW_POLL_INTERVAL_MS = 2_000;
@@ -115,7 +121,7 @@ public class ToolCallStep {
             pending.add(new Pending(call, start + budgetMs, detachAt));
         }
 
-        while (!pending.isEmpty()) {
+        for (int round = 0; !pending.isEmpty(); round++) {
             for (var it = pending.iterator(); it.hasNext(); ) {
                 Pending p = it.next();
                 Outcome outcome;
@@ -134,7 +140,7 @@ public class ToolCallStep {
                 break;
             }
             try {
-                Thread.sleep(System.currentTimeMillis() - start < SLOW_POLL_AFTER_MS ? POLL_INTERVAL_MS : SLOW_POLL_INTERVAL_MS);
+                Thread.sleep(pollDelayMs(round, System.currentTimeMillis() - start));
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 for (Pending p : pending) {
@@ -215,6 +221,14 @@ public class ToolCallStep {
             this.deadline = deadline;
             this.detachAt = detachAt;
         }
+    }
+
+    /** The pause before the next poll round: the ramp first, the steady interval, the slow one after a minute. */
+    static long pollDelayMs(int round, long elapsedMs) {
+        if (elapsedMs >= SLOW_POLL_AFTER_MS) {
+            return SLOW_POLL_INTERVAL_MS;
+        }
+        return round < POLL_RAMP_MS.length ? POLL_RAMP_MS[round] : POLL_INTERVAL_MS;
     }
 
     /** Wait budget: the one declared by the spec (clamped to 30 min), or the worker's default. */

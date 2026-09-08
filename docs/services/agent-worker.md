@@ -48,7 +48,7 @@ else is a durable step of that workflow, and every checkpoint holds identifiers,
 |---|---|---|
 | `save_message` | `ChannelMessageLog` — one per dialogue event | `duplicate`/`cancelled`/`steered` flags |
 | `llm_call` | `LlmCall` — credentials inline, the provider request under a per-worker semaphore (`concurrency.llm`), retries on 429/5xx; then `SaveTurn` of the assistant turn | `call_id` (`runId-n`), `turn_index`, `finish_reason`, model, token counts, or the provider's failure |
-| `tool_calls` | `ToolCallStep` — `ExecuteToolAsync` for every call of the turn, then a round-robin poll of `GetToolResult`; a call still pending at `detach-after` is detached (`DetachTool`), the model gets an interim task handle and the result returns later as a `tool_completed` trigger | id + status per call (SUCCESS/ERROR/DETACHED/TIMEOUT/ABANDONED/FAILED) |
+| `tool_calls` | `ToolCallStep` — `ExecuteToolAsync` for every call of the turn, then a round-robin poll of `GetToolResult` (50 → 100 → 200 → 500 ms, 2 s after the first minute); a call still pending at `detach-after` is detached (`DetachTool`), the model gets an interim task handle and the result returns later as a `tool_completed` trigger | id + status per call (SUCCESS/ERROR/DETACHED/TIMEOUT/ABANDONED/FAILED) |
 | `report_failure` | `SendMessage` with the run's outcome | `true` |
 
 The reply of a step lives in run memory; a crash replay re-reads it by id (`GetTurn`,

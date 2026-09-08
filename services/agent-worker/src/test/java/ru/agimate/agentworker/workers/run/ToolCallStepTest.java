@@ -55,6 +55,17 @@ class ToolCallStepTest {
     }
 
     @Test
+    @DisplayName("polls ramp 50 → 100 → 200 → 500 ms, then 2 s after the first minute")
+    void pollDelayRamps() {
+        assertEquals(50, ToolCallStep.pollDelayMs(0, 0));
+        assertEquals(100, ToolCallStep.pollDelayMs(1, 60));
+        assertEquals(200, ToolCallStep.pollDelayMs(2, 170));
+        assertEquals(500, ToolCallStep.pollDelayMs(3, 400));
+        assertEquals(500, ToolCallStep.pollDelayMs(100, 59_999));
+        assertEquals(2_000, ToolCallStep.pollDelayMs(1, 60_000));
+    }
+
+    @Test
     @DisplayName("суррогатная пара UTF-16 на границе не рвётся")
     void doesNotSplitSurrogatePair() {
         String output = "ab" + "😀".repeat(10); // 😀 = high+low surrogate
