@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.database.model;
 
 import ru.agimate.controlapi.database.enums.DefinitionBinding;
+import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.enums.ExecutionKind;
 
 /**
@@ -15,29 +16,40 @@ import ru.agimate.controlapi.database.enums.ExecutionKind;
  * @param executionKind     who executes a tool call — read by {@code ConnectorService.pushToConnector}
  * @param definitionBinding where tool/trigger definitions come from: STATIC (reflection/SPI) or
  *                          DYNAMIC ({@code connection_tools}/{@code connection_triggers}) — read by the listing
+ * @param disclosure        whether the tools' schemas enter a run up front or on demand — read by the
+ *                          run context assembly; a tool may override it ({@code @Tool(disclosure)})
  */
 public record ConnectorTraits(
         ExecutionKind executionKind,
-        DefinitionBinding definitionBinding
+        DefinitionBinding definitionBinding,
+        Disclosure disclosure
 ) {
 
     /** The default: backend execution, static tools (internal services and integrations such as telegram). */
     public static ConnectorTraits internal() {
-        return new ConnectorTraits(ExecutionKind.BACKEND, DefinitionBinding.STATIC);
+        return new ConnectorTraits(ExecutionKind.BACKEND, DefinitionBinding.STATIC, Disclosure.EAGER);
     }
 
     /** An integration with dynamic per-instance tools (MCP): definitions come from {@code connection_tools}. */
     public static ConnectorTraits dynamicIntegration() {
-        return new ConnectorTraits(ExecutionKind.BACKEND, DefinitionBinding.DYNAMIC);
+        return new ConnectorTraits(ExecutionKind.BACKEND, DefinitionBinding.DYNAMIC, Disclosure.EAGER);
     }
 
     /** A connected app: the app executes, the call is pushed, and tools are dynamic. */
     public static ConnectorTraits app() {
-        return new ConnectorTraits(ExecutionKind.APP, DefinitionBinding.DYNAMIC);
+        return new ConnectorTraits(ExecutionKind.APP, DefinitionBinding.DYNAMIC, Disclosure.EAGER);
     }
 
     /** Loopback/agent-side (claude-code): the agent executes, control-api only authorises. */
     public static ConnectorTraits loopback() {
-        return new ConnectorTraits(ExecutionKind.LOOPBACK, DefinitionBinding.STATIC);
+        return new ConnectorTraits(ExecutionKind.LOOPBACK, DefinitionBinding.STATIC, Disclosure.EAGER);
+    }
+
+    /**
+     * The same traits with schemas on demand. Set on the handler, not baked into a factory:
+     * {@link #dynamicIntegration()} and {@link #app()} are both DYNAMIC, and only one of them is heavy.
+     */
+    public ConnectorTraits lazy() {
+        return new ConnectorTraits(executionKind, definitionBinding, Disclosure.LAZY);
     }
 }

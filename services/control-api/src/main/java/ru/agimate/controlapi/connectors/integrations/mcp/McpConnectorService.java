@@ -86,7 +86,9 @@ public class McpConnectorService implements IntegrationConnectorHandler, ToolPro
 
     @Override
     public ru.agimate.controlapi.database.model.ConnectorTraits traits() {
-        return ru.agimate.controlapi.database.model.ConnectorTraits.dynamicIntegration();
+        // Tool descriptions of an MCP server are unbounded (a measured 3.9 KB each on one), so the
+        // catalogue is listed by summary and disclosed on demand.
+        return ru.agimate.controlapi.database.model.ConnectorTraits.dynamicIntegration().lazy();
     }
 
     @Override

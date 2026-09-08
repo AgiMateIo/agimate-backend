@@ -109,6 +109,7 @@ public class SkillService {
                 .description(parsed.description())
                 .mdContent(parsed.body())
                 .connectorCodes(new ArrayList<>(parsed.connectors()))
+                .disclosure(parsed.disclosure())
                 .userId(ownerId)
                 .isPublic(isPublic)
                 .build();
@@ -159,6 +160,7 @@ public class SkillService {
         skill.setDescription(parsed.description());
         skill.setMdContent(parsed.body());
         skill.setConnectorCodes(new ArrayList<>(parsed.connectors()));
+        skill.setDisclosure(parsed.disclosure());
         if (isPublic != null) {
             skill.setIsPublic(isPublic);
         }

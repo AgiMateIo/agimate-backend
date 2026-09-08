@@ -3,6 +3,7 @@ package ru.agimate.controlapi.connectors.internal.platform;
 import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
+import ru.agimate.controlapi.database.model.ConnectorTraits;
 
 /**
  * Facade of the platform connector: the tools that manage the platform live in five tool-service
@@ -28,6 +29,12 @@ public class PlatformConnectorService extends BaseConnectorHandler implements In
     @Override
     public String connectorCode() {
         return CONNECTOR_CODE;
+    }
+
+    /** The heaviest catalogue on the platform: schemas are listed by summary and disclosed on demand. */
+    @Override
+    public ConnectorTraits traits() {
+        return ConnectorTraits.internal().lazy();
     }
 
     @Override

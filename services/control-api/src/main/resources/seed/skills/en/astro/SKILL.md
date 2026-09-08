@@ -2,6 +2,7 @@
 name: astro
 title: Astrology
 description: Real astronomical calculations for astrology — natal chart, transits and synastry. Planetary positions, houses and aspects come from an ephemeris engine, not from the model.
+disclosure: lazy
 connectors: [astro]
 ---
 

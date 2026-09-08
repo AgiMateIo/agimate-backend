@@ -2,6 +2,7 @@
 name: board
 title: Team Kanban board
 description: Working with the agent team's Kanban board — creating tasks (EPIC/TASK/SUBTASK), moving them through statuses, keeping a comment log and reacting to board triggers.
+disclosure: lazy
 connectors: [board]
 ---
 

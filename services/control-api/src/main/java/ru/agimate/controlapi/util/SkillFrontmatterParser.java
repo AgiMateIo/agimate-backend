@@ -3,6 +3,7 @@ package ru.agimate.controlapi.util;
 import lombok.experimental.UtilityClass;
 import org.yaml.snakeyaml.Yaml;
 import ru.agimate.common.rest.error.BadRequestStatusException;
+import ru.agimate.controlapi.database.enums.Disclosure;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,11 +15,12 @@ public class SkillFrontmatterParser {
     private static final String FRONTMATTER_DELIMITER = "---";
 
     /**
-     * A parsed SKILL.md: {@code name}/{@code description}/{@code connectors} from the frontmatter, and
-     * {@code body} — the body without the headers (everything after the closing {@code ---}).
+     * A parsed SKILL.md: {@code name}/{@code description}/{@code connectors}/{@code disclosure} from
+     * the frontmatter, and {@code body} — the body without the headers (everything after the closing
+     * {@code ---}). {@code disclosure} defaults to EAGER: a body the author did not mark is shown.
      */
     public record ParsedSkill(String name, String title, String description,
-                              List<String> connectors, String body) {}
+                              List<String> connectors, Disclosure disclosure, String body) {}
 
     /** A raw parse of a markdown document with YAML frontmatter: the fields plus the body after the closing {@code ---}. */
     public record RawFrontmatter(Map<String, Object> fields, String body) {}
@@ -40,8 +42,21 @@ public class SkillFrontmatterParser {
                 ? String.valueOf(frontmatter.get("description")).strip()
                 : null;
         List<String> connectors = parseStringList(frontmatter.get("connectors"));
+        Disclosure disclosure = parseDisclosure(frontmatter.get("disclosure"));
 
-        return new ParsedSkill(name, title, description, connectors, raw.body());
+        return new ParsedSkill(name, title, description, connectors, disclosure, raw.body());
+    }
+
+    /** {@code disclosure: eager|lazy}, case-insensitive; absent — EAGER. */
+    private static Disclosure parseDisclosure(Object value) {
+        if (value == null) {
+            return Disclosure.EAGER;
+        }
+        try {
+            return Disclosure.valueOf(value.toString().strip().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestStatusException("SKILL.md frontmatter 'disclosure' must be eager or lazy, got: " + value);
+        }
     }
 
     /**

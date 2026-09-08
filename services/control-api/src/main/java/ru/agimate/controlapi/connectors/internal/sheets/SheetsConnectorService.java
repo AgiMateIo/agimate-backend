@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 import ru.agimate.controlapi.connectors.core.BaseConnectorHandler;
 import ru.agimate.controlapi.connectors.core.ConnectorEnv;
 import ru.agimate.controlapi.connectors.core.InternalConnectorHandler;
+import ru.agimate.controlapi.database.model.ConnectorTraits;
 import ru.agimate.controlapi.connectors.core.PromptBlockProvider;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.connectors.internal.sheets.dto.SheetDtos.ColumnSpec;
@@ -48,6 +49,12 @@ public class SheetsConnectorService extends BaseConnectorHandler implements Inte
     @Override
     public String connectorCode() {
         return CONNECTOR_CODE;
+    }
+
+    /** The heaviest catalogue on the platform: schemas are listed by summary and disclosed on demand. */
+    @Override
+    public ConnectorTraits traits() {
+        return ConnectorTraits.internal().lazy();
     }
 
     @Override

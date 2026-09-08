@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
+import ru.agimate.controlapi.connectors.core.annotation.ToolDisclosure;
+import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.connectors.core.annotation.ToolParam;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.JsonSchema;
@@ -69,6 +71,13 @@ class BaseConnectorHandlerTest {
             Map<String, ConnectorToolSpec> tools = handler.getTools();
 
             assertFalse(tools.containsKey("test.internal_target"));
+        }
+
+        @Test
+        @DisplayName("@Tool(disclosure) доезжает до спеки; INHERIT — null, решает ось коннектора")
+        void disclosureOverride() {
+            assertNull(handler.getTools().get("test.echo").disclosure());
+            assertEquals(Disclosure.LAZY, handler.getTools().get("test.readonly").disclosure());
         }
 
         @Test
@@ -380,7 +389,7 @@ class BaseConnectorHandlerTest {
         }
 
         @Tool(name = "test.readonly", description = "Reads and changes nothing",
-                annotations = @ToolAnnotations(readOnlyHint = true))
+                annotations = @ToolAnnotations(readOnlyHint = true), disclosure = ToolDisclosure.LAZY)
         public Map<String, Object> readonly() {
             return Map.of();
         }

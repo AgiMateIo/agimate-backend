@@ -21,6 +21,7 @@ import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.ContextDirectives;
 import ru.agimate.controlapi.connectors.core.dto.PromptBlock;
 import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsResponse;
+import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.config.ContentProperties;
 import ru.agimate.controlapi.database.entities.Agent;
 import ru.agimate.controlapi.database.entities.AgentSkill;
@@ -186,8 +187,8 @@ class RunContextServiceTest {
             UUID timeSkill = UUID.randomUUID();
             UUID otherSkill = UUID.randomUUID();
             stubSkills(List.of(
-                    new AgentSkillWithConnectorsResponse(timeSkill, "Reminders", "d1", List.of("time")),
-                    new AgentSkillWithConnectorsResponse(otherSkill, "Boards", "d2", List.of("board"))));
+                    new AgentSkillWithConnectorsResponse(timeSkill, "Reminders", "d1", List.of("time"), Disclosure.EAGER),
+                    new AgentSkillWithConnectorsResponse(otherSkill, "Boards", "d2", List.of("board"), Disclosure.EAGER)));
             when(skillRepository.findByIdNotDeleted(timeSkill)).thenReturn(Optional.of(
                     ru.agimate.controlapi.database.entities.Skill.builder()
                             .id(timeSkill).name("Reminders").mdContent("Skill body here").version(1).build()));
@@ -218,7 +219,7 @@ class RunContextServiceTest {
             // Триггер от board; единственный скилл агента требует persist-memory — не матчится.
             stubRun(run(agent, triggerLog("board", "task_comment_created"), null));
             stubSkills(List.of(new AgentSkillWithConnectorsResponse(
-                    UUID.randomUUID(), "Memory", "d", List.of("persist-memory"))));
+                    UUID.randomUUID(), "Memory", "d", List.of("persist-memory"), Disclosure.EAGER)));
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
                     .thenReturn(List.of(memoryConnection()));
             lenient().when(memoryHandler.promptBlocks(any(ConnectorEnv.class))).thenReturn(List.of());
@@ -327,7 +328,7 @@ class RunContextServiceTest {
         void skillToolsOff() {
             stubRun(run(agent(), triggerLog("time", "due", Map.of("prompt", "п")), null));
             stubSkills(List.of(new AgentSkillWithConnectorsResponse(
-                    UUID.randomUUID(), "Memory", "d", List.of("persist-memory"))));
+                    UUID.randomUUID(), "Memory", "d", List.of("persist-memory"), Disclosure.EAGER)));
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID))
                     .thenReturn(List.of(memoryConnection()));
             lenient().when(memoryHandler.promptBlocks(any(ConnectorEnv.class))).thenReturn(List.of());
@@ -368,7 +369,7 @@ class RunContextServiceTest {
             Channels channels = Channels.ofPrompt(new ChannelInfo(CHANNEL_ID, SESSION_ID, null));
             stubRun(run(agent, triggerLog("webchat", "message_received"), channels));
             stubSkills(List.of(new AgentSkillWithConnectorsResponse(
-                    UUID.randomUUID(), "Memory", "d", List.of("persist-memory"))));
+                    UUID.randomUUID(), "Memory", "d", List.of("persist-memory"), Disclosure.EAGER)));
 
             when(inboundTextResolver.resolve(any(), any()))
                     .thenReturn(Optional.of(InboundMessage.text("hello agent")));
@@ -406,6 +407,7 @@ class RunContextServiceTest {
             assertEquals("persist-memory", tool.connectorCode());
             assertEquals("persist-memory", tool.namespace());
             assertEquals(CONNECTION_ID.toString(), tool.connectionId());
+            assertEquals("persist-memory__" + tool.spec().name(), tool.llmName());
         }
 
         @Test
@@ -417,7 +419,7 @@ class RunContextServiceTest {
             UUID mediaSkill = UUID.randomUUID();
             // Скилл media никак не связан с коннектором диалога (webchat) — тело всё равно грузится.
             stubSkills(List.of(new AgentSkillWithConnectorsResponse(
-                    mediaSkill, "Media", "d", List.of("media"))));
+                    mediaSkill, "Media", "d", List.of("media"), Disclosure.EAGER)));
             when(skillRepository.findByIdNotDeleted(mediaSkill)).thenReturn(Optional.of(
                     ru.agimate.controlapi.database.entities.Skill.builder()
                             .id(mediaSkill).name("Media").mdContent("Iteration discipline").version(1).build()));
@@ -479,7 +481,7 @@ class RunContextServiceTest {
             stubRun(run(agent, triggerLog("webchat", "message_received"), channels));
             UUID ideSkill = UUID.randomUUID();
             stubSkills(List.of(new AgentSkillWithConnectorsResponse(
-                    ideSkill, "IDE", "d", List.of("persist-memory"))));
+                    ideSkill, "IDE", "d", List.of("persist-memory"), Disclosure.EAGER)));
             when(skillRepository.findByIdNotDeleted(ideSkill)).thenReturn(Optional.of(
                     ru.agimate.controlapi.database.entities.Skill.builder()
                             .id(ideSkill).name("IDE").mdContent("Working from the IDE").version(1).build()));

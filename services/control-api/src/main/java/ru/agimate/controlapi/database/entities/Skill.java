@@ -8,6 +8,7 @@ import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.controlapi.database.enums.Disclosure;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -39,6 +40,12 @@ public class Skill extends BaseEntity {
 
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
+
+    /** Whether the body goes into a run's prompt up front (EAGER) or on a {@code load_skill} call (LAZY). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "disclosure", nullable = false, columnDefinition = "TEXT")
+    @Builder.Default
+    private Disclosure disclosure = Disclosure.EAGER;
 
     /** The body of SKILL.md without the frontmatter — the skill's content. */
     @Column(name = "md_content", nullable = false, columnDefinition = "TEXT")

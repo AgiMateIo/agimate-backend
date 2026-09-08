@@ -53,7 +53,8 @@ public class RunContextMapper {
                 .setName(nullToEmpty(spec.name()))
                 .setConnectionId(nullToEmpty(tool.connectionId()))
                 .setNamespace(nullToEmpty(tool.namespace()))
-                .setConnectorCode(nullToEmpty(tool.connectorCode()));
+                .setConnectorCode(nullToEmpty(tool.connectorCode()))
+                .setLlmName(nullToEmpty(tool.llmName()));
         if (spec.title() != null) {
             builder.setTitle(spec.title());
         }

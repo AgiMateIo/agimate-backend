@@ -88,6 +88,7 @@ public class SystemSkillBootstrap {
                     .description(parsed.description())
                     .mdContent(parsed.body())
                     .connectorCodes(connectors)
+                    .disclosure(parsed.disclosure())
                     .userId(SYSTEM_USER_ID)
                     .isPublic(true)
                     .build());

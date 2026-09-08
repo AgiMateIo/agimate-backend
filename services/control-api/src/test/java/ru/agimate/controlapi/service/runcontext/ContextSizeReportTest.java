@@ -16,7 +16,7 @@ class ContextSizeReportTest {
 
     private static RunTool tool(String namespace, String description, JsonSchema schema) {
         return new RunTool(new ConnectorToolSpec("t", null, description, schema, null, null, null, null),
-                namespace, "c", namespace);
+                namespace, "c", namespace, namespace + "__t");
     }
 
     @Test

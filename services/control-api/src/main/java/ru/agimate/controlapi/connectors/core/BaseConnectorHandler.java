@@ -5,6 +5,7 @@ import ru.agimate.common.util.JsonUtils;
 import ru.agimate.controlapi.connectors.core.annotation.ToolMeta;
 import ru.agimate.controlapi.connectors.core.annotation.Job;
 import ru.agimate.controlapi.connectors.core.annotation.Tool;
+import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.connectors.core.annotation.ToolAnnotations;
 import ru.agimate.controlapi.connectors.core.dto.ConnectorToolSpec;
 import ru.agimate.controlapi.connectors.core.dto.JobSpec;
@@ -107,7 +108,12 @@ public abstract class BaseConnectorHandler implements ConnectorHandler, ToolProv
                 ToolSchemaReflector.outputSchema(method),
                 toAnnotationsSpec(tool.annotations()),
                 toMeta(tool.meta()),
-                tool.timeoutSeconds() > 0 ? tool.timeoutSeconds() : null);
+                tool.timeoutSeconds() > 0 ? tool.timeoutSeconds() : null,
+                switch (tool.disclosure()) {
+                    case INHERIT -> null;
+                    case EAGER -> Disclosure.EAGER;
+                    case LAZY -> Disclosure.LAZY;
+                });
     }
 
     private static ToolAnnotationsSpec toAnnotationsSpec(ToolAnnotations a) {

@@ -31,6 +31,9 @@ public @interface Tool {
     /** Arbitrary string metadata (MCP {@code _meta}). */
     ToolMeta[] meta() default {};
 
+    /** Overrides the connector's disclosure axis for this one tool; {@code INHERIT} — the connector's value. */
+    ToolDisclosure disclosure() default ToolDisclosure.INHERIT;
+
     /**
      * The worker's budget for awaiting the result, in seconds. {@code 0} — the worker's default
      * ({@code agent.tool.poll-timeout}, 60s). For long tools (media generation and the like) — up to

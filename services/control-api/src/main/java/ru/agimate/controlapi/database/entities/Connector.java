@@ -6,6 +6,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import ru.agimate.common.persistence.BaseEntity;
 import ru.agimate.controlapi.database.enums.DefinitionBinding;
+import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.enums.ExecutionKind;
 import ru.agimate.controlapi.database.model.ConnectorTraits;
 
@@ -51,14 +52,20 @@ public class Connector extends BaseEntity {
     @Column(name = "definition_binding", columnDefinition = "TEXT")
     private DefinitionBinding definitionBinding;
 
+    /** Whether the tools' schemas enter a run up front (EAGER) or on demand (LAZY); a tool may override it. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "disclosure", nullable = false, columnDefinition = "TEXT")
+    private Disclosure disclosure;
+
     /** The traits aggregate (for the API and the bootstrap); the runtime reads the individual fields. */
     public ConnectorTraits traits() {
-        return new ConnectorTraits(executionKind, definitionBinding);
+        return new ConnectorTraits(executionKind, definitionBinding, disclosure);
     }
 
     public void applyTraits(ConnectorTraits c) {
         this.executionKind = c.executionKind();
         this.definitionBinding = c.definitionBinding();
+        this.disclosure = c.disclosure();
     }
 
     /** An integration connector = it has credentials fields (this replaces the check on the former ConnectorType). */

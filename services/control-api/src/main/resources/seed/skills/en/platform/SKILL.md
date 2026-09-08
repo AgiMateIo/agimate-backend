@@ -2,6 +2,7 @@
 name: platform
 title: Platform administrator
 description: Managing the AgiMate platform — creating and configuring agents, authoring skills (SKILL.md), binding skills and integrations. The meta-agent that builds other agents on the user's request.
+disclosure: lazy
 connectors: [platform]
 ---
 

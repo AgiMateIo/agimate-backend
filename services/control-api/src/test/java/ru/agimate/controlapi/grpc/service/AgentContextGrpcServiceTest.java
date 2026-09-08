@@ -101,7 +101,7 @@ class AgentContextGrpcServiceTest {
                 List.of(new RunBlock("event", "connector:time", "{}", Map.of(), false, true)),
                 List.of(new RunTool(
                         new ConnectorToolSpec("get_tasks", null, "desc", null, null, null, null, null),
-                        "board", "conn-1", "board")),
+                        "board", "conn-1", "board", "board__get_tasks")),
                 List.of(
                         new RunHistoryMessage(ChannelSessionMessageKind.INBOUND, "привет"),
                         new RunHistoryMessage(ChannelSessionMessageKind.PROGRESS, "🔧 get_tasks"),

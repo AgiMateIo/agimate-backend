@@ -585,12 +585,13 @@ MCP-тул, раскрытый среди рана, должен получит�
       `AgiMateAgent` читает `toolDefs` через реестр на каждом ходу; `ToolCallDispatcher` разбирает
       дельту по маркеру `_meta` из сырого `held` до `truncateOutput` и на реплее из `reread`, модели —
       компактный JSON; вид материала в `ToolResultRec` при `SaveTurn`; guidance по полному множеству
-- [ ] control-api, ось: третий компонент `ConnectorTraits` + колонка в `connectors` + миграция;
-      `platform`, `mcp`, `sheets` — LAZY на хендлерах; атрибут `disclosure` в `@Tool`, через
-      `ToolSchemaReflector` в `ConnectorToolSpec`; колонка `skills.disclosure`, поле в
-      `SkillFrontmatterParser.ParsedSkill` и `AgentSkillWithConnectorsResponse`; эффективная ось,
-      `summary` и `llm_name` (санитизация + коллизии) считаются на `RunTool`; третий параметр
-      `ContextSpec` для раскрытия наперёд в `SYSTEM_TRIGGER`
+- [x] control-api, ось (2026-09-08): третий компонент `ConnectorTraits` + колонки `disclosure` в
+      `connectors` и `skills` + миграция (она же переводит засеянные навыки в `lazy`); `platform`,
+      `mcp`, `sheets` — LAZY на хендлерах; атрибут `disclosure` в `@Tool` → `ConnectorToolSpec`;
+      поле в `SkillFrontmatterParser.ParsedSkill` и `AgentSkillWithConnectorsResponse`;
+      `disclosure: lazy` во фронтматтере сидовых `SKILL.md`; `llm_name` считается на `RunTool`
+      общим `ToolNames` и уезжает в proto. Эффективная ось, `summary` и параметр `ContextSpec` —
+      в шаге каталога, где они читаются
 - [ ] control-api, история: `RunHistoryAssembler.assemble` возвращает сообщения и раскрытое множество
       (имена ходов → каталог рана); освобождение результатов вида `SKILL` от 4 КБ с пределом 32 КБ,
       новейший `load_skill` на навык; бюджет 96 КБ; в `build()` история загружается до `collectTools`
@@ -601,7 +602,7 @@ MCP-тул, раскрытый среди рана, должен получит�
       (`load_tools(names[])`): фасад + `*ToolService`, дельта в `output_json`, маркер в `_meta`,
       промах по имени — ошибка с перечнем ближайших; тексты в `connectors.properties`; сидовые навыки
       `skill-loader` и `tool-loader` (`eager`) и их добавление в пресеты `health-diary` и
-      `platform-admin`; `disclosure` во фронтматтере остальных сидовых `SKILL.md`
+      `platform-admin`
 - [ ] Миграция для засеянных сред: `disclosure` навыкам по имени у системного владельца, новые навыки
       в списки пресетов, из текста навыка `platform` убрать «их схемы у тебя уже есть» через
       `replace()` в обоих языках

@@ -48,8 +48,10 @@ import ru.agimate.controlapi.service.channel.handler.dto.Part;
 import ru.agimate.controlapi.service.trigger.Channels;
 import ru.agimate.controlapi.service.trigger.ChannelsCodec;
 import ru.agimate.controlapi.service.trigger.Trigger;
+import ru.agimate.agentworker.ToolNames;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -539,6 +541,8 @@ public class RunContextService {
                                        UUID ownConnectionId, UUID sessionAwareConnectionId,
                                        UUID promptSessionId) {
         List<RunTool> tools = new ArrayList<>();
+        // Names are minted in listing order: the worker's fallback walks the same list the same way.
+        Set<String> llmNames = new HashSet<>();
         for (Connection connection : connections) {
             if (!requiredConnections.contains(connection.getId())
                     && !connection.getId().equals(ownConnectionId)) {
@@ -561,8 +565,13 @@ public class RunContextService {
                 case DYNAMIC -> dynamicTools(connection.getId());
             };
             String namespace = namespaceOf(connection);
-            specs.forEach((name, spec) -> tools.add(new RunTool(
-                    spec, connection.getConnectorCode(), connection.getId().toString(), namespace)));
+            specs.forEach((name, spec) -> {
+                String llmName = ToolNames.unique(llmNames, ToolNames.sanitize(
+                        (namespace.isBlank() ? connection.getConnectorCode() : namespace) + "." + name));
+                llmNames.add(llmName);
+                tools.add(new RunTool(spec, connection.getConnectorCode(), connection.getId().toString(),
+                        namespace, llmName));
+            });
         }
         return tools;
     }

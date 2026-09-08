@@ -1,6 +1,7 @@
 package ru.agimate.controlapi.controller.agent.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import ru.agimate.controlapi.database.enums.Disclosure;
 
 import java.util.List;
 import java.util.UUID;
@@ -17,6 +18,9 @@ public record AgentSkillWithConnectorsResponse(
         String description,
 
         @Schema(description = "Connector codes (types) required by the skill", example = "[\"board\", \"time\"]")
-        List<String> connectorCodes
+        List<String> connectorCodes,
+
+        @Schema(description = "Whether the body is in the prompt up front (EAGER) or loaded on demand (LAZY)")
+        Disclosure disclosure
 ) {
 }

@@ -16,6 +16,7 @@ import ru.agimate.controlapi.controller.agent.dto.AgentSkillWithConnectorsRespon
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.SkillConnectorStatus;
 import ru.agimate.controlapi.database.entities.AgentSkill;
+import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.entities.AgentSkillConnection;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Skill;
@@ -90,7 +91,7 @@ public class AgentSkillService {
         Map<UUID, AgentSkillWithConnectorsResponse> resolved = resolveSkillsById(skillIdsPage.getContent());
 
         return skillIdsPage.map(id -> resolved.getOrDefault(id,
-                new AgentSkillWithConnectorsResponse(id, null, null, List.of())));
+                new AgentSkillWithConnectorsResponse(id, null, null, List.of(), Disclosure.EAGER)));
     }
 
     /**
@@ -108,7 +109,8 @@ public class AgentSkillService {
                     skill.getId(),
                     skill.getName(),
                     skill.getDescription(),
-                    skill.getConnectorCodes()
+                    skill.getConnectorCodes(),
+                    skill.getDisclosure()
             ));
         }
         return result;
