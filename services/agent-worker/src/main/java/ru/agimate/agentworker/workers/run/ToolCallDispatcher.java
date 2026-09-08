@@ -62,6 +62,12 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
             // and stable across replays — the backend keys tool call idempotency on it.
             ToolRegistry.BackendTool bt = registry.resolve(tc.name());
             if (bt == null) {
+                // The model read a deferred name in the listing: «unknown» would tell it the listing lies.
+                if (registry.deferred(tc.name())) {
+                    log.info("model called deferred tool {} before describing it", tc.name());
+                    planned.add(new Planned(tc, null, failed(tc, deferredNotice(tc.name()))));
+                    continue;
+                }
                 log.warn("model called unknown tool {}; {} available: {}", tc.name(), registry.names().size(), registry.names());
                 planned.add(new Planned(tc, null, failed(tc,
                         "unknown tool name from model: " + tc.name() + "; available tools: " + registry.names())));
@@ -156,6 +162,11 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
     static String wrapUntrusted(String content) {
         String tag = ContextBuilder.UNTRUSTED_TOOL_OUTPUT_TAG;
         return "<" + tag + ">\n" + ContextBuilder.neutralizeClosingTag(content, tag) + "\n</" + tag + ">";
+    }
+
+    static String deferredNotice(String name) {
+        return "tool " + name + " is listed but not described yet: call describe_tools with its name"
+                + " (batch every tool you will need) and then call it with the arguments its schema defines";
     }
 
     private static AgentChatMessage.ToolResult failed(AgentChatMessage.ToolCall tc, String error) {

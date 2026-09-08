@@ -244,6 +244,18 @@ class ToolCallDispatcherTest {
         }
 
         @Test
+        @DisplayName("вызов ещё не раскрытого тула отвечается подсказкой про describe_tools, не «unknown»")
+        void deferredToolPointsAtDescribe() {
+            List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(
+                    List.of(new AgentChatMessage.ToolCall("x", "platform__agent_list", "{}")));
+
+            assertTrue(results.get(0).failed());
+            assertTrue(results.get(0).contentJson().contains("describe_tools"));
+            assertFalse(results.get(0).contentJson().contains("unknown"));
+            verifyNoInteractions(dbos);
+        }
+
+        @Test
         @DisplayName("вывод, который не разбирается как дельта, уходит модели текстом без пометки")
         void malformedDeltaFallsBack() throws Exception {
             when(step.maxOutputChars()).thenReturn(1000);

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.ConnectorToolSpec;
 import ru.agimate.agentworker.Disclosure;
+import ru.agimate.agentworker.ToolNames;
 import ru.agimate.agentworker.agent.model.AgentChatMessage;
 import ru.agimate.agentworker.agent.model.ContextMaterial;
 import ru.agimate.agentworker.agent.model.ToolDef;
@@ -13,7 +14,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  * Mapping between LLM-facing tool names and backend connector tools for one agent run.
@@ -36,7 +36,6 @@ public final class ToolRegistry {
     /** {@code _meta} key marking a tool whose result is a context delta; values {@code tools} | {@code skill}. */
     public static final String META_CONTEXT_MATERIAL = "agimate.context_material";
 
-    private static final Pattern UNSAFE_NAME_CHAR = Pattern.compile("[^A-Za-z0-9_-]");
     private static final String EMPTY_OBJECT_SCHEMA =
             "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}";
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -92,7 +91,7 @@ public final class ToolRegistry {
     }
 
     private String register(ConnectorToolSpec spec) {
-        String name = spec.getLlmName().isBlank() ? uniqueName(routing, sanitizeToolName(fullName(spec))) : spec.getLlmName();
+        String name = spec.getLlmName().isBlank() ? fallbackName(spec) : spec.getLlmName();
         routing.put(name, new BackendTool(spec.getConnectorCode(), spec.getName(), spec.getConnectionId(),
                 spec.getAnnotations().getOpenWorldHint(), spec.getTimeoutSeconds(),
                 ContextMaterial.fromMeta(spec.getMetaMap().get(META_CONTEXT_MATERIAL))));
@@ -101,7 +100,17 @@ public final class ToolRegistry {
 
     /** The backend's name when it sent one, otherwise the worker's own sanitization of {@code {namespace}.{name}}. */
     private static String llmName(ConnectorToolSpec spec) {
-        return spec.getLlmName().isBlank() ? sanitizeToolName(fullName(spec)) : spec.getLlmName();
+        return spec.getLlmName().isBlank() ? ToolNames.sanitize(fullName(spec)) : spec.getLlmName();
+    }
+
+    /** The older-control-api path: the shared rule, collisions suffixed in the backend's spec order. */
+    private String fallbackName(ConnectorToolSpec spec) {
+        String sanitized = ToolNames.sanitize(fullName(spec));
+        String name = ToolNames.unique(routing.keySet(), sanitized);
+        if (!name.equals(sanitized)) {
+            log.warn("tool name collision after sanitizing: {} → {}", sanitized, name);
+        }
+        return name;
     }
 
     private static String fullName(ConnectorToolSpec spec) {
@@ -111,32 +120,6 @@ public final class ToolRegistry {
 
     private static ToolDef toolDef(String name, ConnectorToolSpec spec) {
         return new ToolDef(name, spec.getDescription(), parseToolSchema(spec));
-    }
-
-    /**
-     * Sanitizing can collide ({@code ns.a.b} vs namespace {@code ns.a} + tool {@code b} both give
-     * {@code ns__a__b}); a silent overwrite would dispatch one tool into another's backend. Suffix
-     * the later duplicate — deterministic, the spec order is fixed by the backend.
-     */
-    private static String uniqueName(Map<String, BackendTool> taken, String sanitized) {
-        if (!taken.containsKey(sanitized)) {
-            return sanitized;
-        }
-        int n = 2;
-        while (taken.containsKey(sanitized + "_" + n)) {
-            n++;
-        }
-        log.warn("tool name collision after sanitizing: {} → {}", sanitized, sanitized + "_" + n);
-        return sanitized + "_" + n;
-    }
-
-    /**
-     * Make {@code name} safe for the OpenAI function-calling name field. Dots become {@code __}
-     * so a namespaced name ({@code board.get_tasks}) does not collide with an underscored one
-     * ({@code board_get_tasks}); any remaining unsafe character maps to {@code _}.
-     */
-    public static String sanitizeToolName(String name) {
-        return UNSAFE_NAME_CHAR.matcher(name.replace(".", "__")).replaceAll("_");
     }
 
     /**
@@ -176,11 +159,16 @@ public final class ToolRegistry {
 
     /**
      * Resolve an LLM-facing name to its backend routing; {@code null} if the model hallucinated it
-     * — or named a LAZY tool it has not had described: without the schema the arguments are a
-     * guess, and the same «unknown tool» answer sends it to the listing.
+     * — or named a LAZY tool it has not had described ({@link #deferred}): without the schema the
+     * arguments are a guess.
      */
     public BackendTool resolve(String name) {
         return callable.containsKey(name) ? routing.get(name) : null;
+    }
+
+    /** A name the model read in the listing but has not had described yet: routed, not callable. */
+    public boolean deferred(String name) {
+        return routing.containsKey(name) && !callable.containsKey(name);
     }
 
     /** Backend tool name for display; falls back to the LLM-facing name. */

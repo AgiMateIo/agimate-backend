@@ -37,17 +37,6 @@ class ToolRegistryTest {
     }
 
     @Nested
-    @DisplayName("sanitizeToolName")
-    class Sanitize {
-        @Test
-        @DisplayName("maps dots to __ and other unsafe chars to _")
-        void sanitizes() {
-            assertEquals("board__get_tasks", ToolRegistry.sanitizeToolName("board.get_tasks"));
-            assertEquals("a_b_c", ToolRegistry.sanitizeToolName("a b/c"));
-        }
-    }
-
-    @Nested
     @DisplayName("parseToolSchema")
     class ParseSchema {
         @Test
@@ -168,6 +157,9 @@ class ToolRegistryTest {
 
             assertEquals(List.of("time__now"), reg.names());
             assertNull(reg.resolve("platform__agent_list"));
+            assertTrue(reg.deferred("platform__agent_list"));
+            assertFalse(reg.deferred("time__now"));
+            assertFalse(reg.deferred("nope"));
             assertEquals("agent_list", reg.displayName("platform__agent_list"));
         }
 
