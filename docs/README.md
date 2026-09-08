@@ -68,6 +68,7 @@
 | [files.md](connectors/files.md) | Файловый слой, ссылки `agf_` |
 | [platform.md](connectors/platform.md) | Мета-агент, управляющий платформой |
 | [persistent-memory.md](connectors/persistent-memory.md) · [sheets.md](connectors/sheets.md) | Долгая память и таблицы агента |
+| [context-loaders.md](connectors/context-loaders.md) | `skill-loader` и `tool-loader`: раскрытие навыков и схем тулов по требованию |
 | [webchat.md](connectors/webchat.md) · [media.md](connectors/media.md) · [astro-divination.md](connectors/astro-divination.md) | Остальные коннекторы |
 
 ## Решения

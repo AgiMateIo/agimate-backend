@@ -601,19 +601,23 @@ MCP-тул, раскрытый среди рана, должен получит�
       осям (`skill-loader`/`tool-loader` в `requiredConnections`), раскрытие из окна в бюджет,
       наперёд в `SYSTEM_TRIGGER` (`ContextSpec.disclosesUpfront`), LAZY без `inputSchema` и с
       `summary` (первая фраза, 160), блок `deferred_tools`, пометка `disclosure: lazy` в `skills`
-- [ ] Коннекторы `skill-loader` (`load_skill(names[])`) и `tool-loader`
-      (`load_tools(names[])`): фасад + `*ToolService`, дельта в `output_json`, маркер в `_meta`,
-      промах по имени — ошибка с перечнем ближайших; тексты в `connectors.properties`; сидовые навыки
-      `skill-loader` и `tool-loader` (`eager`) и их добавление в пресеты `health-diary` и
+- [x] Коннекторы `skill-loader` (`load_skill(names[])`) и `tool-loader` (`load_tools(names[])`)
+      (2026-09-08): фасад + `*ToolService`, дельта proto-JSON в `output_json`, маркер в `_meta`,
+      промах по имени — ошибка с перечнем ближайших; тексты в `connectors.properties`; сидовые
+      навыки `skill-loader` и `tool-loader` (`eager`) и их добавление в пресеты `health-diary` и
       `platform-admin`
-- [ ] Миграция для засеянных сред: `disclosure` навыкам по имени у системного владельца, новые навыки
-      в списки пресетов, из текста навыка `platform` убрать «их схемы у тебя уже есть» через
-      `replace()` в обоих языках
-- [ ] Тесты: `McpToolCatalog` отдаёт полные схемы независимо от оси; мета-тулы при пустом `env.runId`
-      считают каталог на уровне агента; длина описаний EAGER-тулов и навыков; `ConnectorTextsTest`
-      на новые коннекторы
-- [ ] Обновить `docs/services/agent-worker.md`, `docs/contracts/worker-protocol.md`,
-      `docs/architecture/connectors.md` (две строки в матрице режимов), `docs/connectors/`
-      (страница раскрытия); в `docs/architecture/agents-and-runs.md` пункт 3 роадмапа уже
-      ссылается сюда — после реализации отметить его сделанным; в issue #2 на GitHub сослаться на
-      документ и сказать, что MCP-половина не покрыта
+- [x] Миграция для засеянных сред (2026-09-08): `disclosure` навыкам — в `08-00-disclosure.xml`,
+      новые навыки в списки пресетов и «их схемы у тебя уже есть» из текста `platform` — в
+      `08-01-disclosure-seeded-content.xml`
+- [x] Тесты (2026-09-08): `McpToolCatalog` отдаёт полные схемы независимо от оси; мета-тулы при
+      пустом `env.runId` считают каталог на уровне агента; прогон дельты печать → разбор;
+      `ConnectorTextsTest` на новые коннекторы
+- [ ] Тест на длину описаний EAGER-тулов и навыков — порог после замера описаний своих `@Tool`
+- [ ] Проверить старт control-api на локальном стеке: цикл бинов `ToolLoaderToolService →
+      RunCatalog → ConnectorRegistry → хендлеры` держится на ленивом `ObjectProvider` реестра, и
+      mock-тесты этого не ловят
+- [x] Документация (2026-09-08): `docs/services/agent-worker.md`, `docs/contracts/worker-protocol.md`,
+      `docs/architecture/connectors.md` (матрица режимов), `docs/connectors/context-loaders.md`
+- [ ] После выкатки: в `docs/architecture/agents-and-runs.md` отметить пункт 3 роадмапа сделанным,
+      статус документа → `implemented`; в issue #2 на GitHub сослаться на документ и сказать, что
+      MCP-половина не покрыта

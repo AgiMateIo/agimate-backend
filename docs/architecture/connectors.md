@@ -49,7 +49,8 @@ AAD = `entity + owner_id` (нельзя расшифровать, перенес
 
 **Две роли connection** (по оси экземплярности):
 
-- **Строка-режим** (внутренние: board/persist-memory/time/media/webchat/acp, гипотетически wikipedia) —
+- **Строка-режим** (внутренние: board/persist-memory/time/media/webchat/acp/skill-loader/tool-loader,
+  гипотетически wikipedia) —
   **одна на пользователя** (`ConnectionBindingService.ensureModeConnection`, find-or-create по
   `(connector_code, user_id)`, `full_code = code_userId`, `sub_code = null`, без секретов).
   «Внешний по сети» ≠ «внешний по модели»: media/wikipedia ходят во внешние API, но экземпляра,
@@ -74,7 +75,7 @@ webchat/acp, экземпляр у telegram/mcp), либо отсутствуе�
 
 | | владелец: агент | владелец: команда | правила нет |
 |---|---|---|---|
-| **Режим** (1/пользователя, скиллы) | persist-memory, time, sheets | board | media, webchat, acp |
+| **Режим** (1/пользователя, скиллы) | persist-memory, time, sheets, skill-loader, tool-loader | board | media, webchat, acp |
 | **Экземпляры** (N, явный bind) | — | — | telegram, mcp, app |
 
 Чувствительность к агенту бывает трёх видов, ось — только первый: вывод владельца из caller'а
