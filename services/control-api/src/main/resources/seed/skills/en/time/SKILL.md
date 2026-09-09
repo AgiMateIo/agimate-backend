@@ -2,7 +2,6 @@
 name: time
 title: Time and scheduler
 description: Current time in UTC and scheduling deferred tasks for yourself — one-off reminders, periodic runs and cron schedules.
-disclosure: lazy
 connectors: [time]
 ---
 

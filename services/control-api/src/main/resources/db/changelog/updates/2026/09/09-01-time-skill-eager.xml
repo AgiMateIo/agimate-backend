@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      time and persist-memory are the two skills nearly every run reaches for: a deferred time
+      skill cost an extra model turn on «what time is it». Their bodies go in up front by default.
+      Seed-only-if-missing again: the frontmatter change only reaches a fresh environment.
+    -->
+    <changeSet id="set-time-and-memory-skills-eager" author="agimate">
+        <sql>
+            UPDATE skills
+            SET disclosure = 'EAGER', updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = '00000000-0000-0000-0000-000000000000'
+              AND deleted_at IS NULL
+              AND name IN ('time', 'persist-memory')
+              AND disclosure <> 'EAGER';
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
