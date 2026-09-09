@@ -617,20 +617,26 @@ MCP-тул, раскрытый среди рана, должен получит�
       промах по имени — ошибка с перечнем ближайших; тексты в `connectors.properties`; сидовые
       навыки `skill-loader` и `tool-loader` (`eager`) и их добавление в пресеты `health-diary` и
       `platform-admin`
-- [x] Миграция для засеянных сред (2026-09-08): `disclosure` навыкам — в `08-00-disclosure.xml`,
-      новые навыки в списки пресетов и «их схемы у тебя уже есть» из текста `platform` — в
-      `08-01-disclosure-seeded-content.xml`
+- [x] Миграция для засеянных сред — одна, `updates/2026/09/09-00-progressive-disclosure.xml`
+      (2026-09-09, свёрнута из четырёх): три колонки `disclosure`, положительный список отложенных
+      навыков зеркалом фронтматтера, загрузчики в списки пресетов по одному имени за стейтмент,
+      «их схемы у тебя уже есть» из текста `platform`
 - [x] Тесты (2026-09-08): `McpToolCatalog` отдаёт полные схемы независимо от оси; мета-тулы при
       пустом `env.runId` считают каталог на уровне агента; прогон дельты печать → разбор;
       `ConnectorTextsTest` на новые коннекторы
 - [x] Ось на привязке (2026-09-09): `agent_skills.disclosure` (`NULL` — ось навыка), поле в
       `POST …/skills/`, `PATCH …/skills/{skillId}` с тристейтом, `disclosure`/`disclosureOverride`
       в ответе привязки; `resolveSkills(bindings)` вместо `resolveSkillsById`; навык `time` —
-      `eager` (фронтматтер + миграция `09-01`); спека фронту `tmpspec/skill-disclosure-frontend.md`
+      `eager` (фронтматтер и миграция); спека фронту `tmpspec/skill-disclosure-frontend.md`
+- [x] По итогам ревью (2026-09-09): шаг `tool_calls` исполняется безусловно (номер шага в воркфлоу
+      не должен зависеть от того, как разрешились имена); ось навыка отдаётся на чтении
+      (`SkillDetailResponse`, `SkillDetail`) — иначе круг «прочитал, поправил, сохранил» молча
+      сбрасывал её в `eager`; маркер `_meta` читается только у коннекторов-загрузчиков; замер
+      считает отложенный тул строкой листинга, а не описанием со схемой; тест на разбор changelog'а
 - [ ] Тест на длину описаний EAGER-тулов и навыков — порог после замера описаний своих `@Tool`
-- [ ] Проверить старт control-api на локальном стеке: цикл бинов `ToolLoaderToolService →
-      RunCatalog → ConnectorRegistry → хендлеры` держится на ленивом `ObjectProvider` реестра, и
-      mock-тесты этого не ловят
+- [x] Старт control-api на локальном стеке проверен (2026-09-09): цикл бинов
+      `ToolLoaderToolService → RunCatalog → ConnectorRegistry → хендлеры` разорван ленивым
+      `ObjectProvider` в реестре, приложение поднимается, миграция применяется начисто
 - [x] Документация (2026-09-08): `docs/services/agent-worker.md`, `docs/contracts/worker-protocol.md`,
       `docs/architecture/connectors.md` (матрица режимов), `docs/connectors/context-loaders.md`
 - [ ] После выкатки: в `docs/architecture/agents-and-runs.md` отметить пункт 3 роадмапа сделанным,
