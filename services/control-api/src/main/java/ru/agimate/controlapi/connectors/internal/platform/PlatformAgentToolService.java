@@ -342,14 +342,14 @@ public class PlatformAgentToolService {
         Skill skill = PlatformToolsSupport.accessibleSkill(skillRepository,
                 PlatformToolsSupport.parseUuid(skillId, "skillId"));
         return new SkillDetail(skill.getId().toString(), skill.getName(), displayTitle(skill),
-                skill.getDescription(), skill.getConnectorCodes(), skill.getVersion(),
-                Boolean.TRUE.equals(skill.getIsPublic()), isSystem(skill), skill.getMdContent());
+                skill.getDescription(), skill.getConnectorCodes(), skill.getDisclosure().name(),
+                skill.getVersion(), Boolean.TRUE.equals(skill.getIsPublic()), isSystem(skill), skill.getMdContent());
     }
 
     @Tool(name = "create_skill",
             description = "Create a skill from a full SKILL.md document (YAML frontmatter with name "
-                    + "(stable code), title (display name), description, connectors + markdown body). "
-                    + "isPublic defaults to false",
+                    + "(stable code), title (display name), description, connectors, disclosure "
+                    + "(eager|lazy, default eager) + markdown body). isPublic defaults to false",
             annotations = @ToolAnnotations(destructiveHint = false, openWorldHint = false))
     public SkillDetail createSkill(
             @ToolParam("Full SKILL.md content (frontmatter + body)") String skillMd,
@@ -361,7 +361,9 @@ public class PlatformAgentToolService {
     }
 
     @Tool(name = "update_skill",
-            description = "Replace a skill's SKILL.md content (bumps its version). Only your own skills",
+            description = "Replace a skill's SKILL.md content (bumps its version). Only your own skills. "
+                    + "The document replaces the frontmatter too: a field you leave out goes back to its "
+                    + "default, disclosure included",
             annotations = @ToolAnnotations(destructiveHint = true, openWorldHint = false))
     public SkillDetail updateSkill(
             @ToolParam("Skill public ID") String skillId,

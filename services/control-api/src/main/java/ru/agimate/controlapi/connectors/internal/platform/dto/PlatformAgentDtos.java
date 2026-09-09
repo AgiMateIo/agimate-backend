@@ -56,8 +56,8 @@ public final class PlatformAgentDtos {
     }
 
     public record SkillDetail(String id, String name, String title, String description,
-                              List<String> connectorCodes, int version, boolean isPublic, boolean system,
-                              String mdContent) {
+                              List<String> connectorCodes, String disclosure, int version, boolean isPublic,
+                              boolean system, String mdContent) {
     }
 
     /**

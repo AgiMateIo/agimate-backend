@@ -3,6 +3,7 @@ package ru.agimate.controlapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.service.SystemSkillBootstrap;
 
 import java.time.LocalDateTime;
@@ -41,6 +42,10 @@ public record SkillDetailResponse(
         @Schema(description = "SKILL.md body (without frontmatter)")
         String mdContent,
 
+        @Schema(description = "Whether the body goes into a run up front (EAGER) or on a load_skill call (LAZY); "
+                + "a frontmatter field, so an edit that omits it resets the skill to EAGER")
+        Disclosure disclosure,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the skill was created")
         LocalDateTime createdAt,
@@ -61,6 +66,7 @@ public record SkillDetailResponse(
                 skill.getUserId(),
                 SystemSkillBootstrap.SYSTEM_USER_ID.equals(skill.getUserId()),
                 skill.getMdContent(),
+                skill.getDisclosure(),
                 skill.getCreatedAt(),
                 skill.getUpdatedAt()
         );
