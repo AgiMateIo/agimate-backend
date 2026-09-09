@@ -2,6 +2,7 @@ package ru.agimate.controlapi.service.runcontext;
 
 import lombok.experimental.UtilityClass;
 import ru.agimate.common.util.JsonUtils;
+import ru.agimate.controlapi.database.enums.Disclosure;
 
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
@@ -50,25 +51,45 @@ class ContextSizeReport {
         return total + " B " + byName;
     }
 
-    /** {@code 27 (desc 1234 B, schema 5678 B) {platform/…=79:…}} — per instance, so MCP servers show apart. */
+    /**
+     * {@code 27 (14 eager: desc 1234 B, schema 5678 B; 13 deferred: 962 B) {platform/…=79:…}} — per
+     * instance, so MCP servers show apart. A deferred tool is counted by what actually travels, its
+     * listing line: its description and schema stay on the backend, and counting them here would
+     * report the size of the context we chose not to send.
+     */
     private static String tools(List<RunTool> tools) {
         Map<String, int[]> byInstance = new LinkedHashMap<>();
         int desc = 0;
         int schema = 0;
+        int deferred = 0;
+        int listing = 0;
         for (RunTool tool : tools) {
+            int[] acc = byInstance.computeIfAbsent(tool.namespace(), k -> new int[4]);
+            acc[0]++;
+            if (tool.disclosure() == Disclosure.LAZY) {
+                int line = bytes(tool.llmName()) + bytes(tool.summary());
+                deferred++;
+                listing += line;
+                acc[3] += line;
+                continue;
+            }
             int d = bytes(tool.spec().description());
             int s = tool.spec().inputSchema() == null ? 0 : bytes(JsonUtils.writeValueAsString(tool.spec().inputSchema()));
             desc += d;
             schema += s;
-            int[] acc = byInstance.computeIfAbsent(tool.namespace(), k -> new int[3]);
-            acc[0]++;
             acc[1] += d;
             acc[2] += s;
         }
         StringBuilder out = new StringBuilder();
-        out.append(tools.size()).append(" (desc ").append(desc).append(" B, schema ").append(schema).append(" B) {");
+        out.append(tools.size()).append(" (").append(tools.size() - deferred)
+                .append(" eager: desc ").append(desc).append(" B, schema ").append(schema).append(" B");
+        if (deferred > 0) {
+            out.append("; ").append(deferred).append(" deferred: ").append(listing).append(" B");
+        }
+        out.append(") {");
         byInstance.forEach((ns, acc) -> out.append(ns).append('=').append(acc[0])
-                .append(':').append(acc[1]).append('/').append(acc[2]).append("B "));
+                .append(':').append(acc[1]).append('/').append(acc[2])
+                .append(acc[3] > 0 ? "/" + acc[3] + "d" : "").append("B "));
         return out.append('}').toString();
     }
 
