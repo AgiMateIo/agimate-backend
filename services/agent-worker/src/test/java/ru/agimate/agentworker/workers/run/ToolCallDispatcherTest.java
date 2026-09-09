@@ -273,5 +273,20 @@ class ToolCallDispatcherTest {
             assertEquals(ContextMaterial.NONE, results.get(0).material());
             assertNull(registry.resolve("platform__agent_list"));
         }
+
+        @Test
+        @DisplayName("одна битая спека не отменяет остальные: она уходит в unknown, годные раскрываются")
+        void oneBadSpecDoesNotDiscardTheBatch() throws Exception {
+            stepReturns("{\"tools\":[{\"llmName\":\"platform__broken\",\"annotations\":\"not an object\"},"
+                    + delta().substring(delta().indexOf('[') + 1, delta().lastIndexOf(']'))
+                    + "],\"unknown\":[]}");
+
+            List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(call);
+
+            assertEquals(ContextMaterial.TOOLS, results.get(0).material());
+            assertTrue(results.get(0).contentJson().contains("\"disclosed\":[\"platform__agent_list\"]"));
+            assertTrue(results.get(0).contentJson().contains("platform__broken"));
+            assertEquals("platform", registry.resolve("platform__agent_list").connectorCode());
+        }
     }
 }

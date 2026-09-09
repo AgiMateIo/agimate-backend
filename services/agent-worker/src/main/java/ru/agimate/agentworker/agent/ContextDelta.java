@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.util.JsonFormat;
+import lombok.extern.slf4j.Slf4j;
 import ru.agimate.agentworker.ConnectorToolSpec;
 
 import java.util.ArrayList;
@@ -21,6 +22,7 @@ import java.util.List;
  * @param tools   the disclosed specs, full schema included
  * @param unknown names the backend could not resolve — passed to the model as they came
  */
+@Slf4j
 public record ContextDelta(List<ConnectorToolSpec> tools, List<String> unknown) {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -37,19 +39,26 @@ public record ContextDelta(List<ConnectorToolSpec> tools, List<String> unknown) 
         if (root == null || !root.isObject() || !root.path("tools").isArray()) {
             throw new IllegalArgumentException("context delta has no 'tools' array");
         }
+        List<String> unknown = new ArrayList<>();
+        for (JsonNode node : root.path("unknown")) {
+            unknown.add(node.asText());
+        }
+        // A spec that does not parse is dropped, not fatal: the rest of the batch is still worth
+        // disclosing, and the model reads the name back under «unknown» — the same answer it gets
+        // for a name the backend could not resolve. Failing the whole delta would hand it a wall of
+        // schema JSON instead.
         List<ConnectorToolSpec> tools = new ArrayList<>();
         for (JsonNode node : root.get("tools")) {
             ConnectorToolSpec.Builder builder = ConnectorToolSpec.newBuilder();
             try {
                 PARSER.merge(MAPPER.writeValueAsString(node), builder);
             } catch (Exception e) {
-                throw new IllegalArgumentException("context delta tool is not a ConnectorToolSpec: " + e.getMessage(), e);
+                String name = node.path("llmName").asText(node.path("name").asText("?"));
+                log.warn("context delta drops tool {}: {}", name, e.getMessage());
+                unknown.add(name);
+                continue;
             }
             tools.add(builder.build());
-        }
-        List<String> unknown = new ArrayList<>();
-        for (JsonNode node : root.path("unknown")) {
-            unknown.add(node.asText());
         }
         return new ContextDelta(tools, unknown);
     }
