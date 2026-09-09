@@ -19,6 +19,7 @@ import ru.agimate.controlapi.database.entities.AgentSkill;
 import ru.agimate.controlapi.database.entities.AgentSkillConnection;
 import ru.agimate.controlapi.database.entities.Connection;
 import ru.agimate.controlapi.database.entities.Skill;
+import ru.agimate.controlapi.database.enums.Disclosure;
 import ru.agimate.controlapi.database.repositories.AgentRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillConnectionRepository;
 import ru.agimate.controlapi.database.repositories.AgentSkillRepository;
@@ -128,7 +129,7 @@ class AgentSkillServiceTest {
             skill("telegram");
 
             assertThrows(BadRequestStatusException.class,
-                    () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of()));
+                    () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null));
         }
 
         @Test
@@ -140,7 +141,7 @@ class AgentSkillServiceTest {
                     .thenReturn(Optional.of(connection(gmailId, "gmail", "Почта")));
 
             assertThrows(BadRequestStatusException.class,
-                    () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", gmailId)));
+                    () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", gmailId), null));
         }
 
         @Test
@@ -148,8 +149,7 @@ class AgentSkillServiceTest {
         void rejectsUndeclaredCode() {
             skill("telegram");
 
-            assertThrows(BadRequestStatusException.class, () -> service.create(
-                    AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID, "gmail", UUID.randomUUID())));
+            assertThrows(BadRequestStatusException.class, () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID, "gmail", UUID.randomUUID()), null));
         }
 
         @Test
@@ -157,7 +157,7 @@ class AgentSkillServiceTest {
         void internalIsResolvedByTheServer() {
             skill("persist-memory");
 
-            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of());
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null);
 
             List<AgentSkillConnection> links = savedLinks();
             assertEquals(1, links.size());
@@ -170,8 +170,7 @@ class AgentSkillServiceTest {
         void internalRejectsAWrongId() {
             skill("persist-memory");
 
-            assertThrows(BadRequestStatusException.class, () -> service.create(
-                    AGENT_ID, SKILL_ID, USER_ID, Map.of("persist-memory", UUID.randomUUID())));
+            assertThrows(BadRequestStatusException.class, () -> service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("persist-memory", UUID.randomUUID()), null));
         }
 
         @Test
@@ -179,7 +178,7 @@ class AgentSkillServiceTest {
         void duplicateCodeIsStoredOnce() {
             skill("telegram", "telegram");
 
-            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID));
+            service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null);
 
             assertEquals(1, savedLinks().size(), "один инстанс — один ответ, второй ряд лёг бы на тот же ключ");
         }
@@ -189,7 +188,7 @@ class AgentSkillServiceTest {
         void unknownConnectorIsSkipped() {
             skill("ghost");
 
-            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of());
+            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null);
 
             assertTrue(savedLinks().isEmpty());
             assertFalse(response.satisfied());
@@ -218,7 +217,7 @@ class AgentSkillServiceTest {
             bound(telegram);
             referenced("telegram", TELEGRAM_ID);
 
-            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID));
+            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null);
 
             SkillConnectorStatus status = response.connectors().get(0);
             assertTrue(status.satisfied());
@@ -235,7 +234,7 @@ class AgentSkillServiceTest {
             referenced("telegram", TELEGRAM_ID);
             when(connectionRepository.findByIdInNotDeleted(anyList())).thenReturn(List.of(telegram));
 
-            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID));
+            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null);
 
             SkillConnectorStatus status = response.connectors().get(0);
             assertFalse(status.satisfied(), "выбран, но агенту не открыт");
@@ -249,7 +248,7 @@ class AgentSkillServiceTest {
             skill("telegram");
             bound(telegram);
 
-            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID));
+            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null);
 
             assertTrue(response.connectors().get(0).satisfied());
             assertEquals(TELEGRAM_ID, response.connectors().get(0).connectionId());
@@ -261,7 +260,7 @@ class AgentSkillServiceTest {
             skill("telegram");
             bound();
 
-            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID));
+            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of("telegram", TELEGRAM_ID), null);
 
             assertFalse(response.satisfied());
             assertNull(response.connectors().get(0).connectionName());
@@ -350,5 +349,66 @@ class AgentSkillServiceTest {
 
         verify(agentSkillConnectionRepository).deleteByAgentSkillId(AGENT_SKILL_ID);
         assertEquals(TELEGRAM_ID, savedLinks().get(0).getConnectionId());
+    }
+
+    @Nested
+    @DisplayName("ось раскрытия на привязке")
+    class DisclosureOverride {
+
+        private Skill lazySkill() {
+            Skill skill = Skill.builder()
+                    .id(SKILL_ID).userId(USER_ID).name("skill").version(1)
+                    .connectorCodes(List.of("persist-memory")).disclosure(Disclosure.LAZY)
+                    .build();
+            when(skillRepository.findByIdNotDeleted(SKILL_ID)).thenReturn(Optional.of(skill));
+            when(skillRepository.findByIdInNotDeleted(any())).thenReturn(List.of(skill));
+            return skill;
+        }
+
+        private AgentSkill binding(Disclosure override) {
+            AgentSkill binding = AgentSkill.builder().id(AGENT_SKILL_ID).agentId(AGENT_ID)
+                    .userId(USER_ID).skillId(SKILL_ID).disclosure(override).build();
+            when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(List.of(binding));
+            when(agentSkillRepository.findByAgentIdAndSkillId(AGENT_ID, SKILL_ID)).thenReturn(Optional.of(binding));
+            return binding;
+        }
+
+        @Test
+        @DisplayName("без переопределения действует ось навыка")
+        void inheritsTheSkillAxis() {
+            lazySkill();
+            binding(null);
+
+            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), null);
+
+            assertEquals(Disclosure.LAZY, response.disclosure());
+            assertNull(response.disclosureOverride());
+        }
+
+        @Test
+        @DisplayName("переопределение на привязке перекрывает ось навыка — и в ответе, и в том, что читает ран")
+        void overrideWins() {
+            lazySkill();
+            AgentSkill binding = binding(Disclosure.EAGER);
+
+            AgentSkillResponse response = service.create(AGENT_ID, SKILL_ID, USER_ID, Map.of(), Disclosure.EAGER);
+
+            assertEquals(Disclosure.EAGER, response.disclosure());
+            assertEquals(Disclosure.EAGER, response.disclosureOverride());
+            assertEquals(Disclosure.EAGER, service.resolveSkills(List.of(binding)).get(SKILL_ID).disclosure());
+        }
+
+        @Test
+        @DisplayName("PATCH с INHERIT снимает переопределение — навык снова по своей оси")
+        void inheritDropsTheOverride() {
+            lazySkill();
+            AgentSkill binding = binding(Disclosure.EAGER);
+
+            AgentSkillResponse response = service.updateDisclosure(AGENT_ID, SKILL_ID, USER_ID, null);
+
+            assertNull(binding.getDisclosure());
+            assertEquals(Disclosure.LAZY, response.disclosure());
+            assertNull(response.disclosureOverride());
+        }
     }
 }

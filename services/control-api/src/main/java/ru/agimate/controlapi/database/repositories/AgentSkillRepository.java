@@ -19,9 +19,6 @@ public interface AgentSkillRepository extends JpaRepository<AgentSkill, UUID> {
 
     Page<AgentSkill> findByAgentId(UUID agentId, Pageable pageable);
 
-    @Query("SELECT a.skillId FROM AgentSkill a WHERE a.agentId = :agentId")
-    Page<UUID> findSkillIdsByAgentId(@Param("agentId") UUID agentId, Pageable pageable);
-
     Optional<AgentSkill> findByAgentIdAndSkillId(UUID agentId, UUID skillId);
 
     boolean existsBySkillId(UUID skillId);

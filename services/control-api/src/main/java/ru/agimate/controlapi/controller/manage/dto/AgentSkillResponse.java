@@ -3,6 +3,7 @@ package ru.agimate.controlapi.controller.manage.dto;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import ru.agimate.controlapi.database.entities.AgentSkill;
+import ru.agimate.controlapi.database.enums.Disclosure;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,6 +32,12 @@ public record AgentSkillResponse(
         @Schema(description = "Whether the skill version advanced since installation")
         boolean needsReinstall,
 
+        @Schema(description = "Effective disclosure axis: the binding's override, else the skill's own")
+        Disclosure disclosure,
+
+        @Schema(nullable = true, description = "The override set on this binding; null — the skill's axis applies")
+        Disclosure disclosureOverride,
+
         @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         @Schema(description = "When the binding was created")
         LocalDateTime createdAt,
@@ -39,8 +46,10 @@ public record AgentSkillResponse(
         @Schema(description = "When the binding was last updated")
         LocalDateTime updatedAt
 ) {
+    /** @param skillDisclosure the skill's own axis, applied when the binding carries no override */
     public static AgentSkillResponse from(AgentSkill agentSkill, String skillName,
-                                          List<SkillConnectorStatus> connectors, boolean needsReinstall) {
+                                          List<SkillConnectorStatus> connectors, boolean needsReinstall,
+                                          Disclosure skillDisclosure) {
         return new AgentSkillResponse(
                 agentSkill.getId(),
                 agentSkill.getAgentId(),
@@ -49,6 +58,8 @@ public record AgentSkillResponse(
                 connectors,
                 connectors.stream().allMatch(SkillConnectorStatus::satisfied),
                 needsReinstall,
+                agentSkill.getDisclosure() != null ? agentSkill.getDisclosure() : skillDisclosure,
+                agentSkill.getDisclosure(),
                 agentSkill.getCreatedAt(),
                 agentSkill.getUpdatedAt()
         );

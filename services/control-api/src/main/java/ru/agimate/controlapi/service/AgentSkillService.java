@@ -79,38 +79,48 @@ public class AgentSkillService {
                     && (as.getInstalledSkillVersion() == null || skill.getVersion() > as.getInstalledSkillVersion());
             List<SkillConnectorStatus> connectors = skill == null ? List.of()
                     : statuses(resolution, as.getId(), skill.getConnectorCodes());
-            return AgentSkillResponse.from(as, name, connectors, needsReinstall);
+            return AgentSkillResponse.from(as, name, connectors, needsReinstall,
+                    skill != null ? skill.getDisclosure() : Disclosure.EAGER);
         });
     }
 
     public Page<AgentSkillWithConnectorsResponse> getAgentSkillsWithConnectors(UUID agentId, UUID userId, int page, int size) {
         verifyAgentOwnership(agentId, userId);
         PageRequest pageRequest = PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by("createdAt").descending());
-        Page<UUID> skillIdsPage = agentSkillRepository.findSkillIdsByAgentId(agentId, pageRequest);
+        Page<AgentSkill> bindings = agentSkillRepository.findByAgentId(agentId, pageRequest);
 
-        Map<UUID, AgentSkillWithConnectorsResponse> resolved = resolveSkillsById(skillIdsPage.getContent());
+        Map<UUID, AgentSkillWithConnectorsResponse> resolved = resolveSkills(bindings.getContent());
 
-        return skillIdsPage.map(id -> resolved.getOrDefault(id,
-                new AgentSkillWithConnectorsResponse(id, null, null, List.of(), Disclosure.EAGER)));
+        return bindings.map(binding -> resolved.getOrDefault(binding.getSkillId(),
+                new AgentSkillWithConnectorsResponse(binding.getSkillId(), null, null, List.of(), Disclosure.EAGER)));
     }
 
     /**
-     * Aggregate skill name/description and required connector codes for the given ids.
+     * Aggregate skill name/description, required connector codes and the effective disclosure axis
+     * for the given bindings, keyed by skill id. Takes the bindings rather than skill ids because the
+     * axis is theirs to override — this is the one place the override meets the skill's default, so
+     * every reader (the run context, the listings) sees the same effective value.
      * Caller is responsible for any authorization — this method has no ownership check.
      * Soft-deleted skills are filtered out.
      */
-    public Map<UUID, AgentSkillWithConnectorsResponse> resolveSkillsById(List<UUID> skillIds) {
-        if (skillIds.isEmpty()) {
+    public Map<UUID, AgentSkillWithConnectorsResponse> resolveSkills(List<AgentSkill> bindings) {
+        if (bindings.isEmpty()) {
             return Map.of();
         }
+        Map<UUID, Disclosure> overrides = new HashMap<>();
+        for (AgentSkill binding : bindings) {
+            if (binding.getDisclosure() != null) {
+                overrides.put(binding.getSkillId(), binding.getDisclosure());
+            }
+        }
         Map<UUID, AgentSkillWithConnectorsResponse> result = new HashMap<>();
-        for (Skill skill : skillRepository.findByIdInNotDeleted(skillIds)) {
+        for (Skill skill : skillRepository.findByIdInNotDeleted(bindings.stream().map(AgentSkill::getSkillId).toList())) {
             result.put(skill.getId(), new AgentSkillWithConnectorsResponse(
                     skill.getId(),
                     skill.getName(),
                     skill.getDescription(),
                     skill.getConnectorCodes(),
-                    skill.getDisclosure()
+                    overrides.getOrDefault(skill.getId(), skill.getDisclosure())
             ));
         }
         return result;
@@ -118,16 +128,19 @@ public class AgentSkillService {
 
     @Transactional
     public AgentSkillResponse create(UUID agentId, UUID skillId, UUID userId) {
-        return create(agentId, skillId, userId, Map.of());
+        return create(agentId, skillId, userId, Map.of(), null);
     }
 
     /**
      * Bind a skill, recording which instance it means for every connector it declares
      * ({@code requested}: connector code → connection). The reference is not a grant — the tools open
      * through {@code agent_connections} as before; this only fixes «which of the two telegrams».
+     *
+     * @param disclosure the binding's override of the skill's axis; {@code null} — the skill's own applies
      */
     @Transactional
-    public AgentSkillResponse create(UUID agentId, UUID skillId, UUID userId, Map<String, UUID> requested) {
+    public AgentSkillResponse create(UUID agentId, UUID skillId, UUID userId, Map<String, UUID> requested,
+                                     Disclosure disclosure) {
         verifyAgentOwnership(agentId, userId);
         Skill skill = verifySkillAccessible(skillId, userId);
         requireDeclared(skill, requested);
@@ -137,6 +150,7 @@ public class AgentSkillService {
                 .agentId(agentId)
                 .skillId(skillId)
                 .installedSkillVersion(skill.getVersion())
+                .disclosure(disclosure)
                 .build();
 
         try {
@@ -151,7 +165,28 @@ public class AgentSkillService {
 
         SkillResolution resolution = resolveSkills(agentId);
         return AgentSkillResponse.from(agentSkill, skill.getName(),
-                statuses(resolution, agentSkill.getId(), skill.getConnectorCodes()), false);
+                statuses(resolution, agentSkill.getId(), skill.getConnectorCodes()), false, skill.getDisclosure());
+    }
+
+    /**
+     * The binding's disclosure override — the same skill in the prompt of one agent, on demand for
+     * another. The instance references are not touched.
+     *
+     * @param disclosure {@code null} drops the override, the skill's own axis applies again
+     */
+    @Transactional
+    public AgentSkillResponse updateDisclosure(UUID agentId, UUID skillId, UUID userId, Disclosure disclosure) {
+        verifyAgentOwnership(agentId, userId);
+        Skill skill = verifySkillAccessible(skillId, userId);
+        AgentSkill agentSkill = agentSkillRepository.findByAgentIdAndSkillId(agentId, skillId)
+                .orElseThrow(() -> new NotFoundStatusException("Skill is not bound to this agent"));
+
+        agentSkill.setDisclosure(disclosure);
+        agentSkill = agentSkillRepository.save(agentSkill);
+
+        SkillResolution resolution = resolveSkills(agentId);
+        return AgentSkillResponse.from(agentSkill, skill.getName(),
+                statuses(resolution, agentSkill.getId(), skill.getConnectorCodes()), false, skill.getDisclosure());
     }
 
     @Transactional
@@ -218,7 +253,7 @@ public class AgentSkillService {
 
         SkillResolution resolution = resolveSkills(agentId);
         return AgentSkillResponse.from(agentSkill, skill.getName(),
-                statuses(resolution, agentSkill.getId(), skill.getConnectorCodes()), false);
+                statuses(resolution, agentSkill.getId(), skill.getConnectorCodes()), false, skill.getDisclosure());
     }
 
     /**

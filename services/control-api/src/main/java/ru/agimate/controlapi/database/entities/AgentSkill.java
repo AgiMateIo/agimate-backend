@@ -5,6 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.Generated;
 import ru.agimate.common.persistence.BaseEntity;
+import ru.agimate.controlapi.database.enums.Disclosure;
 
 import java.util.UUID;
 
@@ -41,4 +42,9 @@ public class AgentSkill extends BaseEntity {
 
     @Column(name = "installed_skill_version")
     private Integer installedSkillVersion;
+
+    /** The binding's own disclosure axis; {@code null} — the skill's default applies. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "disclosure", columnDefinition = "TEXT")
+    private Disclosure disclosure;
 }

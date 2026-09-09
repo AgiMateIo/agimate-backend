@@ -166,7 +166,7 @@ class RunContextServiceTest {
                 })
                 .toList();
         when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(refs);
-        when(agentSkillService.resolveSkillsById(anyList())).thenReturn(
+        when(agentSkillService.resolveSkills(anyList())).thenReturn(
                 skills.stream().collect(java.util.stream.Collectors.toMap(
                         AgentSkillWithConnectorsResponse::skillId, s -> s)));
         // Every stubbed skill counts as satisfied and points at the connection of its code — the
@@ -619,7 +619,7 @@ class RunContextServiceTest {
                 return ref;
             }).toList();
             when(agentSkillRepository.findByAgentId(AGENT_ID)).thenReturn(refs);
-            when(agentSkillService.resolveSkillsById(anyList())).thenReturn(skills.stream()
+            when(agentSkillService.resolveSkills(anyList())).thenReturn(skills.stream()
                     .collect(java.util.stream.Collectors.toMap(AgentSkillWithConnectorsResponse::skillId, sk -> sk)));
             when(agentSkillService.satisfiedSkillInstances(AGENT_ID)).thenReturn(satisfied);
             when(connectionRepository.findActiveBoundToAgent(AGENT_ID)).thenReturn(connections);

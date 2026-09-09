@@ -11,6 +11,7 @@ import ru.agimate.common.rest.SuccessResponse;
 import ru.agimate.common.security.jwt.AgimateUserPrincipal;
 import ru.agimate.controlapi.controller.manage.dto.AgentSkillResponse;
 import ru.agimate.controlapi.controller.manage.dto.CreateAgentSkillRequest;
+import ru.agimate.controlapi.controller.manage.dto.UpdateAgentSkillRequest;
 import ru.agimate.controlapi.service.AgentSkillService;
 
 import java.util.Map;
@@ -47,7 +48,20 @@ public class ManageAgentSkillController {
     ) {
         UUID userId = UUID.fromString(principal.id());
         return SuccessResponse.ok(agentSkillService.create(
-                agentId, request.skillId(), userId, request.resolveConnections()));
+                agentId, request.skillId(), userId, request.resolveConnections(), request.disclosure()));
+    }
+
+    @Operation(summary = "Change the binding: the disclosure axis override for this agent")
+    @PatchMapping("/{skillId}")
+    public SuccessResponse<AgentSkillResponse> updateAgentSkill(
+            @AuthenticationPrincipal AgimateUserPrincipal principal,
+            @PathVariable UUID agentId,
+            @PathVariable UUID skillId,
+            @Valid @RequestBody UpdateAgentSkillRequest request
+    ) {
+        UUID userId = UUID.fromString(principal.id());
+        return SuccessResponse.ok(agentSkillService.updateDisclosure(
+                agentId, skillId, userId, request.disclosure().toOverride()));
     }
 
     @Operation(summary = "Replace the instances the skill works with (connector code → connection id)")

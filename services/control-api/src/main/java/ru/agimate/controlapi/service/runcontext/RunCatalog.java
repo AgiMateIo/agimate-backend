@@ -210,12 +210,10 @@ public class RunCatalog {
      */
     private Scope skillScope(UUID agentId, boolean skillTools) {
         Map<UUID, Set<UUID>> satisfied = agentSkillService.satisfiedSkillInstances(agentId);
-        List<UUID> skillIds = agentSkillRepository.findByAgentId(agentId).stream()
-                .map(AgentSkill::getSkillId)
-                .toList();
-        Map<UUID, AgentSkillWithConnectorsResponse> resolved = agentSkillService.resolveSkillsById(skillIds);
-        List<AgentSkillWithConnectorsResponse> listed = skillIds.stream()
-                .map(resolved::get)
+        List<AgentSkill> bindings = agentSkillRepository.findByAgentId(agentId);
+        Map<UUID, AgentSkillWithConnectorsResponse> resolved = agentSkillService.resolveSkills(bindings);
+        List<AgentSkillWithConnectorsResponse> listed = bindings.stream()
+                .map(binding -> resolved.get(binding.getSkillId()))
                 .filter(Objects::nonNull)
                 .filter(skill -> satisfied.containsKey(skill.skillId()))
                 .toList();

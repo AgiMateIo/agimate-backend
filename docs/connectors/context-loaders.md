@@ -11,7 +11,7 @@
 
 | Коннектор | Ось | Без него | С ним |
 |---|---|---|---|
-| `skill-loader` | тела навыков (`skills.disclosure`, фронтматтер `SKILL.md`) | все тела в системном промпте | тела `lazy`-навыков не едут; в блоке `skills` у них строка `disclosure: lazy` |
+| `skill-loader` | тела навыков (`skills.disclosure` из фронтматтера `SKILL.md`; привязка переопределяет — `agent_skills.disclosure`) | все тела в системном промпте | тела `lazy`-навыков не едут; в блоке `skills` у них строка `disclosure: lazy` |
 | `tool-loader` | схемы тулов (`connectors.disclosure`, `@Tool(disclosure)`) | все схемы в `tools` | `LAZY`-тулы едут вывеской в блок `deferred_tools` (`llm_name: summary`), без схемы |
 
 ## Тулы
