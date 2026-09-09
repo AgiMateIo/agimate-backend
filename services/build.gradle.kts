@@ -5,6 +5,15 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7" apply false
 }
 
+/**
+ * The version of every module, in one place. The release itself is the annotated git tag — that is
+ * what the deploy reads (`git describe --tags` names the image), so this string only names the jars
+ * and has to be moved with the tag. CI may override it with `-PbuildVersion=`.
+ */
+allprojects {
+    version = findProperty("buildVersion") ?: "0.3.4"
+}
+
 allprojects {
     pluginManager.withPlugin("java") {
         dependencies {

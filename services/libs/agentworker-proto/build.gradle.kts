@@ -4,7 +4,6 @@ plugins {
 }
 
 group = "ru.agimate"
-version = findProperty("buildVersion") ?: "0.0.1"
 
 // Codegen tool versions; runtime artifact versions come from the root constraints block —
 // keep the two in sync when bumping.

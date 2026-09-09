@@ -7,7 +7,6 @@ plugins {
 val springAiVersion = "2.0.0"
 
 group = "ru.agimate.agentworker"
-version = findProperty("buildVersion") ?: "0.1.0"
 
 java {
     toolchain {

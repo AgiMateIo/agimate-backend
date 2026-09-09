@@ -5,7 +5,6 @@ plugins {
 }
 
 group = "ru.agimate"
-version = findProperty("buildVersion") ?: "0.0.1"
 
 java {
     toolchain {
