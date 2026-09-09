@@ -17,7 +17,7 @@
             WHERE user_id = '00000000-0000-0000-0000-000000000000'
               AND deleted_at IS NULL
               AND name IN ('time', 'persist-memory')
-              AND disclosure <> 'EAGER';
+              AND disclosure != 'EAGER';
         </sql>
     </changeSet>
 
