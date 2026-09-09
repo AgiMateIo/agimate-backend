@@ -78,11 +78,11 @@ class ToolCallDispatcher implements AgiMateAgent.ToolDispatcher {
                     tc.argumentsJson(), bt.timeoutSeconds()));
         }
 
+        // The step runs even with nothing to issue. DBOS matches a step to its checkpoint by ordinal
+        // within the workflow, so the sequence must not depend on how the names resolved: a turn whose
+        // calls all came back deferred or unknown would otherwise consume no ordinal, and a replay that
+        // resolved them differently would read every later step's checkpoint off by one.
         List<AgentChatMessage.ToolResult> results = new ArrayList<>(planned.size());
-        if (toIssue.isEmpty()) {
-            planned.forEach(p -> results.add(p.immediate));
-            return results;
-        }
         // Filled by the step body; empty after a replay, when the contents are re-read by id.
         Map<String, String> held = new HashMap<>();
         ToolCallStep.Outcomes outcomes = dbos.runStep(() -> step.run(toIssue, agentId, runId, held), "tool_calls");

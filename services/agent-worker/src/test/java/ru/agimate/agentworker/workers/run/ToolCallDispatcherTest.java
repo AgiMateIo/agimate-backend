@@ -31,7 +31,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ToolCallDispatcherTest {
@@ -164,14 +163,18 @@ class ToolCallDispatcherTest {
         }
 
         @Test
-        @DisplayName("неизвестный тул отвечается сразу, без шага")
-        void unknownToolNeedsNoStep() {
+        @DisplayName("неизвестный тул отвечается сразу, но шаг всё равно выполняется — номер в воркфлоу не должен пропасть")
+        @SuppressWarnings("unchecked")
+        void unknownToolStillConsumesItsStep() {
+            when(dbos.runStep(any(ThrowingSupplier.class), eq("tool_calls")))
+                    .thenAnswer(inv -> inv.getArgument(0, ThrowingSupplier.class).execute());
+
             List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(
                     List.of(new AgentChatMessage.ToolCall("x", "nope", "{}")));
 
             assertTrue(results.get(0).failed());
             assertTrue(results.get(0).contentJson().contains("unknown tool name"));
-            verifyNoInteractions(dbos);
+            verify(step).run(eq(List.of()), any(), any(), any());
         }
     }
 
@@ -245,6 +248,7 @@ class ToolCallDispatcherTest {
 
         @Test
         @DisplayName("вызов ещё не раскрытого тула отвечается подсказкой про load_tools, не «unknown»")
+        @SuppressWarnings("unchecked")
         void deferredToolPointsAtDescribe() {
             List<AgentChatMessage.ToolResult> results = dispatcher.dispatchAll(
                     List.of(new AgentChatMessage.ToolCall("x", "platform__agent_list", "{}")));
@@ -252,7 +256,9 @@ class ToolCallDispatcherTest {
             assertTrue(results.get(0).failed());
             assertTrue(results.get(0).contentJson().contains("load_tools"));
             assertFalse(results.get(0).contentJson().contains("unknown"));
-            verifyNoInteractions(dbos);
+            // The turn issues nothing, but its step is still spent: the checkpoint sequence of a run
+            // must not depend on whether the names resolved (see ToolCallDispatcher.dispatchAll).
+            verify(dbos).runStep(any(ThrowingSupplier.class), eq("tool_calls"));
         }
 
         @Test
