@@ -1,7 +1,7 @@
 ---
-status: accepted
+status: partial
 created: 2026-09-08
-updated: 2026-09-09
+implemented: 2026-09-09
 ---
 
 # Постепенное раскрытие контекста: навыки и схемы тулов
