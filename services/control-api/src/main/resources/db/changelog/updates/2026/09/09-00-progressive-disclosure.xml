@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.29.xsd">
+
+    <!--
+      Progressive disclosure (docs/decisions/progressive-disclosure.md): whether a connector's tool
+      schemas and a skill's body go into a run up front (EAGER) or on demand (LAZY). Three columns,
+      because the two axes are independent and the skill's one is overridable per binding.
+
+      The connector value is synced from the handler's traits on every start, so the column is a
+      mirror of the code and a hand edit on an installation does not survive. The skill value comes
+      from SKILL.md, but only on the first seeding: system skills are seed-only-if-missing, so the
+      DML below is the only way the frontmatter reaches an environment seeded before the axis
+      existed. On a fresh environment every DML changeset here is a no-op on empty tables and the
+      classpath wins, since both bootstraps run on application-ready, after Liquibase.
+    -->
+    <changeSet id="add-connectors-disclosure" author="agimate">
+        <addColumn tableName="connectors">
+            <column name="disclosure" type="TEXT" defaultValue="EAGER">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>
+            ALTER TABLE connectors
+                ADD CONSTRAINT chk_connectors_disclosure CHECK (disclosure IN ('EAGER', 'LAZY'));
+        </sql>
+    </changeSet>
+
+    <changeSet id="add-skills-disclosure" author="agimate">
+        <addColumn tableName="skills">
+            <column name="disclosure" type="TEXT" defaultValue="EAGER">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <sql>
+            ALTER TABLE skills
+                ADD CONSTRAINT chk_skills_disclosure CHECK (disclosure IN ('EAGER', 'LAZY'));
+        </sql>
+    </changeSet>
+
+    <!--
+      The skill's axis, overridden per binding: the same skill may sit in the prompt of one agent and
+      be loaded on demand by another. NULL means «inherit the skill's own axis» — the binding stays a
+      pointer, so a later change of the skill's default reaches it.
+    -->
+    <changeSet id="add-agent-skills-disclosure" author="agimate">
+        <addColumn tableName="agent_skills">
+            <column name="disclosure" type="TEXT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <sql>
+            ALTER TABLE agent_skills
+                ADD CONSTRAINT chk_agent_skills_disclosure CHECK (disclosure IS NULL OR disclosure IN ('EAGER', 'LAZY'));
+        </sql>
+    </changeSet>
+
+    <!--
+      The deferred skills, named positively so this list and the `disclosure: lazy` lines in
+      seed/skills/*/SKILL.md are one list rather than two kept in step by hand. Everything not named
+      here stays EAGER by the column default, and that is deliberate for three of them: persist-memory
+      and media are behavioural (when to save a note, how to iterate on pictures) and a model never
+      loads an instruction it does not know it needs; time is reached for by nearly every run, and a
+      deferred body cost an extra model turn on «what time is it» in the first live run.
+    -->
+    <changeSet id="set-seeded-skills-disclosure" author="agimate">
+        <sql>
+            UPDATE skills
+            SET disclosure = 'LAZY', updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = '00000000-0000-0000-0000-000000000000'
+              AND deleted_at IS NULL
+              AND name IN ('acp', 'astro', 'board', 'divination', 'platform', 'sheets')
+              AND disclosure != 'LAZY';
+        </sql>
+    </changeSet>
+
+    <!--
+      The presets with heavy connectors get the two loader skills; the bootstrap seeds the bindings
+      from these names once the skills exist. One statement per name, each guarded by its own
+      containment test, so a hand-edited list that already holds one of them does not get a duplicate.
+    -->
+    <changeSet id="add-loader-skills-to-heavy-presets" author="agimate">
+        <sql>
+            UPDATE agent_presets
+            SET skill_names = skill_names || ARRAY['skill-loader'],
+                updated_at = CURRENT_TIMESTAMP
+            WHERE name IN ('health-diary', 'platform-admin')
+              AND NOT (skill_names @> ARRAY['skill-loader']);
+
+            UPDATE agent_presets
+            SET skill_names = skill_names || ARRAY['tool-loader'],
+                updated_at = CURRENT_TIMESTAMP
+            WHERE name IN ('health-diary', 'platform-admin')
+              AND NOT (skill_names @> ARRAY['tool-loader']);
+        </sql>
+    </changeSet>
+
+    <!-- «You already have their schemas» stops being true once the platform tools are deferred. -->
+    <changeSet id="drop-schemas-claim-from-platform-skill" author="agimate">
+        <sql>
+            UPDATE skills
+            SET md_content = replace(md_content, ' Инструменты `platform.*` (их схемы у тебя уже есть).', ' Инструменты — `platform.*`.'),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = '00000000-0000-0000-0000-000000000000'
+              AND name = 'platform'
+              AND md_content LIKE '%их схемы у тебя уже есть%';
+
+            UPDATE skills
+            SET md_content = replace(md_content, ' The tools are `platform.*` (you already have their schemas).', ' The tools are `platform.*`.'),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = '00000000-0000-0000-0000-000000000000'
+              AND name = 'platform'
+              AND md_content LIKE '%you already have their schemas%';
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>
