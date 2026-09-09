@@ -212,4 +212,31 @@ class ToolRegistryTest {
             assertEquals(1, reg.toolDefs().size());
         }
     }
+
+    @Nested
+    @DisplayName("маркер материала контекста")
+    class Material {
+
+        private static ConnectorToolSpec marked(String connectorCode, String name) {
+            return ConnectorToolSpec.newBuilder().setConnectorCode(connectorCode).setNamespace(connectorCode)
+                    .setName(name).setConnectionId("conn-0")
+                    .putMeta(ToolRegistry.META_CONTEXT_MATERIAL, "tools").build();
+        }
+
+        @Test
+        @DisplayName("у тула загрузчика маркер читается")
+        void loaderIsBelieved() {
+            ToolRegistry registry = ToolRegistry.build(List.of(marked("tool-loader", "load_tools")));
+
+            assertEquals(ContextMaterial.TOOLS, registry.resolve("tool-loader__load_tools").material());
+        }
+
+        @Test
+        @DisplayName("у чужого коннектора тот же маркер игнорируется: дельту объявляет только загрузчик")
+        void foreignConnectorIsNot() {
+            ToolRegistry registry = ToolRegistry.build(List.of(marked("mcp-tutu", "search")));
+
+            assertEquals(ContextMaterial.NONE, registry.resolve("mcp-tutu__search").material());
+        }
+    }
 }

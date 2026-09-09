@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Mapping between LLM-facing tool names and backend connector tools for one agent run.
@@ -35,6 +36,15 @@ public final class ToolRegistry {
 
     /** {@code _meta} key marking a tool whose result is a context delta; values {@code tools} | {@code skill}. */
     public static final String META_CONTEXT_MATERIAL = "agimate.context_material";
+
+    /**
+     * The only connectors whose {@code _meta} marker is believed. A delta result is parsed instead of
+     * being shown to the model and its specs go straight into the callable set, so the marker decides
+     * how a tool's output is treated — it must not be something a remote server can put on its own
+     * tool. Today no dynamic tool carries {@code _meta} at all ({@code ConnectionToolMapper} drops it);
+     * this keeps that true no matter what is plumbed through later.
+     */
+    private static final Set<String> DELTA_CONNECTORS = Set.of("tool-loader", "skill-loader");
 
     private static final String EMPTY_OBJECT_SCHEMA =
             "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}";
@@ -90,11 +100,18 @@ public final class ToolRegistry {
         return names;
     }
 
+    /** The declared material, believed only from a loader connector — see {@link #DELTA_CONNECTORS}. */
+    private static ContextMaterial material(ConnectorToolSpec spec) {
+        if (!DELTA_CONNECTORS.contains(spec.getConnectorCode())) {
+            return ContextMaterial.NONE;
+        }
+        return ContextMaterial.fromMeta(spec.getMetaMap().get(META_CONTEXT_MATERIAL));
+    }
+
     private String register(ConnectorToolSpec spec) {
         String name = spec.getLlmName().isBlank() ? fallbackName(spec) : spec.getLlmName();
         routing.put(name, new BackendTool(spec.getConnectorCode(), spec.getName(), spec.getConnectionId(),
-                spec.getAnnotations().getOpenWorldHint(), spec.getTimeoutSeconds(),
-                ContextMaterial.fromMeta(spec.getMetaMap().get(META_CONTEXT_MATERIAL))));
+                spec.getAnnotations().getOpenWorldHint(), spec.getTimeoutSeconds(), material(spec)));
         return name;
     }
 
