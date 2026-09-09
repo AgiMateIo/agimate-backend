@@ -117,4 +117,33 @@
         </sql>
     </changeSet>
 
+    <!--
+      The tool-loader skill promised more than the system delivers: a disclosed tool lives for the run,
+      and across runs only while the history window still shows the call. A model that believes the
+      promise calls a deferred tool without loading it and loses a turn.
+    -->
+    <changeSet id="fix-tool-loader-lifetime-claim" author="agimate">
+        <sql>
+            UPDATE skills
+            SET md_content = replace(md_content,
+                    '- Загруженное остаётся доступным до конца сессии; загружать повторно не нужно.',
+                    '- Загруженное доступно до конца этого запуска, а дальше — пока вызов виден в истории разговора.' || chr(10) ||
+                    '  Если тул снова оказался в `deferred_tools`, значит его пора загрузить заново.'),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = '00000000-0000-0000-0000-000000000000'
+              AND name = 'tool-loader'
+              AND md_content LIKE '%до конца сессии%';
+
+            UPDATE skills
+            SET md_content = replace(md_content,
+                    '- What you loaded stays available for the rest of the session; there is no need to load it again.',
+                    '- What you loaded stays available for the rest of this run, and beyond it for as long as the call' || chr(10) ||
+                    '  is still in the conversation history. A tool back in `deferred_tools` needs loading again.'),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = '00000000-0000-0000-0000-000000000000'
+              AND name = 'tool-loader'
+              AND md_content LIKE '%rest of the session%';
+        </sql>
+    </changeSet>
+
 </databaseChangeLog>

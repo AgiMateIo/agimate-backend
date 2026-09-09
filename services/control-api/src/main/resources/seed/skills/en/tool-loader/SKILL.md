@@ -2,6 +2,7 @@
 name: tool-loader
 title: Deferred tools
 description: Loading the full definitions of deferred tools on demand — the agent sees them listed with short summaries and loads the ones the current task needs.
+disclosure: eager
 connectors: [tool-loader]
 ---
 
@@ -19,5 +20,6 @@ Not all of your tools are available from the first turn. Some are **deferred**: 
 
 - Names come from the listing only, letter for letter. A miss is answered with the names of the same connector.
 - Do not call a deferred tool before loading it: it does not exist for calling yet, you will get an error and lose a turn.
-- What you loaded stays available for the rest of the session; there is no need to load it again.
+- What you loaded stays available for the rest of this run, and beyond it for as long as the call
+  is still in the conversation history. A tool back in `deferred_tools` needs loading again.
 - A listed tool that does not fit the task is not loaded «just in case»: extra schemas take up context.
